@@ -33,10 +33,11 @@ use crate::core::core::Transaction;
 use crate::core::{global, ser};
 use crate::libwallet::types::*;
 use crate::libwallet::{internal, Error, ErrorKind};
-use crate::types::{WalletConfig, WalletSeed};
+use crate::types::WalletSeed;
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::ZeroingString;
+use config::WalletConfig;
 
 pub const DB_DIR: &'static str = "db";
 pub const TX_SAVE_DIR: &'static str = "saved_txs";
@@ -48,12 +49,6 @@ const PRIVATE_TX_CONTEXT_PREFIX: u8 = 'p' as u8;
 const TX_LOG_ENTRY_PREFIX: u8 = 't' as u8;
 const TX_LOG_ID_PREFIX: u8 = 'i' as u8;
 const ACCOUNT_PATH_MAPPING_PREFIX: u8 = 'a' as u8;
-
-impl From<store::Error> for Error {
-	fn from(error: store::Error) -> Error {
-		Error::from(ErrorKind::Backend(format!("{}", error)))
-	}
-}
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations

@@ -27,13 +27,11 @@ use toml;
 
 use crate::comments::insert_comments;
 use crate::core::global;
-use crate::p2p;
-use crate::servers::ServerConfig;
 use crate::types::{
-	ConfigError, ConfigMembers, GlobalConfig, GlobalWalletConfig, GlobalWalletConfigMembers,
+	ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers,
 };
 use crate::util::LoggingConfig;
-use crate::wallet::WalletConfig;
+use crate::types::WalletConfig;
 
 /// Wallet configuration file name
 pub const WALLET_CONFIG_FILE_NAME: &'static str = "grin-wallet.toml";
@@ -41,6 +39,7 @@ const WALLET_LOG_FILE_NAME: &'static str = "grin-wallet.log";
 const GRIN_HOME: &'static str = ".grin";
 /// Wallet data directory
 pub const GRIN_WALLET_DIR: &'static str = "wallet_data";
+/// API secret
 pub const API_SECRET_FILE_NAME: &'static str = ".api_secret";
 
 fn get_grin_path(chain_type: &global::ChainTypes) -> Result<PathBuf, ConfigError> {

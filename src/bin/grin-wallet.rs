@@ -19,15 +19,12 @@ extern crate clap;
 
 #[macro_use]
 extern crate log;
-use crate::config::config::{SERVER_CONFIG_FILE_NAME, WALLET_CONFIG_FILE_NAME};
 use crate::core::global;
 use crate::util::init_logger;
 use clap::App;
 use grin_api as api;
-use grin_config as config;
+use grin_wallet_config as config;
 use grin_core as core;
-use grin_p2p as p2p;
-use grin_servers as servers;
 use grin_util as util;
 use std::process::exit;
 
@@ -41,7 +38,7 @@ pub mod built_info {
 pub fn info_strings() -> (String, String) {
 	(
 		format!(
-			"This is Grin version {}{}, built for {} by {}.",
+			"This is Grin Wallet version {}{}, built for {} by {}.",
 			built_info::PKG_VERSION,
 			built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
 			built_info::TARGET,
@@ -89,7 +86,7 @@ fn real_main() -> i32 {
 			// (if desired)
 			if let ("init", Some(init_args)) = wallet_args.subcommand() {
 				if init_args.is_present("here") {
-					cmd::config_command_wallet(&chain_type, WALLET_CONFIG_FILE_NAME);
+					cmd::config_command_wallet(&chain_type, config::WALLET_CONFIG_FILE_NAME);
 				}
 			}
 		}
@@ -118,28 +115,9 @@ fn real_main() -> i32 {
 				w.config_file_path.as_ref().unwrap().to_str().unwrap()
 			);
 			wallet_config = Some(w);
-		}
-		// When the subscommand is 'server' take into account the 'config_file' flag
-		("server", Some(server_args)) => {
-			if let Some(_path) = server_args.value_of("config_file") {
-				node_config = Some(config::GlobalConfig::new(_path).unwrap_or_else(|e| {
-					panic!("Error loading server configuration: {}", e);
-				}));
-			} else {
-				node_config = Some(
-					config::initial_setup_server(&chain_type).unwrap_or_else(|e| {
-						panic!("Error loading server configuration: {}", e);
-					}),
-				);
-			}
-		}
+		},
 		// Otherwise load up the node config as usual
 		_ => {
-			node_config = Some(
-				config::initial_setup_server(&chain_type).unwrap_or_else(|e| {
-					panic!("Error loading server configuration: {}", e);
-				}),
-			);
 		}
 	}
 
@@ -167,7 +145,7 @@ fn real_main() -> i32 {
 	log_build_info();
 
 	// Execute subcommand
-	match args.subcommand() {
+	/*match args.subcommand() {
 		// server commands and options
 		("server", Some(server_args)) => {
 			cmd::server_command(Some(server_args), node_config.unwrap())
@@ -183,5 +161,5 @@ fn real_main() -> i32 {
 		// this could possibly become the way to configure most things
 		// with most command line options being phased out
 		_ => cmd::server_command(None, node_config.unwrap()),
-	}
+	}*/
 }

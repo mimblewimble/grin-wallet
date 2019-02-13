@@ -16,7 +16,7 @@ name = "grin-wallet"
 path = "src/bin/grin-wallet.rs"
 
 [workspace]
-members = ["libwallet", "config"]
+members = ["config", "libwallet", "refwallet"]
 
 [dependencies]
 clap = { version = "2.31", features = ["yaml"] }
@@ -42,6 +42,9 @@ ring = "0.13"
 uuid = { version = "0.6", features = ["serde", "v4"] }
 url = "1.7.0"
 chrono = { version = "0.4.4", features = ["serde"] }
+
+grin_libwallet = { path = "./libwallet", version = "1.1.0" }
+grin_wallet_config = { path = "./config", version = "1.1.0" }
 
 grin_api = { path = "../grin/api", version = "1.1.0" }
 grin_core = { path = "../grin/core", version = "1.1.0" }

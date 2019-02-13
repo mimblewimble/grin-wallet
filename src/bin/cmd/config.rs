@@ -13,36 +13,9 @@
 // limitations under the License.
 
 /// Grin configuration file output command
-use crate::config::{config, GlobalConfig, GlobalWalletConfig, GRIN_WALLET_DIR};
+use crate::config::{config, GlobalWalletConfig, GRIN_WALLET_DIR};
 use crate::core::global;
 use std::env;
-
-/// Create a config file in the current directory
-pub fn config_command_server(chain_type: &global::ChainTypes, file_name: &str) {
-	let mut default_config = GlobalConfig::for_chain(chain_type);
-	let current_dir = env::current_dir().unwrap_or_else(|e| {
-		panic!("Error creating config file: {}", e);
-	});
-	let mut config_file_name = current_dir.clone();
-	config_file_name.push(file_name);
-	if config_file_name.exists() {
-		panic!(
-			"{} already exists in the current directory. Please remove it first",
-			file_name
-		);
-	}
-	default_config.update_paths(&current_dir);
-	default_config
-		.write_to_file(config_file_name.to_str().unwrap())
-		.unwrap_or_else(|e| {
-			panic!("Error creating config file: {}", e);
-		});
-
-	println!(
-		"{} file configured and created in current directory",
-		file_name
-	);
-}
 
 /// Create a config file in the current directory
 pub fn config_command_wallet(chain_type: &global::ChainTypes, file_name: &str) {

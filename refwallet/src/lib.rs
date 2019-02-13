@@ -25,18 +25,18 @@ extern crate serde_derive;
 extern crate log;
 use failure;
 use grin_api as api;
-#[macro_use]
 extern crate grin_core as core;
 use grin_keychain as keychain;
 use grin_store as store;
 use grin_util as util;
+use grin_libwallet as libwallet;
+extern crate grin_wallet_config as config;
 
 mod adapters;
 pub mod command;
 pub mod controller;
 pub mod display;
 mod error;
-pub mod libwallet;
 pub mod lmdb_wallet;
 mod node_clients;
 pub mod test_framework;
@@ -53,7 +53,8 @@ pub use crate::libwallet::types::{
 };
 pub use crate::lmdb_wallet::{wallet_db_exists, LMDBBackend};
 pub use crate::node_clients::{create_coinbase, HTTPNodeClient};
-pub use crate::types::{EncryptedWalletSeed, WalletConfig, WalletSeed, SEED_FILE};
+pub use crate::types::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
+use config::WalletConfig;
 
 use crate::util::Mutex;
 use std::sync::Arc;

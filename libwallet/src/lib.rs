@@ -27,6 +27,7 @@ extern crate grin_core as core;
 
 extern crate grin_keychain as keychain;
 extern crate grin_util as util;
+extern crate grin_store as store;
 
 use blake2_rfc as blake2;
 

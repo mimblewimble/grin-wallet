@@ -298,3 +298,11 @@ impl From<committed::Error> for Error {
 		}
 	}
 }
+
+impl From<store::Error> for Error {
+	fn from(error: store::Error) -> Error {
+		Error::from(ErrorKind::Backend(format!("{}", error)))
+	}
+}
+
+
