@@ -17,12 +17,10 @@ use self::core::libtx::{aggsig, proof};
 use self::keychain::{BlindSum, BlindingFactor, ExtKeychain, Keychain};
 use self::util::secp;
 use self::util::secp::key::{PublicKey, SecretKey};
-use self::wallet::libwallet::types::Context;
-use self::wallet::{EncryptedWalletSeed, WalletSeed};
+use grin_libwallet::types::Context;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
-use grin_wallet as wallet;
 use rand::thread_rng;
 
 fn kernel_sig_msg() -> secp::Message {
@@ -499,23 +497,4 @@ fn test_rewind_range_proof() {
 
 	assert_eq!(proof_info.success, false);
 	assert_eq!(proof_info.value, 0);
-}
-
-#[test]
-fn wallet_seed_encrypt() {
-	let password = "passwoid";
-	let wallet_seed = WalletSeed::init_new(32);
-	let mut enc_wallet_seed = EncryptedWalletSeed::from_seed(&wallet_seed, password).unwrap();
-	println!("EWS: {:?}", enc_wallet_seed);
-	let decrypted_wallet_seed = enc_wallet_seed.decrypt(password).unwrap();
-	assert_eq!(wallet_seed, decrypted_wallet_seed);
-
-	// Wrong password
-	let decrypted_wallet_seed = enc_wallet_seed.decrypt("");
-	assert!(decrypted_wallet_seed.is_err());
-
-	// Wrong nonce
-	enc_wallet_seed.nonce = "wrongnonce".to_owned();
-	let decrypted_wallet_seed = enc_wallet_seed.decrypt(password);
-	assert!(decrypted_wallet_seed.is_err());
 }

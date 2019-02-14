@@ -27,3 +27,6 @@ grin_store = { path = "../../grin/store", version = "1.1.0" }
 grin_core = { path = "../../grin/core", version = "1.1.0" }
 grin_keychain = { path = "../../grin/keychain", version = "1.1.0" }
 grin_util = { path = "../../grin/util", version = "1.1.0" }
+
+[dev-dependencies]
+grin_wallet_config = { path = "../config", version = "1.1.0" }

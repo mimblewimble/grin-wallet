@@ -17,7 +17,7 @@ use self::core::core::{OutputFeatures, OutputIdentifier, Transaction};
 use self::core::{consensus, global, pow, ser};
 use self::util::secp::pedersen;
 use self::util::Mutex;
-use crate::libwallet::api::APIOwner;
+use crate::apiwallet::api::APIOwner;
 use crate::libwallet::types::{BlockFees, CbData, NodeClient, WalletInfo, WalletInst};
 use crate::lmdb_wallet::LMDBBackend;
 use crate::{controller, libwallet, WalletSeed};

@@ -28,6 +28,7 @@ use grin_api as api;
 extern crate grin_core as core;
 use grin_keychain as keychain;
 use grin_libwallet as libwallet;
+use grin_apiwallet as apiwallet;
 use grin_store as store;
 use grin_util as util;
 extern crate grin_wallet_config as config;

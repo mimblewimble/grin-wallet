@@ -22,27 +22,16 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-#[macro_use]
 extern crate grin_core as core;
-
 extern crate grin_keychain as keychain;
 extern crate grin_store as store;
 extern crate grin_util as util;
-
-use blake2_rfc as blake2;
+extern crate grin_libwallet as libwallet;
 
 use failure;
 extern crate failure_derive;
 
 #[macro_use]
-extern crate serde_derive;
-#[macro_use]
 extern crate log;
 
-mod error;
-pub mod internal;
-pub mod slate;
-pub mod slate_versions;
-pub mod types;
-
-pub use crate::error::{Error, ErrorKind};
+pub mod api;

@@ -21,7 +21,7 @@ use crate::api::{ApiServer, BasicAuthMiddleware, Handler, ResponseFuture, Router
 use crate::core::core;
 use crate::core::core::Transaction;
 use crate::keychain::Keychain;
-use crate::libwallet::api::{APIForeign, APIOwner};
+use crate::apiwallet::api::{APIForeign, APIOwner};
 use crate::libwallet::slate::{Slate, VersionedSlate};
 use crate::libwallet::types::{
 	CbData, NodeClient, OutputData, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,

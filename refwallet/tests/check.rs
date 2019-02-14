@@ -14,17 +14,18 @@
 //! tests differing accounts in the same wallet
 #[macro_use]
 extern crate log;
+extern crate grin_refwallet as wallet;
 
 use self::core::consensus;
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
-use self::wallet::test_framework::{self, LocalWalletClient, WalletProxy};
-use self::wallet::{libwallet, FileWalletCommAdapter};
+use wallet::FileWalletCommAdapter;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
-use grin_wallet as wallet;
+use grin_libwallet as libwallet;
+use wallet::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::thread;
 use std::time::Duration;

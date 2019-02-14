@@ -104,15 +104,13 @@ mod wallet_tests {
 		args: ArgMatches<'a>,
 	) -> ArgMatches<'a> {
 		match args.subcommand() {
-			("wallet", Some(wallet_args)) => {
+			("init", Some(init_args)) => {
 				// wallet init command should spit out its config file then continue
 				// (if desired)
-				if let ("init", Some(init_args)) = wallet_args.subcommand() {
-					if init_args.is_present("here") {
-						let _ = config_command_wallet(wallet_dir, wallet_name);
-					}
+				if init_args.is_present("here") {
+					let _ = config_command_wallet(wallet_dir, wallet_name);
 				}
-				wallet_args.to_owned()
+				init_args.to_owned()
 			}
 			_ => ArgMatches::new(),
 		}
@@ -142,7 +140,7 @@ mod wallet_tests {
 		arg_vec: Vec<&str>,
 	) -> Result<String, grin_refwallet::Error> {
 		let args = app.clone().get_matches_from(arg_vec);
-		let args = get_wallet_subcommand(test_dir, wallet_name, args.clone());
+		let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
 		let mut config = initial_setup_wallet(test_dir, wallet_name);
 		//unset chain type so it doesn't get reset
 		config.chain_type = None;
@@ -162,7 +160,7 @@ mod wallet_tests {
 		let app = App::from_yaml(yml);
 
 		// wallet init
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "init", "-h"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "init", "-h"];
 		// should create new wallet file
 		let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone())?;
@@ -194,13 +192,12 @@ mod wallet_tests {
 
 		// Create some accounts in wallet 1
 		let arg_vec = vec![
-			"grin", "wallet", "-p", "password", "account", "-c", "mining",
+			"grin-wallet", "-p", "password", "account", "-c", "mining",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"account",
@@ -211,8 +208,7 @@ mod wallet_tests {
 
 		// Create some accounts in wallet 2
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"account",
@@ -224,8 +220,7 @@ mod wallet_tests {
 		assert!(execute_command(&app, test_dir, "wallet2", &client2, arg_vec).is_err());
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"account",
@@ -235,11 +230,11 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 		// let's see those accounts
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "account"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "account"];
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 		// let's see those accounts
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "account"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "account"];
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 		// Mine a bit into wallet 1 so we have something to send
@@ -264,15 +259,14 @@ mod wallet_tests {
 		                         This part should all be truncated";
 
 		// Update info and check
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "-a", "mining", "info"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "info"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// try a file exchange
 		let file_name = format!("{}/tx1.part_tx", test_dir);
 		let response_file_name = format!("{}/tx1.part_tx.response", test_dir);
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -289,8 +283,7 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -307,8 +300,7 @@ mod wallet_tests {
 		assert!(execute_command(&app, test_dir, "wallet2", &client2, arg_vec).is_err());
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"finalize",
@@ -333,12 +325,11 @@ mod wallet_tests {
 		bh += 10;
 
 		// update info for each
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "-a", "mining", "info"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "info"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -359,8 +350,7 @@ mod wallet_tests {
 
 		// Self-send to same account, using smallest strategy
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -379,8 +369,7 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -394,8 +383,7 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone())?;
 
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"finalize",
@@ -418,8 +406,7 @@ mod wallet_tests {
 
 		// Try using the self-send method, splitting up outputs for the fun of it
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -453,8 +440,7 @@ mod wallet_tests {
 
 		// Another file exchange, don't send, but unlock with repair command
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -470,13 +456,12 @@ mod wallet_tests {
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "check"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "check"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// Another file exchange, cancel this time
 		let arg_vec = vec![
-			"grin",
-			"wallet",
+			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
@@ -493,23 +478,23 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
-			"grin", "wallet", "-p", "password", "-a", "mining", "cancel", "-i", "26",
+			"grin-wallet", "-p", "password", "-a", "mining", "cancel", "-i", "26",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// txs and outputs (mostly spit out for a visual in test logs)
-		let arg_vec = vec!["grin", "wallet", "-p", "password", "-a", "mining", "txs"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "txs"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// message output (mostly spit out for a visual in test logs)
 		let arg_vec = vec![
-			"grin", "wallet", "-p", "password", "-a", "mining", "txs", "-i", "10",
+			"grin-wallet", "-p", "password", "-a", "mining", "txs", "-i", "10",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// txs and outputs (mostly spit out for a visual in test logs)
 		let arg_vec = vec![
-			"grin", "wallet", "-p", "password", "-a", "mining", "outputs",
+			"grin-wallet", "-p", "password", "-a", "mining", "outputs",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 

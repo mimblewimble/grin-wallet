@@ -93,6 +93,7 @@ fn real_main() -> i32 {
 	let mut w = config::initial_setup_wallet(&chain_type).unwrap_or_else(|e| {
 		panic!("Error loading wallet configuration: {}", e);
 	});
+
 	if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
 		if "init" == args.subcommand().0 || "recover" == args.subcommand().0 {
 		} else {

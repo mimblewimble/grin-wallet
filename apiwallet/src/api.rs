@@ -37,16 +37,16 @@ use uuid::Uuid;
 use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::ser;
-use crate::internal::{keys, tx, updater};
+use crate::libwallet::internal::{keys, tx, updater};
 use crate::keychain::{Identifier, Keychain};
-use crate::slate::Slate;
-use crate::types::{
+use crate::libwallet::slate::Slate;
+use crate::libwallet::types::{
 	AcctPathMapping, BlockFees, CbData, NodeClient, OutputData, OutputLockFn, TxLogEntry,
 	TxLogEntryType, TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::util;
 use crate::util::secp::{pedersen, ContextFlag, Secp256k1};
-use crate::{Error, ErrorKind};
+use crate::libwallet::{Error, ErrorKind};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
@@ -87,7 +87,8 @@ where
 	///
 	/// # Example
 	/// ```
-	/// # extern crate grin_wallet as wallet;
+	/// # extern crate grin_wallet_config as config;
+	/// # extern crate grin_refwallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
 	///
@@ -98,7 +99,8 @@ where
 	/// use wallet::libwallet::api::APIOwner;
 	///
 	/// // These contain sample implementations of each part needed for a wallet
-	/// use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
+	/// use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend};
+	/// use config::WalletConfig;
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
@@ -142,14 +144,16 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
 	/// ```
-	/// # extern crate grin_wallet as wallet;
+	/// # extern crate grin_wallet_config as config;
+	/// # extern crate grin_refwallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
 	/// # use std::sync::Arc;
 	/// # use util::Mutex;
 	/// # use keychain::ExtKeychain;
 	/// # use wallet::libwallet::api::APIOwner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
+	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend};
+	/// # use config::WalletConfig;
 	/// # let mut wallet_config = WalletConfig::default();
 	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
 	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
