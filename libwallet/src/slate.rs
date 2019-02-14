@@ -16,8 +16,8 @@
 //! around during an interactive wallet exchange
 
 use crate::blake2::blake2b::blake2b;
-use crate::keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::error::{Error, ErrorKind};
+use crate::keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::slate_versions::v0::SlateV0;
 use crate::util::secp;
 use crate::util::secp::key::{PublicKey, SecretKey};

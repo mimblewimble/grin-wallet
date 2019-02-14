@@ -16,9 +16,9 @@
 
 use crate::core::core::{amount_to_hr_string, Transaction};
 use crate::core::libtx::{build, tx_fee};
-use crate::keychain::{Identifier, Keychain};
 use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
+use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::*;
 use std::collections::HashMap;

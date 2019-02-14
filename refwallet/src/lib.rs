@@ -27,9 +27,9 @@ use failure;
 use grin_api as api;
 extern crate grin_core as core;
 use grin_keychain as keychain;
+use grin_libwallet as libwallet;
 use grin_store as store;
 use grin_util as util;
-use grin_libwallet as libwallet;
 extern crate grin_wallet_config as config;
 
 mod adapters;

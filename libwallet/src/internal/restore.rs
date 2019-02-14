@@ -15,11 +15,11 @@
 
 use crate::core::global;
 use crate::core::libtx::proof;
-use crate::keychain::{ExtKeychain, Identifier, Keychain};
 use crate::internal::{keys, updater};
+use crate::keychain::{ExtKeychain, Identifier, Keychain};
 use crate::types::*;
-use crate::Error;
 use crate::util::secp::{key::SecretKey, pedersen};
+use crate::Error;
 use std::collections::HashMap;
 
 /// Utility struct for return values from below

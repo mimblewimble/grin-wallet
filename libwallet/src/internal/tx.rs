@@ -16,8 +16,8 @@
 
 use uuid::Uuid;
 
-use crate::keychain::{Identifier, Keychain};
 use crate::internal::{selection, updater};
+use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, OutputLockFn, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};

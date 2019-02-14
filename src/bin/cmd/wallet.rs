@@ -15,7 +15,8 @@
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
 use clap::ArgMatches;
-use grin_wallet::{self, HTTPNodeClient, WalletConfig, WalletSeed};
+use grin_refwallet::{self, HTTPNodeClient, WalletSeed};
+use grin_wallet_config::WalletConfig;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
@@ -30,7 +31,7 @@ pub fn _init_wallet_seed(wallet_config: WalletConfig, password: &str) {
 pub fn seed_exists(wallet_config: WalletConfig) -> bool {
 	let mut data_file_dir = PathBuf::new();
 	data_file_dir.push(wallet_config.data_file_dir);
-	data_file_dir.push(grin_wallet::SEED_FILE);
+	data_file_dir.push(grin_refwallet::SEED_FILE);
 	if data_file_dir.exists() {
 		true
 	} else {
@@ -41,13 +42,6 @@ pub fn seed_exists(wallet_config: WalletConfig) -> bool {
 pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) -> i32 {
 	// just get defaults from the global config
 	let wallet_config = config.members.unwrap().wallet;
-
-	// web wallet http server must be started from here
-	// NB: Turned off for the time being
-	/*let _ = match wallet_args.subcommand() {
-		("web", Some(_)) => start_webwallet_server(),
-		_ => {}
-	};*/
 
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
 	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client);

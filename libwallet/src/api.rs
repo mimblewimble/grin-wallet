@@ -37,16 +37,16 @@ use uuid::Uuid;
 use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::ser;
-use crate::keychain::{Identifier, Keychain};
 use crate::internal::{keys, tx, updater};
+use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{
 	AcctPathMapping, BlockFees, CbData, NodeClient, OutputData, OutputLockFn, TxLogEntry,
 	TxLogEntryType, TxWrapper, WalletBackend, WalletInfo,
 };
-use crate::{Error, ErrorKind};
 use crate::util;
 use crate::util::secp::{pedersen, ContextFlag, Secp256k1};
+use crate::{Error, ErrorKind};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 

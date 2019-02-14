@@ -27,8 +27,8 @@ use ring::{digest, pbkdf2};
 use crate::error::{Error, ErrorKind};
 use crate::keychain::{mnemonic, Keychain};
 use crate::util;
-use failure::ResultExt;
 use config::WalletConfig;
+use failure::ResultExt;
 
 pub const SEED_FILE: &'static str = "wallet.seed";
 

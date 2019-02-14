@@ -304,5 +304,3 @@ impl From<store::Error> for Error {
 		Error::from(ErrorKind::Backend(format!("{}", error)))
 	}
 }
-
-

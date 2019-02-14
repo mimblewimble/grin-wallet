@@ -23,9 +23,9 @@ use crate::core::consensus::reward;
 use crate::core::core::{Output, TxKernel};
 use crate::core::libtx::reward;
 use crate::core::{global, ser};
-use crate::keychain::{Identifier, Keychain};
 use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
+use crate::keychain::{Identifier, Keychain};
 use crate::types::{
 	BlockFees, CbData, NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType,
 	WalletBackend, WalletInfo,

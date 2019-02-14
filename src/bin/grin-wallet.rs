@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Main for building the binary of a Grin peer-to-peer node.
+//! Main for building the binary of a Grin Reference Wallet
 
 #[macro_use]
 extern crate clap;
@@ -23,9 +23,9 @@ use crate::core::global;
 use crate::util::init_logger;
 use clap::App;
 use grin_api as api;
-use grin_wallet_config as config;
 use grin_core as core;
 use grin_util as util;
+use grin_wallet_config as config;
 use std::process::exit;
 
 mod cmd;
@@ -68,8 +68,6 @@ fn main() {
 fn real_main() -> i32 {
 	let yml = load_yaml!("grin-wallet.yml");
 	let args = App::from_yaml(yml).get_matches();
-	let mut wallet_config = None;
-	let mut node_config = None;
 
 	let chain_type = if args.is_present("floonet") {
 		global::ChainTypes::Floonet
@@ -81,85 +79,48 @@ fn real_main() -> i32 {
 
 	// Deal with configuration file creation
 	match args.subcommand() {
-		("wallet", Some(wallet_args)) => {
-			// wallet init command should spit out its config file then continue
-			// (if desired)
-			if let ("init", Some(init_args)) = wallet_args.subcommand() {
-				if init_args.is_present("here") {
-					cmd::config_command_wallet(&chain_type, config::WALLET_CONFIG_FILE_NAME);
-				}
+		// wallet init command should spit out its config file then continue
+		// (if desired)
+		("init", Some(init_args)) => {
+			if init_args.is_present("here") {
+				cmd::config_command_wallet(&chain_type, config::WALLET_CONFIG_FILE_NAME);
 			}
 		}
 		_ => {}
 	}
 
-	// Load relevant config
-	match args.subcommand() {
-		// If it's a wallet command, try and load a wallet config file
-		("wallet", Some(wallet_args)) => {
-			let mut w = config::initial_setup_wallet(&chain_type).unwrap_or_else(|e| {
-				panic!("Error loading wallet configuration: {}", e);
-			});
-			if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
-				if "init" == wallet_args.subcommand().0 || "recover" == wallet_args.subcommand().0 {
-				} else {
-					println!("Wallet seed file doesn't exist. Run `grin wallet init` first");
-					exit(1);
-				}
-			}
-			let mut l = w.members.as_mut().unwrap().logging.clone().unwrap();
-			l.tui_running = Some(false);
-			init_logger(Some(l));
-			info!(
-				"Using wallet configuration file at {}",
-				w.config_file_path.as_ref().unwrap().to_str().unwrap()
-			);
-			wallet_config = Some(w);
-		},
-		// Otherwise load up the node config as usual
-		_ => {
-		}
-	}
-
-	if let Some(mut config) = node_config.clone() {
-		let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
-		let run_tui = config.members.as_mut().unwrap().server.run_tui;
-		if let Some(true) = run_tui {
-			l.log_to_stdout = false;
-			l.tui_running = Some(true);
-		}
-		init_logger(Some(l));
-
-		global::set_mining_mode(config.members.unwrap().server.clone().chain_type);
-
-		if let Some(file_path) = &config.config_file_path {
-			info!(
-				"Using configuration file at {}",
-				file_path.to_str().unwrap()
-			);
+	// Load relevant config, try and load a wallet config file
+	let mut w = config::initial_setup_wallet(&chain_type).unwrap_or_else(|e| {
+		panic!("Error loading wallet configuration: {}", e);
+	});
+	if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
+		if "init" == args.subcommand().0 || "recover" == args.subcommand().0 {
 		} else {
-			info!("Node configuration file not found, using default");
+			println!("Wallet seed file doesn't exist. Run `grin-wallet init` first");
+			exit(1);
 		}
 	}
+
+	// Load logging config
+	let l = w.members.as_mut().unwrap().logging.clone().unwrap();
+	init_logger(Some(l));
+	info!(
+		"Using wallet configuration file at {}",
+		w.config_file_path.as_ref().unwrap().to_str().unwrap()
+	);
 
 	log_build_info();
 
-	// Execute subcommand
-	/*match args.subcommand() {
-		// server commands and options
-		("server", Some(server_args)) => {
-			cmd::server_command(Some(server_args), node_config.unwrap())
-		}
+	global::set_mining_mode(
+		w.members
+			.as_ref()
+			.unwrap()
+			.wallet
+			.chain_type
+			.as_ref()
+			.unwrap()
+			.clone(),
+	);
 
-		// client commands and options
-		("client", Some(client_args)) => cmd::client_command(client_args, node_config.unwrap()),
-
-		// client commands and options
-		("wallet", Some(wallet_args)) => cmd::wallet_command(wallet_args, wallet_config.unwrap()),
-
-		// If nothing is specified, try to just use the config file instead
-		// this could possibly become the way to configure most things
-		// with most command line options being phased out
-		_ => cmd::server_command(None, node_config.unwrap()),
-	}*/
+	cmd::wallet_command(&args, w)
 }

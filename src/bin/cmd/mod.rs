@@ -17,5 +17,5 @@ mod wallet;
 mod wallet_args;
 mod wallet_tests;
 
-pub use self::config::{config_command_server, config_command_wallet};
+pub use self::config::config_command_wallet;
 pub use self::wallet::{seed_exists, wallet_command};
