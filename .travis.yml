@@ -43,7 +43,7 @@ matrix:
     - os: linux
       env: TEST_SUITE=config-libwallet-apiwallet
     - os: linux
-      env: TEST_SUITE=refwallet
+      env: TEST_SUITE=refwallet-.
     - os: osx
       env: TEST_SUITE=release
 
