@@ -86,7 +86,7 @@ where
 	/// * An instance of the OwnerAPI holding a reference to the provided wallet
 	///
 	/// # Example
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet_config as config;
 	/// # extern crate grin_refwallet as wallet;
 	/// # extern crate grin_keychain as keychain;
@@ -143,7 +143,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet_config as config;
 	/// # extern crate grin_refwallet as wallet;
 	/// # extern crate grin_keychain as keychain;
@@ -201,7 +201,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
@@ -255,7 +255,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
@@ -313,7 +313,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
@@ -390,7 +390,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
@@ -464,7 +464,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;
@@ -579,7 +579,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [new](struct.APIOwner.html#method.new) method above.
-	/// ```
+	/// ``` ignore
 	/// # extern crate grin_wallet as wallet;
 	/// # extern crate grin_keychain as keychain;
 	/// # extern crate grin_util as util;

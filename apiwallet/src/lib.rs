@@ -28,10 +28,11 @@ extern crate grin_store as store;
 extern crate grin_util as util;
 extern crate grin_libwallet as libwallet;
 
-use failure;
 extern crate failure_derive;
 
 #[macro_use]
 extern crate log;
 
 pub mod api;
+pub use api::{APIForeign, APIOwner};
+
