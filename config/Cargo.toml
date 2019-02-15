@@ -16,8 +16,8 @@ serde_derive = "1"
 toml = "0.4"
 dirs = "1.0.3"
 
-grin_core = { path = "../../grin/core", version = "1.1.0" }
-grin_util = { path = "../../grin/util", version = "1.1.0" }
+grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"
