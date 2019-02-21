@@ -30,7 +30,7 @@ pub struct Error {
 }
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
-#[derive(Clone, Eq, PartialEq, Debug, Fail)]
+#[derive(Clone, Eq, PartialEq, Debug, Fail, Serialize, Deserialize)]
 pub enum ErrorKind {
 	/// Not enough funds
 	#[fail(

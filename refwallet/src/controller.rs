@@ -18,10 +18,10 @@
 use crate::adapters::util::get_versioned_slate;
 use crate::adapters::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::api::{ApiServer, BasicAuthMiddleware, Handler, ResponseFuture, Router, TLSConfig};
+use crate::apiwallet::api::{APIForeign, APIOwner};
 use crate::core::core;
 use crate::core::core::Transaction;
 use crate::keychain::Keychain;
-use crate::apiwallet::api::{APIForeign, APIOwner};
 use crate::libwallet::slate::{Slate, VersionedSlate};
 use crate::libwallet::types::{
 	CbData, NodeClient, OutputData, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,
@@ -271,7 +271,7 @@ where
 	pub fn retrieve_summary_info(
 		&self,
 		req: &Request<Body>,
-		mut api: APIOwner<T, C, K>,
+		api: APIOwner<T, C, K>,
 	) -> Result<(bool, WalletInfo), Error> {
 		let mut minimum_confirmations = 1; // TODO - default needed here
 		let params = parse_params(req);
@@ -289,7 +289,7 @@ where
 	pub fn node_height(
 		&self,
 		_req: &Request<Body>,
-		mut api: APIOwner<T, C, K>,
+		api: APIOwner<T, C, K>,
 	) -> Result<(u64, bool), Error> {
 		api.node_height()
 	}
@@ -319,7 +319,7 @@ where
 	pub fn issue_send_tx(
 		&self,
 		req: Request<Body>,
-		mut api: APIOwner<T, C, K>,
+		api: APIOwner<T, C, K>,
 	) -> Box<dyn Future<Item = Slate, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |args: SendTXArgs| {
 			let result = api.initiate_tx(
@@ -382,7 +382,7 @@ where
 	pub fn finalize_tx(
 		&self,
 		req: Request<Body>,
-		mut api: APIOwner<T, C, K>,
+		api: APIOwner<T, C, K>,
 	) -> Box<dyn Future<Item = Slate, Error = Error> + Send> {
 		Box::new(
 			parse_body(req).and_then(move |mut slate| match api.finalize_tx(&mut slate) {
@@ -398,7 +398,7 @@ where
 	pub fn cancel_tx(
 		&self,
 		req: Request<Body>,
-		mut api: APIOwner<T, C, K>,
+		api: APIOwner<T, C, K>,
 	) -> Box<dyn Future<Item = (), Error = Error> + Send> {
 		let params = parse_params(&req);
 		if let Some(id_string) = params.get("id") {
@@ -652,7 +652,7 @@ where
 	fn build_coinbase(
 		&self,
 		req: Request<Body>,
-		mut api: APIForeign<T, C, K>,
+		api: APIForeign<T, C, K>,
 	) -> Box<dyn Future<Item = CbData, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |block_fees| api.build_coinbase(&block_fees)))
 	}
@@ -660,7 +660,7 @@ where
 	fn receive_tx(
 		&self,
 		req: Request<Body>,
-		mut api: APIForeign<T, C, K>,
+		api: APIForeign<T, C, K>,
 	) -> Box<dyn Future<Item = VersionedSlate, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(
 			//TODO: No way to insert a message from the params

@@ -37,18 +37,217 @@ use uuid::Uuid;
 use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::ser;
-use crate::libwallet::internal::{keys, tx, updater};
 use crate::keychain::{Identifier, Keychain};
+use crate::libwallet::internal::{keys, tx, updater};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
 	AcctPathMapping, BlockFees, CbData, NodeClient, OutputData, OutputLockFn, TxLogEntry,
 	TxLogEntryType, TxWrapper, WalletBackend, WalletInfo,
 };
+use crate::libwallet::{Error, ErrorKind};
 use crate::util;
 use crate::util::secp::{pedersen, ContextFlag, Secp256k1};
-use crate::libwallet::{Error, ErrorKind};
+use easy_jsonrpc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
+
+#[easy_jsonrpc::jsonrpc_server]
+/// Public definition used to generate jsonrpc api.
+pub trait OwnerAPI {
+	/**
+	Returns a list of accounts stored in the wallet (i.e. mappings between
+	user-specified labels and BIP32 derivation paths.
+
+	# Returns
+	* Result Containing:
+	* A Vector of [`AcctPathMapping`](../types/struct.AcctPathMapping.html) data
+	* or [`libwallet::Error`](../struct.Error.html) if an error is encountered.
+
+	# Remarks
+
+	* A wallet should always have the path with the label 'default' path defined,
+	with path m/0/0
+	* This method does not need to use the wallet seed or keychain.
+
+	# Example
+	Set up as in [`new`](struct.APIOwner.html#method.new) method above.
+
+	``` ignore
+	# extern crate grin_wallet_config as config;
+	# extern crate grin_refwallet as wallet;
+	# extern crate grin_keychain as keychain;
+	# extern crate grin_util as util;
+	# use std::sync::Arc;
+	# use util::Mutex;
+	# use keychain::ExtKeychain;
+	# use wallet::libwallet::api::APIOwner;
+	# use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend};
+	# use config::WalletConfig;
+	# let mut wallet_config = WalletConfig::default();
+	# wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
+	# let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+	# let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
+	# Arc::new(Mutex::new(
+	# 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
+	# ));
+	let api_owner = APIOwner::new(wallet.clone());
+
+	let result = api_owner.accounts();
+
+	if let Ok(accts) = result {
+		//...
+	}
+	```
+
+	# Json rpc example
+
+	```
+	# fn json_rpc_owner_doctest(request: serde_json::Value, expected_response: serde_json::Value) {
+	#   use easy_jsonrpc::JSONRPCServer;
+	# 	use grin_apiwallet::api::{APIOwner, OwnerAPI};
+	# 	use grin_keychain::ExtKeychain;
+	# 	use grin_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
+	# 	use grin_util::Mutex;
+	# 	use grin_wallet_config::WalletConfig;
+	# 	use serde_json;
+	# 	use std::sync::Arc;
+	#
+	# 	let mut wallet_config = WalletConfig::default();
+	# 	wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
+	# 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+	# 	let wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(Mutex::new(
+	# 		LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap(),
+	# 	));
+	# 	let api_owner = APIOwner::new(wallet);
+	# 	let owner_api = &api_owner as &dyn OwnerAPI;
+	#
+	# 	assert_eq!(
+	# 		owner_api
+	# 			.handle_parsed(serde_json::from_value(request).unwrap())
+	# 			.unwrap(),
+	# 		serde_json::from_value(expected_response).unwrap(),
+	# 	);
+	# }
+	#
+	# use serde_json::json;
+	# json_rpc_owner_doctest(json!(
+	{
+		"jsonrpc": "2.0",
+		"method": "accounts",
+		"params": [],
+		"id": 1
+	}
+	# ),
+	# json!(
+	{
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": [
+				{
+					"label": "default",
+					"path": "0200000000000000000000000000000000"
+				}
+			]
+		},
+		"id": 1
+	}
+	# ));
+	```
+	 */
+	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn retrieve_outputs(
+		&self,
+		include_spent: bool,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn retrieve_txs(
+		&self,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn retrieve_summary_info(
+		&self,
+		refresh_from_node: bool,
+		minimum_confirmations: u64,
+	) -> Result<(bool, WalletInfo), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn estimate_initiate_tx(
+		&self,
+		src_acct_name: Option<String>,
+		amount: u64,
+		minimum_confirmations: u64,
+		max_outputs: usize,
+		num_change_outputs: usize,
+		selection_strategy_is_use_all: bool,
+	) -> Result<(/* total */ u64, /* fee */ u64), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn finalize_tx(&self, slate: Slate) -> Result<Slate, ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn restore(&self) -> Result<(), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn check_repair(&self) -> Result<(), ErrorKind>;
+
+	/// ``` ignore
+	/// panic!("doctest not written")
+	/// ```
+	fn node_height(&self) -> Result<(u64, bool), ErrorKind>;
+}
 
 /// Functions intended for use by the owner (e.g. master seed holder) of the wallet.
 pub struct APIOwner<W: ?Sized, C, K>
@@ -494,7 +693,7 @@ where
 	/// ```
 
 	pub fn retrieve_summary_info(
-		&mut self,
+		&self,
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
@@ -619,7 +818,7 @@ where
 	/// ```
 
 	pub fn initiate_tx(
-		&mut self,
+		&self,
 		src_acct_name: Option<&str>,
 		amount: u64,
 		minimum_confirmations: u64,
@@ -706,7 +905,7 @@ where
 	/// * Total amount to be locked.
 	/// * Transaction fee
 	pub fn estimate_initiate_tx(
-		&mut self,
+		&self,
 		src_acct_name: Option<&str>,
 		amount: u64,
 		minimum_confirmations: u64,
@@ -745,7 +944,7 @@ where
 
 	/// Lock outputs associated with a given slate/transaction
 	pub fn tx_lock_outputs(
-		&mut self,
+		&self,
 		slate: &Slate,
 		mut lock_fn: OutputLockFn<W, C, K>,
 	) -> Result<(), Error> {
@@ -759,7 +958,7 @@ where
 	/// sender as well as the private file generate on the first send step.
 	/// Builds the complete transaction and sends it to a grin node for
 	/// propagation.
-	pub fn finalize_tx(&mut self, slate: &mut Slate) -> Result<(), Error> {
+	pub fn finalize_tx(&self, slate: &mut Slate) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let context = w.get_private_context(slate.id.as_bytes())?;
@@ -780,11 +979,7 @@ where
 	/// output if you're recipient), and unlock all locked outputs associated
 	/// with the transaction used when a transaction is created but never
 	/// posted
-	pub fn cancel_tx(
-		&mut self,
-		tx_id: Option<u32>,
-		tx_slate_id: Option<Uuid>,
-	) -> Result<(), Error> {
+	pub fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let parent_key_id = w.parent_key_id();
@@ -826,14 +1021,14 @@ where
 	}
 
 	/// Verifies all messages in the slate match their public keys
-	pub fn verify_slate_messages(&mut self, slate: &Slate) -> Result<(), Error> {
+	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
 		slate.verify_messages(&secp)?;
 		Ok(())
 	}
 
 	/// Attempt to restore contents of wallet
-	pub fn restore(&mut self) -> Result<(), Error> {
+	pub fn restore(&self) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		w.restore()?;
@@ -842,7 +1037,7 @@ where
 	}
 
 	/// Attempt to check and fix the contents of the wallet
-	pub fn check_repair(&mut self) -> Result<(), Error> {
+	pub fn check_repair(&self) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		self.update_outputs(&mut w, true);
@@ -852,7 +1047,7 @@ where
 	}
 
 	/// Retrieve current height from node
-	pub fn node_height(&mut self) -> Result<(u64, bool), Error> {
+	pub fn node_height(&self) -> Result<(u64, bool), Error> {
 		let res = {
 			let mut w = self.wallet.lock();
 			w.open_with_credentials()?;
@@ -878,6 +1073,107 @@ where
 			Ok(_) => true,
 			Err(_) => false,
 		}
+	}
+}
+
+impl<W: ?Sized, C, K> OwnerAPI for APIOwner<W, C, K>
+where
+	W: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind> {
+		APIOwner::accounts(self).map_err(|e| e.kind())
+	}
+
+	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind> {
+		APIOwner::create_account_path(self, label).map_err(|e| e.kind())
+	}
+
+	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind> {
+		APIOwner::set_active_account(self, label).map_err(|e| e.kind())
+	}
+
+	fn retrieve_outputs(
+		&self,
+		include_spent: bool,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), ErrorKind> {
+		APIOwner::retrieve_outputs(self, include_spent, refresh_from_node, tx_id)
+			.map_err(|e| e.kind())
+	}
+
+	fn retrieve_txs(
+		&self,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind> {
+		APIOwner::retrieve_txs(self, refresh_from_node, tx_id, tx_slate_id).map_err(|e| e.kind())
+	}
+
+	fn retrieve_summary_info(
+		&self,
+		refresh_from_node: bool,
+		minimum_confirmations: u64,
+	) -> Result<(bool, WalletInfo), ErrorKind> {
+		APIOwner::retrieve_summary_info(self, refresh_from_node, minimum_confirmations)
+			.map_err(|e| e.kind())
+	}
+
+	fn estimate_initiate_tx(
+		&self,
+		src_acct_name: Option<String>,
+		amount: u64,
+		minimum_confirmations: u64,
+		max_outputs: usize,
+		num_change_outputs: usize,
+		selection_strategy_is_use_all: bool,
+	) -> Result<(/* total */ u64, /* fee */ u64), ErrorKind> {
+		APIOwner::estimate_initiate_tx(
+			self,
+			src_acct_name.as_ref().map(String::as_str),
+			amount,
+			minimum_confirmations,
+			max_outputs,
+			num_change_outputs,
+			selection_strategy_is_use_all,
+		)
+		.map_err(|e| e.kind())
+	}
+
+	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
+		APIOwner::finalize_tx(self, &mut slate).map_err(|e| e.kind())?;
+		Ok(slate)
+	}
+
+	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind> {
+		APIOwner::cancel_tx(self, tx_id, tx_slate_id).map_err(|e| e.kind())
+	}
+
+	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind> {
+		APIOwner::get_stored_tx(self, entry).map_err(|e| e.kind())
+	}
+
+	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), ErrorKind> {
+		APIOwner::post_tx(self, tx, fluff).map_err(|e| e.kind())
+	}
+
+	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {
+		APIOwner::verify_slate_messages(self, slate).map_err(|e| e.kind())
+	}
+
+	fn restore(&self) -> Result<(), ErrorKind> {
+		APIOwner::restore(self).map_err(|e| e.kind())
+	}
+
+	fn check_repair(&self) -> Result<(), ErrorKind> {
+		APIOwner::check_repair(self).map_err(|e| e.kind())
+	}
+
+	fn node_height(&self) -> Result<(u64, bool), ErrorKind> {
+		APIOwner::node_height(self).map_err(|e| e.kind())
 	}
 }
 
@@ -912,7 +1208,7 @@ where
 	}
 
 	/// Build a new (potential) coinbase transaction in the wallet
-	pub fn build_coinbase(&mut self, block_fees: &BlockFees) -> Result<CbData, Error> {
+	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = updater::build_coinbase(&mut *w, block_fees);
@@ -921,7 +1217,7 @@ where
 	}
 
 	/// Verifies all messages in the slate match their public keys
-	pub fn verify_slate_messages(&mut self, slate: &Slate) -> Result<(), Error> {
+	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
 		slate.verify_messages(&secp)?;
 		Ok(())
@@ -929,7 +1225,7 @@ where
 
 	/// Receive a transaction from a sender
 	pub fn receive_tx(
-		&mut self,
+		&self,
 		slate: &mut Slate,
 		dest_acct_name: Option<&str>,
 		message: Option<String>,
