@@ -22,10 +22,10 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     exit 0
 elif [[ $TRAVIS_OS_NAME == 'windows' ]]; then
 
-    # Custome requirements on windows
+    # Custom requirements on windows
     cd target/release ; rm -f *.zip; zip "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" grin
     /bin/ls -ls *.zip  | awk '{print $6,$7,$8,$9,$10}'
-    md5 "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip"-md5sum.txt
+    md5sum "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip"-md5sum.txt
     /bin/ls -ls *-md5sum.txt  | awk '{print $6,$7,$8,$9,$10}'
     cd - > /dev/null;
     echo "win x64 tarball generated\n"
