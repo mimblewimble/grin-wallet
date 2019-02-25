@@ -83,7 +83,7 @@ deploy:
   api_key:
     secure: PCNX/DheeQWCGT1XLTbE7GKSd5y+NVZ6KSn+E6USzOX4Rc50Ihpr0jvf5NqQRUnglLG/ftl9bBsaD8URnOBdd4mbo5hNm1raV57PkFQX6rkXQ8oYXgTajUxNLoDWcUgsQDqUOOAJeakFXy2Olb66uTmnfvGtkwcAzGk2ZXvI8rUGCN+7v+dyvbR9N16etfn8aN/Rm8TMQyQkbMU9xENOu6CqBknCq+jhi4FOhB6k4Kcnwhu/Z+E278zgeIHQWfGStZKk+wk7DQU3qGGoYhTGQ2E1Ew8r1jnwdgAB0nvYuXWiSu8hXO0hFJWofDro/Wj7lFXGugRTJ7jANrTsZhopR9G2lyYQIGAJJ0+KRozRDDuxQxCNlHoG95NWleDXR9/FinhW1FqZai1hsW12vQWO1+SaDqzmBF9jCIYnx7RWLfoLqzpJUsPk0Fzl5gJexQKWvE4udfi657426qV/tgWXFjqpFrekVFyun1ie5vSTx33MNnGfvmhyqsXEsorpWWiouSkIlBkckyF97CjOG76XQJ11M5ICqH/vn7z90KUR/S/N60yYFEcueoMMzz617Ag+m4Irgl0ajaEeu4senUMIOfwq/S5mlRAY3FQA9mh4MbgO3g1EtuxDvCA4RiFnLakI1U0/peOYAdjQ+S7v3B86wUBMYTbpRgeLISa1CsaSm3Y=
   file_glob: true
-  file: target/release/grin-wallet-*.tgz*
+  file: target/release/grin-wallet-*.*
   skip_cleanup: true
   on:
     repo: mimblewimble/grin-wallet
