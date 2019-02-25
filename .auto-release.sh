@@ -16,7 +16,19 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     md5 "grin-wallet-$tagname-$TRAVIS_JOB_ID-osx.tgz" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-osx.tgz"-md5sum.txt
     /bin/ls -ls *-md5sum.txt  | awk '{print $6,$7,$8,$9,$10}'
     cd - > /dev/null;
-    echo "tarball generated\n"
+    echo "osx tarball generated\n"
+
+    # Only generate changelog on Linux platform, to avoid duplication
+    exit 0
+elif [[ $TRAVIS_OS_NAME == 'windows' ]]; then
+
+    # Custome requirements on windows
+    cd target/release ; rm -f *.zip; zip "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" grin
+    /bin/ls -ls *.zip  | awk '{print $6,$7,$8,$9,$10}'
+    md5 "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip"-md5sum.txt
+    /bin/ls -ls *-md5sum.txt  | awk '{print $6,$7,$8,$9,$10}'
+    cd - > /dev/null;
+    echo "win x64 tarball generated\n"
 
     # Only generate changelog on Linux platform, to avoid duplication
     exit 0
@@ -27,7 +39,7 @@ else
     md5sum "grin-wallet-$tagname-$TRAVIS_JOB_ID-linux-amd64.tgz" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-linux-amd64.tgz"-md5sum.txt
     /bin/ls -ls *-md5sum.txt  | awk '{print $6,$7,$8,$9,$10}'
     cd - > /dev/null;
-    echo "tarball generated\n"
+    echo "linux tarball generated\n"
 fi
 
 version="$tagname"
