@@ -24,8 +24,14 @@ elif [[ $TRAVIS_OS_NAME == 'windows' ]]; then
 
     # Custom requirements on windows
     cd target/release
-    rm -f *.zip 
+    pwd
+    echo Dir Contents:
+    /bin/ls -ls
+    rm -f *.zip
+    echo Zipping
     zip "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" grin-wallet.exe
+    echo All Dir Contents:
+    /bin/ls -ls
     /bin/ls -ls *.zip  | awk '{print $6,$7,$8,$9,$10}'
     md5sum "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip"-md5sum.txt
     /bin/ls -ls *-md5sum.txt  | awk '{print $6,$7,$8,$9,$10}'
