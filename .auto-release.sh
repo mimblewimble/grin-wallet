@@ -29,7 +29,7 @@ elif [[ $TRAVIS_OS_NAME == 'windows' ]]; then
     /bin/ls -ls
     rm -f *.zip
     echo Zipping
-    zip "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" grin-wallet.exe
+    7z a -tzip "grin-wallet-$tagname-$TRAVIS_JOB_ID-win-x64.zip" grin-wallet.exe
     echo All Dir Contents:
     /bin/ls -ls
     /bin/ls -ls *.zip  | awk '{print $6,$7,$8,$9,$10}'
