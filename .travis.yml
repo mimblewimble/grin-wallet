@@ -41,8 +41,6 @@ env:
 matrix:
   include:
     - os: linux
-      env: TEST_SUITE=integration
-    - os: linux
       env: TEST_SUITE=config-libwallet-apiwallet
     - os: linux
       env: TEST_SUITE=refwallet-.

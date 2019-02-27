@@ -16,7 +16,8 @@ name = "grin-wallet"
 path = "src/bin/grin-wallet.rs"
 
 [workspace]
-members = ["apiwallet", "config", "integration", "libwallet", "refwallet"]
+members = ["apiwallet", "config", "libwallet", "refwallet"]
+exclude = ["integration"]
 
 [dependencies]
 clap = { version = "2.31", features = ["yaml"] }
