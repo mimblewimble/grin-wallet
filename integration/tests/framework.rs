@@ -32,6 +32,7 @@ use std::default::Default;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::{fs, thread, time};
+use p2p::PeerAddr;
 
 /// Just removes all results from previous runs
 pub fn clean_all_output(test_name_dir: &str) {
@@ -196,7 +197,7 @@ impl LocalServerContainer {
 
 		if self.config.seed_addr.len() > 0 {
 			seeding_type = p2p::Seeding::List;
-			seeds = vec![self.config.seed_addr.to_string()];
+			seeds = vec![PeerAddr::from_ip(self.config.seed_addr.to_string().parse().unwrap())];
 		}
 
 		let s = servers::Server::new(servers::ServerConfig {
@@ -240,7 +241,7 @@ impl LocalServerContainer {
 
 		for p in &mut self.peer_list {
 			println!("{} connecting to peer: {}", self.config.p2p_server_port, p);
-			let _ = s.connect_peer(p.parse().unwrap());
+			let _ = s.connect_peer(PeerAddr::from_ip(p.parse().unwrap()));
 		}
 
 		if self.wallet_is_running {
@@ -654,7 +655,7 @@ pub fn config(n: u16, test_name_dir: &str, seed_n: u16) -> servers::ServerConfig
 		p2p_config: p2p::P2PConfig {
 			port: 10000 + n,
 			seeding_type: p2p::Seeding::List,
-			seeds: Some(vec![format!("127.0.0.1:{}", 10000 + seed_n)]),
+			seeds: Some(vec![PeerAddr::from_ip(format!("127.0.0.1:{}", 10000 + seed_n).parse().unwrap())]),
 			..p2p::P2PConfig::default()
 		},
 		chain_type: core::global::ChainTypes::AutomatedTesting,

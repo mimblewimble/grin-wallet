@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::cell::RefCell;
-use std::sync::Arc;
 use std::{fs, path};
 
 // for writing storedtransaction files
@@ -112,8 +111,7 @@ impl<C, K> LMDBBackend<C, K> {
 		fs::create_dir_all(&stored_tx_path)
 			.expect("Couldn't create wallet backend tx storage directory!");
 
-		let lmdb_env = Arc::new(store::new_env(db_path.to_str().unwrap().to_string()));
-		let store = store::Store::open(lmdb_env, DB_DIR);
+		let store = store::Store::new(db_path.to_str().unwrap(), Some(DB_DIR), None)?;
 
 		// Make sure default wallet derivation path always exists
 		// as well as path (so it can be retrieved by batches to know where to store

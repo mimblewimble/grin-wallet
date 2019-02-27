@@ -29,7 +29,6 @@ use self::wallet::controller;
 use self::wallet::lmdb_wallet::LMDBBackend;
 use self::wallet::{HTTPNodeClient, HTTPWalletCommAdapter};
 use self::wallet_config::WalletConfig;
-use apiwallet::{APIForeign, APIOwner};
 use grin_api as api;
 use grin_core as core;
 use grin_keychain as keychain;
@@ -41,6 +40,7 @@ use std::default::Default;
 use std::process::exit;
 use std::sync::Arc;
 use std::{thread, time};
+use p2p::PeerAddr;
 
 use crate::framework::{
 	config, stop_all_servers, LocalServerContainerConfig, LocalServerContainerPool,
@@ -937,7 +937,7 @@ fn replicate_tx_fluff_failure() {
 
 	// Server 2 (another node)
 	let mut s2_config = framework::config(3001, "tx_fluff", 3001);
-	s2_config.p2p_config.seeds = Some(vec!["127.0.0.1:13000".to_owned()]);
+	s2_config.p2p_config.seeds = Some(vec![PeerAddr::from_ip("127.0.0.1:13000".parse().unwrap())]);
 	s2_config.dandelion_config.embargo_secs = Some(10);
 	s2_config.dandelion_config.patience_secs = Some(1);
 	s2_config.dandelion_config.relay_secs = Some(1);
@@ -948,7 +948,7 @@ fn replicate_tx_fluff_failure() {
 	for i in 0..dl_nodes {
 		// (create some stem nodes)
 		let mut s_config = framework::config(3002 + i, "tx_fluff", 3002 + i);
-		s_config.p2p_config.seeds = Some(vec!["127.0.0.1:13000".to_owned()]);
+		s_config.p2p_config.seeds = Some(vec![PeerAddr::from_ip("127.0.0.1:13000".parse().unwrap())]);
 		s_config.dandelion_config.embargo_secs = Some(10);
 		s_config.dandelion_config.patience_secs = Some(1);
 		s_config.dandelion_config.relay_secs = Some(1);
