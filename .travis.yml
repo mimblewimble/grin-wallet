@@ -40,14 +40,14 @@ env:
 
 matrix:
   include:
-    - os: linux
-      env: TEST_SUITE=config-libwallet-apiwallet
-    - os: linux
-      env: TEST_SUITE=refwallet-.
-    - os: osx
-      env: TEST_SUITE=release
-#    - os: windows
+#    - os: linux
+#      env: TEST_SUITE=config-libwallet-apiwallet
+#    - os: linux
+#      env: TEST_SUITE=refwallet-.
+#    - os: osx
 #      env: TEST_SUITE=release
+    - os: windows
+      env: TEST_SUITE=release
 
 script:
   - IFS='-' read -r -a DIRS <<< "$TEST_SUITE"; DIR=${DIRS[0]};
