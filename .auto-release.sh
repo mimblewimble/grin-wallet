@@ -11,7 +11,7 @@ echo 'package the release binary...\n'
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
 
     # Do some custom requirements on OS X
-    cd target/release ; rm -f *.tgz; tar zcf "grin-wallet-$tagname-$TRAVIS_JOB_ID-osx.tgz" grin
+    cd target/release ; rm -f *.tgz; tar zcf "grin-wallet-$tagname-$TRAVIS_JOB_ID-osx.tgz" grin-wallet
     /bin/ls -ls *.tgz  | awk '{print $6,$7,$8,$9,$10}'
     md5 "grin-wallet-$tagname-$TRAVIS_JOB_ID-osx.tgz" > "grin-wallet-$tagname-$TRAVIS_JOB_ID-osx.tgz"-md5sum.txt
     /bin/ls -ls *-md5sum.txt  | awk '{print $6,$7,$8,$9,$10}'
