@@ -41,5 +41,13 @@ grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/
 grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 
+[patch.'https://github.com/mimblewimble/grin']
+grin_core = { git = "https://github.com/bddap/grin", branch = "milestone/1.1.0" }
+grin_keychain = { git = "https://github.com/bddap/grin", branch = "milestone/1.1.0" }
+grin_chain = { git = "https://github.com/bddap/grin", branch = "milestone/1.1.0" }
+grin_util = { git = "https://github.com/bddap/grin", branch = "milestone/1.1.0" }
+grin_api = { git = "https://github.com/bddap/grin", branch = "milestone/1.1.0" }
+grin_store = { git = "https://github.com/bddap/grin", branch = "milestone/1.1.0" }
+
 [build-dependencies]
 built = "0.3"
