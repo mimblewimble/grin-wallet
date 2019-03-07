@@ -384,6 +384,7 @@ where
 
 	let mut unspent_total = 0;
 	let mut immature_total = 0;
+	let mut awaiting_finalization_total = 0;
 	let mut unconfirmed_total = 0;
 	let mut locked_total = 0;
 
@@ -403,9 +404,9 @@ where
 				// We ignore unconfirmed coinbase outputs completely.
 				if !out.is_coinbase {
 					if minimum_confirmations == 0 {
-						unspent_total += out.value;
-					} else {
 						unconfirmed_total += out.value;
+					} else {
+						awaiting_finalization_total += out.value;
 					}
 				}
 			}
@@ -420,6 +421,7 @@ where
 		last_confirmed_height: current_height,
 		minimum_confirmations,
 		total: unspent_total + unconfirmed_total + immature_total,
+		amount_awaiting_finalization: awaiting_finalization_total,
 		amount_awaiting_confirmation: unconfirmed_total,
 		amount_immature: immature_total,
 		amount_locked: locked_total,

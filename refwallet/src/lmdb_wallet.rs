@@ -350,8 +350,8 @@ where
 		Ok(())
 	}
 
-	fn check_repair(&mut self) -> Result<(), Error> {
-		internal::restore::check_repair(self).context(ErrorKind::Restore)?;
+	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error> {
+		internal::restore::check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }

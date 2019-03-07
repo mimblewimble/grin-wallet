@@ -130,7 +130,7 @@ where
 	fn restore(&mut self) -> Result<(), Error>;
 
 	/// Attempt to check and fix wallet state
-	fn check_repair(&mut self) -> Result<(), Error>;
+	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error>;
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a
@@ -546,6 +546,8 @@ pub struct WalletInfo {
 	pub minimum_confirmations: u64,
 	/// total amount in the wallet
 	pub total: u64,
+	/// amount awaiting finalization
+	pub amount_awaiting_finalization: u64,
 	/// amount awaiting confirmation
 	pub amount_awaiting_confirmation: u64,
 	/// coinbases waiting for lock height

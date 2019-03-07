@@ -452,6 +452,13 @@ pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseErro
 	})
 }
 
+pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseError> {
+	let delete_unconfirmed = args.is_present("delete_unconfirmed");
+	Ok(command::CheckArgs {
+		delete_unconfirmed: delete_unconfirmed,
+	})
+}
+
 pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError> {
 	let tx_id = match args.value_of("id") {
 		None => None,
@@ -621,7 +628,10 @@ pub fn wallet_command(
 			command::cancel(inst_wallet(), a)
 		}
 		("restore", Some(_)) => command::restore(inst_wallet()),
-		("check", Some(_)) => command::check_repair(inst_wallet()),
+		("check", Some(args)) => {
+			let a = arg_parse!(parse_check_args(&args));
+			command::check_repair(inst_wallet(), a)
+		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin help wallet' for details");
 			return Err(ErrorKind::ArgumentError(msg).into());
