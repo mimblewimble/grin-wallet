@@ -420,11 +420,12 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		let (refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
 		assert!(refreshed);
 		assert_eq!(wallet2_info.amount_currently_spendable, 0,);
-		assert_eq!(wallet2_info.total, amount);
+		assert_eq!(wallet2_info.amount_awaiting_finalization, amount);
 		Ok(())
 	})?;
 
-	// wallet 1 is bold and doesn't ever post the transaction mine a few more blocks
+	// wallet 1 is bold and doesn't ever post the transaction 
+	// mine a few more blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5);
 
 	// Wallet 1 decides to roll back instead

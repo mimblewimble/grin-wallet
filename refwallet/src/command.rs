@@ -530,13 +530,19 @@ pub fn restore(
 	Ok(())
 }
 
+/// wallet check
+pub struct CheckArgs {
+	pub delete_unconfirmed: bool,
+}
+
 pub fn check_repair(
 	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+	args: CheckArgs,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
 		warn!("Starting wallet check...",);
 		warn!("Updating all wallet outputs, please wait ...",);
-		let result = api.check_repair();
+		let result = api.check_repair(args.delete_unconfirmed);
 		match result {
 			Ok(_) => {
 				warn!("Wallet check complete",);
