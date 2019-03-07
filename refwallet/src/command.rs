@@ -444,7 +444,8 @@ pub fn txs(
 
 			// should only be one here, but just in case
 			for tx in &txs {
-				let (_, outputs) = api.retrieve_payments(g_args.show_spent, true, tx.tx_slate_id)?;
+				let (_, outputs) =
+					api.retrieve_payments(g_args.show_spent, true, tx.tx_slate_id)?;
 				if outputs.len() > 0 {
 					display::payments(&g_args.account, height, validated, outputs, dark_scheme)?;
 				}

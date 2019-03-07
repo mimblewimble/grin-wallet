@@ -19,9 +19,11 @@ use uuid::Uuid;
 use crate::internal::{selection, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, OutputLockFn, OutputStatus, PaymentData, TxLogEntryType, WalletBackend};
-use crate::util::to_hex;
+use crate::types::{
+	Context, NodeClient, OutputLockFn, OutputStatus, PaymentData, TxLogEntryType, WalletBackend,
+};
 use crate::util::secp::pedersen;
+use crate::util::to_hex;
 use crate::{Error, ErrorKind};
 
 /// Creates a new slate for a transaction, can be called by anyone involved in
@@ -200,14 +202,23 @@ where
 	slate.finalize(wallet.keychain())?;
 
 	// Get the change output/s from database
-	let changes = updater::retrieve_outputs(wallet, false, None, Some(slate.id), Some(&context.parent_key_id))?;
-	let change_commits = changes.iter().map(|(_,c)| c.clone()).collect::<Vec<pedersen::Commitment>>();
+	let changes = updater::retrieve_outputs(
+		wallet,
+		false,
+		None,
+		Some(slate.id),
+		Some(&context.parent_key_id),
+	)?;
+	let change_commits = changes
+		.iter()
+		.map(|(_, c)| c.clone())
+		.collect::<Vec<pedersen::Commitment>>();
 
 	// Find the payment output/s
 	let mut outputs = Vec::new();
 	for output in slate.tx.outputs() {
-		if change_commits.contains( &output.commit ) {
-			outputs.insert( 0, output.commit.clone() );
+		if change_commits.contains(&output.commit) {
+			outputs.insert(0, output.commit.clone());
 		}
 	}
 

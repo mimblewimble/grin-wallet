@@ -606,9 +606,9 @@ pub fn wallet_command(
 		("payments", Some(_)) => {
 			info!("payments command received");
 			command::payments(
-			inst_wallet(),
-			&global_wallet_args,
-			wallet_config.dark_background_color_scheme.unwrap_or(true),
+				inst_wallet(),
+				&global_wallet_args,
+				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("txs", Some(args)) => {

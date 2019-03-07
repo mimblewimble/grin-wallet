@@ -27,8 +27,8 @@ use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
 use crate::keychain::{Identifier, Keychain};
 use crate::types::{
-	BlockFees, CbData, NodeClient, OutputData, OutputStatus, PaymentData, TxLogEntry, TxLogEntryType,
-	WalletBackend, WalletInfo,
+	BlockFees, CbData, NodeClient, OutputData, OutputStatus, PaymentData, TxLogEntry,
+	TxLogEntryType, WalletBackend, WalletInfo,
 };
 use crate::util;
 use crate::util::secp::pedersen;
@@ -98,10 +98,10 @@ pub fn retrieve_payments<T: ?Sized, C, K>(
 	show_spent: bool,
 	tx_id: Option<Uuid>,
 ) -> Result<Vec<(PaymentData, pedersen::Commitment)>, Error>
-	where
-		T: WalletBackend<C, K>,
-		C: NodeClient,
-		K: Keychain,
+where
+	T: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
 {
 	// just read the wallet here, no need for a write lock
 	let mut outputs = wallet
@@ -120,7 +120,8 @@ pub fn retrieve_payments<T: ?Sized, C, K>(
 	let res = outputs
 		.into_iter()
 		.map(|out| {
-			let commit = pedersen::Commitment::from_vec(util::from_hex(out.commit.clone()).unwrap());
+			let commit =
+				pedersen::Commitment::from_vec(util::from_hex(out.commit.clone()).unwrap());
 			(out, commit)
 		})
 		.collect();
@@ -458,7 +459,7 @@ where
 			OutputStatus::Locked => {
 				locked_total += out.value;
 			}
-			OutputStatus::Spent => {},
+			OutputStatus::Spent => {}
 			OutputStatus::Confirmed => {}
 		}
 	}

@@ -389,7 +389,6 @@ impl ser::Readable for PaymentData {
 }
 
 impl PaymentData {
-
 	/// How many confirmations has this output received?
 	/// If height == 0 then we are either Unconfirmed or the output was
 	/// cut-through
