@@ -482,7 +482,7 @@ pub trait OwnerAPI {
 	{
 		"jsonrpc": "2.0",
 		"method": "check_repair",
-		"params": [],
+		"params": [false],
 		"id": 1
 	},
 	{
@@ -497,7 +497,7 @@ pub trait OwnerAPI {
 	# );
 	```
 	 */
-	fn check_repair(&self) -> Result<(), ErrorKind>;
+	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [APIOwner::node_height](struct.APIOwner.html#method.node_height).
@@ -1314,11 +1314,11 @@ where
 	}
 
 	/// Attempt to check and fix the contents of the wallet
-	pub fn check_repair(&self) -> Result<(), Error> {
+	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		self.update_outputs(&mut w, true);
-		w.check_repair()?;
+		w.check_repair(delete_unconfirmed)?;
 		w.close()?;
 		Ok(())
 	}
@@ -1445,8 +1445,8 @@ where
 		APIOwner::restore(self).map_err(|e| e.kind())
 	}
 
-	fn check_repair(&self) -> Result<(), ErrorKind> {
-		APIOwner::check_repair(self).map_err(|e| e.kind())
+	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
+		APIOwner::check_repair(self, delete_unconfirmed).map_err(|e| e.kind())
 	}
 
 	fn node_height(&self) -> Result<(u64, bool), ErrorKind> {

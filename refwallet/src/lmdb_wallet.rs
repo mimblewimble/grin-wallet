@@ -111,7 +111,7 @@ impl<C, K> LMDBBackend<C, K> {
 		fs::create_dir_all(&stored_tx_path)
 			.expect("Couldn't create wallet backend tx storage directory!");
 
-		let store = store::Store::new(db_path.to_str().unwrap(), Some(DB_DIR), None)?;
+		let store = store::Store::new(db_path.to_str().unwrap(), None, Some(DB_DIR), None)?;
 
 		// Make sure default wallet derivation path always exists
 		// as well as path (so it can be retrieved by batches to know where to store
@@ -350,8 +350,8 @@ where
 		Ok(())
 	}
 
-	fn check_repair(&mut self) -> Result<(), Error> {
-		internal::restore::check_repair(self).context(ErrorKind::Restore)?;
+	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error> {
+		internal::restore::check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }

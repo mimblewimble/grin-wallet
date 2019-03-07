@@ -267,7 +267,7 @@ where
 /// Check / repair wallet contents
 /// assume wallet contents have been freshly updated with contents
 /// of latest block
-pub fn check_repair<T, C, K>(wallet: &mut T) -> Result<(), Error>
+pub fn check_repair<T, C, K>(wallet: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -335,37 +335,39 @@ where
 		restore_missing_output(wallet, m, &mut found_parents, &mut None)?;
 	}
 
-	// Unlock locked outputs
-	for m in locked_outs.into_iter() {
-		let mut o = m.0;
-		warn!(
-			"Confirmed output for {} with ID {} ({:?}) exists in UTXO set and is locked. \
-			 Unlocking and cancelling associated transaction log entries.",
-			o.value, o.key_id, m.1.commit,
-		);
-		o.status = OutputStatus::Unspent;
-		cancel_tx_log_entry(wallet, &o)?;
-		let mut batch = wallet.batch()?;
-		batch.save(o)?;
-		batch.commit()?;
-	}
+	if delete_unconfirmed {
+		// Unlock locked outputs
+		for m in locked_outs.into_iter() {
+			let mut o = m.0;
+			warn!(
+				"Confirmed output for {} with ID {} ({:?}) exists in UTXO set and is locked. \
+				 Unlocking and cancelling associated transaction log entries.",
+				o.value, o.key_id, m.1.commit,
+			);
+			o.status = OutputStatus::Unspent;
+			cancel_tx_log_entry(wallet, &o)?;
+			let mut batch = wallet.batch()?;
+			batch.save(o)?;
+			batch.commit()?;
+		}
 
-	let unconfirmed_outs: Vec<&(OutputData, pedersen::Commitment)> = wallet_outputs
-		.iter()
-		.filter(|o| o.0.status == OutputStatus::Unconfirmed)
-		.collect();
-	// Delete unconfirmed outputs
-	for m in unconfirmed_outs.into_iter() {
-		let o = m.0.clone();
-		warn!(
-			"Unconfirmed output for {} with ID {} ({:?}) not in UTXO set. \
-			 Deleting and cancelling associated transaction log entries.",
-			o.value, o.key_id, m.1,
-		);
-		cancel_tx_log_entry(wallet, &o)?;
-		let mut batch = wallet.batch()?;
-		batch.delete(&o.key_id, &o.mmr_index)?;
-		batch.commit()?;
+		let unconfirmed_outs: Vec<&(OutputData, pedersen::Commitment)> = wallet_outputs
+			.iter()
+			.filter(|o| o.0.status == OutputStatus::Unconfirmed)
+			.collect();
+		// Delete unconfirmed outputs
+		for m in unconfirmed_outs.into_iter() {
+			let o = m.0.clone();
+			warn!(
+				"Unconfirmed output for {} with ID {} ({:?}) not in UTXO set. \
+				 Deleting and cancelling associated transaction log entries.",
+				o.value, o.key_id, m.1,
+			);
+			cancel_tx_log_entry(wallet, &o)?;
+			let mut batch = wallet.batch()?;
+			batch.delete(&o.key_id, &o.mmr_index)?;
+			batch.commit()?;
+		}
 	}
 
 	// restore labels, account paths and child derivation indices

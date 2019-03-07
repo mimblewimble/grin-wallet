@@ -236,3 +236,9 @@ subcommands:
       about: Restores a wallet contents from a seed file
   - check:
       about: Checks a wallet's outputs against a live node, repairing and restoring missing outputs if required
+      args:
+        - delete_unconfirmed:
+            help: Delete any unconfirmed outputsm unlock any locked outputs and delete associated transactions while doing the check.
+            short: d
+            long: delete_unconfirmed
+            takes_value: false

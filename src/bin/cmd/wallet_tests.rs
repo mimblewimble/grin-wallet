@@ -456,7 +456,7 @@ mod wallet_tests {
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-		let arg_vec = vec!["grin-wallet", "-p", "password", "check"];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "check", "-d"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// Another file exchange, cancel this time

@@ -270,7 +270,7 @@ pub fn info(
 
 	if dark_background_color_scheme {
 		table.add_row(row![
-			bFG->"Total",
+			bFG->"Confirmed Total",
 			FG->amount_to_hr_string(wallet_info.total, false)
 		]);
 		// Only dispay "Immature Coinbase" if we have related outputs in the wallet.
@@ -284,6 +284,10 @@ pub fn info(
 		table.add_row(row![
 			bFY->format!("Awaiting Confirmation (< {})", wallet_info.minimum_confirmations),
 			FY->amount_to_hr_string(wallet_info.amount_awaiting_confirmation, false)
+		]);
+		table.add_row(row![
+			bFB->format!("Awaiting Finalization"),
+			FB->amount_to_hr_string(wallet_info.amount_awaiting_finalization, false)
 		]);
 		table.add_row(row![
 			Fr->"Locked by previous transaction",
