@@ -41,7 +41,7 @@ use crate::libwallet::internal::{keys, tx, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, BlockFees, CbData, NodeClient, OutputData, OutputLockFn, TxLogEntry,
+	AcctPathMapping, BlockFees, CbData, NodeClient, OutputData, OutputLockFn, PaymentData, TxLogEntry,
 	TxLogEntryType, TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::util;
@@ -359,7 +359,32 @@ where
 
 		let res = Ok((
 			validated,
-			updater::retrieve_outputs(&mut *w, include_spent, tx_id, Some(&parent_key_id))?,
+			updater::retrieve_outputs(&mut *w, include_spent, tx_id, None, Some(&parent_key_id))?,
+		));
+
+		w.close()?;
+		res
+	}
+
+	/// Returns a list of payment outputs from the active account in the wallet.
+	pub fn retrieve_payments(
+		&self,
+		include_spent: bool,
+		refresh_from_node: bool,
+		tx_id: Option<Uuid>,
+	) -> Result<(bool, Vec<(PaymentData, pedersen::Commitment)>), Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+
+		let validated = false;
+		if refresh_from_node {
+			//todo: need refresh or not?
+			//validated = self.update_outputs(&mut w, false);
+		}
+
+		let res = Ok((
+			validated,
+			updater::retrieve_payments(&mut *w, include_spent, tx_id)?,
 		));
 
 		w.close()?;

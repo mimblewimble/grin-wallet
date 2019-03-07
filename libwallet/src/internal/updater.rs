@@ -27,17 +27,18 @@ use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
 use crate::keychain::{Identifier, Keychain};
 use crate::types::{
-	BlockFees, CbData, NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType,
+	BlockFees, CbData, NodeClient, OutputData, OutputStatus, PaymentData, TxLogEntry, TxLogEntryType,
 	WalletBackend, WalletInfo,
 };
 use crate::util;
 use crate::util::secp::pedersen;
 
-/// Retrieve all of the outputs (doesn't attempt to update from node)
+/// Retrieve all of the self outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<T: ?Sized, C, K>(
 	wallet: &mut T,
 	show_spent: bool,
 	tx_id: Option<u32>,
+	slate_id: Option<Uuid>,
 	parent_key_id: Option<&Identifier>,
 ) -> Result<Vec<(OutputData, pedersen::Commitment)>, Error>
 where
@@ -59,6 +60,14 @@ where
 			.collect::<Vec<_>>();
 	}
 
+	// only include outputs with a given slate_id if provided
+	if let Some(id) = slate_id {
+		outputs = outputs
+			.into_iter()
+			.filter(|out| out.slate_id == Some(id))
+			.collect::<Vec<_>>();
+	}
+
 	if let Some(k) = parent_key_id {
 		outputs = outputs
 			.iter()
@@ -77,6 +86,41 @@ where
 				Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
 				None => keychain.commit(out.value, &out.key_id).unwrap(),
 			};
+			(out, commit)
+		})
+		.collect();
+	Ok(res)
+}
+
+/// Retrieve all of the payment outputs (doesn't attempt to update from node)
+pub fn retrieve_payments<T: ?Sized, C, K>(
+	wallet: &mut T,
+	show_spent: bool,
+	tx_id: Option<Uuid>,
+) -> Result<Vec<(PaymentData, pedersen::Commitment)>, Error>
+	where
+		T: WalletBackend<C, K>,
+		C: NodeClient,
+		K: Keychain,
+{
+	// just read the wallet here, no need for a write lock
+	let mut outputs = wallet
+		.payment_log_iter()
+		.filter(|out| show_spent || out.status != OutputStatus::Spent)
+		.collect::<Vec<_>>();
+
+	// only include outputs with a given tx_id if provided
+	if let Some(id) = tx_id {
+		outputs = outputs
+			.into_iter()
+			.filter(|out| out.slate_id == id)
+			.collect::<Vec<_>>();
+	}
+
+	let res = outputs
+		.into_iter()
+		.map(|out| {
+			let commit = pedersen::Commitment::from_vec(util::from_hex(out.commit.clone()).unwrap());
 			(out, commit)
 		})
 		.collect();
@@ -301,6 +345,8 @@ where
 				batch.save(output)?;
 			}
 		}
+		//todo: refresh payment outputs?
+
 		{
 			batch.save_last_confirmed_height(parent_key_id, height)?;
 		}
@@ -412,7 +458,8 @@ where
 			OutputStatus::Locked => {
 				locked_total += out.value;
 			}
-			OutputStatus::Spent => {}
+			OutputStatus::Spent => {},
+			OutputStatus::Confirmed => {}
 		}
 	}
 
@@ -496,6 +543,7 @@ where
 			lock_height: lock_height,
 			is_coinbase: true,
 			tx_log_entry: None,
+			slate_id: None,
 		})?;
 		batch.commit()?;
 	}

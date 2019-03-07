@@ -42,6 +42,7 @@ pub const DB_DIR: &'static str = "db";
 pub const TX_SAVE_DIR: &'static str = "saved_txs";
 
 const OUTPUT_PREFIX: u8 = 'o' as u8;
+const PAYMENT_PREFIX: u8 = 'P' as u8;
 const DERIV_PREFIX: u8 = 'd' as u8;
 const CONFIRMED_HEIGHT_PREFIX: u8 = 'c' as u8;
 const PRIVATE_TX_CONTEXT_PREFIX: u8 = 'p' as u8;
@@ -238,6 +239,10 @@ where
 		Box::new(self.db.iter(&[OUTPUT_PREFIX]).unwrap())
 	}
 
+	fn payment_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = PaymentData> + 'a> {
+		Box::new(self.db.iter(&[PAYMENT_PREFIX]).unwrap())
+	}
+
 	fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
 		let key = to_key(TX_LOG_ENTRY_PREFIX, &mut u.as_bytes().to_vec());
 		self.db.get_ser(&key).map_err(|e| e.into())
@@ -380,12 +385,23 @@ where
 	}
 
 	fn save(&mut self, out: OutputData) -> Result<(), Error> {
-		// Save the output data to the db.
+		// Save the self output data to the db.
 		{
 			let key = match out.mmr_index {
 				Some(i) => to_key_u64(OUTPUT_PREFIX, &mut out.key_id.to_bytes().to_vec(), i),
 				None => to_key(OUTPUT_PREFIX, &mut out.key_id.to_bytes().to_vec()),
 			};
+			self.db.borrow().as_ref().unwrap().put_ser(&key, &out)?;
+		}
+
+		Ok(())
+	}
+
+	fn save_payment(&mut self, out: PaymentData) -> Result<(), Error> {
+		// Save the payment output data to the db.
+		{
+			let commit = out.commit.clone();
+			let key = to_key(PAYMENT_PREFIX, &mut commit.as_bytes().to_vec());
 			self.db.borrow().as_ref().unwrap().put_ser(&key, &out)?;
 		}
 

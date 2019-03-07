@@ -64,6 +64,7 @@ where
 	let mut context = Context::new(
 		wallet.keychain().secp(),
 		blinding.secret_key(&keychain.secp()).unwrap(),
+		parent_key_id.clone(),
 	);
 
 	// Store our private identifiers for each input
@@ -134,6 +135,7 @@ where
 						lock_height: 0,
 						is_coinbase: false,
 						tx_log_entry: Some(log_id),
+						slate_id: Some(slate_id.clone()),
 					})?;
 				}
 				batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
@@ -179,6 +181,7 @@ where
 		blinding
 			.secret_key(wallet.keychain().clone().secp())
 			.unwrap(),
+		parent_key_id.clone(),
 	);
 
 	context.add_output(&key_id, &None);
@@ -210,6 +213,7 @@ where
 				lock_height: 0,
 				is_coinbase: false,
 				tx_log_entry: Some(log_id),
+				slate_id: Some(slate_id),
 			})?;
 			batch.save_tx_log_entry(t, &parent_key_id)?;
 			batch.commit()?;

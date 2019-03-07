@@ -19,7 +19,9 @@ use uuid::Uuid;
 use crate::internal::{selection, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, OutputLockFn, TxLogEntryType, WalletBackend};
+use crate::types::{Context, NodeClient, OutputLockFn, OutputStatus, PaymentData, TxLogEntryType, WalletBackend};
+use crate::util::to_hex;
+use crate::util::secp::pedersen;
 use crate::{Error, ErrorKind};
 
 /// Creates a new slate for a transaction, can be called by anyone involved in
@@ -196,6 +198,33 @@ where
 	)?;
 	// Final transaction can be built by anyone at this stage
 	slate.finalize(wallet.keychain())?;
+
+	// Get the change output/s from database
+	let changes = updater::retrieve_outputs(wallet, false, None, Some(slate.id), Some(&context.parent_key_id))?;
+	let change_commits = changes.iter().map(|(_,c)| c.clone()).collect::<Vec<pedersen::Commitment>>();
+
+	// Find the payment output/s
+	let mut outputs = Vec::new();
+	for output in slate.tx.outputs() {
+		if change_commits.contains( &output.commit ) {
+			outputs.insert( 0, output.commit.clone() );
+		}
+	}
+
+	// sender save the payment output
+	let mut batch = wallet.batch()?;
+	// todo: only one payment output at this moment, but in case we have multiple in the future,
+	// 	then we need find a way for multiple PaymentData
+	let payment_output = to_hex(outputs.first().clone().unwrap().as_ref().to_vec());
+	batch.save_payment(PaymentData {
+		commit: payment_output,
+		value: slate.amount,
+		status: OutputStatus::Unconfirmed,
+		height: slate.height,
+		lock_height: 0,
+		slate_id: slate.id,
+	})?;
+	batch.commit()?;
 	Ok(())
 }
 
@@ -229,7 +258,7 @@ where
 		return Err(ErrorKind::TransactionNotCancellable(tx_id_string))?;
 	}
 	// get outputs associated with tx
-	let res = updater::retrieve_outputs(wallet, false, Some(tx.id), Some(&parent_key_id))?;
+	let res = updater::retrieve_outputs(wallet, false, Some(tx.id), None, Some(&parent_key_id))?;
 	let outputs = res.iter().map(|(out, _)| out).cloned().collect();
 	updater::cancel_tx_and_outputs(wallet, tx, outputs, parent_key_id)?;
 	Ok(())
