@@ -93,6 +93,12 @@ where
 	/// Iterate over all self output data stored by the backend
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a>;
 
+	/// Get payment commits list by slate id
+	fn get_payment_log_commits(&self, u: &Uuid) -> Result<Option<PaymentCommits>, Error>;
+
+	/// Get payment output data by commit
+	fn get_payment_log_entry(&self, commit: String) -> Result<Option<PaymentData>, Error>;
+
 	/// Iterate over all payment output data stored by the backend
 	fn payment_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = PaymentData> + 'a>;
 
@@ -148,14 +154,23 @@ where
 	/// Return the keychain being used
 	fn keychain(&mut self) -> &mut K;
 
-	/// Add or update data about a self output to the backend
+	/// Add or update data about a self owned output to the backend
 	fn save(&mut self, out: OutputData) -> Result<(), Error>;
 
 	/// Add or update data about a payment output to the backend
 	fn save_payment(&mut self, out: PaymentData) -> Result<(), Error>;
 
-	/// Gets output data by id
+	/// Add or update data about a payment commits list to the backend
+	fn save_payment_commits(&mut self, u: &Uuid, commits: PaymentCommits) -> Result<(), Error>;
+
+	/// Gets self owned output data by id
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
+
+	/// Gets payment commits list by slate id
+	fn get_payment_commits(&self, u: &Uuid) -> Result<PaymentCommits, Error>;
+
+	/// Gets payment output data by commit
+	fn get_payment_log_entry(&self, commit: String) -> Result<PaymentData, Error>;
 
 	/// Iterate over all output data stored by the backend
 	fn iter(&self) -> Box<dyn Iterator<Item = OutputData>>;
@@ -408,11 +423,38 @@ impl PaymentData {
 	}
 
 	/// Marks this output as confirmed if it was previously unconfirmed
-	pub fn mark_unspent(&mut self) {
+	pub fn mark_confirmed(&mut self) {
 		match self.status {
 			OutputStatus::Unconfirmed => self.status = OutputStatus::Confirmed,
 			_ => (),
 		}
+	}
+}
+
+/// Information about the payment commit/s in one tx that's being tracked by the wallet.
+/// They belong to the receiver/s, and they're paid by this wallet.
+///
+/// Note: because lmdb can't have multiple keys to same value, we have to use this to find
+/// the commit lists by the slate id, in case we support multiple receivers in one tx in the future.
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentCommits {
+	/// The actual commit/s
+	pub commits: Vec<String>,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Uuid,
+}
+
+impl ser::Writeable for PaymentCommits {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for PaymentCommits {
+	fn read(reader: &mut dyn ser::Reader) -> Result<PaymentCommits, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
 }
 

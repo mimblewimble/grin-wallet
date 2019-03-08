@@ -406,7 +406,7 @@ pub fn payments(
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
 		let (height, _) = api.node_height()?;
-		let (validated, outputs) = api.retrieve_payments(g_args.show_spent, true, None)?;
+		let (validated, outputs) = api.retrieve_payments(true, None)?;
 		display::payments(&g_args.account, height, validated, outputs, dark_scheme)?;
 		Ok(())
 	})?;
@@ -445,7 +445,7 @@ pub fn txs(
 			// should only be one here, but just in case
 			for tx in &txs {
 				let (_, outputs) =
-					api.retrieve_payments(g_args.show_spent, true, tx.tx_slate_id)?;
+					api.retrieve_payments(true, tx.tx_slate_id)?;
 				if outputs.len() > 0 {
 					display::payments(&g_args.account, height, validated, outputs, dark_scheme)?;
 				}

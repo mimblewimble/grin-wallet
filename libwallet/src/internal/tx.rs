@@ -20,7 +20,7 @@ use crate::internal::{selection, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{
-	Context, NodeClient, OutputLockFn, OutputStatus, PaymentData, TxLogEntryType, WalletBackend,
+	Context, NodeClient, OutputLockFn, OutputStatus, PaymentCommits, PaymentData, TxLogEntryType, WalletBackend,
 };
 use crate::util::secp::pedersen;
 use crate::util::to_hex;
@@ -215,17 +215,21 @@ where
 		.collect::<Vec<pedersen::Commitment>>();
 
 	// Find the payment output/s
-	let mut outputs = Vec::new();
+	let mut outputs: Vec<pedersen::Commitment> = Vec::new();
 	for output in slate.tx.outputs() {
-		if change_commits.contains(&output.commit) {
+		if !change_commits.contains(&output.commit) {
 			outputs.insert(0, output.commit.clone());
 		}
 	}
 
 	// sender save the payment output
 	let mut batch = wallet.batch()?;
+	batch.save_payment_commits(&slate.id, PaymentCommits {
+		commits: outputs.iter().map(|c| to_hex(c.as_ref().to_vec())).collect::<Vec<String>>(),
+		slate_id: slate.id,
+	})?;
 	// todo: only one payment output at this moment, but in case we have multiple in the future,
-	// 	then we need find a way for multiple PaymentData
+	// 	then we need find a way for multiple PaymentData, especially for "value"
 	let payment_output = to_hex(outputs.first().clone().unwrap().as_ref().to_vec());
 	batch.save_payment(PaymentData {
 		commit: payment_output,

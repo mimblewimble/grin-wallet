@@ -369,22 +369,20 @@ where
 	/// Returns a list of payment outputs from the active account in the wallet.
 	pub fn retrieve_payments(
 		&self,
-		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<Uuid>,
 	) -> Result<(bool, Vec<(PaymentData, pedersen::Commitment)>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 
-		let validated = false;
+		let mut validated = false;
 		if refresh_from_node {
-			//todo: need refresh or not?
-			//validated = self.update_outputs(&mut w, false);
+			validated = self.update_outputs(&mut w, false);
 		}
 
 		let res = Ok((
 			validated,
-			updater::retrieve_payments(&mut *w, include_spent, tx_id)?,
+			updater::retrieve_payments(&mut *w, tx_id)?,
 		));
 
 		w.close()?;

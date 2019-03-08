@@ -95,7 +95,6 @@ where
 /// Retrieve all of the payment outputs (doesn't attempt to update from node)
 pub fn retrieve_payments<T: ?Sized, C, K>(
 	wallet: &mut T,
-	show_spent: bool,
 	tx_id: Option<Uuid>,
 ) -> Result<Vec<(PaymentData, pedersen::Commitment)>, Error>
 where
@@ -106,7 +105,6 @@ where
 	// just read the wallet here, no need for a write lock
 	let mut outputs = wallet
 		.payment_log_iter()
-		.filter(|out| show_spent || out.status != OutputStatus::Spent)
 		.collect::<Vec<_>>();
 
 	// only include outputs with a given tx_id if provided
@@ -337,6 +335,19 @@ where
 								t.confirmed = true;
 								batch.save_tx_log_entry(t, &parent_key_id)?;
 							}
+
+							// if there's a related payment output being confirmed, refresh that payment log
+							if let Some(slate_id) = output.slate_id {
+								if let Ok(commits) = batch.get_payment_commits(&slate_id) {
+									for commit in commits.commits {
+										if let Ok(mut payment) = batch.get_payment_log_entry(commit.clone()) {
+											payment.height = o.1;
+											payment.mark_confirmed();
+											batch.save_payment(payment)?;
+										}
+									}
+								}
+							}
 						}
 						output.height = o.1;
 						output.mark_unspent();
@@ -346,7 +357,6 @@ where
 				batch.save(output)?;
 			}
 		}
-		//todo: refresh payment outputs?
 
 		{
 			batch.save_last_confirmed_height(parent_key_id, height)?;
