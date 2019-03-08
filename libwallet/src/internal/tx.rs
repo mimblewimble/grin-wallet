@@ -201,13 +201,15 @@ where
 	// Final transaction can be built by anyone at this stage
 	slate.finalize(wallet.keychain())?;
 
+	let parent_key_id = context.parent_key_id.as_ref().map(|x| x);
+
 	// Get the change output/s from database
 	let changes = updater::retrieve_outputs(
 		wallet,
 		false,
 		None,
 		Some(slate.id),
-		Some(&context.parent_key_id),
+		parent_key_id,
 	)?;
 	let change_commits = changes
 		.iter()

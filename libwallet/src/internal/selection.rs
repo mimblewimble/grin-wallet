@@ -64,7 +64,7 @@ where
 	let mut context = Context::new(
 		wallet.keychain().secp(),
 		blinding.secret_key(&keychain.secp()).unwrap(),
-		parent_key_id.clone(),
+		Some(parent_key_id.clone()),
 	);
 
 	// Store our private identifiers for each input
@@ -181,7 +181,7 @@ where
 		blinding
 			.secret_key(wallet.keychain().clone().secp())
 			.unwrap(),
-		parent_key_id.clone(),
+		Some(parent_key_id.clone()),
 	);
 
 	context.add_output(&key_id, &None);

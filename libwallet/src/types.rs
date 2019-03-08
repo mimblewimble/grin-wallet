@@ -492,7 +492,7 @@ impl fmt::Display for OutputStatus {
 /// Holds the context for a single aggsig transaction
 pub struct Context {
 	/// parent_key_id
-	pub parent_key_id: Identifier,
+	pub parent_key_id: Option<Identifier>,
 	/// Secret key (of which public is shared)
 	pub sec_key: SecretKey,
 	/// Secret nonce (of which public is shared)
@@ -508,7 +508,7 @@ pub struct Context {
 
 impl Context {
 	/// Create a new context with defaults
-	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: Identifier) -> Context {
+	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: Option<Identifier>) -> Context {
 		Context {
 			parent_key_id: parent_key_id,
 			sec_key: sec_key,
