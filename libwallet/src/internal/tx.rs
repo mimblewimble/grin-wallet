@@ -244,7 +244,7 @@ where
 			slate_id: slate.id,
 		})?;
 	} else {
-		warn!("complete_tx - impossible here! how come a tx is finalized without a payment output?");
+		warn!("complete_tx - no 'payment' output! is this a sending to self for test purpose?");
 	}
 	batch.commit()?;
 	Ok(())
