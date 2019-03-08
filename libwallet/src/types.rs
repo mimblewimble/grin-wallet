@@ -508,7 +508,11 @@ pub struct Context {
 
 impl Context {
 	/// Create a new context with defaults
-	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: Option<Identifier>) -> Context {
+	pub fn new(
+		secp: &secp::Secp256k1,
+		sec_key: SecretKey,
+		parent_key_id: Option<Identifier>,
+	) -> Context {
 		Context {
 			parent_key_id: parent_key_id,
 			sec_key: sec_key,
