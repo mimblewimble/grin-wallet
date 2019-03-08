@@ -51,9 +51,9 @@ use easy_jsonrpc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
-#[easy_jsonrpc::jsonrpc_server]
 /// Public definition used to generate jsonrpc api.
-pub trait OwnerAPI {
+#[easy_jsonrpc::rpc]
+pub trait OwnerApi {
 	/**
 	Networked version of [APIOwner::accounts](struct.APIOwner.html#method.accounts).
 
@@ -559,7 +559,7 @@ where
 	/// [`WalletBackend`](../types/trait.WalletBackend.html) trait.
 	///
 	/// # Returns
-	/// * An instance of the OwnerAPI holding a reference to the provided wallet
+	/// * An instance of the OwnerApi holding a reference to the provided wallet
 	///
 	/// # Example
 	/// ``` ignore
@@ -1353,7 +1353,7 @@ where
 	}
 }
 
-impl<W: ?Sized, C, K> OwnerAPI for APIOwner<W, C, K>
+impl<W: ?Sized, C, K> OwnerApi for APIOwner<W, C, K>
 where
 	W: WalletBackend<C, K>,
 	C: NodeClient,
@@ -1454,6 +1454,86 @@ where
 	}
 }
 
+#[easy_jsonrpc::rpc]
+trait ForeignApi {
+	/**
+	Networked version of [APIForeign::build_coinbase](struct.APIForeign.html#method.build_coinbase).
+
+	# Json rpc example
+
+	```
+	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
+	{
+		"jsonrpc": "2.0",
+		"method": "build_coinbase",
+		"params": [],
+		"id": 1
+	},
+	{
+		"jsonrpc": "2.0",
+		"result": {
+		},
+		"id": 1
+	}
+	# );
+	```
+	 */
+	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
+
+	/**
+	Networked version of [APIForeign::verify_slate_messages](struct.APIForeign.html#method.verify_slate_messages).
+
+	# Json rpc example
+
+	```
+	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
+	{
+		"jsonrpc": "2.0",
+		"method": "verify_slate_messages",
+		"params": [],
+		"id": 1
+	},
+	{
+		"jsonrpc": "2.0",
+		"result": {
+		},
+		"id": 1
+	}
+	# );
+	```
+	 */
+	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [APIForeign::receive_tx](struct.APIForeign.html#method.receive_tx).
+
+	# Json rpc example
+
+	```
+	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
+	{
+		"jsonrpc": "2.0",
+		"method": "receive_tx",
+		"params": [],
+		"id": 1
+	},
+	{
+		"jsonrpc": "2.0",
+		"result": {
+		},
+		"id": 1
+	}
+	# );
+	```
+	 */
+	fn receive_tx(
+		&self,
+		slate: Slate,
+		dest_acct_name: Option<String>,
+		message: Option<String>,
+	) -> Result<Slate, ErrorKind>;
+}
+
 /// Wrapper around external API functions, intended to communicate
 /// with other parties
 pub struct APIForeign<W: ?Sized, C, K>
@@ -1544,6 +1624,37 @@ where
 	}
 }
 
+impl<W: ?Sized, C, K> ForeignApi for APIForeign<W, C, K>
+where
+	W: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
+		APIForeign::build_coinbase(self, block_fees).map_err(|e| e.kind())
+	}
+
+	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {
+		APIForeign::verify_slate_messages(self, slate).map_err(|e| e.kind())
+	}
+
+	fn receive_tx(
+		&self,
+		mut slate: Slate,
+		dest_acct_name: Option<String>,
+		message: Option<String>,
+	) -> Result<Slate, ErrorKind> {
+		APIForeign::receive_tx(
+			self,
+			&mut slate,
+			dest_acct_name.as_ref().map(String::as_str),
+			message,
+		)
+		.map_err(|e| e.kind())?;
+		Ok(slate)
+	}
+}
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
@@ -1555,7 +1666,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			request: serde_json::Value,
 		) -> Result<Option<serde_json::Value>, String> {
 			use easy_jsonrpc::Handler;
-			use grin_apiwallet::api::{APIOwner, OwnerAPI};
+			use grin_apiwallet::api::{APIOwner, OwnerApi};
 			use grin_keychain::ExtKeychain;
 			use grin_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
 			use grin_util::Mutex;
@@ -1580,8 +1691,64 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 							.map_err(|e| format!("{:#?}", e))?,
 					));
 				let api_owner = APIOwner::new(wallet);
-				let owner_api = &api_owner as &dyn OwnerAPI;
+				let owner_api = &api_owner as &dyn OwnerApi;
 				Ok(owner_api.handle_request(request))
+				}
+			}
+
+		let response = rpc_owner_result(serde_json::json!($request))
+			.unwrap()
+			.unwrap();
+		let expected_response = serde_json::json!($expected_response);
+
+		if response != expected_response {
+			panic!(
+				"(left != right) \nleft: {}\nright: {}",
+				serde_json::to_string_pretty(&response).unwrap(),
+				serde_json::to_string_pretty(&expected_response).unwrap()
+				);
+			}
+	};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! doctest_helper_json_rpc_foreign_assert_response {
+	($request:tt, $expected_response:tt) => {
+		// create temporary wallet, run jsonrpc request on api of wallet, delete wallet, return
+		// json response.
+		// In order to prevent leaking tempdirs, This function should not panic.
+		fn rpc_owner_result(
+			request: serde_json::Value,
+		) -> Result<Option<serde_json::Value>, String> {
+			use easy_jsonrpc::Handler;
+			use grin_apiwallet::api::{APIOwner, OwnerApi};
+			use grin_keychain::ExtKeychain;
+			use grin_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
+			use grin_util::Mutex;
+			use grin_wallet_config::WalletConfig;
+			use serde_json;
+			use std::sync::Arc;
+			use tempfile::tempdir;
+
+			let dir = tempdir().map_err(|e| format!("{:#?}", e))?;
+				{
+				let mut wallet_config = WalletConfig::default();
+				wallet_config.data_file_dir = dir
+					.path()
+					.to_str()
+					.ok_or("Failed to convert tmpdir path to string.".to_owned())?
+					.to_owned();
+				let node_client =
+					HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+				let wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
+					Arc::new(Mutex::new(
+						LMDBBackend::new(wallet_config.clone(), "", node_client)
+							.map_err(|e| format!("{:#?}", e))?,
+					));
+				let api_foreign = APIForeign::new(wallet);
+				let foreign_api = &api_foreign as &dyn OwnerApi;
+				Ok(foreign_api.handle_request(request))
 				}
 			}
 
