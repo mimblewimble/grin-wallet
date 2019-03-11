@@ -231,19 +231,31 @@ where
 			slate_id: slate.id,
 		},
 	)?;
-	// todo: only one payment output at this moment, but in case we have multiple in the future,
-	// 	then we need find a way for multiple PaymentData, especially for "value"
-	if outputs.len() > 0 {
-		let payment_output = to_hex(outputs.first().clone().unwrap().as_ref().to_vec());
-		batch.save_payment(PaymentData {
-			commit: payment_output,
-			value: slate.amount,
-			status: OutputStatus::Unconfirmed,
-			height: slate.height,
-			lock_height: 0,
-			slate_id: slate.id,
-		})?;
-	} else {
+	// todo: multiple receivers transaction
+	if outputs.len() > 1 {
+        for output in outputs {
+            let payment_output = to_hex(output.clone().as_ref().to_vec());
+            batch.save_payment(PaymentData {
+                commit: payment_output,
+                value: 0,   // '0' means unknown here, since '0' value is impossible for an output.
+                status: OutputStatus::Unconfirmed,
+                height: slate.height,
+                lock_height: 0,
+                slate_id: slate.id,
+            })?;
+        }
+	} else if outputs.len() == 1 {
+        let payment_output = to_hex(outputs.first().clone().unwrap().as_ref().to_vec());
+        batch.save_payment(PaymentData {
+            commit: payment_output,
+            value: slate.amount,
+            status: OutputStatus::Unconfirmed,
+            height: slate.height,
+            lock_height: 0,
+            slate_id: slate.id,
+        })?;
+    }
+    else {
 		warn!("complete_tx - no 'payment' output! is this a sending to self for test purpose?");
 	}
 	batch.commit()?;

@@ -157,7 +157,11 @@ pub fn payments(
 		let status = format!("{}", out.status);
 
 		let num_confirmations = format!("{}", out.num_confirmations(cur_height));
-		let value = format!("{}", core::amount_to_hr_string(out.value, false));
+		let value = if out.value == 0 {
+			"unknown".to_owned()
+		} else {
+			format!("{}", core::amount_to_hr_string(out.value, false))
+		};
 		let slate_id = format!("{}", out.slate_id);
 
 		if dark_background_color_scheme {
