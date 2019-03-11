@@ -17,6 +17,7 @@
 use crate::controller;
 use crate::libwallet::slate::{Slate, VersionedSlate};
 use crate::libwallet::slate_versions::v0::SlateV0;
+use crate::libwallet::slate_versions::v1::SlateV1;
 use crate::libwallet::{Error, ErrorKind};
 use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter, WalletConfig};
 use failure::ResultExt;
@@ -391,6 +392,9 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 										send(SlateV0::from(slate), channel, SLATE_SIGNED, TTL)
 									}
 									VersionedSlate::V1(_) => {
+										send(SlateV1::from(slate), channel, SLATE_SIGNED, TTL)
+									}
+									VersionedSlate::V2(_) => {
 										send(slate, channel, SLATE_SIGNED, TTL)
 									}
 								};
