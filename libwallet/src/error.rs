@@ -176,6 +176,18 @@ pub enum ErrorKind {
 	#[fail(display = "Committed Error")]
 	Committed(committed::Error),
 
+	/// Can't parse slate version
+	#[fail(display = "Can't parse slate version")]
+	SlateVersionParse,
+
+	/// Can't deserialize slate
+	#[fail(display = "Can't Deserialize slate")]
+	SlateDeser,
+
+	/// Unknown slate version
+	#[fail(display = "Unknown Slate Version: {}", _0)]
+	SlateVersion(u16),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

@@ -16,3 +16,7 @@
 //! Used for serialization and deserialization of slates in a backwards compatible way.
 #[allow(missing_docs)]
 pub mod v0;
+#[allow(missing_docs)]
+pub mod v1;
+#[allow(missing_docs)]
+pub mod v2;

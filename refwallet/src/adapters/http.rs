@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::adapters::util::get_versioned_slate;
 use crate::api;
 use crate::controller;
-use crate::libwallet::slate::{Slate, VersionedSlate};
+use crate::libwallet::slate::Slate;
 use crate::libwallet::{Error, ErrorKind};
 use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter, WalletConfig};
 /// HTTP Wallet 'plugin' implementation
@@ -48,15 +47,15 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
 		debug!("Posting transaction slate to {}", url);
-		let slate = get_versioned_slate(slate);
-		let res: Result<VersionedSlate, _> = api::client::post(url.as_str(), None, &slate);
+		let slate = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
+		let res: Result<String, _> = api::client::post(url.as_str(), None, &slate);
 		match res {
 			Err(e) => {
 				let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 				error!("{}", report);
 				Err(ErrorKind::ClientCallback(report).into())
 			}
-			Ok(r) => Ok(r.into()),
+			Ok(r) => Ok(Slate::deserialize_upgrade(&r)?),
 		}
 	}
 

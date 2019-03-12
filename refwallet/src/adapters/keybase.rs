@@ -15,8 +15,7 @@
 // Keybase Wallet Plugin
 
 use crate::controller;
-use crate::libwallet::slate::{Slate, VersionedSlate};
-use crate::libwallet::slate_versions::v0::SlateV0;
+use crate::libwallet::slate::Slate;
 use crate::libwallet::{Error, ErrorKind};
 use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter, WalletConfig};
 use failure::ResultExt;
@@ -259,7 +258,7 @@ fn poll(nseconds: u64, channel: &str) -> Option<Slate> {
 	while start.elapsed().as_secs() < nseconds {
 		let unread = read_from_channel(channel, SLATE_SIGNED);
 		for msg in unread.unwrap().iter() {
-			let blob = from_str::<VersionedSlate>(msg);
+			let blob = Slate::deserialize_upgrade(&msg);
 			match blob {
 				Ok(slate) => {
 					let slate: Slate = slate.into();
@@ -268,7 +267,7 @@ fn poll(nseconds: u64, channel: &str) -> Option<Slate> {
 						channel, slate.id,
 					);
 					return Some(slate);
-				}
+				},
 				Err(_) => (),
 			}
 		}
@@ -350,7 +349,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 				break;
 			}
 			for (msg, channel) in &unread.unwrap() {
-				let blob = from_str::<VersionedSlate>(msg);
+				let blob = Slate::deserialize_upgrade(&msg);
 				match blob {
 					Ok(message) => {
 						let mut slate: Slate = message.clone().into();
@@ -385,15 +384,9 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 						}) {
 							// Reply to the same channel with topic SLATE_SIGNED
 							Ok(_) => {
-								let success = match message {
-									// Send the same version of slate that was sent to us
-									VersionedSlate::V0(_) => {
-										send(SlateV0::from(slate), channel, SLATE_SIGNED, TTL)
-									}
-									VersionedSlate::V1(_) => {
-										send(slate, channel, SLATE_SIGNED, TTL)
-									}
-								};
+								let slate = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
+								// TODO: Send the same version of slate that was sent to us
+								let success = send(slate, channel, SLATE_SIGNED, TTL);
 
 								if success {
 									notify_on_receive(

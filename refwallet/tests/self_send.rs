@@ -92,6 +92,7 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			1,          // num change outputs
 			true,       // select all outputs
 			None,
+			None,
 		)?;
 		api.tx_lock_outputs(&slate, lock_fn)?;
 		// Send directly to self
