@@ -186,7 +186,7 @@ pub enum ErrorKind {
 
 	/// Unknown slate version
 	#[fail(display = "Unknown Slate Version: {}", _0)]
-	SlateVersion(u64),
+	SlateVersion(u16),
 
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]

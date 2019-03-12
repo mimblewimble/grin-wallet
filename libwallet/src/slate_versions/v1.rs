@@ -52,6 +52,8 @@ pub struct SlateV1 {
 	pub participant_data: Vec<ParticipantDataV1>,
 	/// Version
 	pub version: u64,
+	#[serde(skip)]
+	pub orig_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -140,7 +142,8 @@ impl From<SlateV1> for SlateV0 {
 			height,
 			lock_height,
 			participant_data,
-			version,
+			version: _,
+			orig_version: _,
 		} = slate;
 		let tx = TransactionV0::from(tx);
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV0::from(data));
@@ -188,8 +191,6 @@ impl From<TransactionV1> for TransactionV0 {
 	fn from(tx: TransactionV1) -> TransactionV0 {
 		let TransactionV1 { offset, body } = tx;
 		let body = TransactionBodyV0::from(&body);
-		/*let transaction = TransactionV1::new(body.inputs, body.outputs, body.kernels);
-		transaction.with_offset(offset)*/
 		TransactionV0 {
 			offset,
 			body,
@@ -283,6 +284,7 @@ impl From<SlateV0> for SlateV1 {
 			lock_height,
 			participant_data,
 			version: 1,
+			orig_version: 0,
 		}
 	}
 }
@@ -318,8 +320,6 @@ impl From<TransactionV0> for TransactionV1 {
 	fn from(tx: TransactionV0) -> TransactionV1 {
 		let TransactionV0 { offset, body } = tx;
 		let body = TransactionBodyV1::from(&body);
-		/*let transaction = TransactionV1::new(body.inputs, body.outputs, body.kernels);
-		transaction.with_offset(offset)*/
 		TransactionV1 {
 			offset,
 			body,

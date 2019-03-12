@@ -15,14 +15,13 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 //! Still experimental
-use crate::adapters::util::get_versioned_slate;
 use crate::adapters::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::api::{ApiServer, BasicAuthMiddleware, Handler, ResponseFuture, Router, TLSConfig};
 use crate::core::core;
 use crate::core::core::Transaction;
 use crate::keychain::Keychain;
 use crate::apiwallet::api::{APIForeign, APIOwner};
-use crate::libwallet::slate::{Slate, VersionedSlate};
+use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
 	CbData, NodeClient, OutputData, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,
 };
@@ -661,17 +660,17 @@ where
 		&self,
 		req: Request<Body>,
 		mut api: APIForeign<T, C, K>,
-	) -> Box<dyn Future<Item = VersionedSlate, Error = Error> + Send> {
+	) -> Box<dyn Future<Item = String, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(
 			//TODO: No way to insert a message from the params
-			move |slate: VersionedSlate| {
-				let mut slate: Slate = slate.into();
+			move |slate_str: String| {
+				let mut slate: Slate = Slate::deserialize_upgrade(&slate_str).unwrap();
 				if let Err(e) = api.verify_slate_messages(&slate) {
 					error!("Error validating participant messages: {}", e);
 					err(e)
 				} else {
 					match api.receive_tx(&mut slate, None, None) {
-						Ok(_) => ok(get_versioned_slate(&slate.clone())),
+						Ok(_) => ok(slate.serialize_to_version(None).unwrap()),
 						Err(e) => {
 							error!("receive_tx: failed with error: {}", e);
 							err(e)

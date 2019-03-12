@@ -15,11 +15,21 @@
 
 //! Contains V2 of the slate (grin-wallet 1.1.0)
 //! Changes from V1:
-//! * ParticipantData struct fields serialized as hex strings:
+//! * ParticipantData struct fields serialized as hex strings instead of arrays:
 //!    * public_blind_excess
 //!    * public_nonce
 //!    * part_sig
 //!    * message_sig
+//! * Transaction fields serialized as hex strings instead of arrays:
+//!    * offset
+//! * Input field serialized as hex strings instead of arrays:
+//!    commit
+//! * Output fields serialized as hex strings instead of arrays:
+//!    commit
+//!    proof
+//! * TxKernel fields serialized as hex strings instead of arrays:
+//!    commit
+//!    signature
 
 use crate::core::core::transaction::{
 	KernelFeatures, OutputFeatures,
@@ -37,6 +47,8 @@ use crate::slate_versions::v1::{SlateV1, TransactionV1, TransactionBodyV1, Input
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV2 {
+	/// Versioning info
+	pub version_info: VersionCompatInfoV2,
 	/// The number of participants intended to take part in this transaction
 	pub num_participants: usize,
 	/// Unique transaction ID, selected by sender
@@ -56,8 +68,16 @@ pub struct SlateV2 {
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
 	pub participant_data: Vec<ParticipantDataV2>,
-	/// Version
-	pub version: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VersionCompatInfoV2 {
+	/// The current version of the slate format
+	pub version: u16,
+	/// Original version this slate was converted from
+	pub orig_version: u16,
+	/// Minimum version this slate is compatible with
+	pub min_compat_version: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -85,6 +105,10 @@ pub struct ParticipantDataV2 {
 pub struct TransactionV2 {
 	/// The kernel "offset" k2
 	/// excess is k1G after splitting the key k = k1 + k2
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::blind_from_hex"
+	)]
 	pub offset: BlindingFactor,
 	/// The transaction body - inputs/outputs/kernels
 	pub body: TransactionBodyV2,
@@ -106,6 +130,10 @@ pub struct InputV2 {
 	/// We will check maturity for coinbase output.
 	pub features: OutputFeatures,
 	/// The commit referencing the output being spent.
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
 	pub commit: Commitment,
 }
 
@@ -114,8 +142,16 @@ pub struct OutputV2 {
 	/// Options for an output's structure or use
 	pub features: OutputFeatures,
 	/// The homomorphic commitment representing the output amount
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
 	pub commit: Commitment,
 	/// A proof that the commitment is in the right range
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::rangeproof_from_hex"
+	)]
 	pub proof: RangeProof,
 }
 
@@ -131,9 +167,14 @@ pub struct TxKernelV2 {
 	/// Remainder of the sum of all transaction commitments. If the transaction
 	/// is well formed, amounts components should sum to zero and the excess
 	/// is hence a valid public key.
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
 	pub excess: Commitment,
 	/// The signature proving the excess is a valid public key, which signs
 	/// the transaction fee.
+	#[serde(with = "secp_ser::sig_serde")]
 	pub excess_sig: secp::Signature,
 }
 
@@ -150,10 +191,12 @@ impl From<SlateV2> for SlateV1 {
 			height,
 			lock_height,
 			participant_data,
-			version,
+			version_info,
 		} = slate;
 		let tx = TransactionV1::from(tx);
-		let participant_data = map_vec!(participant_data, |data| ParticipantDataV1::from(data));
+		let version = 1;
+		let orig_version = version_info.orig_version as u64;
+ 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV1::from(data));
 		SlateV1 {
 			num_participants,
 			id,
@@ -164,6 +207,7 @@ impl From<SlateV2> for SlateV1 {
 			lock_height,
 			participant_data,
 			version,
+			orig_version,
 		}
 	}
 }
@@ -281,10 +325,19 @@ impl From<SlateV1> for SlateV2 {
 			height,
 			lock_height,
 			participant_data,
-			version,
+			version: _,
+			orig_version,
 		} = slate;
 		let tx = TransactionV2::from(tx);
+		let version = 2;
+		let min_compat_version = 0;
+		let orig_version = orig_version as u16;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV2::from(data));
+		let version_info = VersionCompatInfoV2 {
+			version,
+			orig_version,
+			min_compat_version,
+		};
 		SlateV2 {
 			num_participants,
 			id,
@@ -294,7 +347,7 @@ impl From<SlateV1> for SlateV2 {
 			height,
 			lock_height,
 			participant_data,
-			version,
+			version_info,
 		}
 	}
 }

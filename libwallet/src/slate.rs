@@ -37,7 +37,7 @@ use crate::slate_versions::v0::SlateV0;
 use crate::slate_versions::v1::SlateV1;
 use crate::slate_versions::v2::SlateV2;
 
-const CURRENT_SLATE_VERSION: u64 = 2;
+const CURRENT_SLATE_VERSION: u16 = 2;
 
 /// Public data for each participant in the slate
 
@@ -112,6 +112,8 @@ impl ParticipantMessageData {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Slate {
+	/// Versioning info
+	pub version_info: VersionCompatInfo,
 	/// The number of participants intended to take part in this transaction
 	pub num_participants: usize,
 	/// Unique transaction ID, selected by sender
@@ -131,13 +133,17 @@ pub struct Slate {
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
 	pub participant_data: Vec<ParticipantData>,
-	/// Slate format version
-	#[serde(default = "no_version")]
-	pub version: u64,
 }
 
-fn no_version() -> u64 {
-	0
+/// Versioning and compatibility info about this slate
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VersionCompatInfo {
+	/// The current version of the slate format
+	pub version: u16,
+	/// Original version this slate was converted from
+	pub orig_version: u16,
+	/// Minimum version this slate is compatible with
+	pub min_compat_version: u16,
 }
 
 /// Helper just to facilitate serialization
@@ -148,17 +154,18 @@ pub struct ParticipantMessages {
 }
 
 impl Slate {
-
-	fn parse_slate_version(slate_json: &str) -> Result<u64, Error> {
+	// TODO: Reduce the number of changes that need to occur below for each new
+	// slate version
+	fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
 		// keep attempting to deser, working through known versions until we have
 		// enough to get the version out
 		let res : Result<SlateV2, serde_json::Error>  = serde_json::from_str(slate_json);
 		if let Ok(s) = res {
-			return Ok(s.version);
+			return Ok(s.version_info.version);
 		}
 		let res : Result<SlateV1, serde_json::Error>  = serde_json::from_str(slate_json);
 		if let Ok(s) = res {
-			return Ok(s.version);
+			return Ok(s.version as u16);
 		}
 		let res : Result<SlateV0, serde_json::Error>  = serde_json::from_str(slate_json);
 		if let Ok(_) = res {
@@ -173,7 +180,8 @@ impl Slate {
 		let v2 = match version {
 			2 => serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?,
 			1 => {
-				let v1 : SlateV1 = serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
+				let mut v1 : SlateV1 = serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
+				v1.orig_version = 1;
 				SlateV2::from(v1)
 			}
 			0 => {
@@ -188,7 +196,11 @@ impl Slate {
 	}
 
 	/// Downgrate slate to desired version
-	pub fn serialize_to_version(&self, version: u64) -> Result<String, Error> {
+	pub fn serialize_to_version(&self, version: Option<u16>) -> Result<String, Error> {
+		let version = match version {
+			Some(v) => v,
+			None => CURRENT_SLATE_VERSION,
+		};
 		let ser_self = serde_json::to_string(&self).context(ErrorKind::SlateDeser)?;
 		match version {
 			2 => Ok(ser_self.clone()),
@@ -218,7 +230,11 @@ impl Slate {
 			height: 0,
 			lock_height: 0,
 			participant_data: vec![],
-			version: CURRENT_SLATE_VERSION,
+			version_info: VersionCompatInfo {
+				version: CURRENT_SLATE_VERSION,
+				orig_version: CURRENT_SLATE_VERSION,
+				min_compat_version: 0,
+			},
 		}
 	}
 
