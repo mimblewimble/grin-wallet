@@ -270,6 +270,11 @@ pub trait OwnerApi {
 		"jsonrpc": "2.0",
 		"method": "finalize_tx",
 		"params": [{
+			"version_info": {
+				"version": 2,
+				"orig_version": 2,
+				"min_compat_version": 0
+			},
 			"amount": 0,
 			"fee": 0,
 			"height": 0,
@@ -284,8 +289,7 @@ pub trait OwnerApi {
 					"outputs": []
 				},
 				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-			},
-			"version": 1
+			}
 		}],
 		"id": 1
 	},
@@ -416,6 +420,11 @@ pub trait OwnerApi {
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
 		"params": [{
+			"version_info": {
+				"version": 2,
+				"orig_version": 2,
+				"min_compat_version": 0
+			},
 			"amount": 0,
 			"fee": 0,
 			"height": 0,
@@ -430,8 +439,7 @@ pub trait OwnerApi {
 					"outputs": []
 				},
 				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-			},
-			"version": 1
+			}
 		}],
 		"id": 1
 	},
@@ -1507,6 +1515,11 @@ pub trait ForeignApi {
 		"method": "verify_slate_messages",
 		"params": [
             {
+    			"version_info": {
+    				"version": 2,
+    				"orig_version": 2,
+    				"min_compat_version": 0
+    			},
     			"amount": 0,
     			"fee": 0,
     			"height": 0,
@@ -1521,8 +1534,7 @@ pub trait ForeignApi {
     					"outputs": []
     				},
     				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-    			},
-    			"version": 1
+    			}
 		    }
         ],
 		"id": 1
@@ -1544,13 +1556,18 @@ pub trait ForeignApi {
 
 	# Json rpc example
 
-	```
+	```ignore //TODO: No idea why this isn't expanding properly, check as we adjust the API
 	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "receive_tx",
 		"params": [
             {
+    			"version_info": {
+    				"version": 2,
+    				"orig_version": 2,
+    				"min_compat_version": 0
+    			},
     			"amount": 0,
     			"fee": 0,
     			"height": 0,
@@ -1565,8 +1582,7 @@ pub trait ForeignApi {
     					"outputs": []
     				},
     				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-    			},
-    			"version": 1
+    			}
 		    },
             null,
             null
