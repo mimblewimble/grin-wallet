@@ -42,7 +42,7 @@ impl WalletCommAdapter for FileWalletCommAdapter {
 
 	fn send_tx_async(&self, dest: &str, slate: &Slate) -> Result<(), Error> {
 		let mut pub_tx = File::create(dest)?;
-		let slate_string = slate.serialize_to_version(None)?;
+		let slate_string = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
 		pub_tx.write_all(slate_string.as_bytes())?;
 		pub_tx.sync_all()?;
 		Ok(())
@@ -52,7 +52,6 @@ impl WalletCommAdapter for FileWalletCommAdapter {
 		let mut pub_tx_f = File::open(params)?;
 		let mut content = String::new();
 		pub_tx_f.read_to_string(&mut content)?;
-		error!("CONTENT: {}", content);
 		Ok(Slate::deserialize_upgrade(&content)?)
 	}
 

@@ -47,7 +47,7 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
 		debug!("Posting transaction slate to {}", url);
-		let slate = slate.serialize_to_version(None)?;
+		let slate = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
 		let res: Result<String, _> = api::client::post(url.as_str(), None, &slate);
 		match res {
 			Err(e) => {
