@@ -720,4 +720,6 @@ pub struct SendTXArgs {
 	pub selection_strategy_is_use_all: bool,
 	/// Optional message, that will be signed
 	pub message: Option<String>,
+	/// Optional slate version to target when sending
+	pub target_slate_version: Option<u16>,
 }

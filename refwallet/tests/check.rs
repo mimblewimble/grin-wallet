@@ -163,6 +163,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			1,          // num change outputs
 			true,       // select all outputs
 			None,       // optional message
+			None,
 		)?;
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();

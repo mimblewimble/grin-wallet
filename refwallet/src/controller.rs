@@ -329,6 +329,7 @@ where
 				args.num_change_outputs,
 				args.selection_strategy_is_use_all,
 				args.message,
+				args.target_slate_version,
 			);
 			let (mut slate, lock_fn) = match result {
 				Ok(s) => {

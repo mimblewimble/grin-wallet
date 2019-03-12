@@ -627,6 +627,7 @@ where
 		num_change_outputs: usize,
 		selection_strategy_is_use_all: bool,
 		message: Option<String>,
+		target_slate_version: Option<u16>,
 	) -> Result<(Slate, OutputLockFn<W, C, K>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -672,6 +673,10 @@ where
 		}
 
 		w.close()?;
+		// set target slate version
+		if let Some(v) = target_slate_version {
+			slate.version_info.orig_version = v;
+		}
 		Ok((slate, lock_fn))
 	}
 

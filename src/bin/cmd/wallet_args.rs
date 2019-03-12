@@ -393,6 +393,17 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// max_outputs
 	let max_outputs = 500;
 
+	// target slate version to create/send
+	let target_slate_version = {
+		match args.is_present("target_slate_version") {
+			true => {
+				let v = parse_required(args, "target_slate_version")?;
+				Some(parse_u64(v, "target_slate_version")? as u16)
+			},
+			false => None,
+		}
+	};
+
 	Ok(command::SendArgs {
 		amount: amount,
 		message: message,
@@ -404,6 +415,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		change_outputs: change_outputs,
 		fluff: fluff,
 		max_outputs: max_outputs,
+		target_slate_version: target_slate_version,
 	})
 }
 

@@ -109,6 +109,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			1,          // num change outputs
 			true,       // select all outputs
 			None,
+			None,
 		)?;
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
@@ -204,6 +205,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			500,        // max outputs
 			1,          // num change outputs
 			true,       // select all outputs
+			None,
 			None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;

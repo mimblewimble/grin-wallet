@@ -206,6 +206,7 @@ pub struct SendArgs {
 	pub change_outputs: usize,
 	pub fluff: bool,
 	pub max_outputs: usize,
+	pub target_slate_version: Option<u16>,
 }
 
 pub fn send(
@@ -241,6 +242,7 @@ pub fn send(
 				args.change_outputs,
 				args.selection_strategy == "all",
 				args.message.clone(),
+				args.target_slate_version,
 			);
 			let (mut slate, lock_fn) = match result {
 				Ok(s) => {
