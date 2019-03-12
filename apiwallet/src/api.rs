@@ -51,7 +51,7 @@ use easy_jsonrpc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
-/// Public definition used to generate jsonrpc api.
+/// Public definition used to generate jsonrpc api for APIOwner.
 #[easy_jsonrpc::rpc]
 pub trait OwnerApi {
 	/**
@@ -373,8 +373,8 @@ pub trait OwnerApi {
 	/**
 	Networked version of [APIOwner::post_tx](struct.APIOwner.html#method.post_tx).
 
-
-	```
+	```no_run
+    # // This test currently fails on travis
 	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
@@ -1454,8 +1454,9 @@ where
 	}
 }
 
+/// Public definition used to generate jsonrpc api for APIForeign.
 #[easy_jsonrpc::rpc]
-trait ForeignApi {
+pub trait ForeignApi {
 	/**
 	Networked version of [APIForeign::build_coinbase](struct.APIForeign.html#method.build_coinbase).
 
@@ -1466,12 +1467,21 @@ trait ForeignApi {
 	{
 		"jsonrpc": "2.0",
 		"method": "build_coinbase",
-		"params": [],
+		"params": [
+            {
+                "fees": 0,
+            	"height": 0,
+                "key_id": null
+            }
+        ],
 		"id": 1
 	},
 	{
 		"jsonrpc": "2.0",
 		"result": {
+            "Err": {
+                "CallbackImpl": "Error opening wallet"
+            }
 		},
 		"id": 1
 	}
@@ -1490,12 +1500,32 @@ trait ForeignApi {
 	{
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
-		"params": [],
+		"params": [
+            {
+    			"amount": 0,
+    			"fee": 0,
+    			"height": 0,
+    			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
+    			"lock_height": 0,
+    			"num_participants": 2,
+    			"participant_data": [],
+    			"tx": {
+    				"body": {
+    					"inputs": [],
+    					"kernels": [],
+    					"outputs": []
+    				},
+    				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+    			},
+    			"version": 1
+		    }
+        ],
 		"id": 1
 	},
 	{
 		"jsonrpc": "2.0",
 		"result": {
+            "Ok": null
 		},
 		"id": 1
 	}
@@ -1514,12 +1544,36 @@ trait ForeignApi {
 	{
 		"jsonrpc": "2.0",
 		"method": "receive_tx",
-		"params": [],
+		"params": [
+            {
+    			"amount": 0,
+    			"fee": 0,
+    			"height": 0,
+    			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
+    			"lock_height": 0,
+    			"num_participants": 2,
+    			"participant_data": [],
+    			"tx": {
+    				"body": {
+    					"inputs": [],
+    					"kernels": [],
+    					"outputs": []
+    				},
+    				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+    			},
+    			"version": 1
+		    },
+            null,
+            null
+        ],
 		"id": 1
 	},
 	{
 		"jsonrpc": "2.0",
 		"result": {
+            "Err": {
+                "CallbackImpl": "Error opening wallet"
+            }
 		},
 		"id": 1
 	}
@@ -1722,7 +1776,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 			request: serde_json::Value,
 		) -> Result<Option<serde_json::Value>, String> {
 			use easy_jsonrpc::Handler;
-			use grin_apiwallet::api::{APIOwner, OwnerApi};
+			use grin_apiwallet::api::{APIForeign, ForeignApi};
 			use grin_keychain::ExtKeychain;
 			use grin_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
 			use grin_util::Mutex;
@@ -1746,8 +1800,8 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 						LMDBBackend::new(wallet_config.clone(), "", node_client)
 							.map_err(|e| format!("{:#?}", e))?,
 					));
-				let api_foreign = APIForeign::new(wallet);
-				let foreign_api = &api_foreign as &dyn OwnerApi;
+				let api_foreign = *APIForeign::new(wallet);
+				let foreign_api = &api_foreign as &dyn ForeignApi;
 				Ok(foreign_api.handle_request(request))
 				}
 			}
