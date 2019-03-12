@@ -30,6 +30,11 @@
 //! * TxKernel fields serialized as hex strings instead of arrays:
 //!    commit
 //!    signature
+//! * version_info field removed
+//! * VersionCompatInfo struct created with fields and added to beginning of struct
+//!    version: u16
+//!    orig_verion: u16,
+//!    min_compat_version: u16
 
 use crate::core::core::transaction::{
 	KernelFeatures, OutputFeatures,
