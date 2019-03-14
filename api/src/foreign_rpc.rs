@@ -220,11 +220,11 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 			request: serde_json::Value,
 		) -> Result<Option<serde_json::Value>, String> {
 			use easy_jsonrpc::Handler;
-			use grin_wallet_api::{Foreign, ForeignRpc};
 			use grin_keychain::ExtKeychain;
-			use grin_wallet_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
 			use grin_util::Mutex;
+			use grin_wallet_api::{Foreign, ForeignRpc};
 			use grin_wallet_config::WalletConfig;
+			use grin_wallet_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
 			use serde_json;
 			use std::sync::Arc;
 			use tempfile::tempdir;
