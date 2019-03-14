@@ -14,8 +14,8 @@
 //! tests for wallet restore
 #[macro_use]
 extern crate log;
-extern crate grin_refwallet as wallet;
-extern crate grin_libwallet as libwallet;
+extern crate grin_wallet_refwallet as wallet;
+extern crate grin_wallet_libwallet as libwallet;
 
 use self::core::global;
 use self::core::global::ChainTypes;

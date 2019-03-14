@@ -14,7 +14,7 @@
 //! Test a wallet file send/recieve
 #[macro_use]
 extern crate log;
-extern crate grin_refwallet as wallet;
+extern crate grin_wallet_refwallet as wallet;
 
 use self::core::global;
 use self::core::global::ChainTypes;
@@ -24,7 +24,7 @@ use self::wallet::FileWalletCommAdapter;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
-use grin_libwallet as libwallet;
+use grin_wallet_libwallet as libwallet;
 use std::fs;
 use std::thread;
 use std::time::Duration;
