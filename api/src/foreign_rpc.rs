@@ -38,14 +38,14 @@ use easy_jsonrpc;
 
 /// Public definition used to generate jsonrpc api for Foreign.
 #[easy_jsonrpc::rpc]
-pub trait ForeignApi {
+pub trait ForeignRpc {
 	/**
 	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
 
 	# Json rpc example
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "build_coinbase",
@@ -78,7 +78,7 @@ pub trait ForeignApi {
 	# Json rpc example
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
@@ -126,7 +126,7 @@ pub trait ForeignApi {
 	# Json rpc example
 
 	```ignore //TODO: No idea why this isn't expanding properly, check as we adjust the API
-	# grin_apiwallet::doctest_helper_json_rpc_foreign_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "receive_tx",
@@ -178,7 +178,7 @@ pub trait ForeignApi {
 	) -> Result<Slate, ErrorKind>;
 }
 
-impl<W: ?Sized, C, K> ForeignApi for Foreign<W, C, K>
+impl<W: ?Sized, C, K> ForeignRpc for Foreign<W, C, K>
 where
 	W: WalletBackend<C, K>,
 	C: NodeClient,
@@ -220,9 +220,9 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 			request: serde_json::Value,
 		) -> Result<Option<serde_json::Value>, String> {
 			use easy_jsonrpc::Handler;
-			use grin_apiwallet::api::{Foreign, ForeignApi};
+			use grin_wallet_api::{Foreign, ForeignRpc};
 			use grin_keychain::ExtKeychain;
-			use grin_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
+			use grin_wallet_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
 			use grin_util::Mutex;
 			use grin_wallet_config::WalletConfig;
 			use serde_json;
@@ -245,7 +245,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 							.map_err(|e| format!("{:#?}", e))?,
 					));
 				let api_foreign = *Foreign::new(wallet);
-				let foreign_api = &api_foreign as &dyn ForeignApi;
+				let foreign_api = &api_foreign as &dyn ForeignRpc;
 				Ok(foreign_api.handle_request(request))
 				}
 			}

@@ -42,16 +42,16 @@ use crate::util::secp::pedersen;
 use crate::Owner;
 use easy_jsonrpc;
 
-/// Public definition used to generate jsonrpc api for APIOwner.
+/// Public definition used to generate jsonrpc api for Owner.
 #[easy_jsonrpc::rpc]
 pub trait OwnerRpc {
 	/**
-	Networked version of [APIOwner::accounts](struct.APIOwner.html#method.accounts).
+	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).
 
 	# Json rpc example
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "accounts",
@@ -76,12 +76,12 @@ pub trait OwnerRpc {
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::create_account_path](struct.APIOwner.html#method.create_account_path).
+	Networked version of [Owner::create_account_path](struct.Owner.html#method.create_account_path).
 
 	# Json rpc example
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "create_account_path",
@@ -101,12 +101,12 @@ pub trait OwnerRpc {
 	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::set_active_account](struct.APIOwner.html#method.set_active_account).
+	Networked version of [Owner::set_active_account](struct.Owner.html#method.set_active_account).
 
 	# Json rpc example
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "set_active_account",
@@ -126,11 +126,11 @@ pub trait OwnerRpc {
 	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::retrieve_outputs](struct.APIOwner.html#method.retrieve_outputs).
+	Networked version of [Owner::retrieve_outputs](struct.Owner.html#method.retrieve_outputs).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "retrieve_outputs",
@@ -157,11 +157,11 @@ pub trait OwnerRpc {
 	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::retrieve_txs](struct.APIOwner.html#method.retrieve_txs).
+	Networked version of [Owner::retrieve_txs](struct.Owner.html#method.retrieve_txs).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "retrieve_txs",
@@ -188,11 +188,11 @@ pub trait OwnerRpc {
 	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::retrieve_summary_info](struct.APIOwner.html#method.retrieve_summary_info).
+	Networked version of [Owner::retrieve_summary_info](struct.Owner.html#method.retrieve_summary_info).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "retrieve_summary_info",
@@ -218,11 +218,11 @@ pub trait OwnerRpc {
 	) -> Result<(bool, WalletInfo), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::estimate_initiate_tx](struct.APIOwner.html#method.estimate_initiate_tx).
+	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.estimate_initiate_tx).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "estimate_initiate_tx",
@@ -252,11 +252,11 @@ pub trait OwnerRpc {
 	) -> Result<(/* total */ u64, /* fee */ u64), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::finalize_tx](struct.APIOwner.html#method.finalize_tx).
+	Networked version of [Owner::finalize_tx](struct.Owner.html#method.finalize_tx).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "finalize_tx",
@@ -299,11 +299,11 @@ pub trait OwnerRpc {
 	fn finalize_tx(&self, slate: Slate) -> Result<Slate, ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::cancel_tx](struct.APIOwner.html#method.cancel_tx).
+	Networked version of [Owner::cancel_tx](struct.Owner.html#method.cancel_tx).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "cancel_tx",
@@ -325,11 +325,11 @@ pub trait OwnerRpc {
 	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::get_stored_tx](struct.APIOwner.html#method.get_stored_tx).
+	Networked version of [Owner::get_stored_tx](struct.Owner.html#method.get_stored_tx).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "get_stored_tx",
@@ -366,11 +366,11 @@ pub trait OwnerRpc {
 	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::post_tx](struct.APIOwner.html#method.post_tx).
+	Networked version of [Owner::post_tx](struct.Owner.html#method.post_tx).
 
 	```no_run
 	# // This test currently fails on travis
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "post_tx",
@@ -402,11 +402,11 @@ pub trait OwnerRpc {
 	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::verify_slate_messages](struct.APIOwner.html#method.verify_slate_messages).
+	Networked version of [Owner::verify_slate_messages](struct.Owner.html#method.verify_slate_messages).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
@@ -447,11 +447,11 @@ pub trait OwnerRpc {
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::restore](struct.APIOwner.html#method.restore).
+	Networked version of [Owner::restore](struct.Owner.html#method.restore).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "restore",
@@ -473,11 +473,11 @@ pub trait OwnerRpc {
 	fn restore(&self) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::check_repair](struct.APIOwner.html#method.check_repair).
+	Networked version of [Owner::check_repair](struct.Owner.html#method.check_repair).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "check_repair",
@@ -499,11 +499,11 @@ pub trait OwnerRpc {
 	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [APIOwner::node_height](struct.APIOwner.html#method.node_height).
+	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
 
 
 	```
-	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "node_height",
@@ -636,9 +636,9 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			request: serde_json::Value,
 		) -> Result<Option<serde_json::Value>, String> {
 			use easy_jsonrpc::Handler;
-			use grin_apiwallet::api::{Owner, OwnerApi};
+			use grin_wallet_api::{Owner, OwnerRpc};
 			use grin_keychain::ExtKeychain;
-			use grin_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
+			use grin_wallet_refwallet::{HTTPNodeClient, LMDBBackend, WalletBackend};
 			use grin_util::Mutex;
 			use grin_wallet_config::WalletConfig;
 			use serde_json;
@@ -661,7 +661,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 							.map_err(|e| format!("{:#?}", e))?,
 					));
 				let api_owner = Owner::new(wallet);
-				let owner_api = &api_owner as &dyn OwnerApi;
+				let owner_api = &api_owner as &dyn OwnerRpc;
 				Ok(owner_api.handle_request(request))
 				}
 			}
