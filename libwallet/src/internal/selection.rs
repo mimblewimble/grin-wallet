@@ -104,8 +104,10 @@ where
 	for (id, _, change_amount) in &context.get_outputs() {
 		output_commits.insert(
 			id.clone(),
-			(wallet.calc_commit_for_cache(*change_amount, &id)?,
-			*change_amount),
+			(
+				wallet.calc_commit_for_cache(*change_amount, &id)?,
+				*change_amount,
+			),
 		);
 	}
 

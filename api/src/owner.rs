@@ -35,11 +35,10 @@ use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::ser;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::internal::{keys, tx, updater, selection};
+use crate::libwallet::internal::{keys, selection, tx, updater};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend,
-	WalletInfo,
+	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::libwallet::{Error, ErrorKind};
 use crate::util;
@@ -747,10 +746,7 @@ where
 
 	/// Lock outputs associated with a given slate/transaction
 	/// and create any outputs needed
-	pub fn tx_lock_outputs(
-		&self,
-		slate: &Slate,
-	) -> Result<(), Error> {
+	pub fn tx_lock_outputs(&self, slate: &Slate) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let context = w.get_private_context(slate.id.as_bytes())?;

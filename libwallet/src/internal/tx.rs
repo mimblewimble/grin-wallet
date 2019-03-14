@@ -153,8 +153,7 @@ where
 	K: Keychain,
 {
 	// create an output using the amount in the slate
-	let (_, mut context) =
-		selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
+	let (_, mut context) = selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
 
 	// fill public keys
 	let _ = slate.fill_round_1(

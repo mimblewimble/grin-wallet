@@ -407,7 +407,8 @@ impl Context {
 	/// Tracks an output contributing to my excess value (if it needs to
 	/// be kept between invocations
 	pub fn add_output(&mut self, output_id: &Identifier, mmr_index: &Option<u64>, amount: u64) {
-		self.output_ids.push((output_id.clone(), mmr_index.clone(), amount));
+		self.output_ids
+			.push((output_id.clone(), mmr_index.clone(), amount));
 	}
 
 	/// Returns all stored outputs
@@ -418,7 +419,8 @@ impl Context {
 	/// Tracks IDs of my inputs into the transaction
 	/// be kept between invocations
 	pub fn add_input(&mut self, input_id: &Identifier, mmr_index: &Option<u64>, amount: u64) {
-		self.input_ids.push((input_id.clone(), mmr_index.clone(), amount));
+		self.input_ids
+			.push((input_id.clone(), mmr_index.clone(), amount));
 	}
 
 	/// Returns all stored input identifiers
