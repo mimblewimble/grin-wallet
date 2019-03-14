@@ -52,7 +52,7 @@ env:
 matrix:
   include:
     - os: linux
-      env: CI_JOB="test"        CI_JOB_ARGS="config libwallet apiwallet"
+      env: CI_JOB="test"        CI_JOB_ARGS="config libwallet api"
     - os: linux
       env: CI_JOB="test"        CI_JOB_ARGS="refwallet ."
     - os: linux

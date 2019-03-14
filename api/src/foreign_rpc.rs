@@ -12,22 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Main interface into all wallet API functions.
-//! Wallet APIs are split into two seperate blocks of functionality
-//! called the 'Owner' and 'Foreign' APIs:
-//! * The 'Owner' API is intended to expose methods that are to be
-//! used by the wallet owner only. It is vital that this API is not
-//! exposed to anyone other than the owner of the wallet (i.e. the
-//! person with access to the seed and password.
-//! * The 'Foreign' API contains methods that other wallets will
-//! use to interact with the owner's wallet. This API can be exposed
-//! to the outside world, with the consideration as to how that can
-//! be done securely up to the implementor.
-//!
-//! Methods in both APIs are intended to be 'single use', that is to say each
-//! method will 'open' the wallet (load the keychain with its master seed), perform
-//! its operation, then 'close' the wallet (unloading references to the keychain and master
-//! seed).
+//! JSON-RPC Stub generation for the Foreign API
 
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
