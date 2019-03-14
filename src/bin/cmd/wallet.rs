@@ -15,8 +15,8 @@
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
 use clap::ArgMatches;
-use grin_wallet_refwallet::{self, HTTPNodeClient, WalletSeed};
 use grin_wallet_config::WalletConfig;
+use grin_wallet_refwallet::{self, HTTPNodeClient, WalletSeed};
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;

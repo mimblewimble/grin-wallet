@@ -29,12 +29,9 @@
 //! its operation, then 'close' the wallet (unloading references to the keychain and master
 //! seed).
 
-
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{
-	BlockFees, CbData, NodeClient, WalletBackend,
-};
+use crate::libwallet::types::{BlockFees, CbData, NodeClient, WalletBackend};
 use crate::libwallet::ErrorKind;
 use crate::Foreign;
 use easy_jsonrpc;
@@ -53,20 +50,20 @@ pub trait ForeignApi {
 		"jsonrpc": "2.0",
 		"method": "build_coinbase",
 		"params": [
-            {
-                "fees": 0,
-            	"height": 0,
-                "key_id": null
-            }
-        ],
+			{
+				"fees": 0,
+				"height": 0,
+				"key_id": null
+			}
+		],
 		"id": 1
 	},
 	{
 		"jsonrpc": "2.0",
 		"result": {
-            "Err": {
-                "CallbackImpl": "Error opening wallet"
-            }
+			"Err": {
+				"CallbackImpl": "Error opening wallet"
+			}
 		},
 		"id": 1
 	}
@@ -86,35 +83,35 @@ pub trait ForeignApi {
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
 		"params": [
-            {
-    			"version_info": {
-    				"version": 2,
-    				"orig_version": 2,
-    				"min_compat_version": 0
-    			},
-    			"amount": 0,
-    			"fee": 0,
-    			"height": 0,
-    			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
-    			"lock_height": 0,
-    			"num_participants": 2,
-    			"participant_data": [],
-    			"tx": {
-    				"body": {
-    					"inputs": [],
-    					"kernels": [],
-    					"outputs": []
-    				},
-    				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-    			}
-		    }
-        ],
+			{
+				"version_info": {
+					"version": 2,
+					"orig_version": 2,
+					"min_compat_version": 0
+				},
+				"amount": 0,
+				"fee": 0,
+				"height": 0,
+				"id": "414bad48-3386-4fa7-8483-72384c886ba3",
+				"lock_height": 0,
+				"num_participants": 2,
+				"participant_data": [],
+				"tx": {
+					"body": {
+						"inputs": [],
+						"kernels": [],
+						"outputs": []
+					},
+					"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+				}
+			}
+		],
 		"id": 1
 	},
 	{
 		"jsonrpc": "2.0",
 		"result": {
-            "Ok": null
+			"Ok": null
 		},
 		"id": 1
 	}
@@ -134,39 +131,39 @@ pub trait ForeignApi {
 		"jsonrpc": "2.0",
 		"method": "receive_tx",
 		"params": [
-            {
-    			"version_info": {
-    				"version": 2,
-    				"orig_version": 2,
-    				"min_compat_version": 0
-    			},
-    			"amount": 0,
-    			"fee": 0,
-    			"height": 0,
-    			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
-    			"lock_height": 0,
-    			"num_participants": 2,
-    			"participant_data": [],
-    			"tx": {
-    				"body": {
-    					"inputs": [],
-    					"kernels": [],
-    					"outputs": []
-    				},
-    				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-    			}
-		    },
-            null,
-            null
-        ],
+			{
+				"version_info": {
+					"version": 2,
+					"orig_version": 2,
+					"min_compat_version": 0
+				},
+				"amount": 0,
+				"fee": 0,
+				"height": 0,
+				"id": "414bad48-3386-4fa7-8483-72384c886ba3",
+				"lock_height": 0,
+				"num_participants": 2,
+				"participant_data": [],
+				"tx": {
+					"body": {
+						"inputs": [],
+						"kernels": [],
+						"outputs": []
+					},
+					"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+				}
+			},
+			null,
+			null
+		],
 		"id": 1
 	},
 	{
 		"jsonrpc": "2.0",
 		"result": {
-            "Err": {
-                "CallbackImpl": "Error opening wallet"
-            }
+			"Err": {
+				"CallbackImpl": "Error opening wallet"
+			}
 		},
 		"id": 1
 	}

@@ -65,5 +65,4 @@ fn slate_conversions() {
 	let s = res.unwrap().serialize_to_version(Some(0));
 	assert!(s.is_ok());
 	println!("v2 -> v0: {}", s.unwrap());
-
 }

@@ -41,8 +41,8 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::internal::{keys, tx, updater};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, OutputLockFn, TxLogEntry,
-	TxWrapper, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputData, OutputLockFn, TxLogEntry, TxWrapper, WalletBackend,
+	WalletInfo,
 };
 use crate::libwallet::{Error, ErrorKind};
 use crate::util;

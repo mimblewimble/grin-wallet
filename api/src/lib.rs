@@ -33,9 +33,9 @@ extern crate failure_derive;
 #[macro_use]
 extern crate log;
 
-mod owner;
-mod owner_rpc;
 mod foreign;
 mod foreign_rpc;
-pub use crate::owner::Owner;
+mod owner;
+mod owner_rpc;
 pub use crate::foreign::Foreign;
+pub use crate::owner::Owner;

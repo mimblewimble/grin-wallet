@@ -671,7 +671,9 @@ where
 					err(e)
 				} else {
 					match api.receive_tx(&mut slate, None, None) {
-						Ok(_) => ok(slate.serialize_to_version(Some(slate.version_info.orig_version)).unwrap()),
+						Ok(_) => ok(slate
+							.serialize_to_version(Some(slate.version_info.orig_version))
+							.unwrap()),
 						Err(e) => {
 							error!("receive_tx: failed with error: {}", e);
 							err(e)

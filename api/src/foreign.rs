@@ -29,18 +29,15 @@
 //! its operation, then 'close' the wallet (unloading references to the keychain and master
 //! seed).
 
-use crate::util::Mutex;
-use std::marker::PhantomData;
-use std::sync::Arc;
 use crate::keychain::Keychain;
 use crate::libwallet::internal::{tx, updater};
 use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{
-	BlockFees, CbData, NodeClient,
-	TxLogEntryType, WalletBackend, 
-};
+use crate::libwallet::types::{BlockFees, CbData, NodeClient, TxLogEntryType, WalletBackend};
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::{ContextFlag, Secp256k1};
+use crate::util::Mutex;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 

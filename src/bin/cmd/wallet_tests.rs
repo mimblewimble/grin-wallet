@@ -15,8 +15,8 @@
 #[cfg(test)]
 mod wallet_tests {
 	use clap;
-	use grin_wallet_refwallet;
 	use grin_util as util;
+	use grin_wallet_refwallet;
 
 	use grin_wallet_refwallet::test_framework::{self, LocalWalletClient, WalletProxy};
 
@@ -30,8 +30,8 @@ mod wallet_tests {
 	use grin_core::global;
 	use grin_core::global::ChainTypes;
 	use grin_keychain::ExtKeychain;
-	use grin_wallet_refwallet::{LMDBBackend, WalletBackend, WalletInst, WalletSeed};
 	use grin_wallet_config::{GlobalWalletConfig, WalletConfig};
+	use grin_wallet_refwallet::{LMDBBackend, WalletBackend, WalletInst, WalletSeed};
 
 	use super::super::wallet_args;
 
@@ -122,7 +122,8 @@ mod wallet_tests {
 		node_client: LocalWalletClient,
 		passphrase: &str,
 		account: &str,
-	) -> Result<Arc<Mutex<WalletInst<LocalWalletClient, ExtKeychain>>>, grin_wallet_refwallet::Error> {
+	) -> Result<Arc<Mutex<WalletInst<LocalWalletClient, ExtKeychain>>>, grin_wallet_refwallet::Error>
+	{
 		wallet_config.chain_type = None;
 		// First test decryption, so we can abort early if we have the wrong password
 		let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
@@ -191,9 +192,7 @@ mod wallet_tests {
 		});
 
 		// Create some accounts in wallet 1
-		let arg_vec = vec![
-			"grin-wallet", "-p", "password", "account", "-c", "mining",
-		];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "account", "-c", "mining"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
@@ -328,14 +327,7 @@ mod wallet_tests {
 		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "info"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-		let arg_vec = vec![
-			"grin-wallet",
-			"-p",
-			"password",
-			"-a",
-			"account_1",
-			"info",
-		];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "account_1", "info"];
 		execute_command(&app, test_dir, "wallet2", &client1, arg_vec)?;
 
 		// check results in wallet 2
@@ -478,7 +470,14 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		let arg_vec = vec![
-			"grin-wallet", "-p", "password", "-a", "mining", "cancel", "-i", "26",
+			"grin-wallet",
+			"-p",
+			"password",
+			"-a",
+			"mining",
+			"cancel",
+			"-i",
+			"26",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
@@ -488,14 +487,19 @@ mod wallet_tests {
 
 		// message output (mostly spit out for a visual in test logs)
 		let arg_vec = vec![
-			"grin-wallet", "-p", "password", "-a", "mining", "txs", "-i", "10",
+			"grin-wallet",
+			"-p",
+			"password",
+			"-a",
+			"mining",
+			"txs",
+			"-i",
+			"10",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// txs and outputs (mostly spit out for a visual in test logs)
-		let arg_vec = vec![
-			"grin-wallet", "-p", "password", "-a", "mining", "outputs",
-		];
+		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "outputs"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// let logging finish

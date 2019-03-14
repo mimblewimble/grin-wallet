@@ -32,11 +32,10 @@
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
-use crate::keychain::{Keychain, Identifier};
+use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry,
-	WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputData, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
 use crate::util::secp::pedersen;
@@ -370,7 +369,7 @@ pub trait OwnerRpc {
 	Networked version of [APIOwner::post_tx](struct.APIOwner.html#method.post_tx).
 
 	```no_run
-    # // This test currently fails on travis
+	# // This test currently fails on travis
 	# grin_apiwallet::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
@@ -550,8 +549,7 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), ErrorKind> {
-		Owner::retrieve_outputs(self, include_spent, refresh_from_node, tx_id)
-			.map_err(|e| e.kind())
+		Owner::retrieve_outputs(self, include_spent, refresh_from_node, tx_id).map_err(|e| e.kind())
 	}
 
 	fn retrieve_txs(

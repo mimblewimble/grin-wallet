@@ -201,8 +201,7 @@ where
 		500,    // max outputs
 		1,      // num change outputs
 		true,   // select all outputs
-		None,
-		None,
+		None, None,
 	)?;
 	let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
 	api.tx_lock_outputs(&slate, lock_fn)?;
