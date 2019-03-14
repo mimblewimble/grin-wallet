@@ -583,28 +583,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grin_apiwallet"
-version = "1.1.0"
-dependencies = [
- "easy-jsonrpc 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_api 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_chain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_libwallet 1.1.0",
- "grin_refwallet 1.1.0",
- "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_wallet_config 1.1.0",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "grin_chain"
 version = "1.1.0"
 source = "git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0#c3496b45dd2704b6d542dad3447e8649d25399e4"
@@ -676,27 +654,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grin_libwallet"
-version = "1.1.0"
-dependencies = [
- "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_wallet_config 1.1.0",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
- "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "grin_p2p"
 version = "1.1.0"
 source = "git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0#c3496b45dd2704b6d542dad3447e8649d25399e4"
@@ -733,40 +690,6 @@ dependencies = [
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "grin_refwallet"
-version = "1.1.0"
-dependencies = [
- "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_api 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_apiwallet 1.1.0",
- "grin_chain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_libwallet 1.1.0",
- "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_wallet_config 1.1.0",
- "hyper 0.12.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "prettytable-rs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "ring 0.13.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
- "term 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-retry 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "url 1.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -834,19 +757,41 @@ dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "grin_api 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_apiwallet 1.1.0",
  "grin_chain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
  "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
  "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
- "grin_libwallet 1.1.0",
- "grin_refwallet 1.1.0",
  "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
  "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_wallet_api 1.1.0",
  "grin_wallet_config 1.1.0",
+ "grin_wallet_libwallet 1.1.0",
+ "grin_wallet_refwallet 1.1.0",
  "linefeed 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "prettytable-rs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rpassword 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "grin_wallet_api"
+version = "1.1.0"
+dependencies = [
+ "easy-jsonrpc 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grin_api 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_chain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_wallet_config 1.1.0",
+ "grin_wallet_libwallet 1.1.0",
+ "grin_wallet_refwallet 1.1.0",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -861,6 +806,61 @@ dependencies = [
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "grin_wallet_libwallet"
+version = "1.1.0"
+dependencies = [
+ "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_wallet_config 1.1.0",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
+ "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "grin_wallet_refwallet"
+version = "1.1.0"
+dependencies = [
+ "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grin_api 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_chain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_core 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_keychain 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
+ "grin_wallet_api 1.1.0",
+ "grin_wallet_config 1.1.0",
+ "grin_wallet_libwallet 1.1.0",
+ "hyper 0.12.19 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prettytable-rs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring 0.13.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
+ "term 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-retry 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "url 1.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

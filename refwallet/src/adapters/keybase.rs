@@ -267,7 +267,7 @@ fn poll(nseconds: u64, channel: &str) -> Option<Slate> {
 						channel, slate.id,
 					);
 					return Some(slate);
-				},
+				}
 				Err(_) => (),
 			}
 		}
@@ -301,7 +301,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 			false => {
 				return Err(ErrorKind::ClientCallback(
 					"Posting transaction slate".to_owned(),
-				))?
+				))?;
 			}
 		}
 		info!("tx request has been sent to @{}, tx uuid: {}", addr, id);
@@ -311,7 +311,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 			None => {
 				return Err(ErrorKind::ClientCallback(
 					"Receiving reply from recipient".to_owned(),
-				))?
+				))?;
 			}
 		}
 	}
@@ -384,7 +384,8 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 						}) {
 							// Reply to the same channel with topic SLATE_SIGNED
 							Ok(_) => {
-								let slate = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
+								let slate = slate
+									.serialize_to_version(Some(slate.version_info.orig_version))?;
 								// TODO: Send the same version of slate that was sent to us
 								let success = send(slate, channel, SLATE_SIGNED, TTL);
 

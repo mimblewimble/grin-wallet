@@ -14,7 +14,7 @@
 //! tests differing accounts in the same wallet
 #[macro_use]
 extern crate log;
-extern crate grin_refwallet as wallet;
+extern crate grin_wallet_refwallet as wallet;
 
 use self::core::global;
 use self::core::global::ChainTypes;
@@ -22,12 +22,11 @@ use self::keychain::{ExtKeychain, Keychain};
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
-use grin_libwallet as libwallet;
-use wallet::test_framework::{self, LocalWalletClient, WalletProxy};
+use grin_wallet_libwallet as libwallet;
 use std::fs;
 use std::thread;
 use std::time::Duration;
-
+use wallet::test_framework::{self, LocalWalletClient, WalletProxy};
 
 fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
@@ -184,8 +183,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			500,    // max outputs
 			1,      // num change outputs
 			true,   // select all outputs
-			None,
-			None,
+			None, None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(&slate, lock_fn)?;

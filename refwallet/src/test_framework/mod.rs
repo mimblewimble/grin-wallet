@@ -17,7 +17,7 @@ use self::core::core::{OutputFeatures, OutputIdentifier, Transaction};
 use self::core::{consensus, global, pow, ser};
 use self::util::secp::pedersen;
 use self::util::Mutex;
-use crate::apiwallet::api::APIOwner;
+use crate::apiwallet::Owner;
 use crate::libwallet::types::{BlockFees, CbData, NodeClient, WalletInfo, WalletInst};
 use crate::lmdb_wallet::LMDBBackend;
 use crate::{controller, libwallet, WalletSeed};
@@ -185,7 +185,7 @@ where
 /// send an amount to a destination
 pub fn send_to_dest<T: ?Sized, C, K>(
 	client: LocalWalletClient,
-	api: &mut APIOwner<T, C, K>,
+	api: &mut Owner<T, C, K>,
 	dest: &str,
 	amount: u64,
 ) -> Result<(), libwallet::Error>
@@ -201,8 +201,7 @@ where
 		500,    // max outputs
 		1,      // num change outputs
 		true,   // select all outputs
-		None,
-		None,
+		None, None,
 	)?;
 	let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
 	api.tx_lock_outputs(&slate, lock_fn)?;
@@ -213,7 +212,7 @@ where
 
 /// get wallet info totals
 pub fn wallet_info<T: ?Sized, C, K>(
-	api: &mut APIOwner<T, C, K>,
+	api: &mut Owner<T, C, K>,
 ) -> Result<WalletInfo, libwallet::Error>
 where
 	T: WalletBackend<C, K>,

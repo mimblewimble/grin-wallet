@@ -26,13 +26,18 @@ extern crate grin_core as core;
 extern crate grin_keychain as keychain;
 extern crate grin_store as store;
 extern crate grin_util as util;
-extern crate grin_libwallet as libwallet;
+extern crate grin_wallet_libwallet as libwallet;
 
 extern crate failure_derive;
 
 #[macro_use]
 extern crate log;
 
-pub mod api;
-pub use crate::api::{APIForeign, APIOwner};
-
+mod foreign;
+mod foreign_rpc;
+mod owner;
+mod owner_rpc;
+pub use crate::foreign::Foreign;
+pub use crate::foreign_rpc::ForeignRpc;
+pub use crate::owner::Owner;
+pub use crate::owner_rpc::OwnerRpc;

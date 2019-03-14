@@ -12,7 +12,7 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-extern crate grin_refwallet as wallet;
+extern crate grin_wallet_refwallet as wallet;
 
 use self::wallet::{EncryptedWalletSeed, WalletSeed};
 

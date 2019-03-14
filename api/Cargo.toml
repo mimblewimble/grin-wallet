@@ -1,5 +1,5 @@
 [package]
-name = "grin_apiwallet"
+name = "grin_wallet_api"
 version = "1.1.0"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Grin Wallet API"
@@ -17,7 +17,7 @@ log = "0.4"
 uuid = { version = "0.6", features = ["serde", "v4"] }
 easy-jsonrpc = "0.4.1"
 
-grin_libwallet = { path = "../libwallet", version = "1.1.0" }
+grin_wallet_libwallet = { path = "../libwallet", version = "1.1.0" }
 grin_wallet_config = { path = "../config", version = "1.1.0" }
 
 grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
@@ -28,6 +28,6 @@ grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1
 grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 
 [dev-dependencies]
-grin_refwallet = { path = "../refwallet", version = "1.1.0" }
+grin_wallet_refwallet = { path = "../refwallet", version = "1.1.0" }
 serde_json = "1"
 tempfile = "3.0.7"

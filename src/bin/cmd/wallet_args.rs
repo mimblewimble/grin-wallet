@@ -20,9 +20,9 @@ use clap::ArgMatches;
 use failure::Fail;
 use grin_core as core;
 use grin_keychain as keychain;
-use grin_refwallet::{command, instantiate_wallet, NodeClient, WalletInst, WalletSeed};
-use grin_refwallet::{Error, ErrorKind};
 use grin_wallet_config::WalletConfig;
+use grin_wallet_refwallet::{command, instantiate_wallet, NodeClient, WalletInst, WalletSeed};
+use grin_wallet_refwallet::{Error, ErrorKind};
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
@@ -399,7 +399,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			true => {
 				let v = parse_required(args, "target_slate_version")?;
 				Some(parse_u64(v, "target_slate_version")? as u16)
-			},
+			}
 			false => None,
 		}
 	};

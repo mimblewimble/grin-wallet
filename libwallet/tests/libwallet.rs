@@ -17,10 +17,10 @@ use self::core::libtx::{aggsig, proof};
 use self::keychain::{BlindSum, BlindingFactor, ExtKeychain, Keychain};
 use self::util::secp;
 use self::util::secp::key::{PublicKey, SecretKey};
-use grin_libwallet::types::Context;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
+use grin_wallet_libwallet::types::Context;
 use rand::thread_rng;
 
 fn kernel_sig_msg() -> secp::Message {

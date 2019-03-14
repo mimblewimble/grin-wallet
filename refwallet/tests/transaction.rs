@@ -14,8 +14,8 @@
 //! tests for transactions building within core::libtx
 #[macro_use]
 extern crate log;
-extern crate grin_refwallet as wallet;
-extern crate grin_libwallet as libwallet;
+extern crate grin_wallet_libwallet as libwallet;
+extern crate grin_wallet_refwallet as wallet;
 
 use self::core::global;
 use self::core::global::ChainTypes;
@@ -103,8 +103,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			500,    // max outputs
 			1,      // num change outputs
 			true,   // select all outputs
-			None,
-			None,
+			None, None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate, lock_fn)?;
@@ -364,8 +363,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 			500,    // max outputs
 			1,      // num change outputs
 			true,   // select all outputs
-			None,
-			None,
+			None, None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate, lock_fn)?;
@@ -427,7 +425,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	// wallet 1 is bold and doesn't ever post the transaction 
+	// wallet 1 is bold and doesn't ever post the transaction
 	// mine a few more blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5);
 

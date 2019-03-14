@@ -15,8 +15,8 @@
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
 use clap::ArgMatches;
-use grin_refwallet::{self, HTTPNodeClient, WalletSeed};
 use grin_wallet_config::WalletConfig;
+use grin_wallet_refwallet::{self, HTTPNodeClient, WalletSeed};
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
@@ -31,7 +31,7 @@ pub fn _init_wallet_seed(wallet_config: WalletConfig, password: &str) {
 pub fn seed_exists(wallet_config: WalletConfig) -> bool {
 	let mut data_file_dir = PathBuf::new();
 	data_file_dir.push(wallet_config.data_file_dir);
-	data_file_dir.push(grin_refwallet::SEED_FILE);
+	data_file_dir.push(grin_wallet_refwallet::SEED_FILE);
 	if data_file_dir.exists() {
 		true
 	} else {

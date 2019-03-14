@@ -17,7 +17,7 @@
 //! Still experimental
 use crate::adapters::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::api::{ApiServer, BasicAuthMiddleware, Handler, ResponseFuture, Router, TLSConfig};
-use crate::apiwallet::api::{APIForeign, APIOwner};
+use crate::apiwallet::{Foreign, Owner};
 use crate::core::core;
 use crate::core::core::Transaction;
 use crate::keychain::Keychain;
@@ -47,11 +47,11 @@ use uuid::Uuid;
 pub fn owner_single_use<F, T: ?Sized, C, K>(wallet: Arc<Mutex<T>>, f: F) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
-	F: FnOnce(&mut APIOwner<T, C, K>) -> Result<(), Error>,
+	F: FnOnce(&mut Owner<T, C, K>) -> Result<(), Error>,
 	C: NodeClient,
 	K: Keychain,
 {
-	f(&mut APIOwner::new(wallet.clone()))?;
+	f(&mut Owner::new(wallet.clone()))?;
 	Ok(())
 }
 
@@ -60,11 +60,11 @@ where
 pub fn foreign_single_use<F, T: ?Sized, C, K>(wallet: Arc<Mutex<T>>, f: F) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
-	F: FnOnce(&mut APIForeign<T, C, K>) -> Result<(), Error>,
+	F: FnOnce(&mut Foreign<T, C, K>) -> Result<(), Error>,
 	C: NodeClient,
 	K: Keychain,
 {
-	f(&mut APIForeign::new(wallet.clone()))?;
+	f(&mut Foreign::new(wallet.clone()))?;
 	Ok(())
 }
 
@@ -186,7 +186,7 @@ where
 	pub fn retrieve_outputs(
 		&self,
 		req: &Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), Error> {
 		let mut update_from_node = false;
 		let mut id = None;
@@ -210,7 +210,7 @@ where
 	pub fn retrieve_txs(
 		&self,
 		req: &Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let mut tx_id = None;
 		let mut tx_slate_id = None;
@@ -237,7 +237,7 @@ where
 	pub fn retrieve_stored_tx(
 		&self,
 		req: &Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Result<(bool, Option<Transaction>), Error> {
 		let params = parse_params(req);
 		if let Some(id_string) = params.get("id") {
@@ -270,7 +270,7 @@ where
 	pub fn retrieve_summary_info(
 		&self,
 		req: &Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Result<(bool, WalletInfo), Error> {
 		let mut minimum_confirmations = 1; // TODO - default needed here
 		let params = parse_params(req);
@@ -288,13 +288,13 @@ where
 	pub fn node_height(
 		&self,
 		_req: &Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Result<(u64, bool), Error> {
 		api.node_height()
 	}
 
 	fn handle_get_request(&self, req: &Request<Body>) -> Result<Response<Body>, Error> {
-		let api = APIOwner::new(self.wallet.clone());
+		let api = Owner::new(self.wallet.clone());
 
 		Ok(
 			match req
@@ -318,7 +318,7 @@ where
 	pub fn issue_send_tx(
 		&self,
 		req: Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = Slate, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |args: SendTXArgs| {
 			let result = api.initiate_tx(
@@ -382,7 +382,7 @@ where
 	pub fn finalize_tx(
 		&self,
 		req: Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = Slate, Error = Error> + Send> {
 		Box::new(
 			parse_body(req).and_then(move |mut slate| match api.finalize_tx(&mut slate) {
@@ -398,7 +398,7 @@ where
 	pub fn cancel_tx(
 		&self,
 		req: Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = (), Error = Error> + Send> {
 		let params = parse_params(&req);
 		if let Some(id_string) = params.get("id") {
@@ -446,7 +446,7 @@ where
 	pub fn post_tx(
 		&self,
 		req: Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = (), Error = Error> + Send> {
 		let params = match req.uri().query() {
 			Some(query_string) => form_urlencoded::parse(query_string.as_bytes())
@@ -472,7 +472,7 @@ where
 	pub fn repost(
 		&self,
 		req: Request<Body>,
-		api: APIOwner<T, C, K>,
+		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = (), Error = Error> + Send> {
 		let params = parse_params(&req);
 		let mut id_int: Option<u32> = None;
@@ -551,7 +551,7 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = APIOwner::new(self.wallet.clone());
+		let api = Owner::new(self.wallet.clone());
 		match req
 			.uri()
 			.path()
@@ -652,7 +652,7 @@ where
 	fn build_coinbase(
 		&self,
 		req: Request<Body>,
-		api: APIForeign<T, C, K>,
+		api: Foreign<T, C, K>,
 	) -> Box<dyn Future<Item = CbData, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |block_fees| api.build_coinbase(&block_fees)))
 	}
@@ -660,7 +660,7 @@ where
 	fn receive_tx(
 		&self,
 		req: Request<Body>,
-		api: APIForeign<T, C, K>,
+		api: Foreign<T, C, K>,
 	) -> Box<dyn Future<Item = String, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(
 			//TODO: No way to insert a message from the params
@@ -671,7 +671,9 @@ where
 					err(e)
 				} else {
 					match api.receive_tx(&mut slate, None, None) {
-						Ok(_) => ok(slate.serialize_to_version(Some(slate.version_info.orig_version)).unwrap()),
+						Ok(_) => ok(slate
+							.serialize_to_version(Some(slate.version_info.orig_version))
+							.unwrap()),
 						Err(e) => {
 							error!("receive_tx: failed with error: {}", e);
 							err(e)
@@ -683,7 +685,7 @@ where
 	}
 
 	fn handle_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = *APIForeign::new(self.wallet.clone());
+		let api = *Foreign::new(self.wallet.clone());
 		match req
 			.uri()
 			.path()
