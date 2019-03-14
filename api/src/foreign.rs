@@ -119,9 +119,7 @@ where
 			None => None,
 		};
 
-		let (_, mut create_fn) =
-			tx::add_output_to_slate(&mut *w, slate, &parent_key_id, 1, message)?;
-		create_fn(&mut *w, &slate.tx, PhantomData, PhantomData)?;
+		tx::add_output_to_slate(&mut *w, slate, &parent_key_id, 1, message)?;
 		tx::update_message(&mut *w, slate)?;
 		w.close()?;
 		Ok(())

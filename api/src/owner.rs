@@ -35,10 +35,10 @@ use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::ser;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::internal::{keys, tx, updater};
+use crate::libwallet::internal::{keys, tx, updater, selection};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, OutputLockFn, TxLogEntry, TxWrapper, WalletBackend,
+	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend,
 	WalletInfo,
 };
 use crate::libwallet::{Error, ErrorKind};
@@ -625,7 +625,7 @@ where
 		selection_strategy_is_use_all: bool,
 		message: Option<String>,
 		target_slate_version: Option<u16>,
-	) -> Result<(Slate, OutputLockFn<W, C, K>), Error> {
+	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let parent_key_id = match src_acct_name {
@@ -649,7 +649,7 @@ where
 
 		let mut slate = tx::new_tx_slate(&mut *w, amount, 2)?;
 
-		let (context, lock_fn) = tx::add_inputs_to_slate(
+		let context = tx::add_inputs_to_slate(
 			&mut *w,
 			&mut slate,
 			minimum_confirmations,
@@ -674,7 +674,7 @@ where
 		if let Some(v) = target_slate_version {
 			slate.version_info.orig_version = v;
 		}
-		Ok((slate, lock_fn))
+		Ok(slate)
 	}
 
 	/// Estimates the amount to be locked and fee for the transaction without creating one
@@ -746,14 +746,17 @@ where
 	}
 
 	/// Lock outputs associated with a given slate/transaction
+	/// and create any outputs needed
 	pub fn tx_lock_outputs(
 		&self,
 		slate: &Slate,
-		mut lock_fn: OutputLockFn<W, C, K>,
 	) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		lock_fn(&mut *w, &slate.tx, PhantomData, PhantomData)?;
+		let context = w.get_private_context(slate.id.as_bytes())?;
+		w.open_with_credentials()?;
+		selection::lock_tx_context(&mut *w, slate, &context)?;
+		w.close()?;
 		Ok(())
 	}
 

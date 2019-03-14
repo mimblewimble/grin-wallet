@@ -84,7 +84,7 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
 		assert_eq!(wallet1_info.total, bh * reward);
 		// send to send
-		let (mut slate, lock_fn) = api.initiate_tx(
+		let mut slate = api.initiate_tx(
 			Some("mining"),
 			reward * 2, // amount
 			2,          // minimum confirmations
@@ -94,7 +94,7 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			None,
 			None,
 		)?;
-		api.tx_lock_outputs(&slate, lock_fn)?;
+		api.tx_lock_outputs(&slate)?;
 		// Send directly to self
 		wallet::controller::foreign_single_use(wallet1.clone(), |api| {
 			api.receive_tx(&mut slate, Some("listener"), None)?;

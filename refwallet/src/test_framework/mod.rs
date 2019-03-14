@@ -194,7 +194,7 @@ where
 	C: NodeClient,
 	K: keychain::Keychain,
 {
-	let (slate_i, lock_fn) = api.initiate_tx(
+	let slate_i = api.initiate_tx(
 		None,   // account
 		amount, // amount
 		2,      // minimum confirmations
@@ -204,7 +204,7 @@ where
 		None, None,
 	)?;
 	let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
-	api.tx_lock_outputs(&slate, lock_fn)?;
+	api.tx_lock_outputs(&slate)?;
 	api.finalize_tx(&mut slate)?;
 	api.post_tx(&slate.tx, false)?; // mines a block
 	Ok(())

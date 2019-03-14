@@ -14,7 +14,7 @@
 //! core::libtx specific tests
 use self::core::core::transaction;
 use self::core::libtx::{aggsig, proof};
-use self::keychain::{BlindSum, BlindingFactor, ExtKeychain, Keychain};
+use self::keychain::{BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain};
 use self::util::secp;
 use self::util::secp::key::{PublicKey, SecretKey};
 use grin_core as core;
@@ -29,6 +29,7 @@ fn kernel_sig_msg() -> secp::Message {
 
 #[test]
 fn aggsig_sender_receiver_interaction() {
+	let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 	let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
 	let receiver_keychain = ExtKeychain::from_random_seed(true).unwrap();
 
@@ -71,7 +72,7 @@ fn aggsig_sender_receiver_interaction() {
 
 		let blind = blinding_factor.secret_key(&keychain.secp()).unwrap();
 
-		s_cx = Context::new(&keychain.secp(), blind);
+		s_cx = Context::new(&keychain.secp(), blind, &parent);
 		s_cx.get_public_keys(&keychain.secp())
 	};
 
@@ -85,9 +86,9 @@ fn aggsig_sender_receiver_interaction() {
 		// let blind = blind_sum.secret_key(&keychain.secp())?;
 		let blind = keychain.derive_key(0, &key_id).unwrap();
 
-		rx_cx = Context::new(&keychain.secp(), blind);
+		rx_cx = Context::new(&keychain.secp(), blind, &parent);
 		let (pub_excess, pub_nonce) = rx_cx.get_public_keys(&keychain.secp());
-		rx_cx.add_output(&key_id, &None);
+		rx_cx.add_output(&key_id, &None, 0);
 
 		pub_nonce_sum = PublicKey::from_combination(
 			keychain.secp(),
@@ -233,6 +234,7 @@ fn aggsig_sender_receiver_interaction() {
 
 #[test]
 fn aggsig_sender_receiver_interaction_offset() {
+	let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 	let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
 	let receiver_keychain = ExtKeychain::from_random_seed(true).unwrap();
 
@@ -288,7 +290,7 @@ fn aggsig_sender_receiver_interaction_offset() {
 
 		let blind = blinding_factor.secret_key(&keychain.secp()).unwrap();
 
-		s_cx = Context::new(&keychain.secp(), blind);
+		s_cx = Context::new(&keychain.secp(), blind, &parent);
 		s_cx.get_public_keys(&keychain.secp())
 	};
 
@@ -301,9 +303,9 @@ fn aggsig_sender_receiver_interaction_offset() {
 
 		let blind = keychain.derive_key(0, &key_id).unwrap();
 
-		rx_cx = Context::new(&keychain.secp(), blind);
+		rx_cx = Context::new(&keychain.secp(), blind, &parent);
 		let (pub_excess, pub_nonce) = rx_cx.get_public_keys(&keychain.secp());
-		rx_cx.add_output(&key_id, &None);
+		rx_cx.add_output(&key_id, &None, 0);
 
 		pub_nonce_sum = PublicKey::from_combination(
 			keychain.secp(),

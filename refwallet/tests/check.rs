@@ -155,7 +155,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	// perform a transaction, but don't let it finish
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
 		// send to send
-		let (mut slate, lock_fn) = api.initiate_tx(
+		let mut slate = api.initiate_tx(
 			None,
 			reward * 2, // amount
 			cm,         // minimum confirmations
@@ -169,7 +169,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		let file_adapter = FileWalletCommAdapter::new();
 		let send_file = format!("{}/part_tx_1.tx", test_dir);
 		file_adapter.send_tx_async(&send_file, &mut slate)?;
-		api.tx_lock_outputs(&slate, lock_fn)?;
+		api.tx_lock_outputs(&slate)?;
 		Ok(())
 	})?;
 
