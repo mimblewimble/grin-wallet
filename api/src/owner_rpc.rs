@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! JSON-RPC Stub generation for the Foreign API
+//! JSON-RPC Stub generation for the Owner API
 
 use uuid::Uuid;
 
@@ -203,6 +203,42 @@ pub trait OwnerRpc {
 	) -> Result<(bool, WalletInfo), ErrorKind>;
 
 	/**
+	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.initiate_tx).
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	{
+		"jsonrpc": "2.0",
+		"method": "initiate_tx",
+		"params": [null, 0, 0, 10, 0, false, "my message", null],
+		"id": 1
+	},
+	{
+		"jsonrpc": "2.0",
+		"result": {
+			"Err": {
+				"CallbackImpl": "Error opening wallet"
+			}
+		},
+		"id": 1
+	}
+	# );
+	```
+	 */
+
+	fn initiate_tx(
+		&self,
+		src_acct_name: Option<String>,
+		amount: u64,
+		minimum_confirmations: u64,
+		max_outputs: usize,
+		num_change_outputs: usize,
+		selection_strategy_is_use_all: bool,
+		message: Option<String>,
+		target_slate_version: Option<u16>,
+	) -> Result<Slate, ErrorKind>;
+
+	/**
 	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.estimate_initiate_tx).
 
 
@@ -235,6 +271,53 @@ pub trait OwnerRpc {
 		num_change_outputs: usize,
 		selection_strategy_is_use_all: bool,
 	) -> Result<(/* total */ u64, /* fee */ u64), ErrorKind>;
+
+	/**
+	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
+
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	{
+		"jsonrpc": "2.0",
+		"method": "tx_lock_outputs",
+		"params": [{
+			"version_info": {
+				"version": 2,
+				"orig_version": 2,
+				"min_compat_version": 0
+			},
+			"amount": 0,
+			"fee": 0,
+			"height": 0,
+			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
+			"lock_height": 0,
+			"num_participants": 2,
+			"participant_data": [],
+			"tx": {
+				"body": {
+					"inputs": [],
+					"kernels": [],
+					"outputs": []
+				},
+				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+			}
+		}],
+		"id": 1
+	},
+	{
+		"jsonrpc": "2.0",
+		"result": {
+			"Err": {
+				"CallbackImpl": "Error opening wallet"
+			}
+		},
+		"id": 1
+	}
+	# );
+	```
+	 */
+	fn tx_lock_outputs(&self, slate: Slate) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::finalize_tx](struct.Owner.html#method.finalize_tx).
@@ -555,6 +638,31 @@ where
 			.map_err(|e| e.kind())
 	}
 
+	fn initiate_tx(
+		&self,
+		src_acct_name: Option<String>,
+		amount: u64,
+		minimum_confirmations: u64,
+		max_outputs: usize,
+		num_change_outputs: usize,
+		selection_strategy_is_use_all: bool,
+		message: Option<String>,
+		target_slate_version: Option<u16>,
+	) -> Result<Slate, ErrorKind> {
+		Owner::initiate_tx(
+			self,
+			src_acct_name.as_ref().map(String::as_str),
+			amount,
+			minimum_confirmations,
+			max_outputs,
+			num_change_outputs,
+			selection_strategy_is_use_all,
+			message,
+			target_slate_version,
+		)
+		.map_err(|e| e.kind())
+	}
+
 	fn estimate_initiate_tx(
 		&self,
 		src_acct_name: Option<String>,
@@ -579,6 +687,10 @@ where
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
 		Owner::finalize_tx(self, &mut slate).map_err(|e| e.kind())?;
 		Ok(slate)
+	}
+
+	fn tx_lock_outputs(&self, mut slate: Slate) -> Result<(), ErrorKind> {
+		Owner::tx_lock_outputs(self, &mut slate).map_err(|e| e.kind())
 	}
 
 	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind> {

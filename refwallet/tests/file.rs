@@ -103,7 +103,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
 		assert_eq!(wallet1_info.total, bh * reward);
 		// send to send
-		let (mut slate, lock_fn) = api.initiate_tx(
+		let mut slate = api.initiate_tx(
 			Some("mining"),
 			reward * 2,               // amount
 			2,                        // minimum confirmations
@@ -116,7 +116,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
 		file_adapter.send_tx_async(&send_file, &mut slate)?;
-		api.tx_lock_outputs(&slate, lock_fn)?;
+		api.tx_lock_outputs(&slate)?;
 		Ok(())
 	})?;
 

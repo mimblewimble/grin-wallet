@@ -331,7 +331,7 @@ where
 				args.message,
 				args.target_slate_version,
 			);
-			let (mut slate, lock_fn) = match result {
+			let mut slate = match result {
 				Ok(s) => {
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
@@ -371,7 +371,7 @@ where
 					))?;
 				}
 			}
-			api.tx_lock_outputs(&slate, lock_fn)?;
+			api.tx_lock_outputs(&slate)?;
 			if args.method != "file" {
 				api.finalize_tx(&mut slate)?;
 			}

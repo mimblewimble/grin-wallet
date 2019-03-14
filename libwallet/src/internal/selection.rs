@@ -14,7 +14,7 @@
 
 //! Selection of inputs for building transactions
 
-use crate::core::core::{amount_to_hr_string, Transaction};
+use crate::core::core::amount_to_hr_string;
 use crate::core::libtx::{build, tx_fee};
 use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
@@ -22,7 +22,6 @@ use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::*;
 use std::collections::HashMap;
-use std::marker::PhantomData;
 
 /// Initialize a transaction on the sender side, returns a corresponding
 /// libwallet transaction slate with the appropriate inputs selected,
@@ -37,7 +36,7 @@ pub fn build_send_tx<T: ?Sized, C, K>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: Identifier,
-) -> Result<(Context, OutputLockFn<T, C, K>), Error>
+) -> Result<Context, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -64,87 +63,104 @@ where
 	let mut context = Context::new(
 		wallet.keychain().secp(),
 		blinding.secret_key(&keychain.secp()).unwrap(),
+		&parent_key_id,
 	);
+
+	context.fee = fee;
 
 	// Store our private identifiers for each input
 	for input in inputs {
-		context.add_input(&input.key_id, &input.mmr_index);
+		context.add_input(&input.key_id, &input.mmr_index, input.value);
 	}
 
 	let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
 
 	// Store change output(s) and cached commits
 	for (change_amount, id, mmr_index) in &change_amounts_derivations {
-		context.add_output(&id, &mmr_index);
+		context.add_output(&id, &mmr_index, *change_amount);
 		commits.insert(
 			id.clone(),
 			wallet.calc_commit_for_cache(*change_amount, &id)?,
 		);
 	}
 
-	let lock_inputs_in = context.get_inputs().clone();
-	let _lock_outputs = context.get_outputs().clone();
-	let messages_in = Some(slate.participant_messages());
-	let slate_id_in = slate.id.clone();
-	let height_in = slate.height;
+	Ok(context)
+}
 
-	// Return a closure to acquire wallet lock and lock the coins being spent
-	// so we avoid accidental double spend attempt.
-	let update_sender_wallet_fn =
-		move |wallet: &mut T, tx: &Transaction, _: PhantomData<C>, _: PhantomData<K>| {
-			let tx_entry = {
-				// These ensure the closure remains FnMut
-				let lock_inputs = lock_inputs_in.clone();
-				let messages = messages_in.clone();
-				let slate_id = slate_id_in.clone();
-				let height = height_in.clone();
-				let mut batch = wallet.batch()?;
-				let log_id = batch.next_tx_log_id(&parent_key_id)?;
-				let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
-				t.tx_slate_id = Some(slate_id.clone());
-				let filename = format!("{}.grintx", slate_id);
-				t.stored_tx = Some(filename);
-				t.fee = Some(fee);
-				let mut amount_debited = 0;
-				t.num_inputs = lock_inputs.len();
-				for id in lock_inputs {
-					let mut coin = batch.get(&id.0, &id.1).unwrap();
-					coin.tx_log_entry = Some(log_id);
-					amount_debited = amount_debited + coin.value;
-					batch.lock_output(&mut coin)?;
-				}
+/// Locks all corresponding outputs in the context, creates
+/// change outputs and tx log entry
+pub fn lock_tx_context<T: ?Sized, C, K>(
+	wallet: &mut T,
+	slate: &Slate,
+	context: &Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	let mut output_commits: HashMap<Identifier, (Option<String>, u64)> = HashMap::new();
+	// Store cached commits before locking wallet
+	for (id, _, change_amount) in &context.get_outputs() {
+		output_commits.insert(
+			id.clone(),
+			(
+				wallet.calc_commit_for_cache(*change_amount, &id)?,
+				*change_amount,
+			),
+		);
+	}
 
-				t.amount_debited = amount_debited;
-				t.messages = messages;
+	let tx_entry = {
+		let lock_inputs = context.get_inputs().clone();
+		let messages = Some(slate.participant_messages());
+		let slate_id = slate.id;
+		let height = slate.height;
+		let parent_key_id = context.parent_key_id.clone();
+		let mut batch = wallet.batch()?;
+		let log_id = batch.next_tx_log_id(&parent_key_id)?;
+		let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
+		t.tx_slate_id = Some(slate_id.clone());
+		let filename = format!("{}.grintx", slate_id);
+		t.stored_tx = Some(filename);
+		t.fee = Some(slate.fee);
+		let mut amount_debited = 0;
+		t.num_inputs = lock_inputs.len();
+		for id in lock_inputs {
+			let mut coin = batch.get(&id.0, &id.1).unwrap();
+			coin.tx_log_entry = Some(log_id);
+			amount_debited = amount_debited + coin.value;
+			batch.lock_output(&mut coin)?;
+		}
 
-				// write the output representing our change
-				for (change_amount, id, _) in &change_amounts_derivations {
-					t.num_outputs += 1;
-					t.amount_credited += change_amount;
-					let commit = commits.get(&id).unwrap().clone();
-					batch.save(OutputData {
-						root_key_id: parent_key_id.clone(),
-						key_id: id.clone(),
-						n_child: id.to_path().last_path_index(),
-						commit: commit,
-						mmr_index: None,
-						value: change_amount.clone(),
-						status: OutputStatus::Unconfirmed,
-						height: height,
-						lock_height: 0,
-						is_coinbase: false,
-						tx_log_entry: Some(log_id),
-					})?;
-				}
-				batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
-				batch.commit()?;
-				t
-			};
-			wallet.store_tx(&format!("{}", tx_entry.tx_slate_id.unwrap()), tx)?;
-			Ok(())
-		};
+		t.amount_debited = amount_debited;
+		t.messages = messages;
 
-	Ok((context, Box::new(update_sender_wallet_fn)))
+		// write the output representing our change
+		for (id, _, _) in &context.get_outputs() {
+			t.num_outputs += 1;
+			let (commit, change_amount) = output_commits.get(&id).unwrap().clone();
+			t.amount_credited += change_amount;
+			batch.save(OutputData {
+				root_key_id: parent_key_id.clone(),
+				key_id: id.clone(),
+				n_child: id.to_path().last_path_index(),
+				commit: commit,
+				mmr_index: None,
+				value: change_amount.clone(),
+				status: OutputStatus::Unconfirmed,
+				height: height,
+				lock_height: 0,
+				is_coinbase: false,
+				tx_log_entry: Some(log_id),
+			})?;
+		}
+		batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
+		batch.commit()?;
+		t
+	};
+	wallet.store_tx(&format!("{}", tx_entry.tx_slate_id.unwrap()), &slate.tx)?;
+	Ok(())
 }
 
 /// Creates a new output in the wallet for the recipient,
@@ -155,7 +171,7 @@ pub fn build_recipient_output<T: ?Sized, C, K>(
 	wallet: &mut T,
 	slate: &mut Slate,
 	parent_key_id: Identifier,
-) -> Result<(Identifier, Context, OutputLockFn<T, C, K>), Error>
+) -> Result<(Identifier, Context), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -179,45 +195,36 @@ where
 		blinding
 			.secret_key(wallet.keychain().clone().secp())
 			.unwrap(),
+		&parent_key_id,
 	);
 
-	context.add_output(&key_id, &None);
-	let messages_in = Some(slate.participant_messages());
+	context.add_output(&key_id, &None, amount);
+	let messages = Some(slate.participant_messages());
+	let commit = wallet.calc_commit_for_cache(amount, &key_id_inner)?;
+	let mut batch = wallet.batch()?;
+	let log_id = batch.next_tx_log_id(&parent_key_id)?;
+	let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);
+	t.tx_slate_id = Some(slate_id);
+	t.amount_credited = amount;
+	t.num_outputs = 1;
+	t.messages = messages;
+	batch.save(OutputData {
+		root_key_id: parent_key_id.clone(),
+		key_id: key_id_inner.clone(),
+		mmr_index: None,
+		n_child: key_id_inner.to_path().last_path_index(),
+		commit: commit,
+		value: amount,
+		status: OutputStatus::Unconfirmed,
+		height: height,
+		lock_height: 0,
+		is_coinbase: false,
+		tx_log_entry: Some(log_id),
+	})?;
+	batch.save_tx_log_entry(t, &parent_key_id)?;
+	batch.commit()?;
 
-	// Create closure that adds the output to recipient's wallet
-	// (up to the caller to decide when to do)
-	let wallet_add_fn =
-		move |wallet: &mut T, _tx: &Transaction, _: PhantomData<C>, _: PhantomData<K>| {
-			// Ensure closure remains FnMut
-			let messages = messages_in.clone();
-			let commit = wallet.calc_commit_for_cache(amount, &key_id_inner)?;
-			let mut batch = wallet.batch()?;
-			let log_id = batch.next_tx_log_id(&parent_key_id)?;
-			let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);
-			t.tx_slate_id = Some(slate_id);
-			t.amount_credited = amount;
-			t.num_outputs = 1;
-			t.messages = messages;
-			batch.save(OutputData {
-				root_key_id: parent_key_id.clone(),
-				key_id: key_id_inner.clone(),
-				mmr_index: None,
-				n_child: key_id_inner.to_path().last_path_index(),
-				commit: commit,
-				value: amount,
-				status: OutputStatus::Unconfirmed,
-				height: height,
-				lock_height: 0,
-				is_coinbase: false,
-				tx_log_entry: Some(log_id),
-			})?;
-			batch.save_tx_log_entry(t, &parent_key_id)?;
-			batch.commit()?;
-			//TODO: Check whether we want to call this
-			//wallet.store_tx(&format!("{}", t.tx_slate_id.unwrap()), tx)?;
-			Ok(())
-		};
-	Ok((key_id, context, Box::new(wallet_add_fn)))
+	Ok((key_id, context))
 }
 
 /// Builds a transaction to send to someone from the HD seed associated with the

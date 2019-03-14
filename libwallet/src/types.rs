@@ -30,12 +30,7 @@ use serde;
 use serde_json;
 use std::collections::HashMap;
 use std::fmt;
-use std::marker::PhantomData;
 use uuid::Uuid;
-
-/// Lock function type
-pub type OutputLockFn<T, C, K> =
-	Box<dyn FnMut(&mut T, &Transaction, PhantomData<C>, PhantomData<K>) -> Result<(), Error>>;
 
 /// Combined trait to allow dynamic wallet dispatch
 pub trait WalletInst<C, K>: WalletBackend<C, K> + Send + Sync + 'static
@@ -377,23 +372,28 @@ impl fmt::Display for OutputStatus {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 /// Holds the context for a single aggsig transaction
 pub struct Context {
+	/// Parent key id
+	pub parent_key_id: Identifier,
 	/// Secret key (of which public is shared)
 	pub sec_key: SecretKey,
 	/// Secret nonce (of which public is shared)
 	/// (basically a SecretKey)
 	pub sec_nonce: SecretKey,
-	/// store my outputs between invocations
-	pub output_ids: Vec<(Identifier, Option<u64>)>,
+	/// store my outputs + amounts between invocations
+	/// Id, mmr_index (if known), amount
+	pub output_ids: Vec<(Identifier, Option<u64>, u64)>,
 	/// store my inputs
-	pub input_ids: Vec<(Identifier, Option<u64>)>,
+	/// Id, mmr_index (if known), amount
+	pub input_ids: Vec<(Identifier, Option<u64>, u64)>,
 	/// store the calculated fee
 	pub fee: u64,
 }
 
 impl Context {
 	/// Create a new context with defaults
-	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey) -> Context {
+	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: &Identifier) -> Context {
 		Context {
+			parent_key_id: parent_key_id.clone(),
 			sec_key: sec_key,
 			sec_nonce: aggsig::create_secnonce(secp).unwrap(),
 			input_ids: vec![],
@@ -406,23 +406,25 @@ impl Context {
 impl Context {
 	/// Tracks an output contributing to my excess value (if it needs to
 	/// be kept between invocations
-	pub fn add_output(&mut self, output_id: &Identifier, mmr_index: &Option<u64>) {
-		self.output_ids.push((output_id.clone(), mmr_index.clone()));
+	pub fn add_output(&mut self, output_id: &Identifier, mmr_index: &Option<u64>, amount: u64) {
+		self.output_ids
+			.push((output_id.clone(), mmr_index.clone(), amount));
 	}
 
 	/// Returns all stored outputs
-	pub fn get_outputs(&self) -> Vec<(Identifier, Option<u64>)> {
+	pub fn get_outputs(&self) -> Vec<(Identifier, Option<u64>, u64)> {
 		self.output_ids.clone()
 	}
 
 	/// Tracks IDs of my inputs into the transaction
 	/// be kept between invocations
-	pub fn add_input(&mut self, input_id: &Identifier, mmr_index: &Option<u64>) {
-		self.input_ids.push((input_id.clone(), mmr_index.clone()));
+	pub fn add_input(&mut self, input_id: &Identifier, mmr_index: &Option<u64>, amount: u64) {
+		self.input_ids
+			.push((input_id.clone(), mmr_index.clone(), amount));
 	}
 
 	/// Returns all stored input identifiers
-	pub fn get_inputs(&self) -> Vec<(Identifier, Option<u64>)> {
+	pub fn get_inputs(&self) -> Vec<(Identifier, Option<u64>, u64)> {
 		self.input_ids.clone()
 	}
 

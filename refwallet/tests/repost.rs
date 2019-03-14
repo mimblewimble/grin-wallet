@@ -101,7 +101,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
 		assert_eq!(wallet1_info.total, bh * reward);
 		// send to send
-		let (mut slate, lock_fn) = api.initiate_tx(
+		let mut slate = api.initiate_tx(
 			Some("mining"),
 			reward * 2, // amount
 			2,          // minimum confirmations
@@ -114,7 +114,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
 		file_adapter.send_tx_async(&send_file, &mut slate)?;
-		api.tx_lock_outputs(&slate, lock_fn)?;
+		api.tx_lock_outputs(&slate)?;
 		Ok(())
 	})?;
 
@@ -198,7 +198,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let (slate_i, lock_fn) = sender_api.initiate_tx(
+		let slate_i = sender_api.initiate_tx(
 			None,
 			amount * 2, // amount
 			2,          // minimum confirmations
@@ -209,7 +209,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(&slate, lock_fn)?;
+		sender_api.tx_lock_outputs(&slate)?;
 		sender_api.finalize_tx(&mut slate)?;
 		Ok(())
 	})?;

@@ -244,7 +244,7 @@ pub fn send(
 				args.message.clone(),
 				args.target_slate_version,
 			);
-			let (mut slate, lock_fn) = match result {
+			let mut slate = match result {
 				Ok(s) => {
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
@@ -268,7 +268,7 @@ pub fn send(
 			};
 			if adapter.supports_sync() {
 				slate = adapter.send_tx_sync(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, lock_fn)?;
+				api.tx_lock_outputs(&slate)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
 						api.receive_tx(&mut slate, Some(&args.dest), None)?;
@@ -282,7 +282,7 @@ pub fn send(
 				api.finalize_tx(&mut slate)?;
 			} else {
 				adapter.send_tx_async(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, lock_fn)?;
+				api.tx_lock_outputs(&slate)?;
 			}
 			if adapter.supports_sync() {
 				let result = api.post_tx(&slate.tx, args.fluff);

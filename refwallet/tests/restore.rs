@@ -235,7 +235,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	let mut slate = Slate::blank(1);
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let (slate_i, lock_fn) = sender_api.initiate_tx(
+		let slate_i = sender_api.initiate_tx(
 			None, amount, // amount
 			2,      // minimum confirmations
 			500,    // max outputs
@@ -244,7 +244,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			None, None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(&slate, lock_fn)?;
+		sender_api.tx_lock_outputs(&slate)?;
 		sender_api.finalize_tx(&mut slate)?;
 		sender_api.post_tx(&slate.tx, false)?;
 		Ok(())
@@ -256,7 +256,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	// Send some to wallet 3
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let (slate_i, lock_fn) = sender_api.initiate_tx(
+		let slate_i = sender_api.initiate_tx(
 			None,
 			amount * 2, // amount
 			2,          // minimum confirmations
@@ -267,7 +267,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			None,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet3", &slate_i)?;
-		sender_api.tx_lock_outputs(&slate, lock_fn)?;
+		sender_api.tx_lock_outputs(&slate)?;
 		sender_api.finalize_tx(&mut slate)?;
 		sender_api.post_tx(&slate.tx, false)?;
 		Ok(())
@@ -279,7 +279,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	// Wallet3 to wallet 2
 	wallet::controller::owner_single_use(wallet3.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let (slate_i, lock_fn) = sender_api.initiate_tx(
+		let slate_i = sender_api.initiate_tx(
 			None,
 			amount * 3, // amount
 			2,          // minimum confirmations
@@ -290,7 +290,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			None,
 		)?;
 		slate = client3.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(&slate, lock_fn)?;
+		sender_api.tx_lock_outputs(&slate)?;
 		sender_api.finalize_tx(&mut slate)?;
 		sender_api.post_tx(&slate.tx, false)?;
 		Ok(())
@@ -308,7 +308,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	// Wallet3 to wallet 2 again (to another account)
 	wallet::controller::owner_single_use(wallet3.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let (slate_i, lock_fn) = sender_api.initiate_tx(
+		let slate_i = sender_api.initiate_tx(
 			None,
 			amount * 3, // amount
 			2,          // minimum confirmations
@@ -319,7 +319,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			None,
 		)?;
 		slate = client3.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(&slate, lock_fn)?;
+		sender_api.tx_lock_outputs(&slate)?;
 		sender_api.finalize_tx(&mut slate)?;
 		sender_api.post_tx(&slate.tx, false)?;
 		Ok(())

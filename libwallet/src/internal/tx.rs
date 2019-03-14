@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::internal::{selection, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, OutputLockFn, TxLogEntryType, WalletBackend};
+use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
 
 /// Creates a new slate for a transaction, can be called by anyone involved in
@@ -99,7 +99,7 @@ pub fn add_inputs_to_slate<T: ?Sized, C, K>(
 	parent_key_id: &Identifier,
 	participant_id: usize,
 	message: Option<String>,
-) -> Result<(Context, OutputLockFn<T, C, K>), Error>
+) -> Result<Context, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -115,7 +115,7 @@ where
 	// according to plan
 	// This function is just a big helper to do all of that, in theory
 	// this process can be split up in any way
-	let (mut context, sender_lock_fn) = selection::build_send_tx(
+	let mut context = selection::build_send_tx(
 		wallet,
 		slate,
 		minimum_confirmations,
@@ -136,7 +136,7 @@ where
 		message,
 	)?;
 
-	Ok((context, sender_lock_fn))
+	Ok(context)
 }
 
 /// Add outputs to the slate, becoming the recipient
@@ -146,15 +146,14 @@ pub fn add_output_to_slate<T: ?Sized, C, K>(
 	parent_key_id: &Identifier,
 	participant_id: usize,
 	message: Option<String>,
-) -> Result<(Context, OutputLockFn<T, C, K>), Error>
+) -> Result<Context, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
 	// create an output using the amount in the slate
-	let (_, mut context, create_fn) =
-		selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
+	let (_, mut context) = selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
 
 	// fill public keys
 	let _ = slate.fill_round_1(
@@ -173,7 +172,7 @@ where
 		participant_id,
 	)?;
 
-	Ok((context, create_fn))
+	Ok(context)
 }
 
 /// Complete a transaction as the sender
