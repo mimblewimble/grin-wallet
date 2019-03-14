@@ -15,7 +15,7 @@
 //! Main interface into all wallet API functions.
 //! Wallet APIs are split into two seperate blocks of functionality
 //! called the 'Owner' and 'Foreign' APIs:
-//! 
+//!
 //! * The 'Foreign' API contains methods that other wallets will
 //! use to interact with the owner's wallet. This API can be exposed
 //! to the outside world, with the consideration as to how that can
