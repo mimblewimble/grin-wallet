@@ -299,6 +299,7 @@ where
 	batch.commit()?;
 	Ok(())
 }
+
 #[cfg(test)]
 mod test {
 	use crate::core::libtx::build;

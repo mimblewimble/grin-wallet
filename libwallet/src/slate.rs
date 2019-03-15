@@ -487,7 +487,8 @@ impl Slate {
 	}
 
 	/// Verifies any messages in the slate's participant data match their signatures
-	pub fn verify_messages(&self, secp: &secp::Secp256k1) -> Result<(), Error> {
+	pub fn verify_messages(&self) -> Result<(), Error> {
+		let secp = secp::Secp256k1::with_caps(secp::ContextFlag::VerifyOnly);
 		for p in self.participant_data.iter() {
 			if let Some(msg) = &p.message {
 				let hashed = blake2b(secp::constants::MESSAGE_SIZE, &[], &msg.as_bytes()[..]);
@@ -503,7 +504,7 @@ impl Slate {
 					Some(s) => s,
 				};
 				if !aggsig::verify_single(
-					secp,
+					&secp,
 					&signature,
 					&m,
 					None,
