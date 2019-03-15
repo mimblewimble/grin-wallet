@@ -22,9 +22,9 @@ pub use self::http::HTTPWalletCommAdapter;
 pub use self::keybase::KeybaseWalletCommAdapter;
 pub use self::null::NullWalletCommAdapter;
 
+use crate::config::WalletConfig;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::Error;
-use crate::config::WalletConfig;
 use std::collections::HashMap;
 
 /// Encapsulate wallet to wallet communication functions

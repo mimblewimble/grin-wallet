@@ -590,7 +590,17 @@ where
 	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = owner::initiate_tx(&mut *w, src_acct_name, amount, minimum_confirmations, max_outputs, num_change_outputs, selection_strategy_is_use_all, message, target_slate_version);
+		let res = owner::initiate_tx(
+			&mut *w,
+			src_acct_name,
+			amount,
+			minimum_confirmations,
+			max_outputs,
+			num_change_outputs,
+			selection_strategy_is_use_all,
+			message,
+			target_slate_version,
+		);
 		w.close()?;
 		res
 	}
@@ -642,7 +652,15 @@ where
 	> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = owner::estimate_initiate_tx(&mut *w, src_acct_name, amount, minimum_confirmations, max_outputs, num_change_outputs, selection_strategy_is_use_all);
+		let res = owner::estimate_initiate_tx(
+			&mut *w,
+			src_acct_name,
+			amount,
+			minimum_confirmations,
+			max_outputs,
+			num_change_outputs,
+			selection_strategy_is_use_all,
+		);
 		w.close()?;
 		res
 	}
@@ -725,5 +743,4 @@ where
 		w.close()?;
 		res
 	}
-
 }

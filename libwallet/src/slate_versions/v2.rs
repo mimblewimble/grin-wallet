@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 //! Contains V2 of the slate (grin-wallet 1.1.0)
 //! Changes from V1:
 //! * ParticipantData struct fields serialized as hex strings instead of arrays:
@@ -36,19 +35,19 @@
 //!    orig_verion: u16,
 //!    min_compat_version: u16
 
-use crate::core::core::transaction::{
-	KernelFeatures, OutputFeatures,
-};
+use crate::core::core::transaction::{KernelFeatures, OutputFeatures};
 
+use crate::core::libtx::secp_ser;
 use crate::keychain::BlindingFactor;
 use crate::util::secp;
 use crate::util::secp::key::PublicKey;
 use crate::util::secp::pedersen::{Commitment, RangeProof};
 use crate::util::secp::Signature;
-use crate::core::libtx::secp_ser;
 use uuid::Uuid;
 
-use crate::slate_versions::v1::{SlateV1, TransactionV1, TransactionBodyV1, InputV1, OutputV1,TxKernelV1, ParticipantDataV1};
+use crate::slate_versions::v1::{
+	InputV1, OutputV1, ParticipantDataV1, SlateV1, TransactionBodyV1, TransactionV1, TxKernelV1,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV2 {
@@ -201,7 +200,7 @@ impl From<SlateV2> for SlateV1 {
 		let tx = TransactionV1::from(tx);
 		let version = 1;
 		let orig_version = version_info.orig_version as u64;
- 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV1::from(data));
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV1::from(data));
 		SlateV1 {
 			num_participants,
 			id,
@@ -250,10 +249,7 @@ impl From<TransactionV2> for TransactionV1 {
 		let body = TransactionBodyV1::from(&body);
 		/*let transaction = TransactionV2::new(body.inputs, body.outputs, body.kernels);
 		transaction.with_offset(offset)*/
-		TransactionV1 {
-			offset,
-			body,
-		}
+		TransactionV1 { offset, body }
 	}
 }
 
@@ -390,10 +386,7 @@ impl From<TransactionV1> for TransactionV2 {
 		let body = TransactionBodyV2::from(&body);
 		/*let transaction = TransactionV2::new(body.inputs, body.outputs, body.kernels);
 		transaction.with_offset(offset)*/
-		TransactionV2 {
-			offset,
-			body,
-		}
+		TransactionV2 { offset, body }
 	}
 }
 
@@ -456,5 +449,3 @@ impl From<&TxKernelV1> for TxKernelV2 {
 		}
 	}
 }
-
-

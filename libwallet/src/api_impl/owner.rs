@@ -20,19 +20,19 @@ use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::ser;
 
-use crate::internal::{keys, updater, tx, selection};
+use crate::internal::{keys, selection, tx, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
-use crate::types::{AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
+use crate::types::{
+	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
+};
 use crate::util::secp::pedersen;
 use crate::{Error, ErrorKind};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// List of accounts
-pub fn accounts<T: ?Sized, C, K>(
-	w: &mut T,
-) -> Result<Vec<AcctPathMapping>, Error>
+pub fn accounts<T: ?Sized, C, K>(w: &mut T) -> Result<Vec<AcctPathMapping>, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -42,10 +42,7 @@ where
 }
 
 /// new account path
-pub fn create_account_path<T: ?Sized, C, K>(
-	w: &mut T,
-	label: &str,
-) -> Result<Identifier, Error>
+pub fn create_account_path<T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<Identifier, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -55,10 +52,7 @@ where
 }
 
 /// set active account
-pub fn set_active_account<T: ?Sized, C, K>(
-	w: &mut T,
-	label: &str,
-) -> Result<(), Error>
+pub fn set_active_account<T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -150,7 +144,7 @@ pub fn initiate_tx<T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	message: Option<String>,
 	target_slate_version: Option<u16>,
-) -> Result<Slate, Error> 
+) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -211,13 +205,13 @@ pub fn estimate_initiate_tx<T: ?Sized, C, K>(
 	max_outputs: usize,
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
-	) -> Result<
-		(
-			u64, // total
-			u64, // fee
-		),
-		Error,
-	> 
+) -> Result<
+	(
+		u64, // total
+		u64, // fee
+	),
+	Error,
+>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -245,10 +239,7 @@ where
 }
 
 /// Lock sender outputs
-pub fn tx_lock_outputs<T: ?Sized, C, K>(
-	w: &mut T,
-	slate: &Slate,
-) -> Result<(), Error>
+pub fn tx_lock_outputs<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -259,10 +250,7 @@ where
 }
 
 /// Finalize slate
-pub fn finalize_tx<T: ?Sized, C, K>(
-	w: &mut T,
-	slate: &mut Slate,
-) -> Result<(), Error>
+pub fn finalize_tx<T: ?Sized, C, K>(w: &mut T, slate: &mut Slate) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -284,7 +272,7 @@ where
 pub fn cancel_tx<T: ?Sized, C, K>(
 	w: &mut T,
 	tx_id: Option<u32>,
-	tx_slate_id: Option<Uuid>
+	tx_slate_id: Option<Uuid>,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
@@ -314,11 +302,7 @@ where
 }
 
 /// Posts a transaction to the chain
-pub fn post_tx<T: ?Sized, C, K>(
-	w: &mut T,
-	tx: &Transaction,
-	fluff: bool,
-) -> Result<(), Error>
+pub fn post_tx<T: ?Sized, C, K>(w: &mut T, tx: &Transaction, fluff: bool) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -334,7 +318,7 @@ where
 		debug!(
 			"api: post_tx: successfully posted tx: {}, fluff? {}",
 			tx.hash(),
-		fluff
+			fluff
 		);
 		Ok(())
 	}
@@ -346,9 +330,7 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 }
 
 /// Attempt to restore contents of wallet
-pub fn restore<T: ?Sized, C, K>(
-	w: &mut T,
-) -> Result<(), Error>
+pub fn restore<T: ?Sized, C, K>(w: &mut T) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -358,10 +340,7 @@ where
 }
 
 /// check repair
-pub fn check_repair<T: ?Sized, C, K>(
-	w: &mut T,
-	delete_unconfirmed: bool,
-) -> Result<(), Error>
+pub fn check_repair<T: ?Sized, C, K>(w: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -372,15 +351,13 @@ where
 }
 
 /// node height
-pub fn node_height<T: ?Sized, C, K>(
-	w: &mut T,
-) -> Result<(u64, bool), Error>
+pub fn node_height<T: ?Sized, C, K>(w: &mut T) -> Result<(u64, bool), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	let res =  w.w2n_client().get_chain_height();
+	let res = w.w2n_client().get_chain_height();
 	match res {
 		Ok(height) => Ok((height, true)),
 		Err(_) => {
@@ -407,4 +384,3 @@ where
 		Err(_) => false,
 	}
 }
-

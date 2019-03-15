@@ -32,10 +32,10 @@ use crate::core::core::Transaction;
 use crate::core::{global, ser};
 use crate::libwallet::types::*;
 use crate::libwallet::{internal, Error, ErrorKind};
-use crate::WalletSeed;
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::ZeroingString;
+use crate::WalletSeed;
 use config::WalletConfig;
 
 pub const DB_DIR: &'static str = "db";

@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 //! Contains V1 of the slate (grin 1.0.1, 1.0.2)
 //! Changes from V0:
 //! * Addition of a version field to Slate struct
 
-use crate::core::core::transaction::{
-	KernelFeatures, OutputFeatures,
-};
+use crate::core::core::transaction::{KernelFeatures, OutputFeatures};
 use crate::keychain::BlindingFactor;
 use crate::util::secp;
 use crate::util::secp::key::PublicKey;
@@ -27,7 +24,9 @@ use crate::util::secp::pedersen::{Commitment, RangeProof};
 use crate::util::secp::Signature;
 use uuid::Uuid;
 
-use crate::slate_versions::v0::{SlateV0, TransactionV0, TransactionBodyV0, InputV0, OutputV0,TxKernelV0, ParticipantDataV0};
+use crate::slate_versions::v0::{
+	InputV0, OutputV0, ParticipantDataV0, SlateV0, TransactionBodyV0, TransactionV0, TxKernelV0,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV1 {
@@ -191,10 +190,7 @@ impl From<TransactionV1> for TransactionV0 {
 	fn from(tx: TransactionV1) -> TransactionV0 {
 		let TransactionV1 { offset, body } = tx;
 		let body = TransactionBodyV0::from(&body);
-		TransactionV0 {
-			offset,
-			body,
-		}
+		TransactionV0 { offset, body }
 	}
 }
 
@@ -320,10 +316,7 @@ impl From<TransactionV0> for TransactionV1 {
 	fn from(tx: TransactionV0) -> TransactionV1 {
 		let TransactionV0 { offset, body } = tx;
 		let body = TransactionBodyV1::from(&body);
-		TransactionV1 {
-			offset,
-			body,
-		}
+		TransactionV1 { offset, body }
 	}
 }
 
@@ -386,6 +379,3 @@ impl From<&TxKernelV0> for TxKernelV1 {
 		}
 	}
 }
-
-
-

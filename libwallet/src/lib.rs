@@ -39,8 +39,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate log;
 
-mod error;
 pub mod api_impl;
+mod error;
 pub mod internal;
 pub mod slate;
 pub mod slate_versions;

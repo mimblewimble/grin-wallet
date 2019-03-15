@@ -14,7 +14,7 @@
 
 //! Generic implementation of owner API functions
 
-use crate::internal::{updater, tx};
+use crate::internal::{tx, updater};
 use crate::keychain::Keychain;
 use crate::slate::Slate;
 use crate::types::{BlockFees, CbData, NodeClient, TxLogEntryType, WalletBackend};
@@ -23,10 +23,7 @@ use crate::{Error, ErrorKind};
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// Build a coinbase transaction
-pub fn build_coinbase<T: ?Sized, C, K>(
-	w: &mut T,
-	block_fees: &BlockFees,
-) -> Result<CbData, Error>
+pub fn build_coinbase<T: ?Sized, C, K>(w: &mut T, block_fees: &BlockFees) -> Result<CbData, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -82,4 +79,3 @@ where
 	tx::update_message(&mut *w, slate)?;
 	Ok(())
 }
-

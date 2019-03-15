@@ -17,12 +17,14 @@ use self::core::core::{OutputFeatures, OutputIdentifier, Transaction};
 use self::core::{consensus, global, pow, ser};
 use self::util::secp::pedersen;
 use self::util::Mutex;
-use crate::libwallet::types::{BlockFees, CbData, NodeClient, WalletBackend, WalletInfo, WalletInst};
-use crate::libwallet::api_impl::{owner, foreign};
+use crate::config::WalletConfig;
+use crate::libwallet;
+use crate::libwallet::api_impl::{foreign, owner};
+use crate::libwallet::types::{
+	BlockFees, CbData, NodeClient, WalletBackend, WalletInfo, WalletInst,
+};
 use crate::lmdb_wallet::LMDBBackend;
 use crate::WalletSeed;
-use crate::libwallet;
-use crate::config::WalletConfig;
 use chrono::Duration;
 use grin_api as api;
 use grin_chain as chain;
@@ -191,8 +193,7 @@ where
 {
 	w.open_with_credentials()?;
 	let slate_i = owner::initiate_tx(
-		w,
-		None,   // account
+		w, None,   // account
 		amount, // amount
 		2,      // minimum confirmations
 		500,    // max outputs
@@ -209,9 +210,7 @@ where
 }
 
 /// get wallet info totals
-pub fn wallet_info<T: ?Sized, C, K>(
-	w: &mut T,
-) -> Result<WalletInfo, libwallet::Error>
+pub fn wallet_info<T: ?Sized, C, K>(w: &mut T) -> Result<WalletInfo, libwallet::Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,

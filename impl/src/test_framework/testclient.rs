@@ -26,10 +26,10 @@ use self::keychain::Keychain;
 use self::util::secp::pedersen;
 use self::util::secp::pedersen::Commitment;
 use self::util::{Mutex, RwLock, StopState};
+use crate::config::WalletConfig;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::*;
 use crate::{libwallet, WalletCommAdapter};
-use crate::config::WalletConfig;
 use failure::ResultExt;
 use grin_api as api;
 use grin_chain as chain;
@@ -213,7 +213,7 @@ where
 		let mut slate = serde_json::from_str(&m.body).unwrap();
 		// receive tx
 		{
-			libwallet::internal::tx::add_output_to_slate(&mut *w, slate,w.parent_key_id, 1, None)?;
+			libwallet::internal::tx::add_output_to_slate(&mut *w, slate, w.parent_key_id, 1, None)?;
 		}
 		Ok(WalletProxyMessage {
 			sender_id: m.dest,

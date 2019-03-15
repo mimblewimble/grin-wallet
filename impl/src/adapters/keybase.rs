@@ -14,10 +14,10 @@
 
 // Keybase Wallet Plugin
 
+use crate::config::WalletConfig;
+use crate::libwallet::api_impl::foreign;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::{Error, ErrorKind};
-use crate::libwallet::api_impl::foreign;
-use crate::config::WalletConfig;
 use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter};
 use failure::ResultExt;
 use serde::Serialize;

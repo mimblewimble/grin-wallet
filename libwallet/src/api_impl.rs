@@ -21,5 +21,5 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-pub mod owner;
 pub mod foreign;
+pub mod owner;

@@ -16,9 +16,9 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
+use crate::config::WalletConfig;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::Error;
-use crate::config::WalletConfig;
 use crate::WalletCommAdapter;
 use std::collections::HashMap;
 

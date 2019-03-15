@@ -35,7 +35,6 @@ use crate::util::Mutex;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-
 /// Wrapper around external API functions, intended to communicate
 /// with other parties
 pub struct Foreign<W: ?Sized, C, K>

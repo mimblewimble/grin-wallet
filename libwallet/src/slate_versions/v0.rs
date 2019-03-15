@@ -14,16 +14,13 @@
 
 //! Contains V0 of the slate (grin 1.0.0)
 //! And methods to downgrade v1 to v0
-use crate::core::core::transaction::{
-	KernelFeatures, OutputFeatures,
-};
+use crate::core::core::transaction::{KernelFeatures, OutputFeatures};
 use crate::keychain::BlindingFactor;
 use crate::util::secp;
 use crate::util::secp::key::PublicKey;
 use crate::util::secp::pedersen::{Commitment, RangeProof};
 use crate::util::secp::Signature;
 use uuid::Uuid;
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV0 {

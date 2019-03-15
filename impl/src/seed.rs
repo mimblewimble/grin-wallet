@@ -24,8 +24,8 @@ use serde_json;
 use ring::aead;
 use ring::{digest, pbkdf2};
 
-use crate::libwallet::{Error, ErrorKind};
 use crate::keychain::{mnemonic, Keychain};
+use crate::libwallet::{Error, ErrorKind};
 use crate::util;
 use config::WalletConfig;
 use failure::ResultExt;

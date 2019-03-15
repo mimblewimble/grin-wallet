@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::config::WalletConfig;
 /// Null Output 'plugin' implementation
 use crate::libwallet::slate::Slate;
 use crate::libwallet::Error;
-use crate::config::WalletConfig;
 use crate::WalletCommAdapter;
 
 use std::collections::HashMap;
