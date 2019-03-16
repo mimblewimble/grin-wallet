@@ -30,6 +30,7 @@ use grin_util as util;
 use grin_wallet_libwallet as libwallet;
 extern crate grin_wallet_config as config;
 
+mod error;
 mod adapters;
 mod lmdb_wallet;
 mod node_clients;
@@ -42,13 +43,13 @@ pub use crate::adapters::{
 };
 pub use crate::lmdb_wallet::{wallet_db_exists, LMDBBackend};
 pub use crate::node_clients::HTTPNodeClient;
+pub use crate::error::{Error, ErrorKind};
 
 use crate::util::Mutex;
 use seed::WalletSeed;
 use std::sync::Arc;
 
 use libwallet::types::{NodeClient, WalletBackend, WalletInst};
-use libwallet::Error;
 
 /// Helper to create an instance of the LMDB wallet
 pub fn instantiate_wallet(

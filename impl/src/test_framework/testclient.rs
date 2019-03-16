@@ -30,6 +30,7 @@ use crate::config::WalletConfig;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::*;
 use crate::{libwallet, WalletCommAdapter};
+use crate::libwallet::api_impl::foreign;
 use failure::ResultExt;
 use grin_api as api;
 use grin_chain as chain;
@@ -206,15 +207,23 @@ where
 		m: WalletProxyMessage,
 	) -> Result<WalletProxyMessage, libwallet::Error> {
 		let dest_wallet = self.wallets.get_mut(&m.dest);
-		if let None = dest_wallet {
-			panic!("Unknown wallet destination for send_tx_slate: {:?}", m);
-		}
-		let w = dest_wallet.unwrap().1.clone();
-		let mut slate = serde_json::from_str(&m.body).unwrap();
-		// receive tx
+		let wallet = match dest_wallet {
+			None => panic!("Unknown wallet destination for send_tx_slate: {:?}", m),
+			Some(w) => w,
+		};
+
+		let mut slate = serde_json::from_str(&m.body).context(
+			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper".to_owned()),
+		)?;
+;
 		{
-			libwallet::internal::tx::add_output_to_slate(&mut *w, slate, w.parent_key_id, 1, None)?;
+			let mut w = wallet.1.lock();
+			w.open_with_credentials()?;
+			// receive tx
+			foreign::receive_tx(&mut *w, &mut slate, None, None)?;
+			w.close()?;
 		}
+
 		Ok(WalletProxyMessage {
 			sender_id: m.dest,
 			dest: m.sender_id,

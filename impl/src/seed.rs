@@ -25,7 +25,7 @@ use ring::aead;
 use ring::{digest, pbkdf2};
 
 use crate::keychain::{mnemonic, Keychain};
-use crate::libwallet::{Error, ErrorKind};
+use crate::{Error, ErrorKind};
 use crate::util;
 use config::WalletConfig;
 use failure::ResultExt;
