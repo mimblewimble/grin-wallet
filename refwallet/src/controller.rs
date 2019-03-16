@@ -15,11 +15,11 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 //! Still experimental
-use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::api::{ApiServer, BasicAuthMiddleware, Handler, ResponseFuture, Router, TLSConfig};
 use crate::apiwallet::{Foreign, Owner};
 use crate::core::core;
 use crate::core::core::Transaction;
+use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{

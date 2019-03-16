@@ -28,15 +28,15 @@ use crate::api::TLSConfig;
 use crate::core::core;
 use crate::keychain;
 
-use crate::error::{Error, ErrorKind};
-use crate::{controller, display};
 use crate::config::WalletConfig;
-use crate::libwallet::types::{WalletInst, NodeClient};
-use crate::impls::{HTTPNodeClient, WalletSeed};
+use crate::error::{Error, ErrorKind};
 use crate::impls::{
 	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, LMDBBackend,
 	NullWalletCommAdapter,
 };
+use crate::impls::{HTTPNodeClient, WalletSeed};
+use crate::libwallet::types::{NodeClient, WalletInst};
+use crate::{controller, display};
 
 /// Arguments common to all wallet commands
 #[derive(Clone)]

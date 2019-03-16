@@ -14,9 +14,9 @@
 
 //! Implementation specific error types
 use crate::api;
-use crate::impls;
 use crate::core::core::transaction;
 use crate::core::libtx;
+use crate::impls;
 use crate::keychain;
 use crate::libwallet;
 use failure::{Backtrace, Context, Fail};

@@ -31,7 +31,7 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 use crate::core::core::Transaction;
 use crate::core::{global, ser};
 use crate::libwallet::types::*;
-use crate::libwallet::{restore, check_repair};
+use crate::libwallet::{check_repair, restore};
 use crate::libwallet::{Error, ErrorKind};
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
