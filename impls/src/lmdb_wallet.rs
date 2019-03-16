@@ -31,7 +31,8 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 use crate::core::core::Transaction;
 use crate::core::{global, ser};
 use crate::libwallet::types::*;
-use crate::libwallet::{internal, Error, ErrorKind};
+use crate::libwallet::{restore, check_repair};
+use crate::libwallet::{Error, ErrorKind};
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::ZeroingString;
@@ -346,12 +347,12 @@ where
 	}
 
 	fn restore(&mut self) -> Result<(), Error> {
-		internal::restore::restore(self).context(ErrorKind::Restore)?;
+		restore(self).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 
 	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error> {
-		internal::restore::check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
+		check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }

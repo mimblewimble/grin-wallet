@@ -30,23 +30,23 @@ use grin_util as util;
 use grin_wallet_libwallet as libwallet;
 extern crate grin_wallet_config as config;
 
-mod error;
 mod adapters;
+mod error;
 mod lmdb_wallet;
 mod node_clients;
 mod seed;
-mod test_framework;
+pub mod test_framework;
 
 pub use crate::adapters::{
 	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, NullWalletCommAdapter,
 	WalletCommAdapter,
 };
+pub use crate::error::{Error, ErrorKind};
 pub use crate::lmdb_wallet::{wallet_db_exists, LMDBBackend};
 pub use crate::node_clients::HTTPNodeClient;
-pub use crate::error::{Error, ErrorKind};
+pub use crate::seed::{WalletSeed, SEED_FILE};
 
 use crate::util::Mutex;
-use seed::WalletSeed;
 use std::sync::Arc;
 
 use libwallet::types::{NodeClient, WalletBackend, WalletInst};

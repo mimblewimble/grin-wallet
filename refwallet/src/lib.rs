@@ -14,63 +14,24 @@
 
 //! Library module for the main wallet functionalities provided by Grin.
 
-use blake2_rfc as blake2;
-
 #[macro_use]
 extern crate prettytable;
 
-#[macro_use]
-extern crate serde_derive;
 #[macro_use]
 extern crate log;
 use failure;
 use grin_api as api;
 extern crate grin_core as core;
 use grin_keychain as keychain;
-use grin_store as store;
 use grin_util as util;
 use grin_wallet_api as apiwallet;
 use grin_wallet_libwallet as libwallet;
+use grin_wallet_impls as impls;
 extern crate grin_wallet_config as config;
 
-mod adapters;
 pub mod command;
 pub mod controller;
 pub mod display;
 mod error;
-pub mod lmdb_wallet;
-mod node_clients;
-pub mod test_framework;
-mod types;
 
-pub use crate::adapters::{
-	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, NullWalletCommAdapter,
-	WalletCommAdapter,
-};
 pub use crate::error::{Error, ErrorKind};
-pub use crate::libwallet::slate::Slate;
-pub use crate::libwallet::types::{
-	BlockFees, CbData, NodeClient, WalletBackend, WalletInfo, WalletInst,
-};
-pub use crate::lmdb_wallet::{wallet_db_exists, LMDBBackend};
-pub use crate::node_clients::{create_coinbase, HTTPNodeClient};
-pub use crate::types::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
-use config::WalletConfig;
-
-use crate::util::Mutex;
-use std::sync::Arc;
-
-/// Helper to create an instance of the LMDB wallet
-pub fn instantiate_wallet(
-	wallet_config: WalletConfig,
-	node_client: impl NodeClient + 'static,
-	passphrase: &str,
-	account: &str,
-) -> Result<Arc<Mutex<WalletInst<impl NodeClient, keychain::ExtKeychain>>>, Error> {
-	// First test decryption, so we can abort early if we have the wrong password
-	let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
-	let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client)?;
-	db_wallet.set_parent_key_id_by_name(account)?;
-	info!("Using LMDB Backend for wallet");
-	Ok(Arc::new(Mutex::new(db_wallet)))
-}

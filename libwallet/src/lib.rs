@@ -24,7 +24,6 @@
 
 #[macro_use]
 extern crate grin_core as core;
-
 extern crate grin_keychain as keychain;
 extern crate grin_store as store;
 extern crate grin_util as util;
@@ -41,9 +40,10 @@ extern crate log;
 
 pub mod api_impl;
 mod error;
-pub mod internal;
+mod internal;
 pub mod slate;
 pub mod slate_versions;
 pub mod types;
 
 pub use crate::error::{Error, ErrorKind};
+pub use internal::restore::{restore, check_repair};

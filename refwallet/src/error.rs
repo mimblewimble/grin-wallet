@@ -14,6 +14,7 @@
 
 //! Implementation specific error types
 use crate::api;
+use crate::impls;
 use crate::core::core::transaction;
 use crate::core::libtx;
 use crate::keychain;
@@ -34,6 +35,10 @@ pub enum ErrorKind {
 	/// LibTX Error
 	#[fail(display = "LibTx Error")]
 	LibTX(libtx::ErrorKind),
+
+	/// Impls error
+	#[fail(display = "Impls Error")]
+	Impls(impls::ErrorKind),
 
 	/// LibWallet Error
 	#[fail(display = "LibWallet Error: {}", _1)]
@@ -205,6 +210,14 @@ impl From<libtx::Error> for Error {
 	fn from(error: libtx::Error) -> Error {
 		Error {
 			inner: Context::new(ErrorKind::LibTX(error.kind())),
+		}
+	}
+}
+
+impl From<impls::Error> for Error {
+	fn from(error: impls::Error) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Impls(error.kind())),
 		}
 	}
 }

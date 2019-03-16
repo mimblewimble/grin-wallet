@@ -162,4 +162,3 @@ impl From<libtx::Error> for Error {
 		}
 	}
 }
-

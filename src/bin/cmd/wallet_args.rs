@@ -21,7 +21,9 @@ use failure::Fail;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_wallet_config::WalletConfig;
-use grin_wallet_refwallet::{command, instantiate_wallet, NodeClient, WalletInst, WalletSeed};
+use grin_wallet_refwallet::command;
+use grin_wallet_impls::{instantiate_wallet, WalletSeed};
+use grin_wallet_libwallet::types::{NodeClient, WalletInst};
 use grin_wallet_refwallet::{Error, ErrorKind};
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
@@ -152,7 +154,7 @@ pub fn inst_wallet(
 		Err(e) => {
 			let msg = {
 				match e.kind() {
-					ErrorKind::Encryption => {
+					grin_wallet_impls::ErrorKind::Encryption => {
 						format!("Error decrypting wallet seed (check provided password)")
 					}
 					_ => format!("Error instantiating wallet: {}", e),

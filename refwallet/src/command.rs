@@ -29,10 +29,13 @@ use crate::core::core;
 use crate::keychain;
 
 use crate::error::{Error, ErrorKind};
-use crate::{controller, display, HTTPNodeClient, WalletConfig, WalletInst, WalletSeed};
-use crate::{
+use crate::{controller, display};
+use crate::config::WalletConfig;
+use crate::libwallet::types::{WalletInst, NodeClient};
+use crate::impls::{HTTPNodeClient, WalletSeed};
+use crate::impls::{
 	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, LMDBBackend,
-	NodeClient, NullWalletCommAdapter,
+	NullWalletCommAdapter,
 };
 
 /// Arguments common to all wallet commands
@@ -90,7 +93,7 @@ pub fn recover(config: &WalletConfig, args: RecoverArgs) -> Result<(), Error> {
 		let res = WalletSeed::from_file(config, &args.passphrase);
 		if let Err(e) = res {
 			error!("Error loading wallet seed (check password): {}", e);
-			return Err(e);
+			return Err(e.into());
 		}
 		let _ = res.unwrap().show_recovery_phrase();
 	} else {
@@ -101,7 +104,7 @@ pub fn recover(config: &WalletConfig, args: RecoverArgs) -> Result<(), Error> {
 		);
 		if let Err(e) = res {
 			error!("Error recovering seed - {}", e);
-			return Err(e);
+			return Err(e.into());
 		}
 	}
 	Ok(())
