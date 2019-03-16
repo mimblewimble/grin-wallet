@@ -11,10 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! core::libtx specific tests
-extern crate grin_wallet_refwallet as wallet;
+//! Wallet seed encryption tests
+extern crate grin_wallet_impls as impls;
 
-use self::wallet::{EncryptedWalletSeed, WalletSeed};
+use impls::{EncryptedWalletSeed, WalletSeed};
 
 #[test]
 fn wallet_seed_encrypt() {

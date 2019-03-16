@@ -44,7 +44,7 @@ pub use crate::adapters::{
 pub use crate::error::{Error, ErrorKind};
 pub use crate::lmdb_wallet::{wallet_db_exists, LMDBBackend};
 pub use crate::node_clients::HTTPNodeClient;
-pub use crate::seed::{WalletSeed, SEED_FILE};
+pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
 use crate::util::Mutex;
 use std::sync::Arc;

@@ -14,6 +14,7 @@
 //! tests differing accounts in the same wallet
 #[macro_use]
 extern crate log;
+extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_refwallet as wallet;
 
 use self::core::consensus;
@@ -27,8 +28,8 @@ use grin_wallet_libwallet as libwallet;
 use std::fs;
 use std::thread;
 use std::time::Duration;
-use wallet::test_framework::{self, LocalWalletClient, WalletProxy};
-use wallet::FileWalletCommAdapter;
+use impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use impls::FileWalletCommAdapter;
 
 fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
@@ -318,13 +319,9 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), bh as usize);
 
 	// send some funds to wallets 1
-	wallet::controller::owner_single_use(miner.clone(), |api| {
-		test_framework::send_to_dest(m_client.clone(), api, "wallet1", base_amount * 1)?;
-		test_framework::send_to_dest(m_client.clone(), api, "wallet1", base_amount * 2)?;
-		test_framework::send_to_dest(m_client.clone(), api, "wallet1", base_amount * 3)?;
-		bh += 3;
-		Ok(())
-	})?;
+	test_framework::send_to_dest(&mut miner, m_client.clone(), "wallet1", base_amount * 1)?;
+	test_framework::send_to_dest(&mut miner, m_client.clone(), "wallet1", base_amount * 2)?;
+	test_framework::send_to_dest(&mut miner, m_client.clone(), "wallet1", base_amount * 3)?;
 
 	// 0) Check repair when all is okay should leave wallet contents alone
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
