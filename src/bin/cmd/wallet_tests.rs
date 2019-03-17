@@ -18,7 +18,7 @@ mod wallet_tests {
 	use grin_util as util;
 	use grin_wallet_refwallet;
 
-	use grin_wallet_refwallet::test_framework::{self, LocalWalletClient, WalletProxy};
+	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 	use clap::{App, ArgMatches};
 	use grin_util::Mutex;
@@ -31,7 +31,8 @@ mod wallet_tests {
 	use grin_core::global::ChainTypes;
 	use grin_keychain::ExtKeychain;
 	use grin_wallet_config::{GlobalWalletConfig, WalletConfig};
-	use grin_wallet_refwallet::{LMDBBackend, WalletBackend, WalletInst, WalletSeed};
+	use grin_wallet_impls::{LMDBBackend, WalletSeed};
+	use grin_wallet_libwallet::types::{WalletBackend, WalletInst};
 
 	use super::super::wallet_args;
 
