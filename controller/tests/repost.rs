@@ -16,7 +16,7 @@
 extern crate log;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
-extern crate grin_wallet_refwallet as wallet;
+extern crate grin_wallet_controller as wallet;
 
 use self::core::global;
 use self::core::global::ChainTypes;

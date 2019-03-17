@@ -1,8 +1,8 @@
 [package]
-name = "grin_wallet_refwallet"
+name = "grin_wallet_controller"
 version = "1.1.0"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
-description = "Simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
+description = "Controllers for grin wallet instantiation"
 license = "Apache-2.0"
 repository = "https://github.com/mimblewimble/grin"
 keywords = [ "crypto", "grin", "mimblewimble" ]
