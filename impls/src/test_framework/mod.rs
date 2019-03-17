@@ -181,7 +181,7 @@ where
 
 /// send an amount to a destination
 pub fn send_to_dest<T: ?Sized, C, K>(
-	w: &mut T,
+	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
 	client: LocalWalletClient,
 	dest: &str,
 	amount: u64,
@@ -191,9 +191,11 @@ where
 	C: NodeClient,
 	K: keychain::Keychain,
 {
+	let mut w = wallet.lock();
 	w.open_with_credentials()?;
 	let slate_i = owner::initiate_tx(
-		w, None,   // account
+		&mut *w, 
+		None,   // account
 		amount, // amount
 		2,      // minimum confirmations
 		500,    // max outputs
@@ -202,22 +204,25 @@ where
 		None, None,
 	)?;
 	let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
-	owner::tx_lock_outputs(w, &slate)?;
-	owner::finalize_tx(w, &mut slate)?;
-	owner::post_tx(w, &slate.tx, false)?; // mines a block
+	owner::tx_lock_outputs(&mut *w, &slate)?;
+	owner::finalize_tx(&mut *w, &mut slate)?;
+	owner::post_tx(&mut *w, &slate.tx, false)?; // mines a block
 	w.close()?;
 	Ok(())
 }
 
 /// get wallet info totals
-pub fn wallet_info<T: ?Sized, C, K>(w: &mut T) -> Result<WalletInfo, libwallet::Error>
+pub fn wallet_info<T: ?Sized, C, K>(
+	wallet: Arc<Mutex<dyn WalletInst<C, K>>>
+) -> Result<WalletInfo, libwallet::Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: keychain::Keychain,
 {
+	let mut w = wallet.lock();
 	w.open_with_credentials()?;
-	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(w, true, 1)?;
+	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(&mut *w, true, 1)?;
 	assert!(wallet_refreshed);
 	w.close()?;
 	Ok(wallet_info)
