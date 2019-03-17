@@ -787,6 +787,7 @@ dependencies = [
  "grin_store 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
  "grin_util 1.1.0 (git+https://github.com/mimblewimble/grin?branch=milestone/1.1.0)",
  "grin_wallet_config 1.1.0",
+ "grin_wallet_impls 1.1.0",
  "grin_wallet_libwallet 1.1.0",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
