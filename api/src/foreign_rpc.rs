@@ -210,7 +210,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 			use grin_wallet_api::{Foreign, ForeignRpc};
 			use grin_wallet_config::WalletConfig;
 			use grin_wallet_impls::{HTTPNodeClient, LMDBBackend};
-			use grin_wallet_libwallet::types::{WalletBackend};
+			use grin_wallet_libwallet::types::WalletBackend;
 			use serde_json;
 			use std::sync::Arc;
 			use tempfile::tempdir;
