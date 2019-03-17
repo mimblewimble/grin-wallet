@@ -14,8 +14,8 @@
 //! Test a wallet file send/recieve
 #[macro_use]
 extern crate log;
-extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_controller as wallet;
+extern crate grin_wallet_impls as impls;
 
 use self::core::global;
 use self::core::global::ChainTypes;
