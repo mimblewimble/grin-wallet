@@ -191,22 +191,29 @@ where
 	C: NodeClient,
 	K: keychain::Keychain,
 {
-	let mut w = wallet.lock();
-	w.open_with_credentials()?;
-	let slate_i = owner::initiate_tx(
-		&mut *w, None,   // account
-		amount, // amount
-		2,      // minimum confirmations
-		500,    // max outputs
-		1,      // num change outputs
-		true,   // select all outputs
-		None, None,
-	)?;
-	let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
-	owner::tx_lock_outputs(&mut *w, &slate)?;
-	owner::finalize_tx(&mut *w, &mut slate)?;
-	owner::post_tx(&mut *w, &slate.tx, false)?; // mines a block
-	w.close()?;
+	let slate = { 
+		let mut w = wallet.lock();
+		w.open_with_credentials()?;
+		let slate_i = owner::initiate_tx(
+			&mut *w, None,   // account
+			amount, // amount
+			2,      // minimum confirmations
+			500,    // max outputs
+			1,      // num change outputs
+			true,   // select all outputs
+			None, None,
+		)?;
+		let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
+		owner::tx_lock_outputs(&mut *w, &slate)?;
+		owner::finalize_tx(&mut *w, &mut slate)?;
+		w.close()?;
+		slate
+	};
+	let client = {
+		let mut w = wallet.lock();
+		w.w2n_client().clone()
+	};
+	owner::post_tx(&client, &slate.tx, false)?; // mines a block
 	Ok(())
 }
 

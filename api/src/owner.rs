@@ -708,8 +708,11 @@ where
 
 	/// Posts a transaction to the chain
 	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
-		let mut w = self.wallet.lock();
-		owner::post_tx(&mut *w, tx, fluff)
+		let client = {
+			let mut w = self.wallet.lock();
+			w.w2n_client().clone()
+		};
+		owner::post_tx(&client, tx, fluff)
 	}
 
 	/// Verifies all messages in the slate match their public keys

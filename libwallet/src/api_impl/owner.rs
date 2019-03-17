@@ -302,14 +302,12 @@ where
 }
 
 /// Posts a transaction to the chain
-pub fn post_tx<T: ?Sized, C, K>(w: &mut T, tx: &Transaction, fluff: bool) -> Result<(), Error>
+/// take a client impl instead of wallet so as not to have to lock the wallet
+pub fn post_tx<C>(client: &C, tx: &Transaction, fluff: bool) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
 	C: NodeClient,
-	K: Keychain,
 {
 	let tx_hex = util::to_hex(ser::ser_vec(tx).unwrap());
-	let client = w.w2n_client().clone();
 	let res = client.post_tx(&TxWrapper { tx_hex: tx_hex }, fluff);
 	if let Err(e) = res {
 		error!("api: post_tx: failed with error: {}", e);
