@@ -22,16 +22,16 @@ use crate::util::secp;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::secp::Signature;
 use crate::util::RwLock;
+use failure::ResultExt;
 use grin_core::core::amount_to_hr_string;
 use grin_core::core::committed::Committed;
 use grin_core::core::transaction::{kernel_features, kernel_sig_msg, Transaction, Weighting};
 use grin_core::core::verifier_cache::LruVerifierCache;
 use grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
 use rand::thread_rng;
+use serde_json;
 use std::sync::Arc;
 use uuid::Uuid;
-use failure::ResultExt;
-use serde_json;
 
 use crate::slate_versions::v0::SlateV0;
 use crate::slate_versions::v1::SlateV1;
@@ -159,15 +159,15 @@ impl Slate {
 	fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
 		// keep attempting to deser, working through known versions until we have
 		// enough to get the version out
-		let res : Result<SlateV2, serde_json::Error>  = serde_json::from_str(slate_json);
+		let res: Result<SlateV2, serde_json::Error> = serde_json::from_str(slate_json);
 		if let Ok(s) = res {
 			return Ok(s.version_info.version);
 		}
-		let res : Result<SlateV1, serde_json::Error>  = serde_json::from_str(slate_json);
+		let res: Result<SlateV1, serde_json::Error> = serde_json::from_str(slate_json);
 		if let Ok(s) = res {
 			return Ok(s.version as u16);
 		}
-		let res : Result<SlateV0, serde_json::Error>  = serde_json::from_str(slate_json);
+		let res: Result<SlateV0, serde_json::Error> = serde_json::from_str(slate_json);
 		if let Ok(_) = res {
 			return Ok(0);
 		}
@@ -180,12 +180,14 @@ impl Slate {
 		let v2 = match version {
 			2 => serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?,
 			1 => {
-				let mut v1 : SlateV1 = serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
+				let mut v1: SlateV1 =
+					serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
 				v1.orig_version = 1;
 				SlateV2::from(v1)
 			}
 			0 => {
-				let v0 : SlateV0 = serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
+				let v0: SlateV0 =
+					serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
 				let v1 = SlateV1::from(v0);
 				SlateV2::from(v1)
 			}
@@ -205,12 +207,12 @@ impl Slate {
 		match version {
 			2 => Ok(ser_self.clone()),
 			1 => {
-				let v2 : SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
+				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
 				let v1 = SlateV1::from(v2);
 				Ok(serde_json::to_string(&v1).context(ErrorKind::SlateDeser)?)
 			}
 			0 => {
-				let v2 : SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
+				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
 				let v1 = SlateV1::from(v2);
 				let v0 = SlateV0::from(v1);
 				Ok(serde_json::to_string(&v0).context(ErrorKind::SlateDeser)?)
@@ -487,7 +489,8 @@ impl Slate {
 	}
 
 	/// Verifies any messages in the slate's participant data match their signatures
-	pub fn verify_messages(&self, secp: &secp::Secp256k1) -> Result<(), Error> {
+	pub fn verify_messages(&self) -> Result<(), Error> {
+		let secp = secp::Secp256k1::with_caps(secp::ContextFlag::VerifyOnly);
 		for p in self.participant_data.iter() {
 			if let Some(msg) = &p.message {
 				let hashed = blake2b(secp::constants::MESSAGE_SIZE, &[], &msg.as_bytes()[..]);
@@ -503,7 +506,7 @@ impl Slate {
 					Some(s) => s,
 				};
 				if !aggsig::verify_single(
-					secp,
+					&secp,
 					&signature,
 					&m,
 					None,

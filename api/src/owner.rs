@@ -31,20 +31,15 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
-use crate::core::ser;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::internal::{keys, selection, tx, updater};
+use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputData, TxLogEntry, WalletBackend, WalletInfo,
 };
-use crate::libwallet::{Error, ErrorKind};
-use crate::util;
-use crate::util::secp::{pedersen, ContextFlag, Secp256k1};
-
-const USER_MESSAGE_MAX_LEN: usize = 256;
+use crate::libwallet::Error;
+use crate::util::secp::pedersen;
 
 /// Functions intended for use by the owner (e.g. master seed holder) of the wallet.
 pub struct Owner<W: ?Sized, C, K>
@@ -169,7 +164,7 @@ where
 
 	pub fn accounts(&self) -> Result<Vec<AcctPathMapping>, Error> {
 		let mut w = self.wallet.lock();
-		keys::accounts(&mut *w)
+		owner::accounts(&mut *w)
 	}
 
 	/// Creates a new 'account', which is a mapping of a user-specified
@@ -225,7 +220,7 @@ where
 
 	pub fn create_account_path(&self, label: &str) -> Result<Identifier, Error> {
 		let mut w = self.wallet.lock();
-		keys::new_acct_path(&mut *w, label)
+		owner::create_account_path(&mut *w, label)
 	}
 
 	/// Sets the wallet's currently active account. This sets the
@@ -280,8 +275,7 @@ where
 
 	pub fn set_active_account(&self, label: &str) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
-		w.set_parent_key_id_by_name(label)?;
-		Ok(())
+		owner::set_active_account(&mut *w, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
@@ -346,18 +340,7 @@ where
 	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let parent_key_id = w.parent_key_id();
-
-		let mut validated = false;
-		if refresh_from_node {
-			validated = self.update_outputs(&mut w, false);
-		}
-
-		let res = Ok((
-			validated,
-			updater::retrieve_outputs(&mut *w, include_spent, tx_id, Some(&parent_key_id))?,
-		));
-
+		let res = owner::retrieve_outputs(&mut *w, include_spent, refresh_from_node, tx_id);
 		w.close()?;
 		res
 	}
@@ -424,18 +407,7 @@ where
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let parent_key_id = w.parent_key_id();
-
-		let mut validated = false;
-		if refresh_from_node {
-			validated = self.update_outputs(&mut w, false);
-		}
-
-		let res = Ok((
-			validated,
-			updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?,
-		));
-
+		let res = owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id);
 		w.close()?;
 		res
 	}
@@ -496,16 +468,7 @@ where
 	) -> Result<(bool, WalletInfo), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let parent_key_id = w.parent_key_id();
-
-		let mut validated = false;
-		if refresh_from_node {
-			validated = self.update_outputs(&mut w, false);
-		}
-
-		let wallet_info = updater::retrieve_info(&mut *w, &parent_key_id, minimum_confirmations)?;
-		let res = Ok((validated, wallet_info));
-
+		let res = owner::retrieve_summary_info(&mut *w, refresh_from_node, minimum_confirmations);
 		w.close()?;
 		res
 	}
@@ -627,53 +590,19 @@ where
 	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let parent_key_id = match src_acct_name {
-			Some(d) => {
-				let pm = w.get_acct_path(d.to_owned())?;
-				match pm {
-					Some(p) => p.path,
-					None => w.parent_key_id(),
-				}
-			}
-			None => w.parent_key_id(),
-		};
-
-		let message = match message {
-			Some(mut m) => {
-				m.truncate(USER_MESSAGE_MAX_LEN);
-				Some(m)
-			}
-			None => None,
-		};
-
-		let mut slate = tx::new_tx_slate(&mut *w, amount, 2)?;
-
-		let context = tx::add_inputs_to_slate(
+		let res = owner::initiate_tx(
 			&mut *w,
-			&mut slate,
+			src_acct_name,
+			amount,
 			minimum_confirmations,
 			max_outputs,
 			num_change_outputs,
 			selection_strategy_is_use_all,
-			&parent_key_id,
-			0,
 			message,
-		)?;
-
-		// Save the aggsig context in our DB for when we
-		// recieve the transaction back
-		{
-			let mut batch = w.batch()?;
-			batch.save_private_context(slate.id.as_bytes(), &context)?;
-			batch.commit()?;
-		}
-
+			target_slate_version,
+		);
 		w.close()?;
-		// set target slate version
-		if let Some(v) = target_slate_version {
-			slate.version_info.orig_version = v;
-		}
-		Ok(slate)
+		res
 	}
 
 	/// Estimates the amount to be locked and fee for the transaction without creating one
@@ -723,25 +652,17 @@ where
 	> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let parent_key_id = match src_acct_name {
-			Some(d) => {
-				let pm = w.get_acct_path(d.to_owned())?;
-				match pm {
-					Some(p) => p.path,
-					None => w.parent_key_id(),
-				}
-			}
-			None => w.parent_key_id(),
-		};
-		tx::estimate_send_tx(
+		let res = owner::estimate_initiate_tx(
 			&mut *w,
+			src_acct_name,
 			amount,
 			minimum_confirmations,
 			max_outputs,
 			num_change_outputs,
 			selection_strategy_is_use_all,
-			&parent_key_id,
-		)
+		);
+		w.close()?;
+		res
 	}
 
 	/// Lock outputs associated with a given slate/transaction
@@ -749,11 +670,9 @@ where
 	pub fn tx_lock_outputs(&self, slate: &Slate) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let context = w.get_private_context(slate.id.as_bytes())?;
-		w.open_with_credentials()?;
-		selection::lock_tx_context(&mut *w, slate, &context)?;
+		let res = owner::tx_lock_outputs(&mut *w, slate);
 		w.close()?;
-		Ok(())
+		res
 	}
 
 	/// Sender finalization of the transaction. Takes the file returned by the
@@ -763,17 +682,9 @@ where
 	pub fn finalize_tx(&self, slate: &mut Slate) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let context = w.get_private_context(slate.id.as_bytes())?;
-		tx::complete_tx(&mut *w, slate, 0, &context)?;
-		tx::update_stored_tx(&mut *w, slate)?;
-		tx::update_message(&mut *w, slate)?;
-		{
-			let mut batch = w.batch()?;
-			batch.delete_private_context(slate.id.as_bytes())?;
-			batch.commit()?;
-		}
+		let res = owner::finalize_tx(&mut *w, slate);
 		w.close()?;
-		Ok(())
+		res
 	}
 
 	/// Roll back a transaction and all associated outputs with a given
@@ -784,96 +695,55 @@ where
 	pub fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let parent_key_id = w.parent_key_id();
-		if !self.update_outputs(&mut w, false) {
-			return Err(ErrorKind::TransactionCancellationError(
-				"Can't contact running Grin node. Not Cancelling.",
-			))?;
-		}
-		tx::cancel_tx(&mut *w, &parent_key_id, tx_id, tx_slate_id)?;
+		let res = owner::cancel_tx(&mut *w, tx_id, tx_slate_id);
 		w.close()?;
-		Ok(())
+		res
 	}
 
 	/// Retrieves a stored transaction from a TxLogEntry
 	pub fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
 		let w = self.wallet.lock();
-		w.get_stored_tx(entry)
+		owner::get_stored_tx(&*w, entry)
 	}
 
 	/// Posts a transaction to the chain
 	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
-		let tx_hex = util::to_hex(ser::ser_vec(tx).unwrap());
 		let client = {
 			let mut w = self.wallet.lock();
 			w.w2n_client().clone()
 		};
-		let res = client.post_tx(&TxWrapper { tx_hex: tx_hex }, fluff);
-		if let Err(e) = res {
-			error!("api: post_tx: failed with error: {}", e);
-			Err(e)
-		} else {
-			debug!(
-				"api: post_tx: successfully posted tx: {}, fluff? {}",
-				tx.hash(),
-				fluff
-			);
-			Ok(())
-		}
+		owner::post_tx(&client, tx, fluff)
 	}
 
 	/// Verifies all messages in the slate match their public keys
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
-		let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
-		slate.verify_messages(&secp)?;
-		Ok(())
+		owner::verify_slate_messages(slate)
 	}
 
 	/// Attempt to restore contents of wallet
 	pub fn restore(&self) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		w.restore()?;
+		let res = owner::restore(&mut *w);
 		w.close()?;
-		Ok(())
+		res
 	}
 
 	/// Attempt to check and fix the contents of the wallet
 	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		self.update_outputs(&mut w, true);
-		w.check_repair(delete_unconfirmed)?;
+		let res = owner::check_repair(&mut *w, delete_unconfirmed);
 		w.close()?;
-		Ok(())
+		res
 	}
 
 	/// Retrieve current height from node
 	pub fn node_height(&self) -> Result<(u64, bool), Error> {
-		let res = {
-			let mut w = self.wallet.lock();
-			w.open_with_credentials()?;
-			w.w2n_client().get_chain_height()
-		};
-		match res {
-			Ok(height) => Ok((height, true)),
-			Err(_) => {
-				let outputs = self.retrieve_outputs(true, false, None)?;
-				let height = match outputs.1.iter().map(|(out, _)| out.height).max() {
-					Some(height) => height,
-					None => 0,
-				};
-				Ok((height, false))
-			}
-		}
-	}
-
-	/// Attempt to update outputs in wallet, return whether it was successful
-	fn update_outputs(&self, w: &mut W, update_all: bool) -> bool {
-		let parent_key_id = w.parent_key_id();
-		match updater::refresh_outputs(&mut *w, &parent_key_id, update_all) {
-			Ok(_) => true,
-			Err(_) => false,
-		}
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let res = owner::node_height(&mut *w);
+		w.close()?;
+		res
 	}
 }

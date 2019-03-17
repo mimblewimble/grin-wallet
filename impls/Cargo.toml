@@ -1,8 +1,8 @@
 [package]
-name = "grin_wallet_api"
+name = "grin_wallet_impls"
 version = "1.1.0"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
-description = "Grin Wallet API"
+description = "Concrete types derived from libwallet traits"
 license = "Apache-2.0"
 repository = "https://github.com/mimblewimble/grin"
 keywords = [ "crypto", "grin", "mimblewimble" ]
@@ -11,11 +11,21 @@ exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2018"
 
 [dependencies]
+blake2-rfc = "0.2"
 failure = "0.1"
 failure_derive = "0.1"
+futures = "0.1"
+rand = "0.5"
+serde = "1"
+serde_derive = "1"
+serde_json = "1"
 log = "0.4"
+ring = "0.13"
+tokio = "= 0.1.11"
+tokio-core = "0.1"
+tokio-retry = "0.1"
 uuid = { version = "0.6", features = ["serde", "v4"] }
-easy-jsonrpc = "0.4.1"
+chrono = { version = "0.4.4", features = ["serde"] }
 
 grin_wallet_libwallet = { path = "../libwallet", version = "1.1.0" }
 grin_wallet_config = { path = "../config", version = "1.1.0" }
@@ -26,8 +36,3 @@ grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "milestone
 grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-
-[dev-dependencies]
-grin_wallet_impls = { path = "../impls", version = "1.1.0" }
-serde_json = "1"
-tempfile = "3.0.7"

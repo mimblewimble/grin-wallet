@@ -16,7 +16,7 @@ name = "grin-wallet"
 path = "src/bin/grin-wallet.rs"
 
 [workspace]
-members = ["api", "config", "libwallet", "refwallet"]
+members = ["api", "config", "controller", "impls", "libwallet"]
 exclude = ["integration"]
 
 [dependencies]
@@ -30,8 +30,9 @@ log = "0.4"
 linefeed = "0.5"
 
 grin_wallet_api = { path = "./api", version = "1.1.0" }
+grin_wallet_impls = { path = "./impls", version = "1.1.0" }
 grin_wallet_libwallet = { path = "./libwallet", version = "1.1.0" }
-grin_wallet_refwallet = { path = "./refwallet", version = "1.1.0" }
+grin_wallet_controller = { path = "./controller", version = "1.1.0" }
 grin_wallet_config = { path = "./config", version = "1.1.0" }
 
 grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }

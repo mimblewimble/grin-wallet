@@ -54,7 +54,9 @@ matrix:
     - os: linux
       env: CI_JOB="test"        CI_JOB_ARGS="config libwallet api"
     - os: linux
-      env: CI_JOB="test"        CI_JOB_ARGS="refwallet ."
+      env: CI_JOB="test"        CI_JOB_ARGS="impls"
+    - os: linux
+      env: CI_JOB="test"        CI_JOB_ARGS="controller ."
     - os: linux
       env: CI_JOB="release"     CI_JOB_ARGS=
     - os: osx

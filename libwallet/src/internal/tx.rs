@@ -234,26 +234,6 @@ where
 	Ok(())
 }
 
-/// Retrieve the associated stored finalised hex Transaction for a given transaction Id
-/// as well as whether it's been confirmed
-pub fn retrieve_tx_hex<T: ?Sized, C, K>(
-	wallet: &mut T,
-	parent_key_id: &Identifier,
-	tx_id: u32,
-) -> Result<(bool, Option<String>), Error>
-where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
-{
-	let tx_vec = updater::retrieve_txs(wallet, Some(tx_id), None, Some(parent_key_id), false)?;
-	if tx_vec.len() != 1 {
-		return Err(ErrorKind::TransactionDoesntExist(tx_id.to_string()))?;
-	}
-	let tx = tx_vec[0].clone();
-	Ok((tx.confirmed, tx.stored_tx))
-}
-
 /// Update the stored transaction (this update needs to happen when the TX is finalised)
 pub fn update_stored_tx<T: ?Sized, C, K>(wallet: &mut T, slate: &Slate) -> Result<(), Error>
 where
@@ -299,6 +279,7 @@ where
 	batch.commit()?;
 	Ok(())
 }
+
 #[cfg(test)]
 mod test {
 	use crate::core::libtx::build;

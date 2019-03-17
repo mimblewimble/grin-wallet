@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2018 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Higher level wallet functions which can be used by callers to operate
-//! on the wallet, as well as helpers to invoke and instantiate wallets
-//! and listeners
+//! lower-level wallet functions which build upon core::libtx to perform wallet
+//! operations
 
 #![deny(non_upper_case_globals)]
 #![deny(non_camel_case_types)]
@@ -22,28 +21,5 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate grin_core as core;
-extern crate grin_keychain as keychain;
-extern crate grin_store as store;
-extern crate grin_util as util;
-
-use blake2_rfc as blake2;
-
-use failure;
-extern crate failure_derive;
-
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate log;
-
-pub mod api_impl;
-mod error;
-mod internal;
-pub mod slate;
-pub mod slate_versions;
-pub mod types;
-
-pub use crate::error::{Error, ErrorKind};
-pub use internal::restore::{check_repair, restore};
+pub mod foreign;
+pub mod owner;
