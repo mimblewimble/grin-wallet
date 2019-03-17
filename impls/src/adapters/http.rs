@@ -16,7 +16,7 @@
 use crate::api;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::{Error, ErrorKind};
-use crate:: WalletCommAdapter;
+use crate::WalletCommAdapter;
 use config::WalletConfig;
 use std::collections::HashMap;
 

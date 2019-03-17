@@ -31,8 +31,8 @@ use crate::keychain;
 use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
-	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, LMDBBackend,
-	NullWalletCommAdapter, instantiate_wallet,
+	instantiate_wallet, FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter,
+	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
 use crate::libwallet::types::{NodeClient, WalletInst};
@@ -126,8 +126,16 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 		"http" => {
 			// HTTP adapter can't use the listen trait method because of the
 			// crate structure. May be able to fix when V1 API is deprecated
-			let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, g_args.node_api_secret.clone());
-			let wallet = instantiate_wallet(config.clone(), node_client, &g_args.password.clone().unwrap(), &g_args.account)?;
+			let node_client = HTTPNodeClient::new(
+				&config.check_node_api_http_addr,
+				g_args.node_api_secret.clone(),
+			);
+			let wallet = instantiate_wallet(
+				config.clone(),
+				node_client,
+				&g_args.password.clone().unwrap(),
+				&g_args.account,
+			)?;
 			let listen_addr = params.get("api_listen_addr").unwrap();
 			let tls_conf = match params.get("certificate") {
 				Some(s) => Some(grin_api::TLSConfig::new(
@@ -138,20 +146,18 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 			};
 			controller::foreign_listener(wallet.clone(), &listen_addr, tls_conf)?;
 			Ok(())
-		},
+		}
 		"keybase" => {
 			let adapter = KeybaseWalletCommAdapter::new();
 			adapter.listen(
-					params,
-					config.clone(),
-					&g_args.password.clone().unwrap(),
-					&g_args.account,
-					g_args.node_api_secret.clone(),
+				params,
+				config.clone(),
+				&g_args.password.clone().unwrap(),
+				&g_args.account,
+				g_args.node_api_secret.clone(),
 			)
-		},
-		_ => {
-			Ok(())
 		}
+		_ => Ok(()),
 	};
 
 	if let Err(e) = res {
