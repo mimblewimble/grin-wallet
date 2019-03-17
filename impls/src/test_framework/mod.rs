@@ -191,7 +191,7 @@ where
 	C: NodeClient,
 	K: keychain::Keychain,
 {
-	let slate = { 
+	let slate = {
 		let mut w = wallet.lock();
 		w.open_with_credentials()?;
 		let slate_i = owner::initiate_tx(
