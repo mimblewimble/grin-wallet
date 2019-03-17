@@ -194,8 +194,7 @@ where
 	let mut w = wallet.lock();
 	w.open_with_credentials()?;
 	let slate_i = owner::initiate_tx(
-		&mut *w, 
-		None,   // account
+		&mut *w, None,   // account
 		amount, // amount
 		2,      // minimum confirmations
 		500,    // max outputs
@@ -213,7 +212,7 @@ where
 
 /// get wallet info totals
 pub fn wallet_info<T: ?Sized, C, K>(
-	wallet: Arc<Mutex<dyn WalletInst<C, K>>>
+	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
 ) -> Result<WalletInfo, libwallet::Error>
 where
 	T: WalletBackend<C, K>,

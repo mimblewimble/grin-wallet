@@ -25,23 +25,31 @@ use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
 use grin_wallet_libwallet as libwallet;
-use libwallet::types::WalletInst;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::FileWalletCommAdapter;
+use libwallet::types::WalletInst;
 use std::fs;
 use std::thread;
 use std::time::Duration;
 
-macro_rules! send_to_dest { 
+macro_rules! send_to_dest {
 	($a:expr, $b:expr, $c:expr, $d:expr) => {
-		test_framework::send_to_dest::<WalletInst<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>($a, $b, $c, $d)
-	}
+		test_framework::send_to_dest::<
+			WalletInst<LocalWalletClient, ExtKeychain>,
+			LocalWalletClient,
+			ExtKeychain,
+		>($a, $b, $c, $d)
+	};
 }
 
-macro_rules! wallet_info { 
+macro_rules! wallet_info {
 	($a:expr) => {
-		test_framework::wallet_info::<WalletInst<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>($a)
-	}
+		test_framework::wallet_info::<
+			WalletInst<LocalWalletClient, ExtKeychain>,
+			LocalWalletClient,
+			ExtKeychain,
+		>($a)
+	};
 }
 
 fn clean_output_dir(test_dir: &str) {
