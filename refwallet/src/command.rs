@@ -32,7 +32,7 @@ use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
 	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, LMDBBackend,
-	NullWalletCommAdapter,
+	NullWalletCommAdapter, instantiate_wallet,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
 use crate::libwallet::types::{NodeClient, WalletInst};
@@ -122,19 +122,38 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 		params.insert("certificate".to_owned(), t.certificate.clone());
 		params.insert("private_key".to_owned(), t.private_key.clone());
 	}
-	let adapter = match args.method.as_str() {
-		"http" => HTTPWalletCommAdapter::new(),
-		"keybase" => KeybaseWalletCommAdapter::new(),
-		_ => NullWalletCommAdapter::new(),
+	let res = match args.method.as_str() {
+		"http" => {
+			// HTTP adapter can't use the listen trait method because of the
+			// crate structure. May be able to fix when V1 API is deprecated
+			let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, g_args.node_api_secret.clone());
+			let wallet = instantiate_wallet(config.clone(), node_client, &g_args.password.clone().unwrap(), &g_args.account)?;
+			let listen_addr = params.get("api_listen_addr").unwrap();
+			let tls_conf = match params.get("certificate") {
+				Some(s) => Some(grin_api::TLSConfig::new(
+					s.to_owned(),
+					params.get("private_key").unwrap().to_owned(),
+				)),
+				None => None,
+			};
+			controller::foreign_listener(wallet.clone(), &listen_addr, tls_conf)?;
+			Ok(())
+		},
+		"keybase" => {
+			let adapter = KeybaseWalletCommAdapter::new();
+			adapter.listen(
+					params,
+					config.clone(),
+					&g_args.password.clone().unwrap(),
+					&g_args.account,
+					g_args.node_api_secret.clone(),
+			)
+		},
+		_ => {
+			Ok(())
+		}
 	};
 
-	let res = adapter.listen(
-		params,
-		config.clone(),
-		&g_args.password.clone().unwrap(),
-		&g_args.account,
-		g_args.node_api_secret.clone(),
-	);
 	if let Err(e) = res {
 		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
 	}

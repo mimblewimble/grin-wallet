@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// HTTP Wallet 'plugin' implementation
 use crate::api;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::{Error, ErrorKind};
-use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter};
+use crate:: WalletCommAdapter;
 use config::WalletConfig;
-/// HTTP Wallet 'plugin' implementation
-use failure::ResultExt;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -69,25 +68,12 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 
 	fn listen(
 		&self,
-		params: HashMap<String, String>,
-		config: WalletConfig,
-		passphrase: &str,
-		account: &str,
-		node_api_secret: Option<String>,
+		_params: HashMap<String, String>,
+		_config: WalletConfig,
+		_passphrase: &str,
+		_account: &str,
+		_node_api_secret: Option<String>,
 	) -> Result<(), Error> {
-		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
-		let wallet = instantiate_wallet(config.clone(), node_client, passphrase, account)
-			.context(ErrorKind::WalletSeedDecryption)?;
-		let listen_addr = params.get("api_listen_addr").unwrap();
-		let tls_conf = match params.get("certificate") {
-			Some(s) => Some(api::TLSConfig::new(
-				s.to_owned(),
-				params.get("private_key").unwrap().to_owned(),
-			)),
-			None => None,
-		};
-		// TODO: Make this a callback instead
-		//controller::foreign_listener(wallet.clone(), &listen_addr, tls_conf)?;
-		Ok(())
+		unimplemented!();
 	}
 }
