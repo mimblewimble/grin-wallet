@@ -18,6 +18,7 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
+use self::core::core::transaction;
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
@@ -106,9 +107,26 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			true,   // select all outputs
 			None, None,
 		)?;
+
+		// Check we are creating a tx with the expected lock_height of 0.
+		// We will check this produces a Plain kernel later.
+		assert_eq!(0, slate.lock_height);
+
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		sender_api.finalize_tx(&mut slate)?;
+
+		// Check we have a single kernel and that it is a Plain kernel (no lock_height).
+		assert_eq!(slate.tx.kernels().len(), 1);
+		assert_eq!(
+			slate.tx.kernels().first().map(|k| k.lock_height).unwrap(),
+			0
+		);
+		assert_eq!(
+			slate.tx.kernels().first().map(|k| k.features).unwrap(),
+			transaction::KernelFeatures::Plain
+		);
+
 		Ok(())
 	})?;
 
