@@ -733,16 +733,18 @@ where
 }
 
 /// helper to set up a real environment to run integrated doctests
-pub fn run_doctest(request: serde_json::Value, test_dir: &str)
-	-> Result<Option<serde_json::Value>, String> {
-	use easy_jsonrpc::Handler;
-	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+pub fn run_doctest(
+	request: serde_json::Value,
+	test_dir: &str,
+) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Owner, OwnerRpc};
+	use easy_jsonrpc::Handler;
 	use grin_keychain::ExtKeychain;
+	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
-	use grin_util as util;
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
+	use grin_util as util;
 
 	use std::fs;
 	use std::thread;
@@ -802,7 +804,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			use tempfile::tempdir;
 
 			let dir = tempdir().map_err(|e| format!("{:#?}", e))?;
-				{
+					{
 				let mut wallet_config = WalletConfig::default();
 				wallet_config.data_file_dir = dir
 					.path()
@@ -819,17 +821,18 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 				let api_owner = Owner::new(wallet);
 				let owner_api = &api_owner as &dyn OwnerRpc;
 				Ok(owner_api.handle_request(request))
-				}
+					}
 			}*/
-		use tempfile::tempdir;
 		use grin_wallet_api::run_doctest;
 		use serde_json;
+		use tempfile::tempdir;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
 			.path()
 			.to_str()
-			.ok_or("Failed to convert tmpdir path to string.".to_owned()).unwrap();
+			.ok_or("Failed to convert tmpdir path to string.".to_owned())
+			.unwrap();
 
 		let response = run_doctest(serde_json::json!($request), dir)
 			.unwrap()
