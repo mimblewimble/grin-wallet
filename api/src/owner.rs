@@ -49,7 +49,7 @@ where
 	K: Keychain,
 {
 	/// A reference-counted mutex to an implementation of the
-	/// [`WalletBackend`](../types/trait.WalletBackend.html) trait.
+	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
 	pub wallet: Arc<Mutex<W>>,
 	phantom: PhantomData<K>,
 	phantom_c: PhantomData<C>,
@@ -64,37 +64,46 @@ where
 	/// Create a new API instance with the given wallet instance. All subsequent
 	/// API calls will operate on this instance of the wallet.
 	///
-	/// Each method will call the [`WalletBackend`](../types/trait.WalletBackend.html)'s
-	/// [`open_with_credentials`](../types/trait.WalletBackend.html#tymethod.open_with_credentials)
+	/// Each method will call the [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html)'s
+	/// [`open_with_credentials`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.open_with_credentials)
 	/// (initialising a keychain with the master seed,) perform its operation, then close the keychain
-	/// with a call to [`close`](../types/trait.WalletBackend.html#tymethod.close)
+	/// with a call to [`close`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.close)
 	///
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
-	/// [`WalletBackend`](../types/trait.WalletBackend.html) trait.
+	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
 	///
 	/// # Returns
 	/// * An instance of the OwnerApi holding a reference to the provided wallet
 	///
 	/// # Example
-	/// ``` ignore
-	/// # extern crate grin_wallet_config as config;
-	/// # extern crate grin_refwallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
+	/// ```
+	/// use grin_keychain as keychain;
+	/// use grin_util as util;
+	/// use grin_wallet_api as api;
+	/// use grin_wallet_config as config;
+	/// use grin_wallet_impls as impls;
+	/// use grin_wallet_libwallet as libwallet;
+	///
+	/// use keychain::ExtKeychain;
+	/// use tempfile::tempdir;
 	///
 	/// use std::sync::Arc;
 	/// use util::Mutex;
 	///
-	/// use keychain::ExtKeychain;
-	/// use wallet::libwallet::api::Owner;
-	///
-	/// // These contain sample implementations of each part needed for a wallet
-	/// use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend};
+	/// use api::Owner;
 	/// use config::WalletConfig;
+	/// use impls::{HTTPNodeClient, LMDBBackend};
+	/// use libwallet::types::WalletBackend;
 	///
 	/// let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
+	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+	/// # let dir = dir
+	/// # 	.path()
+	/// # 	.to_str()
+	/// # 	.ok_or("Failed to convert tmpdir path to string.".to_owned())
+	/// # 	.unwrap();
+	/// # wallet_config.data_file_dir = dir.to_owned();
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
@@ -159,8 +168,8 @@ where
 	///
 	/// # Returns
 	/// * Result Containing:
-	/// * A [Keychain Identifier](#) for the new path
-	/// * or [`libwallet::Error`](../struct.Error.html) if an error is encountered.
+	/// * A [Keychain Identifier](../grin_keychain/struct.Identifier.html) for the new path
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -176,22 +185,8 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ``` ignore
-	/// # extern crate grin_wallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
@@ -217,7 +212,7 @@ where
 	/// # Returns
 	/// * Result Containing:
 	/// * `Ok(())` if the path was correctly set
-	/// * or [`libwallet::Error`](../struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -230,22 +225,8 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ``` ignore
-	/// # extern crate grin_wallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
@@ -269,7 +250,7 @@ where
 	/// in the wallet will be returned. If `false`, spent outputs will omitted
 	/// from the results.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	/// a node (via the [`NodeClient`](../types/trait.NodeClient.html)
+	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain output information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
@@ -282,27 +263,13 @@ where
 	/// refreshed from the node (note this may be false even if the `refresh_from_node`
 	/// argument was set to `true`.
 	/// * The second element contains the result set, of which each element is
-	/// a mapping between the wallet's internal [OutputData](../types/struct.OutputData.html)
+	/// a mapping between the wallet's internal [OutputData](../grin_wallet_libwallet/types/struct.OutputData.html)
 	/// and the Output commitment as identified in the chain's UTXO set
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ``` ignore
-	/// # extern crate grin_wallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let show_spent = false;

@@ -17,7 +17,7 @@
 
 use crate::core::core::hash::Hash;
 use crate::core::core::Transaction;
-use crate::core::libtx::aggsig;
+use crate::core::libtx::{aggsig, secp_ser};
 use crate::core::ser;
 use crate::error::{Error, ErrorKind};
 use crate::keychain::{Identifier, Keychain};
@@ -368,6 +368,15 @@ impl fmt::Display for OutputStatus {
 			OutputStatus::Spent => write!(f, "Spent"),
 		}
 	}
+}
+
+/// Map Outputdata to commits?
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OutputCommitMapping {
+	/// Output Data
+	output: OutputData,
+	/// The commit itself
+	commit: pedersen::Commitment,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
