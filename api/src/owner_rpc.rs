@@ -789,40 +789,6 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
-		/*fn rpc_owner_result(
-			request: serde_json::Value,
-		) -> Result<Option<serde_json::Value>, String> {
-			use easy_jsonrpc::Handler;
-			use grin_keychain::ExtKeychain;
-			use grin_util::Mutex;
-			use grin_wallet_api::{Owner, OwnerRpc};
-			use grin_wallet_config::WalletConfig;
-			use grin_wallet_impls::{HTTPNodeClient, LMDBBackend};
-			use grin_wallet_libwallet::types::WalletBackend;
-			use serde_json;
-			use std::sync::Arc;
-			use tempfile::tempdir;
-
-			let dir = tempdir().map_err(|e| format!("{:#?}", e))?;
-					{
-				let mut wallet_config = WalletConfig::default();
-				wallet_config.data_file_dir = dir
-					.path()
-					.to_str()
-					.ok_or("Failed to convert tmpdir path to string.".to_owned())?
-					.to_owned();
-				let node_client =
-					HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-				let wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-					Arc::new(Mutex::new(
-						LMDBBackend::new(wallet_config.clone(), "", node_client)
-							.map_err(|e| format!("{:#?}", e))?,
-					));
-				let api_owner = Owner::new(wallet);
-				let owner_api = &api_owner as &dyn OwnerRpc;
-				Ok(owner_api.handle_request(request))
-					}
-			}*/
 		use grin_wallet_api::run_doctest;
 		use serde_json;
 		use tempfile::tempdir;

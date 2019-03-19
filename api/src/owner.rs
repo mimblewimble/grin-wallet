@@ -123,8 +123,8 @@ where
 	///
 	/// # Returns
 	/// * Result Containing:
-	/// * A Vector of [`AcctPathMapping`](../types/struct.AcctPathMapping.html) data
-	/// * or [`libwallet::Error`](../struct.Error.html) if an error is encountered.
+	/// * A Vector of [`AcctPathMapping`](../grin_wallet_libwallet/types/struct.AcctPathMapping.html) data
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -134,24 +134,8 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ``` ignore
-	/// # extern crate grin_wallet_config as config;
-	/// # extern crate grin_refwallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend};
-	/// # use config::WalletConfig;
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
@@ -432,22 +416,8 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ``` ignore
-	/// # extern crate grin_wallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let update_from_node = true;
@@ -747,3 +717,42 @@ where
 		res
 	}
 }
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! doctest_helper_setup_doc_env {
+	($wallet:ident, $wallet_config:ident) => {
+		use grin_wallet_api as api;
+		use grin_wallet_impls as impls;
+		use grin_wallet_libwallet as libwallet;
+		use grin_wallet_config as config;
+		use grin_keychain as keychain;
+		use grin_util as util;
+
+		use keychain::ExtKeychain;
+		use tempfile::tempdir;
+
+		use std::sync::Arc;
+		use util::Mutex;
+
+		use api::Owner;
+		use impls::{LMDBBackend, HTTPNodeClient};
+		use config::WalletConfig;
+		use libwallet::types::WalletBackend;
+
+		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+		let dir = dir
+			.path()
+			.to_str()
+			.ok_or("Failed to convert tmpdir path to string.".to_owned())
+			.unwrap();
+		let mut wallet_config = WalletConfig::default();
+		wallet_config.data_file_dir = dir.to_owned();
+		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+		let mut $wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
+			Arc::new(Mutex::new(
+			LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
+		));
+	};
+}
+
