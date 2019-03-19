@@ -29,6 +29,7 @@ extern crate grin_util as util;
 extern crate grin_wallet_libwallet as libwallet;
 
 extern crate failure_derive;
+extern crate serde_json;
 
 #[macro_use]
 extern crate log;
@@ -41,3 +42,5 @@ pub use crate::foreign::Foreign;
 pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;
+
+pub use crate::owner_rpc::run_doctest;

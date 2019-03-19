@@ -24,6 +24,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::slate::ParticipantMessages;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::secp::{self, pedersen, Secp256k1};
+use crate::ser::string_or_u64;
 use chrono::prelude::*;
 use failure::ResultExt;
 use serde;
@@ -543,20 +544,28 @@ pub struct CbData {
 #[derive(Serialize, Eq, PartialEq, Deserialize, Debug, Clone)]
 pub struct WalletInfo {
 	/// height from which info was taken
+	#[serde(with = "string_or_u64")]
 	pub last_confirmed_height: u64,
 	/// Minimum number of confirmations for an output to be treated as "spendable".
+	#[serde(with = "string_or_u64")]
 	pub minimum_confirmations: u64,
 	/// total amount in the wallet
+	#[serde(with = "string_or_u64")]
 	pub total: u64,
 	/// amount awaiting finalization
+	#[serde(with = "string_or_u64")]
 	pub amount_awaiting_finalization: u64,
 	/// amount awaiting confirmation
+	#[serde(with = "string_or_u64")]
 	pub amount_awaiting_confirmation: u64,
 	/// coinbases waiting for lock height
+	#[serde(with = "string_or_u64")]
 	pub amount_immature: u64,
 	/// amount currently spendable
+	#[serde(with = "string_or_u64")]
 	pub amount_currently_spendable: u64,
 	/// amount locked via previous transactions
+	#[serde(with = "string_or_u64")]
 	pub amount_locked: u64,
 }
 

@@ -17,7 +17,6 @@
 //! From solutions on:
 //! https://github.com/serde-rs/json/issues/329
 
-
 pub mod string_or_u64 {
 	use std::fmt;
 

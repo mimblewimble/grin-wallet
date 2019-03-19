@@ -175,27 +175,37 @@ pub trait OwnerRpc {
 	/**
 	Networked version of [Owner::retrieve_summary_info](struct.Owner.html#method.retrieve_summary_info).
 
-
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	{
 		"jsonrpc": "2.0",
 		"method": "retrieve_summary_info",
-		"params": [false, 1],
+		"params": [true, 1],
 		"id": 1
 	},
 	{
+	"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
-		},
-		"id": 1
+			"Ok": [
+				true,
+				{
+					"amount_awaiting_confirmation": "0",
+					"amount_awaiting_finalization": "0",
+					"amount_currently_spendable": "60000000000",
+					"amount_immature": "180000000000",
+					"amount_locked": "0",
+					"last_confirmed_height": "4",
+					"minimum_confirmations": "1",
+					"total": "240000000000"
+				}
+			]
+		}
 	}
 	# );
 	```
 	 */
+
 	fn retrieve_summary_info(
 		&self,
 		refresh_from_node: bool,
@@ -722,6 +732,54 @@ where
 	}
 }
 
+/// helper to set up a real environment to run integrated doctests
+pub fn run_doctest(request: serde_json::Value, test_dir: &str)
+	-> Result<Option<serde_json::Value>, String> {
+	use easy_jsonrpc::Handler;
+	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+	use crate::{Owner, OwnerRpc};
+	use grin_keychain::ExtKeychain;
+
+	use grin_util as util;
+	use crate::core::global;
+	use crate::core::global::ChainTypes;
+
+	use std::fs;
+	use std::thread;
+
+	util::init_test_logger();
+	let _ = fs::remove_dir_all(test_dir);
+	global::set_mining_mode(ChainTypes::AutomatedTesting);
+
+	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+	let chain = wallet_proxy.chain.clone();
+
+	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
+	let wallet1 =
+		test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
+	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
+
+	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
+	let wallet2 =
+		test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
+	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+
+	// Set the wallet proxy listener running
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	// Mine a few blocks to wallet 1 so there's something to send
+	let mut _bh = 4u64;
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), _bh as usize);
+
+	let api_owner = Owner::new(wallet1.clone());
+	let owner_api = &api_owner as &dyn OwnerRpc;
+	Ok(owner_api.handle_request(request))
+}
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
@@ -729,7 +787,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
-		fn rpc_owner_result(
+		/*fn rpc_owner_result(
 			request: serde_json::Value,
 		) -> Result<Option<serde_json::Value>, String> {
 			use easy_jsonrpc::Handler;
@@ -762,11 +820,21 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 				let owner_api = &api_owner as &dyn OwnerRpc;
 				Ok(owner_api.handle_request(request))
 				}
-			}
+			}*/
+		use tempfile::tempdir;
+		use grin_wallet_api::run_doctest;
+		use serde_json;
 
-		let response = rpc_owner_result(serde_json::json!($request))
+		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+		let dir = dir
+			.path()
+			.to_str()
+			.ok_or("Failed to convert tmpdir path to string.".to_owned()).unwrap();
+
+		let response = run_doctest(serde_json::json!($request), dir)
 			.unwrap()
 			.unwrap();
+		#[allow(overflowing_literals)]
 		let expected_response = serde_json::json!($expected_response);
 
 		if response != expected_response {
