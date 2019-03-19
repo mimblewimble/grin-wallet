@@ -722,12 +722,12 @@ where
 #[macro_export]
 macro_rules! doctest_helper_setup_doc_env {
 	($wallet:ident, $wallet_config:ident) => {
-		use grin_wallet_api as api;
-		use grin_wallet_impls as impls;
-		use grin_wallet_libwallet as libwallet;
-		use grin_wallet_config as config;
 		use grin_keychain as keychain;
 		use grin_util as util;
+		use grin_wallet_api as api;
+		use grin_wallet_config as config;
+		use grin_wallet_impls as impls;
+		use grin_wallet_libwallet as libwallet;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
@@ -736,8 +736,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		use util::Mutex;
 
 		use api::Owner;
-		use impls::{LMDBBackend, HTTPNodeClient};
 		use config::WalletConfig;
+		use impls::{HTTPNodeClient, LMDBBackend};
 		use libwallet::types::WalletBackend;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -749,10 +749,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		let mut wallet_config = WalletConfig::default();
 		wallet_config.data_file_dir = dir.to_owned();
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-		let mut $wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-			Arc::new(Mutex::new(
-			LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-		));
+		let mut $wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(
+			Mutex::new(LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()),
+			);
 	};
 }
-
