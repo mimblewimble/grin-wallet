@@ -27,8 +27,8 @@ use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
 use crate::keychain::{Identifier, Keychain};
 use crate::types::{
-	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry, TxLogEntryType,
-	WalletBackend, WalletInfo,
+	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry,
+	TxLogEntryType, WalletBackend, WalletInfo,
 };
 use crate::util;
 use crate::util::secp::pedersen;
@@ -77,10 +77,7 @@ where
 				Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
 				None => keychain.commit(output.value, &output.key_id).unwrap(),
 			};
-			OutputCommitMapping{
-				output,
-				commit
-			}
+			OutputCommitMapping { output, commit }
 		})
 		.collect();
 	Ok(res)
