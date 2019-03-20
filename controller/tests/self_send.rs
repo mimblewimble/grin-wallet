@@ -76,7 +76,7 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("mining")?;
 	}
 	let mut bh = 10u64;
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
@@ -107,7 +107,7 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 	bh += 3;
 
 	// Check total in mining account

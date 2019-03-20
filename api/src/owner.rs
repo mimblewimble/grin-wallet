@@ -30,6 +30,7 @@ use crate::util::Mutex;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use uuid::Uuid;
+use chrono::prelude::*;
 
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
@@ -50,6 +51,8 @@ where
 	/// A reference-counted mutex to an implementation of the
 	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
 	pub wallet: Arc<Mutex<W>>,
+	/// Flag to normalize some output during testing. Can mostly be ignored.
+	pub doctest_mode: bool,
 	phantom: PhantomData<K>,
 	phantom_c: PhantomData<C>,
 }
@@ -121,6 +124,7 @@ where
 	pub fn new(wallet_in: Arc<Mutex<W>>) -> Self {
 		Owner {
 			wallet: wallet_in,
+			doctest_mode: false,
 			phantom: PhantomData,
 			phantom_c: PhantomData,
 		}
@@ -295,12 +299,12 @@ where
 		res
 	}
 
-	/// Returns a list of [Transaction Log Entries](../types/struct.TxLogEntry.html)
+	/// Returns a list of [Transaction Log Entries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	/// from the active account in the wallet.
 	///
 	/// # Arguments
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	/// a node (via the [`NodeClient`](../types/trait.NodeClient.html)
+	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain transaction information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
@@ -310,12 +314,12 @@ where
 	/// the given [`Slate`](../../libtx/slate/struct.Slate.html) uuid.
 	///
 	/// # Returns
-	/// * (`bool`, `Vec<[TxLogEntry](../types/struct.TxLogEntry.html)>`) - A tuple:
+	/// * (`bool`, `Vec<[TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html)>`) - A tuple:
 	/// * The first `bool` element indicates whether the data was successfully
 	/// refreshed from the node (note this may be false even if the `refresh_from_node`
 	/// argument was set to `true`.
 	/// * The second element contains the set of retrieved
-	/// [TxLogEntries](../types/struct/TxLogEntry.html)
+	/// [TxLogEntries](../grin_wallet_libwallet/types/struct/TxLogEntry.html)
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -343,9 +347,18 @@ where
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id);
+		let mut res = owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id)?;
+		if self.doctest_mode {
+			res.1 = res.1.into_iter()
+				.map(|mut t| {
+					t.confirmation_ts = Some(Utc.ymd(2019, 1, 15).and_hms(16, 1, 26));
+					t.creation_ts = Utc.ymd(2019, 1, 15).and_hms(16, 1, 26);
+					t
+				})
+				.collect();
+		}
 		w.close()?;
-		res
+		Ok(res)
 	}
 
 	/// Returns summary information from the active account in the wallet.
@@ -668,6 +681,7 @@ where
 		w.close()?;
 		res
 	}
+
 }
 
 #[doc(hidden)]

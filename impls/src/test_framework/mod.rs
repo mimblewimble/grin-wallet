@@ -32,6 +32,7 @@ use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
 use std::sync::Arc;
+use std::thread;
 
 mod testclient;
 
@@ -140,6 +141,7 @@ pub fn award_blocks_to_wallet<C, K>(
 	chain: &Chain,
 	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
 	number: usize,
+	pause_between: bool,
 ) -> Result<(), libwallet::Error>
 where
 	C: NodeClient,
@@ -147,6 +149,9 @@ where
 {
 	for _ in 0..number {
 		award_block_to_wallet(chain, vec![], wallet.clone())?;
+		if pause_between {
+			thread::sleep(std::time::Duration::from_millis(100));
+		}
 	}
 	Ok(())
 }

@@ -88,7 +88,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("mining")?;
 	}
 	let mut bh = 10u64;
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize, false);
 
 	let send_file = format!("{}/part_tx_1.tx", test_dir);
 	let receive_file = format!("{}/part_tx_2.tx", test_dir);
@@ -119,7 +119,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 	bh += 3;
 
 	// wallet 1 receives file to different account, completes
@@ -159,7 +159,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 	bh += 3;
 
 	// update/test contents of both accounts
@@ -215,7 +215,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 	bh += 3;
 
 	// Now repost from cached
@@ -227,7 +227,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 	bh += 3;
 	//
 	// update/test contents of both accounts

@@ -228,7 +228,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	});
 
 	// mine a few blocks
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 10);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 10, false);
 
 	// assert wallet contents
 	// and a single use api for a send command
@@ -252,7 +252,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// mine a few more blocks
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 
 	// Send some to wallet 3
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
@@ -275,7 +275,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// mine a few more blocks
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet3.clone(), 10);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet3.clone(), 10, false);
 
 	// Wallet3 to wallet 2
 	wallet::controller::owner_single_use(wallet3.clone(), |sender_api| {
@@ -304,7 +304,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	}
 
 	// mine a few more blocks
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 2);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 2, false);
 
 	// Wallet3 to wallet 2 again (to another account)
 	wallet::controller::owner_single_use(wallet3.clone(), |sender_api| {
@@ -327,7 +327,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// mine a few more blocks
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5, false);
 
 	// update everyone
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {

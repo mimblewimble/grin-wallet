@@ -57,6 +57,53 @@ pub mod string_or_u64 {
 	}
 }
 
+pub mod opt_string_or_u64 {
+	use std::fmt;
+
+	use serde::{de, Deserializer, Serializer};
+
+	pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		T: fmt::Display,
+		S: Serializer,
+	{
+		match value {
+			Some(v) => serializer.collect_str(v),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		struct Visitor;
+		impl<'a> de::Visitor<'a> for Visitor {
+			type Value = Option<u64>;
+			fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+				write!(
+					formatter,
+					"null, a string containing digits or an int fitting into u64"
+				)
+			}
+			fn visit_unit<E>(self) -> Result<Self::Value, E> {
+				Ok(None)
+			}
+			fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+				Ok(Some(v))
+			}
+			fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				let val: u64 = s.parse().map_err(de::Error::custom)?;
+				Ok(Some(val))
+			}
+		}
+		deserializer.deserialize_any(Visitor)
+	}
+}
+
 #[allow(unused)]
 mod string_or_i64 {
 	use std::fmt;

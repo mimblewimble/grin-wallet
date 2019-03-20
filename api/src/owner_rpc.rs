@@ -21,7 +21,7 @@ use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
 	AcctPathMapping, NodeClient, OutputCommitMapping, TxLogEntry, WalletBackend, WalletInfo,
 };
-use crate::libwallet::ErrorKind;
+use crate::libwallet::{api_impl, ErrorKind};
 use crate::Owner;
 use easy_jsonrpc;
 
@@ -212,6 +212,7 @@ pub trait OwnerRpc {
 		# ,
 		# r#"
 		{
+		"id": 1,
 		"jsonrpc": "2.0",
 	  "result": {
 		"Ok": [
@@ -220,9 +221,9 @@ pub trait OwnerRpc {
 			{
 			  "amount_credited": "60000000000",
 			  "amount_debited": "0",
-			  "confirmation_ts": "2019-03-20T11:46:16.414656770Z",
+			  "confirmation_ts": "2019-01-15T16:01:26Z",
 			  "confirmed": true,
-			  "creation_ts": "2019-03-20T11:46:16.414651989Z",
+			  "creation_ts": "2019-01-15T16:01:26Z",
 			  "fee": null,
 			  "id": 0,
 			  "messages": null,
@@ -236,9 +237,9 @@ pub trait OwnerRpc {
 			{
 			  "amount_credited": "60000000000",
 			  "amount_debited": "0",
-			  "confirmation_ts": "2019-03-20T11:46:16.415354355Z",
+			  "confirmation_ts": "2019-01-15T16:01:26Z",
 			  "confirmed": true,
-			  "creation_ts": "2019-03-20T11:46:16.415349934Z",
+			  "creation_ts": "2019-01-15T16:01:26Z",
 			  "fee": null,
 			  "id": 1,
 			  "messages": null,
@@ -890,10 +891,19 @@ pub fn run_doctest(
 	});
 
 	// Mine a few blocks to wallet 1 so there's something to send
-	let _ =
-		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), blocks_to_mine as usize);
+	for _ in 0..blocks_to_mine {
+		let _ =
+			test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
+		//update local outputs after each block, so transaction IDs stay consistent
+		let mut w = wallet1.lock();
+		w.open_with_credentials().unwrap();
+		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(&mut *w, true, 1).unwrap();
+		assert!(wallet_refreshed);
+		w.close().unwrap();
+	}
 
-	let api_owner = Owner::new(wallet1.clone());
+	let mut api_owner = Owner::new(wallet1.clone());
+	api_owner.doctest_mode = true;
 	let owner_api = &api_owner as &dyn OwnerRpc;
 	Ok(owner_api.handle_request(request))
 }

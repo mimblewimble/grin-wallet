@@ -21,7 +21,7 @@ use crate::core::libtx::{aggsig, secp_ser};
 use crate::core::ser;
 use crate::error::{Error, ErrorKind};
 use crate::keychain::{Identifier, Keychain};
-use crate::ser::string_or_u64;
+use crate::ser::{opt_string_or_u64, string_or_u64};
 use crate::slate::ParticipantMessages;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::secp::{self, pedersen, Secp256k1};
@@ -254,6 +254,7 @@ pub struct OutputData {
 	pub commit: Option<String>,
 	/// PMMR Index, used on restore in case of duplicate wallets using the same
 	/// key_id (2 wallets using same seed, for instance
+	#[serde(with = "opt_string_or_u64")]
 	pub mmr_index: Option<u64>,
 	/// Value of the output, necessary to rebuild the commitment
 	#[serde(with = "string_or_u64")]
@@ -646,6 +647,7 @@ pub struct TxLogEntry {
 	#[serde(with = "string_or_u64")]
 	pub amount_debited: u64,
 	/// Fee
+	#[serde(with = "opt_string_or_u64")]
 	pub fee: Option<u64>,
 	/// Message data, stored as json
 	pub messages: Option<ParticipantMessages>,
