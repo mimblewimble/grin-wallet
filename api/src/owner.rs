@@ -27,10 +27,10 @@
 //! seed).
 
 use crate::util::Mutex;
+use chrono::prelude::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::prelude::*;
 
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
@@ -349,7 +349,9 @@ where
 		w.open_with_credentials()?;
 		let mut res = owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id)?;
 		if self.doctest_mode {
-			res.1 = res.1.into_iter()
+			res.1 = res
+				.1
+				.into_iter()
 				.map(|mut t| {
 					t.confirmation_ts = Some(Utc.ymd(2019, 1, 15).and_hms(16, 1, 26));
 					t.creation_ts = Utc.ymd(2019, 1, 15).and_hms(16, 1, 26);
@@ -681,7 +683,6 @@ where
 		w.close()?;
 		res
 	}
-
 }
 
 #[doc(hidden)]

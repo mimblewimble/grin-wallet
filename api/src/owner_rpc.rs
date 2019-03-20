@@ -892,12 +892,12 @@ pub fn run_doctest(
 
 	// Mine a few blocks to wallet 1 so there's something to send
 	for _ in 0..blocks_to_mine {
-		let _ =
-			test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w = wallet1.lock();
 		w.open_with_credentials().unwrap();
-		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(&mut *w, true, 1).unwrap();
+		let (wallet_refreshed, _) =
+			api_impl::owner::retrieve_summary_info(&mut *w, true, 1).unwrap();
 		assert!(wallet_refreshed);
 		w.close().unwrap();
 	}
