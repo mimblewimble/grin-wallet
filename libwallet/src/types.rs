@@ -256,12 +256,15 @@ pub struct OutputData {
 	/// key_id (2 wallets using same seed, for instance
 	pub mmr_index: Option<u64>,
 	/// Value of the output, necessary to rebuild the commitment
+	#[serde(with = "string_or_u64")]
 	pub value: u64,
 	/// Current status of the output
 	pub status: OutputStatus,
 	/// Height of the output
+	#[serde(with = "string_or_u64")]
 	pub height: u64,
 	/// Height we are locked until
+	#[serde(with = "string_or_u64")]
 	pub lock_height: u64,
 	/// Is this a coinbase output? Is it subject to coinbase locktime?
 	pub is_coinbase: bool,
@@ -374,9 +377,13 @@ impl fmt::Display for OutputStatus {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OutputCommitMapping {
 	/// Output Data
-	output: OutputData,
-	/// The commit itself
-	commit: pedersen::Commitment,
+	pub output: OutputData,
+	/// The commit
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub commit: pedersen::Commitment,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -633,8 +640,10 @@ pub struct TxLogEntry {
 	/// number of outputs involved in TX
 	pub num_outputs: usize,
 	/// Amount credited via this transaction
+	#[serde(with = "string_or_u64")]
 	pub amount_credited: u64,
 	/// Amount debited via this transaction
+	#[serde(with = "string_or_u64")]
 	pub amount_debited: u64,
 	/// Fee
 	pub fee: Option<u64>,

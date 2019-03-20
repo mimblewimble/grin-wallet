@@ -13,17 +13,15 @@
 // limitations under the License.
 
 //! JSON-RPC Stub generation for the Owner API
-
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
-use crate::util::secp::pedersen;
 use crate::Owner;
 use easy_jsonrpc;
 
@@ -37,12 +35,16 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "accounts",
 		"params": [],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"result": {
@@ -55,7 +57,8 @@ pub trait OwnerRpc {
 		},
 		"id": 1
 	}
-	# );
+	# "#
+	# , 4);
 	```
 	*/
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind>;
@@ -67,12 +70,16 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "create_account_path",
 		"params": ["account1"],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"result": {
@@ -80,7 +87,8 @@ pub trait OwnerRpc {
 		},
 		"id": 1
 	}
-	# );
+	# "#
+	# ,4);
 	```
 	 */
 	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind>;
@@ -92,12 +100,16 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "set_active_account",
 		"params": ["default"],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"result": {
@@ -105,7 +117,8 @@ pub trait OwnerRpc {
 		},
 		"id": 1
 	}
-	# );
+	# "#
+	# , 4);
 	```
 	 */
 	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind>;
@@ -113,58 +126,138 @@ pub trait OwnerRpc {
 	/**
 	Networked version of [Owner::retrieve_outputs](struct.Owner.html#method.retrieve_outputs).
 
+	# Json rpc example
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "retrieve_outputs",
-		"params": [false, false, null],
-		"id": 1
-	},
-	{
-		"jsonrpc": "2.0",
-		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
-		},
+		"params": [false, true, null],
 		"id": 1
 	}
-	# );
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": [
+				true,
+				[
+					{
+						"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+						"output": {
+							"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+							"height": "1",
+							"is_coinbase": true,
+							"key_id": "0300000000000000000000000000000000",
+							"lock_height": "4",
+							"mmr_index": null,
+							"n_child": 0,
+							"root_key_id": "0200000000000000000000000000000000",
+							"status": "Unspent",
+							"tx_log_entry": 0,
+							"value": "60000000000"
+						}
+					},
+					{
+						"commit": "087df32304c5d4ae8b2af0bc31e700019d722910ef87dd4eec3197b80b207e3045",
+						"output": {
+							"commit": "087df32304c5d4ae8b2af0bc31e700019d722910ef87dd4eec3197b80b207e3045",
+							"height": "2",
+							"is_coinbase": true,
+							"key_id": "0300000000000000000000000100000000",
+							"lock_height": "5",
+							"mmr_index": null,
+							"n_child": 1,
+							"root_key_id": "0200000000000000000000000000000000",
+							"status": "Unspent",
+							"tx_log_entry": 1,
+							"value": "60000000000"
+						}
+					}
+				]
+			]
+		}
+	}
+	# "#
+	# , 2);
 	```
-	 */
+	*/
 	fn retrieve_outputs(
 		&self,
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
-	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), ErrorKind>;
+	) -> Result<(bool, Vec<OutputCommitMapping>), ErrorKind>;
 
 	/**
 	Networked version of [Owner::retrieve_txs](struct.Owner.html#method.retrieve_txs).
 
+	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	{
+		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# r#"
+		{
+			"jsonrpc": "2.0",
+			"method": "retrieve_txs",
+			"params": [true, null, null],
+			"id": 1
+		}
+		# "#
+		# ,
+		# r#"
+		{
 		"jsonrpc": "2.0",
-		"method": "retrieve_txs",
-		"params": [false, null, null],
-		"id": 1
-	},
-	{
-		"jsonrpc": "2.0",
-		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
+	  "result": {
+		"Ok": [
+		  true,
+		  [
+			{
+			  "amount_credited": "60000000000",
+			  "amount_debited": "0",
+			  "confirmation_ts": "2019-03-20T11:46:16.414656770Z",
+			  "confirmed": true,
+			  "creation_ts": "2019-03-20T11:46:16.414651989Z",
+			  "fee": null,
+			  "id": 0,
+			  "messages": null,
+			  "num_inputs": 0,
+			  "num_outputs": 1,
+			  "parent_key_id": "0200000000000000000000000000000000",
+			  "stored_tx": null,
+			  "tx_slate_id": null,
+			  "tx_type": "ConfirmedCoinbase"
+			},
+			{
+			  "amount_credited": "60000000000",
+			  "amount_debited": "0",
+			  "confirmation_ts": "2019-03-20T11:46:16.415354355Z",
+			  "confirmed": true,
+			  "creation_ts": "2019-03-20T11:46:16.415349934Z",
+			  "fee": null,
+			  "id": 1,
+			  "messages": null,
+			  "num_inputs": 0,
+			  "num_outputs": 1,
+			  "parent_key_id": "0200000000000000000000000000000000",
+			  "stored_tx": null,
+			  "tx_slate_id": null,
+			  "tx_type": "ConfirmedCoinbase"
 			}
-		},
-		"id": 1
+		  ]
+		]
+	  }
 	}
-	# );
+	# "#
+	# , 2);
 	```
-	 */
+	*/
+
 	fn retrieve_txs(
 		&self,
 		refresh_from_node: bool,
@@ -177,12 +270,16 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "retrieve_summary_info",
 		"params": [true, 1],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
 	"id": 1,
 		"jsonrpc": "2.0",
@@ -202,7 +299,8 @@ pub trait OwnerRpc {
 			]
 		}
 	}
-	# );
+	# "#
+	# ,4 );
 	```
 	 */
 
@@ -217,12 +315,16 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "initiate_tx",
 		"params": [null, 0, 0, 10, 0, false, "my message", null],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"result": {
@@ -232,7 +334,8 @@ pub trait OwnerRpc {
 		},
 		"id": 1
 	}
-	# );
+	# "#
+	# , 4);
 	```
 	 */
 
@@ -626,7 +729,7 @@ where
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
-	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), ErrorKind> {
+	) -> Result<(bool, Vec<OutputCommitMapping>), ErrorKind> {
 		Owner::retrieve_outputs(self, include_spent, refresh_from_node, tx_id).map_err(|e| e.kind())
 	}
 
@@ -736,6 +839,7 @@ where
 pub fn run_doctest(
 	request: serde_json::Value,
 	test_dir: &str,
+	blocks_to_mine: u64,
 ) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Owner, OwnerRpc};
 	use easy_jsonrpc::Handler;
@@ -756,14 +860,26 @@ pub fn run_doctest(
 	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
+	let rec_phrase_1 =
+		"fat twenty mean degree forget shell check candy immense awful \
+		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch";
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 =
-		test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
+	let wallet1 = test_framework::create_wallet(
+		&format!("{}/wallet1", test_dir),
+		client1.clone(),
+		Some(rec_phrase_1),
+	);
 	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
 
+	let rec_phrase_2 =
+		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
+		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile";
 	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let wallet2 =
-		test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
+	let wallet2 = test_framework::create_wallet(
+		&format!("{}/wallet2", test_dir),
+		client2.clone(),
+		Some(rec_phrase_2),
+	);
 	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
 
 	// Set the wallet proxy listener running
@@ -774,8 +890,8 @@ pub fn run_doctest(
 	});
 
 	// Mine a few blocks to wallet 1 so there's something to send
-	let mut _bh = 4u64;
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), _bh as usize);
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), blocks_to_mine as usize);
 
 	let api_owner = Owner::new(wallet1.clone());
 	let owner_api = &api_owner as &dyn OwnerRpc;
@@ -785,12 +901,13 @@ pub fn run_doctest(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
-	($request:tt, $expected_response:tt) => {
+	($request:expr, $expected_response:expr, $blocks_to_mine:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
 		use grin_wallet_api::run_doctest;
 		use serde_json;
+		use serde_json::Value;
 		use tempfile::tempdir;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -800,11 +917,12 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			.ok_or("Failed to convert tmpdir path to string.".to_owned())
 			.unwrap();
 
-		let response = run_doctest(serde_json::json!($request), dir)
+		let request_val: Value = serde_json::from_str($request).unwrap();
+		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
+
+		let response = run_doctest(request_val, dir, $blocks_to_mine)
 			.unwrap()
 			.unwrap();
-		#[allow(overflowing_literals)]
-		let expected_response = serde_json::json!($expected_response);
 
 		if response != expected_response {
 			panic!(

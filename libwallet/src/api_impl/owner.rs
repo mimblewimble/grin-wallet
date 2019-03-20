@@ -24,9 +24,8 @@ use crate::internal::{keys, selection, tx, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
 };
-use crate::util::secp::pedersen;
 use crate::{Error, ErrorKind};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
@@ -67,7 +66,7 @@ pub fn retrieve_outputs<T: ?Sized, C, K>(
 	include_spent: bool,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
-) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), Error>
+) -> Result<(bool, Vec<OutputCommitMapping>), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -360,7 +359,7 @@ where
 		Ok(height) => Ok((height, true)),
 		Err(_) => {
 			let outputs = retrieve_outputs(w, true, false, None)?;
-			let height = match outputs.1.iter().map(|(out, _)| out.height).max() {
+			let height = match outputs.1.iter().map(|m| m.output.height).max() {
 				Some(height) => height,
 				None => 0,
 			};

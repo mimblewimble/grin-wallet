@@ -229,7 +229,7 @@ where
 	}
 	// get outputs associated with tx
 	let res = updater::retrieve_outputs(wallet, false, Some(tx.id), Some(&parent_key_id))?;
-	let outputs = res.iter().map(|(out, _)| out).cloned().collect();
+	let outputs = res.iter().map(|m| m.output.clone()).collect();
 	updater::cancel_tx_and_outputs(wallet, tx, outputs, parent_key_id)?;
 	Ok(())
 }

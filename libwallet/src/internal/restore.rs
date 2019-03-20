@@ -293,14 +293,14 @@ where
 
 	// check all definitive outputs exist in the wallet outputs
 	for deffo in chain_outs.into_iter() {
-		let matched_out = wallet_outputs.iter().find(|wo| wo.1 == deffo.commit);
+		let matched_out = wallet_outputs.iter().find(|wo| wo.commit == deffo.commit);
 		match matched_out {
 			Some(s) => {
-				if s.0.status == OutputStatus::Spent {
-					accidental_spend_outs.push((s.0.clone(), deffo.clone()));
+				if s.output.status == OutputStatus::Spent {
+					accidental_spend_outs.push((s.output.clone(), deffo.clone()));
 				}
-				if s.0.status == OutputStatus::Locked {
-					locked_outs.push((s.0.clone(), deffo.clone()));
+				if s.output.status == OutputStatus::Locked {
+					locked_outs.push((s.output.clone(), deffo.clone()));
 				}
 			}
 			None => missing_outs.push(deffo),
@@ -351,17 +351,17 @@ where
 			batch.commit()?;
 		}
 
-		let unconfirmed_outs: Vec<&(OutputData, pedersen::Commitment)> = wallet_outputs
+		let unconfirmed_outs: Vec<&OutputCommitMapping> = wallet_outputs
 			.iter()
-			.filter(|o| o.0.status == OutputStatus::Unconfirmed)
+			.filter(|o| o.output.status == OutputStatus::Unconfirmed)
 			.collect();
 		// Delete unconfirmed outputs
 		for m in unconfirmed_outs.into_iter() {
-			let o = m.0.clone();
+			let o = m.output.clone();
 			warn!(
 				"Unconfirmed output for {} with ID {} ({:?}) not in UTXO set. \
 				 Deleting and cancelling associated transaction log entries.",
-				o.value, o.key_id, m.1,
+				o.value, o.key_id, m.commit,
 			);
 			cancel_tx_log_entry(wallet, &o)?;
 			let mut batch = wallet.batch()?;

@@ -135,7 +135,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 	let w1_outputs: Vec<libwallet::types::OutputData> =
-		w1_outputs_commits.into_iter().map(|o| o.0).collect();
+		w1_outputs_commits.into_iter().map(|m| m.output).collect();
 	{
 		let mut w = wallet1.lock();
 		w.open_with_credentials()?;

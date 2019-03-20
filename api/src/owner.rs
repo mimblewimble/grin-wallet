@@ -36,10 +36,9 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::Error;
-use crate::util::secp::pedersen;
 
 /// Functions intended for use by the owner (e.g. master seed holder) of the wallet.
 pub struct Owner<W: ?Sized, C, K>
@@ -278,7 +277,7 @@ where
 	///
 	/// let result = api_owner.retrieve_outputs(show_spent, update_from_node, tx_id);
 	///
-	/// if let Ok((was_updated, output_mapping)) = result {
+	/// if let Ok((was_updated, output_mappings)) = result {
 	///		//...
 	/// }
 	/// ```
@@ -288,7 +287,7 @@ where
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
-	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), Error> {
+	) -> Result<(bool, Vec<(OutputCommitMapping)>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::retrieve_outputs(&mut *w, include_spent, refresh_from_node, tx_id);
@@ -320,22 +319,8 @@ where
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ``` ignore
-	/// # extern crate grin_wallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let update_from_node = true;
@@ -704,7 +689,7 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		use api::Owner;
 		use config::WalletConfig;
-		use impls::{HTTPNodeClient, LMDBBackend};
+		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
 		use libwallet::types::WalletBackend;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -715,9 +700,11 @@ macro_rules! doctest_helper_setup_doc_env {
 			.unwrap();
 		let mut wallet_config = WalletConfig::default();
 		wallet_config.data_file_dir = dir.to_owned();
+		let pw = "";
+
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
 		let mut $wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(
-			Mutex::new(LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()),
+			Mutex::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap()),
 			);
 	};
 }

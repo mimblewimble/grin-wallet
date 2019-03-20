@@ -388,16 +388,16 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		let mut locked_count = 0;
 		let mut unconfirmed_count = 0;
 		// get the tx entry, check outputs are as expected
-		let (_, outputs) = api.retrieve_outputs(true, false, Some(tx.unwrap().id))?;
-		for (o, _) in outputs.clone() {
-			if o.status == OutputStatus::Locked {
+		let (_, output_mappings) = api.retrieve_outputs(true, false, Some(tx.unwrap().id))?;
+		for m in output_mappings.clone() {
+			if m.output.status == OutputStatus::Locked {
 				locked_count = locked_count + 1;
 			}
-			if o.status == OutputStatus::Unconfirmed {
+			if m.output.status == OutputStatus::Unconfirmed {
 				unconfirmed_count = unconfirmed_count + 1;
 			}
 		}
-		assert_eq!(outputs.len(), 3);
+		assert_eq!(output_mappings.len(), 3);
 		assert_eq!(locked_count, 2);
 		assert_eq!(unconfirmed_count, 1);
 
@@ -413,8 +413,8 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert!(tx.is_some());
 		// get the tx entry, check outputs are as expected
 		let (_, outputs) = api.retrieve_outputs(true, false, Some(tx.unwrap().id))?;
-		for (o, _) in outputs.clone() {
-			if o.status == OutputStatus::Unconfirmed {
+		for m in outputs.clone() {
+			if m.output.status == OutputStatus::Unconfirmed {
 				unconfirmed_count = unconfirmed_count + 1;
 			}
 		}
