@@ -973,7 +973,7 @@ fn replicate_tx_fluff_failure() {
 			None,
 		)?;
 		slate = client1_w.send_tx_sync(dest, &slate)?;
-		api.finalize_tx(&mut slate)?;
+		slate = api.finalize_tx(&slate)?;
 		api.tx_lock_outputs(&slate, lock_fn)?;
 		api.post_tx(&slate.tx, false)?;
 		Ok(())

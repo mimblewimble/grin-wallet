@@ -108,7 +108,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
-		sender_api.finalize_tx(&mut slate)?;
+		slate = sender_api.finalize_tx(&slate)?;
 		Ok(())
 	})?;
 
@@ -272,7 +272,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
-		sender_api.finalize_tx(&mut slate)?;
+		slate = sender_api.finalize_tx(&slate)?;
 		Ok(())
 	})?;
 
@@ -369,7 +369,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
-		sender_api.finalize_tx(&mut slate)?;
+		slate = sender_api.finalize_tx(&slate)?;
 		Ok(())
 	})?;
 

@@ -592,8 +592,56 @@ where
 		res
 	}
 
-	/// Lock outputs associated with a given slate/transaction
-	/// and create any outputs needed
+	/// Locks the outputs associated with the inputs to the transaction in the given
+	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html),
+	/// making them unavailable for use in further transactions. This function is called
+	/// by the sender, (or more generally, all parties who have put inputs into the transaction,)
+	/// and must be called before the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx)
+	/// that completes the transaction.
+	/// 
+	/// Outputs will generally remain locked until they are removed from the chain,
+	/// at which point they will become `Spent`. It is commonplace for transactions not to complete
+	/// for various reasons over which a particular wallet has no control. For this reason,
+	/// [`cancel_tx`](struct.Owner.html#method.cancel_tx) can be used to manually unlock outputs
+	/// and return them to the `Unspent` state.
+	///
+	/// # Arguments
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
+	/// elements in the `input` vector of the `tx` field that are found in the wallet's currently
+	/// active account will be set to status `Locked`
+	///
+	/// # Returns
+	/// * Ok(()) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let amount = 2_000_000_000;
+	///
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.initiate_tx(
+	///		None,
+	///		amount,     // amount
+	///		10,         // minimum confirmations
+	///		500,        // max outputs
+	///		1,          // num change outputs
+	///		true,       // select all outputs
+	///		Some("Remember to lock when we're happy this is sent".to_owned()),
+	///		None,       // Use the default slate version
+	///	);
+	///
+	/// if let Ok(slate) = result {
+	///		// Send slate somehow
+	///		// ...
+	///		// Lock our outputs if we're happy the slate was (or is being) sent
+	///		api_owner.tx_lock_outputs(&slate);
+	/// }
+	/// ```
+
 	pub fn tx_lock_outputs(&self, slate: &Slate) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -602,16 +650,75 @@ where
 		res
 	}
 
-	/// Sender finalization of the transaction. Takes the file returned by the
-	/// sender as well as the private file generate on the first send step.
-	/// Builds the complete transaction and sends it to a grin node for
-	/// propagation.
-	pub fn finalize_tx(&self, slate: &mut Slate) -> Result<(), Error> {
+	/// Finalizes a transaction, after all parties
+	/// have filled in both rounds of Slate generation. This step adds
+	/// all participants partial signatures to create the final signature,
+	/// resulting in a final transaction that is ready to post to a node.
+	///
+	/// Note that this function DOES NOT POST the transaction to a node
+	/// for validation. This is done in separately via the
+	/// [`post_tx`](struct.Owner.html#method.post_tx) function.
+	/// 
+	/// This function also stores the final transaction in the user's wallet files for retrieval
+	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
+	///
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
+	/// participants must have filled in both rounds, and the sender should have locked their
+	/// outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let amount = 2_000_000_000;
+	///
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.initiate_tx(
+	///		None,
+	///		amount,     // amount
+	///		10,         // minimum confirmations
+	///		500,        // max outputs
+	///		1,          // num change outputs
+	///		true,       // select all outputs
+	///		Some("Finalize this tx now".to_owned()),
+	///		None,       // Use the default slate version
+	///	);
+	///
+	/// if let Ok(slate) = result {
+	///		// Send slate somehow
+	///		// ...
+	///		// Lock our outputs if we're happy the slate was (or is being) sent
+	///		api_owner.tx_lock_outputs(&slate);
+	///		//
+	///		// Retrieve slate back from recipient
+	///		// 
+	///		api_owner.finalize_tx(&slate);
+	/// }
+	/// ```
+///
+
+	pub fn finalize_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
+		let mut slate = slate.clone();
 		w.open_with_credentials()?;
-		let res = owner::finalize_tx(&mut *w, slate);
+		slate = owner::finalize_tx(&mut *w, &slate)?;
 		w.close()?;
-		res
+		Ok(slate)
+	}
+
+	/// Posts a transaction to the chain
+	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
+		let client = {
+			let mut w = self.wallet.lock();
+			w.w2n_client().clone()
+		};
+		owner::post_tx(&client, tx, fluff)
 	}
 
 	/// Roll back a transaction and all associated outputs with a given
@@ -631,15 +738,6 @@ where
 	pub fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
 		let w = self.wallet.lock();
 		owner::get_stored_tx(&*w, entry)
-	}
-
-	/// Posts a transaction to the chain
-	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
-		let client = {
-			let mut w = self.wallet.lock();
-			w.w2n_client().clone()
-		};
-		owner::post_tx(&client, tx, fluff)
 	}
 
 	/// Verifies all messages in the slate match their public keys

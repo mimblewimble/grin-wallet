@@ -307,7 +307,7 @@ pub fn send(
 					error!("Error validating participant messages: {}", e);
 					return Err(e);
 				}
-				api.finalize_tx(&mut slate)?;
+				slate = api.finalize_tx(&slate)?;
 			} else {
 				adapter.send_tx_async(&args.dest, &slate)?;
 				api.tx_lock_outputs(&slate)?;
@@ -378,7 +378,7 @@ pub fn finalize(
 			error!("Error validating participant messages: {}", e);
 			return Err(e);
 		}
-		let _ = api.finalize_tx(&mut slate).expect("Finalize failed");
+		slate = api.finalize_tx(&mut slate).expect("Finalize failed");
 
 		let result = api.post_tx(&slate.tx, args.fluff);
 		match result {

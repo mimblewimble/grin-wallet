@@ -209,9 +209,9 @@ where
 			true,   // select all outputs
 			None, None, test_mode,
 		)?;
-		let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
+		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut *w, &slate)?;
-		owner::finalize_tx(&mut *w, &mut slate)?;
+		let slate = owner::finalize_tx(&mut *w, &slate)?;
 		w.close()?;
 		slate
 	};

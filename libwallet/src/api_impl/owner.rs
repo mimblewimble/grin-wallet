@@ -247,22 +247,23 @@ where
 }
 
 /// Finalize slate
-pub fn finalize_tx<T: ?Sized, C, K>(w: &mut T, slate: &mut Slate) -> Result<(), Error>
+pub fn finalize_tx<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	let context = w.get_private_context(slate.id.as_bytes())?;
-	tx::complete_tx(&mut *w, slate, 0, &context)?;
-	tx::update_stored_tx(&mut *w, slate)?;
-	tx::update_message(&mut *w, slate)?;
+	let mut sl = slate.clone();
+	let context = w.get_private_context(sl.id.as_bytes())?;
+	tx::complete_tx(&mut *w, &mut sl, 0, &context)?;
+	tx::update_stored_tx(&mut *w, &mut sl)?;
+	tx::update_message(&mut *w, &mut sl)?;
 	{
 		let mut batch = w.batch()?;
-		batch.delete_private_context(slate.id.as_bytes())?;
+		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
-	Ok(())
+	Ok(sl)
 }
 
 /// cancel tx

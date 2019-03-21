@@ -401,7 +401,7 @@ impl LocalServerContainer {
 				None,
 			)?;
 			slate = client_w.send_tx_sync(dest, &slate)?;
-			api.finalize_tx(&mut slate)?;
+			slate = api.finalize_tx(&slate)?;
 			api.tx_lock_outputs(&slate, lock_fn)?;
 			println!(
 				"Tx sent: {} grin to {} (strategy '{}')",

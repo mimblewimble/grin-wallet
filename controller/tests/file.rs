@@ -153,7 +153,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		let adapter = FileWalletCommAdapter::new();
 		let mut slate = adapter.receive_tx_async(&receive_file)?;
 		api.verify_slate_messages(&slate)?;
-		api.finalize_tx(&mut slate)?;
+		slate = api.finalize_tx(&slate)?;
 		api.post_tx(&slate.tx, false)?;
 		bh += 1;
 		Ok(())
