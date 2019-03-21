@@ -598,7 +598,7 @@ where
 	/// by the sender, (or more generally, all parties who have put inputs into the transaction,)
 	/// and must be called before the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx)
 	/// that completes the transaction.
-	/// 
+	///
 	/// Outputs will generally remain locked until they are removed from the chain,
 	/// at which point they will become `Spent`. It is commonplace for transactions not to complete
 	/// for various reasons over which a particular wallet has no control. For this reason,
@@ -658,7 +658,7 @@ where
 	/// Note that this function DOES NOT POST the transaction to a node
 	/// for validation. This is done in separately via the
 	/// [`post_tx`](struct.Owner.html#method.post_tx) function.
-	/// 
+	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
@@ -697,11 +697,11 @@ where
 	///		api_owner.tx_lock_outputs(&slate);
 	///		//
 	///		// Retrieve slate back from recipient
-	///		// 
+	///		//
 	///		api_owner.finalize_tx(&slate);
 	/// }
 	/// ```
-///
+	///
 
 	pub fn finalize_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
