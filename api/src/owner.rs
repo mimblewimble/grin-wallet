@@ -37,7 +37,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::Error;
 
@@ -413,10 +413,10 @@ where
 	}
 
 	/// Initiates a new transaction as the sender, creating a new
-	/// [`Slate`](../../libtx/slate/struct.Slate.html) object containing
+	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) object containing
 	/// the sender's inputs, change outputs, and public signature data. This slate can
 	/// then be sent to the recipient to continue the transaction via the
-	/// [Foreign API's `receive_tx`](struct.APIForeign.html#method.receive_tx) method.
+	/// [Foreign API's `receive_tx`](struct.Foreign.html#method.receive_tx) method.
 	///
 	/// When a transaction is created, the wallet must also lock inputs (and create unconfirmed
 	/// outputs) corresponding to the transaction created in the slate, so that the wallet doesn't
@@ -457,16 +457,19 @@ where
 	/// the convenience of the participants during the exchange; it is not included in the final
 	/// transaction sent to the chain. The message will be truncated to 256 characters.
 	/// Validation of this message is optional.
+	/// * `target_slate_version` Optionally set the output target slate version (acceptable
+	/// down to the minimum slate version compatible with the current. If `None` the slate
+	/// is generated with the latest version.
 	///
 	/// # Returns
 	/// * a result containing:
-	/// * ([`Slate`](../../libtx/slate/struct.Slate.html), lock_function) - A tuple:
-	/// * The transaction Slate, which can be forwarded to the recieving party by any means.
-	/// * A lock function, which should be called when the caller deems it appropriate to lock
-	/// the transaction outputs (i.e. there is relative certaintly that the slate will be
-	/// transmitted to the receiving party). Must be called before calling
+	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html), 
+	/// which can be forwarded to the recieving party by any means. Once the caller is relatively
+	/// certain that the transaction has been sent to the recipient, the associated wallet
+	/// transaction outputs should be locked via a call to
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs). This must be called before calling
 	/// [`finalize_tx`](struct.Owner.html#method.finalize_tx).
-	/// * or [`libwallet::Error`](../struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -477,7 +480,7 @@ where
 	///
 	/// # Example
 	/// Set up as in [new](struct.Owner.html#method.new) method above.
-	/// ``` ignore
+	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
@@ -492,13 +495,14 @@ where
 	///		1,          // num change outputs
 	///		true,       // select all outputs
 	///		Some("Have some Grins. Love, Yeastplume".to_owned()),
+	///		None,       // Use the default slate version
 	///	);
 	///
-	/// if let Ok((slate, lock_fn)) = result {
+	/// if let Ok(slate) = result {
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate, lock_fn);
+	///		api_owner.tx_lock_outputs(&slate);
 	/// }
 	/// ```
 
@@ -531,36 +535,38 @@ where
 		res
 	}
 
-	/// Estimates the amount to be locked and fee for the transaction without creating one
+	/// Estimates the amount to be locked and fee for the transaction without creating one.
 	///
 	/// # Arguments
-	/// * `src_acct_name` - The human readable account name from which to draw outputs
-	/// for the transaction, overriding whatever the active account is as set via the
-	/// [`set_active_account`](struct.Owner.html#method.set_active_account) method.
-	/// If None, the transaction will use the active account.
-	/// * `amount` - The amount to send, in nanogrins. (`1 G = 1_000_000_000nG`)
-	/// * `minimum_confirmations` - The minimum number of confirmations an output
-	/// should have in order to be included in the transaction.
-	/// * `max_outputs` - By default, the wallet selects as many inputs as possible in a
-	/// transaction, to reduce the Output set and the fees. The wallet will attempt to spend
-	/// include up to `max_outputs` in a transaction, however if this is not enough to cover
-	/// the whole amount, the wallet will include more outputs. This parameter should be considered
-	/// a soft limit.
-	/// * `num_change_outputs` - The target number of change outputs to create in the transaction.
-	/// The actual number created will be `num_change_outputs` + whatever remainder is needed.
-	/// * `selection_strategy_is_use_all` - If `true`, attempt to use up as many outputs as
-	/// possible to create the transaction, up the 'soft limit' of `max_outputs`. This helps
-	/// to reduce the size of the UTXO set and the amount of data stored in the wallet, and
-	/// minimizes fees. This will generally result in many inputs and a large change output(s),
-	/// usually much larger than the amount being sent. If `false`, the transaction will include
-	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
-	/// value outputs.
-	///
+	/// * As found in [`initiate_tx`](struct.Owner.html#method.initiate_tx) above.
+	/// 
 	/// # Returns
-	/// * a result containing:
-	/// * (total, fee) - A tuple:
-	/// * Total amount to be locked.
-	/// * Transaction fee
+	/// * a result containing a
+	/// [`TxEstimation`](../grin_wallet_libwallet/types/struct.TxEstimation.html)
+	/// 
+	/// # Example
+	/// Set up as in [new](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let amount = 2_000_000_000;
+	///
+	/// // Estimate transaction using default account
+	/// let result = api_owner.estimate_initiate_tx(
+	///		None,
+	///		amount,     // amount
+	///		10,         // minimum confirmations
+	///		500,        // max outputs
+	///		1,          // num change outputs
+	///		true,       // select all outputs
+	///	);
+	///
+	/// if let Ok(est) = result {
+	///		// ...
+	/// }
+	/// ```
+
 	pub fn estimate_initiate_tx(
 		&self,
 		src_acct_name: Option<&str>,
@@ -570,10 +576,7 @@ where
 		num_change_outputs: usize,
 		selection_strategy_is_use_all: bool,
 	) -> Result<
-		(
-			u64, // total
-			u64, // fee
-		),
+		TxEstimation,
 		Error,
 	> {
 		let mut w = self.wallet.lock();

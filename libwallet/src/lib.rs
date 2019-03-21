@@ -43,7 +43,6 @@ extern crate lazy_static;
 pub mod api_impl;
 mod error;
 mod internal;
-mod ser;
 pub mod slate;
 pub mod slate_versions;
 pub mod types;

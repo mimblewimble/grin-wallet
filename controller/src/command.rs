@@ -247,7 +247,7 @@ pub fn send(
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
 				.map(|strategy| {
-					let (total, fee) = api
+					let est = api
 						.estimate_initiate_tx(
 							None,
 							args.amount,
@@ -257,7 +257,7 @@ pub fn send(
 							strategy == "all",
 						)
 						.unwrap();
-					(strategy, total, fee)
+					(strategy, est.total, est.fee)
 				})
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);

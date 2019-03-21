@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::{api_impl, ErrorKind};
 use crate::Owner;
@@ -331,15 +331,15 @@ pub trait OwnerRpc {
 	  "jsonrpc": "2.0",
 	  "result": {
 		"Ok": {
-		  "amount": 6000000000,
-		  "fee": 8000000,
-		  "height": 4,
+		  "amount": "6000000000",
+		  "fee": "8000000",
+		  "height": "4",
 		  "id": "0436430c-2b02-624c-2032-570501212b00",
-		  "lock_height": 4,
+		  "lock_height": "4",
 		  "num_participants": 2,
 		  "participant_data": [
 			{
-			  "id": 0,
+			  "id": "0",
 			  "message": "my message",
 			  "message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f756f655333250204644c1cb169e7a78f21b57437930db91e808f39be58134c1d",
 			  "part_sig": null,
@@ -360,8 +360,8 @@ pub trait OwnerRpc {
 				  "excess": "000000000000000000000000000000000000000000000000000000000000000000",
 				  "excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
 				  "features": "HeightLocked",
-				  "fee": 8000000,
-				  "lock_height": 4
+				  "fee": "8000000",
+				  "lock_height": "4"
 				}
 			  ],
 			  "outputs": [
@@ -403,26 +403,27 @@ pub trait OwnerRpc {
 	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.estimate_initiate_tx).
 
 
-	```ignore
+	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	# "#
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "estimate_initiate_tx",
-		"params": [null, 0, 0, 10, 0, false],
+		"params": [null, 6000000000, 2, 500, 1, true],
 		"id": 1
 	}
 	# "#
 	# ,
 	# r#"
 	{
+		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
+			"Ok": {
+				"total": "60000000000",
+				"fee": "8000000"
 			}
-		},
-		"id": 1
+		}
 	}
 	# "#
 	# ,4);
@@ -436,7 +437,7 @@ pub trait OwnerRpc {
 		max_outputs: usize,
 		num_change_outputs: usize,
 		selection_strategy_is_use_all: bool,
-	) -> Result<(/* total */ u64, /* fee */ u64), ErrorKind>;
+	) -> Result<TxEstimation, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -444,50 +445,35 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "tx_lock_outputs",
-		"params": [{
-			"version_info": {
-				"version": 2,
-				"orig_version": 2,
-				"min_compat_version": 0
-			},
-			"amount": 0,
-			"fee": 0,
-			"height": 0,
-			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
-			"lock_height": 0,
-			"num_participants": 2,
-			"participant_data": [],
-			"tx": {
-				"body": {
-					"inputs": [],
-					"kernels": [],
-					"outputs": []
-				},
-				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
-			}
-		}],
-		"id": 1
-	},
+		"id": 1,
+		"params": [
+		]
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
+		"id": 1,
 		"result": {
 			"Err": {
 				"CallbackImpl": "Error opening wallet"
 			}
-		},
-		"id": 1
+		}
 	}
-	# );
+	# "#
+	# ,4);
+
 	```
 	 */
 	fn tx_lock_outputs(&self, slate: Slate) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::finalize_tx](struct.Owner.html#method.finalize_tx).
-
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -837,7 +823,7 @@ where
 		max_outputs: usize,
 		num_change_outputs: usize,
 		selection_strategy_is_use_all: bool,
-	) -> Result<(/* total */ u64, /* fee */ u64), ErrorKind> {
+	) -> Result<TxEstimation, ErrorKind> {
 		Owner::estimate_initiate_tx(
 			self,
 			src_acct_name.as_ref().map(String::as_str),

@@ -45,6 +45,7 @@ const CURRENT_SLATE_VERSION: u16 = 2;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantData {
 	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub id: u64,
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "secp_ser::pubkey_serde")]
@@ -83,6 +84,7 @@ impl ParticipantData {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantMessageData {
 	/// id of the particpant in the tx
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub id: u64,
 	/// Public key
 	#[serde(with = "secp_ser::pubkey_serde")]
@@ -123,12 +125,16 @@ pub struct Slate {
 	/// inputs, outputs, kernels, kernel offset
 	pub tx: Transaction,
 	/// base amount (excluding fee)
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// fee amount
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub fee: u64,
 	/// Block height for the transaction
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
