@@ -382,7 +382,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 						let res = {
 							let mut w = wallet.lock();
 							w.open_with_credentials()?;
-							let r = foreign::receive_tx(&mut *w, &mut slate, None, None);
+							let r = foreign::receive_tx(&mut *w, &mut slate, None, None, false);
 							w.close()?;
 							r
 						};

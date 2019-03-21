@@ -261,12 +261,14 @@ where
 	/// the transaction log entry of id `i`.
 	///
 	/// # Returns
-	/// * (`bool`, `Vec<OutputData, Commitment>`) - A tuple:
+	/// * `(bool, Vec<OutputCommitMapping>)` - A tuple:
 	/// * The first `bool` element indicates whether the data was successfully
 	/// refreshed from the node (note this may be false even if the `refresh_from_node`
 	/// argument was set to `true`.
-	/// * The second element contains the result set, of which each element is
-	/// a mapping between the wallet's internal [OutputData](../grin_wallet_libwallet/types/struct.OutputData.html)
+	/// * The second element contains a vector of 
+	/// [OutputCommitMapping](../grin_wallet_libwallet/types/struct.OutputCommitMapping.html)
+	/// of which each element is a mapping between the wallet's internal 
+	/// [OutputData](../grin_wallet_libwallet/types/struct.Output.html)
 	/// and the Output commitment as identified in the chain's UTXO set
 	///
 	/// # Example
@@ -291,7 +293,7 @@ where
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
-	) -> Result<(bool, Vec<(OutputCommitMapping)>), Error> {
+	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::retrieve_outputs(&mut *w, include_spent, refresh_from_node, tx_id);
@@ -311,15 +313,15 @@ where
 	/// * `tx_id` - If `Some(i)`, only return the transactions associated with
 	/// the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
-	/// the given [`Slate`](../../libtx/slate/struct.Slate.html) uuid.
+	/// the given [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) uuid.
 	///
 	/// # Returns
-	/// * (`bool`, `Vec<[TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html)>`) - A tuple:
+	/// * `(bool, Vec<TxLogEntry)` - A tuple:
 	/// * The first `bool` element indicates whether the data was successfully
 	/// refreshed from the node (note this may be false even if the `refresh_from_node`
 	/// argument was set to `true`.
 	/// * The second element contains the set of retrieved
-	/// [TxLogEntries](../grin_wallet_libwallet/types/struct/TxLogEntry.html)
+	/// [TxLogEntries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -367,7 +369,7 @@ where
 	///
 	/// # Arguments
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	/// a node (via the [`NodeClient`](../types/trait.NodeClient.html)
+	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain transaction information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
@@ -375,11 +377,11 @@ where
 	/// should have before it's included in the 'amount_currently_spendable' total
 	///
 	/// # Returns
-	/// * (`bool`, [`WalletInfo`](../types/struct.WalletInfo.html)) - A tuple:
+	/// * (`bool`, [`WalletInfo`](../grin_wallet_libwallet/types/struct.WalletInfo.html)) - A tuple:
 	/// * The first `bool` element indicates whether the data was successfully
 	/// refreshed from the node (note this may be false even if the `refresh_from_node`
 	/// argument was set to `true`.
-	/// * The second element contains the Summary [`WalletInfo`](../types/struct.WalletInfo.html)
+	/// * The second element contains the Summary [`WalletInfo`](../grin_wallet_libwallet/types/struct.WalletInfo.html)
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -476,21 +478,7 @@ where
 	/// # Example
 	/// Set up as in [new](struct.Owner.html#method.new) method above.
 	/// ``` ignore
-	/// # extern crate grin_wallet as wallet;
-	/// # extern crate grin_keychain as keychain;
-	/// # extern crate grin_util as util;
-	/// # use std::sync::Arc;
-	/// # use util::Mutex;
-	/// # use keychain::ExtKeychain;
-	/// # use wallet::libwallet::api::Owner;
-	/// # use wallet::{LMDBBackend, HTTPNodeClient, WalletBackend,  WalletConfig};
-	/// # let mut wallet_config = WalletConfig::default();
-	/// # wallet_config.data_file_dir = "test_output/doc/wallet1".to_owned();
-	/// # let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// # let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	/// # Arc::new(Mutex::new(
-	/// # 	LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	/// # ));
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let amount = 2_000_000_000;
@@ -537,6 +525,7 @@ where
 			selection_strategy_is_use_all,
 			message,
 			target_slate_version,
+			self.doctest_mode,
 		);
 		w.close()?;
 		res

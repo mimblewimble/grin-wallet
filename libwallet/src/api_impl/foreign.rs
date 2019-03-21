@@ -43,6 +43,7 @@ pub fn receive_tx<T: ?Sized, C, K>(
 	slate: &mut Slate,
 	dest_acct_name: Option<&str>,
 	message: Option<String>,
+	use_test_rng: bool,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
@@ -75,7 +76,7 @@ where
 		None => None,
 	};
 
-	tx::add_output_to_slate(&mut *w, slate, &parent_key_id, 1, message)?;
+	tx::add_output_to_slate(&mut *w, slate, &parent_key_id, 1, message, use_test_rng)?;
 	tx::update_message(&mut *w, slate)?;
 	Ok(())
 }

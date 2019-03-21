@@ -207,6 +207,7 @@ where
 			1,      // num change outputs
 			true,   // select all outputs
 			None, None,
+			false,
 		)?;
 		let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut *w, &slate)?;

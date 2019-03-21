@@ -21,6 +21,14 @@ use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
+use util::Mutex;
+
+/// static for incrementing test UUIDs
+lazy_static! {
+	static ref SLATE_COUNTER: Mutex<u8> = {
+		Mutex::new(0)
+	};
+}
 
 /// Creates a new slate for a transaction, can be called by anyone involved in
 /// the transaction (sender(s), receiver(s))
@@ -28,6 +36,7 @@ pub fn new_tx_slate<T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
 	num_participants: usize,
+	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
@@ -36,6 +45,14 @@ where
 {
 	let current_height = wallet.w2n_client().get_chain_height()?;
 	let mut slate = Slate::blank(num_participants);
+	if use_test_rng {
+		{
+			let sc = SLATE_COUNTER.lock();
+			let bytes = [4, 54, 67, 12, 43, 2, 98, 76, 32, 50, 87, 5, 1, 33, 43, *sc];
+			slate.id = Uuid::from_slice(&bytes).unwrap();
+		}
+		*SLATE_COUNTER.lock() += 1;
+	}
 	slate.amount = amount;
 	slate.height = current_height;
 	slate.lock_height = current_height;
@@ -99,6 +116,7 @@ pub fn add_inputs_to_slate<T: ?Sized, C, K>(
 	parent_key_id: &Identifier,
 	participant_id: usize,
 	message: Option<String>,
+	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
 	T: WalletBackend<C, K>,
@@ -123,6 +141,7 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
+		use_test_rng,
 	)?;
 
 	// Generate a kernel offset and subtract from our context's secret key. Store
@@ -134,6 +153,7 @@ where
 		&context.sec_nonce,
 		participant_id,
 		message,
+		use_test_rng,
 	)?;
 
 	Ok(context)
@@ -146,6 +166,7 @@ pub fn add_output_to_slate<T: ?Sized, C, K>(
 	parent_key_id: &Identifier,
 	participant_id: usize,
 	message: Option<String>,
+	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
 	T: WalletBackend<C, K>,
@@ -153,7 +174,7 @@ where
 	K: Keychain,
 {
 	// create an output using the amount in the slate
-	let (_, mut context) = selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
+	let (_, mut context) = selection::build_recipient_output(wallet, slate, parent_key_id.clone(), use_test_rng)?;
 
 	// fill public keys
 	let _ = slate.fill_round_1(
@@ -162,6 +183,7 @@ where
 		&context.sec_nonce,
 		1,
 		message,
+		false,
 	)?;
 
 	// perform partial sig

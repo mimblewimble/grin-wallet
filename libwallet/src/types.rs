@@ -409,11 +409,15 @@ pub struct Context {
 
 impl Context {
 	/// Create a new context with defaults
-	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: &Identifier) -> Context {
+	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: &Identifier, use_test_rng: bool) -> Context {
+		let sec_nonce = match use_test_rng {
+			false => aggsig::create_secnonce(secp).unwrap(),
+			true => SecretKey::from_slice(secp, &[1; 32]).unwrap(),
+		};
 		Context {
 			parent_key_id: parent_key_id.clone(),
 			sec_key: sec_key,
-			sec_nonce: aggsig::create_secnonce(secp).unwrap(),
+			sec_nonce,
 			input_ids: vec![],
 			output_ids: vec![],
 			fee: 0,

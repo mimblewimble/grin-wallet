@@ -144,6 +144,7 @@ pub fn initiate_tx<T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	message: Option<String>,
 	target_slate_version: Option<u16>,
+	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
@@ -169,7 +170,7 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, amount, 2)?;
+	let mut slate = tx::new_tx_slate(&mut *w, amount, 2, use_test_rng)?;
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
@@ -181,6 +182,7 @@ where
 		&parent_key_id,
 		0,
 		message,
+		use_test_rng,
 	)?;
 
 	// Save the aggsig context in our DB for when we

@@ -220,7 +220,7 @@ where
 			let mut w = wallet.1.lock();
 			w.open_with_credentials()?;
 			// receive tx
-			foreign::receive_tx(&mut *w, &mut slate, None, None)?;
+			foreign::receive_tx(&mut *w, &mut slate, None, None, false)?;
 			w.close()?;
 		}
 
