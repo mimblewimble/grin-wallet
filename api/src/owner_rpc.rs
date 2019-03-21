@@ -1029,10 +1029,9 @@ pub fn run_doctest(
 			500,    // max outputs
 			1,      // num change outputs
 			true,   // select all outputs
-			None,
-			None,
-			true,
-		).unwrap();
+			None, None, true,
+		)
+		.unwrap();
 		let slate = client1.send_tx_slate_direct(dest, &slate_i).unwrap();
 		println!("SLATE: {:?}", slate);
 	}
