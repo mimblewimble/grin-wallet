@@ -28,8 +28,8 @@ use grin_core::core::committed::Committed;
 use grin_core::core::transaction::{kernel_features, kernel_sig_msg, Transaction, Weighting};
 use grin_core::core::verifier_cache::LruVerifierCache;
 use grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
-use rand::thread_rng;
 use rand::rngs::mock::StepRng;
+use rand::thread_rng;
 use serde_json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -392,7 +392,7 @@ impl Slate {
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
 
 		let test_message_nonce = SecretKey::from_slice(&keychain.secp(), &[1; 32]).unwrap();
-		let message_nonce =  match use_test_rng {
+		let message_nonce = match use_test_rng {
 			false => None,
 			true => Some(&test_message_nonce),
 		};
@@ -402,7 +402,13 @@ impl Slate {
 			if let Some(m) = message.clone() {
 				let hashed = blake2b(secp::constants::MESSAGE_SIZE, &[], &m.as_bytes()[..]);
 				let m = secp::Message::from_slice(&hashed.as_bytes())?;
-				let res = aggsig::sign_single(&keychain.secp(), &m, &sec_key, message_nonce, Some(&pub_key))?;
+				let res = aggsig::sign_single(
+					&keychain.secp(),
+					&m,
+					&sec_key,
+					message_nonce,
+					Some(&pub_key),
+				)?;
 				Some(res)
 			} else {
 				None
@@ -433,16 +439,22 @@ impl Slate {
 	/// For now, we'll have the transaction initiator be responsible for it
 	/// Return offset private key for the participant to use later in the
 	/// transaction
-	fn generate_offset<K>(&mut self, keychain: &K, sec_key: &mut SecretKey, use_test_rng: bool) -> Result<(), Error>
+	fn generate_offset<K>(
+		&mut self,
+		keychain: &K,
+		sec_key: &mut SecretKey,
+		use_test_rng: bool,
+	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
-
 		// Generate a random kernel offset here
 		// and subtract it from the blind_sum so we create
 		// the aggsig context with the "split" key
 		self.tx.offset = match use_test_rng {
-			false => BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng())),
+			false => {
+				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()))
+			}
 			true => {
 				// allow for consistent test results
 				let mut test_rng = StepRng::new(1234567890u64, 1);

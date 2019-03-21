@@ -265,9 +265,9 @@ where
 	/// * The first `bool` element indicates whether the data was successfully
 	/// refreshed from the node (note this may be false even if the `refresh_from_node`
 	/// argument was set to `true`.
-	/// * The second element contains a vector of 
+	/// * The second element contains a vector of
 	/// [OutputCommitMapping](../grin_wallet_libwallet/types/struct.OutputCommitMapping.html)
-	/// of which each element is a mapping between the wallet's internal 
+	/// of which each element is a mapping between the wallet's internal
 	/// [OutputData](../grin_wallet_libwallet/types/struct.Output.html)
 	/// and the Output commitment as identified in the chain's UTXO set
 	///

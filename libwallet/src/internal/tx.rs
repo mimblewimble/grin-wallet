@@ -25,9 +25,7 @@ use util::Mutex;
 
 /// static for incrementing test UUIDs
 lazy_static! {
-	static ref SLATE_COUNTER: Mutex<u8> = {
-		Mutex::new(0)
-	};
+	static ref SLATE_COUNTER: Mutex<u8> = { Mutex::new(0) };
 }
 
 /// Creates a new slate for a transaction, can be called by anyone involved in
@@ -174,7 +172,8 @@ where
 	K: Keychain,
 {
 	// create an output using the amount in the slate
-	let (_, mut context) = selection::build_recipient_output(wallet, slate, parent_key_id.clone(), use_test_rng)?;
+	let (_, mut context) =
+		selection::build_recipient_output(wallet, slate, parent_key_id.clone(), use_test_rng)?;
 
 	// fill public keys
 	let _ = slate.fill_round_1(
