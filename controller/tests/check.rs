@@ -38,7 +38,7 @@ macro_rules! send_to_dest {
 			WalletInst<LocalWalletClient, ExtKeychain>,
 			LocalWalletClient,
 			ExtKeychain,
-		>($a, $b, $c, $d)
+		>($a, $b, $c, $d, false)
 	};
 }
 

@@ -190,6 +190,7 @@ pub fn send_to_dest<T: ?Sized, C, K>(
 	client: LocalWalletClient,
 	dest: &str,
 	amount: u64,
+	test_mode: bool,
 ) -> Result<(), libwallet::Error>
 where
 	T: WalletBackend<C, K>,
@@ -206,7 +207,7 @@ where
 			500,    // max outputs
 			1,      // num change outputs
 			true,   // select all outputs
-			None, None, false,
+			None, None, test_mode,
 		)?;
 		let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut *w, &slate)?;

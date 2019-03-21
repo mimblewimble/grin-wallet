@@ -59,7 +59,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4);
+	# , 4, false);
 	```
 	*/
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind>;
@@ -89,7 +89,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# ,4);
+	# ,4, false);
 	```
 	 */
 	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind>;
@@ -119,7 +119,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4);
+	# , 4, false);
 	```
 	 */
 	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind>;
@@ -185,7 +185,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 2);
+	# , 2, false);
 	```
 	*/
 	fn retrieve_outputs(
@@ -256,7 +256,7 @@ pub trait OwnerRpc {
 	  }
 	}
 	# "#
-	# , 2);
+	# , 2, false);
 	```
 	*/
 
@@ -302,7 +302,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,4 );
+	# ,4, false);
 	```
 	 */
 
@@ -384,7 +384,7 @@ pub trait OwnerRpc {
 	  }
 	}
 		# "#
-		# , 4);
+		# ,4, false);
 	```
 	*/
 
@@ -427,7 +427,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,4);
+	# ,4, false);
 	```
 	 */
 	fn estimate_initiate_tx(
@@ -510,13 +510,11 @@ pub trait OwnerRpc {
 		"jsonrpc": "2.0",
 		"id": 1,
 		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
+			"Ok": null
 		}
 	}
 	# "#
-	# ,4);
+	# ,5 ,true);
 
 	```
 	 */
@@ -591,7 +589,7 @@ pub trait OwnerRpc {
 		},
 		"id": 1
 	}
-	# );
+	# 4, true);
 	```
 	 */
 	fn finalize_tx(&self, slate: Slate) -> Result<Slate, ErrorKind>;
@@ -957,6 +955,7 @@ pub fn run_doctest(
 	request: serde_json::Value,
 	test_dir: &str,
 	blocks_to_mine: u64,
+	perform_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Owner, OwnerRpc};
 	use easy_jsonrpc::Handler;
@@ -1018,6 +1017,26 @@ pub fn run_doctest(
 		w.close().unwrap();
 	}
 
+	if perform_tx {
+		let dest = "wallet2";
+		let amount = 60_000_000_000;
+		let mut w = wallet1.lock();
+		w.open_with_credentials().unwrap();
+		let slate_i = api_impl::owner::initiate_tx(
+			&mut *w, None,   // account
+			amount, // amount
+			2,      // minimum confirmations
+			500,    // max outputs
+			1,      // num change outputs
+			true,   // select all outputs
+			None,
+			None,
+			true,
+		).unwrap();
+		let slate = client1.send_tx_slate_direct(dest, &slate_i).unwrap();
+		println!("SLATE: {:?}", slate);
+	}
+
 	let mut api_owner = Owner::new(wallet1.clone());
 	api_owner.doctest_mode = true;
 	let owner_api = &api_owner as &dyn OwnerRpc;
@@ -1027,7 +1046,7 @@ pub fn run_doctest(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
-	($request:expr, $expected_response:expr, $blocks_to_mine:expr) => {
+	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -1046,7 +1065,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		let request_val: Value = serde_json::from_str($request).unwrap();
 		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
 
-		let response = run_doctest(request_val, dir, $blocks_to_mine)
+		let response = run_doctest(request_val, dir, $blocks_to_mine, $perform_tx)
 			.unwrap()
 			.unwrap();
 
