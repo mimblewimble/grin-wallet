@@ -37,7 +37,8 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
+	WalletInfo,
 };
 use crate::libwallet::Error;
 
@@ -463,7 +464,7 @@ where
 	///
 	/// # Returns
 	/// * a result containing:
-	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html), 
+	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html),
 	/// which can be forwarded to the recieving party by any means. Once the caller is relatively
 	/// certain that the transaction has been sent to the recipient, the associated wallet
 	/// transaction outputs should be locked via a call to
@@ -539,11 +540,11 @@ where
 	///
 	/// # Arguments
 	/// * As found in [`initiate_tx`](struct.Owner.html#method.initiate_tx) above.
-	/// 
+	///
 	/// # Returns
 	/// * a result containing a
 	/// [`TxEstimation`](../grin_wallet_libwallet/types/struct.TxEstimation.html)
-	/// 
+	///
 	/// # Example
 	/// Set up as in [new](struct.Owner.html#method.new) method above.
 	/// ```
@@ -575,10 +576,7 @@ where
 		max_outputs: usize,
 		num_change_outputs: usize,
 		selection_strategy_is_use_all: bool,
-	) -> Result<
-		TxEstimation,
-		Error,
-	> {
+	) -> Result<TxEstimation, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::estimate_initiate_tx(

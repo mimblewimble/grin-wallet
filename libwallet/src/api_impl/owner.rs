@@ -24,8 +24,8 @@ use crate::internal::{keys, selection, tx, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, TxWrapper, WalletBackend,
-	WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, TxWrapper,
+	WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};
 
@@ -207,10 +207,7 @@ pub fn estimate_initiate_tx<T: ?Sized, C, K>(
 	max_outputs: usize,
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
-) -> Result<
-	TxEstimation,
-	Error,
->
+) -> Result<TxEstimation, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -235,10 +232,7 @@ where
 		selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-	Ok(TxEstimation {
-		total,
-		fee
-	})
+	Ok(TxEstimation { total, fee })
 }
 
 /// Lock sender outputs
