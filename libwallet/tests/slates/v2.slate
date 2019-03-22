@@ -29,21 +29,21 @@
       "kernels": [
         {
           "features": "HeightLocked",
-          "fee": 7000000,
-          "lock_height": 70194,
+          "fee": "7000000",
+          "lock_height": "70194",
           "excess": "000000000000000000000000000000000000000000000000000000000000000000",
           "excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
         }
       ]
     }
   },
-  "amount": 84825921007,
-  "fee": 7000000,
-  "height": 70194,
-  "lock_height": 70194,
+  "amount": "84825921007",
+  "fee": "7000000",
+  "height": "70194",
+  "lock_height": "70194",
   "participant_data": [
     {
-      "id": 0,
+      "id": "0",
       "public_blind_excess": "0391f8fc74bb5ff4de373352e7dee00860d4fb78ed7a99765585af980d8a31c615",
       "public_nonce": "0206562c21a7f3a003622722ee93c4ecbbecead4a6ad8ee5d930b51ca4a6ca6d01",
       "part_sig": null,

@@ -24,7 +24,7 @@ ring = "0.13"
 tokio = "= 0.1.11"
 tokio-core = "0.1"
 tokio-retry = "0.1"
-uuid = { version = "0.6", features = ["serde", "v4"] }
+uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
 
 grin_wallet_libwallet = { path = "../libwallet", version = "1.1.0" }

@@ -247,7 +247,7 @@ pub fn send(
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
 				.map(|strategy| {
-					let (total, fee) = api
+					let est = api
 						.estimate_initiate_tx(
 							None,
 							args.amount,
@@ -257,7 +257,7 @@ pub fn send(
 							strategy == "all",
 						)
 						.unwrap();
-					(strategy, total, fee)
+					(strategy, est.total, est.fee)
 				})
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
@@ -307,7 +307,7 @@ pub fn send(
 					error!("Error validating participant messages: {}", e);
 					return Err(e);
 				}
-				api.finalize_tx(&mut slate)?;
+				slate = api.finalize_tx(&slate)?;
 			} else {
 				adapter.send_tx_async(&args.dest, &slate)?;
 				api.tx_lock_outputs(&slate)?;
@@ -378,7 +378,7 @@ pub fn finalize(
 			error!("Error validating participant messages: {}", e);
 			return Err(e);
 		}
-		let _ = api.finalize_tx(&mut slate).expect("Finalize failed");
+		slate = api.finalize_tx(&mut slate).expect("Finalize failed");
 
 		let result = api.post_tx(&slate.tx, args.fluff);
 		match result {

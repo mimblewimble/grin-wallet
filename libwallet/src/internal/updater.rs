@@ -27,8 +27,8 @@ use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
 use crate::keychain::{Identifier, Keychain};
 use crate::types::{
-	BlockFees, CbData, NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType,
-	WalletBackend, WalletInfo,
+	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry,
+	TxLogEntryType, WalletBackend, WalletInfo,
 };
 use crate::util;
 use crate::util::secp::pedersen;
@@ -39,7 +39,7 @@ pub fn retrieve_outputs<T: ?Sized, C, K>(
 	show_spent: bool,
 	tx_id: Option<u32>,
 	parent_key_id: Option<&Identifier>,
-) -> Result<Vec<(OutputData, pedersen::Commitment)>, Error>
+) -> Result<Vec<OutputCommitMapping>, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -72,12 +72,12 @@ where
 
 	let res = outputs
 		.into_iter()
-		.map(|out| {
-			let commit = match out.commit.clone() {
+		.map(|output| {
+			let commit = match output.commit.clone() {
 				Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
-				None => keychain.commit(out.value, &out.key_id).unwrap(),
+				None => keychain.commit(output.value, &output.key_id).unwrap(),
 			};
-			(out, commit)
+			OutputCommitMapping { output, commit }
 		})
 		.collect();
 	Ok(res)

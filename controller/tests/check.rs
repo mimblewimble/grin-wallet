@@ -38,7 +38,7 @@ macro_rules! send_to_dest {
 			WalletInst<LocalWalletClient, ExtKeychain>,
 			LocalWalletClient,
 			ExtKeychain,
-		>($a, $b, $c, $d)
+		>($a, $b, $c, $d, false)
 	};
 }
 
@@ -111,7 +111,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// Do some mining
 	let bh = 20u64;
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize, false);
 
 	// Sanity check contents
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
@@ -135,7 +135,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 	let w1_outputs: Vec<libwallet::types::OutputData> =
-		w1_outputs_commits.into_iter().map(|o| o.0).collect();
+		w1_outputs_commits.into_iter().map(|m| m.output).collect();
 	{
 		let mut w = wallet1.lock();
 		w.open_with_credentials()?;
@@ -337,7 +337,7 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	// Do some mining
 	let mut bh = 20u64;
 	let base_amount = consensus::GRIN_BASE;
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), bh as usize);
+	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), bh as usize, false);
 
 	// send some funds to wallets 1
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet1", base_amount * 1)?;
@@ -360,7 +360,7 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet2", base_amount * 6)?;
 	bh += 3;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm);
+	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm, false);
 	bh += cm as u64;
 
 	// confirm balances
@@ -411,7 +411,7 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet4", base_amount * 9)?;
 	bh += 3;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm);
+	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm, false);
 	bh += cm as u64;
 
 	wallet::controller::owner_single_use(wallet4.clone(), |api| {
@@ -442,7 +442,7 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet6", base_amount * 12)?;
 	bh += 3;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm as usize);
+	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm as usize, false);
 	bh += cm as u64;
 
 	wallet::controller::owner_single_use(wallet6.clone(), |api| {
@@ -487,7 +487,7 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	bh += 3;
 
 	// check balances
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm);
+	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm, false);
 	bh += cm as u64;
 
 	wallet::controller::owner_single_use(wallet7.clone(), |api| {
@@ -552,7 +552,7 @@ fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm);
+	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), cm, false);
 
 	// 7) Ensure check_repair creates missing accounts
 	wallet::controller::owner_single_use(wallet10.clone(), |api| {

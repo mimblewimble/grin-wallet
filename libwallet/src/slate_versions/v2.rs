@@ -61,12 +61,16 @@ pub struct SlateV2 {
 	/// inputs, outputs, kernels, kernel offset
 	pub tx: TransactionV2,
 	/// base amount (excluding fee)
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// fee amount
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub fee: u64,
 	/// Block height for the transaction
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -87,6 +91,7 @@ pub struct VersionCompatInfoV2 {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantDataV2 {
 	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub id: u64,
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "secp_ser::pubkey_serde")]
@@ -164,9 +169,11 @@ pub struct TxKernelV2 {
 	/// Options for a kernel's structure or use
 	pub features: KernelFeatures,
 	/// Fee originally included in the transaction this proof is for.
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub fee: u64,
 	/// This kernel is not valid earlier than lock_height blocks
 	/// The max lock_height of all *inputs* to this transaction
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
 	/// Remainder of the sum of all transaction commitments. If the transaction
 	/// is well formed, amounts components should sum to zero and the excess

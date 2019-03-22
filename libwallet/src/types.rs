@@ -17,7 +17,7 @@
 
 use crate::core::core::hash::Hash;
 use crate::core::core::Transaction;
-use crate::core::libtx::aggsig;
+use crate::core::libtx::{aggsig, secp_ser};
 use crate::core::ser;
 use crate::error::{Error, ErrorKind};
 use crate::keychain::{Identifier, Keychain};
@@ -253,14 +253,18 @@ pub struct OutputData {
 	pub commit: Option<String>,
 	/// PMMR Index, used on restore in case of duplicate wallets using the same
 	/// key_id (2 wallets using same seed, for instance
+	#[serde(with = "secp_ser::opt_string_or_u64")]
 	pub mmr_index: Option<u64>,
 	/// Value of the output, necessary to rebuild the commitment
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub value: u64,
 	/// Current status of the output
 	pub status: OutputStatus,
 	/// Height of the output
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Height we are locked until
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
 	/// Is this a coinbase output? Is it subject to coinbase locktime?
 	pub is_coinbase: bool,
@@ -369,6 +373,29 @@ impl fmt::Display for OutputStatus {
 	}
 }
 
+/// Map Outputdata to commits
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OutputCommitMapping {
+	/// Output Data
+	pub output: OutputData,
+	/// The commit
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub commit: pedersen::Commitment,
+}
+
+/// Transaction Estimate
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TxEstimation {
+	/// Total amount to be locked
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub total: u64,
+	/// Transaction Fee
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub fee: u64,
+}
 #[derive(Serialize, Deserialize, Clone, Debug)]
 /// Holds the context for a single aggsig transaction
 pub struct Context {
@@ -391,11 +418,20 @@ pub struct Context {
 
 impl Context {
 	/// Create a new context with defaults
-	pub fn new(secp: &secp::Secp256k1, sec_key: SecretKey, parent_key_id: &Identifier) -> Context {
+	pub fn new(
+		secp: &secp::Secp256k1,
+		sec_key: SecretKey,
+		parent_key_id: &Identifier,
+		use_test_rng: bool,
+	) -> Context {
+		let sec_nonce = match use_test_rng {
+			false => aggsig::create_secnonce(secp).unwrap(),
+			true => SecretKey::from_slice(secp, &[1; 32]).unwrap(),
+		};
 		Context {
 			parent_key_id: parent_key_id.clone(),
 			sec_key: sec_key,
-			sec_nonce: aggsig::create_secnonce(secp).unwrap(),
+			sec_nonce,
 			input_ids: vec![],
 			output_ids: vec![],
 			fee: 0,
@@ -543,20 +579,28 @@ pub struct CbData {
 #[derive(Serialize, Eq, PartialEq, Deserialize, Debug, Clone)]
 pub struct WalletInfo {
 	/// height from which info was taken
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub last_confirmed_height: u64,
 	/// Minimum number of confirmations for an output to be treated as "spendable".
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub minimum_confirmations: u64,
 	/// total amount in the wallet
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub total: u64,
 	/// amount awaiting finalization
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_awaiting_finalization: u64,
 	/// amount awaiting confirmation
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_awaiting_confirmation: u64,
 	/// coinbases waiting for lock height
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_immature: u64,
 	/// amount currently spendable
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_currently_spendable: u64,
 	/// amount locked via previous transactions
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_locked: u64,
 }
 
@@ -615,10 +659,13 @@ pub struct TxLogEntry {
 	/// number of outputs involved in TX
 	pub num_outputs: usize,
 	/// Amount credited via this transaction
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_credited: u64,
 	/// Amount debited via this transaction
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_debited: u64,
 	/// Fee
+	#[serde(with = "secp_ser::opt_string_or_u64")]
 	pub fee: Option<u64>,
 	/// Message data, stored as json
 	pub messages: Option<ParticipantMessages>,

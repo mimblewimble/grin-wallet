@@ -28,11 +28,11 @@ use grin_keychain as keychain;
 use grin_p2p as p2p;
 use grin_servers as servers;
 use grin_util as util;
+use p2p::PeerAddr;
 use std::default::Default;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::{fs, thread, time};
-use p2p::PeerAddr;
 
 /// Just removes all results from previous runs
 pub fn clean_all_output(test_name_dir: &str) {
@@ -197,7 +197,9 @@ impl LocalServerContainer {
 
 		if self.config.seed_addr.len() > 0 {
 			seeding_type = p2p::Seeding::List;
-			seeds = vec![PeerAddr::from_ip(self.config.seed_addr.to_string().parse().unwrap())];
+			seeds = vec![PeerAddr::from_ip(
+				self.config.seed_addr.to_string().parse().unwrap(),
+			)];
 		}
 
 		let s = servers::Server::new(servers::ServerConfig {
@@ -357,8 +359,7 @@ impl LocalServerContainer {
 			.unwrap_or_else(|e| panic!("Error creating wallet: {:?} Config: {:?}", e, config));
 		wallet.keychain = Some(keychain);
 		let parent_id = keychain::ExtKeychain::derive_key_id(2, 0, 0, 0, 0);
-		let _ =
-			libwallet::internal::updater::refresh_outputs(&mut wallet, &parent_id, false);
+		let _ = libwallet::internal::updater::refresh_outputs(&mut wallet, &parent_id, false);
 		libwallet::internal::updater::retrieve_info(&mut wallet, &parent_id, 1).unwrap()
 	}
 
@@ -401,7 +402,7 @@ impl LocalServerContainer {
 				None,
 			)?;
 			slate = client_w.send_tx_sync(dest, &slate)?;
-			api.finalize_tx(&mut slate)?;
+			slate = api.finalize_tx(&slate)?;
 			api.tx_lock_outputs(&slate, lock_fn)?;
 			println!(
 				"Tx sent: {} grin to {} (strategy '{}')",
@@ -655,7 +656,9 @@ pub fn config(n: u16, test_name_dir: &str, seed_n: u16) -> servers::ServerConfig
 		p2p_config: p2p::P2PConfig {
 			port: 10000 + n,
 			seeding_type: p2p::Seeding::List,
-			seeds: Some(vec![PeerAddr::from_ip(format!("127.0.0.1:{}", 10000 + seed_n).parse().unwrap())]),
+			seeds: Some(vec![PeerAddr::from_ip(
+				format!("127.0.0.1:{}", 10000 + seed_n).parse().unwrap(),
+			)]),
 			..p2p::P2PConfig::default()
 		},
 		chain_type: core::global::ChainTypes::AutomatedTesting,

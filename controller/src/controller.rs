@@ -23,10 +23,9 @@ use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCo
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	CbData, NodeClient, OutputData, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,
+	CbData, NodeClient, OutputCommitMapping, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::{Error, ErrorKind};
-use crate::util::secp::pedersen;
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;
@@ -187,7 +186,7 @@ where
 		&self,
 		req: &Request<Body>,
 		api: Owner<T, C, K>,
-	) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), Error> {
+	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
 		let mut update_from_node = false;
 		let mut id = None;
 		let mut show_spent = false;
@@ -373,7 +372,7 @@ where
 			}
 			api.tx_lock_outputs(&slate)?;
 			if args.method != "file" {
-				api.finalize_tx(&mut slate)?;
+				slate = api.finalize_tx(&slate)?;
 			}
 			Ok(slate)
 		}))
@@ -385,8 +384,8 @@ where
 		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = Slate, Error = Error> + Send> {
 		Box::new(
-			parse_body(req).and_then(move |mut slate| match api.finalize_tx(&mut slate) {
-				Ok(_) => ok(slate.clone()),
+			parse_body(req).and_then(move |slate| match api.finalize_tx(&slate) {
+				Ok(s) => ok(s.clone()),
 				Err(e) => {
 					error!("finalize_tx: failed with error: {}", e);
 					err(e)

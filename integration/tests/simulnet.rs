@@ -35,12 +35,12 @@ use grin_keychain as keychain;
 use grin_p2p as p2p;
 use grin_servers as servers;
 use grin_util as util;
+use p2p::PeerAddr;
 use std::cmp;
 use std::default::Default;
 use std::process::exit;
 use std::sync::Arc;
 use std::{thread, time};
-use p2p::PeerAddr;
 
 use crate::framework::{
 	config, stop_all_servers, LocalServerContainerConfig, LocalServerContainerPool,
@@ -948,7 +948,8 @@ fn replicate_tx_fluff_failure() {
 	for i in 0..dl_nodes {
 		// (create some stem nodes)
 		let mut s_config = framework::config(3002 + i, "tx_fluff", 3002 + i);
-		s_config.p2p_config.seeds = Some(vec![PeerAddr::from_ip("127.0.0.1:13000".parse().unwrap())]);
+		s_config.p2p_config.seeds =
+			Some(vec![PeerAddr::from_ip("127.0.0.1:13000".parse().unwrap())]);
 		s_config.dandelion_config.embargo_secs = Some(10);
 		s_config.dandelion_config.patience_secs = Some(1);
 		s_config.dandelion_config.relay_secs = Some(1);
@@ -973,7 +974,7 @@ fn replicate_tx_fluff_failure() {
 			None,
 		)?;
 		slate = client1_w.send_tx_sync(dest, &slate)?;
-		api.finalize_tx(&mut slate)?;
+		slate = api.finalize_tx(&slate)?;
 		api.tx_lock_outputs(&slate, lock_fn)?;
 		api.post_tx(&slate.tx, false)?;
 		Ok(())

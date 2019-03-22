@@ -14,10 +14,11 @@
 
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
-use crate::libwallet::types::{AcctPathMapping, OutputData, OutputStatus, TxLogEntry, WalletInfo};
+use crate::libwallet::types::{
+	AcctPathMapping, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
+};
 use crate::libwallet::Error;
 use crate::util;
-use crate::util::secp::pedersen;
 use prettytable;
 use std::io::prelude::Write;
 use term;
@@ -27,7 +28,7 @@ pub fn outputs(
 	account: &str,
 	cur_height: u64,
 	validated: bool,
-	outputs: Vec<(OutputData, pedersen::Commitment)>,
+	outputs: Vec<OutputCommitMapping>,
 	dark_background_color_scheme: bool,
 ) -> Result<(), Error> {
 	let title = format!(
@@ -54,25 +55,25 @@ pub fn outputs(
 		bMG->"Tx"
 	]);
 
-	for (out, commit) in outputs {
-		let commit = format!("{}", util::to_hex(commit.as_ref().to_vec()));
-		let index = match out.mmr_index {
+	for m in outputs {
+		let commit = format!("{}", util::to_hex(m.commit.as_ref().to_vec()));
+		let index = match m.output.mmr_index {
 			None => "None".to_owned(),
 			Some(t) => t.to_string(),
 		};
-		let height = format!("{}", out.height);
-		let lock_height = format!("{}", out.lock_height);
-		let is_coinbase = format!("{}", out.is_coinbase);
+		let height = format!("{}", m.output.height);
+		let lock_height = format!("{}", m.output.lock_height);
+		let is_coinbase = format!("{}", m.output.is_coinbase);
 
 		// Mark unconfirmed coinbase outputs as "Mining" instead of "Unconfirmed"
-		let status = match out.status {
-			OutputStatus::Unconfirmed if out.is_coinbase => "Mining".to_string(),
-			_ => format!("{}", out.status),
+		let status = match m.output.status {
+			OutputStatus::Unconfirmed if m.output.is_coinbase => "Mining".to_string(),
+			_ => format!("{}", m.output.status),
 		};
 
-		let num_confirmations = format!("{}", out.num_confirmations(cur_height));
-		let value = format!("{}", core::amount_to_hr_string(out.value, false));
-		let tx = match out.tx_log_entry {
+		let num_confirmations = format!("{}", m.output.num_confirmations(cur_height));
+		let value = format!("{}", core::amount_to_hr_string(m.output.value, false));
+		let tx = match m.output.tx_log_entry {
 			None => "".to_owned(),
 			Some(t) => t.to_string(),
 		};

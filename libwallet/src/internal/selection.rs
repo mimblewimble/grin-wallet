@@ -36,6 +36,7 @@ pub fn build_send_tx<T: ?Sized, C, K>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: Identifier,
+	use_test_nonce: bool,
 ) -> Result<Context, Error>
 where
 	T: WalletBackend<C, K>,
@@ -64,6 +65,7 @@ where
 		wallet.keychain().secp(),
 		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
+		use_test_nonce,
 	);
 
 	context.fee = fee;
@@ -171,6 +173,7 @@ pub fn build_recipient_output<T: ?Sized, C, K>(
 	wallet: &mut T,
 	slate: &mut Slate,
 	parent_key_id: Identifier,
+	use_test_rng: bool,
 ) -> Result<(Identifier, Context), Error>
 where
 	T: WalletBackend<C, K>,
@@ -196,6 +199,7 @@ where
 			.secret_key(wallet.keychain().clone().secp())
 			.unwrap(),
 		&parent_key_id,
+		use_test_rng,
 	);
 
 	context.add_output(&key_id, &None, amount);

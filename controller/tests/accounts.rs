@@ -111,14 +111,14 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("account1")?;
 		assert_eq!(w.parent_key_id(), ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
 	}
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 7);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 7, false);
 
 	{
 		let mut w = wallet1.lock();
 		w.set_parent_key_id_by_name("account2")?;
 		assert_eq!(w.parent_key_id(), ExtKeychain::derive_key_id(2, 2, 0, 0, 0));
 	}
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
@@ -188,7 +188,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(&slate)?;
-		api.finalize_tx(&mut slate)?;
+		slate = api.finalize_tx(&slate)?;
 		api.post_tx(&slate.tx, false)?;
 		Ok(())
 	})?;

@@ -24,9 +24,9 @@ use crate::internal::{keys, selection, tx, updater};
 use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, NodeClient, OutputData, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, TxWrapper,
+	WalletBackend, WalletInfo,
 };
-use crate::util::secp::pedersen;
 use crate::{Error, ErrorKind};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
@@ -67,7 +67,7 @@ pub fn retrieve_outputs<T: ?Sized, C, K>(
 	include_spent: bool,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
-) -> Result<(bool, Vec<(OutputData, pedersen::Commitment)>), Error>
+) -> Result<(bool, Vec<OutputCommitMapping>), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -144,6 +144,7 @@ pub fn initiate_tx<T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	message: Option<String>,
 	target_slate_version: Option<u16>,
+	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
@@ -169,7 +170,7 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, amount, 2)?;
+	let mut slate = tx::new_tx_slate(&mut *w, amount, 2, use_test_rng)?;
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
@@ -181,6 +182,7 @@ where
 		&parent_key_id,
 		0,
 		message,
+		use_test_rng,
 	)?;
 
 	// Save the aggsig context in our DB for when we
@@ -205,13 +207,7 @@ pub fn estimate_initiate_tx<T: ?Sized, C, K>(
 	max_outputs: usize,
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
-) -> Result<
-	(
-		u64, // total
-		u64, // fee
-	),
-	Error,
->
+) -> Result<TxEstimation, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
@@ -227,7 +223,7 @@ where
 		}
 		None => w.parent_key_id(),
 	};
-	tx::estimate_send_tx(
+	let (total, fee) = tx::estimate_send_tx(
 		&mut *w,
 		amount,
 		minimum_confirmations,
@@ -235,7 +231,8 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
-	)
+	)?;
+	Ok(TxEstimation { total, fee })
 }
 
 /// Lock sender outputs
@@ -250,22 +247,23 @@ where
 }
 
 /// Finalize slate
-pub fn finalize_tx<T: ?Sized, C, K>(w: &mut T, slate: &mut Slate) -> Result<(), Error>
+pub fn finalize_tx<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	let context = w.get_private_context(slate.id.as_bytes())?;
-	tx::complete_tx(&mut *w, slate, 0, &context)?;
-	tx::update_stored_tx(&mut *w, slate)?;
-	tx::update_message(&mut *w, slate)?;
+	let mut sl = slate.clone();
+	let context = w.get_private_context(sl.id.as_bytes())?;
+	tx::complete_tx(&mut *w, &mut sl, 0, &context)?;
+	tx::update_stored_tx(&mut *w, &mut sl)?;
+	tx::update_message(&mut *w, &mut sl)?;
 	{
 		let mut batch = w.batch()?;
-		batch.delete_private_context(slate.id.as_bytes())?;
+		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
-	Ok(())
+	Ok(sl)
 }
 
 /// cancel tx
@@ -360,7 +358,7 @@ where
 		Ok(height) => Ok((height, true)),
 		Err(_) => {
 			let outputs = retrieve_outputs(w, true, false, None)?;
-			let height = match outputs.1.iter().map(|(out, _)| out.height).max() {
+			let height = match outputs.1.iter().map(|m| m.output.height).max() {
 				Some(height) => height,
 				None => 0,
 			};

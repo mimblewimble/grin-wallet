@@ -28,6 +28,7 @@ use grin_core::core::committed::Committed;
 use grin_core::core::transaction::{kernel_features, kernel_sig_msg, Transaction, Weighting};
 use grin_core::core::verifier_cache::LruVerifierCache;
 use grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
+use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde_json;
 use std::sync::Arc;
@@ -44,6 +45,7 @@ const CURRENT_SLATE_VERSION: u16 = 2;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantData {
 	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub id: u64,
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "secp_ser::pubkey_serde")]
@@ -82,6 +84,7 @@ impl ParticipantData {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantMessageData {
 	/// id of the particpant in the tx
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub id: u64,
 	/// Public key
 	#[serde(with = "secp_ser::pubkey_serde")]
@@ -122,12 +125,16 @@ pub struct Slate {
 	/// inputs, outputs, kernels, kernel offset
 	pub tx: Transaction,
 	/// base amount (excluding fee)
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// fee amount
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub fee: u64,
 	/// Block height for the transaction
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -268,13 +275,14 @@ impl Slate {
 		sec_nonce: &SecretKey,
 		participant_id: usize,
 		message: Option<String>,
+		use_test_rng: bool,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		// Whoever does this first generates the offset
 		if self.tx.offset == BlindingFactor::zero() {
-			self.generate_offset(keychain, sec_key)?;
+			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
 		self.add_participant_info(
 			keychain,
@@ -283,6 +291,7 @@ impl Slate {
 			participant_id,
 			None,
 			message,
+			use_test_rng,
 		)?;
 		Ok(())
 	}
@@ -379,6 +388,7 @@ impl Slate {
 		id: usize,
 		part_sig: Option<Signature>,
 		message: Option<String>,
+		use_test_rng: bool,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
@@ -386,12 +396,25 @@ impl Slate {
 		// Add our public key and nonce to the slate
 		let pub_key = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+
+		let test_message_nonce = SecretKey::from_slice(&keychain.secp(), &[1; 32]).unwrap();
+		let message_nonce = match use_test_rng {
+			false => None,
+			true => Some(&test_message_nonce),
+		};
+
 		// Sign the provided message
 		let message_sig = {
 			if let Some(m) = message.clone() {
 				let hashed = blake2b(secp::constants::MESSAGE_SIZE, &[], &m.as_bytes()[..]);
 				let m = secp::Message::from_slice(&hashed.as_bytes())?;
-				let res = aggsig::sign_single(&keychain.secp(), &m, &sec_key, Some(&pub_key))?;
+				let res = aggsig::sign_single(
+					&keychain.secp(),
+					&m,
+					&sec_key,
+					message_nonce,
+					Some(&pub_key),
+				)?;
 				Some(res)
 			} else {
 				None
@@ -422,15 +445,29 @@ impl Slate {
 	/// For now, we'll have the transaction initiator be responsible for it
 	/// Return offset private key for the participant to use later in the
 	/// transaction
-	fn generate_offset<K>(&mut self, keychain: &K, sec_key: &mut SecretKey) -> Result<(), Error>
+	fn generate_offset<K>(
+		&mut self,
+		keychain: &K,
+		sec_key: &mut SecretKey,
+		use_test_rng: bool,
+	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		// Generate a random kernel offset here
 		// and subtract it from the blind_sum so we create
 		// the aggsig context with the "split" key
-		self.tx.offset =
-			BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()));
+		self.tx.offset = match use_test_rng {
+			false => {
+				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()))
+			}
+			true => {
+				// allow for consistent test results
+				let mut test_rng = StepRng::new(1234567890u64, 1);
+				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut test_rng))
+			}
+		};
+
 		let blind_offset = keychain.blind_sum(
 			&BlindSum::new()
 				.add_blinding_factor(BlindingFactor::from_secret_key(sec_key.clone()))
