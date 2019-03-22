@@ -53,7 +53,11 @@ where
 	}
 	slate.amount = amount;
 	slate.height = current_height;
-	slate.lock_height = current_height;
+
+	// Set the lock_height explicitly to 0 here.
+	// This will generate a Plain kernel (rather than a HeightLocked kernel).
+	slate.lock_height = 0;
+
 	Ok(slate)
 }
 
