@@ -662,6 +662,7 @@ where
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
+	/// # Arguments
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
 	/// participants must have filled in both rounds, and the sender should have locked their
 	/// outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
@@ -694,14 +695,13 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate);
+	///		let res = api_owner.tx_lock_outputs(&slate);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		api_owner.finalize_tx(&slate);
+	///		let res = api_owner.finalize_tx(&slate);
 	/// }
 	/// ```
-	///
 
 	pub fn finalize_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
@@ -712,7 +712,55 @@ where
 		Ok(slate)
 	}
 
-	/// Posts a transaction to the chain
+	/// Posts a completed transaction to the listening node for validation and inclusion in a block
+	/// for mining.
+	///
+	/// # Arguments
+	/// * `tx` - A completed [`Transaction`](../grin_core/core/transaction/struct.Transaction.html),
+	/// typically the `tx` field in the transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
+	///
+	/// * `fluff` - Instruct the node whether to use the Dandelion protocol when posting the
+	/// transaction. If `true`, the node should skip the Dandelion phase and broadcast the
+	/// transaction to all peers immediately. If `false`, the node will follow dandelion logic and
+	/// initiate the stem phase.
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let amount = 2_000_000_000;
+	///
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.initiate_tx(
+	///		None,
+	///		amount,     // amount
+	///		10,         // minimum confirmations
+	///		500,        // max outputs
+	///		1,          // num change outputs
+	///		true,       // select all outputs
+	///		Some("Finalize this tx now".to_owned()),
+	///		None,       // Use the default slate version
+	///	);
+	///
+	/// if let Ok(slate) = result {
+	///		// Send slate somehow
+	///		// ...
+	///		// Lock our outputs if we're happy the slate was (or is being) sent
+	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		//
+	///		// Retrieve slate back from recipient
+	///		//
+	///		let res = api_owner.finalize_tx(&slate);
+	///		let res = api_owner.post_tx(&slate.tx, true);
+	/// }
+	/// ```
+
 	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
 		let client = {
 			let mut w = self.wallet.lock();
@@ -721,11 +769,58 @@ where
 		owner::post_tx(&client, tx, fluff)
 	}
 
-	/// Roll back a transaction and all associated outputs with a given
-	/// transaction id This means delete all change outputs, (or recipient
-	/// output if you're recipient), and unlock all locked outputs associated
-	/// with the transaction used when a transaction is created but never
-	/// posted
+	/// Cancels a transaction. This entails:
+	/// * Setting the transaction status to either `TxSentCancelled` or `TxReceivedCancelled`
+	/// * Deleting all change outputs or recipient outputs associated with the transaction
+	/// * Setting the status of all assocatied inputs from `Locked` to `Spent` so they can be
+	/// used in new transactions.
+	/// 
+	/// Transactions can be cancelled by transaction log id or slate id (call with either set to
+	/// Some, not both)
+	///
+	/// # Arguments
+	/// 
+	/// * `tx_id` - If present, cancel by the [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html) id
+	/// for the transaction. 
+	///
+	/// * `tx_slate_id` - If present, cancel by the Slate id.
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let amount = 2_000_000_000;
+	///
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.initiate_tx(
+	///		None,
+	///		amount,     // amount
+	///		10,         // minimum confirmations
+	///		500,        // max outputs
+	///		1,          // num change outputs
+	///		true,       // select all outputs
+	///		Some("Cancel this tx".to_owned()),
+	///		None,       // Use the default slate version
+	///	);
+	///
+	/// if let Ok(slate) = result {
+	///		// Send slate somehow
+	///		// ...
+	///		// Lock our outputs if we're happy the slate was (or is being) sent
+	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		//
+	///		// We didn't get the slate back, or something else went wrong
+	///		//
+	///		let res = api_owner.cancel_tx(None, Some(slate.id.clone()));
+	/// }
+	/// ```
+
 	pub fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -734,18 +829,90 @@ where
 		res
 	}
 
-	/// Retrieves a stored transaction from a TxLogEntry
-	pub fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
+	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
+	/// transaction has completed.
+	/// 
+	/// # Arguments
+	/// 
+	/// * `tx_log_entry` - A [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
+	///
+	/// # Returns
+	/// * Ok with the stored  [`Transaction`](../grin_core/core/transaction/struct.Transaction.html)
+	/// if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let update_from_node = true;
+	/// let tx_id = None;
+	/// let tx_slate_id = None;
+	///
+	/// // Return all TxLogEntries
+	/// let result = api_owner.retrieve_txs(update_from_node, tx_id, tx_slate_id);
+	///
+	/// if let Ok((was_updated, tx_log_entries)) = result {
+	///		let stored_tx = api_owner.get_stored_tx(&tx_log_entries[0]).unwrap();
+	///		//...
+	/// }
+	/// ```
+
+	// TODO: Should be accepting an id, not an entire entry struct
+	pub fn get_stored_tx(&self, tx_log_entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
 		let w = self.wallet.lock();
-		owner::get_stored_tx(&*w, entry)
+		owner::get_stored_tx(&*w, tx_log_entry)
 	}
 
-	/// Verifies all messages in the slate match their public keys
+	/// Verifies all messages in the slate match their public keys.
+	/// 
+	/// # Arguments
+	/// 
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
+	///
+	/// # Returns
+	/// * Ok(()) if successful and the signatures validate
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let amount = 2_000_000_000;
+	///
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.initiate_tx(
+	///		None,
+	///		amount,     // amount
+	///		10,         // minimum confirmations
+	///		500,        // max outputs
+	///		1,          // num change outputs
+	///		true,       // select all outputs
+	///		Some("Finalize this tx now".to_owned()),
+	///		None,       // Use the default slate version
+	///	);
+	///
+	/// if let Ok(slate) = result {
+	///		// Send slate somehow
+	///		// ...
+	///		// Lock our outputs if we're happy the slate was (or is being) sent
+	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		//
+	///		// Retrieve slate back from recipient
+	///		//
+	///		let res = api_owner.verify_slate_messages(&slate);
+	/// }
+	/// ```
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		owner::verify_slate_messages(slate)
 	}
 
 	/// Attempt to restore contents of wallet
+	/// TODO: Full docs
 	pub fn restore(&self) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -755,6 +922,7 @@ where
 	}
 
 	/// Attempt to check and fix the contents of the wallet
+	/// TODO: Full docs
 	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -764,6 +932,7 @@ where
 	}
 
 	/// Retrieve current height from node
+	// TODO: Should return u64 as string
 	pub fn node_height(&self) -> Result<(u64, bool), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;

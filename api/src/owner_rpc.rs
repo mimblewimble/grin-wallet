@@ -59,7 +59,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false);
+	# , 4, false, false, false);
 	```
 	*/
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind>;
@@ -89,7 +89,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# ,4, false, false);
+	# ,4, false, false, false);
 	```
 	 */
 	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind>;
@@ -119,7 +119,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false);
+	# , 4, false, false, false);
 	```
 	 */
 	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind>;
@@ -185,7 +185,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 2, false, false);
+	# , 2, false, false, false);
 	```
 	*/
 	fn retrieve_outputs(
@@ -256,7 +256,7 @@ pub trait OwnerRpc {
 	  }
 	}
 	# "#
-	# , 2, false, false);
+	# , 2, false, false, false);
 	```
 	*/
 
@@ -302,7 +302,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,4, false, false);
+	# ,4, false, false, false);
 	```
 	 */
 
@@ -384,7 +384,7 @@ pub trait OwnerRpc {
 	  }
 	}
 		# "#
-		# ,4, false, false);
+		# ,4, false, false, false);
 	```
 	*/
 
@@ -427,7 +427,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,4, false, false);
+	# ,4, false, false, false);
 	```
 	 */
 	fn estimate_initiate_tx(
@@ -514,7 +514,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,5 ,true, false);
+	# ,5 ,true, false, false);
 
 	```
 	 */
@@ -677,7 +677,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true);
+	# , 5, true, true, false);
 	```
 	 */
 	fn finalize_tx(&self, slate: Slate) -> Result<Slate, ErrorKind>;
@@ -685,37 +685,68 @@ pub trait OwnerRpc {
 	/**
 	Networked version of [Owner::post_tx](struct.Owner.html#method.post_tx).
 
-	```no_run
-	# // This test currently fails on travis
+	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
+		"id": 1,
 		"method": "post_tx",
 		"params": [
-			{
-				"body": {
-					"inputs": [],
-					"kernels": [],
-					"outputs": []
-				},
-				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+		{
+			"body": {
+				"inputs": [
+					{
+						"commit": "087df32304c5d4ae8b2af0bc31e700019d722910ef87dd4eec3197b80b207e3045",
+						"features": "Coinbase"
+					},
+					{
+						"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+						"features": "Coinbase"
+					}
+				],
+				"kernels": [
+					{
+						"excess": "09bac6083b05a32a9d9b37710c70dd0a1ef9329fde0848558976b6f1b81d80ceed",
+						"excess_sig": "4a1802e31b854d765bdd7e114cef33b852c3fed01436c50d70d7c662333272683e86caa4b58b38d9dad2805b2d19f2788afc165ecb931b1a37d28764771b8e96",
+						"features": "HeightLocked",
+						"fee": "7000000",
+						"lock_height": "5"
+					}
+				],
+				"outputs": [
+					{
+						"commit": "099b48cfb1f80a2347dc89818449e68e76a3c6817a532a8e9ef2b4a5ccf4363850",
+						"features": "Plain",
+						"proof": "7ebcd2ed9bf5fb29854033ba3d0e720613bdf7dfacc586d2f6084c1cde0a2b72e955d4ce625916701dc7c347132f40d0f102a34e801d745ee54b49b765d08aae0bb801c60403e57cafade3b4b174e795b633ab9e402b5b1b6e1243fd10bbcf9368a75cb6a6c375c7bdf02da9e03b7f210df45d942e6fba2729cd512a372e6ed91a1b5c9c22831febea843e3f85adcf198f39ac9f7b73b70c60bfb474aa69878ea8d1d32fef30166b59caacaec3fd024de29a90f1587e08d2c36b3d5c560cabf658e212e0a40a4129b3e5c35557058def5551f4eb395759597ba808b3c34eac3bfb9716e4480d7931c5789c538463ec75be0eb807c894047fda6cbcd22682d3c6d3823cb330f090a2099e3510a3706b57d46c95224394d7f1c0a20d99cc314b8f1d9d02668e2e435f62e1194de0be6a1f50f72ed777ed51c8819f527a94918d1aa8df6461e98ed4c2b18210de50fbcf8c3df210bfe326d41f1dc0ad748cb0320ae28401c85ab4f7dcb99d88a052e95dc85b76d22b36cabd60e06ab84bb7e4ddfdab9c9730c8a986583237ed1ecbb323ee8e79b8cadca4b438b7c09531670b471dda6a2eb3e747916c88ce7d9d8e1b7f61660eeb9e5a13c60e4dfe89d1177d81d6f6570fda85158e646a15f1e8b9e977494dc19a339aab2e0e478670d80092d6ba37646e60714ef64eb4a3d37fe15f8f38b59114af34b235489eed3f69b7781c5fe496eb43ffe245c14bd740f745844a38cf0d904347aaa2b64f51add18822dac009d8b63fa3e4c9b1fa72187f9a4acba1ab315daa1b04c9a41f3be846ac420b37990e6c947a16cc9d5c0671b292bf77d7d8b8974d2ad3afae95ba7772c37432840f53a007f31e0195f3abdf100c4477723cc6c6d5da14894a73dfac342833731036487488fdade7b9d556c06f26173b6b67598d3769447ce2828d71dd45ac5af436c6b0"
+					},
+					{
+						"commit": "0812276cc788e6870612296d926cba9f0e7b9810670710b5a6e6f1ba006d395774",
+						"features": "Plain",
+						"proof": "dcff6175390c602bfa92c2ffd1a9b2d84dcc9ea941f6f317bdd0f875244ef23e696fd17c71df79760ce5ce1a96aab1d15dd057358dc835e972febeb86d50ccec0dad7cfe0246d742eb753cf7b88c045d15bc7123f8cf7155647ccf663fca92a83c9a65d0ed756ea7ebffd2cac90c380a102ed9caaa355d175ed0bf58d3ac2f5e909d6c447dfc6b605e04925c2b17c33ebd1908c965a5541ea5d2ed45a0958e6402f89d7a56df1992e036d836e74017e73ccad5cb3a82b8e139e309792a31b15f3ffd72ed033253428c156c2b9799458a25c1da65b719780a22de7fe7f437ae2fccd22cf7ea357ab5aa66a5ef7d71fb0dc64aa0b5761f68278062bb39bb296c787e4cabc5e2a2933a416ce1c9a9696160386449c437e9120f7bb26e5b0e74d1f2e7d5bcd7aafb2a92b87d1548f1f911fb06af7bd6cc13cee29f7c9cb79021aed18186272af0e9d189ec107c81a8a3aeb4782b0d950e4881aa51b776bb6844b25bce97035b48a9bdb2aea3608687bcdd479d4fa998b5a839ff88558e4a29dff0ed13b55900abb5d439b70793d902ae9ad34587b18c919f6b875c91d14deeb1c373f5e76570d59a6549758f655f1128a54f162dfe8868e1587028e26ad91e528c5ae7ee9335fa58fb59022b5de29d80f0764a9917390d46db899acc6a5b416e25ecc9dccb7153646addcc81cadb5f0078febc7e05d7735aba494f39ef05697bbcc9b47b2ccc79595d75fc13c80678b5e237edce58d731f34c05b1ddcaa649acf2d865bbbc3ceda10508bcdd29d0496744644bf1c3516f6687dfeef5649c7dff90627d642739a59d91a8d1d0c4dc55d74a949e1074427664b467992c9e0f7d3af9d6ea79513e8946ddc0d356bac49878e64e6a95b0a30214214faf2ce317fa622ff3266b32a816e10a18e6d789a5da1f23e67b4f970a68a7bcd9e18825ee274b0483896a40"
+					}
+				]
 			},
-			false
-		],
-		"id": 1
-	},
+			"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
+		},
+		false
+		]
+	}
+	# "#
+	# ,
+	# r#"
 	{
+		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Err": {
-				"ClientCallback": "Posting transaction to node: Request error: Cannot make request: an error occurred trying to connect: Connection refused (os error 61)"
-			}
-		},
-		"id": 1
+			"Ok": null
+		}
 	}
-	# );
+	# "#
+	# , 5, true, true, true);
 	```
 	 */
+
 	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), ErrorKind>;
 
 	/**
@@ -724,22 +755,25 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "cancel_tx",
-		"params": [null, null],
-		"id": 1
-	},
-	{
-		"jsonrpc": "2.0",
-		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
-		},
+		"params": [null, "0436430c-2b02-624c-2032-570501212b00"],
 		"id": 1
 	}
-	# );
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , 5, true, true, false);
 	```
 	 */
 	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind>;
@@ -749,83 +783,172 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "get_stored_tx",
+		"id": 1,
 		"params": [
 			{
-				"amount_credited": 0,
-				"amount_debited": 0,
-				"confirmation_ts": null,
-				"confirmed": false,
-				"creation_ts": "2019-03-05T20:49:59.444095Z",
-				"fee": null,
-				"id": 10,
-				"messages": null,
-				"num_inputs": 0,
-				"num_outputs": 0,
-				"parent_key_id": "0000000000000000000000000000000000",
-				"stored_tx": null,
-				"tx_slate_id": null,
-				"tx_type": "TxReceived"
-			}
-		],
-		"id": 1
-	},
+				"amount_credited": "59993000000",
+				"amount_debited": "120000000000",
+				"confirmation_ts": "2019-01-15T16:01:26Z",
+				"confirmed": false,                       
+				"creation_ts": "2019-01-15T16:01:26Z",
+				"fee": "7000000",                     
+				"id": 5,    
+				"messages": {
+					"messages": [  
+						{           
+							"id": "0", 
+							"message": null,                                
+							"message_sig": null,
+							"public_key": "033ac2158fa0077f087de60c19d8e431753baa5b63b6e1477f05a2a6e7190d4592"
+						},                        
+						{
+							"id": "1",
+							"message": null,           
+							"message_sig": null,
+							"public_key": "024f9bc78c984c78d6e916d3a00746aa30fa1172124c8dbc0cbddcb7b486719bc7"
+						}             
+					]                                   
+				},          
+				"num_inputs": 2,
+				"num_outputs": 1,
+				"parent_key_id": "0200000000000000000000000000000000",
+				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.grintx",
+				"tx_slate_id": "0436430c-2b02-624c-2032-570501212b00",
+				"tx_type": "TxSent"
+			} 
+		]
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
+		"id": 1,
 		"result": {
-			"Ok": null
-		},
-		"id": 1
+			"Ok": {
+				"body": {
+					"inputs": [
+						{
+							"commit": "087df32304c5d4ae8b2af0bc31e700019d722910ef87dd4eec3197b80b207e3045",
+							"features": "Coinbase"
+						},
+						{
+							"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+							"features": "Coinbase"
+						}
+					],
+					"kernels": [
+						{
+							"excess": "000000000000000000000000000000000000000000000000000000000000000000",
+							"excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+							"features": "HeightLocked",
+							"fee": "7000000",
+							"lock_height": "5"
+						}
+					],
+					"outputs": [
+						{
+							"commit": "099b48cfb1f80a2347dc89818449e68e76a3c6817a532a8e9ef2b4a5ccf4363850",
+							"features": "Plain",
+							"proof": "7ebcd2ed9bf5fb29854033ba3d0e720613bdf7dfacc586d2f6084c1cde0a2b72e955d4ce625916701dc7c347132f40d0f102a34e801d745ee54b49b765d08aae0bb801c60403e57cafade3b4b174e795b633ab9e402b5b1b6e1243fd10bbcf9368a75cb6a6c375c7bdf02da9e03b7f210df45d942e6fba2729cd512a372e6ed91a1b5c9c22831febea843e3f85adcf198f39ac9f7b73b70c60bfb474aa69878ea8d1d32fef30166b59caacaec3fd024de29a90f1587e08d2c36b3d5c560cabf658e212e0a40a4129b3e5c35557058def5551f4eb395759597ba808b3c34eac3bfb9716e4480d7931c5789c538463ec75be0eb807c894047fda6cbcd22682d3c6d3823cb330f090a2099e3510a3706b57d46c95224394d7f1c0a20d99cc314b8f1d9d02668e2e435f62e1194de0be6a1f50f72ed777ed51c8819f527a94918d1aa8df6461e98ed4c2b18210de50fbcf8c3df210bfe326d41f1dc0ad748cb0320ae28401c85ab4f7dcb99d88a052e95dc85b76d22b36cabd60e06ab84bb7e4ddfdab9c9730c8a986583237ed1ecbb323ee8e79b8cadca4b438b7c09531670b471dda6a2eb3e747916c88ce7d9d8e1b7f61660eeb9e5a13c60e4dfe89d1177d81d6f6570fda85158e646a15f1e8b9e977494dc19a339aab2e0e478670d80092d6ba37646e60714ef64eb4a3d37fe15f8f38b59114af34b235489eed3f69b7781c5fe496eb43ffe245c14bd740f745844a38cf0d904347aaa2b64f51add18822dac009d8b63fa3e4c9b1fa72187f9a4acba1ab315daa1b04c9a41f3be846ac420b37990e6c947a16cc9d5c0671b292bf77d7d8b8974d2ad3afae95ba7772c37432840f53a007f31e0195f3abdf100c4477723cc6c6d5da14894a73dfac342833731036487488fdade7b9d556c06f26173b6b67598d3769447ce2828d71dd45ac5af436c6b0"
+						},
+						{
+							"commit": "0812276cc788e6870612296d926cba9f0e7b9810670710b5a6e6f1ba006d395774",
+							"features": "Plain",
+							"proof": "dcff6175390c602bfa92c2ffd1a9b2d84dcc9ea941f6f317bdd0f875244ef23e696fd17c71df79760ce5ce1a96aab1d15dd057358dc835e972febeb86d50ccec0dad7cfe0246d742eb753cf7b88c045d15bc7123f8cf7155647ccf663fca92a83c9a65d0ed756ea7ebffd2cac90c380a102ed9caaa355d175ed0bf58d3ac2f5e909d6c447dfc6b605e04925c2b17c33ebd1908c965a5541ea5d2ed45a0958e6402f89d7a56df1992e036d836e74017e73ccad5cb3a82b8e139e309792a31b15f3ffd72ed033253428c156c2b9799458a25c1da65b719780a22de7fe7f437ae2fccd22cf7ea357ab5aa66a5ef7d71fb0dc64aa0b5761f68278062bb39bb296c787e4cabc5e2a2933a416ce1c9a9696160386449c437e9120f7bb26e5b0e74d1f2e7d5bcd7aafb2a92b87d1548f1f911fb06af7bd6cc13cee29f7c9cb79021aed18186272af0e9d189ec107c81a8a3aeb4782b0d950e4881aa51b776bb6844b25bce97035b48a9bdb2aea3608687bcdd479d4fa998b5a839ff88558e4a29dff0ed13b55900abb5d439b70793d902ae9ad34587b18c919f6b875c91d14deeb1c373f5e76570d59a6549758f655f1128a54f162dfe8868e1587028e26ad91e528c5ae7ee9335fa58fb59022b5de29d80f0764a9917390d46db899acc6a5b416e25ecc9dccb7153646addcc81cadb5f0078febc7e05d7735aba494f39ef05697bbcc9b47b2ccc79595d75fc13c80678b5e237edce58d731f34c05b1ddcaa649acf2d865bbbc3ceda10508bcdd29d0496744644bf1c3516f6687dfeef5649c7dff90627d642739a59d91a8d1d0c4dc55d74a949e1074427664b467992c9e0f7d3af9d6ea79513e8946ddc0d356bac49878e64e6a95b0a30214214faf2ce317fa622ff3266b32a816e10a18e6d789a5da1f23e67b4f970a68a7bcd9e18825ee274b0483896a40"
+						}
+					]
+				},
+				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
+			}
+		}
 	}
-	# );
+	# "#
+	# , 5, true, true, false);
 	```
 	 */
-	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind>;
+	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind>;
 
 	/**
 	Networked version of [Owner::verify_slate_messages](struct.Owner.html#method.verify_slate_messages).
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
-		"params": [{
-			"version_info": {
-				"version": 2,
-				"orig_version": 2,
-				"min_compat_version": 0
-			},
-			"amount": 0,
-			"fee": 0,
-			"height": 0,
-			"id": "414bad48-3386-4fa7-8483-72384c886ba3",
-			"lock_height": 0,
-			"num_participants": 2,
-			"participant_data": [],
-			"tx": {
-				"body": {
-					"inputs": [],
-					"kernels": [],
-					"outputs": []
+		"id": 1,
+		"params": [ {
+				"amount": "6000000000",
+				"fee": "8000000",
+				"height": "4",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"lock_height": "4",
+				"num_participants": 2,
+				"participant_data": [
+				{
+					"id": "0",
+					"message": "my message",
+					"message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f756f655333250204644c1cb169e7a78f21b57437930db91e808f39be58134c1d",
+					"part_sig": null,
+					"public_blind_excess": "034b4df2f0558b73ea72a1ca5c4ab20217c66bbe0829056fca7abe76888e9349ee",
+					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+				}
+				],
+				"tx": {
+					"body": {
+						"inputs": [
+						{
+							"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+							"features": "Coinbase"
+						}
+						],
+						"kernels": [
+						{
+							"excess": "000000000000000000000000000000000000000000000000000000000000000000",
+							"excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+							"features": "HeightLocked",
+							"fee": "8000000",
+							"lock_height": "4"
+						}
+						],
+						"outputs": [
+						{
+							"commit": "094be57c91787fc2033d5d97fae099f1a6ddb37ea48370f1a138f09524c767fdd3",
+							"features": "Plain",
+							"proof": "2a42e9e902b70ce44e1fccb14de87ee0a97100bddf12c6bead1b9c5f4eb60300f29c13094fa12ffeee238fb4532b18f6b61cf51b23c1c7e1ad2e41560dc27edc0a2b9e647a0b3e4e806fced5b65e61d0f1f5197d3e2285c632d359e27b6b9206b2caffea4f67e0c7a2812e7a22c134b98cf89bd43d9f28b8bec25cce037a0ac5b1ae8f667e54e1250813a5263004486b4465ad4e641ab2b535736ea26535a11013564f08f483b7dab1c2bcc3ee38eadf2f7850eff7e3459a4bbabf9f0cf6c50d0c0a4120565cd4a2ce3e354c11721cd695760a24c70e0d5a0dfc3c5dcd51dfad6de2c237a682f36dc0b271f21bb3655e5333016aaa42c2efa1446e5f3c0a79ec417c4d30f77556951cb0f05dbfafb82d9f95951a9ea241fda2a6388f73ace036b98acce079f0e4feebccc96290a86dcc89118a901210b245f2d114cf94396e4dbb461e82aa26a0581389707957968c7cdc466213bb1cd417db207ef40c05842ab67a01a9b96eb1430ebc26e795bb491258d326d5174ad549401059e41782121e506744af8af9d8e493644a87d613600888541cbbe538c625883f3eb4aa3102c5cfcc25de8e97af8927619ce6a731b3b8462d51d993066b935b0648d2344ad72e4fd70f347fbd81041042e5ea31cc7b2e3156a920b80ecba487b950ca32ca95fae85b759c936246ecf441a9fdd95e8fee932d6782cdec686064018c857efc47fb4b2a122600d5fdd79af2486f44df7e629184e1c573bc0a9b3feb40b190ef2861a1ab45e2ac2201b9cd42e495deea247269820ed32389a2810ad6c0f9a296d2a2d9c54089fed50b7f5ecfcd33ab9954360e1d7f5598c32128cfcf2a1d8bf14616818da8a5343bfa88f0eedf392e9d4ab1ace1b60324129cd4852c2e27813a9cf71a6ae6229a4fcecc1a756b3e664c5f50af333082616815a3bec8fc0b75b8e4e767d719"
+						}
+						]
+					},
+					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
-				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+				"version_info": {
+				"min_compat_version": 0,
+				"orig_version": 2,
+				"version": 2
+				}
 			}
-		}],
-		"id": 1
-	},
+		]
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
+		"id": 1,
 		"result": {
-			 "Ok": null
-		},
-		"id": 1
+			"Ok": null
+		}
 	}
-	# );
+	# "#
+	# ,5 ,true, false, false);
 	```
-	 */
+	*/
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
 
 	/**
@@ -834,22 +957,25 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "restore",
 		"params": [],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
+		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
-		},
-		"id": 1
+			"Ok": null
+		}
 	}
-	# );
+	# "#
+	# , 1, false, false, false);
 	```
 	 */
 	fn restore(&self) -> Result<(), ErrorKind>;
@@ -860,22 +986,25 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "check_repair",
 		"params": [false],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
+		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
-		},
-		"id": 1
+			"Ok": null
+		}
 	}
-	# );
+	# "#
+	# , 1, false, false, false);
 	```
 	 */
 	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
@@ -886,22 +1015,28 @@ pub trait OwnerRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "node_height",
 		"params": [],
 		"id": 1
-	},
+	}
+	# "#
+	# ,
+	# r#"
 	{
+		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Err": {
-				"CallbackImpl": "Error opening wallet"
-			}
-		},
-		"id": 1
+			"Ok": [
+				5,
+				true
+			]
+		}
 	}
-	# );
+	# "#
+	# , 5, false, false, false);
 	```
 	 */
 	fn node_height(&self) -> Result<(u64, bool), ErrorKind>;
@@ -1010,8 +1145,8 @@ where
 		Owner::cancel_tx(self, tx_id, tx_slate_id).map_err(|e| e.kind())
 	}
 
-	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind> {
-		Owner::get_stored_tx(self, entry).map_err(|e| e.kind())
+	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind> {
+		Owner::get_stored_tx(self, tx).map_err(|e| e.kind())
 	}
 
 	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), ErrorKind> {
@@ -1042,6 +1177,7 @@ pub fn run_doctest(
 	blocks_to_mine: u64,
 	perform_tx: bool,
 	lock_tx: bool,
+	finalize_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Owner, OwnerRpc};
 	use easy_jsonrpc::Handler;
@@ -1129,12 +1265,15 @@ pub fn run_doctest(
 		if lock_tx {
 			api_impl::owner::tx_lock_outputs(&mut *w, &slate).unwrap();
 		}
+		if finalize_tx {
+			api_impl::owner::finalize_tx(&mut *w, &slate).unwrap();
+		}
 		w.close().unwrap();
-		// mine to move the chain on
 	}
 
-	if perform_tx && lock_tx {
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
+	if perform_tx && lock_tx && finalize_tx {
+		// mine to move the chain on
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3 as usize, false);
 	}
 
 	let mut api_owner = Owner::new(wallet1.clone());
@@ -1146,7 +1285,7 @@ pub fn run_doctest(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
-	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr) => {
+	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -1165,7 +1304,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		let request_val: Value = serde_json::from_str($request).unwrap();
 		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
 
-		let response = run_doctest(request_val, dir, $blocks_to_mine, $perform_tx, $lock_tx)
+		let response = run_doctest(request_val, dir, $blocks_to_mine, $perform_tx, $lock_tx, $finalize_tx)
 			.unwrap()
 			.unwrap();
 
