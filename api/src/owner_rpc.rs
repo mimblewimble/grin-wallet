@@ -793,33 +793,33 @@ pub trait OwnerRpc {
 				"amount_credited": "59993000000",
 				"amount_debited": "120000000000",
 				"confirmation_ts": "2019-01-15T16:01:26Z",
-				"confirmed": false,                       
+				"confirmed": false,
 				"creation_ts": "2019-01-15T16:01:26Z",
-				"fee": "7000000",                     
-				"id": 5,    
+				"fee": "7000000",
+				"id": 5,
 				"messages": {
-					"messages": [  
-						{           
-							"id": "0", 
-							"message": null,                                
+					"messages": [
+						{
+							"id": "0",
+							"message": null,
 							"message_sig": null,
 							"public_key": "033ac2158fa0077f087de60c19d8e431753baa5b63b6e1477f05a2a6e7190d4592"
-						},                        
+						},
 						{
 							"id": "1",
-							"message": null,           
+							"message": null,
 							"message_sig": null,
 							"public_key": "024f9bc78c984c78d6e916d3a00746aa30fa1172124c8dbc0cbddcb7b486719bc7"
-						}             
-					]                                   
-				},          
+						}
+					]
+				},
 				"num_inputs": 2,
 				"num_outputs": 1,
 				"parent_key_id": "0200000000000000000000000000000000",
 				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.grintx",
 				"tx_slate_id": "0436430c-2b02-624c-2032-570501212b00",
 				"tx_type": "TxSent"
-			} 
+			}
 		]
 	}
 	# "#
@@ -1304,9 +1304,16 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		let request_val: Value = serde_json::from_str($request).unwrap();
 		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
 
-		let response = run_doctest(request_val, dir, $blocks_to_mine, $perform_tx, $lock_tx, $finalize_tx)
-			.unwrap()
-			.unwrap();
+		let response = run_doctest(
+			request_val,
+			dir,
+			$blocks_to_mine,
+			$perform_tx,
+			$lock_tx,
+			$finalize_tx,
+			)
+		.unwrap()
+		.unwrap();
 
 		if response != expected_response {
 			panic!(

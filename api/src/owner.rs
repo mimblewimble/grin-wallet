@@ -774,14 +774,14 @@ where
 	/// * Deleting all change outputs or recipient outputs associated with the transaction
 	/// * Setting the status of all assocatied inputs from `Locked` to `Spent` so they can be
 	/// used in new transactions.
-	/// 
+	///
 	/// Transactions can be cancelled by transaction log id or slate id (call with either set to
 	/// Some, not both)
 	///
 	/// # Arguments
-	/// 
+	///
 	/// * `tx_id` - If present, cancel by the [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html) id
-	/// for the transaction. 
+	/// for the transaction.
 	///
 	/// * `tx_slate_id` - If present, cancel by the Slate id.
 	///
@@ -831,9 +831,9 @@ where
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
 	/// transaction has completed.
-	/// 
+	///
 	/// # Arguments
-	/// 
+	///
 	/// * `tx_log_entry` - A [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	///
 	/// # Returns
@@ -867,9 +867,9 @@ where
 	}
 
 	/// Verifies all messages in the slate match their public keys.
-	/// 
+	///
 	/// # Arguments
-	/// 
+	///
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
 	///
 	/// # Returns
