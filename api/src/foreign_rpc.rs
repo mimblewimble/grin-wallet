@@ -219,7 +219,7 @@ pub trait ForeignRpc {
 				{
 					"id": "1",
 					"message": "Thanks, Yeastplume",
-          "message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078ff97f43f2eda0f695161ba23dc48db7a1bcbd7f131f1e21bdb4e1ad1eb2f1a130",
+		  "message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078ff97f43f2eda0f695161ba23dc48db7a1bcbd7f131f1e21bdb4e1ad1eb2f1a130",
 					"part_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078ffc965b05962362aee43e5264bd3fd0f26dbd7092cfe070069e26d2df28bd352b",
 					"public_blind_excess": "038fe0443243dab173c068ef5fa891b242d2b5eb890ea09475e6e381170442ee16",
 					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"

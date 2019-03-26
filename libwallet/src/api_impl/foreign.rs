@@ -65,7 +65,13 @@ where
 		None => w.parent_key_id(),
 	};
 	// Don't do this multiple times
-	let tx = updater::retrieve_txs(&mut *w, None, Some(slate.id), Some(&parent_key_id), use_test_rng)?;
+	let tx = updater::retrieve_txs(
+		&mut *w,
+		None,
+		Some(slate.id),
+		Some(&parent_key_id),
+		use_test_rng,
+	)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxReceived {
 			return Err(ErrorKind::TransactionAlreadyReceived(slate.id.to_string()).into());
