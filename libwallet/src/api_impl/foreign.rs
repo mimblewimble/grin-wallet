@@ -14,8 +14,8 @@
 
 //! Generic implementation of owner API functions
 
+use crate::grin_keychain::Keychain;
 use crate::internal::{tx, updater};
-use crate::keychain::Keychain;
 use crate::slate::Slate;
 use crate::types::{BlockFees, CbData, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
@@ -23,13 +23,17 @@ use crate::{Error, ErrorKind};
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// Build a coinbase transaction
-pub fn build_coinbase<T: ?Sized, C, K>(w: &mut T, block_fees: &BlockFees) -> Result<CbData, Error>
+pub fn build_coinbase<T: ?Sized, C, K>(
+	w: &mut T,
+	block_fees: &BlockFees,
+	test_mode: bool,
+) -> Result<CbData, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	updater::build_coinbase(&mut *w, block_fees)
+	updater::build_coinbase(&mut *w, block_fees, test_mode)
 }
 
 /// verify slate messages
@@ -61,7 +65,13 @@ where
 		None => w.parent_key_id(),
 	};
 	// Don't do this multiple times
-	let tx = updater::retrieve_txs(&mut *w, None, Some(slate.id), Some(&parent_key_id), false)?;
+	let tx = updater::retrieve_txs(
+		&mut *w,
+		None,
+		Some(slate.id),
+		Some(&parent_key_id),
+		use_test_rng,
+	)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxReceived {
 			return Err(ErrorKind::TransactionAlreadyReceived(slate.id.to_string()).into());

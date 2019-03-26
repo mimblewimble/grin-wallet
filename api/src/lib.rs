@@ -22,10 +22,9 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-extern crate grin_core as core;
-extern crate grin_keychain as keychain;
-extern crate grin_store as store;
-extern crate grin_util as util;
+use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_keychain as keychain;
+use grin_wallet_util::grin_util as util;
 extern crate grin_wallet_libwallet as libwallet;
 
 extern crate failure_derive;
@@ -43,4 +42,5 @@ pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;
 
-pub use crate::owner_rpc::run_doctest;
+pub use crate::foreign_rpc::run_doctest_foreign;
+pub use crate::owner_rpc::run_doctest_owner;

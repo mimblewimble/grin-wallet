@@ -16,27 +16,24 @@
 //! so that wallet API can be fully exercised
 //! Operates directly on a chain instance
 
-use self::chain::types::NoopAdapter;
-use self::chain::Chain;
-use self::core::core::verifier_cache::LruVerifierCache;
-use self::core::core::Transaction;
-use self::core::global::{set_mining_mode, ChainTypes};
-use self::core::{pow, ser};
-use self::keychain::Keychain;
-use self::util::secp::pedersen;
-use self::util::secp::pedersen::Commitment;
-use self::util::{Mutex, RwLock, StopState};
+use crate::api;
+use crate::chain::types::NoopAdapter;
+use crate::chain::Chain;
 use crate::config::WalletConfig;
+use crate::core::core::verifier_cache::LruVerifierCache;
+use crate::core::core::Transaction;
+use crate::core::global::{set_mining_mode, ChainTypes};
+use crate::core::{pow, ser};
+use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::*;
+use crate::util;
+use crate::util::secp::pedersen;
+use crate::util::secp::pedersen::Commitment;
+use crate::util::{Mutex, RwLock, StopState};
 use crate::{libwallet, WalletCommAdapter};
 use failure::ResultExt;
-use grin_api as api;
-use grin_chain as chain;
-use grin_core as core;
-use grin_keychain as keychain;
-use grin_util as util;
 use serde_json;
 use std::collections::HashMap;
 use std::marker::PhantomData;

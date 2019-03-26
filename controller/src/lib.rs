@@ -20,14 +20,14 @@ extern crate prettytable;
 #[macro_use]
 extern crate log;
 use failure;
-use grin_api as api;
-extern crate grin_core as core;
-use grin_keychain as keychain;
-use grin_util as util;
 use grin_wallet_api as apiwallet;
+use grin_wallet_config as config;
 use grin_wallet_impls as impls;
 use grin_wallet_libwallet as libwallet;
-extern crate grin_wallet_config as config;
+use grin_wallet_util::grin_api as api;
+use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_keychain as keychain;
+use grin_wallet_util::grin_util as util;
 
 pub mod command;
 pub mod controller;

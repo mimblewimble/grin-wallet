@@ -138,7 +138,7 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 			)?;
 			let listen_addr = params.get("api_listen_addr").unwrap();
 			let tls_conf = match params.get("certificate") {
-				Some(s) => Some(grin_api::TLSConfig::new(
+				Some(s) => Some(TLSConfig::new(
 					s.to_owned(),
 					params.get("private_key").unwrap().to_owned(),
 				)),

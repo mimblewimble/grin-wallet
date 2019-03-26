@@ -16,12 +16,13 @@
 //! Changes from V0:
 //! * Addition of a version field to Slate struct
 
-use crate::core::core::transaction::{KernelFeatures, OutputFeatures};
-use crate::keychain::BlindingFactor;
-use crate::util::secp;
-use crate::util::secp::key::PublicKey;
-use crate::util::secp::pedersen::{Commitment, RangeProof};
-use crate::util::secp::Signature;
+use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
+use crate::grin_core::map_vec;
+use crate::grin_keychain::BlindingFactor;
+use crate::grin_util::secp;
+use crate::grin_util::secp::key::PublicKey;
+use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+use crate::grin_util::secp::Signature;
 use uuid::Uuid;
 
 use crate::slate_versions::v0::{

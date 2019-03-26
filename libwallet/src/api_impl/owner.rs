@@ -16,12 +16,13 @@
 
 use uuid::Uuid;
 
-use crate::core::core::hash::Hashed;
-use crate::core::core::Transaction;
-use crate::core::ser;
+use crate::grin_core::core::hash::Hashed;
+use crate::grin_core::core::Transaction;
+use crate::grin_core::ser;
+use crate::grin_util;
 
+use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
-use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{
 	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, TxWrapper,
@@ -305,7 +306,7 @@ pub fn post_tx<C>(client: &C, tx: &Transaction, fluff: bool) -> Result<(), Error
 where
 	C: NodeClient,
 {
-	let tx_hex = util::to_hex(ser::ser_vec(tx).unwrap());
+	let tx_hex = grin_util::to_hex(ser::ser_vec(tx).unwrap());
 	let res = client.post_tx(&TxWrapper { tx_hex: tx_hex }, fluff);
 	if let Err(e) = res {
 		error!("api: post_tx: failed with error: {}", e);

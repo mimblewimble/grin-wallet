@@ -16,12 +16,12 @@
 
 use uuid::Uuid;
 
+use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
-use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
-use util::Mutex;
 
 /// static for incrementing test UUIDs
 lazy_static! {
@@ -186,7 +186,7 @@ where
 		&context.sec_nonce,
 		1,
 		message,
-		false,
+		use_test_rng,
 	)?;
 
 	// perform partial sig
@@ -307,8 +307,8 @@ where
 
 #[cfg(test)]
 mod test {
-	use crate::core::libtx::build;
-	use crate::keychain::{ExtKeychain, ExtKeychainPath, Keychain};
+	use crate::grin_core::libtx::build;
+	use crate::grin_keychain::{ExtKeychain, ExtKeychainPath, Keychain};
 
 	#[test]
 	// demonstrate that input.commitment == referenced output.commitment

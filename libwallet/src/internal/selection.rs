@@ -14,11 +14,11 @@
 
 //! Selection of inputs for building transactions
 
-use crate::core::core::amount_to_hr_string;
-use crate::core::libtx::{build, tx_fee};
 use crate::error::{Error, ErrorKind};
+use crate::grin_core::core::amount_to_hr_string;
+use crate::grin_core::libtx::{build, tx_fee};
+use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::keys;
-use crate::keychain::{Identifier, Keychain};
 use crate::slate::Slate;
 use crate::types::*;
 use std::collections::HashMap;

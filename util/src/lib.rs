@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Crate wrapping up the Grin binary and configuration file
+//! Utilities and re-exports
 
 #![deny(non_upper_case_globals)]
 #![deny(non_camel_case_types)]
@@ -20,15 +20,9 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate serde_derive;
-
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_util as util;
-
-mod comments;
-pub mod config;
-pub mod types;
-
-pub use crate::config::{initial_setup_wallet, GRIN_WALLET_DIR, WALLET_CONFIG_FILE_NAME};
-pub use crate::types::{ConfigError, GlobalWalletConfig, WalletConfig};
+pub use grin_api;
+pub use grin_chain;
+pub use grin_core;
+pub use grin_keychain;
+pub use grin_store;
+pub use grin_util;

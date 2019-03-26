@@ -22,7 +22,7 @@ use crate::libwallet::types::{
 	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
 	WalletInfo,
 };
-use crate::libwallet::{api_impl, ErrorKind};
+use crate::libwallet::ErrorKind;
 use crate::Owner;
 use easy_jsonrpc;
 
@@ -1171,7 +1171,7 @@ where
 }
 
 /// helper to set up a real environment to run integrated doctests
-pub fn run_doctest(
+pub fn run_doctest_owner(
 	request: serde_json::Value,
 	test_dir: &str,
 	blocks_to_mine: u64,
@@ -1181,12 +1181,13 @@ pub fn run_doctest(
 ) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Owner, OwnerRpc};
 	use easy_jsonrpc::Handler;
-	use grin_keychain::ExtKeychain;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+	use grin_wallet_libwallet::api_impl;
+	use grin_wallet_util::grin_keychain::ExtKeychain;
 
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
-	use grin_util as util;
+	use grin_wallet_util::grin_util as util;
 
 	use std::fs;
 	use std::thread;
@@ -1289,7 +1290,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
-		use grin_wallet_api::run_doctest;
+		use grin_wallet_api::run_doctest_owner;
 		use serde_json;
 		use serde_json::Value;
 		use tempfile::tempdir;
@@ -1304,7 +1305,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		let request_val: Value = serde_json::from_str($request).unwrap();
 		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
 
-		let response = run_doctest(
+		let response = run_doctest_owner(
 			request_val,
 			dir,
 			$blocks_to_mine,

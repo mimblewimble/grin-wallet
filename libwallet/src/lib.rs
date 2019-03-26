@@ -22,11 +22,10 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate grin_core as core;
-extern crate grin_keychain as keychain;
-extern crate grin_store as store;
-extern crate grin_util as util;
+use grin_wallet_util::grin_core;
+use grin_wallet_util::grin_keychain;
+use grin_wallet_util::grin_store;
+use grin_wallet_util::grin_util;
 
 use blake2_rfc as blake2;
 

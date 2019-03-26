@@ -15,23 +15,22 @@
 //! Utilities to check the status of all the outputs we have stored in
 //! the wallet storage and update them.
 
-use failure::ResultExt;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::core::consensus::reward;
-use crate::core::core::{Output, TxKernel};
-use crate::core::libtx::reward;
-use crate::core::{global, ser};
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
+use crate::grin_core::consensus::reward;
+use crate::grin_core::core::{Output, TxKernel};
+use crate::grin_core::global;
+use crate::grin_core::libtx::reward;
+use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util as util;
+use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
-use crate::keychain::{Identifier, Keychain};
 use crate::types::{
 	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry,
 	TxLogEntryType, WalletBackend, WalletInfo,
 };
-use crate::util;
-use crate::util::secp::pedersen;
 
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<T: ?Sized, C, K>(
@@ -433,27 +432,19 @@ where
 pub fn build_coinbase<T: ?Sized, C, K>(
 	wallet: &mut T,
 	block_fees: &BlockFees,
+	test_mode: bool,
 ) -> Result<CbData, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	let (out, kern, block_fees) = receive_coinbase(wallet, block_fees).context(ErrorKind::Node)?;
-
-	let out_bin = ser::ser_vec(&out).context(ErrorKind::Node)?;
-
-	let kern_bin = ser::ser_vec(&kern).context(ErrorKind::Node)?;
-
-	let key_id_bin = match block_fees.key_id {
-		Some(key_id) => ser::ser_vec(&key_id).context(ErrorKind::Node)?,
-		None => vec![],
-	};
+	let (out, kern, block_fees) = receive_coinbase(wallet, block_fees, test_mode)?;
 
 	Ok(CbData {
-		output: util::to_hex(out_bin),
-		kernel: util::to_hex(kern_bin),
-		key_id: util::to_hex(key_id_bin),
+		output: out,
+		kernel: kern,
+		key_id: block_fees.key_id,
 	})
 }
 
@@ -462,6 +453,7 @@ where
 pub fn receive_coinbase<T: ?Sized, C, K>(
 	wallet: &mut T,
 	block_fees: &BlockFees,
+	test_mode: bool,
 ) -> Result<(Output, TxKernel, BlockFees), Error>
 where
 	T: WalletBackend<C, K>,
@@ -513,7 +505,6 @@ where
 
 	debug!("receive_coinbase: {:?}", block_fees);
 
-	let (out, kern) = reward::output(wallet.keychain(), &key_id, block_fees.fees).unwrap();
-	/* .context(ErrorKind::Keychain)?; */
+	let (out, kern) = reward::output(wallet.keychain(), &key_id, block_fees.fees, test_mode)?;
 	Ok((out, kern, block_fees))
 }

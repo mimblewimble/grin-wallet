@@ -15,15 +15,15 @@
 //! Types and traits that should be provided by a wallet
 //! implementation
 
-use crate::core::core::hash::Hash;
-use crate::core::core::Transaction;
-use crate::core::libtx::{aggsig, secp_ser};
-use crate::core::ser;
 use crate::error::{Error, ErrorKind};
-use crate::keychain::{Identifier, Keychain};
+use crate::grin_core::core::hash::Hash;
+use crate::grin_core::core::{Output, Transaction, TxKernel};
+use crate::grin_core::libtx::{aggsig, secp_ser};
+use crate::grin_core::ser;
+use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::slate::ParticipantMessages;
-use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::secp::{self, pedersen, Secp256k1};
 use chrono::prelude::*;
 use failure::ResultExt;
 use serde;
@@ -567,11 +567,11 @@ impl BlockFees {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CbData {
 	/// Output
-	pub output: String,
+	pub output: Output,
 	/// Kernel
-	pub kernel: String,
+	pub kernel: TxKernel,
 	/// Key Id
-	pub key_id: String,
+	pub key_id: Option<Identifier>,
 }
 
 /// a contained wallet info struct, so automated tests can parse wallet info

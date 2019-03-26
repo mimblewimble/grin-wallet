@@ -46,6 +46,8 @@ where
 	/// Wallet, contains its keychain (TODO: Split these up into 2 traits
 	/// perhaps)
 	pub wallet: Arc<Mutex<W>>,
+	/// Flag to normalize some output during testing. Can mostly be ignored.
+	pub doctest_mode: bool,
 	phantom: PhantomData<K>,
 	phantom_c: PhantomData<C>,
 }
@@ -57,19 +59,20 @@ where
 	K: Keychain,
 {
 	/// Create new API instance
-	pub fn new(wallet_in: Arc<Mutex<W>>) -> Box<Self> {
-		Box::new(Foreign {
+	pub fn new(wallet_in: Arc<Mutex<W>>) -> Self {
+		Foreign {
 			wallet: wallet_in,
+			doctest_mode: false,
 			phantom: PhantomData,
 			phantom_c: PhantomData,
-		})
+		}
 	}
 
 	/// Build a new (potential) coinbase transaction in the wallet
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = foreign::build_coinbase(&mut *w, block_fees);
+		let res = foreign::build_coinbase(&mut *w, block_fees, self.doctest_mode);
 		w.close()?;
 		res
 	}
@@ -88,7 +91,7 @@ where
 	) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, false);
+		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, self.doctest_mode);
 		w.close()?;
 		res
 	}

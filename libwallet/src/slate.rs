@@ -17,17 +17,19 @@
 
 use crate::blake2::blake2b::blake2b;
 use crate::error::{Error, ErrorKind};
-use crate::keychain::{BlindSum, BlindingFactor, Keychain};
-use crate::util::secp;
-use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::secp::Signature;
-use crate::util::RwLock;
+use crate::grin_core::core::amount_to_hr_string;
+use crate::grin_core::core::committed::Committed;
+use crate::grin_core::core::transaction::{
+	kernel_features, kernel_sig_msg, Transaction, Weighting,
+};
+use crate::grin_core::core::verifier_cache::LruVerifierCache;
+use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
+use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
+use crate::grin_util::secp;
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::secp::Signature;
+use crate::grin_util::RwLock;
 use failure::ResultExt;
-use grin_core::core::amount_to_hr_string;
-use grin_core::core::committed::Committed;
-use grin_core::core::transaction::{kernel_features, kernel_sig_msg, Transaction, Weighting};
-use grin_core::core::verifier_cache::LruVerifierCache;
-use grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde_json;

@@ -13,12 +13,12 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
-use crate::core::global;
-use crate::core::libtx::proof;
+use crate::grin_core::global;
+use crate::grin_core::libtx::proof;
+use crate::grin_keychain::{ExtKeychain, Identifier, Keychain};
+use crate::grin_util::secp::{key::SecretKey, pedersen};
 use crate::internal::{keys, updater};
-use crate::keychain::{ExtKeychain, Identifier, Keychain};
 use crate::types::*;
-use crate::util::secp::{key::SecretKey, pedersen};
 use crate::Error;
 use std::collections::HashMap;
 
