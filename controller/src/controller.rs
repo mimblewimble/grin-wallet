@@ -684,7 +684,7 @@ where
 	}
 
 	fn handle_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = *Foreign::new(self.wallet.clone());
+		let api = Foreign::new(self.wallet.clone());
 		match req
 			.uri()
 			.path()

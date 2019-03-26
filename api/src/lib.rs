@@ -43,4 +43,6 @@ pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;
 
-pub use crate::owner_rpc::run_doctest;
+pub use crate::owner_rpc::run_doctest_owner;
+pub use crate::foreign_rpc::run_doctest_foreign;
+

@@ -14,7 +14,7 @@
 
 use self::chain::Chain;
 use self::core::core::{OutputFeatures, OutputIdentifier, Transaction};
-use self::core::{consensus, global, pow, ser};
+use self::core::{consensus, global, pow};
 use self::util::secp::pedersen;
 use self::util::Mutex;
 use crate::config::WalletConfig;
@@ -79,15 +79,11 @@ fn get_outputs_by_pmmr_index_local(
 pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbData) {
 	let prev = chain.head_header().unwrap();
 	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter());
-	let out_bin = util::from_hex(reward.output).unwrap();
-	let kern_bin = util::from_hex(reward.kernel).unwrap();
-	let output = ser::deserialize(&mut &out_bin[..]).unwrap();
-	let kernel = ser::deserialize(&mut &kern_bin[..]).unwrap();
 	let mut b = core::core::Block::new(
 		&prev,
 		txs.into_iter().cloned().collect(),
 		next_header_info.clone().difficulty,
-		(output, kernel),
+		(reward.output, reward.kernel),
 	)
 	.unwrap();
 	b.header.timestamp = prev.timestamp + Duration::seconds(60);
@@ -128,7 +124,7 @@ where
 	let coinbase_tx = {
 		let mut w = wallet.lock();
 		w.open_with_credentials()?;
-		let res = foreign::build_coinbase(&mut *w, &block_fees)?;
+		let res = foreign::build_coinbase(&mut *w, &block_fees, false)?;
 		w.close()?;
 		res
 	};

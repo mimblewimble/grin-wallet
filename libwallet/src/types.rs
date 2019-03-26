@@ -16,7 +16,7 @@
 //! implementation
 
 use crate::core::core::hash::Hash;
-use crate::core::core::Transaction;
+use crate::core::core::{Transaction, Output, TxKernel};
 use crate::core::libtx::{aggsig, secp_ser};
 use crate::core::ser;
 use crate::error::{Error, ErrorKind};
@@ -567,11 +567,11 @@ impl BlockFees {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CbData {
 	/// Output
-	pub output: String,
+	pub output: Output,
 	/// Kernel
-	pub kernel: String,
+	pub kernel: TxKernel,
 	/// Key Id
-	pub key_id: String,
+	pub key_id: Option<Identifier>,
 }
 
 /// a contained wallet info struct, so automated tests can parse wallet info
