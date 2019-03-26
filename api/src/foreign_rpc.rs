@@ -54,7 +54,7 @@ pub trait ForeignRpc {
 			"Ok": {
 				"kernel": {
 					"excess": "08dfe86d732f2dd24bac36aa7502685221369514197c26d33fac03041d47e4b490",
-					"excess_sig": "c025d08939971fabac95f3266cc920c669735ab21eb258cc3479ba595c78eadfcd6c58562be8ee4d9968f8c51db8540a9fc7d2bc2b1d8483c1d0622ed75a9958",
+					"excess_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f4f0471a33b6465cdb9e72b635f5611aa6c89ebd51aeee038f69b4cc598a02fe0",
 					"features": "Coinbase",
 					"fee": "0",
 					"lock_height": "0"
@@ -81,43 +81,75 @@ pub trait ForeignRpc {
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# r#"
 	{
 		"jsonrpc": "2.0",
 		"method": "verify_slate_messages",
-		"params": [
-			{
-				"version_info": {
-					"version": 2,
-					"orig_version": 2,
-					"min_compat_version": 0
-				},
-				"amount": 0,
-				"fee": 0,
-				"height": 0,
-				"id": "414bad48-3386-4fa7-8483-72384c886ba3",
-				"lock_height": 0,
+		"id": 1,
+		"params": [ {
+				"amount": "6000000000",
+				"fee": "8000000",
+				"height": "4",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"lock_height": "4",
 				"num_participants": 2,
-				"participant_data": [],
+				"participant_data": [
+				{
+					"id": "0",
+					"message": "my message",
+					"message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f756f655333250204644c1cb169e7a78f21b57437930db91e808f39be58134c1d",
+					"part_sig": null,
+					"public_blind_excess": "034b4df2f0558b73ea72a1ca5c4ab20217c66bbe0829056fca7abe76888e9349ee",
+					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+				}
+				],
 				"tx": {
 					"body": {
-						"inputs": [],
-						"kernels": [],
-						"outputs": []
+						"inputs": [
+						{
+							"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+							"features": "Coinbase"
+						}
+						],
+						"kernels": [
+						{
+							"excess": "000000000000000000000000000000000000000000000000000000000000000000",
+							"excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+							"features": "HeightLocked",
+							"fee": "8000000",
+							"lock_height": "4"
+						}
+						],
+						"outputs": [
+						{
+							"commit": "094be57c91787fc2033d5d97fae099f1a6ddb37ea48370f1a138f09524c767fdd3",
+							"features": "Plain",
+							"proof": "2a42e9e902b70ce44e1fccb14de87ee0a97100bddf12c6bead1b9c5f4eb60300f29c13094fa12ffeee238fb4532b18f6b61cf51b23c1c7e1ad2e41560dc27edc0a2b9e647a0b3e4e806fced5b65e61d0f1f5197d3e2285c632d359e27b6b9206b2caffea4f67e0c7a2812e7a22c134b98cf89bd43d9f28b8bec25cce037a0ac5b1ae8f667e54e1250813a5263004486b4465ad4e641ab2b535736ea26535a11013564f08f483b7dab1c2bcc3ee38eadf2f7850eff7e3459a4bbabf9f0cf6c50d0c0a4120565cd4a2ce3e354c11721cd695760a24c70e0d5a0dfc3c5dcd51dfad6de2c237a682f36dc0b271f21bb3655e5333016aaa42c2efa1446e5f3c0a79ec417c4d30f77556951cb0f05dbfafb82d9f95951a9ea241fda2a6388f73ace036b98acce079f0e4feebccc96290a86dcc89118a901210b245f2d114cf94396e4dbb461e82aa26a0581389707957968c7cdc466213bb1cd417db207ef40c05842ab67a01a9b96eb1430ebc26e795bb491258d326d5174ad549401059e41782121e506744af8af9d8e493644a87d613600888541cbbe538c625883f3eb4aa3102c5cfcc25de8e97af8927619ce6a731b3b8462d51d993066b935b0648d2344ad72e4fd70f347fbd81041042e5ea31cc7b2e3156a920b80ecba487b950ca32ca95fae85b759c936246ecf441a9fdd95e8fee932d6782cdec686064018c857efc47fb4b2a122600d5fdd79af2486f44df7e629184e1c573bc0a9b3feb40b190ef2861a1ab45e2ac2201b9cd42e495deea247269820ed32389a2810ad6c0f9a296d2a2d9c54089fed50b7f5ecfcd33ab9954360e1d7f5598c32128cfcf2a1d8bf14616818da8a5343bfa88f0eedf392e9d4ab1ace1b60324129cd4852c2e27813a9cf71a6ae6229a4fcecc1a756b3e664c5f50af333082616815a3bec8fc0b75b8e4e767d719"
+						}
+						]
 					},
-					"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
+				},
+				"version_info": {
+				"min_compat_version": 0,
+				"orig_version": 2,
+				"version": 2
 				}
 			}
-		],
-		"id": 1
-	},
+		]
+	}
+	# "#
+	# ,
+	# r#"
 	{
 		"jsonrpc": "2.0",
+		"id": 1,
 		"result": {
 			"Ok": null
-		},
-		"id": 1
+		}
 	}
-	# );
+	# "#
+	# ,1 ,false);
 	```
 	 */
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
