@@ -23,7 +23,11 @@ use crate::{Error, ErrorKind};
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// Build a coinbase transaction
-pub fn build_coinbase<T: ?Sized, C, K>(w: &mut T, block_fees: &BlockFees, test_mode: bool) -> Result<CbData, Error>
+pub fn build_coinbase<T: ?Sized, C, K>(
+	w: &mut T,
+	block_fees: &BlockFees,
+	test_mode: bool,
+) -> Result<CbData, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,

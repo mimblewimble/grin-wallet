@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 use crate::core::consensus::reward;
 use crate::core::core::{Output, TxKernel};
-use crate::core::libtx::reward;
 use crate::core::global;
+use crate::core::libtx::reward;
 use crate::error::{Error, ErrorKind};
 use crate::internal::keys;
 use crate::keychain::{Identifier, Keychain};
@@ -440,7 +440,8 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let (out, kern, block_fees) = receive_coinbase(wallet, block_fees, test_mode).context(ErrorKind::Node)?;
+	let (out, kern, block_fees) =
+		receive_coinbase(wallet, block_fees, test_mode).context(ErrorKind::Node)?;
 
 	Ok(CbData {
 		output: out,
@@ -506,7 +507,8 @@ where
 
 	debug!("receive_coinbase: {:?}", block_fees);
 
-	let (out, kern) = reward::output(wallet.keychain(), &key_id, block_fees.fees, test_mode).unwrap();
+	let (out, kern) =
+		reward::output(wallet.keychain(), &key_id, block_fees.fees, test_mode).unwrap();
 	/* .context(ErrorKind::Keychain)?; */
 	Ok((out, kern, block_fees))
 }
