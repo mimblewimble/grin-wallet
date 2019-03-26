@@ -15,10 +15,10 @@
 
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
-use crate::internal::{keys, updater};
 use crate::grin_keychain::{ExtKeychain, Identifier, Keychain};
-use crate::types::*;
 use crate::grin_util::secp::{key::SecretKey, pedersen};
+use crate::internal::{keys, updater};
+use crate::types::*;
 use crate::Error;
 use std::collections::HashMap;
 

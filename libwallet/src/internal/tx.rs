@@ -16,12 +16,12 @@
 
 use uuid::Uuid;
 
-use crate::internal::{selection, updater};
 use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util::Mutex;
+use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
-use crate::grin_util::Mutex;
 
 /// static for incrementing test UUIDs
 lazy_static! {

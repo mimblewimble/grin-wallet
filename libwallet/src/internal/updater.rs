@@ -18,19 +18,19 @@
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::error::Error;
 use crate::grin_core::consensus::reward;
 use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::global;
 use crate::grin_core::libtx::reward;
-use crate::error::Error;
-use crate::internal::keys;
 use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util as util;
+use crate::grin_util::secp::pedersen;
+use crate::internal::keys;
 use crate::types::{
 	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry,
 	TxLogEntryType, WalletBackend, WalletInfo,
 };
-use crate::grin_util as util;
-use crate::grin_util::secp::pedersen;
 
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<T: ?Sized, C, K>(
@@ -439,8 +439,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let (out, kern, block_fees) =
-		receive_coinbase(wallet, block_fees, test_mode)?;
+	let (out, kern, block_fees) = receive_coinbase(wallet, block_fees, test_mode)?;
 
 	Ok(CbData {
 		output: out,
@@ -506,7 +505,6 @@ where
 
 	debug!("receive_coinbase: {:?}", block_fees);
 
-	let (out, kern) =
-		reward::output(wallet.keychain(), &key_id, block_fees.fees, test_mode)?;
+	let (out, kern) = reward::output(wallet.keychain(), &key_id, block_fees.fees, test_mode)?;
 	Ok((out, kern, block_fees))
 }

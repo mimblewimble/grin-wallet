@@ -22,10 +22,10 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-use grin_wallet_util::grin_core as grin_core;
-use grin_wallet_util::grin_keychain as grin_keychain;
-use grin_wallet_util::grin_store as grin_store;
-use grin_wallet_util::grin_util as grin_util;
+use grin_wallet_util::grin_core;
+use grin_wallet_util::grin_keychain;
+use grin_wallet_util::grin_store;
+use grin_wallet_util::grin_util;
 
 use blake2_rfc as blake2;
 

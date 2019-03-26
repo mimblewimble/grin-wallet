@@ -20,10 +20,9 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-pub use grin_core;
-pub use grin_util;
-pub use grin_keychain;
-pub use grin_chain;
 pub use grin_api;
+pub use grin_chain;
+pub use grin_core;
+pub use grin_keychain;
 pub use grin_store;
-
+pub use grin_util;

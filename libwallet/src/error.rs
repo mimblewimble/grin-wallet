@@ -17,8 +17,8 @@
 use crate::grin_core::core::{committed, transaction};
 use crate::grin_core::libtx;
 use crate::grin_keychain;
-use crate::grin_util::secp;
 use crate::grin_store;
+use crate::grin_util::secp;
 use failure::{Backtrace, Context, Fail};
 use std::env;
 use std::fmt::{self, Display};

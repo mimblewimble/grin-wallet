@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::api;
+use crate::chain;
 use crate::chain::Chain;
+use crate::config::WalletConfig;
+use crate::core;
 use crate::core::core::{OutputFeatures, OutputIdentifier, Transaction};
 use crate::core::{consensus, global, pow};
-use crate::util::secp::pedersen;
-use crate::util::Mutex;
-use crate::config::WalletConfig;
+use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::types::{
 	BlockFees, CbData, NodeClient, WalletBackend, WalletInfo, WalletInst,
 };
 use crate::lmdb_wallet::LMDBBackend;
+use crate::util;
+use crate::util::secp::pedersen;
+use crate::util::Mutex;
 use crate::WalletSeed;
 use chrono::Duration;
-use crate::api as api;
-use crate::chain as chain;
-use crate::core as core;
-use crate::keychain as keychain;
-use crate::util as util;
 use std::sync::Arc;
 use std::thread;
 

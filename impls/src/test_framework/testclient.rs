@@ -16,24 +16,24 @@
 //! so that wallet API can be fully exercised
 //! Operates directly on a chain instance
 
+use crate::api;
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
+use crate::config::WalletConfig;
 use crate::core::core::verifier_cache::LruVerifierCache;
 use crate::core::core::Transaction;
 use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
-use crate::util::secp::pedersen;
-use crate::util::secp::pedersen::Commitment;
-use crate::util::{Mutex, RwLock, StopState};
-use crate::config::WalletConfig;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::*;
+use crate::util;
+use crate::util::secp::pedersen;
+use crate::util::secp::pedersen::Commitment;
+use crate::util::{Mutex, RwLock, StopState};
 use crate::{libwallet, WalletCommAdapter};
 use failure::ResultExt;
-use crate::api as api;
-use crate::util as util;
 use serde_json;
 use std::collections::HashMap;
 use std::marker::PhantomData;

@@ -15,15 +15,15 @@
 //! Types and traits that should be provided by a wallet
 //! implementation
 
+use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::ser;
-use crate::error::{Error, ErrorKind};
 use crate::grin_keychain::{Identifier, Keychain};
-use crate::slate::ParticipantMessages;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::slate::ParticipantMessages;
 use chrono::prelude::*;
 use failure::ResultExt;
 use serde;

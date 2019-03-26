@@ -21,10 +21,10 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_util::grin_util as util;
 
-use grin_wallet_libwallet as libwallet;
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
+use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::FileWalletCommAdapter;
 use std::fs;

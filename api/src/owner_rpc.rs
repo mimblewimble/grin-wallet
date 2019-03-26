@@ -1181,9 +1181,9 @@ pub fn run_doctest_owner(
 ) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Owner, OwnerRpc};
 	use easy_jsonrpc::Handler;
-	use grin_wallet_util::grin_keychain::ExtKeychain;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_libwallet::api_impl;
+	use grin_wallet_util::grin_keychain::ExtKeychain;
 
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
