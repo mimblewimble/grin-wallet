@@ -15,20 +15,19 @@
 #[cfg(test)]
 mod wallet_tests {
 	use clap;
-	use grin_util as util;
+	use grin_wallet_util::grin_util as util;
 
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 	use clap::{App, ArgMatches};
-	use grin_util::Mutex;
+	use util::Mutex;
 	use std::sync::Arc;
 	use std::thread;
 	use std::time::Duration;
 	use std::{env, fs};
 
-	use grin_core::global;
-	use grin_core::global::ChainTypes;
-	use grin_keychain::ExtKeychain;
+	use grin_wallet_util::grin_core::global::{self, ChainTypes};
+	use grin_wallet_util::grin_keychain::ExtKeychain;
 	use grin_wallet_config::{GlobalWalletConfig, WalletConfig};
 	use grin_wallet_impls::{LMDBBackend, WalletSeed};
 	use grin_wallet_libwallet::types::{WalletBackend, WalletInst};

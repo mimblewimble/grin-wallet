@@ -321,13 +321,13 @@ pub fn run_doctest_foreign(
 ) -> Result<Option<serde_json::Value>, String> {
 	use crate::{Foreign, ForeignRpc};
 	use easy_jsonrpc::Handler;
-	use grin_keychain::ExtKeychain;
+	use grin_wallet_util::grin_keychain::ExtKeychain;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_libwallet::api_impl;
 
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
-	use grin_util as util;
+	use grin_wallet_util::grin_util as util;
 
 	use std::fs;
 	use std::thread;

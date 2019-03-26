@@ -24,10 +24,7 @@ uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
 lazy_static = "1"
 
-grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+grin_wallet_util = { path = "../util", version = "1.1.0" }
 
 [dev-dependencies]
 grin_wallet_config = { path = "../config", version = "1.1.0" }

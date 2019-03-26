@@ -23,12 +23,7 @@ grin_wallet_libwallet = { path = "../libwallet", version = "1.1.0" }
 grin_wallet_config = { path = "../config", version = "1.1.0" }
 grin_wallet_impls = { path = "../impls", version = "1.1.0" }
 
-grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+grin_wallet_util = { path = "../util", version = "1.1.0" }
 
 [dev-dependencies]
 serde_json = "1"

@@ -18,8 +18,8 @@ use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
-use grin_core as core;
-use grin_keychain as keychain;
+use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};

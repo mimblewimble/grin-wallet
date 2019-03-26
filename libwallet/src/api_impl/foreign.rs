@@ -15,7 +15,7 @@
 //! Generic implementation of owner API functions
 
 use crate::internal::{tx, updater};
-use crate::keychain::Keychain;
+use crate::grin_keychain::Keychain;
 use crate::slate::Slate;
 use crate::types::{BlockFees, CbData, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};

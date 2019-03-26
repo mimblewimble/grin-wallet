@@ -18,14 +18,15 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
+use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_keychain as keychain;
+use grin_wallet_util::grin_util as util;
+
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Identifier, Keychain};
 use self::libwallet::slate::Slate;
 use self::libwallet::types::AcctPathMapping;
-use grin_core as core;
-use grin_keychain as keychain;
-use grin_util as util;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::sync::atomic::Ordering;

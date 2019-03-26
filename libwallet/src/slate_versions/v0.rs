@@ -14,12 +14,12 @@
 
 //! Contains V0 of the slate (grin 1.0.0)
 //! And methods to downgrade v1 to v0
-use crate::core::core::transaction::{KernelFeatures, OutputFeatures};
-use crate::keychain::BlindingFactor;
-use crate::util::secp;
-use crate::util::secp::key::PublicKey;
-use crate::util::secp::pedersen::{Commitment, RangeProof};
-use crate::util::secp::Signature;
+use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
+use crate::grin_keychain::BlindingFactor;
+use crate::grin_util::secp;
+use crate::grin_util::secp::key::PublicKey;
+use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+use crate::grin_util::secp::Signature;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

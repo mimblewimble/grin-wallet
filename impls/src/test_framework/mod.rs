@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use self::chain::Chain;
-use self::core::core::{OutputFeatures, OutputIdentifier, Transaction};
-use self::core::{consensus, global, pow};
-use self::util::secp::pedersen;
-use self::util::Mutex;
+use crate::chain::Chain;
+use crate::core::core::{OutputFeatures, OutputIdentifier, Transaction};
+use crate::core::{consensus, global, pow};
+use crate::util::secp::pedersen;
+use crate::util::Mutex;
 use crate::config::WalletConfig;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
@@ -26,11 +26,11 @@ use crate::libwallet::types::{
 use crate::lmdb_wallet::LMDBBackend;
 use crate::WalletSeed;
 use chrono::Duration;
-use grin_api as api;
-use grin_chain as chain;
-use grin_core as core;
-use grin_keychain as keychain;
-use grin_util as util;
+use crate::api as api;
+use crate::chain as chain;
+use crate::core as core;
+use crate::keychain as keychain;
+use crate::util as util;
 use std::sync::Arc;
 use std::thread;
 
