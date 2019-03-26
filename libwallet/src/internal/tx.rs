@@ -186,7 +186,7 @@ where
 		&context.sec_nonce,
 		1,
 		message,
-		false,
+		use_test_rng,
 	)?;
 
 	// perform partial sig

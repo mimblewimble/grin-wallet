@@ -91,7 +91,7 @@ where
 	) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, false);
+		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, self.doctest_mode);
 		w.close()?;
 		res
 	}
