@@ -316,7 +316,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use api::Foreign;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::types::{WalletBackend, BlockFees};
+		use libwallet::types::{BlockFees, WalletBackend};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

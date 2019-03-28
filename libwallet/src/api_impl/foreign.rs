@@ -87,7 +87,14 @@ where
 		None => None,
 	};
 
-	tx::add_output_to_slate(&mut *w, &mut ret_slate, &parent_key_id, 1, message, use_test_rng)?;
+	tx::add_output_to_slate(
+		&mut *w,
+		&mut ret_slate,
+		&parent_key_id,
+		1,
+		message,
+		use_test_rng,
+	)?;
 	tx::update_message(&mut *w, &mut ret_slate)?;
 	Ok(ret_slate)
 }
