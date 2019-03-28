@@ -132,7 +132,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	wallet::controller::foreign_single_use(wallet1.clone(), |api| {
 		let adapter = FileWalletCommAdapter::new();
 		slate = adapter.receive_tx_async(&send_file)?;
-		api.receive_tx(&mut slate, None, None)?;
+		slate = api.receive_tx(&slate, None, None)?;
 		adapter.send_tx_async(&receive_file, &mut slate)?;
 		Ok(())
 	})?;

@@ -549,8 +549,10 @@ impl<'de> serde::de::Visitor<'de> for BlockIdentifierVisitor {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockFees {
 	/// fees
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub fees: u64,
 	/// height
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// key id
 	pub key_id: Option<Identifier>,

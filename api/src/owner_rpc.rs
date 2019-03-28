@@ -1257,7 +1257,7 @@ pub fn run_doctest_owner(
 		{
 			let mut w2 = wallet2.lock();
 			w2.open_with_credentials().unwrap();
-			api_impl::foreign::receive_tx(&mut *w2, &mut slate, None, None, true).unwrap();
+			slate = api_impl::foreign::receive_tx(&mut *w2, &slate, None, None, true).unwrap();
 			w2.close().unwrap();
 		}
 		println!("RECIPIENT SLATE");

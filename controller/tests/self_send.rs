@@ -99,7 +99,7 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		api.tx_lock_outputs(&slate)?;
 		// Send directly to self
 		wallet::controller::foreign_single_use(wallet1.clone(), |api| {
-			api.receive_tx(&mut slate, Some("listener"), None)?;
+			slate = api.receive_tx(&slate, Some("listener"), None)?;
 			Ok(())
 		})?;
 		slate = api.finalize_tx(&slate)?;
