@@ -868,6 +868,12 @@ where
 
 	/// Verifies all messages in the slate match their public keys.
 	///
+	/// The optional messages themselves are part of the `participant_data` field within the slate.
+	/// Messages are signed with the same key used to sign for the paricipant's inputs, and can thus be
+	/// verified with the public key found in the `public_blind_excess` field. This function is a
+	/// simple helper to returns whether all signatures in the participant data match their public
+	/// keys.
+	///
 	/// # Arguments
 	///
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).

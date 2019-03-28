@@ -77,7 +77,44 @@ where
 		res
 	}
 
-	/// Verifies all messages in the slate match their public keys
+	/// Verifies all messages in the slate match their public keys.
+	///
+	/// The option messages themselves are part of the `participant_data` field within the slate.
+	/// Messages are signed with the same key used to sign for the paricipant's inputs, and can thus be
+	/// verified with the public key found in the `public_blind_excess` field. This function is a
+	/// simple helper to returns whether all signatures in the participant data match their public
+	/// keys.
+	///
+	/// # Arguments
+	///
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
+	///
+	/// # Returns
+	/// * Ok(()) if successful and the signatures validate
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Foreign.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	///
+	/// let mut api_foreign = Foreign::new(wallet.clone());
+	///
+	/// # let slate = Slate::blank(2);
+	/// // Receive a slate via some means
+	///
+	///	let res = api_foreign.verify_slate_messages(&slate);
+	///
+	/// if let Err(e) = res {
+	///		// Messages don't validate, likely return an error
+	///		// ...
+	/// } else {
+	//		// Slate messages are fine
+	/// }
+	///
+	/// 
+	/// ```
+
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		foreign::verify_slate_messages(slate)
 	}
@@ -95,4 +132,44 @@ where
 		w.close()?;
 		res
 	}
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! doctest_helper_setup_doc_env_foreign {
+	($wallet:ident, $wallet_config:ident) => {
+		use grin_wallet_api as api;
+		use grin_wallet_config as config;
+		use grin_wallet_impls as impls;
+		use grin_wallet_libwallet as libwallet;
+		use grin_wallet_util::grin_keychain as keychain;
+		use grin_wallet_util::grin_util as util;
+		use libwallet::slate::Slate;
+
+		use keychain::ExtKeychain;
+		use tempfile::tempdir;
+
+		use std::sync::Arc;
+		use util::Mutex;
+
+		use api::Foreign;
+		use config::WalletConfig;
+		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
+		use libwallet::types::WalletBackend;
+
+		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+		let dir = dir
+			.path()
+			.to_str()
+			.ok_or("Failed to convert tmpdir path to string.".to_owned())
+			.unwrap();
+		let mut wallet_config = WalletConfig::default();
+		wallet_config.data_file_dir = dir.to_owned();
+		let pw = "";
+
+		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+		let mut $wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(
+			Mutex::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap()),
+			);
+	};
 }
