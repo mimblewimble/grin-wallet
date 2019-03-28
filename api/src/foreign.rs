@@ -112,7 +112,7 @@ where
 	//		// Slate messages are fine
 	/// }
 	///
-	/// 
+	///
 	/// ```
 
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
