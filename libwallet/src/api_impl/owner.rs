@@ -196,7 +196,7 @@ where
 pub fn estimate_initiate_tx<T: ?Sized, C, K>(
 	w: &mut T,
 	args: InitTxArgs,
-	) -> Result<TxEstimate, Error>
+) -> Result<TxEstimate, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,

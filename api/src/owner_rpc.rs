@@ -444,10 +444,7 @@ pub trait OwnerRpc {
 	# ,4, false, false, false);
 	```
 	 */
-	fn estimate_initiate_tx(
-		&self,
-		args: InitTxArgs,
-	) -> Result<TxEstimate, ErrorKind>;
+	fn estimate_initiate_tx(&self, args: InitTxArgs) -> Result<TxEstimate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -1100,15 +1097,8 @@ where
 		Owner::initiate_tx(self, args).map_err(|e| e.kind())
 	}
 
-	fn estimate_initiate_tx(
-		&self,
-		args: InitTxArgs,
-	) -> Result<TxEstimate, ErrorKind> {
-		Owner::estimate_initiate_tx(
-			self,
-			args,
-		)
-		.map_err(|e| e.kind())
+	fn estimate_initiate_tx(&self, args: InitTxArgs) -> Result<TxEstimate, ErrorKind> {
+		Owner::estimate_initiate_tx(self, args).map_err(|e| e.kind())
 	}
 
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {

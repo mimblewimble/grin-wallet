@@ -528,16 +528,10 @@ where
 	/// }
 	/// ```
 
-	pub fn estimate_initiate_tx(
-		&self,
-		args: InitTxArgs,
-	) -> Result<TxEstimate, Error> {
+	pub fn estimate_initiate_tx(&self, args: InitTxArgs) -> Result<TxEstimate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = owner::estimate_initiate_tx(
-			&mut *w,
-			args,
-		);
+		let res = owner::estimate_initiate_tx(&mut *w, args);
 		w.close()?;
 		res
 	}
