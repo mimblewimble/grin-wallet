@@ -25,7 +25,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimate,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
 	TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::Error;
@@ -486,52 +486,6 @@ where
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::initiate_tx(&mut *w, args, self.doctest_mode);
-		w.close()?;
-		res
-	}
-
-	/// Estimates the amount to be locked and fee for the transaction without creating one.
-	///
-	/// # Arguments
-	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
-	/// transaction initialization arguments. See struct documentation for further detail.
-	///
-	/// # Returns
-	/// * a result containing a
-	/// [`TxEstimate`](../grin_wallet_libwallet/types/struct.TxEstimate.html)
-	///
-	/// # Example
-	/// Set up as in [new](struct.Owner.html#method.new) method above.
-	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
-	///
-	/// let mut api_owner = Owner::new(wallet.clone());
-	///
-	/// // Estimate transaction using default account
-	/// let args = InitTxArgs {
-	/// 	src_acct_name: None,
-	/// 	amount: 2_000_000_000,
-	/// 	minimum_confirmations: 10,
-	/// 	max_outputs: 500,
-	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
-	/// 	message: None,
-	/// 	target_slate_version: None,
-	/// 	send_args: None,
-	/// };
-	/// let result = api_owner.estimate_initiate_tx(
-	/// 	args,
-	/// );
-	///
-	/// if let Ok(est) = result {
-	///		// ...
-	/// }
-	/// ```
-
-	pub fn estimate_initiate_tx(&self, args: InitTxArgs) -> Result<TxEstimate, Error> {
-		let mut w = self.wallet.lock();
-		w.open_with_credentials()?;
-		let res = owner::estimate_initiate_tx(&mut *w, args);
 		w.close()?;
 		res
 	}

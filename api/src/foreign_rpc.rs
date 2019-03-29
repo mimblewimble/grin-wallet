@@ -423,9 +423,7 @@ pub fn run_doctest_foreign(
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
 		println!("INIT SLATE");

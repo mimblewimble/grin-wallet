@@ -254,12 +254,11 @@ pub fn send(
 						max_outputs: args.max_outputs as u32,
 						num_change_outputs: args.change_outputs as u32,
 						selection_strategy_is_use_all: strategy == "all",
-						message: None,
-						target_slate_version: None,
-						send_args: None,
+						estimate_only: true,
+						..Default::default()
 					};
-					let est = api.estimate_initiate_tx(init_args).unwrap();
-					(strategy, est.total, est.fee)
+					let slate = api.initiate_tx(init_args).unwrap();
+					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
@@ -274,6 +273,7 @@ pub fn send(
 				message: args.message.clone(),
 				target_slate_version: args.target_slate_version,
 				send_args: None,
+				..Default::default()
 			};
 			let result = api.initiate_tx(init_args);
 			let mut slate = match result {

@@ -766,6 +766,11 @@ pub struct InitTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
+	/// If true, just return an estimate of the resulting slate, containing fees and amounts
+	/// locked without actually locking outputs or creating the transaction. Note if this is set to
+	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
+	/// transaction amount
+	pub estimate_only: bool,
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
@@ -781,6 +786,23 @@ pub struct InitTxSendArgs {
 	pub dest: String,
 	/// Whether to finalize the result immediately if the send was successful
 	pub finalize: bool,
+}
+
+impl Default for InitTxArgs {
+	fn default() -> InitTxArgs {
+		InitTxArgs {
+			src_acct_name: None,
+			amount: 0,
+			minimum_confirmations: 10,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			estimate_only: false,
+			send_args: None,
+		}
+	}
 }
 
 /// Fees in block to use for coinbase amount calculation
@@ -825,17 +847,6 @@ pub struct OutputCommitMapping {
 		deserialize_with = "secp_ser::commitment_from_hex"
 	)]
 	pub commit: pedersen::Commitment,
-}
-
-/// Transaction Estimate
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TxEstimate {
-	/// Total amount to be locked
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub total: u64,
-	/// Transaction Fee
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub fee: u64,
 }
 
 /// Node height result

@@ -107,9 +107,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let slate_i = sender_api.initiate_tx(args)?;
 
@@ -261,12 +259,11 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			estimate_only: true,
+			..Default::default()
 		};
-		let est = sender_api.estimate_initiate_tx(init_args)?;
-		assert_eq!(est.total, 600_000_000_000);
+		let est = sender_api.initiate_tx(init_args)?;
+		assert_eq!(est.amount, 600_000_000_000);
 		assert_eq!(est.fee, 4_000_000);
 
 		let init_args = InitTxArgs {
@@ -276,12 +273,11 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: false, //select smallest number
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			estimate_only: true,
+			..Default::default()
 		};
-		let est = sender_api.estimate_initiate_tx(init_args)?;
-		assert_eq!(est.total, 180_000_000_000);
+		let est = sender_api.initiate_tx(init_args)?;
+		assert_eq!(est.amount, 180_000_000_000);
 		assert_eq!(est.fee, 6_000_000);
 
 		Ok(())
@@ -298,9 +294,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
@@ -385,7 +379,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
 	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
-									   // mine a few blocks
+	// mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5, false);
 
 	let amount = 30_000_000_000;
@@ -399,9 +393,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 
 		let slate_i = sender_api.initiate_tx(args)?;

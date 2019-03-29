@@ -332,6 +332,7 @@ where
 				message: args.message.clone(),
 				target_slate_version: args.target_slate_version,
 				send_args: None,
+				..Default::default()
 			};
 			let result = api.initiate_tx(init_args);
 			let mut slate = match result {

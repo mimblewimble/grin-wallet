@@ -203,9 +203,7 @@ where
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let slate_i = owner::initiate_tx(&mut *w, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;

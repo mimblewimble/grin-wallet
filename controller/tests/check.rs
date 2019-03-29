@@ -185,9 +185,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let mut slate = api.initiate_tx(args)?;
 		// output tx file

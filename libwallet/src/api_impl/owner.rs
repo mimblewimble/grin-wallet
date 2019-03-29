@@ -25,7 +25,7 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimate,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
 	TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};
@@ -166,6 +166,23 @@ where
 
 	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng)?;
 
+	// if we just want to estimate, don't save a context, just send the results
+	// back
+	if args.estimate_only {
+		let (total, fee) = tx::estimate_send_tx(
+			&mut *w,
+			args.amount,
+			args.minimum_confirmations,
+			args.max_outputs as usize,
+			args.num_change_outputs as usize,
+			args.selection_strategy_is_use_all,
+			&parent_key_id,
+		)?;
+		slate.amount = total;
+		slate.fee = fee;
+		return Ok(slate);
+	}
+
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
 		&mut slate,
@@ -179,6 +196,7 @@ where
 		use_test_rng,
 	)?;
 
+
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
@@ -190,38 +208,6 @@ where
 		slate.version_info.orig_version = v;
 	}
 	Ok(slate)
-}
-
-/// Estimate
-pub fn estimate_initiate_tx<T: ?Sized, C, K>(
-	w: &mut T,
-	args: InitTxArgs,
-) -> Result<TxEstimate, Error>
-where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
-{
-	let parent_key_id = match args.src_acct_name {
-		Some(d) => {
-			let pm = w.get_acct_path(d)?;
-			match pm {
-				Some(p) => p.path,
-				None => w.parent_key_id(),
-			}
-		}
-		None => w.parent_key_id(),
-	};
-	let (total, fee) = tx::estimate_send_tx(
-		&mut *w,
-		args.amount,
-		args.minimum_confirmations,
-		args.max_outputs as usize,
-		args.num_change_outputs as usize,
-		args.selection_strategy_is_use_all,
-		&parent_key_id,
-	)?;
-	Ok(TxEstimate { total, fee })
 }
 
 /// Lock sender outputs

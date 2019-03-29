@@ -115,8 +115,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
 			message: Some(message.to_owned()),
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let mut slate = api.initiate_tx(args)?;
 		// output tx file

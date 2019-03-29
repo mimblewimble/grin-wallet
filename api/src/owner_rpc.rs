@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimate,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
 	TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
@@ -403,52 +403,7 @@ pub trait OwnerRpc {
 	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
-	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.estimate_initiate_tx).
-
-
-	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	# r#"
-	{
-		"jsonrpc": "2.0",
-		"method": "estimate_initiate_tx",
-		"params": {
-			"args": {
-				"src_acct_name": null,
-				"amount": "6000000000",
-				"minimum_confirmations": 2,
-				"max_outputs": 500,
-				"num_change_outputs": 1,
-				"selection_strategy_is_use_all": true,
-				"message": null,
-				"target_slate_version": null,
-				"send_args": null
-			}
-		},
-		"id": 1
-	}
-	# "#
-	# ,
-	# r#"
-	{
-		"id": 1,
-		"jsonrpc": "2.0",
-		"result": {
-			"Ok": {
-				"total": "60000000000",
-				"fee": "8000000"
-			}
-		}
-	}
-	# "#
-	# ,4, false, false, false);
-	```
-	 */
-	fn estimate_initiate_tx(&self, args: InitTxArgs) -> Result<TxEstimate, ErrorKind>;
-
-	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
-
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -1097,10 +1052,6 @@ where
 		Owner::initiate_tx(self, args).map_err(|e| e.kind())
 	}
 
-	fn estimate_initiate_tx(&self, args: InitTxArgs) -> Result<TxEstimate, ErrorKind> {
-		Owner::estimate_initiate_tx(self, args).map_err(|e| e.kind())
-	}
-
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
 		Owner::finalize_tx(self, &mut slate).map_err(|e| e.kind())
 	}
@@ -1219,9 +1170,7 @@ pub fn run_doctest_owner(
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
-			target_slate_version: None,
-			send_args: None,
+			..Default::default()
 		};
 		let mut slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
 		{
