@@ -168,7 +168,7 @@ where
 
 	// if we just want to estimate, don't save a context, just send the results
 	// back
-	if args.estimate_only {
+	if let Some(true) = args.estimate_only {
 		let (total, fee) = tx::estimate_send_tx(
 			&mut *w,
 			args.amount,

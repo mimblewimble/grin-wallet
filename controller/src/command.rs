@@ -254,7 +254,7 @@ pub fn send(
 						max_outputs: args.max_outputs as u32,
 						num_change_outputs: args.change_outputs as u32,
 						selection_strategy_is_use_all: strategy == "all",
-						estimate_only: true,
+						estimate_only: Some(true),
 						..Default::default()
 					};
 					let slate = api.initiate_tx(init_args).unwrap();

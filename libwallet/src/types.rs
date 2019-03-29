@@ -770,7 +770,7 @@ pub struct InitTxArgs {
 	/// locked without actually locking outputs or creating the transaction. Note if this is set to
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
 	/// transaction amount
-	pub estimate_only: bool,
+	pub estimate_only: Option<bool>,
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
@@ -799,7 +799,7 @@ impl Default for InitTxArgs {
 			selection_strategy_is_use_all: true,
 			message: None,
 			target_slate_version: None,
-			estimate_only: false,
+			estimate_only: Some(false),
 			send_args: None,
 		}
 	}

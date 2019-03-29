@@ -259,7 +259,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			estimate_only: true,
+			estimate_only: Some(true),
 			..Default::default()
 		};
 		let est = sender_api.initiate_tx(init_args)?;
@@ -273,7 +273,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: false, //select smallest number
-			estimate_only: true,
+			estimate_only: Some(true),
 			..Default::default()
 		};
 		let est = sender_api.initiate_tx(init_args)?;

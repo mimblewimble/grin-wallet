@@ -467,8 +467,7 @@ where
 	/// 	num_change_outputs: 1,
 	/// 	selection_strategy_is_use_all: true,
 	/// 	message: Some("Have some Grins. Love, Yeastplume".to_owned()),
-	/// 	target_slate_version: None,
-	/// 	send_args: None,
+	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.initiate_tx(
 	/// 	args,
@@ -518,19 +517,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Remember to lock this when we're happy this is sent".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Remember to lock when we're happy this is sent".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -576,19 +575,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Finalize this tx now".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Finalize this tx now".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -633,19 +632,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Post this tx".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Finalize this tx now".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -694,19 +693,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Cancel this tx".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Cancel this tx".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -787,19 +786,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Just verify messages".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Finalize this tx now".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
