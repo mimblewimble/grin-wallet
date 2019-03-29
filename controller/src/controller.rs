@@ -289,7 +289,8 @@ where
 		_req: &Request<Body>,
 		api: Owner<T, C, K>,
 	) -> Result<(u64, bool), Error> {
-		api.node_height()
+		let res = api.node_height()?;
+		Ok((res.height, res.updated_from_node))
 	}
 
 	fn handle_get_request(&self, req: &Request<Body>) -> Result<Response<Body>, Error> {
@@ -299,7 +300,7 @@ where
 			match req
 				.uri()
 				.path()
-				.trim_right_matches("/")
+				.trim_end_matches("/")
 				.rsplit("/")
 				.next()
 				.unwrap()
@@ -554,7 +555,7 @@ where
 		match req
 			.uri()
 			.path()
-			.trim_right_matches("/")
+			.trim_end_matches("/")
 			.rsplit("/")
 			.next()
 			.unwrap()
@@ -688,7 +689,7 @@ where
 		match req
 			.uri()
 			.path()
-			.trim_right_matches("/")
+			.trim_end_matches("/")
 			.rsplit("/")
 			.next()
 			.unwrap()

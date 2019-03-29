@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
+	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
 	WalletInfo,
 };
 use crate::libwallet::ErrorKind;
@@ -1029,17 +1029,17 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": [
-				5,
-				true
-			]
+			"Ok": {
+				"height": "5",
+				"updated_from_node": true
+			}
 		}
 	}
 	# "#
 	# , 5, false, false, false);
 	```
 	 */
-	fn node_height(&self) -> Result<(u64, bool), ErrorKind>;
+	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind>;
 }
 
 impl<W: ?Sized, C, K> OwnerRpc for Owner<W, C, K>
@@ -1165,7 +1165,7 @@ where
 		Owner::check_repair(self, delete_unconfirmed).map_err(|e| e.kind())
 	}
 
-	fn node_height(&self) -> Result<(u64, bool), ErrorKind> {
+	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind> {
 		Owner::node_height(self).map_err(|e| e.kind())
 	}
 }

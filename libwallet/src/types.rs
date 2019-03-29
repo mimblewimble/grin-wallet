@@ -373,29 +373,6 @@ impl fmt::Display for OutputStatus {
 	}
 }
 
-/// Map Outputdata to commits
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct OutputCommitMapping {
-	/// Output Data
-	pub output: OutputData,
-	/// The commit
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::commitment_from_hex"
-	)]
-	pub commit: pedersen::Commitment,
-}
-
-/// Transaction Estimate
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TxEstimation {
-	/// Total amount to be locked
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub total: u64,
-	/// Transaction Fee
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub fee: u64,
-}
 #[derive(Serialize, Deserialize, Clone, Debug)]
 /// Holds the context for a single aggsig transaction
 pub struct Context {
@@ -543,37 +520,6 @@ impl<'de> serde::de::Visitor<'de> for BlockIdentifierVisitor {
 		let block_hash = Hash::from_hex(s).unwrap();
 		Ok(BlockIdentifier(block_hash))
 	}
-}
-
-/// Fees in block to use for coinbase amount calculation
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BlockFees {
-	/// fees
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub fees: u64,
-	/// height
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub height: u64,
-	/// key id
-	pub key_id: Option<Identifier>,
-}
-
-impl BlockFees {
-	/// return key id
-	pub fn key_id(&self) -> Option<Identifier> {
-		self.key_id.clone()
-	}
-}
-
-/// Response to build a coinbase output.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CbData {
-	/// Output
-	pub output: Output,
-	/// Kernel
-	pub kernel: TxKernel,
-	/// Key Id
-	pub key_id: Option<Identifier>,
 }
 
 /// a contained wallet info struct, so automated tests can parse wallet info
@@ -752,6 +698,8 @@ pub struct TxWrapper {
 	pub tx_hex: String,
 }
 
+// Types to facilitate API arguments and serialization
+
 /// Send TX API Args
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SendTXArgs {
@@ -773,4 +721,69 @@ pub struct SendTXArgs {
 	pub message: Option<String>,
 	/// Optional slate version to target when sending
 	pub target_slate_version: Option<u16>,
+}
+
+/// Fees in block to use for coinbase amount calculation
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BlockFees {
+	/// fees
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub fees: u64,
+	/// height
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub height: u64,
+	/// key id
+	pub key_id: Option<Identifier>,
+}
+
+impl BlockFees {
+	/// return key id
+	pub fn key_id(&self) -> Option<Identifier> {
+		self.key_id.clone()
+	}
+}
+
+/// Response to build a coinbase output.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CbData {
+	/// Output
+	pub output: Output,
+	/// Kernel
+	pub kernel: TxKernel,
+	/// Key Id
+	pub key_id: Option<Identifier>,
+}
+
+/// Map Outputdata to commits
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OutputCommitMapping {
+	/// Output Data
+	pub output: OutputData,
+	/// The commit
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub commit: pedersen::Commitment,
+}
+
+/// Transaction Estimate
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TxEstimation {
+	/// Total amount to be locked
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub total: u64,
+	/// Transaction Fee
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub fee: u64,
+}
+
+/// Node height result
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NodeHeightResult {
+	/// Last known height
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub height: u64,
+	/// Whether this height was updated from the node
+	pub updated_from_node: bool,
 }

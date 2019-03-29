@@ -25,7 +25,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
+	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
 	WalletInfo,
 };
 use crate::libwallet::Error;
@@ -939,9 +939,44 @@ where
 		res
 	}
 
-	/// Retrieve current height from node
-	// TODO: Should return u64 as string
-	pub fn node_height(&self) -> Result<(u64, bool), Error> {
+	/// Retrieves the last known height known by the wallet. This is determined as follows:
+	/// * If the wallet can successfully contact its configured node, the reported node
+	/// height is returned, and the `updated_from_node` field in the response is `true`
+	/// * If the wallet cannot contact the node, this function returns the maximum height
+	/// of all outputs contained within the wallet, and the `updated_from_node` fields
+	/// in the response is set to false.
+	///
+	/// Clients should generally ensure the `updated_from_node` field is returned as
+	/// `true` before assuming the height for any operation.
+	///
+	/// # Arguments
+	///
+	/// * None
+	///
+	/// # Returns
+	/// * Ok with a  [`NodeHeightResult`](../grin_wallet_libwallet/types/struct.NodeHeightResult.html)
+	/// if successful. If the height result was obtained from the configured node,
+	/// `updated_from_node` will be set to `true`
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.node_height();
+	///
+	/// if let Ok(node_height_result) = result {
+	///		if node_height_result.updated_from_node {
+	///			//we can assume node_height_result.height is relatively safe to use
+	///
+	///		}
+	///		//...
+	/// }
+	/// ```
+
+	pub fn node_height(&self) -> Result<NodeHeightResult, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::node_height(&mut *w);

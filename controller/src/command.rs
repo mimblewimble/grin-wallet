@@ -421,9 +421,9 @@ pub fn outputs(
 	dark_scheme: bool,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
-		let (height, _) = api.node_height()?;
+		let res = api.node_height()?;
 		let (validated, outputs) = api.retrieve_outputs(g_args.show_spent, true, None)?;
-		display::outputs(&g_args.account, height, validated, outputs, dark_scheme)?;
+		display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -441,12 +441,12 @@ pub fn txs(
 	dark_scheme: bool,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
-		let (height, _) = api.node_height()?;
+		let res = api.node_height()?;
 		let (validated, txs) = api.retrieve_txs(true, args.id, None)?;
 		let include_status = !args.id.is_some();
 		display::txs(
 			&g_args.account,
-			height,
+			res.height,
 			validated,
 			&txs,
 			include_status,
@@ -456,7 +456,7 @@ pub fn txs(
 		// inputs/outputs and messages
 		if args.id.is_some() {
 			let (_, outputs) = api.retrieve_outputs(true, false, args.id)?;
-			display::outputs(&g_args.account, height, validated, outputs, dark_scheme)?;
+			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 			// should only be one here, but just in case
 			for tx in txs {
 				display::tx_messages(&tx, dark_scheme)?;
