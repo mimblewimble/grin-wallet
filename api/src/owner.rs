@@ -12,19 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Main interface into all wallet API functions.
-//! Wallet APIs are split into two seperate blocks of functionality
-//! called the 'Owner' and 'Foreign' APIs:
-//!
-//! * The 'Owner' API is intended to expose methods that are to be
-//! used by the wallet owner only. It is vital that this API is not
-//! exposed to anyone other than the owner of the wallet (i.e. the
-//! person with access to the seed and password.
-//!
-//! Methods in both APIs are intended to be 'single use', that is to say each
-//! method will 'open' the wallet (load the keychain with its master seed), perform
-//! its operation, then 'close' the wallet (unloading references to the keychain and master
-//! seed).
+//! Owner API External Definition
 
 use crate::util::Mutex;
 use chrono::prelude::*;
@@ -42,7 +30,20 @@ use crate::libwallet::types::{
 };
 use crate::libwallet::Error;
 
-/// Functions intended for use by the owner (e.g. master seed holder) of the wallet.
+/// Main interface into all wallet API functions.
+/// Wallet APIs are split into two seperate blocks of functionality
+/// called the ['Owner'](struct.Owner.html) and ['Foreign'](struct.Foreign.html) APIs
+///
+/// * The 'Owner' API is intended to expose methods that are to be
+/// used by the wallet owner only. It is vital that this API is not
+/// exposed to anyone other than the owner of the wallet (i.e. the
+/// person with access to the seed and password.
+///
+/// Methods in both APIs are intended to be 'single use', that is to say each
+/// method will 'open' the wallet (load the keychain with its master seed), perform
+/// its operation, then 'close' the wallet (unloading references to the keychain and master
+/// seed).
+
 pub struct Owner<W: ?Sized, C, K>
 where
 	W: WalletBackend<C, K>,
@@ -454,7 +455,7 @@ where
 	/// value outputs.
 	/// * `message` - An optional participant message to include alongside the sender's public
 	/// ParticipantData within the slate. This message will include a signature created with the
-	/// sender's private keys, and will be publically verifiable. Note this message is for
+	/// sender's private excess value, and will be publically verifiable. Note this message is for
 	/// the convenience of the participants during the exchange; it is not included in the final
 	/// transaction sent to the chain. The message will be truncated to 256 characters.
 	/// Validation of this message is optional.
@@ -668,7 +669,8 @@ where
 	/// outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
 	///
 	/// # Returns
-	/// * `Ok(())` if successful
+	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// containing the new finalized slate.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -868,12 +870,18 @@ where
 
 	/// Verifies all messages in the slate match their public keys.
 	///
+	/// The optional messages themselves are part of the `participant_data` field within the slate.
+	/// Messages are signed with the same key used to sign for the paricipant's inputs, and can thus be
+	/// verified with the public key found in the `public_blind_excess` field. This function is a
+	/// simple helper to returns whether all signatures in the participant data match their public
+	/// keys.
+	///
 	/// # Arguments
 	///
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
 	///
 	/// # Returns
-	/// * Ok(()) if successful and the signatures validate
+	/// * `Ok(())` if successful and the signatures validate
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example

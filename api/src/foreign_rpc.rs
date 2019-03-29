@@ -329,13 +329,13 @@ where
 
 	fn receive_tx(
 		&self,
-		mut slate: Slate,
+		slate: Slate,
 		dest_acct_name: Option<String>,
 		message: Option<String>,
 	) -> Result<Slate, ErrorKind> {
-		Foreign::receive_tx(
+		let slate = Foreign::receive_tx(
 			self,
-			&mut slate,
+			&slate,
 			dest_acct_name.as_ref().map(String::as_str),
 			message,
 		)

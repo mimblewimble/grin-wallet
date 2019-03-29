@@ -353,7 +353,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 				let blob = Slate::deserialize_upgrade(&msg);
 				match blob {
 					Ok(message) => {
-						let mut slate: Slate = message.clone().into();
+						let slate: Slate = message.clone().into();
 						let tx_uuid = slate.id;
 
 						// Reject multiple recipients channel for safety
@@ -382,15 +382,15 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 						let res = {
 							let mut w = wallet.lock();
 							w.open_with_credentials()?;
-							let r = foreign::receive_tx(&mut *w, &mut slate, None, None, false);
+							let r = foreign::receive_tx(&mut *w, &slate, None, None, false);
 							w.close()?;
 							r
 						};
 						match res {
 							// Reply to the same channel with topic SLATE_SIGNED
-							Ok(_) => {
-								let slate = slate
-									.serialize_to_version(Some(slate.version_info.orig_version))?;
+							Ok(s) => {
+								let slate =
+									s.serialize_to_version(Some(slate.version_info.orig_version))?;
 								// TODO: Send the same version of slate that was sent to us
 								let success = send(slate, channel, SLATE_SIGNED, TTL);
 

@@ -299,7 +299,7 @@ pub fn send(
 				api.tx_lock_outputs(&slate)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
-						api.receive_tx(&mut slate, Some(&args.dest), None)?;
+						slate = api.receive_tx(&slate, Some(&args.dest), None)?;
 						Ok(())
 					})?;
 				}
@@ -349,7 +349,7 @@ pub fn receive(
 			error!("Error validating participant messages: {}", e);
 			return Err(e);
 		}
-		api.receive_tx(&mut slate, Some(&g_args.account), args.message.clone())?;
+		slate = api.receive_tx(&slate, Some(&g_args.account), args.message.clone())?;
 		Ok(())
 	})?;
 	let send_tx = format!("{}.response", args.input);
