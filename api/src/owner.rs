@@ -856,8 +856,40 @@ where
 		owner::verify_slate_messages(slate)
 	}
 
-	/// Attempt to restore contents of wallet
-	/// TODO: Full docs
+	/// Scans the entire UTXO set from the node, creating outputs for each scanned
+	/// output that matches the wallet's master seed. This function is intended to be called as part
+	/// of a recovery process (either from BIP32 phrase or backup seed files,) and will error if the
+	/// wallet is non-empty, i.e. contains any outputs at all.
+	///
+	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
+	/// that no other processes should be trying to use the wallet at the same time this function is
+	/// running.
+	///
+	/// A single [TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html) is created for
+	/// all non-coinbase outputs discovered and restored during this process. A separate entry
+	/// is created for each coinbase output.
+	///
+	/// # Arguments
+	///
+	/// * None
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.restore();
+	///
+	/// if let Ok(_) = result {
+	///		// Wallet outputs should be consistent with what's on chain
+	///		// ...
+	/// }
+	/// ```
 	pub fn restore(&self) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -866,8 +898,52 @@ where
 		res
 	}
 
-	/// Attempt to check and fix the contents of the wallet
-	/// TODO: Full docs
+	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet
+	/// update the wallet state to be consistent with what's currently in the UTXO set.
+	///
+	/// This function can be used to repair wallet state, particularly by restoring outputs that may
+	/// be missing if the wallet owner has cancelled transactions locally that were then successfully
+	/// posted to the chain.
+	///
+	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
+	/// that no other processes should be trying to use the wallet at the same time this function is
+	/// running.
+	///
+	/// When an output is found that doesn't exist in the wallet, a corresponding
+	/// [TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html) is created.
+	///
+	/// # Arguments
+	///
+	/// * `delete_unconfirmed` - if `false`, the check_repair process will be non-destructive, and
+	/// mostly limited to restoring missing outputs. It will leave unconfirmed transaction logs entries
+	/// and unconfirmed outputs intact. If `true`, the process will unlock all locked outputs,
+	/// restore all missing outputs, and mark any outputs that have been marked 'Spent' but are still
+	/// in the UTXO set as 'Unspent' (as can happen during a fork). It will also attempt to cancel any
+	/// transaction log entries associated with any locked outputs or outputs incorrectly marked 'Spent'.
+	/// Note this completely removes all outstanding transactions, so users should be very aware what
+	/// will happen if this flag is set. Note that if transactions/outputs are removed that later
+	/// confirm on the chain, another call to this function will restore them.
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.check_repair(
+	/// 	false,
+	/// );
+	///
+	/// if let Ok(_) = result {
+	///		// Wallet outputs should be consistent with what's on chain
+	///		// ...
+	/// }
+	/// ```
+
 	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
