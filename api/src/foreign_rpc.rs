@@ -16,7 +16,7 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{BlockFees, CbData, NodeClient, WalletBackend};
+use crate::libwallet::types::{BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend};
 use crate::libwallet::ErrorKind;
 use crate::Foreign;
 use easy_jsonrpc;
@@ -416,16 +416,16 @@ pub fn run_doctest_foreign(
 		let amount = 60_000_000_000;
 		let mut w = wallet1.lock();
 		w.open_with_credentials().unwrap();
-		let slate = api_impl::owner::initiate_tx(
-			&mut *w, None,   // account
-			amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None, true,
-		)
-		.unwrap();
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
 		println!("INIT SLATE");
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());

@@ -27,7 +27,7 @@ use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use self::libwallet::slate::Slate;
-use self::libwallet::types::OutputStatus;
+use self::libwallet::types::{InitTxArgs, OutputStatus};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::thread;
@@ -100,14 +100,16 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 	let mut slate = Slate::blank(1);
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let slate_i = sender_api.initiate_tx(
-			None, amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let slate_i = sender_api.initiate_tx(args)?;
 
 		// Check we are creating a tx with the expected lock_height of 0.
 		// We will check this produces a Plain kernel later.
@@ -250,26 +252,32 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// Estimate fee and locked amount for a transaction
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
-		let est = sender_api.estimate_initiate_tx(
-			None,
-			amount * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
-		)?;
-		assert_eq!(est.total, 600_000_000_000);
+		let init_args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			estimate_only: Some(true),
+			..Default::default()
+		};
+		let est = sender_api.initiate_tx(init_args)?;
+		assert_eq!(est.amount, 600_000_000_000);
 		assert_eq!(est.fee, 4_000_000);
 
-		let est = sender_api.estimate_initiate_tx(
-			None,
-			amount * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			false,      // select the smallest amount of outputs
-		)?;
-		assert_eq!(est.total, 180_000_000_000);
+		let init_args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: false, //select smallest number
+			estimate_only: Some(true),
+			..Default::default()
+		};
+		let est = sender_api.initiate_tx(init_args)?;
+		assert_eq!(est.amount, 180_000_000_000);
 		assert_eq!(est.fee, 6_000_000);
 
 		Ok(())
@@ -279,16 +287,16 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 	// the stored transaction instead
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let slate_i = sender_api.initiate_tx(
-			None,
-			amount * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
-			None,
-			None,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;
@@ -378,14 +386,17 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 	let mut slate = Slate::blank(1);
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
-		let slate_i = sender_api.initiate_tx(
-			None, amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;

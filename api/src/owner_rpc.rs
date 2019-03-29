@@ -19,8 +19,8 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
-	WalletInfo,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
+	WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
 use crate::Owner;
@@ -321,7 +321,19 @@ pub trait OwnerRpc {
 		{
 			"jsonrpc": "2.0",
 			"method": "initiate_tx",
-			"params": [null, 6000000000, 2, 500, 1, true, "my message", null],
+			"params": {
+				"args": {
+					"src_acct_name": null,
+					"amount": "6000000000",
+					"minimum_confirmations": 2,
+					"max_outputs": 500,
+					"num_change_outputs": 1,
+					"selection_strategy_is_use_all": true,
+					"message": "my message",
+					"target_slate_version": null,
+					"send_args": null
+				}
+			},
 			"id": 1
 		}
 		# "#
@@ -388,61 +400,10 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn initiate_tx(
-		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-		message: Option<String>,
-		target_slate_version: Option<u16>,
-	) -> Result<Slate, ErrorKind>;
-
-	/**
-	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.estimate_initiate_tx).
-
-
-	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	# r#"
-	{
-		"jsonrpc": "2.0",
-		"method": "estimate_initiate_tx",
-		"params": [null, 6000000000, 2, 500, 1, true],
-		"id": 1
-	}
-	# "#
-	# ,
-	# r#"
-	{
-		"id": 1,
-		"jsonrpc": "2.0",
-		"result": {
-			"Ok": {
-				"total": "60000000000",
-				"fee": "8000000"
-			}
-		}
-	}
-	# "#
-	# ,4, false, false, false);
-	```
-	 */
-	fn estimate_initiate_tx(
-		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-	) -> Result<TxEstimation, ErrorKind>;
+	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
-
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -1029,17 +990,17 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": [
-				5,
-				true
-			]
+			"Ok": {
+				"height": "5",
+				"updated_from_node": true
+			}
 		}
 	}
 	# "#
 	# , 5, false, false, false);
 	```
 	 */
-	fn node_height(&self) -> Result<(u64, bool), ErrorKind>;
+	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind>;
 }
 
 impl<W: ?Sized, C, K> OwnerRpc for Owner<W, C, K>
@@ -1087,50 +1048,8 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn initiate_tx(
-		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-		message: Option<String>,
-		target_slate_version: Option<u16>,
-	) -> Result<Slate, ErrorKind> {
-		Owner::initiate_tx(
-			self,
-			src_acct_name.as_ref().map(String::as_str),
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
-			message,
-			target_slate_version,
-		)
-		.map_err(|e| e.kind())
-	}
-
-	fn estimate_initiate_tx(
-		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-	) -> Result<TxEstimation, ErrorKind> {
-		Owner::estimate_initiate_tx(
-			self,
-			src_acct_name.as_ref().map(String::as_str),
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
-		)
-		.map_err(|e| e.kind())
+	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::initiate_tx(self, args).map_err(|e| e.kind())
 	}
 
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
@@ -1165,7 +1084,7 @@ where
 		Owner::check_repair(self, delete_unconfirmed).map_err(|e| e.kind())
 	}
 
-	fn node_height(&self) -> Result<(u64, bool), ErrorKind> {
+	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind> {
 		Owner::node_height(self).map_err(|e| e.kind())
 	}
 }
@@ -1244,16 +1163,16 @@ pub fn run_doctest_owner(
 		let amount = 60_000_000_000;
 		let mut w = wallet1.lock();
 		w.open_with_credentials().unwrap();
-		let mut slate = api_impl::owner::initiate_tx(
-			&mut *w, None,   // account
-			amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None, true,
-		)
-		.unwrap();
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let mut slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
 		{
 			let mut w2 = wallet2.lock();
 			w2.open_with_credentials().unwrap();

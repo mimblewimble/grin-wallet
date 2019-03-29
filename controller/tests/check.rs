@@ -28,7 +28,7 @@ use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::FileWalletCommAdapter;
-use libwallet::types::WalletInst;
+use libwallet::types::{InitTxArgs, WalletInst};
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -178,16 +178,16 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	// perform a transaction, but don't let it finish
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
 		// send to send
-		let mut slate = api.initiate_tx(
-			None,
-			reward * 2, // amount
-			cm,         // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
-			None,       // optional message
-			None,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: reward * 2,
+			minimum_confirmations: cm,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let mut slate = api.initiate_tx(args)?;
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
 		let send_file = format!("{}/part_tx_1.tx", test_dir);

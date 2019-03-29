@@ -26,6 +26,7 @@ use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use libwallet::types::InitTxArgs;
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -179,14 +180,16 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	}
 
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		let mut slate = api.initiate_tx(
-			None, reward, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: reward,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let mut slate = api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(&slate)?;
 		slate = api.finalize_tx(&slate)?;

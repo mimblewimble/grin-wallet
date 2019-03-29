@@ -23,7 +23,7 @@ use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::types::{
-	BlockFees, CbData, NodeClient, WalletBackend, WalletInfo, WalletInst,
+	BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend, WalletInfo, WalletInst,
 };
 use crate::lmdb_wallet::LMDBBackend;
 use crate::util;
@@ -196,15 +196,16 @@ where
 	let slate = {
 		let mut w = wallet.lock();
 		w.open_with_credentials()?;
-		let slate_i = owner::initiate_tx(
-			&mut *w, None,   // account
-			amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None, test_mode,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let slate_i = owner::initiate_tx(&mut *w, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut *w, &slate)?;
 		let slate = owner::finalize_tx(&mut *w, &slate)?;

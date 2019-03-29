@@ -26,6 +26,7 @@ use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use libwallet::types::InitTxArgs;
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -86,16 +87,16 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
 		assert_eq!(wallet1_info.total, bh * reward);
 		// send to send
-		let mut slate = api.initiate_tx(
-			Some("mining"),
-			reward * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
-			None,
-			None,
-		)?;
+		let args = InitTxArgs {
+			src_acct_name: Some("mining".to_owned()),
+			amount: reward * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let mut slate = api.initiate_tx(args)?;
 		api.tx_lock_outputs(&slate)?;
 		// Send directly to self
 		wallet::controller::foreign_single_use(wallet1.clone(), |api| {

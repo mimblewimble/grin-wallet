@@ -35,7 +35,7 @@ use crate::impls::{
 	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::types::{NodeClient, WalletInst};
+use crate::libwallet::types::{InitTxArgs, NodeClient, WalletInst};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -247,31 +247,35 @@ pub fn send(
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
 				.map(|strategy| {
-					let est = api
-						.estimate_initiate_tx(
-							None,
-							args.amount,
-							args.minimum_confirmations,
-							args.max_outputs,
-							args.change_outputs,
-							strategy == "all",
-						)
-						.unwrap();
-					(strategy, est.total, est.fee)
+					let init_args = InitTxArgs {
+						src_acct_name: None,
+						amount: args.amount,
+						minimum_confirmations: args.minimum_confirmations,
+						max_outputs: args.max_outputs as u32,
+						num_change_outputs: args.change_outputs as u32,
+						selection_strategy_is_use_all: strategy == "all",
+						estimate_only: Some(true),
+						..Default::default()
+					};
+					let slate = api.initiate_tx(init_args).unwrap();
+					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
 		} else {
-			let result = api.initiate_tx(
-				None,
-				args.amount,
-				args.minimum_confirmations,
-				args.max_outputs,
-				args.change_outputs,
-				args.selection_strategy == "all",
-				args.message.clone(),
-				args.target_slate_version,
-			);
+			let init_args = InitTxArgs {
+				src_acct_name: None,
+				amount: args.amount,
+				minimum_confirmations: args.minimum_confirmations,
+				max_outputs: args.max_outputs as u32,
+				num_change_outputs: args.change_outputs as u32,
+				selection_strategy_is_use_all: args.selection_strategy == "all",
+				message: args.message.clone(),
+				target_slate_version: args.target_slate_version,
+				send_args: None,
+				..Default::default()
+			};
+			let result = api.initiate_tx(init_args);
 			let mut slate = match result {
 				Ok(s) => {
 					info!(
@@ -421,9 +425,9 @@ pub fn outputs(
 	dark_scheme: bool,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
-		let (height, _) = api.node_height()?;
+		let res = api.node_height()?;
 		let (validated, outputs) = api.retrieve_outputs(g_args.show_spent, true, None)?;
-		display::outputs(&g_args.account, height, validated, outputs, dark_scheme)?;
+		display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -441,12 +445,12 @@ pub fn txs(
 	dark_scheme: bool,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
-		let (height, _) = api.node_height()?;
+		let res = api.node_height()?;
 		let (validated, txs) = api.retrieve_txs(true, args.id, None)?;
 		let include_status = !args.id.is_some();
 		display::txs(
 			&g_args.account,
-			height,
+			res.height,
 			validated,
 			&txs,
 			include_status,
@@ -456,7 +460,7 @@ pub fn txs(
 		// inputs/outputs and messages
 		if args.id.is_some() {
 			let (_, outputs) = api.retrieve_outputs(true, false, args.id)?;
-			display::outputs(&g_args.account, height, validated, outputs, dark_scheme)?;
+			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 			// should only be one here, but just in case
 			for tx in txs {
 				display::tx_messages(&tx, dark_scheme)?;

@@ -21,14 +21,15 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
+use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
-	WalletInfo,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
+	WalletBackend, WalletInfo,
 };
-use crate::libwallet::Error;
+use crate::libwallet::{Error, ErrorKind};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -431,37 +432,15 @@ where
 	/// as via file transfer,) the lock call should happen immediately (before the file is sent
 	/// to the recipient).
 	///
+	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
+	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
+	/// function will attempt to perform a synchronous send to the recipient specified in the `dest`
+	/// field according to the `method` field, and will also finalize and post the transaction if
+	/// the `finalize` field is set.
+	///
 	/// # Arguments
-	/// * `src_acct_name` - The human readable account name from which to draw outputs
-	/// for the transaction, overriding whatever the active account is as set via the
-	/// [`set_active_account`](struct.Owner.html#method.set_active_account) method.
-	/// If None, the transaction will use the active account.
-	/// * `amount` - The amount to send, in nanogrins. (`1 G = 1_000_000_000nG`)
-	/// * `minimum_confirmations` - The minimum number of confirmations an output
-	/// should have in order to be included in the transaction.
-	/// * `max_outputs` - By default, the wallet selects as many inputs as possible in a
-	/// transaction, to reduce the Output set and the fees. The wallet will attempt to spend
-	/// include up to `max_outputs` in a transaction, however if this is not enough to cover
-	/// the whole amount, the wallet will include more outputs. This parameter should be considered
-	/// a soft limit.
-	/// * `num_change_outputs` - The target number of change outputs to create in the transaction.
-	/// The actual number created will be `num_change_outputs` + whatever remainder is needed.
-	/// * `selection_strategy_is_use_all` - If `true`, attempt to use up as many outputs as
-	/// possible to create the transaction, up the 'soft limit' of `max_outputs`. This helps
-	/// to reduce the size of the UTXO set and the amount of data stored in the wallet, and
-	/// minimizes fees. This will generally result in many inputs and a large change output(s),
-	/// usually much larger than the amount being sent. If `false`, the transaction will include
-	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
-	/// value outputs.
-	/// * `message` - An optional participant message to include alongside the sender's public
-	/// ParticipantData within the slate. This message will include a signature created with the
-	/// sender's private excess value, and will be publically verifiable. Note this message is for
-	/// the convenience of the participants during the exchange; it is not included in the final
-	/// transaction sent to the chain. The message will be truncated to 256 characters.
-	/// Validation of this message is optional.
-	/// * `target_slate_version` Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
+	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
+	/// transaction initialization arguments. See struct documentation for further detail.
 	///
 	/// # Returns
 	/// * a result containing:
@@ -486,111 +465,69 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
 	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 2,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Have some Grins. Love, Yeastplume".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Have some Grins. Love, Yeastplume".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
-	///		// Send slate somehow
-	///		// ...
-	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate);
+	/// 	// Send slate somehow
+	/// 	// ...
+	/// 	// Lock our outputs if we're happy the slate was (or is being) sent
+	/// 	api_owner.tx_lock_outputs(&slate);
 	/// }
 	/// ```
 
-	pub fn initiate_tx(
-		&self,
-		src_acct_name: Option<&str>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-		message: Option<String>,
-		target_slate_version: Option<u16>,
-	) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
-		w.open_with_credentials()?;
-		let res = owner::initiate_tx(
-			&mut *w,
-			src_acct_name,
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
-			message,
-			target_slate_version,
-			self.doctest_mode,
-		);
-		w.close()?;
-		res
-	}
+	pub fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
+		let send_args = args.send_args.clone();
+		let mut slate = {
+			let mut w = self.wallet.lock();
+			w.open_with_credentials()?;
+			let slate = owner::initiate_tx(&mut *w, args, self.doctest_mode)?;
+			w.close()?;
+			slate
+		};
+		// Helper functionality. If send arguments exist, attempt to send
+		match send_args {
+			Some(sa) => {
+				match sa.method.as_ref() {
+					"http" => {
+						slate = HTTPWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?
+					}
+					"keybase" => {
+						//TODO: in case of keybase, the response might take 60s and leave the service hanging
+						slate = KeybaseWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?;
+					}
+					_ => {
+						error!("unsupported payment method: {}", sa.method);
+						return Err(ErrorKind::ClientCallback(
+							"unsupported payment method".to_owned(),
+						))?;
+					}
+				}
+				self.tx_lock_outputs(&slate)?;
+				let slate = match sa.finalize {
+					true => self.finalize_tx(&slate)?,
+					false => slate,
+				};
 
-	/// Estimates the amount to be locked and fee for the transaction without creating one.
-	///
-	/// # Arguments
-	/// * As found in [`initiate_tx`](struct.Owner.html#method.initiate_tx) above.
-	///
-	/// # Returns
-	/// * a result containing a
-	/// [`TxEstimation`](../grin_wallet_libwallet/types/struct.TxEstimation.html)
-	///
-	/// # Example
-	/// Set up as in [new](struct.Owner.html#method.new) method above.
-	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
-	///
-	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Estimate transaction using default account
-	/// let result = api_owner.estimate_initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///	);
-	///
-	/// if let Ok(est) = result {
-	///		// ...
-	/// }
-	/// ```
-
-	pub fn estimate_initiate_tx(
-		&self,
-		src_acct_name: Option<&str>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-	) -> Result<TxEstimation, Error> {
-		let mut w = self.wallet.lock();
-		w.open_with_credentials()?;
-		let res = owner::estimate_initiate_tx(
-			&mut *w,
-			src_acct_name,
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
-		);
-		w.close()?;
-		res
+				if sa.post_tx {
+					self.post_tx(&slate.tx, sa.fluff)?;
+				}
+				Ok(slate)
+			}
+			None => Ok(slate),
+		}
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given
@@ -621,19 +558,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Remember to lock this when we're happy this is sent".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Remember to lock when we're happy this is sent".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -679,19 +616,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Finalize this tx now".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Finalize this tx now".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -736,19 +673,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Post this tx".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Finalize this tx now".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -797,19 +734,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Cancel this tx".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Cancel this tx".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -890,19 +827,19 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
-	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 10,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Just verify messages".to_owned()),
+	/// 	..Default::default()
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Finalize this tx now".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
 	///		// Send slate somehow
@@ -919,8 +856,40 @@ where
 		owner::verify_slate_messages(slate)
 	}
 
-	/// Attempt to restore contents of wallet
-	/// TODO: Full docs
+	/// Scans the entire UTXO set from the node, creating outputs for each scanned
+	/// output that matches the wallet's master seed. This function is intended to be called as part
+	/// of a recovery process (either from BIP32 phrase or backup seed files,) and will error if the
+	/// wallet is non-empty, i.e. contains any outputs at all.
+	///
+	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
+	/// that no other processes should be trying to use the wallet at the same time this function is
+	/// running.
+	///
+	/// A single [TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html) is created for
+	/// all non-coinbase outputs discovered and restored during this process. A separate entry
+	/// is created for each coinbase output.
+	///
+	/// # Arguments
+	///
+	/// * None
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.restore();
+	///
+	/// if let Ok(_) = result {
+	///		// Wallet outputs should be consistent with what's on chain
+	///		// ...
+	/// }
+	/// ```
 	pub fn restore(&self) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -929,8 +898,52 @@ where
 		res
 	}
 
-	/// Attempt to check and fix the contents of the wallet
-	/// TODO: Full docs
+	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet
+	/// update the wallet state to be consistent with what's currently in the UTXO set.
+	///
+	/// This function can be used to repair wallet state, particularly by restoring outputs that may
+	/// be missing if the wallet owner has cancelled transactions locally that were then successfully
+	/// posted to the chain.
+	///
+	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
+	/// that no other processes should be trying to use the wallet at the same time this function is
+	/// running.
+	///
+	/// When an output is found that doesn't exist in the wallet, a corresponding
+	/// [TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html) is created.
+	///
+	/// # Arguments
+	///
+	/// * `delete_unconfirmed` - if `false`, the check_repair process will be non-destructive, and
+	/// mostly limited to restoring missing outputs. It will leave unconfirmed transaction logs entries
+	/// and unconfirmed outputs intact. If `true`, the process will unlock all locked outputs,
+	/// restore all missing outputs, and mark any outputs that have been marked 'Spent' but are still
+	/// in the UTXO set as 'Unspent' (as can happen during a fork). It will also attempt to cancel any
+	/// transaction log entries associated with any locked outputs or outputs incorrectly marked 'Spent'.
+	/// Note this completely removes all outstanding transactions, so users should be very aware what
+	/// will happen if this flag is set. Note that if transactions/outputs are removed that later
+	/// confirm on the chain, another call to this function will restore them.
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.check_repair(
+	/// 	false,
+	/// );
+	///
+	/// if let Ok(_) = result {
+	///		// Wallet outputs should be consistent with what's on chain
+	///		// ...
+	/// }
+	/// ```
+
 	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -939,9 +952,44 @@ where
 		res
 	}
 
-	/// Retrieve current height from node
-	// TODO: Should return u64 as string
-	pub fn node_height(&self) -> Result<(u64, bool), Error> {
+	/// Retrieves the last known height known by the wallet. This is determined as follows:
+	/// * If the wallet can successfully contact its configured node, the reported node
+	/// height is returned, and the `updated_from_node` field in the response is `true`
+	/// * If the wallet cannot contact the node, this function returns the maximum height
+	/// of all outputs contained within the wallet, and the `updated_from_node` fields
+	/// in the response is set to false.
+	///
+	/// Clients should generally ensure the `updated_from_node` field is returned as
+	/// `true` before assuming the height for any operation.
+	///
+	/// # Arguments
+	///
+	/// * None
+	///
+	/// # Returns
+	/// * Ok with a  [`NodeHeightResult`](../grin_wallet_libwallet/types/struct.NodeHeightResult.html)
+	/// if successful. If the height result was obtained from the configured node,
+	/// `updated_from_node` will be set to `true`
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.node_height();
+	///
+	/// if let Ok(node_height_result) = result {
+	///		if node_height_result.updated_from_node {
+	///			//we can assume node_height_result.height is relatively safe to use
+	///
+	///		}
+	///		//...
+	/// }
+	/// ```
+
+	pub fn node_height(&self) -> Result<NodeHeightResult, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::node_height(&mut *w);
@@ -970,7 +1018,7 @@ macro_rules! doctest_helper_setup_doc_env {
 		use api::Owner;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::types::WalletBackend;
+		use libwallet::types::{InitTxArgs, WalletBackend};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

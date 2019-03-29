@@ -23,7 +23,8 @@ use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCo
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	CbData, NodeClient, OutputCommitMapping, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,
+	CbData, InitTxArgs, NodeClient, OutputCommitMapping, SendTXArgs, TxLogEntry, WalletBackend,
+	WalletInfo,
 };
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::to_base64;
@@ -289,7 +290,8 @@ where
 		_req: &Request<Body>,
 		api: Owner<T, C, K>,
 	) -> Result<(u64, bool), Error> {
-		api.node_height()
+		let res = api.node_height()?;
+		Ok((res.height, res.updated_from_node))
 	}
 
 	fn handle_get_request(&self, req: &Request<Body>) -> Result<Response<Body>, Error> {
@@ -299,7 +301,7 @@ where
 			match req
 				.uri()
 				.path()
-				.trim_right_matches("/")
+				.trim_end_matches("/")
 				.rsplit("/")
 				.next()
 				.unwrap()
@@ -320,16 +322,19 @@ where
 		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = Slate, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |args: SendTXArgs| {
-			let result = api.initiate_tx(
-				None,
-				args.amount,
-				args.minimum_confirmations,
-				args.max_outputs,
-				args.num_change_outputs,
-				args.selection_strategy_is_use_all,
-				args.message,
-				args.target_slate_version,
-			);
+			let init_args = InitTxArgs {
+				src_acct_name: None,
+				amount: args.amount,
+				minimum_confirmations: args.minimum_confirmations,
+				max_outputs: args.max_outputs as u32,
+				num_change_outputs: args.num_change_outputs as u32,
+				selection_strategy_is_use_all: args.selection_strategy_is_use_all,
+				message: args.message.clone(),
+				target_slate_version: args.target_slate_version,
+				send_args: None,
+				..Default::default()
+			};
+			let result = api.initiate_tx(init_args);
 			let mut slate = match result {
 				Ok(s) => {
 					info!(
@@ -554,7 +559,7 @@ where
 		match req
 			.uri()
 			.path()
-			.trim_right_matches("/")
+			.trim_end_matches("/")
 			.rsplit("/")
 			.next()
 			.unwrap()
@@ -688,7 +693,7 @@ where
 		match req
 			.uri()
 			.path()
-			.trim_right_matches("/")
+			.trim_end_matches("/")
 			.rsplit("/")
 			.next()
 			.unwrap()
