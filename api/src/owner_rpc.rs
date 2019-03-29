@@ -19,8 +19,8 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry, WalletBackend,
-	WalletInfo,
+	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry,
+	WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
 use crate::Owner;

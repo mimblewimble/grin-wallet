@@ -25,8 +25,8 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry, TxWrapper,
-	WalletBackend, WalletInfo,
+	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry,
+	TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};
 
@@ -356,22 +356,20 @@ where
 {
 	let res = w.w2n_client().get_chain_height();
 	match res {
-		Ok(height) => Ok(NodeHeightResult{
-				height,
-				updated_from_node: true
-			}
-		),
+		Ok(height) => Ok(NodeHeightResult {
+			height,
+			updated_from_node: true,
+		}),
 		Err(_) => {
 			let outputs = retrieve_outputs(w, true, false, None)?;
 			let height = match outputs.1.iter().map(|m| m.output.height).max() {
 				Some(height) => height,
 				None => 0,
 			};
-			Ok(NodeHeightResult{
+			Ok(NodeHeightResult {
 				height,
 				updated_from_node: false,
-				}
-			)
+			})
 		}
 	}
 }
