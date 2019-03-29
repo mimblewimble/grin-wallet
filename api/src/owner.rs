@@ -21,8 +21,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
-use crate::keychain::{Identifier, Keychain};
 use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
+use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
@@ -501,7 +501,9 @@ where
 		match send_args {
 			Some(sa) => {
 				match sa.method.as_ref() {
-					"http" => slate = HTTPWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?,
+					"http" => {
+						slate = HTTPWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?
+					}
 					"keybase" => {
 						//TODO: in case of keybase, the response might take 60s and leave the service hanging
 						slate = KeybaseWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?;
@@ -523,7 +525,7 @@ where
 					self.post_tx(&slate.tx, sa.fluff)?;
 				}
 				Ok(slate)
-			},
+			}
 			None => Ok(slate),
 		}
 	}
