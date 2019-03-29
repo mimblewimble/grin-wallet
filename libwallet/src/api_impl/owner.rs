@@ -25,7 +25,7 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry,
+	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, InitTxArgs, TxEstimation, TxLogEntry,
 	TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};
@@ -137,14 +137,7 @@ where
 /// Initiate tx as sender
 pub fn initiate_tx<T: ?Sized, C, K>(
 	w: &mut T,
-	src_acct_name: Option<&str>,
-	amount: u64,
-	minimum_confirmations: u64,
-	max_outputs: usize,
-	num_change_outputs: usize,
-	selection_strategy_is_use_all: bool,
-	message: Option<String>,
-	target_slate_version: Option<u16>,
+	args: InitTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -152,9 +145,9 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let parent_key_id = match src_acct_name {
+	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d.to_owned())?;
+			let pm = w.get_acct_path(d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),
@@ -163,7 +156,7 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let message = match message {
+	let message = match args.message {
 		Some(mut m) => {
 			m.truncate(USER_MESSAGE_MAX_LEN);
 			Some(m)
@@ -171,15 +164,15 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, amount, 2, use_test_rng)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng)?;
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
 		&mut slate,
-		minimum_confirmations,
-		max_outputs,
-		num_change_outputs,
-		selection_strategy_is_use_all,
+		args.minimum_confirmations,
+		args.max_outputs as usize,
+		args.num_change_outputs as usize,
+		args.selection_strategy_is_use_all,
 		&parent_key_id,
 		0,
 		message,
@@ -193,7 +186,7 @@ where
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
-	if let Some(v) = target_slate_version {
+	if let Some(v) = args.target_slate_version {
 		slate.version_info.orig_version = v;
 	}
 	Ok(slate)

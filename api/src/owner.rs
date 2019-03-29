@@ -25,7 +25,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry,
+	AcctPathMapping, NodeClient, NodeHeightResult, InitTxArgs, OutputCommitMapping, TxEstimation, TxLogEntry,
 	WalletBackend, WalletInfo,
 };
 use crate::libwallet::Error;
@@ -432,36 +432,8 @@ where
 	/// to the recipient).
 	///
 	/// # Arguments
-	/// * `src_acct_name` - The human readable account name from which to draw outputs
-	/// for the transaction, overriding whatever the active account is as set via the
-	/// [`set_active_account`](struct.Owner.html#method.set_active_account) method.
-	/// If None, the transaction will use the active account.
-	/// * `amount` - The amount to send, in nanogrins. (`1 G = 1_000_000_000nG`)
-	/// * `minimum_confirmations` - The minimum number of confirmations an output
-	/// should have in order to be included in the transaction.
-	/// * `max_outputs` - By default, the wallet selects as many inputs as possible in a
-	/// transaction, to reduce the Output set and the fees. The wallet will attempt to spend
-	/// include up to `max_outputs` in a transaction, however if this is not enough to cover
-	/// the whole amount, the wallet will include more outputs. This parameter should be considered
-	/// a soft limit.
-	/// * `num_change_outputs` - The target number of change outputs to create in the transaction.
-	/// The actual number created will be `num_change_outputs` + whatever remainder is needed.
-	/// * `selection_strategy_is_use_all` - If `true`, attempt to use up as many outputs as
-	/// possible to create the transaction, up the 'soft limit' of `max_outputs`. This helps
-	/// to reduce the size of the UTXO set and the amount of data stored in the wallet, and
-	/// minimizes fees. This will generally result in many inputs and a large change output(s),
-	/// usually much larger than the amount being sent. If `false`, the transaction will include
-	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
-	/// value outputs.
-	/// * `message` - An optional participant message to include alongside the sender's public
-	/// ParticipantData within the slate. This message will include a signature created with the
-	/// sender's private excess value, and will be publically verifiable. Note this message is for
-	/// the convenience of the participants during the exchange; it is not included in the final
-	/// transaction sent to the chain. The message will be truncated to 256 characters.
-	/// Validation of this message is optional.
-	/// * `target_slate_version` Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
+	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
+	/// transaction initialization arguments. See struct documentation for further detail.
 	///
 	/// # Returns
 	/// * a result containing:
@@ -486,51 +458,39 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let amount = 2_000_000_000;
-	///
 	/// // Attempt to create a transaction using the 'default' account
+	/// let args = InitTxArgs {
+	/// 	src_acct_name: None,
+	/// 	amount: 2_000_000_000,
+	/// 	minimum_confirmations: 2,
+	/// 	max_outputs: 500,
+	/// 	num_change_outputs: 1,
+	/// 	selection_strategy_is_use_all: true,
+	/// 	message: Some("Have some Grins. Love, Yeastplume".to_owned()),
+	/// 	target_slate_version: None,
+	/// 	send_args: None,
+	/// };
 	/// let result = api_owner.initiate_tx(
-	///		None,
-	///		amount,     // amount
-	///		10,         // minimum confirmations
-	///		500,        // max outputs
-	///		1,          // num change outputs
-	///		true,       // select all outputs
-	///		Some("Have some Grins. Love, Yeastplume".to_owned()),
-	///		None,       // Use the default slate version
-	///	);
+	/// 	args,
+	/// );
 	///
 	/// if let Ok(slate) = result {
-	///		// Send slate somehow
-	///		// ...
-	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate);
+	/// 	// Send slate somehow
+	/// 	// ...
+	/// 	// Lock our outputs if we're happy the slate was (or is being) sent
+	/// 	api_owner.tx_lock_outputs(&slate);
 	/// }
 	/// ```
 
 	pub fn initiate_tx(
 		&self,
-		src_acct_name: Option<&str>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-		message: Option<String>,
-		target_slate_version: Option<u16>,
+		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::initiate_tx(
 			&mut *w,
-			src_acct_name,
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
-			message,
-			target_slate_version,
+			args,
 			self.doctest_mode,
 		);
 		w.close()?;
@@ -1005,7 +965,7 @@ macro_rules! doctest_helper_setup_doc_env {
 		use api::Owner;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::types::WalletBackend;
+		use libwallet::types::{InitTxArgs, WalletBackend};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

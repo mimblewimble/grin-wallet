@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation, TxLogEntry,
+	AcctPathMapping, NodeClient, NodeHeightResult, InitTxArgs, OutputCommitMapping, TxEstimation, TxLogEntry,
 	WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
@@ -321,7 +321,19 @@ pub trait OwnerRpc {
 		{
 			"jsonrpc": "2.0",
 			"method": "initiate_tx",
-			"params": [null, 6000000000, 2, 500, 1, true, "my message", null],
+			"params": {
+				"args": {
+					"src_acct_name": null,
+					"amount": "6000000000",
+					"minimum_confirmations": 2,
+					"max_outputs": 500,
+					"num_change_outputs": 1,
+					"selection_strategy_is_use_all": true,
+					"message": "my message",
+					"target_slate_version": null,
+					"send_args": null
+				}
+			},
 			"id": 1
 		}
 		# "#
@@ -390,14 +402,7 @@ pub trait OwnerRpc {
 
 	fn initiate_tx(
 		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-		message: Option<String>,
-		target_slate_version: Option<u16>,
+		args: InitTxArgs,
 	) -> Result<Slate, ErrorKind>;
 
 	/**
@@ -1089,25 +1094,11 @@ where
 
 	fn initiate_tx(
 		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-		message: Option<String>,
-		target_slate_version: Option<u16>,
-	) -> Result<Slate, ErrorKind> {
+		args: InitTxArgs,
+		) -> Result<Slate, ErrorKind> {
 		Owner::initiate_tx(
 			self,
-			src_acct_name.as_ref().map(String::as_str),
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
-			message,
-			target_slate_version,
+			args,
 		)
 		.map_err(|e| e.kind())
 	}
@@ -1244,14 +1235,21 @@ pub fn run_doctest_owner(
 		let amount = 60_000_000_000;
 		let mut w = wallet1.lock();
 		w.open_with_credentials().unwrap();
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			send_args: None,
+		};
 		let mut slate = api_impl::owner::initiate_tx(
-			&mut *w, None,   // account
-			amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None, true,
+			&mut *w,
+			args,
+			true,
 		)
 		.unwrap();
 		{

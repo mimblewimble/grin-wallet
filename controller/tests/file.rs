@@ -31,6 +31,8 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 
+use grin_wallet_libwallet::types::InitTxArgs;
+
 use serde_json;
 
 fn clean_output_dir(test_dir: &str) {
@@ -105,15 +107,19 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
 		assert_eq!(wallet1_info.total, bh * reward);
 		// send to send
+		let args = InitTxArgs {
+			src_acct_name: Some("mining".to_owned()),
+			amount: reward * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: Some(message.to_owned()),
+			target_slate_version: None,
+			send_args: None,
+		};
 		let mut slate = api.initiate_tx(
-			Some("mining"),
-			reward * 2,               // amount
-			2,                        // minimum confirmations
-			500,                      // max outputs
-			1,                        // num change outputs
-			true,                     // select all outputs
-			Some(message.to_owned()), // optional message
-			None,
+			args,
 		)?;
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();

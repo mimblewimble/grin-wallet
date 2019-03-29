@@ -27,7 +27,7 @@ use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use self::libwallet::slate::Slate;
-use self::libwallet::types::OutputStatus;
+use self::libwallet::types::{InitTxArgs, OutputStatus};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::thread;
@@ -100,13 +100,19 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 	let mut slate = Slate::blank(1);
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			send_args: None,
+		};
 		let slate_i = sender_api.initiate_tx(
-			None, amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None,
+			args,
 		)?;
 
 		// Check we are creating a tx with the expected lock_height of 0.
@@ -279,15 +285,19 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 	// the stored transaction instead
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			send_args: None,
+		};
 		let slate_i = sender_api.initiate_tx(
-			None,
-			amount * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
-			None,
-			None,
+			args,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
@@ -378,13 +388,20 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 	let mut slate = Slate::blank(1);
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
 		// note this will increment the block count as part of the transaction "Posting"
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			send_args: None,
+		};
+
 		let slate_i = sender_api.initiate_tx(
-			None, amount, // amount
-			2,      // minimum confirmations
-			500,    // max outputs
-			1,      // num change outputs
-			true,   // select all outputs
-			None, None,
+			args,
 		)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;

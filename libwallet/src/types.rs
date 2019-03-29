@@ -701,6 +701,8 @@ pub struct TxWrapper {
 // Types to facilitate API arguments and serialization
 
 /// Send TX API Args
+// TODO: This is here to ensure the legacy V1 API remains intact
+// remove this when v1 api is removed
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SendTXArgs {
 	/// amount to send
@@ -721,6 +723,64 @@ pub struct SendTXArgs {
 	pub message: Option<String>,
 	/// Optional slate version to target when sending
 	pub target_slate_version: Option<u16>,
+}
+
+/// V2 Init / Send TX API Args
+#[derive(Clone, Serialize, Deserialize)]
+pub struct InitTxArgs {
+	/// The human readable account name from which to draw outputs
+	/// for the transaction, overriding whatever the active account is as set via the
+	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
+	pub src_acct_name: Option<String>,
+	#[serde(with = "secp_ser::string_or_u64")]
+	/// The amount to send, in nanogrins. (`1 G = 1_000_000_000nG`)
+	pub amount: u64,
+	#[serde(with = "secp_ser::string_or_u64")]
+	/// The minimum number of confirmations an output
+	/// should have in order to be included in the transaction.
+	pub minimum_confirmations: u64,
+	/// By default, the wallet selects as many inputs as possible in a
+	/// transaction, to reduce the Output set and the fees. The wallet will attempt to spend
+	/// include up to `max_outputs` in a transaction, however if this is not enough to cover
+	/// the whole amount, the wallet will include more outputs. This parameter should be considered
+	/// a soft limit.
+	pub max_outputs: u32,
+	/// The target number of change outputs to create in the transaction.
+	/// The actual number created will be `num_change_outputs` + whatever remainder is needed.
+	pub num_change_outputs: u32,
+	/// If `true`, attempt to use up as many outputs as
+	/// possible to create the transaction, up the 'soft limit' of `max_outputs`. This helps
+	/// to reduce the size of the UTXO set and the amount of data stored in the wallet, and
+	/// minimizes fees. This will generally result in many inputs and a large change output(s),
+	/// usually much larger than the amount being sent. If `false`, the transaction will include
+	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
+	/// value outputs.
+	pub selection_strategy_is_use_all: bool,
+	/// An optional participant message to include alongside the sender's public
+	/// ParticipantData within the slate. This message will include a signature created with the
+	/// sender's private excess value, and will be publically verifiable. Note this message is for
+	/// the convenience of the participants during the exchange; it is not included in the final
+	/// transaction sent to the chain. The message will be truncated to 256 characters.
+	pub message: Option<String>,
+	/// Optionally set the output target slate version (acceptable
+	/// down to the minimum slate version compatible with the current. If `None` the slate
+	/// is generated with the latest version.
+	pub target_slate_version: Option<u16>,
+	/// Sender arguments. If present, the underlying function will also attempt to send the
+	/// transaction to a destination and optionally finalize the result
+	pub send_args: Option<InitTxSendArgs>,
+}
+
+/// Send TX API Args, for convenience functionality that inits the transaction and sends
+/// in one go
+#[derive(Clone, Serialize, Deserialize)]
+pub struct InitTxSendArgs {
+	/// The transaction method. Can currently be 'http' or 'keybase'.
+	pub method: String,
+	/// The destination, contents will depend on the particular method
+	pub dest: String,
+	/// Whether to finalize the result immediately if the send was successful
+	pub finalize: bool,
 }
 
 /// Fees in block to use for coinbase amount calculation

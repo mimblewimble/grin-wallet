@@ -29,6 +29,7 @@ use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::thread;
 use std::time::Duration;
+use libwallet::types::InitTxArgs;
 
 fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
@@ -86,15 +87,19 @@ fn self_send_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
 		assert_eq!(wallet1_info.total, bh * reward);
 		// send to send
+		let args = InitTxArgs {
+			src_acct_name: Some("mining".to_owned()),
+			amount: reward * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			send_args: None,
+		};
 		let mut slate = api.initiate_tx(
-			Some("mining"),
-			reward * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
-			None,
-			None,
+			args,
 		)?;
 		api.tx_lock_outputs(&slate)?;
 		// Send directly to self
