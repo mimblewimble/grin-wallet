@@ -25,8 +25,8 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
-	TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
+	WalletBackend, WalletInfo,
 };
 use crate::libwallet::Error;
 

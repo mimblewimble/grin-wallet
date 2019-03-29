@@ -25,8 +25,8 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
-	TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
+	TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};
 
@@ -195,7 +195,6 @@ where
 		message,
 		use_test_rng,
 	)?;
-
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
