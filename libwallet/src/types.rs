@@ -829,7 +829,7 @@ pub struct OutputCommitMapping {
 
 /// Transaction Estimate
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TxEstimation {
+pub struct TxEstimate {
 	/// Total amount to be locked
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub total: u64,

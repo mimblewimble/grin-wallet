@@ -25,7 +25,7 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimate,
 	TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};
@@ -195,21 +195,16 @@ where
 /// Estimate
 pub fn estimate_initiate_tx<T: ?Sized, C, K>(
 	w: &mut T,
-	src_acct_name: Option<&str>,
-	amount: u64,
-	minimum_confirmations: u64,
-	max_outputs: usize,
-	num_change_outputs: usize,
-	selection_strategy_is_use_all: bool,
-) -> Result<TxEstimation, Error>
+	args: InitTxArgs,
+	) -> Result<TxEstimate, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	let parent_key_id = match src_acct_name {
+	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d.to_owned())?;
+			let pm = w.get_acct_path(d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),
@@ -219,14 +214,14 @@ where
 	};
 	let (total, fee) = tx::estimate_send_tx(
 		&mut *w,
-		amount,
-		minimum_confirmations,
-		max_outputs,
-		num_change_outputs,
-		selection_strategy_is_use_all,
+		args.amount,
+		args.minimum_confirmations,
+		args.max_outputs as usize,
+		args.num_change_outputs as usize,
+		args.selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-	Ok(TxEstimation { total, fee })
+	Ok(TxEstimate { total, fee })
 }
 
 /// Lock sender outputs

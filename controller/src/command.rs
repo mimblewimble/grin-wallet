@@ -247,15 +247,21 @@ pub fn send(
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
 				.map(|strategy| {
+							let init_args = InitTxArgs {
+								src_acct_name: None,
+								amount: args.amount,
+								minimum_confirmations: args.minimum_confirmations,
+								max_outputs: args.max_outputs as u32,
+								num_change_outputs: args.change_outputs as u32,
+								selection_strategy_is_use_all: strategy == "all",
+								message: None,
+								target_slate_version: None,
+								send_args: None,
+							};
 					let est = api
 						.estimate_initiate_tx(
-							None,
-							args.amount,
-							args.minimum_confirmations,
-							args.max_outputs,
-							args.change_outputs,
-							strategy == "all",
-						)
+							init_args,
+										)
 						.unwrap();
 					(strategy, est.total, est.fee)
 				})

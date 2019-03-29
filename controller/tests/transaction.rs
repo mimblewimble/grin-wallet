@@ -254,24 +254,36 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// Estimate fee and locked amount for a transaction
 	wallet::controller::owner_single_use(wallet1.clone(), |sender_api| {
+							let init_args = InitTxArgs {
+								src_acct_name: None,
+								amount: amount * 2,
+								minimum_confirmations: 2,
+								max_outputs: 500,
+								num_change_outputs: 1,
+								selection_strategy_is_use_all: true,
+								message: None,
+								target_slate_version: None,
+								send_args: None,
+							};
 		let est = sender_api.estimate_initiate_tx(
-			None,
-			amount * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			true,       // select all outputs
+			init_args,
 		)?;
 		assert_eq!(est.total, 600_000_000_000);
 		assert_eq!(est.fee, 4_000_000);
 
+							let init_args = InitTxArgs {
+								src_acct_name: None,
+								amount: amount * 2,
+								minimum_confirmations: 2,
+								max_outputs: 500,
+								num_change_outputs: 1,
+								selection_strategy_is_use_all: false,  //select smallest number
+								message: None,
+								target_slate_version: None,
+								send_args: None,
+							};
 		let est = sender_api.estimate_initiate_tx(
-			None,
-			amount * 2, // amount
-			2,          // minimum confirmations
-			500,        // max outputs
-			1,          // num change outputs
-			false,      // select the smallest amount of outputs
+			init_args,
 		)?;
 		assert_eq!(est.total, 180_000_000_000);
 		assert_eq!(est.fee, 6_000_000);

@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimate,
 	TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
@@ -412,7 +412,19 @@ pub trait OwnerRpc {
 	{
 		"jsonrpc": "2.0",
 		"method": "estimate_initiate_tx",
-		"params": [null, 6000000000, 2, 500, 1, true],
+		"params": {
+			"args": {
+				"src_acct_name": null,
+				"amount": "6000000000",
+				"minimum_confirmations": 2,
+				"max_outputs": 500,
+				"num_change_outputs": 1,
+				"selection_strategy_is_use_all": true,
+				"message": null,
+				"target_slate_version": null,
+				"send_args": null
+			}
+		},
 		"id": 1
 	}
 	# "#
@@ -434,13 +446,8 @@ pub trait OwnerRpc {
 	 */
 	fn estimate_initiate_tx(
 		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-	) -> Result<TxEstimation, ErrorKind>;
+		args: InitTxArgs,
+	) -> Result<TxEstimate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -1095,21 +1102,11 @@ where
 
 	fn estimate_initiate_tx(
 		&self,
-		src_acct_name: Option<String>,
-		amount: u64,
-		minimum_confirmations: u64,
-		max_outputs: usize,
-		num_change_outputs: usize,
-		selection_strategy_is_use_all: bool,
-	) -> Result<TxEstimation, ErrorKind> {
+		args: InitTxArgs,
+	) -> Result<TxEstimate, ErrorKind> {
 		Owner::estimate_initiate_tx(
 			self,
-			src_acct_name.as_ref().map(String::as_str),
-			amount,
-			minimum_confirmations,
-			max_outputs,
-			num_change_outputs,
-			selection_strategy_is_use_all,
+			args,
 		)
 		.map_err(|e| e.kind())
 	}
