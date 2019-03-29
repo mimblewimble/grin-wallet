@@ -22,13 +22,14 @@ use uuid::Uuid;
 
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
+use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
 	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
 	WalletBackend, WalletInfo,
 };
-use crate::libwallet::Error;
+use crate::libwallet::{Error, ErrorKind};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -431,6 +432,12 @@ where
 	/// as via file transfer,) the lock call should happen immediately (before the file is sent
 	/// to the recipient).
 	///
+	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
+	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
+	/// function will attempt to perform a synchronous send to the recipient specified in the `dest`
+	/// field according to the `method` field, and will also finalize and post the transaction if
+	/// the `finalize` field is set.
+	///
 	/// # Arguments
 	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
 	/// transaction initialization arguments. See struct documentation for further detail.
@@ -482,11 +489,43 @@ where
 	/// ```
 
 	pub fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
-		w.open_with_credentials()?;
-		let res = owner::initiate_tx(&mut *w, args, self.doctest_mode);
-		w.close()?;
-		res
+		let send_args = args.send_args.clone();
+		let mut slate = {
+			let mut w = self.wallet.lock();
+			w.open_with_credentials()?;
+			let slate = owner::initiate_tx(&mut *w, args, self.doctest_mode)?;
+			w.close()?;
+			slate
+		};
+		// Helper functionality. If send arguments exist, attempt to send
+		match send_args {
+			Some(sa) => {
+				match sa.method.as_ref() {
+					"http" => slate = HTTPWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?,
+					"keybase" => {
+						//TODO: in case of keybase, the response might take 60s and leave the service hanging
+						slate = KeybaseWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?;
+					}
+					_ => {
+						error!("unsupported payment method: {}", sa.method);
+						return Err(ErrorKind::ClientCallback(
+							"unsupported payment method".to_owned(),
+						))?;
+					}
+				}
+				self.tx_lock_outputs(&slate)?;
+				let slate = match sa.finalize {
+					true => self.finalize_tx(&slate)?,
+					false => slate,
+				};
+
+				if sa.post_tx {
+					self.post_tx(&slate.tx, sa.fluff)?;
+				}
+				Ok(slate)
+			},
+			None => Ok(slate),
+		}
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given

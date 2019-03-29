@@ -786,6 +786,10 @@ pub struct InitTxSendArgs {
 	pub dest: String,
 	/// Whether to finalize the result immediately if the send was successful
 	pub finalize: bool,
+	/// Whether to post the transasction if the send and finalize were successful
+	pub post_tx: bool,
+	/// Whether to use dandelion when posting. If false, skip the dandelion relay
+	pub fluff: bool,
 }
 
 impl Default for InitTxArgs {
