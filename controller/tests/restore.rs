@@ -26,7 +26,7 @@ use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Identifier, Keychain};
 use self::libwallet::slate::Slate;
-use self::libwallet::types::{InitTxArgs, AcctPathMapping};
+use self::libwallet::types::{AcctPathMapping, InitTxArgs};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::sync::atomic::Ordering;
@@ -248,9 +248,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate_i = sender_api.initiate_tx(
-			args,
-		)?;
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;
@@ -275,9 +273,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate_i = sender_api.initiate_tx(
-			args,
-		)?;
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet3", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;
@@ -302,9 +298,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate_i = sender_api.initiate_tx(
-			args,
-		)?;
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client3.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;
@@ -335,9 +329,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate_i = sender_api.initiate_tx(
-			args,
-		)?;
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client3.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;

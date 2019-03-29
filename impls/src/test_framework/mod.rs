@@ -23,7 +23,7 @@ use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::types::{
-	BlockFees, CbData, NodeClient, InitTxArgs, WalletBackend, WalletInfo, WalletInst,
+	BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend, WalletInfo, WalletInst,
 };
 use crate::lmdb_wallet::LMDBBackend;
 use crate::util;
@@ -207,11 +207,7 @@ where
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate_i = owner::initiate_tx(
-			&mut *w,
-			args,
-			test_mode,
-		)?;
+		let slate_i = owner::initiate_tx(&mut *w, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut *w, &slate)?;
 		let slate = owner::finalize_tx(&mut *w, &slate)?;

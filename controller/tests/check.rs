@@ -189,9 +189,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let mut slate = api.initiate_tx(
-			args,
-		)?;
+		let mut slate = api.initiate_tx(args)?;
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
 		let send_file = format!("{}/part_tx_1.tx", test_dir);

@@ -19,8 +19,8 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, InitTxArgs, OutputCommitMapping, TxEstimation, TxLogEntry,
-	WalletBackend, WalletInfo,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation,
+	TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
 use crate::Owner;
@@ -400,10 +400,7 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn initiate_tx(
-		&self,
-		args: InitTxArgs,
-	) -> Result<Slate, ErrorKind>;
+	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.estimate_initiate_tx).
@@ -1092,15 +1089,8 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn initiate_tx(
-		&self,
-		args: InitTxArgs,
-		) -> Result<Slate, ErrorKind> {
-		Owner::initiate_tx(
-			self,
-			args,
-		)
-		.map_err(|e| e.kind())
+	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::initiate_tx(self, args).map_err(|e| e.kind())
 	}
 
 	fn estimate_initiate_tx(
@@ -1246,12 +1236,7 @@ pub fn run_doctest_owner(
 			target_slate_version: None,
 			send_args: None,
 		};
-		let mut slate = api_impl::owner::initiate_tx(
-			&mut *w,
-			args,
-			true,
-		)
-		.unwrap();
+		let mut slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
 		{
 			let mut w2 = wallet2.lock();
 			w2.open_with_credentials().unwrap();

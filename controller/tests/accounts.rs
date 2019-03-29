@@ -26,10 +26,10 @@ use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use libwallet::types::InitTxArgs;
 use std::fs;
 use std::thread;
 use std::time::Duration;
-use libwallet::types::InitTxArgs;
 
 fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
@@ -191,9 +191,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let mut slate = api.initiate_tx(
-			args,
-		)?;
+		let mut slate = api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(&slate)?;
 		slate = api.finalize_tx(&slate)?;

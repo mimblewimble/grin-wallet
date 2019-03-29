@@ -115,9 +115,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let mut slate = api.initiate_tx(
-			args,
-		)?;
+		let mut slate = api.initiate_tx(args)?;
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
 		file_adapter.send_tx_async(&send_file, &mut slate)?;
@@ -216,9 +214,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate_i = sender_api.initiate_tx(
-			args,
-		)?;
+		let slate_i = sender_api.initiate_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&mut slate)?;

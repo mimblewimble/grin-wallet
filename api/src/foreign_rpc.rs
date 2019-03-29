@@ -427,12 +427,7 @@ pub fn run_doctest_foreign(
 			target_slate_version: None,
 			send_args: None,
 		};
-		let slate = api_impl::owner::initiate_tx(
-			&mut *w, 
-			args,
-			true,
-		)
-		.unwrap();
+		let slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
 		println!("INIT SLATE");
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());

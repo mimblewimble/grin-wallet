@@ -25,8 +25,8 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, NodeHeightResult, InitTxArgs, OutputCommitMapping, TxEstimation, TxLogEntry,
-	WalletBackend, WalletInfo,
+	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxEstimation,
+	TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::libwallet::Error;
 
@@ -482,17 +482,10 @@ where
 	/// }
 	/// ```
 
-	pub fn initiate_tx(
-		&self,
-		args: InitTxArgs,
-	) -> Result<Slate, Error> {
+	pub fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = owner::initiate_tx(
-			&mut *w,
-			args,
-			self.doctest_mode,
-		);
+		let res = owner::initiate_tx(&mut *w, args, self.doctest_mode);
 		w.close()?;
 		res
 	}

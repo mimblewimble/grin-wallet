@@ -23,7 +23,8 @@ use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCo
 use crate::keychain::Keychain;
 use crate::libwallet::slate::Slate;
 use crate::libwallet::types::{
-	CbData, NodeClient, InitTxArgs, OutputCommitMapping, SendTXArgs, TxLogEntry, WalletBackend, WalletInfo,
+	CbData, InitTxArgs, NodeClient, OutputCommitMapping, SendTXArgs, TxLogEntry, WalletBackend,
+	WalletInfo,
 };
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::to_base64;
@@ -332,9 +333,7 @@ where
 				target_slate_version: args.target_slate_version,
 				send_args: None,
 			};
-			let result = api.initiate_tx(
-				init_args,
-			);
+			let result = api.initiate_tx(init_args);
 			let mut slate = match result {
 				Ok(s) => {
 					info!(
