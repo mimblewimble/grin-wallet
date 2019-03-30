@@ -42,8 +42,8 @@ use url::form_urlencoded;
 use uuid::Uuid;
 
 use crate::apiwallet::{Foreign, Owner, OwnerRpc};
-use easy_jsonrpc::Handler;
 use easy_jsonrpc;
+use easy_jsonrpc::Handler;
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
@@ -666,15 +666,13 @@ where
 		req: Request<Body>,
 		api: Owner<T, C, K>,
 	) -> Box<dyn Future<Item = String, Error = Error> + Send> {
-		Box::new(
-			parse_body(req).and_then(move |json_str| {
-				let request_val: serde_json::Value = serde_json::from_str(json_str).unwrap();
-				println!("{}", json_str);
-				let owner_api = &api as &dyn OwnerRpc;
-				let resp = owner_api.handle_request(request_val).unwrap();
-				serde_json::to_string(&resp).unwrap()
-			})
-		)
+		Box::new(parse_body(req).and_then(move |json_str| {
+			let request_val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+			println!("{}", json_str);
+			let owner_api = &api as &dyn OwnerRpc;
+			let resp = owner_api.handle_request(request_val).unwrap();
+			serde_json::to_string(&resp).unwrap()
+		}))
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
