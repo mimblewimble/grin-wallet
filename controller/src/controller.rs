@@ -15,8 +15,7 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 //! Still experimental
-use crate::api::{ApiServer, BasicAuthMiddleware, Handler, ResponseFuture, Router, TLSConfig};
-use crate::apiwallet::{Foreign, Owner};
+use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::core::core;
 use crate::core::core::Transaction;
 use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
@@ -41,6 +40,10 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use url::form_urlencoded;
 use uuid::Uuid;
+
+use crate::apiwallet::{Foreign, Owner, OwnerRpc};
+use easy_jsonrpc::Handler;
+use easy_jsonrpc;
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
@@ -79,11 +82,12 @@ pub fn owner_listener<T: ?Sized, C, K>(
 ) -> Result<(), Error>
 where
 	T: WalletBackend<C, K> + Send + Sync + 'static,
-	OwnerAPIHandler<T, C, K>: Handler,
+	OwnerAPIHandler<T, C, K>: api::Handler,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
 	let api_handler = OwnerAPIHandler::new(wallet.clone());
+	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
 
 	let mut router = Router::new();
 	if api_secret.is_some() {
@@ -93,8 +97,13 @@ where
 		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(api_basic_auth, basic_realm));
 		router.add_middleware(basic_auth_middleware);
 	}
+
 	router
 		.add_route("/v1/wallet/owner/**", Arc::new(api_handler))
+		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+
+	router
+		.add_route("/v2/wallet/owner", Arc::new(api_handler_v2))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	// If so configured, add the foreign API to the same port
@@ -592,7 +601,7 @@ where
 	}
 }
 
-impl<T: ?Sized, C, K> Handler for OwnerAPIHandler<T, C, K>
+impl<T: ?Sized, C, K> api::Handler for OwnerAPIHandler<T, C, K>
 where
 	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
@@ -624,8 +633,93 @@ where
 	}
 }
 
-/// API Handler/Wrapper for foreign functions
+/// V2 API Handler/Wrapper for owner functions
+pub struct OwnerAPIHandlerV2<T: ?Sized, C, K>
+where
+	T: WalletBackend<C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/// Wallet instance
+	pub wallet: Arc<Mutex<T>>,
+	phantom: PhantomData<K>,
+	phantom_c: PhantomData<C>,
+}
 
+impl<T: ?Sized, C, K> OwnerAPIHandlerV2<T, C, K>
+where
+	T: WalletBackend<C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/// Create a new owner API handler for GET methods
+	pub fn new(wallet: Arc<Mutex<T>>) -> OwnerAPIHandlerV2<T, C, K> {
+		OwnerAPIHandlerV2 {
+			wallet,
+			phantom: PhantomData,
+			phantom_c: PhantomData,
+		}
+	}
+
+	fn call_api(
+		&self,
+		req: Request<Body>,
+		api: Owner<T, C, K>,
+	) -> Box<dyn Future<Item = String, Error = Error> + Send> {
+		Box::new(
+			parse_body(req).and_then(move |json_str| {
+				let request_val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+				println!("{}", json_str);
+				let owner_api = &api as &dyn OwnerRpc;
+				let resp = owner_api.handle_request(request_val).unwrap();
+				serde_json::to_string(&resp).unwrap()
+			})
+		)
+	}
+
+	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
+		let api = Owner::new(self.wallet.clone());
+		Box::new(
+			self.call_api(req, api)
+				.and_then(|resp| ok(json_response_pretty(&resp))),
+		)
+	}
+}
+
+impl<T: ?Sized, C, K> api::Handler for OwnerAPIHandlerV2<T, C, K>
+where
+	T: WalletBackend<C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/*fn get(&self, req: Request<Body>) -> ResponseFuture {
+		match self.handle_get_request(&req) {
+			Ok(r) => Box::new(ok(r)),
+			Err(e) => {
+				error!("Request Error: {:?}", e);
+				Box::new(ok(create_error_response(e)))
+			}
+		}
+	}*/
+
+	fn post(&self, req: Request<Body>) -> ResponseFuture {
+		error!("IS A POST");
+		Box::new(
+			self.handle_post_request(req)
+				.and_then(|r| ok(r))
+				.or_else(|e| {
+					error!("Request Error: {:?}", e);
+					ok(create_error_response(e))
+				}),
+		)
+	}
+
+	fn options(&self, _req: Request<Body>) -> ResponseFuture {
+		Box::new(ok(create_ok_response("{}")))
+	}
+}
+
+/// API Handler/Wrapper for foreign functions
 pub struct ForeignAPIHandler<T: ?Sized, C, K>
 where
 	T: WalletBackend<C, K> + Send + Sync + 'static,
@@ -710,7 +804,7 @@ where
 		}
 	}
 }
-impl<T: ?Sized, C, K> Handler for ForeignAPIHandler<T, C, K>
+impl<T: ?Sized, C, K> api::Handler for ForeignAPIHandler<T, C, K>
 where
 	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + Send + Sync + 'static,
