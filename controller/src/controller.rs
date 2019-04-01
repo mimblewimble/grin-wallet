@@ -703,7 +703,6 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
 		Box::new(
 			self.handle_post_request(req)
@@ -883,7 +882,6 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
 		Box::new(
 			self.handle_post_request(req)
@@ -989,12 +987,11 @@ where
 		req.into_body()
 			.concat2()
 			.map_err(|_| ErrorKind::GenericError("Failed to read request".to_owned()).into())
-			.and_then(|body| {
-				match serde_json::from_reader(&body.to_vec()[..]) {
+			.and_then(|body| match serde_json::from_reader(&body.to_vec()[..]) {
 				Ok(obj) => ok(obj),
 				Err(e) => {
 					err(ErrorKind::GenericError(format!("Invalid request body: {}", e)).into())
 				}
-			}}),
+			}),
 	)
 }
