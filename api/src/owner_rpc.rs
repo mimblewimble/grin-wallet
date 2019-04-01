@@ -26,7 +26,9 @@ use crate::libwallet::ErrorKind;
 use crate::Owner;
 use easy_jsonrpc;
 
-/// Public definition used to generate jsonrpc api for Owner.
+/// Public definition used to generate Owner jsonrpc api.
+/// * When running `grin-wallet listen` with defaults, the V2 api is available at
+/// `localhost:3420/v2/wallet/owner`
 #[easy_jsonrpc::rpc]
 pub trait OwnerRpc {
 	/**
