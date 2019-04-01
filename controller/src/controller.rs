@@ -103,7 +103,7 @@ where
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	router
-		.add_route("/v2/wallet/owner", Arc::new(api_handler_v2))
+		.add_route("/v2/owner", Arc::new(api_handler_v2))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	// If so configured, add the foreign API to the same port
@@ -116,7 +116,7 @@ where
 
 		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet.clone());
 		router
-			.add_route("/v2/wallet/foreign", Arc::new(foreign_api_handler_v2))
+			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 	}
 
@@ -154,7 +154,7 @@ where
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	router
-		.add_route("/v2/wallet/foreign", Arc::new(api_handler_v2))
+		.add_route("/v2/foreign", Arc::new(api_handler_v2))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	let mut apis = ApiServer::new();
