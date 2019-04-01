@@ -41,7 +41,7 @@ use std::sync::Arc;
 use url::form_urlencoded;
 use uuid::Uuid;
 
-use crate::apiwallet::{Foreign, Owner, OwnerRpc};
+use crate::apiwallet::{Foreign, ForeignRpc, Owner, OwnerRpc};
 use easy_jsonrpc;
 use easy_jsonrpc::Handler;
 
@@ -113,6 +113,11 @@ where
 		router
 			.add_route("/v1/wallet/foreign/**", Arc::new(foreign_api_handler))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet.clone());
+		router
+			.add_route("/v2/wallet/foreign", Arc::new(foreign_api_handler_v2))
+			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 	}
 
 	let mut apis = ApiServer::new();
@@ -140,11 +145,16 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let api_handler = ForeignAPIHandler::new(wallet);
+	let api_handler = ForeignAPIHandler::new(wallet.clone());
+	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet);
 
 	let mut router = Router::new();
 	router
 		.add_route("/v1/wallet/foreign/**", Arc::new(api_handler))
+		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+
+	router
+		.add_route("/v2/wallet/foreign", Arc::new(api_handler_v2))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	let mut apis = ApiServer::new();
@@ -665,13 +675,16 @@ where
 		&self,
 		req: Request<Body>,
 		api: Owner<T, C, K>,
-	) -> Box<dyn Future<Item = String, Error = Error> + Send> {
-		Box::new(parse_body(req).and_then(move |json_str| {
-			let request_val: serde_json::Value = serde_json::from_str(json_str).unwrap();
-			println!("{}", json_str);
+	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
+		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let owner_api = &api as &dyn OwnerRpc;
-			let resp = owner_api.handle_request(request_val).unwrap();
-			serde_json::to_string(&resp).unwrap()
+			match owner_api.handle_request(val) {
+				Some(r) => ok(r),
+				None => {
+					error!("OwnerAPI: call_api: failed with error");
+					err(ErrorKind::GenericError(format!("OwnerAPI Call Failed")).into())
+				}
+			}
 		}))
 	}
 
@@ -690,18 +703,8 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	/*fn get(&self, req: Request<Body>) -> ResponseFuture {
-		match self.handle_get_request(&req) {
-			Ok(r) => Box::new(ok(r)),
-			Err(e) => {
-				error!("Request Error: {:?}", e);
-				Box::new(ok(create_error_response(e)))
-			}
-		}
-	}*/
 
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
-		error!("IS A POST");
 		Box::new(
 			self.handle_post_request(req)
 				.and_then(|r| ok(r))
@@ -820,6 +823,82 @@ where
 	}
 }
 
+/// V2 API Handler/Wrapper for foreign functions
+pub struct ForeignAPIHandlerV2<T: ?Sized, C, K>
+where
+	T: WalletBackend<C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/// Wallet instance
+	pub wallet: Arc<Mutex<T>>,
+	phantom: PhantomData<K>,
+	phantom_c: PhantomData<C>,
+}
+
+impl<T: ?Sized, C, K> ForeignAPIHandlerV2<T, C, K>
+where
+	T: WalletBackend<C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/// Create a new foreign API handler for GET methods
+	pub fn new(wallet: Arc<Mutex<T>>) -> ForeignAPIHandlerV2<T, C, K> {
+		ForeignAPIHandlerV2 {
+			wallet,
+			phantom: PhantomData,
+			phantom_c: PhantomData,
+		}
+	}
+
+	fn call_api(
+		&self,
+		req: Request<Body>,
+		api: Foreign<T, C, K>,
+	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
+		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
+			let foreign_api = &api as &dyn ForeignRpc;
+			match foreign_api.handle_request(val) {
+				Some(r) => ok(r),
+				None => {
+					error!("ForeignAPI: call_api: failed with error");
+					err(ErrorKind::GenericError(format!("ForeignAPI Call Failed")).into())
+				}
+			}
+		}))
+	}
+
+	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
+		let api = Foreign::new(self.wallet.clone());
+		Box::new(
+			self.call_api(req, api)
+				.and_then(|resp| ok(json_response_pretty(&resp))),
+		)
+	}
+}
+
+impl<T: ?Sized, C, K> api::Handler for ForeignAPIHandlerV2<T, C, K>
+where
+	T: WalletBackend<C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+
+	fn post(&self, req: Request<Body>) -> ResponseFuture {
+		Box::new(
+			self.handle_post_request(req)
+				.and_then(|r| ok(r))
+				.or_else(|e| {
+					error!("Request Error: {:?}", e);
+					ok(create_error_response(e))
+				}),
+		)
+	}
+
+	fn options(&self, _req: Request<Body>) -> ResponseFuture {
+		Box::new(ok(create_ok_response("{}")))
+	}
+}
 // Utility to serialize a struct into JSON and produce a sensible Response
 // out of it.
 fn json_response<T>(s: &T) -> Response<Body>
@@ -910,11 +989,12 @@ where
 		req.into_body()
 			.concat2()
 			.map_err(|_| ErrorKind::GenericError("Failed to read request".to_owned()).into())
-			.and_then(|body| match serde_json::from_reader(&body.to_vec()[..]) {
+			.and_then(|body| {
+				match serde_json::from_reader(&body.to_vec()[..]) {
 				Ok(obj) => ok(obj),
 				Err(e) => {
 					err(ErrorKind::GenericError(format!("Invalid request body: {}", e)).into())
 				}
-			}),
+			}}),
 	)
 }
