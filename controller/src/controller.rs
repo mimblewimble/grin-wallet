@@ -904,16 +904,14 @@ where
 	T: Serialize,
 {
 	match serde_json::to_string(s) {
-		Ok(json) => {
-			response(StatusCode::OK, json)
-		}
+		Ok(json) => response(StatusCode::OK, json),
 		Err(_) => response(StatusCode::INTERNAL_SERVER_ERROR, ""),
 	}
 }
 
 // As above, dealing with stringified slate output
 // from older versions.
-// Older versions are expecting a slate objects, anything from 
+// Older versions are expecting a slate objects, anything from
 // 1.1.0 up is expecting a string
 fn json_response_slate<T>(s: &T) -> Response<Body>
 where
@@ -927,7 +925,7 @@ where
 				r.remove(0);
 				// again, for backwards slate compat
 				json = r.replace("\\\"", "\"")
-			} 
+			}
 			response(StatusCode::OK, json)
 		}
 		Err(_) => response(StatusCode::INTERNAL_SERVER_ERROR, ""),

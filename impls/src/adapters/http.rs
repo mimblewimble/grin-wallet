@@ -19,8 +19,8 @@ use crate::libwallet::slate_versions::{v0, v1};
 use crate::libwallet::{Error, ErrorKind};
 use crate::WalletCommAdapter;
 use config::WalletConfig;
-use std::collections::HashMap;
 use failure::ResultExt;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct HTTPWalletCommAdapter {}
@@ -55,43 +55,54 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 				let version = Slate::parse_slate_version(&slate)?;
 				match version {
 					1 => {
-						let ver1: v1::SlateV1 = serde_json::from_str(&slate).context(ErrorKind::SlateDeser)?;
-						let r: Result<v1::SlateV1, _> = api::client::post(url.as_str(), None, &ver1);
+						let ver1: v1::SlateV1 =
+							serde_json::from_str(&slate).context(ErrorKind::SlateDeser)?;
+						let r: Result<v1::SlateV1, _> =
+							api::client::post(url.as_str(), None, &ver1);
 						match r {
 							Err(e) => {
-								let report = format!("Posting transaction slate (is recipient listening?): {}", e);
+								let report = format!(
+									"Posting transaction slate (is recipient listening?): {}",
+									e
+								);
 								error!("{}", report);
 								return Err(ErrorKind::ClientCallback(report).into());
 							}
-							Ok(s) => {
-								Slate::deserialize_upgrade(&serde_json::to_string(&s).context(ErrorKind::SlateDeser)?)?
-							}
+							Ok(s) => Slate::deserialize_upgrade(
+								&serde_json::to_string(&s).context(ErrorKind::SlateDeser)?,
+							)?,
 						}
-					},
+					}
 					_ => {
-						let ver0: v0::SlateV0 = serde_json::from_str(&slate).context(ErrorKind::SlateDeser)?;
-						let r: Result<v0::SlateV0, _> = api::client::post(url.as_str(), None, &ver0);
+						let ver0: v0::SlateV0 =
+							serde_json::from_str(&slate).context(ErrorKind::SlateDeser)?;
+						let r: Result<v0::SlateV0, _> =
+							api::client::post(url.as_str(), None, &ver0);
 						match r {
 							Err(e) => {
-								let report = format!("Posting transaction slate (is recipient listening?): {}", e);
+								let report = format!(
+									"Posting transaction slate (is recipient listening?): {}",
+									e
+								);
 								error!("{}", report);
 								return Err(ErrorKind::ClientCallback(report).into());
 							}
-							Ok(s) => {
-								Slate::deserialize_upgrade(&serde_json::to_string(&s).context(ErrorKind::SlateDeser)?)?
-							}
+							Ok(s) => Slate::deserialize_upgrade(
+								&serde_json::to_string(&s).context(ErrorKind::SlateDeser)?,
+							)?,
 						}
 					}
 				}
 			} else {
-				let res : Result<String, _>  = api::client::post(url.as_str(), None, &slate);
+				let res: Result<String, _> = api::client::post(url.as_str(), None, &slate);
 				match res {
 					Err(e) => {
-						let report = format!("Posting transaction slate (is recipient listening?): {}", e);
+						let report =
+							format!("Posting transaction slate (is recipient listening?): {}", e);
 						error!("{}", report);
 						return Err(ErrorKind::ClientCallback(report).into());
 					}
-					Ok(r) => Slate::deserialize_upgrade(&r)?
+					Ok(r) => Slate::deserialize_upgrade(&r)?,
 				}
 			}
 		};
