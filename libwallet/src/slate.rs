@@ -163,9 +163,9 @@ pub struct ParticipantMessages {
 }
 
 impl Slate {
-	// TODO: Reduce the number of changes that need to occur below for each new
-	// slate version
-	fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
+	/// TODO: Reduce the number of changes that need to occur below for each new
+	/// slate version
+	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
 		// keep attempting to deser, working through known versions until we have
 		// enough to get the version out
 		let res: Result<SlateV2, serde_json::Error> = serde_json::from_str(slate_json);
@@ -218,7 +218,8 @@ impl Slate {
 			1 => {
 				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
 				let v1 = SlateV1::from(v2);
-				Ok(serde_json::to_string(&v1).context(ErrorKind::SlateDeser)?)
+				let slate = serde_json::to_string(&v1).context(ErrorKind::SlateDeser)?;
+				Ok(slate)
 			}
 			0 => {
 				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
