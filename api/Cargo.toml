@@ -6,7 +6,6 @@ description = "Grin Wallet API"
 license = "Apache-2.0"
 repository = "https://github.com/mimblewimble/grin"
 keywords = [ "crypto", "grin", "mimblewimble" ]
-readme = "README.md"
 exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2018"
 
