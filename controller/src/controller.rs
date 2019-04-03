@@ -31,6 +31,7 @@ use crate::util::Mutex;
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
+use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -44,6 +45,11 @@ use uuid::Uuid;
 use crate::apiwallet::{Foreign, ForeignRpc, Owner, OwnerRpc};
 use easy_jsonrpc;
 use easy_jsonrpc::Handler;
+
+lazy_static! {
+	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
+		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
+}
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
@@ -93,8 +99,10 @@ where
 	if api_secret.is_some() {
 		let api_basic_auth =
 			"Basic ".to_string() + &to_base64(&("grin:".to_string() + &api_secret.unwrap()));
-		let basic_realm = "Basic realm=GrinOwnerAPI".to_string();
-		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(api_basic_auth, basic_realm));
+		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(
+			api_basic_auth,
+			&GRIN_OWNER_BASIC_REALM,
+		));
 		router.add_middleware(basic_auth_middleware);
 	}
 

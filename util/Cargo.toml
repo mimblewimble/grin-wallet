@@ -16,12 +16,21 @@ serde_derive = "1"
 toml = "0.4"
 dirs = "1.0.3"
 
-grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+# For Release
+grin_core = "1.1.0-beta.1"
+grin_keychain = "1.1.0-beta.1"
+grin_chain = "1.1.0-beta.1"
+grin_util = "1.1.0-beta.1"
+grin_api = "1.1.0-beta.1"
+grin_store = "1.1.0-beta.1"
+
+# For bleeding edge
+#grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
 
 # For local testing
 #grin_core = { path = "../../grin/core", version= "1.1.0"}
