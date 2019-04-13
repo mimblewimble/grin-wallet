@@ -582,7 +582,7 @@ pub fn wallet_command(
 			let mut c = wallet_config.clone();
 			let mut g = global_wallet_args.clone();
 			let a = arg_parse!(parse_listen_args(&mut c, &mut g, &args));
-			command::listen(&wallet_config, &a, &g)
+			command::listen(&c, &a, &g)
 		}
 		("owner_api", Some(_)) => {
 			let mut g = global_wallet_args.clone();
