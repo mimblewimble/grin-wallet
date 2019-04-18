@@ -15,7 +15,7 @@
 //! JSON-RPC Stub generation for the Foreign API
 
 use crate::keychain::Keychain;
-use crate::libwallet::slate::Slate;
+use crate::libwallet::{Slate, VersionedSlate};
 use crate::libwallet::types::{BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend};
 use crate::libwallet::ErrorKind;
 use crate::Foreign;
@@ -336,6 +336,8 @@ where
 		dest_acct_name: Option<String>,
 		message: Option<String>,
 	) -> Result<Slate, ErrorKind> {
+		let version = slate.version();
+		let slate: Slate = slate.into();
 		let slate = Foreign::receive_tx(
 			self,
 			&slate,
@@ -343,6 +345,7 @@ where
 			message,
 		)
 		.map_err(|e| e.kind())?;
+
 		Ok(slate)
 	}
 }
