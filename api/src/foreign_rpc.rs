@@ -310,10 +310,10 @@ pub trait ForeignRpc {
 	 */
 	fn receive_tx(
 		&self,
-		slate: Slate,
+		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
 		message: Option<String>,
-	) -> Result<Slate, ErrorKind>;
+	) -> Result<VersionedSlate, ErrorKind>;
 }
 
 impl<W: ?Sized, C, K> ForeignRpc for Foreign<W, C, K>
@@ -332,10 +332,10 @@ where
 
 	fn receive_tx(
 		&self,
-		slate: Slate,
+		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
 		message: Option<String>,
-	) -> Result<Slate, ErrorKind> {
+	) -> Result<VersionedSlate, ErrorKind> {
 		let version = slate.version();
 		let slate: Slate = slate.into();
 		let slate = Foreign::receive_tx(
@@ -346,7 +346,7 @@ where
 		)
 		.map_err(|e| e.kind())?;
 
-		Ok(slate)
+		Ok(VersionedSlate::into_version(slate, version))
 	}
 }
 

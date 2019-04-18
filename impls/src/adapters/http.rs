@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//TODO: Update to V2 API when after Hard fork
+
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
 use crate::libwallet::slate::Slate;
@@ -48,6 +50,7 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
 		debug!("Posting transaction slate to {}", url);
+		//TODO: Use VersionedSlate when converting to V2 API
 		let slate = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
 		// For compatibility with older clients
 		let res: Slate = {
