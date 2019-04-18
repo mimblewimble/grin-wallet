@@ -397,10 +397,10 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	// target slate version to create/send
 	let target_slate_version = {
-		match args.is_present("target_slate_version") {
+		match args.is_present("slate_version") {
 			true => {
-				let v = parse_required(args, "target_slate_version")?;
-				Some(parse_u64(v, "target_slate_version")? as u16)
+				let v = parse_required(args, "slate_version")?;
+				Some(parse_u64(v, "slate_version")? as u16)
 			}
 			false => None,
 		}

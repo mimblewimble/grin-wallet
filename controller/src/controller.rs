@@ -31,6 +31,7 @@ use crate::util::Mutex;
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
+use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -44,6 +45,11 @@ use uuid::Uuid;
 use crate::apiwallet::{Foreign, ForeignRpc, Owner, OwnerRpc};
 use easy_jsonrpc;
 use easy_jsonrpc::Handler;
+
+lazy_static! {
+	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
+		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
+}
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
@@ -93,8 +99,10 @@ where
 	if api_secret.is_some() {
 		let api_basic_auth =
 			"Basic ".to_string() + &to_base64(&("grin:".to_string() + &api_secret.unwrap()));
-		let basic_realm = "Basic realm=GrinOwnerAPI".to_string();
-		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(api_basic_auth, basic_realm));
+		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(
+			api_basic_auth,
+			&GRIN_OWNER_BASIC_REALM,
+		));
 		router.add_middleware(basic_auth_middleware);
 	}
 
@@ -763,14 +771,14 @@ where
 		Box::new(parse_body(req).and_then(
 			//TODO: No way to insert a message from the params
 			move |slate_str: String| {
-				let mut slate: Slate = Slate::deserialize_upgrade(&slate_str).unwrap();
+				let slate: Slate = Slate::deserialize_upgrade(&slate_str).unwrap();
 				if let Err(e) = api.verify_slate_messages(&slate) {
 					error!("Error validating participant messages: {}", e);
 					err(e)
 				} else {
-					match api.receive_tx(&mut slate, None, None) {
-						Ok(_) => ok(slate
-							.serialize_to_version(Some(slate.version_info.orig_version))
+					match api.receive_tx(&slate, None, None) {
+						Ok(s) => ok(s
+							.serialize_to_version(Some(s.version_info.orig_version))
 							.unwrap()),
 						Err(e) => {
 							error!("receive_tx: failed with error: {}", e);
@@ -798,7 +806,7 @@ where
 			),
 			"receive_tx" => Box::new(
 				self.receive_tx(req, api)
-					.and_then(|res| ok(json_response(&res))),
+					.and_then(|res| ok(json_response_slate(&res))),
 			),
 			_ => Box::new(ok(response(StatusCode::BAD_REQUEST, "unknown action"))),
 		}
@@ -909,6 +917,29 @@ where
 	}
 }
 
+// As above, dealing with stringified slate output
+// from older versions.
+// Older versions are expecting a slate objects, anything from
+// 1.1.0 up is expecting a string
+fn json_response_slate<T>(s: &T) -> Response<Body>
+where
+	T: Serialize,
+{
+	match serde_json::to_string(s) {
+		Ok(mut json) => {
+			if let None = json.find("version_info") {
+				let mut r = json.clone();
+				r.pop();
+				r.remove(0);
+				// again, for backwards slate compat
+				json = r.replace("\\\"", "\"")
+			}
+			response(StatusCode::OK, json)
+		}
+		Err(_) => response(StatusCode::INTERNAL_SERVER_ERROR, ""),
+	}
+}
+
 // pretty-printed version of above
 fn json_response_pretty<T>(s: &T) -> Response<Body>
 where
@@ -987,10 +1018,26 @@ where
 		req.into_body()
 			.concat2()
 			.map_err(|_| ErrorKind::GenericError("Failed to read request".to_owned()).into())
-			.and_then(|body| match serde_json::from_reader(&body.to_vec()[..]) {
-				Ok(obj) => ok(obj),
-				Err(e) => {
-					err(ErrorKind::GenericError(format!("Invalid request body: {}", e)).into())
+			.and_then(|body| {
+				match serde_json::from_reader(&body.to_vec()[..]) {
+					Ok(obj) => ok(obj),
+					Err(_) => {
+						// try to parse as string instead, for backwards compatibility
+						let replaced_str = String::from_utf8(body.to_vec().clone())
+							.unwrap()
+							.replace("\"", "\\\"");
+						let mut str_vec = replaced_str.as_bytes().to_vec();
+						str_vec.push(0x22);
+						str_vec.insert(0, 0x22);
+						match serde_json::from_reader(&str_vec[..]) {
+							Ok(obj) => ok(obj),
+							Err(e) => err(ErrorKind::GenericError(format!(
+								"Invalid request body: {}",
+								e
+							))
+							.into()),
+						}
+					}
 				}
 			}),
 	)

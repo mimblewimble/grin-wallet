@@ -70,7 +70,7 @@ fn get_outputs_by_pmmr_index_local(
 		outputs: outputs
 			.2
 			.iter()
-			.map(|x| api::OutputPrintable::from_output(x, chain.clone(), None, true))
+			.map(|x| api::OutputPrintable::from_output(x, chain.clone(), None, true).unwrap())
 			.collect(),
 	}
 }
@@ -78,7 +78,7 @@ fn get_outputs_by_pmmr_index_local(
 /// Adds a block with a given reward to the chain and mines it
 pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbData) {
 	let prev = chain.head_header().unwrap();
-	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter());
+	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter().unwrap());
 	let mut b = core::core::Block::new(
 		&prev,
 		txs.into_iter().cloned().collect(),
