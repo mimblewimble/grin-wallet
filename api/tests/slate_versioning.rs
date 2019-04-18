@@ -60,7 +60,6 @@ fn receive_versioned_slate() {
 			"(left != right) \nleft: {}\nright: {}",
 			serde_json::to_string_pretty(&response).unwrap(),
 			serde_json::to_string_pretty(&expected_response).unwrap()
-			);
+		);
 	}
 }
-
