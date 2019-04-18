@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet"
-version = "1.1.0-beta.1"
+version = "1.1.0-beta.2"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
 license = "Apache-2.0"
@@ -29,13 +29,13 @@ prettytable-rs = "0.7"
 log = "0.4"
 linefeed = "0.5"
 
-grin_wallet_api = { path = "./api", version = "1.1.0-beta.1" }
-grin_wallet_impls = { path = "./impls", version = "1.1.0-beta.1" }
-grin_wallet_libwallet = { path = "./libwallet", version = "1.1.0-beta.1" }
-grin_wallet_controller = { path = "./controller", version = "1.1.0-beta.1" }
-grin_wallet_config = { path = "./config", version = "1.1.0-beta.1" }
+grin_wallet_api = { path = "./api", version = "1.1.0-beta.2" }
+grin_wallet_impls = { path = "./impls", version = "1.1.0-beta.2" }
+grin_wallet_libwallet = { path = "./libwallet", version = "1.1.0-beta.2" }
+grin_wallet_controller = { path = "./controller", version = "1.1.0-beta.2" }
+grin_wallet_config = { path = "./config", version = "1.1.0-beta.2" }
 
-grin_wallet_util = { path = "./util", version = "1.1.0-beta.1" }
+grin_wallet_util = { path = "./util", version = "1.1.0-beta.2" }
 
 [build-dependencies]
 built = "0.3"
