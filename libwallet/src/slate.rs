@@ -17,15 +17,15 @@
 
 use crate::blake2::blake2b::blake2b;
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::map_vec;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::committed::Committed;
 use crate::grin_core::core::transaction::{
-	kernel_features, kernel_sig_msg, Transaction, Weighting,
-	TxKernel, Input, Output, TransactionBody,
+	kernel_features, kernel_sig_msg, Input, Output, Transaction, TransactionBody, TxKernel,
+	Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
+use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
@@ -38,10 +38,13 @@ use serde_json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::slate_versions::CURRENT_SLATE_VERSION;
 use crate::slate_versions::v0::SlateV0;
 use crate::slate_versions::v1::SlateV1;
-use crate::slate_versions::v2::{SlateV2, ParticipantDataV2, TransactionBodyV2, TxKernelV2, InputV2, OutputV2, TransactionV2, VersionCompatInfoV2};
+use crate::slate_versions::v2::{
+	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2, TxKernelV2,
+	VersionCompatInfoV2,
+};
+use crate::slate_versions::CURRENT_SLATE_VERSION;
 
 /// Public data for each participant in the slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -950,4 +953,3 @@ impl From<&TxKernelV2> for TxKernel {
 		}
 	}
 }
-

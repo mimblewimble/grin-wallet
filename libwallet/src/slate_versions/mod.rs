@@ -14,10 +14,10 @@
 
 //! This module contains old slate versions and conversions to the newest slate version
 //! Used for serialization and deserialization of slates in a backwards compatible way.
+use crate::slate::Slate;
 use crate::slate_versions::v0::SlateV0;
 use crate::slate_versions::v1::SlateV1;
 use crate::slate_versions::v2::SlateV2;
-use crate::slate::Slate;
 
 #[allow(missing_docs)]
 pub mod v0;
