@@ -12,12 +12,12 @@
 // limitations under the License.
 
 //! core::libtx specific tests
+use grin_wallet_api::foreign_rpc_client;
+use grin_wallet_api::run_doctest_foreign;
+use grin_wallet_libwallet::{Slate, SlateVersion, VersionedSlate};
 use serde_json;
 use serde_json::Value;
 use tempfile::tempdir;
-use grin_wallet_api::run_doctest_foreign;
-use grin_wallet_api::foreign_rpc_client;
-use grin_wallet_libwallet::{Slate, VersionedSlate, SlateVersion};
 //use grin_wallet_libwallet::slate_versions::v1::SlateV1;
 //use grin_wallet_libwallet::slate_versions::v2::SlateV2;
 
