@@ -48,5 +48,5 @@ pub mod types;
 
 pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::Slate;
-pub use crate::slate_versions::VersionedSlate;
+pub use crate::slate_versions::{VersionedSlate, SlateVersion};
 pub use internal::restore::{check_repair, restore};

@@ -30,6 +30,7 @@ pub mod v2;
 pub const CURRENT_SLATE_VERSION: u16 = 2;
 
 /// Existing versions of the slate
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum SlateVersion {
 	/// V0
 	V0,
@@ -46,9 +47,9 @@ pub enum SlateVersion {
 pub enum VersionedSlate {
 	/// Current
 	V2(SlateV2),
-	/// V1 Grin 1.0.1 - 1.0.3)
+	/// V1 - Grin 1.0.1 - 1.0.3)
 	V1(SlateV1),
-	/// V2 Grin 1.0.0
+	/// V0 - Grin 1.0.0
 	V0(SlateV0),
 }
 
@@ -58,7 +59,7 @@ impl VersionedSlate {
 		match *self {
 			VersionedSlate::V2(_) => SlateVersion::V2,
 			VersionedSlate::V1(_) => SlateVersion::V1,
-			_ => SlateVersion::V0,
+			VersionedSlate::V0(_) => SlateVersion::V0,
 		}
 	}
 
