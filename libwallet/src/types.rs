@@ -85,10 +85,19 @@ where
 	/// return the parent path
 	fn parent_key_id(&mut self) -> Identifier;
 
-	/// Iterate over all output data stored by the backend
+	/// Iterate over all self output data stored by the backend
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a>;
 
-	/// Get output data by id
+	/// Get payment commits list by slate id
+	fn get_payment_log_commits(&self, u: &Uuid) -> Result<Option<PaymentCommits>, Error>;
+
+	/// Get payment output data by commit
+	fn get_payment_log_entry(&self, commit: String) -> Result<Option<PaymentData>, Error>;
+
+	/// Iterate over all payment output data stored by the backend
+	fn payment_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = PaymentData> + 'a>;
+
+	/// Get self owned output data by id
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
 
 	/// Get an (Optional) tx log entry by uuid
@@ -140,11 +149,23 @@ where
 	/// Return the keychain being used
 	fn keychain(&mut self) -> &mut K;
 
-	/// Add or update data about an output to the backend
+	/// Add or update data about a self owned output to the backend
 	fn save(&mut self, out: OutputData) -> Result<(), Error>;
 
-	/// Gets output data by id
+	/// Add or update data about a payment output to the backend
+	fn save_payment(&mut self, out: PaymentData) -> Result<(), Error>;
+
+	/// Add or update data about a payment commits list to the backend
+	fn save_payment_commits(&mut self, u: &Uuid, commits: PaymentCommits) -> Result<(), Error>;
+
+	/// Gets self owned output data by id
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
+
+	/// Gets payment commits list by slate id
+	fn get_payment_commits(&self, u: &Uuid) -> Result<PaymentCommits, Error>;
+
+	/// Gets payment output data by commit
+	fn get_payment_log_entry(&self, commit: String) -> Result<PaymentData, Error>;
 
 	/// Iterate over all output data stored by the backend
 	fn iter(&self) -> Box<dyn Iterator<Item = OutputData>>;
@@ -270,6 +291,8 @@ pub struct OutputData {
 	pub is_coinbase: bool,
 	/// Optional corresponding internal entry in tx entry log
 	pub tx_log_entry: Option<u32>,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Option<Uuid>,
 }
 
 impl ser::Writeable for OutputData {
@@ -346,6 +369,94 @@ impl OutputData {
 		}
 	}
 }
+
+/// Information about a payment output that's being tracked by the wallet.
+/// It belongs to the receiver, and it's paid by this wallet.
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct PaymentData {
+	/// The actual commit
+	pub commit: String,
+	/// Value of the output
+	pub value: u64,
+	/// Current status of the output
+	pub status: OutputStatus,
+	/// Height of the output
+	pub height: u64,
+	/// Height we are locked until
+	pub lock_height: u64,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Uuid,
+}
+
+impl ser::Writeable for PaymentData {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for PaymentData {
+	fn read(reader: &mut dyn ser::Reader) -> Result<PaymentData, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+	}
+}
+
+impl PaymentData {
+	/// How many confirmations has this output received?
+	/// If height == 0 then we are either Unconfirmed or the output was
+	/// cut-through
+	/// so we do not actually know how many confirmations this output had (and
+	/// never will).
+	pub fn num_confirmations(&self, current_height: u64) -> u64 {
+		if self.height > current_height {
+			return 0;
+		}
+		if self.status == OutputStatus::Unconfirmed {
+			0
+		} else {
+			// if an output has height n and we are at block n
+			// then we have a single confirmation (the block it originated in)
+			1 + (current_height - self.height)
+		}
+	}
+
+	/// Marks this output as confirmed if it was previously unconfirmed
+	pub fn mark_confirmed(&mut self) {
+		match self.status {
+			OutputStatus::Unconfirmed => self.status = OutputStatus::Confirmed,
+			_ => (),
+		}
+	}
+}
+
+/// Information about the payment commit/s in one tx that's being tracked by the wallet.
+/// They belong to the receiver/s, and they're paid by this wallet.
+///
+/// Note: because lmdb can't have multiple keys to same value, we have to use this to find
+/// the commit lists by the slate id, in case we support multiple receivers in one tx in the future.
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentCommits {
+	/// The actual commit/s
+	pub commits: Vec<String>,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Uuid,
+}
+
+impl ser::Writeable for PaymentCommits {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for PaymentCommits {
+	fn read(reader: &mut dyn ser::Reader) -> Result<PaymentCommits, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+	}
+}
+
 /// Status of an output that's being tracked by the wallet. Can either be
 /// unconfirmed, spent, unspent, or locked (when it's been used to generate
 /// a transaction but we don't have confirmation that the transaction was
@@ -360,6 +471,8 @@ pub enum OutputStatus {
 	Locked,
 	/// Spent
 	Spent,
+	/// Confirmed
+	Confirmed,
 }
 
 impl fmt::Display for OutputStatus {
@@ -369,6 +482,7 @@ impl fmt::Display for OutputStatus {
 			OutputStatus::Unspent => write!(f, "Unspent"),
 			OutputStatus::Locked => write!(f, "Locked"),
 			OutputStatus::Spent => write!(f, "Spent"),
+			OutputStatus::Confirmed => write!(f, "Confirmed"),
 		}
 	}
 }
@@ -845,6 +959,19 @@ pub struct CbData {
 pub struct OutputCommitMapping {
 	/// Output Data
 	pub output: OutputData,
+	/// The commit
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub commit: pedersen::Commitment,
+}
+
+/// Map PaymentData to commits
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentCommitMapping {
+	/// Payment Data
+	pub output: PaymentData,
 	/// The commit
 	#[serde(
 		serialize_with = "secp_ser::as_hex",

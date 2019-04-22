@@ -501,6 +501,10 @@ mod wallet_tests {
 		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "outputs"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
+		// payments
+		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "payments"];
+		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
 		// let logging finish
 		thread::sleep(Duration::from_millis(200));
 		Ok(())

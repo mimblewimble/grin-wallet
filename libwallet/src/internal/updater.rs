@@ -28,15 +28,16 @@ use crate::grin_util as util;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
 use crate::types::{
-	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry,
-	TxLogEntryType, WalletBackend, WalletInfo,
+	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus,
+	PaymentCommitMapping, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
 
-/// Retrieve all of the outputs (doesn't attempt to update from node)
+/// Retrieve all of the self outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<T: ?Sized, C, K>(
 	wallet: &mut T,
 	show_spent: bool,
 	tx_id: Option<u32>,
+	slate_id: Option<Uuid>,
 	parent_key_id: Option<&Identifier>,
 ) -> Result<Vec<OutputCommitMapping>, Error>
 where
@@ -55,6 +56,14 @@ where
 		outputs = outputs
 			.into_iter()
 			.filter(|out| out.tx_log_entry == Some(id))
+			.collect::<Vec<_>>();
+	}
+
+	// only include outputs with a given slate_id if provided
+	if let Some(id) = slate_id {
+		outputs = outputs
+			.into_iter()
+			.filter(|out| out.slate_id == Some(id))
 			.collect::<Vec<_>>();
 	}
 
@@ -77,6 +86,38 @@ where
 				None => keychain.commit(output.value, &output.key_id).unwrap(),
 			};
 			OutputCommitMapping { output, commit }
+		})
+		.collect();
+	Ok(res)
+}
+
+/// Retrieve all of the payment outputs (doesn't attempt to update from node)
+pub fn retrieve_payments<T: ?Sized, C, K>(
+	wallet: &mut T,
+	tx_id: Option<Uuid>,
+) -> Result<Vec<PaymentCommitMapping>, Error>
+where
+	T: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	// just read the wallet here, no need for a write lock
+	let mut outputs = wallet.payment_log_iter().collect::<Vec<_>>();
+
+	// only include outputs with a given tx_id if provided
+	if let Some(id) = tx_id {
+		outputs = outputs
+			.into_iter()
+			.filter(|out| out.slate_id == id)
+			.collect::<Vec<_>>();
+	}
+
+	let res = outputs
+		.into_iter()
+		.map(|output| {
+			let commit =
+				pedersen::Commitment::from_vec(util::from_hex(output.commit.clone()).unwrap());
+			PaymentCommitMapping { output, commit }
 		})
 		.collect();
 	Ok(res)
@@ -291,6 +332,21 @@ where
 								t.confirmed = true;
 								batch.save_tx_log_entry(t, &parent_key_id)?;
 							}
+
+							// if there's a related payment output being confirmed, refresh that payment log
+							if let Some(slate_id) = output.slate_id {
+								if let Ok(commits) = batch.get_payment_commits(&slate_id) {
+									for commit in commits.commits {
+										if let Ok(mut payment) =
+											batch.get_payment_log_entry(commit.clone())
+										{
+											payment.height = o.1;
+											payment.mark_confirmed();
+											batch.save_payment(payment)?;
+										}
+									}
+								}
+							}
 						}
 						output.height = o.1;
 						output.mark_unspent();
@@ -413,6 +469,7 @@ where
 				locked_total += out.value;
 			}
 			OutputStatus::Spent => {}
+			OutputStatus::Confirmed => {}
 		}
 	}
 
@@ -490,6 +547,7 @@ where
 			lock_height: lock_height,
 			is_coinbase: true,
 			tx_log_entry: None,
+			slate_id: None,
 		})?;
 		batch.commit()?;
 	}
