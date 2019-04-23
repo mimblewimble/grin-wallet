@@ -16,7 +16,8 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	BlockFees, CbData, ErrorKind, InitTxArgs, NodeClient, Slate, VersionedSlate, VersionInfo, WalletBackend,
+	BlockFees, CbData, ErrorKind, InitTxArgs, NodeClient, Slate, VersionInfo, VersionedSlate,
+	WalletBackend,
 };
 use crate::Foreign;
 use easy_jsonrpc;
