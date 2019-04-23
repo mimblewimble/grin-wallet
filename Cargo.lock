@@ -402,10 +402,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "easy-jsonrpc"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "easy-jsonrpc-proc-macro 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "easy-jsonrpc-proc-macro 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 10.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.90 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "easy-jsonrpc-proc-macro"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -776,7 +776,7 @@ name = "grin_wallet_api"
 version = "1.1.0-beta.2"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "easy-jsonrpc 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "easy-jsonrpc 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "grin_wallet_config 1.1.0-beta.2",
@@ -807,7 +807,7 @@ name = "grin_wallet_controller"
 version = "1.1.0-beta.2"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "easy-jsonrpc 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "easy-jsonrpc 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2731,8 +2731,8 @@ dependencies = [
 "checksum digest 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)" = "03b072242a8cbaf9c145665af9d250c59af3b958f83ed6824e13533cf76d5b90"
 "checksum dirs 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "3fd78930633bd1c6e35c4b42b1df7b0cbc6bc191146e512bb3bedf243fcc3901"
 "checksum dtoa 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6d301140eb411af13d3115f9a562c85cc6b541ade9dfa314132244aaee7489dd"
-"checksum easy-jsonrpc 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2f0d8eaadf5a9ed73697761ad586140c40aa0837fb5b141a2b04ee9c07eacbfe"
-"checksum easy-jsonrpc-proc-macro 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b50f53cc7025979b06da8fde906f948f0fa4665bf840043f4de1e25acee53c97"
+"checksum easy-jsonrpc 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cb424ab9ae1c46a5ee5a21f5a11a40b01b7d71a5bd45b12961974fd33701b93f"
+"checksum easy-jsonrpc-proc-macro 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d9fb33793846951f339a70580375734416898ff8ddbb74401865031e25ba6751"
 "checksum encode_unicode 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "90b2c9496c001e8cb61827acdefad780795c42264c137744cae6f7d9e3450abd"
 "checksum enum_primitive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "be4551092f4d519593039259a9ed8daedf0da12e5109c5280338073eaeb81180"
 "checksum env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)" = "15b0a4d2e39f8420210be8b27eeda28029729e2fd4291019455016c348240c38"

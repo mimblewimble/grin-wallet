@@ -440,7 +440,7 @@ pub fn run_doctest_foreign(
 	let mut api_foreign = Foreign::new(wallet1.clone());
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;
-	Ok(foreign_api.handle_request(request))
+	Ok(foreign_api.handle_request(request).as_option())
 }
 
 #[doc(hidden)]
