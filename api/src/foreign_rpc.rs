@@ -15,7 +15,8 @@
 //! JSON-RPC Stub generation for the Foreign API
 
 use crate::keychain::Keychain;
-use crate::libwallet::types::{BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend};
+use crate::libwallet::{BlockFees, CbData, InitTxArgs};
+use crate::libwallet::types::{NodeClient, WalletBackend};
 use crate::libwallet::ErrorKind;
 use crate::libwallet::{Slate, VersionedSlate};
 use crate::Foreign;

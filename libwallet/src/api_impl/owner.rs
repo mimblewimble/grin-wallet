@@ -24,8 +24,9 @@ use crate::grin_util;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
+use crate::{InitTxArgs, OutputCommitMapping, NodeHeightResult};
 use crate::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
+	AcctPathMapping, NodeClient, TxLogEntry,
 	TxWrapper, WalletBackend, WalletInfo,
 };
 use crate::{Error, ErrorKind};

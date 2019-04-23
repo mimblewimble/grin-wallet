@@ -27,8 +27,9 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util as util;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
+use crate::{BlockFees, CbData, OutputCommitMapping};
 use crate::types::{
-	BlockFees, CbData, NodeClient, OutputCommitMapping, OutputData, OutputStatus, TxLogEntry,
+	NodeClient, OutputData, OutputStatus, TxLogEntry,
 	TxLogEntryType, WalletBackend, WalletInfo,
 };
 

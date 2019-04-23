@@ -17,7 +17,8 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{BlockFees, CbData, NodeClient, WalletBackend};
+use crate::libwallet::{BlockFees, CbData};
+use crate::libwallet::types::{NodeClient, WalletBackend};
 use crate::libwallet::Error;
 use crate::util::Mutex;
 use std::marker::PhantomData;
@@ -316,7 +317,8 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use api::Foreign;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::types::{BlockFees, WalletBackend};
+		use libwallet::BlockFees;
+		use libwallet::types::WalletBackend;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

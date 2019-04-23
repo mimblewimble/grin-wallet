@@ -31,7 +31,7 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::types::InitTxArgs;
+use grin_wallet_libwallet::InitTxArgs;
 
 use serde_json;
 

@@ -17,7 +17,8 @@
 use crate::grin_keychain::Keychain;
 use crate::internal::{tx, updater};
 use crate::slate::Slate;
-use crate::types::{BlockFees, CbData, NodeClient, TxLogEntryType, WalletBackend};
+use crate::{BlockFees, CbData};
+use crate::types::{NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;

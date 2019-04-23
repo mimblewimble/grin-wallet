@@ -14,8 +14,9 @@
 
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
+use crate::libwallet::{OutputCommitMapping};
 use crate::libwallet::types::{
-	AcctPathMapping, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
+	AcctPathMapping, OutputStatus, TxLogEntry, WalletInfo,
 };
 use crate::libwallet::Error;
 use crate::util;

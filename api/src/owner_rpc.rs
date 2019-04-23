@@ -18,8 +18,9 @@ use uuid::Uuid;
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate::Slate;
+use crate::libwallet::{InitTxArgs, NodeHeightResult, OutputCommitMapping};
 use crate::libwallet::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
+	AcctPathMapping, NodeClient, TxLogEntry,
 	WalletBackend, WalletInfo,
 };
 use crate::libwallet::ErrorKind;
