@@ -28,7 +28,7 @@ use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::FileWalletCommAdapter;
-use libwallet::{WalletInst, InitTxArgs};
+use libwallet::{InitTxArgs, WalletInst};
 use std::fs;
 use std::thread;
 use std::time::Duration;

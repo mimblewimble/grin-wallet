@@ -20,7 +20,10 @@ use crate::core::core;
 use crate::core::core::Transaction;
 use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::Keychain;
-use crate::libwallet::{NodeClient, TxLogEntry, WalletBackend, WalletInfo, CbData, InitTxArgs, OutputCommitMapping, SendTXArgs, Slate, Error, ErrorKind};
+use crate::libwallet::{
+	CbData, Error, ErrorKind, InitTxArgs, NodeClient, OutputCommitMapping, SendTXArgs, Slate,
+	TxLogEntry, WalletBackend, WalletInfo,
+};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;

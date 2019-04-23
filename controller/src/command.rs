@@ -35,7 +35,7 @@ use crate::impls::{
 	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{NodeClient, InitTxArgs, WalletInst};
+use crate::libwallet::{InitTxArgs, NodeClient, WalletInst};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands

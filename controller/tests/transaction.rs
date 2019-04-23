@@ -26,7 +26,7 @@ use self::core::core::transaction;
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
-use self::libwallet::{OutputStatus, InitTxArgs, Slate};
+use self::libwallet::{InitTxArgs, OutputStatus, Slate};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::thread;

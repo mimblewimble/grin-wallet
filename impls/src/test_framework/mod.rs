@@ -22,7 +22,9 @@ use crate::core::{consensus, global, pow};
 use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
-use crate::libwallet::{NodeClient, WalletBackend, WalletInfo, WalletInst, BlockFees, CbData, InitTxArgs};
+use crate::libwallet::{
+	BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend, WalletInfo, WalletInst,
+};
 use crate::lmdb_wallet::LMDBBackend;
 use crate::util;
 use crate::util::secp::pedersen;

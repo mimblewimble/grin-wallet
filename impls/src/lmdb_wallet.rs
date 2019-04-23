@@ -31,7 +31,10 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 use crate::core::core::Transaction;
 use crate::core::{global, ser};
 use crate::libwallet::{check_repair, restore};
-use crate::libwallet::{AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend, WalletOutputBatch};
+use crate::libwallet::{
+	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
+	WalletOutputBatch,
+};
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::ZeroingString;

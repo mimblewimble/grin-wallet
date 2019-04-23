@@ -25,7 +25,7 @@ use grin_wallet_util::grin_util as util;
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Identifier, Keychain};
-use self::libwallet::{Slate, AcctPathMapping, InitTxArgs};
+use self::libwallet::{AcctPathMapping, InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::sync::atomic::Ordering;

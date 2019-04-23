@@ -14,7 +14,7 @@
 
 use crate::config::WalletConfig;
 /// Null Output 'plugin' implementation
-use crate::libwallet::{Slate, Error};
+use crate::libwallet::{Error, Slate};
 use crate::WalletCommAdapter;
 
 use std::collections::HashMap;
