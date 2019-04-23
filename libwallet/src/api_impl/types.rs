@@ -182,3 +182,12 @@ pub struct NodeHeightResult {
 	/// Whether this height was updated from the node
 	pub updated_from_node: bool,
 }
+
+/// Version request result
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VersionInfo {
+	/// API version
+	pub foreign_api_version: u16,
+	/// Slate version
+	pub default_slate_version: u16,
+}

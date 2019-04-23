@@ -16,7 +16,7 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{BlockFees, CbData, Error, NodeClient, Slate, WalletBackend};
+use crate::libwallet::{BlockFees, CbData, Error, NodeClient, Slate, WalletBackend, VersionInfo};
 use crate::util::Mutex;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -123,6 +123,26 @@ where
 		}
 	}
 
+	/// Return the version capabilities of the running ForeignApi Node
+	/// # Arguments
+	/// None
+	/// # Returns
+	/// * [`VersionInfo`](../grin_wallet_libwallet/api_impl/types/struct.VersionInfo.html)
+	/// # Example
+	/// Set up as in [`new`](struct.Foreign.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	///
+	/// let mut api_foreign = Foreign::new(wallet.clone());
+	///
+	/// let version_info = api_foreign.check_version();
+	/// // check and proceed accordingly
+	/// ```
+
+	pub fn check_version(&self) -> VersionInfo {
+		foreign::check_version()
+	}
+
 	/// Builds a new unconfirmed coinbase output in the wallet, generally for inclusion in a
 	/// potential new block's coinbase output during mining.
 	///
@@ -134,7 +154,7 @@ where
 	///
 	/// # Arguments
 	///
-	/// * `block_fees` - A [`BlockFees`](../grin_wallet_libwallet/types/struct.BlockFees.html)
+	/// * `block_fees` - A [`BlockFees`](../grin_wallet_libwallet/api_impl/types/struct.BlockFees.html)
 	/// struct, set up as follows:
 	///
 	/// `fees` - should contain the sum of all transaction fees included in the potential
@@ -147,7 +167,7 @@ where
 	/// id will be assigned
 	///
 	/// # Returns
-	/// * `Ok`([`cb_data`](../grin_wallet_libwallet/types/struct.CbData.html)`)` if successful. This
+	/// * `Ok`([`cb_data`](../grin_wallet_libwallet/api_impl/types/struct.CbData.html)`)` if successful. This
 	/// will contain the corresponding output, kernel and keyID used to create the coinbase output.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
