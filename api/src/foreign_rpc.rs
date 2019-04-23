@@ -49,8 +49,10 @@ pub trait ForeignRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"default_slate_version": 2,
-			"foreign_api_version": 2
+			"Ok": {
+				"default_slate_version": 2,
+				"foreign_api_version": 2
+			}
 		}
 	}
 	# "#
@@ -58,7 +60,7 @@ pub trait ForeignRpc {
 	```
 
 	*/
-	fn check_version(&self) -> VersionInfo;
+	fn check_version(&self) -> Result<VersionInfo, ErrorKind>;
 
 	/**
 	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
@@ -355,8 +357,8 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	fn check_version(&self) -> VersionInfo {
-		Foreign::check_version(self)
+	fn check_version(&self) -> Result<VersionInfo, ErrorKind> {
+		Foreign::check_version(self).map_err(|e| e.kind())
 	}
 
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {

@@ -139,8 +139,8 @@ where
 	/// // check and proceed accordingly
 	/// ```
 
-	pub fn check_version(&self) -> VersionInfo {
-		foreign::check_version()
+	pub fn check_version(&self) -> Result<VersionInfo, Error> {
+		Ok(foreign::check_version())
 	}
 
 	/// Builds a new unconfirmed coinbase output in the wallet, generally for inclusion in a
