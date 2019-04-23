@@ -49,5 +49,8 @@ pub mod types;
 pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::Slate;
 pub use crate::slate_versions::{SlateVersion, VersionedSlate};
+pub use api_impl::types::{
+	BlockFees, CbData, InitTxArgs, InitTxSendArgs, NodeHeightResult, OutputCommitMapping,
+	SendTXArgs,
+};
 pub use internal::restore::{check_repair, restore};
-pub use api_impl::types::{SendTXArgs, InitTxArgs, InitTxSendArgs, BlockFees, CbData, OutputCommitMapping, NodeHeightResult};

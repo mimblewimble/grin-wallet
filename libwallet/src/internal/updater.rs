@@ -27,11 +27,10 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util as util;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
-use crate::{BlockFees, CbData, OutputCommitMapping};
 use crate::types::{
-	NodeClient, OutputData, OutputStatus, TxLogEntry,
-	TxLogEntryType, WalletBackend, WalletInfo,
+	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
+use crate::{BlockFees, CbData, OutputCommitMapping};
 
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<T: ?Sized, C, K>(

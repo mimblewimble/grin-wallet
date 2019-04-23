@@ -28,8 +28,8 @@ use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::FileWalletCommAdapter;
-use libwallet::InitTxArgs;
 use libwallet::types::WalletInst;
+use libwallet::InitTxArgs;
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -224,10 +224,9 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 fn two_wallets_one_seed_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	setup(test_dir);
-	let seed_phrase =
-		"affair pistol cancel crush garment candy ancient flag work \
-		 market crush dry stand focus mutual weapon offer ceiling rival turn team spring \
-		 where swift";
+	let seed_phrase = "affair pistol cancel crush garment candy ancient flag work \
+	                   market crush dry stand focus mutual weapon offer ceiling rival turn team spring \
+	                   where swift";
 
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);

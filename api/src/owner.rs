@@ -25,12 +25,9 @@ use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::slate::Slate;
-use crate::libwallet::{InitTxArgs, NodeHeightResult, OutputCommitMapping};
-use crate::libwallet::types::{
-	AcctPathMapping, NodeClient, TxLogEntry,
-	WalletBackend, WalletInfo,
-};
+use crate::libwallet::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::libwallet::{Error, ErrorKind};
+use crate::libwallet::{InitTxArgs, NodeHeightResult, OutputCommitMapping};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -1019,8 +1016,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		use api::Owner;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::InitTxArgs;
 		use libwallet::types::WalletBackend;
+		use libwallet::InitTxArgs;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
