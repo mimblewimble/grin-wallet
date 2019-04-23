@@ -12,7 +12,7 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-use grin_wallet_libwallet::types::Context;
+use grin_wallet_libwallet::Context;
 use grin_wallet_util::grin_core::core::transaction;
 use grin_wallet_util::grin_core::libtx::{aggsig, proof};
 use grin_wallet_util::grin_keychain::{

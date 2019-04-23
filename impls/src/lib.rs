@@ -50,7 +50,7 @@ pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 use crate::util::Mutex;
 use std::sync::Arc;
 
-use libwallet::types::{NodeClient, WalletBackend, WalletInst};
+use libwallet::{NodeClient, WalletBackend, WalletInst};
 
 /// Helper to create an instance of the LMDB wallet
 pub fn instantiate_wallet(

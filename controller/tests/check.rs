@@ -28,8 +28,7 @@ use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::FileWalletCommAdapter;
-use libwallet::types::WalletInst;
-use libwallet::InitTxArgs;
+use libwallet::{WalletInst, InitTxArgs};
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -124,7 +123,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.amount_currently_spendable, (bh - cm) * reward);
 		// check tx log as well
 		let (_, txs) = api.retrieve_txs(true, None, None)?;
-		let (c, _) = libwallet::types::TxLogEntry::sum_confirmed(&txs);
+		let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
 		assert_eq!(wallet1_info.total, c);
 		assert_eq!(txs.len(), bh as usize);
 		Ok(())
@@ -136,7 +135,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		w1_outputs_commits = api.retrieve_outputs(false, true, None)?.1;
 		Ok(())
 	})?;
-	let w1_outputs: Vec<libwallet::types::OutputData> =
+	let w1_outputs: Vec<libwallet::OutputData> =
 		w1_outputs_commits.into_iter().map(|m| m.output).collect();
 	{
 		let mut w = wallet1.lock();
@@ -146,7 +145,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			batch.delete(&w1_outputs[4].key_id, &None)?;
 			batch.delete(&w1_outputs[10].key_id, &None)?;
 			let mut accidental_spent = w1_outputs[13].clone();
-			accidental_spent.status = libwallet::types::OutputStatus::Spent;
+			accidental_spent.status = libwallet::OutputStatus::Spent;
 			batch.save(accidental_spent)?;
 			batch.commit()?;
 		}
@@ -157,7 +156,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
 		let (_, wallet1_info) = api.retrieve_summary_info(true, 1)?;
 		let (_, txs) = api.retrieve_txs(true, None, None)?;
-		let (c, _) = libwallet::types::TxLogEntry::sum_confirmed(&txs);
+		let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
 		assert!(wallet1_info.total != c);
 		Ok(())
 	})?;

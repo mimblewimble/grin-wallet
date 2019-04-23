@@ -12,7 +12,7 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-use grin_wallet_libwallet::slate::Slate;
+use grin_wallet_libwallet::Slate;
 
 // test all slate conversions
 #[test]

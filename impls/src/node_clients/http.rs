@@ -17,7 +17,7 @@
 
 use futures::{stream, Stream};
 
-use crate::libwallet::types::*;
+use crate::libwallet::{NodeClient, TxWrapper};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 

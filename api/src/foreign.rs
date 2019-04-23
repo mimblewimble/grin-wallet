@@ -16,10 +16,7 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{NodeClient, WalletBackend};
-use crate::libwallet::Error;
-use crate::libwallet::{BlockFees, CbData};
+use crate::libwallet::{BlockFees, CbData, Error, NodeClient, Slate, WalletBackend};
 use crate::util::Mutex;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -92,7 +89,7 @@ where
 	/// use api::Foreign;
 	/// use config::WalletConfig;
 	/// use impls::{HTTPNodeClient, LMDBBackend};
-	/// use libwallet::types::WalletBackend;
+	/// use libwallet::WalletBackend;
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -306,7 +303,6 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use grin_wallet_libwallet as libwallet;
 		use grin_wallet_util::grin_keychain as keychain;
 		use grin_wallet_util::grin_util as util;
-		use libwallet::slate::Slate;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
@@ -317,8 +313,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use api::Foreign;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::types::WalletBackend;
-		use libwallet::BlockFees;
+		use libwallet::{BlockFees, Slate, WalletBackend};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
