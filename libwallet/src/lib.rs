@@ -42,11 +42,19 @@ extern crate lazy_static;
 pub mod api_impl;
 mod error;
 mod internal;
-pub mod slate;
+mod slate;
 pub mod slate_versions;
-pub mod types;
+mod types;
 
 pub use crate::error::{Error, ErrorKind};
-pub use crate::slate::Slate;
+pub use crate::slate::{ParticipantData, ParticipantMessageData, Slate};
 pub use crate::slate_versions::{SlateVersion, VersionedSlate};
+pub use api_impl::types::{
+	BlockFees, CbData, InitTxArgs, InitTxSendArgs, NodeHeightResult, OutputCommitMapping,
+	SendTXArgs, VersionInfo,
+};
 pub use internal::restore::{check_repair, restore};
+pub use types::{
+	AcctPathMapping, BlockIdentifier, Context, NodeClient, OutputData, OutputStatus, TxLogEntry,
+	TxLogEntryType, TxWrapper, WalletBackend, WalletInfo, WalletInst, WalletOutputBatch,
+};

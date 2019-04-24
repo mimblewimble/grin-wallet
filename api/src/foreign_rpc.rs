@@ -15,9 +15,10 @@
 //! JSON-RPC Stub generation for the Foreign API
 
 use crate::keychain::Keychain;
-use crate::libwallet::types::{BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend};
-use crate::libwallet::ErrorKind;
-use crate::libwallet::{Slate, VersionedSlate};
+use crate::libwallet::{
+	BlockFees, CbData, ErrorKind, InitTxArgs, NodeClient, Slate, VersionInfo, VersionedSlate,
+	WalletBackend,
+};
 use crate::Foreign;
 use easy_jsonrpc;
 
@@ -27,6 +28,40 @@ use easy_jsonrpc;
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
 #[easy_jsonrpc::rpc]
 pub trait ForeignRpc {
+	/**
+	Networked version of [Foreign::check_version](struct.Foreign.html#method.check_version).
+
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "check_version",
+		"id": 1,
+		"params": []
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": {
+				"default_slate_version": 2,
+				"foreign_api_version": 2
+			}
+		}
+	}
+	# "#
+	# , 0, false);
+	```
+
+	*/
+	fn check_version(&self) -> Result<VersionInfo, ErrorKind>;
+
 	/**
 	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
 
@@ -322,6 +357,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	fn check_version(&self) -> Result<VersionInfo, ErrorKind> {
+		Foreign::check_version(self).map_err(|e| e.kind())
+	}
+
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
 		Foreign::build_coinbase(self, block_fees).map_err(|e| e.kind())
 	}

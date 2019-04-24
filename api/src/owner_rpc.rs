@@ -17,12 +17,10 @@ use uuid::Uuid;
 
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
-	WalletBackend, WalletInfo,
+use crate::libwallet::{
+	AcctPathMapping, ErrorKind, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
+	Slate, TxLogEntry, WalletBackend, WalletInfo,
 };
-use crate::libwallet::ErrorKind;
 use crate::Owner;
 use easy_jsonrpc;
 

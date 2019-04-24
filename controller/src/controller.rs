@@ -20,12 +20,10 @@ use crate::core::core;
 use crate::core::core::Transaction;
 use crate::impls::{FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::Keychain;
-use crate::libwallet::slate::Slate;
-use crate::libwallet::types::{
-	CbData, InitTxArgs, NodeClient, OutputCommitMapping, SendTXArgs, TxLogEntry, WalletBackend,
-	WalletInfo,
+use crate::libwallet::{
+	CbData, Error, ErrorKind, InitTxArgs, NodeClient, OutputCommitMapping, SendTXArgs, Slate,
+	TxLogEntry, WalletBackend, WalletInfo,
 };
-use crate::libwallet::{Error, ErrorKind};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;

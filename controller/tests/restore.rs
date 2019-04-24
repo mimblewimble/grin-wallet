@@ -25,8 +25,7 @@ use grin_wallet_util::grin_util as util;
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Identifier, Keychain};
-use self::libwallet::slate::Slate;
-use self::libwallet::types::{AcctPathMapping, InitTxArgs};
+use self::libwallet::{AcctPathMapping, InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use std::fs;
 use std::sync::atomic::Ordering;
@@ -124,11 +123,11 @@ fn compare_wallet_restore(
 		}
 	});
 
-	let mut src_info: Option<libwallet::types::WalletInfo> = None;
-	let mut dest_info: Option<libwallet::types::WalletInfo> = None;
+	let mut src_info: Option<libwallet::WalletInfo> = None;
+	let mut dest_info: Option<libwallet::WalletInfo> = None;
 
-	let mut src_txs: Option<Vec<libwallet::types::TxLogEntry>> = None;
-	let mut dest_txs: Option<Vec<libwallet::types::TxLogEntry>> = None;
+	let mut src_txs: Option<Vec<libwallet::TxLogEntry>> = None;
+	let mut dest_txs: Option<Vec<libwallet::TxLogEntry>> = None;
 
 	let mut src_accts: Option<Vec<AcctPathMapping>> = None;
 	let mut dest_accts: Option<Vec<AcctPathMapping>> = None;

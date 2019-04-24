@@ -16,9 +16,8 @@
 
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
-use crate::libwallet::slate::Slate;
 use crate::libwallet::slate_versions::{v0, v1};
-use crate::libwallet::{Error, ErrorKind};
+use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use config::WalletConfig;
 use failure::ResultExt;

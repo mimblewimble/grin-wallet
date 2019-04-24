@@ -16,11 +16,21 @@
 
 use crate::grin_keychain::Keychain;
 use crate::internal::{tx, updater};
-use crate::slate::Slate;
-use crate::types::{BlockFees, CbData, NodeClient, TxLogEntryType, WalletBackend};
-use crate::{Error, ErrorKind};
+use crate::{
+	slate_versions, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType,
+	VersionInfo, WalletBackend,
+};
 
+const FOREIGN_API_VERSION: u16 = 2;
 const USER_MESSAGE_MAX_LEN: usize = 256;
+
+/// Return the version info
+pub fn check_version() -> VersionInfo {
+	VersionInfo {
+		foreign_api_version: FOREIGN_API_VERSION,
+		default_slate_version: slate_versions::CURRENT_SLATE_VERSION,
+	}
+}
 
 /// Build a coinbase transaction
 pub fn build_coinbase<T: ?Sized, C, K>(

@@ -24,11 +24,9 @@ use crate::grin_util;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
-use crate::types::{
-	AcctPathMapping, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, TxLogEntry,
-	TxWrapper, WalletBackend, WalletInfo,
-};
+use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{Error, ErrorKind};
+use crate::{InitTxArgs, NodeHeightResult, OutputCommitMapping};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 

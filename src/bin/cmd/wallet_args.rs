@@ -22,7 +22,7 @@ use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::types::{NodeClient, WalletInst};
+use grin_wallet_libwallet::{NodeClient, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;

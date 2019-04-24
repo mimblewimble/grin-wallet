@@ -28,7 +28,7 @@ mod wallet_tests {
 
 	use grin_wallet_config::{GlobalWalletConfig, WalletConfig};
 	use grin_wallet_impls::{LMDBBackend, WalletSeed};
-	use grin_wallet_libwallet::types::{WalletBackend, WalletInst};
+	use grin_wallet_libwallet::{WalletBackend, WalletInst};
 	use grin_wallet_util::grin_core::global::{self, ChainTypes};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
 

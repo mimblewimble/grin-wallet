@@ -19,7 +19,7 @@ use crate::grin_keychain::{ExtKeychain, Identifier, Keychain};
 use crate::grin_util::secp::{key::SecretKey, pedersen};
 use crate::internal::{keys, updater};
 use crate::types::*;
-use crate::Error;
+use crate::{Error, OutputCommitMapping};
 use std::collections::HashMap;
 
 /// Utility struct for return values from below
