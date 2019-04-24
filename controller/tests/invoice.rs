@@ -47,119 +47,121 @@ fn teardown(test_dir: &str) {
 
 /// self send impl
 fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
-	setup(test_dir);
-	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
-	let chain = wallet_proxy.chain.clone();
-
-	// Create a new wallet test client, and set its queues to communicate with the proxy
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 =
-		test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
-
-	// wallet 2, will be recipient
-	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let wallet2 =
-		test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
-
-	// Set the wallet proxy listener running
-	thread::spawn(move || {
-		if let Err(e) = wallet_proxy.run() {
-			error!("Wallet Proxy error: {}", e);
-		}
-	});
-
-	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
-
-	// add some accounts
-	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		api.create_account_path("mining")?;
-		api.create_account_path("listener")?;
-		Ok(())
-	})?;
-
-	// Get some mining done
 	{
-		let mut w = wallet1.lock();
-		w.set_parent_key_id_by_name("mining")?;
+		setup(test_dir);
+		// Create a new proxy to simulate server and wallet responses
+		let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+		let chain = wallet_proxy.chain.clone();
+
+		// Create a new wallet test client, and set its queues to communicate with the proxy
+		let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
+		let wallet1 =
+			test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
+		wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
+
+		// wallet 2, will be recipient
+		let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
+		let wallet2 =
+			test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
+		wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+
+		// Set the wallet proxy listener running
+		thread::spawn(move || {
+			if let Err(e) = wallet_proxy.run() {
+				error!("Wallet Proxy error: {}", e);
+			}
+		});
+
+		// few values to keep things shorter
+		let reward = core::consensus::REWARD;
+
+		// add some accounts
+		wallet::controller::owner_single_use(wallet1.clone(), |api| {
+			api.create_account_path("mining")?;
+			api.create_account_path("listener")?;
+			Ok(())
+		})?;
+
+		// Get some mining done
+		{
+			let mut w = wallet1.lock();
+			w.set_parent_key_id_by_name("mining")?;
+		}
+		let mut bh = 10u64;
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize, false);
+
+		// Sanity check wallet 1 contents
+		wallet::controller::owner_single_use(wallet1.clone(), |api| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, bh * reward);
+			Ok(())
+		})?;
+
+		let mut slate = Slate::blank(2);
+
+		wallet::controller::owner_single_use(wallet2.clone(), |api| {
+			// Wallet 2 inititates an invoice transaction, requesting payment
+			let args = InitTxArgs {
+				src_acct_name: None,
+				amount: reward * 2,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			slate = api.init_invoice_tx(args)?;
+			Ok(())
+		})?;
+
+		wallet::controller::owner_single_use(wallet1.clone(), |api| {
+			// Wallet 1 receives the invoice transaction
+			let args = InitTxArgs {
+				src_acct_name: None,
+				amount: slate.amount,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			slate = api.receive_invoice_tx(&slate, args)?;
+			Ok(())
+		})?;
+
+		// wallet 2 finalizes and posts
+		wallet::controller::foreign_single_use(wallet2.clone(), |api| {
+			// Wallet 2 receives the invoice transaction
+			slate = api.finalize_invoice_tx(&slate)?;
+			Ok(())
+		})?;
+
+		// wallet 1 post so wallet 1 doesn't get the mined amount
+		wallet::controller::owner_single_use(wallet1.clone(), |api| {
+			api.post_tx(&slate.tx, false)?;
+			Ok(())
+		})?;
+
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
+		bh += 3;
+
+		// Check transaction log for wallet 2
+		wallet::controller::owner_single_use(wallet2.clone(), |api| {
+			let (refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
+			println!(
+				"last confirmed height: {}, bh: {}",
+				wallet2_info.last_confirmed_height, bh
+			);
+			assert!(refreshed);
+			assert_eq!(wallet2_info.amount_currently_spendable, slate.amount);
+			Ok(())
+		})?;
+
+		// let logging finish
+		thread::sleep(Duration::from_millis(200));
 	}
-	let mut bh = 10u64;
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize, false);
-
-	// Sanity check wallet 1 contents
-	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward);
-		Ok(())
-	})?;
-
-	let mut slate = Slate::blank(2);
-
-	wallet::controller::owner_single_use(wallet2.clone(), |api| {
-		// Wallet 2 inititates an invoice transaction, requesting payment
-		let args = InitTxArgs {
-			src_acct_name: None,
-			amount: reward * 2,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			..Default::default()
-		};
-		slate = api.init_invoice_tx(args)?;
-		Ok(())
-	})?;
-
-	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		// Wallet 1 receives the invoice transaction
-		let args = InitTxArgs {
-			src_acct_name: None,
-			amount: slate.amount,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			..Default::default()
-		};
-		slate = api.receive_invoice_tx(&slate, args)?;
-		Ok(())
-	})?;
-
-	// wallet 2 finalizes and posts
-	wallet::controller::foreign_single_use(wallet2.clone(), |api| {
-		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&slate)?;
-		Ok(())
-	})?;
-
-	// wallet 1 post so wallet 1 doesn't get the mined amount
-	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		api.post_tx(&slate.tx, false)?;
-		Ok(())
-	})?;
-
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
-	bh += 3;
-
-	// Check transaction log for wallet 2
-	wallet::controller::owner_single_use(wallet2.clone(), |api| {
-		let (refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
-		println!(
-			"last confirmed height: {}, bh: {}",
-			wallet2_info.last_confirmed_height, bh
-		);
-		assert!(refreshed);
-		assert_eq!(wallet2_info.amount_currently_spendable, slate.amount);
-		Ok(())
-	})?;
-
-	// let logging finish
-	thread::sleep(Duration::from_millis(200));
 	teardown(test_dir);
 	Ok(())
 }
