@@ -311,6 +311,15 @@ where
 		w.close()?;
 		res
 	}
+
+	/// TODO: docs
+	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let res = foreign::finalize_invoice_tx(&mut *w, slate);
+		w.close()?;
+		res
+	}
 }
 
 #[doc(hidden)]

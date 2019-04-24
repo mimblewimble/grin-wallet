@@ -314,14 +314,14 @@ pub trait OwnerRpc {
 	) -> Result<(bool, WalletInfo), ErrorKind>;
 
 	/**
-		Networked version of [Owner::estimate_initiate_tx](struct.Owner.html#method.initiate_tx).
+		Networked version of [Owner::init_send_tx](struct.Owner.html#method.init_send_tx).
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 		# r#"
 		{
 			"jsonrpc": "2.0",
-			"method": "initiate_tx",
+			"method": "init_send_tx",
 			"params": {
 				"args": {
 					"src_acct_name": null,
@@ -401,7 +401,7 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
+	fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -1049,8 +1049,8 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind> {
-		Owner::initiate_tx(self, args).map_err(|e| e.kind())
+	fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::init_send_tx(self, args).map_err(|e| e.kind())
 	}
 
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
@@ -1173,7 +1173,7 @@ pub fn run_doctest_owner(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let mut slate = api_impl::owner::initiate_tx(&mut *w, args, true).unwrap();
+		let mut slate = api_impl::owner::init_send_tx(&mut *w, args, true).unwrap();
 		{
 			let mut w2 = wallet2.lock();
 			w2.open_with_credentials().unwrap();

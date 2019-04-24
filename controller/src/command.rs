@@ -257,7 +257,7 @@ pub fn send(
 						estimate_only: Some(true),
 						..Default::default()
 					};
-					let slate = api.initiate_tx(init_args).unwrap();
+					let slate = api.init_send_tx(init_args).unwrap();
 					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
@@ -275,7 +275,7 @@ pub fn send(
 				send_args: None,
 				..Default::default()
 			};
-			let result = api.initiate_tx(init_args);
+			let result = api.init_send_tx(init_args);
 			let mut slate = match result {
 				Ok(s) => {
 					info!(

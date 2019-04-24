@@ -333,7 +333,12 @@ impl Slate {
 			Some(&self.pub_blind_sum(keychain.secp())?),
 			&self.msg_to_sign()?,
 		)?;
-		self.participant_data[participant_id].part_sig = Some(sig_part);
+		for i in 0..self.num_participants {
+			if self.participant_data[i].id == participant_id as u64 {
+				self.participant_data[i].part_sig = Some(sig_part);
+				break;
+			}
+		}
 		Ok(())
 	}
 

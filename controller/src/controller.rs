@@ -359,7 +359,7 @@ where
 				send_args: None,
 				..Default::default()
 			};
-			let result = api.initiate_tx(init_args);
+			let result = api.init_send_tx(init_args);
 			let mut slate = match result {
 				Ok(s) => {
 					info!(

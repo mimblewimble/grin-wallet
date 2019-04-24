@@ -474,7 +474,7 @@ where
 	/// 	message: Some("Have some Grins. Love, Yeastplume".to_owned()),
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.initiate_tx(
+	/// let result = api_owner.init_send_tx(
 	/// 	args,
 	/// );
 	///
@@ -486,12 +486,12 @@ where
 	/// }
 	/// ```
 
-	pub fn initiate_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let mut slate = {
 			let mut w = self.wallet.lock();
 			w.open_with_credentials()?;
-			let slate = owner::initiate_tx(&mut *w, args, self.doctest_mode)?;
+			let slate = owner::init_send_tx(&mut *w, args, self.doctest_mode)?;
 			w.close()?;
 			slate
 		};
@@ -526,6 +526,24 @@ where
 			}
 			None => Ok(slate),
 		}
+	}
+
+	/// TODO: doc TBD
+	pub fn init_invoice_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let slate = owner::init_invoice_tx(&mut *w, args, self.doctest_mode)?;
+		w.close()?;
+		Ok(slate)
+	}
+
+	/// TODO: doc TBD
+	pub fn receive_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let slate = owner::receive_invoice_tx(&mut *w, slate, args, self.doctest_mode)?;
+		w.close()?;
+		Ok(slate)
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given
@@ -566,7 +584,7 @@ where
 	/// 	message: Some("Remember to lock this when we're happy this is sent".to_owned()),
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.initiate_tx(
+	/// let result = api_owner.init_send_tx(
 	/// 	args,
 	/// );
 	///
@@ -624,7 +642,7 @@ where
 	/// 	message: Some("Finalize this tx now".to_owned()),
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.initiate_tx(
+	/// let result = api_owner.init_send_tx(
 	/// 	args,
 	/// );
 	///
@@ -681,7 +699,7 @@ where
 	/// 	message: Some("Post this tx".to_owned()),
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.initiate_tx(
+	/// let result = api_owner.init_send_tx(
 	/// 	args,
 	/// );
 	///
@@ -742,7 +760,7 @@ where
 	/// 	message: Some("Cancel this tx".to_owned()),
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.initiate_tx(
+	/// let result = api_owner.init_send_tx(
 	/// 	args,
 	/// );
 	///
@@ -835,7 +853,7 @@ where
 	/// 	message: Some("Just verify messages".to_owned()),
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.initiate_tx(
+	/// let result = api_owner.init_send_tx(
 	/// 	args,
 	/// );
 	///
