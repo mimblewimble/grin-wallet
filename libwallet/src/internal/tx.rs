@@ -275,7 +275,11 @@ where
 }
 
 /// Update the stored transaction (this update needs to happen when the TX is finalised)
-pub fn update_stored_tx<T: ?Sized, C, K>(wallet: &mut T, slate: &Slate, is_invoiced: bool) -> Result<(), Error>
+pub fn update_stored_tx<T: ?Sized, C, K>(
+	wallet: &mut T,
+	slate: &Slate,
+	is_invoiced: bool,
+) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,

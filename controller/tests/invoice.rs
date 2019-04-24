@@ -151,15 +151,12 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		let (refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
 		println!(
 			"last confirmed height: {}, bh: {}",
-			wallet2_info.last_confirmed_height,
-			bh
+			wallet2_info.last_confirmed_height, bh
 		);
 		assert!(refreshed);
 		assert_eq!(wallet2_info.amount_currently_spendable, slate.amount);
 		Ok(())
 	})?;
-
-
 
 	// let logging finish
 	thread::sleep(Duration::from_millis(200));

@@ -110,12 +110,8 @@ where
 	Ok(ret_slate)
 }
 
-
 /// Receive an tx that this wallet has issued
-pub fn finalize_invoice_tx<T: ?Sized, C, K>(
-	w: &mut T,
-	slate: &Slate,
-) -> Result<Slate, Error>
+pub fn finalize_invoice_tx<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
