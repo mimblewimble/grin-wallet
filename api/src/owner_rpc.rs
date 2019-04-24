@@ -1202,7 +1202,7 @@ pub fn run_doctest_owner(
 	let mut api_owner = Owner::new(wallet1.clone());
 	api_owner.doctest_mode = true;
 	let owner_api = &api_owner as &dyn OwnerRpc;
-	Ok(owner_api.handle_request(request))
+	Ok(owner_api.handle_request(request).as_option())
 }
 
 #[doc(hidden)]
