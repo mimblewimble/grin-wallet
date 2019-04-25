@@ -26,7 +26,9 @@ use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{Error, ErrorKind};
-use crate::{InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType};
+use crate::{
+	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType,
+};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 

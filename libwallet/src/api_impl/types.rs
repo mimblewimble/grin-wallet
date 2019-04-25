@@ -139,9 +139,9 @@ pub struct IssueInvoiceTxArgs {
 	/// The invoice amount in nanogrins. (`1 G = 1_000_000_000nG`)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
-		/// Optional message, that will be signed
+	/// Optional message, that will be signed
 	pub message: Option<String>,
-/// Optionally set the output target slate version (acceptable
+	/// Optionally set the output target slate version (acceptable
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,

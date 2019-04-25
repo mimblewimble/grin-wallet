@@ -18,8 +18,8 @@ use uuid::Uuid;
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
-	Slate, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
+	OutputCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::Owner;
 use easy_jsonrpc;

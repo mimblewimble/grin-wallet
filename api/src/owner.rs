@@ -25,8 +25,8 @@ use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
-	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
+	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
 };
 
 /// Main interface into all wallet API functions.
