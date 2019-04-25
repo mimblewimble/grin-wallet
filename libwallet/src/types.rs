@@ -85,10 +85,19 @@ where
 	/// return the parent path
 	fn parent_key_id(&mut self) -> Identifier;
 
-	/// Iterate over all output data stored by the backend
+	/// Iterate over all self output data stored by the backend
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a>;
 
-	/// Get output data by id
+	/// Get payment commits list by slate id
+	fn get_payment_log_commits(&self, u: &Uuid) -> Result<Option<PaymentCommits>, Error>;
+
+	/// Get payment output data by commit
+	fn get_payment_log_entry(&self, commit: String) -> Result<Option<PaymentData>, Error>;
+
+	/// Iterate over all payment output data stored by the backend
+	fn payment_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = PaymentData> + 'a>;
+
+	/// Get self owned output data by id
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
 
 	/// Get an (Optional) tx log entry by uuid
@@ -140,11 +149,23 @@ where
 	/// Return the keychain being used
 	fn keychain(&mut self) -> &mut K;
 
-	/// Add or update data about an output to the backend
+	/// Add or update data about a self owned output to the backend
 	fn save(&mut self, out: OutputData) -> Result<(), Error>;
 
-	/// Gets output data by id
+	/// Add or update data about a payment output to the backend
+	fn save_payment(&mut self, out: PaymentData) -> Result<(), Error>;
+
+	/// Add or update data about a payment commits list to the backend
+	fn save_payment_commits(&mut self, u: &Uuid, commits: PaymentCommits) -> Result<(), Error>;
+
+	/// Gets self owned output data by id
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
+
+	/// Gets payment commits list by slate id
+	fn get_payment_commits(&self, u: &Uuid) -> Result<PaymentCommits, Error>;
+
+	/// Gets payment output data by commit
+	fn get_payment_log_entry(&self, commit: String) -> Result<PaymentData, Error>;
 
 	/// Iterate over all output data stored by the backend
 	fn iter(&self) -> Box<dyn Iterator<Item = OutputData>>;
@@ -270,6 +291,8 @@ pub struct OutputData {
 	pub is_coinbase: bool,
 	/// Optional corresponding internal entry in tx entry log
 	pub tx_log_entry: Option<u32>,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Option<Uuid>,
 }
 
 impl ser::Writeable for OutputData {
@@ -346,6 +369,94 @@ impl OutputData {
 		}
 	}
 }
+
+/// Information about a payment output that's being tracked by the wallet.
+/// It belongs to the receiver, and it's paid by this wallet.
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct PaymentData {
+	/// The actual commit
+	pub commit: String,
+	/// Value of the output
+	pub value: u64,
+	/// Current status of the output
+	pub status: OutputStatus,
+	/// Height of the output
+	pub height: u64,
+	/// Height we are locked until
+	pub lock_height: u64,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Uuid,
+}
+
+impl ser::Writeable for PaymentData {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for PaymentData {
+	fn read(reader: &mut dyn ser::Reader) -> Result<PaymentData, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+	}
+}
+
+impl PaymentData {
+	/// How many confirmations has this output received?
+	/// If height == 0 then we are either Unconfirmed or the output was
+	/// cut-through
+	/// so we do not actually know how many confirmations this output had (and
+	/// never will).
+	pub fn num_confirmations(&self, current_height: u64) -> u64 {
+		if self.height > current_height {
+			return 0;
+		}
+		if self.status == OutputStatus::Unconfirmed {
+			0
+		} else {
+			// if an output has height n and we are at block n
+			// then we have a single confirmation (the block it originated in)
+			1 + (current_height - self.height)
+		}
+	}
+
+	/// Marks this output as confirmed if it was previously unconfirmed
+	pub fn mark_confirmed(&mut self) {
+		match self.status {
+			OutputStatus::Unconfirmed => self.status = OutputStatus::Confirmed,
+			_ => (),
+		}
+	}
+}
+
+/// Information about the payment commit/s in one tx that's being tracked by the wallet.
+/// They belong to the receiver/s, and they're paid by this wallet.
+///
+/// Note: because lmdb can't have multiple keys to same value, we have to use this to find
+/// the commit lists by the slate id, in case we support multiple receivers in one tx in the future.
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentCommits {
+	/// The actual commit/s
+	pub commits: Vec<String>,
+	/// Unique transaction ID, selected by sender
+	pub slate_id: Uuid,
+}
+
+impl ser::Writeable for PaymentCommits {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for PaymentCommits {
+	fn read(reader: &mut dyn ser::Reader) -> Result<PaymentCommits, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+	}
+}
+
 /// Status of an output that's being tracked by the wallet. Can either be
 /// unconfirmed, spent, unspent, or locked (when it's been used to generate
 /// a transaction but we don't have confirmation that the transaction was
@@ -360,6 +471,8 @@ pub enum OutputStatus {
 	Locked,
 	/// Spent
 	Spent,
+	/// Confirmed
+	Confirmed,
 }
 
 impl fmt::Display for OutputStatus {
@@ -369,6 +482,7 @@ impl fmt::Display for OutputStatus {
 			OutputStatus::Unspent => write!(f, "Unspent"),
 			OutputStatus::Locked => write!(f, "Locked"),
 			OutputStatus::Spent => write!(f, "Spent"),
+			OutputStatus::Confirmed => write!(f, "Confirmed"),
 		}
 	}
 }
@@ -696,4 +810,182 @@ impl ser::Readable for AcctPathMapping {
 pub struct TxWrapper {
 	/// hex representation of transaction
 	pub tx_hex: String,
+}
+
+// Types to facilitate API arguments and serialization
+
+/// Send TX API Args
+// TODO: This is here to ensure the legacy V1 API remains intact
+// remove this when v1 api is removed
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SendTXArgs {
+	/// amount to send
+	pub amount: u64,
+	/// minimum confirmations
+	pub minimum_confirmations: u64,
+	/// payment method
+	pub method: String,
+	/// destination url
+	pub dest: String,
+	/// Max number of outputs
+	pub max_outputs: usize,
+	/// Number of change outputs to generate
+	pub num_change_outputs: usize,
+	/// whether to use all outputs (combine)
+	pub selection_strategy_is_use_all: bool,
+	/// Optional message, that will be signed
+	pub message: Option<String>,
+	/// Optional slate version to target when sending
+	pub target_slate_version: Option<u16>,
+}
+
+/// V2 Init / Send TX API Args
+#[derive(Clone, Serialize, Deserialize)]
+pub struct InitTxArgs {
+	/// The human readable account name from which to draw outputs
+	/// for the transaction, overriding whatever the active account is as set via the
+	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
+	pub src_acct_name: Option<String>,
+	#[serde(with = "secp_ser::string_or_u64")]
+	/// The amount to send, in nanogrins. (`1 G = 1_000_000_000nG`)
+	pub amount: u64,
+	#[serde(with = "secp_ser::string_or_u64")]
+	/// The minimum number of confirmations an output
+	/// should have in order to be included in the transaction.
+	pub minimum_confirmations: u64,
+	/// By default, the wallet selects as many inputs as possible in a
+	/// transaction, to reduce the Output set and the fees. The wallet will attempt to spend
+	/// include up to `max_outputs` in a transaction, however if this is not enough to cover
+	/// the whole amount, the wallet will include more outputs. This parameter should be considered
+	/// a soft limit.
+	pub max_outputs: u32,
+	/// The target number of change outputs to create in the transaction.
+	/// The actual number created will be `num_change_outputs` + whatever remainder is needed.
+	pub num_change_outputs: u32,
+	/// If `true`, attempt to use up as many outputs as
+	/// possible to create the transaction, up the 'soft limit' of `max_outputs`. This helps
+	/// to reduce the size of the UTXO set and the amount of data stored in the wallet, and
+	/// minimizes fees. This will generally result in many inputs and a large change output(s),
+	/// usually much larger than the amount being sent. If `false`, the transaction will include
+	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
+	/// value outputs.
+	pub selection_strategy_is_use_all: bool,
+	/// An optional participant message to include alongside the sender's public
+	/// ParticipantData within the slate. This message will include a signature created with the
+	/// sender's private excess value, and will be publically verifiable. Note this message is for
+	/// the convenience of the participants during the exchange; it is not included in the final
+	/// transaction sent to the chain. The message will be truncated to 256 characters.
+	pub message: Option<String>,
+	/// Optionally set the output target slate version (acceptable
+	/// down to the minimum slate version compatible with the current. If `None` the slate
+	/// is generated with the latest version.
+	pub target_slate_version: Option<u16>,
+	/// If true, just return an estimate of the resulting slate, containing fees and amounts
+	/// locked without actually locking outputs or creating the transaction. Note if this is set to
+	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
+	/// transaction amount
+	pub estimate_only: Option<bool>,
+	/// Sender arguments. If present, the underlying function will also attempt to send the
+	/// transaction to a destination and optionally finalize the result
+	pub send_args: Option<InitTxSendArgs>,
+}
+
+/// Send TX API Args, for convenience functionality that inits the transaction and sends
+/// in one go
+#[derive(Clone, Serialize, Deserialize)]
+pub struct InitTxSendArgs {
+	/// The transaction method. Can currently be 'http' or 'keybase'.
+	pub method: String,
+	/// The destination, contents will depend on the particular method
+	pub dest: String,
+	/// Whether to finalize the result immediately if the send was successful
+	pub finalize: bool,
+	/// Whether to post the transasction if the send and finalize were successful
+	pub post_tx: bool,
+	/// Whether to use dandelion when posting. If false, skip the dandelion relay
+	pub fluff: bool,
+}
+
+impl Default for InitTxArgs {
+	fn default() -> InitTxArgs {
+		InitTxArgs {
+			src_acct_name: None,
+			amount: 0,
+			minimum_confirmations: 10,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			message: None,
+			target_slate_version: None,
+			estimate_only: Some(false),
+			send_args: None,
+		}
+	}
+}
+
+/// Fees in block to use for coinbase amount calculation
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BlockFees {
+	/// fees
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub fees: u64,
+	/// height
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub height: u64,
+	/// key id
+	pub key_id: Option<Identifier>,
+}
+
+impl BlockFees {
+	/// return key id
+	pub fn key_id(&self) -> Option<Identifier> {
+		self.key_id.clone()
+	}
+}
+
+/// Response to build a coinbase output.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CbData {
+	/// Output
+	pub output: Output,
+	/// Kernel
+	pub kernel: TxKernel,
+	/// Key Id
+	pub key_id: Option<Identifier>,
+}
+
+/// Map Outputdata to commits
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OutputCommitMapping {
+	/// Output Data
+	pub output: OutputData,
+	/// The commit
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub commit: pedersen::Commitment,
+}
+
+/// Map PaymentData to commits
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentCommitMapping {
+	/// Payment Data
+	pub output: PaymentData,
+	/// The commit
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub commit: pedersen::Commitment,
+}
+
+/// Node height result
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NodeHeightResult {
+	/// Last known height
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub height: u64,
+	/// Whether this height was updated from the node
+	pub updated_from_node: bool,
 }

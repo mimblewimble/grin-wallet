@@ -17,10 +17,14 @@
 use uuid::Uuid;
 
 use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util::secp::pedersen;
+use crate::grin_util::to_hex;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
+use crate::types::{
+	Context, NodeClient, OutputStatus, PaymentCommits, PaymentData, TxLogEntryType, WalletBackend,
+};
 use crate::{Error, ErrorKind};
 
 /// static for incrementing test UUIDs
@@ -220,6 +224,63 @@ where
 	)?;
 	// Final transaction can be built by anyone at this stage
 	slate.finalize(wallet.keychain())?;
+
+	let parent_key_id = Some(&context.parent_key_id);
+
+	// Get the change output/s from database
+	let changes = updater::retrieve_outputs(wallet, false, None, Some(slate.id), parent_key_id)?;
+	let change_commits = changes
+		.iter()
+		.map(|oc| oc.commit.clone())
+		.collect::<Vec<pedersen::Commitment>>();
+
+	// Find the payment output/s
+	let mut outputs: Vec<pedersen::Commitment> = Vec::new();
+	for output in slate.tx.outputs() {
+		if !change_commits.contains(&output.commit) {
+			outputs.insert(0, output.commit.clone());
+		}
+	}
+
+	// sender save the payment output
+	let mut batch = wallet.batch()?;
+	batch.save_payment_commits(
+		&slate.id,
+		PaymentCommits {
+			commits: outputs
+				.iter()
+				.map(|c| to_hex(c.as_ref().to_vec()))
+				.collect::<Vec<String>>(),
+			slate_id: slate.id,
+		},
+	)?;
+	// todo: multiple receivers transaction
+	if outputs.len() > 1 {
+		for output in outputs {
+			let payment_output = to_hex(output.clone().as_ref().to_vec());
+			batch.save_payment(PaymentData {
+				commit: payment_output,
+				value: 0, // '0' means unknown here, since '0' value is impossible for an output.
+				status: OutputStatus::Unconfirmed,
+				height: slate.height,
+				lock_height: 0,
+				slate_id: slate.id,
+			})?;
+		}
+	} else if outputs.len() == 1 {
+		let payment_output = to_hex(outputs.first().clone().unwrap().as_ref().to_vec());
+		batch.save_payment(PaymentData {
+			commit: payment_output,
+			value: slate.amount,
+			status: OutputStatus::Unconfirmed,
+			height: slate.height,
+			lock_height: 0,
+			slate_id: slate.id,
+		})?;
+	} else {
+		warn!("complete_tx - no 'payment' output! is this a sending to self for test purpose?");
+	}
+	batch.commit()?;
 	Ok(())
 }
 
@@ -253,7 +314,7 @@ where
 		return Err(ErrorKind::TransactionNotCancellable(tx_id_string))?;
 	}
 	// get outputs associated with tx
-	let res = updater::retrieve_outputs(wallet, false, Some(tx.id), Some(&parent_key_id))?;
+	let res = updater::retrieve_outputs(wallet, false, Some(tx.id), None, Some(&parent_key_id))?;
 	let outputs = res.iter().map(|m| m.output.clone()).collect();
 	updater::cancel_tx_and_outputs(wallet, tx, outputs, parent_key_id)?;
 	Ok(())

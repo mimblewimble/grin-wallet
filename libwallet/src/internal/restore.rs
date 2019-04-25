@@ -215,6 +215,7 @@ where
 		lock_height: output.lock_height,
 		is_coinbase: output.is_coinbase,
 		tx_log_entry: Some(log_id),
+		slate_id: None,
 	});
 
 	let max_child_index = found_parents.get(&parent_key_id).unwrap().clone();
@@ -283,7 +284,7 @@ where
 
 	// Now, get all outputs owned by this wallet (regardless of account)
 	let wallet_outputs = {
-		let res = updater::retrieve_outputs(&mut *wallet, true, None, None)?;
+		let res = updater::retrieve_outputs(&mut *wallet, true, None, None, None)?;
 		res
 	};
 

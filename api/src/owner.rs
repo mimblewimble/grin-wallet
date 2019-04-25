@@ -24,9 +24,11 @@ use crate::core::core::Transaction;
 use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
-use crate::libwallet::{
-	AcctPathMapping, Error, ErrorKind, InitTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
+
+use crate::libwallet::slate::Slate;
+use crate::libwallet::types::{
+	AcctPathMapping, Error, ErrorKind, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
+	PaymentCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
 };
 
 /// Main interface into all wallet API functions.
@@ -298,6 +300,56 @@ where
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = owner::retrieve_outputs(&mut *w, include_spent, refresh_from_node, tx_id);
+		w.close()?;
+		res
+	}
+
+	/// Returns a list of payment outputs from the active account in the wallet.
+	///
+	/// # Arguments
+	/// * `refresh_from_node` - If true, the wallet will attempt to contact
+	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	/// provided during wallet instantiation). If `false`, the results will
+	/// contain output information that may be out-of-date (from the last time
+	/// the wallet's output set was refreshed against the node).
+	/// * `tx_id` - If `Some(i)`, only return the outputs associated with
+	/// the transaction log entry of id `i`.
+	///
+	/// # Returns
+	/// * `(bool, Vec<PaymentCommitMapping>)` - A tuple:
+	/// * The first `bool` element indicates whether the data was successfully
+	/// refreshed from the node (note this may be false even if the `refresh_from_node`
+	/// argument was set to `true`.
+	/// * The second element contains a vector of
+	/// [PaymentCommitMapping](../grin_wallet_libwallet/types/struct.PaymentCommitMapping.html)
+	/// of which each element is a mapping between the wallet's internal
+	/// [PaymentData](../grin_wallet_libwallet/types/struct.Output.html)
+	/// and the Output commitment
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let update_from_node = true;
+	/// let tx_id = None;
+	///
+	/// let result = api_owner.retrieve_payments(update_from_node, tx_id);
+	///
+	/// if let Ok((was_updated, payment_mappings)) = result {
+	///		//...
+	/// }
+	/// ```
+
+	pub fn retrieve_payments(
+		&self,
+		refresh_from_node: bool,
+		tx_id: Option<Uuid>,
+	) -> Result<(bool, Vec<PaymentCommitMapping>), Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let res = owner::retrieve_payments(&mut *w, refresh_from_node, tx_id);
 		w.close()?;
 		res
 	}

@@ -429,6 +429,16 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(output_mappings.len(), 3);
 		assert_eq!(locked_count, 2);
 		assert_eq!(unconfirmed_count, 1);
+		// check the payments are as expected
+		unconfirmed_count = 0;
+		let (_, payments) = api.retrieve_payments(false, tx.unwrap().tx_slate_id)?;
+		for p in &payments {
+			if p.output.status == OutputStatus::Unconfirmed {
+				unconfirmed_count = unconfirmed_count + 1;
+			}
+		}
+		assert_eq!(payments.len(), 1);
+		assert_eq!(unconfirmed_count, 1);
 
 		Ok(())
 	})?;
@@ -449,6 +459,16 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 		}
 		assert_eq!(outputs.len(), 1);
 		assert_eq!(unconfirmed_count, 1);
+		// check the payments are as expected: receiver don't have this.
+		unconfirmed_count = 0;
+		let (_, payments) = api.retrieve_payments(false, tx.unwrap().tx_slate_id)?;
+		for p in &payments {
+			if p.output.status == OutputStatus::Unconfirmed {
+				unconfirmed_count = unconfirmed_count + 1;
+			}
+		}
+		assert_eq!(payments.len(), 0);
+		assert_eq!(unconfirmed_count, 0);
 		let (refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
 		assert!(refreshed);
 		assert_eq!(wallet2_info.amount_currently_spendable, 0,);
