@@ -14,10 +14,8 @@
 
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
-
-use crate::libwallet::types::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, PaymentCommitMapping, TxLogEntry,
-	WalletInfo,
+use crate::libwallet::{
+	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
 };
 use crate::util;
 use prettytable;
@@ -102,89 +100,6 @@ pub fn outputs(
 				bFB->num_confirmations,
 				bFG->value,
 				bFD->tx,
-			]);
-		}
-	}
-
-	table.set_format(*prettytable::format::consts::FORMAT_NO_COLSEP);
-	table.printstd();
-	println!();
-
-	if !validated {
-		println!(
-			"\nWARNING: Wallet failed to verify data. \
-			 The above is from local cache and possibly invalid! \
-			 (is your `grin server` offline or broken?)"
-		);
-	}
-	Ok(())
-}
-
-/// Display payments in a pretty way
-pub fn payments(
-	account: &str,
-	cur_height: u64,
-	validated: bool,
-	outputs: Vec<PaymentCommitMapping>,
-	dark_background_color_scheme: bool,
-) -> Result<(), Error> {
-	let title = format!(
-		"Wallet Payments - Account '{}' - Block Height: {}",
-		account, cur_height
-	);
-	println!();
-	let mut t = term::stdout().unwrap();
-	t.fg(term::color::MAGENTA).unwrap();
-	writeln!(t, "{}", title).unwrap();
-	t.reset().unwrap();
-
-	let mut table = table!();
-
-	table.set_titles(row![
-		bMG->"Output Commitment",
-		bMG->"Block Height",
-		bMG->"Locked Until",
-		bMG->"Status",
-		bMG->"# Confirms",
-		bMG->"Value",
-		bMG->"Shared Transaction Id"
-	]);
-
-	for payment in outputs {
-		let commit = format!("{}", util::to_hex(payment.commit.as_ref().to_vec()));
-		let out = payment.output;
-
-		let height = format!("{}", out.height);
-		let lock_height = format!("{}", out.lock_height);
-		let status = format!("{}", out.status);
-
-		let num_confirmations = format!("{}", out.num_confirmations(cur_height));
-		let value = if out.value == 0 {
-			"unknown".to_owned()
-		} else {
-			format!("{}", core::amount_to_hr_string(out.value, false))
-		};
-		let slate_id = format!("{}", out.slate_id);
-
-		if dark_background_color_scheme {
-			table.add_row(row![
-				bFC->commit,
-				bFB->height,
-				bFB->lock_height,
-				bFR->status,
-				bFB->num_confirmations,
-				bFG->value,
-				bFC->slate_id,
-			]);
-		} else {
-			table.add_row(row![
-				bFD->commit,
-				bFB->height,
-				bFB->lock_height,
-				bFR->status,
-				bFB->num_confirmations,
-				bFG->value,
-				bFD->slate_id,
 			]);
 		}
 	}

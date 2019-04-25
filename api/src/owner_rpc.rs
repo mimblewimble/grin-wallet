@@ -160,7 +160,6 @@ pub trait OwnerRpc {
 							"mmr_index": null,
 							"n_child": 0,
 							"root_key_id": "0200000000000000000000000000000000",
-							"slate_id": null,
 							"status": "Unspent",
 							"tx_log_entry": 0,
 							"value": "60000000000"
@@ -177,7 +176,6 @@ pub trait OwnerRpc {
 							"mmr_index": null,
 							"n_child": 1,
 							"root_key_id": "0200000000000000000000000000000000",
-							"slate_id": null,
 							"status": "Unspent",
 							"tx_log_entry": 1,
 							"value": "60000000000"

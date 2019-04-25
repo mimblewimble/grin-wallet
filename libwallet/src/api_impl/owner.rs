@@ -24,11 +24,9 @@ use crate::grin_util;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
-use crate::types::{
-	AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo,
-};
+use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{Error, ErrorKind};
-use crate::{InitTxArgs, NodeHeightResult, OutputCommitMapping, PaymentCommitMapping};
+use crate::{InitTxArgs, NodeHeightResult, OutputCommitMapping};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
@@ -83,27 +81,8 @@ where
 
 	Ok((
 		validated,
-		updater::retrieve_outputs(&mut *w, include_spent, tx_id, None, Some(&parent_key_id))?,
+		updater::retrieve_outputs(&mut *w, include_spent, tx_id, Some(&parent_key_id))?,
 	))
-}
-
-/// Returns a list of payment outputs from the active account in the wallet.
-pub fn retrieve_payments<T: ?Sized, C, K>(
-	w: &mut T,
-	refresh_from_node: bool,
-	tx_id: Option<Uuid>,
-) -> Result<(bool, Vec<PaymentCommitMapping>), Error>
-where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
-{
-	let mut validated = false;
-	if refresh_from_node {
-		validated = update_outputs(w, false);
-	}
-
-	Ok((validated, updater::retrieve_payments(w, tx_id)?))
 }
 
 /// Retrieve txs
