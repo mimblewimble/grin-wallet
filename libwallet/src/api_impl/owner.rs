@@ -26,7 +26,7 @@ use crate::internal::{keys, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{Error, ErrorKind};
-use crate::{InitTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType};
+use crate::{InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType};
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
@@ -209,9 +209,9 @@ where
 }
 
 /// Initiate a transaction as the recipient (invoicing)
-pub fn init_invoice_tx<T: ?Sized, C, K>(
+pub fn issue_invoice_tx<T: ?Sized, C, K>(
 	w: &mut T,
-	args: InitTxArgs,
+	args: IssueInvoiceTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -219,7 +219,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let parent_key_id = match args.src_acct_name {
+	let parent_key_id = match args.dest_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d)?;
 			match pm {
@@ -262,7 +262,7 @@ where
 
 /// Receive an invoice tx, essentially adding inputs to whatever
 /// output was specified
-pub fn receive_invoice_tx<T: ?Sized, C, K>(
+pub fn process_invoice_tx<T: ?Sized, C, K>(
 	w: &mut T,
 	slate: &Slate,
 	args: InitTxArgs,

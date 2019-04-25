@@ -25,7 +25,7 @@ use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
-	AcctPathMapping, Error, ErrorKind, InitTxArgs, NodeClient, NodeHeightResult,
+	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
 	OutputCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
 };
 
@@ -529,19 +529,19 @@ where
 	}
 
 	/// TODO: doc TBD
-	pub fn init_invoice_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let slate = owner::init_invoice_tx(&mut *w, args, self.doctest_mode)?;
+		let slate = owner::issue_invoice_tx(&mut *w, args, self.doctest_mode)?;
 		w.close()?;
 		Ok(slate)
 	}
 
 	/// TODO: doc TBD
-	pub fn receive_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let slate = owner::receive_invoice_tx(&mut *w, slate, args, self.doctest_mode)?;
+		let slate = owner::process_invoice_tx(&mut *w, slate, args, self.doctest_mode)?;
 		w.close()?;
 		Ok(slate)
 	}

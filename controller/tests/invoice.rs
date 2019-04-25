@@ -26,7 +26,7 @@ use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use libwallet::{InitTxArgs, Slate};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -104,16 +104,11 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 		wallet::controller::owner_single_use(wallet2.clone(), |api| {
 			// Wallet 2 inititates an invoice transaction, requesting payment
-			let args = InitTxArgs {
-				src_acct_name: None,
+			let args = IssueInvoiceTxArgs {
 				amount: reward * 2,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			slate = api.init_invoice_tx(args)?;
+			slate = api.issue_invoice_tx(args)?;
 			Ok(())
 		})?;
 
@@ -128,7 +123,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			slate = api.receive_invoice_tx(&slate, args)?;
+			slate = api.process_invoice_tx(&slate, args)?;
 			Ok(())
 		})?;
 
@@ -139,7 +134,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			Ok(())
 		})?;
 
-		// wallet 1 post so wallet 1 doesn't get the mined amount
+		// wallet 1 posts so wallet 2 doesn't get the mined amount
 		wallet::controller::owner_single_use(wallet1.clone(), |api| {
 			api.post_tx(&slate.tx, false)?;
 			Ok(())

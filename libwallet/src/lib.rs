@@ -50,7 +50,7 @@ pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::{ParticipantData, ParticipantMessageData, Slate};
 pub use crate::slate_versions::{SlateVersion, VersionedSlate};
 pub use api_impl::types::{
-	BlockFees, CbData, InitTxArgs, InitTxSendArgs, NodeHeightResult, OutputCommitMapping,
+	BlockFees, CbData, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
 	SendTXArgs, VersionInfo,
 };
 pub use internal::restore::{check_repair, restore};

@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	AcctPathMapping, ErrorKind, InitTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
+	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping,
 	Slate, TxLogEntry, WalletBackend, WalletInfo,
 };
 use crate::Owner;
@@ -402,6 +402,86 @@ pub trait OwnerRpc {
 	*/
 
 	fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
+
+	/**
+		Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
+
+	```
+		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# r#"
+		{
+			"jsonrpc": "2.0",
+			"method": "issue_invoice_tx",
+			"params": {
+				"args": {
+					"amount": "6000000000",
+					"message": "Please give me your grins",
+					"dest_acct_name": null,
+					"target_slate_version": null
+				}
+			},
+			"id": 1
+		}
+		# "#
+		# ,
+		# r#"
+		{
+			"id": 1,
+			"jsonrpc": "2.0",
+			"result": {
+				"Ok": {
+					"amount": "6000000000",
+					"fee": "0",
+					"height": "4",
+					"id": "0436430c-2b02-624c-2032-570501212b00",
+					"lock_height": "0",
+					"num_participants": 2,
+					"participant_data": [
+						{
+							"id": "1",
+							"message": "Please give me your grins",
+							"message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fd2599ab38942986602e943f684a85992893a6d34367dc7cc2b403a5dcfcdbcd9",
+							"part_sig": null,
+							"public_blind_excess": "028e95921cc0d5be5922362265d352c9bdabe51a9e1502a3f0d4a10387f1893f40",
+							"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+						}
+					],
+					"tx": {
+						"body": {
+							"inputs": [],
+							"kernels": [
+								{
+									"excess": "000000000000000000000000000000000000000000000000000000000000000000",
+									"excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+									"features": "Plain",
+									"fee": "0",
+									"lock_height": "0"
+								}
+							],
+							"outputs": [
+								{
+									"commit": "09cf47204446c326e361a1a92f34b174deff732daaedb80d7339fbe3db5ca2f6ba",
+									"features": "Plain",
+									"proof": "8f511614315626b5f39224482351d766f5a8ef136262befc050d839be8479b0a13470cd88f4436346d213d83847a4055c6e0ac63681556470349a1aab47034a3015eb64d8163955998e2dd4165dd24386b1e279974b05deb5d46ba2bc321f7000c0784f8f10690605ffe717119d045e02b141ed12d8fc6d20930483a8af889ef533495eb442fcff36d98ebc104f13fc645c28431b3296e4a11f7c991ff97f9abbc2f8886762d7f29fdacb31d52c6850e6ccf5386117d89e8ea4ca3071c56c218dd5d3bcd65f6c06ed9f51f848507ca1d594f41796d1cf99f68a5c3f0c5dd9873602284cff31269b102fcc6c68607565faaf0adb04ed4ff3ea5d41f3b5235ac6cb90e4046c808c9c48c27172c891b20085c56a99913ef47fd8b3dc4920cef50534b9319a7cefe0df10a0206a634ac837e11da92df83ff58b1a14de81313400988aa48b946fcbe1b81f0e79e13f7c6c639b1c10983b424bda08d0ce593a20f1f47e0aa01473e7144f116b76d9ebc60599053d8f1542d60747793d99064e51fce8f8866390325d48d6e8e3bbdbc1822c864303451525c6cb4c6902f105a70134186fb32110d8192fc2528a9483fc8a4001f4bdeab1dd7b3d1ccb9ae2e746a78013ef74043f0b2436f0ca49627af1768b7c791c669bd331fd18c16ef88ad0a29861db70f2f76f3e74fde5accb91b73573e31333333223693d6fbc786e740c085e4fc6e7bde0a3f54e9703f816c54f012d3b1f41ec4d253d9337af61e7f1f1383bd929421ac346e3d2771dfee0b60503b33938e7c83eb37af3b6bf66041a3519a2b4cb557b34e3b9afcf95524f9a011425a34d32e7b6e9f255291094930acae26e8f7a1e4e6bc405d0f88e919f354f3ba85356a34f1aba5f7da1fad88e2692f4129cc1fb80a2122b2d996c6ccf7f08d8248e511d92af9ce49039de728848a2dc74101f4e94a"
+								}
+							]
+						},
+						"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
+					},
+					"version_info": {
+						"min_compat_version": 0,
+						"orig_version": 2,
+						"version": 2
+					}
+				}
+			}
+		}
+		# "#
+		# ,4, false, false, false);
+	```
+	*/
+
+	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -1051,6 +1131,10 @@ where
 
 	fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind> {
 		Owner::init_send_tx(self, args).map_err(|e| e.kind())
+	}
+
+	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::issue_invoice_tx(self, args).map_err(|e| e.kind())
 	}
 
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
