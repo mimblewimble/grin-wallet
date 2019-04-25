@@ -90,6 +90,13 @@ impl WalletSeed {
 			"{}{}{}",
 			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
 		);
+
+		let data_file_dir = Path::new(&wallet_config.data_file_dir);
+
+		if !data_file_dir.exists() {
+			fs::create_dir_all(data_file_dir).expect("Couldn't create wallet data directory!");;
+		}
+
 		if Path::new(seed_file_path).exists() {
 			return Err(ErrorKind::WalletSeedExists(seed_file_path.to_owned()))?;
 		}
