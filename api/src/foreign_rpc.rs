@@ -532,7 +532,6 @@ where
 	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind> {
 		Foreign::finalize_invoice_tx(self, slate).map_err(|e| e.kind())
 	}
-
 }
 
 /// helper to set up a real environment to run integrated doctests

@@ -1143,7 +1143,7 @@ where
 		Owner::issue_invoice_tx(self, args).map_err(|e| e.kind())
 	}
 
-	fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, ErrorKind>{
+	fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, ErrorKind> {
 		Owner::process_invoice_tx(self, slate, args).map_err(|e| e.kind())
 	}
 
