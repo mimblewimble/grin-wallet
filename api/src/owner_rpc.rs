@@ -484,6 +484,12 @@ pub trait OwnerRpc {
 	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
+	 *
+	 */
+
+	fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, ErrorKind>;
+
+	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
 
 	```
@@ -1135,6 +1141,10 @@ where
 
 	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, ErrorKind> {
 		Owner::issue_invoice_tx(self, args).map_err(|e| e.kind())
+	}
+
+	fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, ErrorKind>{
+		Owner::process_invoice_tx(self, slate, args).map_err(|e| e.kind())
 	}
 
 	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
