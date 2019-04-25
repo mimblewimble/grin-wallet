@@ -433,20 +433,6 @@ pub fn outputs(
 	Ok(())
 }
 
-pub fn payments(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
-	g_args: &GlobalArgs,
-	dark_scheme: bool,
-) -> Result<(), Error> {
-	controller::owner_single_use(wallet.clone(), |api| {
-		let res = api.node_height()?;
-		let (validated, outputs) = api.retrieve_payments(true, None)?;
-		display::payments(&g_args.account, res.height, validated, outputs, dark_scheme)?;
-		Ok(())
-	})?;
-	Ok(())
-}
-
 /// Txs command args
 pub struct TxsArgs {
 	pub id: Option<u32>,
@@ -476,22 +462,8 @@ pub fn txs(
 			let (_, outputs) = api.retrieve_outputs(true, false, args.id)?;
 			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 			// should only be one here, but just in case
-			for tx in &txs {
-				let (_, outputs) = api.retrieve_payments(true, tx.tx_slate_id)?;
-				if outputs.len() > 0 {
-					display::payments(
-						&g_args.account,
-						res.height,
-						validated,
-						outputs,
-						dark_scheme,
-					)?;
-				}
-			}
-
-			// should only be one here, but just in case
-			for tx in &txs {
-				display::tx_messages(tx, dark_scheme)?;
+			for tx in txs {
+				display::tx_messages(&tx, dark_scheme)?;
 			}
 		};
 		Ok(())

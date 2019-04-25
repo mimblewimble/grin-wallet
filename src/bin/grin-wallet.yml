@@ -163,9 +163,7 @@ subcommands:
             short: f
             long: fluff
   - outputs:
-      about: Raw wallet self owned output info (list of outputs)
-  - payments:
-      about: Raw wallet payment output info (list of outputs)
+      about: Raw wallet output info (list of outputs)
   - txs:
       about: Display transaction information
       args:
