@@ -295,7 +295,7 @@ where
 		use_test_rng,
 	)?;
 	for t in &tx {
-		if t.tx_type == TxLogEntryType::TxReceived {
+		if t.tx_type == TxLogEntryType::TxSent {
 			return Err(ErrorKind::TransactionAlreadyReceived(ret_slate.id.to_string()).into());
 		}
 	}

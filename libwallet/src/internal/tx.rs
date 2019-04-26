@@ -286,7 +286,6 @@ where
 	K: Keychain,
 {
 	// finalize command
-	println!("SLATE ID: {}", slate.id);
 	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, false)?;
 	let mut tx = None;
 	// don't want to assume this is the right tx, in case of self-sending
