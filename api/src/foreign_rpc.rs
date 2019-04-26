@@ -16,8 +16,8 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, Slate, VersionInfo, VersionedSlate,
-	WalletBackend,
+	BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, Slate, VersionInfo,
+	VersionedSlate, WalletBackend,
 };
 use crate::Foreign;
 use easy_jsonrpc;
@@ -704,9 +704,15 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 		let request_val: Value = serde_json::from_str($request).unwrap();
 		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
 
-		let response = run_doctest_foreign(request_val, dir, $blocks_to_mine, $init_tx, $init_invoice_tx)
-			.unwrap()
-			.unwrap();
+		let response = run_doctest_foreign(
+			request_val,
+			dir,
+			$blocks_to_mine,
+			$init_tx,
+			$init_invoice_tx,
+			)
+		.unwrap()
+		.unwrap();
 
 		if response != expected_response {
 			panic!(
