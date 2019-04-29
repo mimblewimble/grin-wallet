@@ -574,7 +574,7 @@ where
 	/// amount, an output created by the invoicer convering the amount, and
 	/// part 1 of signature creation completed. This function will add inputs
 	/// equalling the amount + fees, as well as perform round 1 and 2 of signature
-	/// creation. 
+	/// creation.
 	///
 	/// Callers should note that no prompting of the user will be done by this function
 	/// it is up to the caller to present the request for payment to the user
@@ -613,7 +613,7 @@ where
 	///		selection_strategy_is_use_all: true,
 	///		..Default::default()
 	///	};
-	/// 
+	///
 	/// let result = api_owner.process_invoice_tx(&slate, args);
 	///
 	/// if let Ok(slate) = result {

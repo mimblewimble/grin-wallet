@@ -314,7 +314,7 @@ where
 
 	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
 	/// This step assumes the paying party has completed round 1 and 2 of slate
-	/// creation, and added their partial signatures. The invoicer will verify 
+	/// creation, and added their partial signatures. The invoicer will verify
 	/// and add their partial sig, then create the finalized transaction,
 	/// ready to post to a node.
 	///
