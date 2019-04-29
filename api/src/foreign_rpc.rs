@@ -58,7 +58,6 @@ pub trait ForeignRpc {
 	# "#
 	# , 0, false, false);
 	```
-
 	*/
 	fn check_version(&self) -> Result<VersionInfo, ErrorKind>;
 
@@ -109,7 +108,7 @@ pub trait ForeignRpc {
 	# "#
 	# , 4, false, false);
 	```
-	 */
+	*/
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
 
 	/**
@@ -189,7 +188,7 @@ pub trait ForeignRpc {
 	# "#
 	# ,1 ,false, false);
 	```
-	 */
+	*/
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
 
 	/**
@@ -342,7 +341,7 @@ pub trait ForeignRpc {
 	# "#
 	# , 5, true, false);
 	```
-	 */
+	*/
 	fn receive_tx(
 		&self,
 		slate: VersionedSlate,
@@ -351,7 +350,8 @@ pub trait ForeignRpc {
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
-		Networked version of [Foreign::finalize_invoice_tx](struct.Foreign.html#method.finalize_invoice_tx).
+
+	Networked version of [Foreign::finalize_invoice_tx](struct.Foreign.html#method.finalize_invoice_tx).
 
 	# Json rpc example
 
@@ -509,7 +509,7 @@ pub trait ForeignRpc {
 	# "#
 	# , 5, false, true);
 	```
-	 */
+	*/
 	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind>;
 }
 

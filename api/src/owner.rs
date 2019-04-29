@@ -528,7 +528,39 @@ where
 		}
 	}
 
-	/// TODO: doc TBD
+	/// Issues a new invoice transaction slate, essentially a `request for payment`.
+	/// The slate created by this function will contain the amount, an output for the amount,
+	/// as well as round 1 of singature creation complete. The slate should then be send
+	/// to the payer, who should add their inputs and signature data and return the slate
+	/// via the [Foreign API's `finalize_invoice_tx`](struct.Foreign.html#method.finalize_invoice_tx) method.
+	///
+	/// # Arguments
+	/// * `args` - [`IssueInvoiceTxArgs`](../grin_wallet_libwallet/types/struct.IssueInvoiceTxArgs.html),
+	/// invoice transaction initialization arguments. See struct documentation for further detail.
+	///
+	/// # Returns
+	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// containing the updated slate.
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	///
+	/// let args = IssueInvoiceTxArgs {
+	/// 	amount: 60_000_000_000,
+	/// 	..Default::default()
+	/// };
+	/// let result = api_owner.issue_invoice_tx(args);
+	///
+	/// if let Ok(slate) = result {
+	///		// if okay, send to the payer to add their inputs
+	///		// . . .
+	/// }
+	/// ```
 	pub fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -537,7 +569,59 @@ where
 		Ok(slate)
 	}
 
-	/// TODO: doc TBD
+	/// Processes an invoice tranaction created by another party, essentially
+	/// a `request for payment`. The incoming slate should contain a requested
+	/// amount, an output created by the invoicer convering the amount, and
+	/// part 1 of signature creation completed. This function will add inputs
+	/// equalling the amount + fees, as well as perform round 1 and 2 of signature
+	/// creation. 
+	///
+	/// Callers should note that no prompting of the user will be done by this function
+	/// it is up to the caller to present the request for payment to the user
+	/// and verify that payment should go ahead.
+	///
+	/// This function also stores the final transaction in the user's wallet files for retrieval
+	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
+	///
+	/// # Arguments
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
+	/// payer should have filled in round 1 and 2.
+	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
+	/// transaction initialization arguments. See struct documentation for further detail.
+	///
+	/// # Returns
+	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// containing the updated slate.
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	///
+	/// // . . .
+	/// // The slate has been recieved from the invoicer, somehow
+	/// # let slate = Slate::blank(2);
+	/// let args = InitTxArgs {
+	///		src_acct_name: None,
+	///		amount: slate.amount,
+	///		minimum_confirmations: 2,
+	///		max_outputs: 500,
+	///		num_change_outputs: 1,
+	///		selection_strategy_is_use_all: true,
+	///		..Default::default()
+	///	};
+	/// 
+	/// let result = api_owner.process_invoice_tx(&slate, args);
+	///
+	/// if let Ok(slate) = result {
+	///	// If result okay, send back to the invoicer
+	///	// . . .
+	///	}
+	/// ```
+
 	pub fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
@@ -1034,7 +1118,7 @@ macro_rules! doctest_helper_setup_doc_env {
 		use api::Owner;
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::{InitTxArgs, WalletBackend};
+		use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, WalletBackend};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
