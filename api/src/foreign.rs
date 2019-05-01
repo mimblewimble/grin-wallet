@@ -311,6 +311,61 @@ where
 		w.close()?;
 		res
 	}
+
+	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
+	/// This step assumes the paying party has completed round 1 and 2 of slate
+	/// creation, and added their partial signatures. The invoicer will verify
+	/// and add their partial sig, then create the finalized transaction,
+	/// ready to post to a node.
+	///
+	/// Note that this function DOES NOT POST the transaction to a node
+	/// for validation. This is done in separately via the
+	/// [`post_tx`](struct.Owner.html#method.post_tx) function.
+	///
+	/// This function also stores the final transaction in the user's wallet files for retrieval
+	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
+	///
+	/// # Arguments
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
+	/// payer should have filled in round 1 and 2.
+	///
+	/// # Returns
+	/// * Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html)) if successful,
+	/// containing the new finalized slate.
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let mut api_foreign = Foreign::new(wallet.clone());
+	///
+	/// // . . .
+	/// // Issue the invoice tx via the owner API
+	/// let args = IssueInvoiceTxArgs {
+	///		amount: 10_000_000_000,
+	///		..Default::default()
+	/// };
+	/// let result = api_owner.issue_invoice_tx(args);
+	///
+	///	// If result okay, send to payer, who will apply the transaction via their
+	///	// owner API, then send back the slate
+	///	// ...
+	///	# let slate = Slate::blank(2);
+	///
+	/// let slate = api_foreign.finalize_invoice_tx(&slate);
+	/// // if okay, then post via the owner API
+	/// ```
+
+	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let res = foreign::finalize_invoice_tx(&mut *w, slate);
+		w.close()?;
+		res
+	}
 }
 
 #[doc(hidden)]
@@ -330,10 +385,10 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use std::sync::Arc;
 		use util::Mutex;
 
-		use api::Foreign;
+		use api::{Foreign, Owner};
 		use config::WalletConfig;
 		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::{BlockFees, Slate, WalletBackend};
+		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletBackend};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

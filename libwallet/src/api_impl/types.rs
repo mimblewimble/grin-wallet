@@ -129,6 +129,35 @@ impl Default for InitTxArgs {
 	}
 }
 
+/// V2 Issue Invoice Tx Args
+#[derive(Clone, Serialize, Deserialize)]
+pub struct IssueInvoiceTxArgs {
+	/// The human readable account name to which the received funds should be added
+	/// overriding whatever the active account is as set via the
+	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
+	pub dest_acct_name: Option<String>,
+	/// The invoice amount in nanogrins. (`1 G = 1_000_000_000nG`)
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub amount: u64,
+	/// Optional message, that will be signed
+	pub message: Option<String>,
+	/// Optionally set the output target slate version (acceptable
+	/// down to the minimum slate version compatible with the current. If `None` the slate
+	/// is generated with the latest version.
+	pub target_slate_version: Option<u16>,
+}
+
+impl Default for IssueInvoiceTxArgs {
+	fn default() -> IssueInvoiceTxArgs {
+		IssueInvoiceTxArgs {
+			dest_acct_name: None,
+			amount: 0,
+			message: None,
+			target_slate_version: None,
+		}
+	}
+}
+
 /// Fees in block to use for coinbase amount calculation
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockFees {

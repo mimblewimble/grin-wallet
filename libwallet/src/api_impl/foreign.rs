@@ -103,8 +103,29 @@ where
 		&parent_key_id,
 		1,
 		message,
+		false,
 		use_test_rng,
 	)?;
 	tx::update_message(&mut *w, &mut ret_slate)?;
 	Ok(ret_slate)
+}
+
+/// Receive an tx that this wallet has issued
+pub fn finalize_invoice_tx<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
+where
+	T: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	let mut sl = slate.clone();
+	let context = w.get_private_context(sl.id.as_bytes())?;
+	tx::complete_tx(&mut *w, &mut sl, 1, &context)?;
+	tx::update_stored_tx(&mut *w, &mut sl, true)?;
+	tx::update_message(&mut *w, &mut sl)?;
+	{
+		let mut batch = w.batch()?;
+		batch.delete_private_context(sl.id.as_bytes())?;
+		batch.commit()?;
+	}
+	Ok(sl)
 }

@@ -52,7 +52,7 @@ fn receive_versioned_slate() {
 	let request_val: Value = serde_json::from_str(v1_req).unwrap();
 	let expected_response: Value = serde_json::from_str(v1_resp).unwrap();
 
-	let response = run_doctest_foreign(request_val, dir, 5, true)
+	let response = run_doctest_foreign(request_val, dir, 5, true, false)
 		.unwrap()
 		.unwrap();
 
@@ -80,7 +80,7 @@ fn receive_tx(vs: VersionedSlate) -> VersionedSlate {
 	)
 	.unwrap();
 	let (call, tracker) = bound_method.call();
-	let json_response = run_doctest_foreign(call.as_request(), dir, 5, false)
+	let json_response = run_doctest_foreign(call.as_request(), dir, 5, false, false)
 		.unwrap()
 		.unwrap();
 	let mut response = easy_jsonrpc::Response::from_json_response(json_response).unwrap();

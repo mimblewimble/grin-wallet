@@ -73,8 +73,8 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
-	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
-									  // mine a few blocks
+	let cm = global::coinbase_maturity();
+	// mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 10, false);
 
 	// Check wallet 1 contents are as expected
@@ -108,7 +108,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate_i = sender_api.initiate_tx(args)?;
+		let slate_i = sender_api.init_send_tx(args)?;
 
 		// Check we are creating a tx with the expected lock_height of 0.
 		// We will check this produces a Plain kernel later.
@@ -261,7 +261,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			estimate_only: Some(true),
 			..Default::default()
 		};
-		let est = sender_api.initiate_tx(init_args)?;
+		let est = sender_api.init_send_tx(init_args)?;
 		assert_eq!(est.amount, 600_000_000_000);
 		assert_eq!(est.fee, 4_000_000);
 
@@ -275,7 +275,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			estimate_only: Some(true),
 			..Default::default()
 		};
-		let est = sender_api.initiate_tx(init_args)?;
+		let est = sender_api.init_send_tx(init_args)?;
 		assert_eq!(est.amount, 180_000_000_000);
 		assert_eq!(est.fee, 6_000_000);
 
@@ -295,7 +295,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate_i = sender_api.initiate_tx(args)?;
+		let slate_i = sender_api.init_send_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;
@@ -395,7 +395,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 
-		let slate_i = sender_api.initiate_tx(args)?;
+		let slate_i = sender_api.init_send_tx(args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(&slate)?;
 		slate = sender_api.finalize_tx(&slate)?;
