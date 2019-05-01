@@ -139,13 +139,17 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			api.post_tx(&slate.tx, false)?;
 			Ok(())
 		})?;
+		bh += 1;
 
 		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 		bh += 3;
 
 		// Check transaction log for wallet 2
 		wallet::controller::owner_single_use(wallet2.clone(), |api| {
-			let (refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
+			let (_, wallet2_info) = api.retrieve_summary_info(true, 1)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			assert!(refreshed);
+			assert!(txs.len() == 1);
 			println!(
 				"last confirmed height: {}, bh: {}",
 				wallet2_info.last_confirmed_height, bh
@@ -157,6 +161,20 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 		// let logging finish
 		thread::sleep(Duration::from_millis(200));
+
+		// Check transaction log for wallet 1, ensure only 1 entry 
+		// exists
+		wallet::controller::owner_single_use(wallet1.clone(), |api| {
+			let (_, wallet1_info) = api.retrieve_summary_info(true, 1)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			assert!(refreshed);
+			assert_eq!(txs.len() as u64, bh + 1);
+			println!(
+				"Wallet 1: last confirmed height: {}, bh: {}",
+				wallet1_info.last_confirmed_height, bh
+			);
+			Ok(())
+		})?;
 	}
 	teardown(test_dir);
 	Ok(())
