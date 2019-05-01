@@ -162,7 +162,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		// let logging finish
 		thread::sleep(Duration::from_millis(200));
 
-		// Check transaction log for wallet 1, ensure only 1 entry 
+		// Check transaction log for wallet 1, ensure only 1 entry
 		// exists
 		wallet::controller::owner_single_use(wallet1.clone(), |api| {
 			let (_, wallet1_info) = api.retrieve_summary_info(true, 1)?;

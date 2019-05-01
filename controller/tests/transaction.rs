@@ -74,7 +74,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
 	let cm = global::coinbase_maturity();
-									  // mine a few blocks
+	// mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 10, false);
 
 	// Check wallet 1 contents are as expected
