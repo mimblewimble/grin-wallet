@@ -459,8 +459,8 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 
 pub fn parse_issue_invoice_args(
 	g_args: &command::GlobalArgs,
-	args: &ArgMatches)
--> Result<command::IssueInvoiceArgs, ParseError> {
+	args: &ArgMatches,
+) -> Result<command::IssueInvoiceArgs, ParseError> {
 	let amount = parse_required(args, "amount")?;
 	let amount = core::core::amount_from_hr_string(amount);
 	let amount = match amount {
@@ -497,7 +497,7 @@ pub fn parse_issue_invoice_args(
 			amount,
 			message,
 			target_slate_version,
-		}
+		},
 	})
 }
 

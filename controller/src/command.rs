@@ -409,14 +409,13 @@ pub struct IssueInvoiceArgs {
 
 pub fn issue_invoice_tx(
 	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
-	args: IssueInvoiceArgs
+	args: IssueInvoiceArgs,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
-		let slate =
-			api.issue_invoice_tx(args.issue_args)?;
+		let slate = api.issue_invoice_tx(args.issue_args)?;
 		let mut tx_file = File::create(args.dest.clone())?;
-			tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
-			tx_file.sync_all()?;
+		tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
+		tx_file.sync_all()?;
 		Ok(())
 	})?;
 	Ok(())
