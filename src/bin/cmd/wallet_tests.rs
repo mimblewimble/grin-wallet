@@ -480,6 +480,23 @@ mod wallet_tests {
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
+		// issue an invoice tx
+		let file_name = format!("{}/issue_invoice.slate", test_dir);
+		let arg_vec = vec![
+			"grin-wallet",
+			"-p",
+			"password",
+			"-a",
+			"mining",
+			"issue_invoice",
+			"-d",
+			&file_name,
+			"-g",
+			"Please give me your precious grins. Love, Yeast",
+			"65",
+		];
+		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
 		// txs and outputs (mostly spit out for a visual in test logs)
 		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "txs"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;

@@ -22,7 +22,7 @@ use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::{NodeClient, WalletInst};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
@@ -457,6 +457,50 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 	})
 }
 
+pub fn parse_issue_invoice_args(
+	g_args: &command::GlobalArgs,
+	args: &ArgMatches)
+-> Result<command::IssueInvoiceArgs, ParseError> {
+	let amount = parse_required(args, "amount")?;
+	let amount = core::core::amount_from_hr_string(amount);
+	let amount = match amount {
+		Ok(a) => a,
+		Err(e) => {
+			let msg = format!(
+				"Could not parse amount as a number with optional decimal point. e={}",
+				e
+			);
+			return Err(ParseError::ArgumentError(msg));
+		}
+	};
+	// message
+	let message = match args.is_present("message") {
+		true => Some(args.value_of("message").unwrap().to_owned()),
+		false => None,
+	};
+	// target slate version to create
+	let target_slate_version = {
+		match args.is_present("slate_version") {
+			true => {
+				let v = parse_required(args, "slate_version")?;
+				Some(parse_u64(v, "slate_version")? as u16)
+			}
+			false => None,
+		}
+	};
+	// dest (output file)
+	let dest = parse_required(args, "dest")?;
+	Ok(command::IssueInvoiceArgs {
+		dest: dest.into(),
+		issue_args: IssueInvoiceTxArgs {
+			dest_acct_name: Some(g_args.account.to_owned()),
+			amount,
+			message,
+			target_slate_version,
+		}
+	})
+}
+
 pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseError> {
 	// minimum_confirmations
 	let mc = parse_required(args, "minimum_confirmations")?;
@@ -609,6 +653,11 @@ pub fn wallet_command(
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
 			command::finalize(inst_wallet(), a)
+		}
+		("issue_invoice", Some(args)) => {
+			let g = global_wallet_args.clone();
+			let a = arg_parse!(parse_issue_invoice_args(&g, &args));
+			command::issue_invoice_tx(inst_wallet(), a)
 		}
 		("info", Some(args)) => {
 			let a = arg_parse!(parse_info_args(&args));

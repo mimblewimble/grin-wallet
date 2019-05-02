@@ -162,6 +162,27 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
+  - issue_invoice:
+      about: Initialize an invoice transction.
+      args:
+        - amount:
+            help: Number of coins to invoice  with optional fraction, e.g. 12.423
+            index: 1
+        - message:
+            help: Optional participant message to include
+            short: g
+            long: message
+            takes_value: true
+        - slate_version:
+            help: Target slate version to output/send to receiver
+            short: v
+            long: slate_version
+            takes_value: true
+        - dest:
+            help: Name of destination slate output file
+            short: d
+            long: dest
+            takes_value: true
   - outputs:
       about: Raw wallet output info (list of outputs)
   - txs:

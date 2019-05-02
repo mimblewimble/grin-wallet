@@ -35,7 +35,7 @@ use crate::impls::{
 	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{InitTxArgs, NodeClient, WalletInst};
+use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -395,6 +395,29 @@ pub fn finalize(
 				Err(e)
 			}
 		}
+	})?;
+	Ok(())
+}
+
+/// Issue Invoice Args
+pub struct IssueInvoiceArgs {
+	/// output file
+	pub dest: String,
+	/// issue invoice tx args
+	pub issue_args: IssueInvoiceTxArgs,
+}
+
+pub fn issue_invoice_tx(
+	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+	args: IssueInvoiceArgs
+) -> Result<(), Error> {
+	controller::owner_single_use(wallet.clone(), |api| {
+		let slate =
+			api.issue_invoice_tx(args.issue_args)?;
+		let mut tx_file = File::create(args.dest.clone())?;
+			tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
+			tx_file.sync_all()?;
+		Ok(())
 	})?;
 	Ok(())
 }
