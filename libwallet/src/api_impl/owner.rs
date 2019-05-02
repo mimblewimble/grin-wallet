@@ -330,9 +330,6 @@ where
 		batch.commit()?;
 	}
 
-	// Always lock the context for now
-	selection::lock_tx_context(&mut *w, slate, &context)?;
-	tx::update_message(&mut *w, &mut ret_slate)?;
 	Ok(ret_slate)
 }
 

@@ -458,7 +458,6 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 }
 
 pub fn parse_issue_invoice_args(
-	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
 ) -> Result<command::IssueInvoiceArgs, ParseError> {
 	let amount = parse_required(args, "amount")?;
@@ -493,7 +492,7 @@ pub fn parse_issue_invoice_args(
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
 		issue_args: IssueInvoiceTxArgs {
-			dest_acct_name: Some(g_args.account.to_owned()),
+			dest_acct_name: None,
 			amount,
 			message,
 			target_slate_version,
@@ -655,8 +654,7 @@ pub fn wallet_command(
 			command::finalize(inst_wallet(), a)
 		}
 		("issue_invoice", Some(args)) => {
-			let g = global_wallet_args.clone();
-			let a = arg_parse!(parse_issue_invoice_args(&g, &args));
+			let a = arg_parse!(parse_issue_invoice_args(&args));
 			command::issue_invoice_tx(inst_wallet(), a)
 		}
 		("info", Some(args)) => {
