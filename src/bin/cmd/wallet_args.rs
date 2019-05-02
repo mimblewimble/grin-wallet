@@ -500,7 +500,9 @@ pub fn parse_issue_invoice_args(
 	})
 }
 
-pub fn parse_process_invoice_args(args: &ArgMatches) -> Result<command::ProcessInvoiceArgs, ParseError> {
+pub fn parse_process_invoice_args(
+	args: &ArgMatches,
+) -> Result<command::ProcessInvoiceArgs, ParseError> {
 	// TODO: display and prompt for confirmation of what we're doing
 	// message
 	let message = match args.is_present("message") {
