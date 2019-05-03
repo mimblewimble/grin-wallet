@@ -39,7 +39,7 @@ jobs:
       impls:
         CI_JOB: test
         CI_JOB_ARGS: impls
-      controller/.:
+      controller/all:
         CI_JOB: test
         CI_JOB_ARGS: controller .
       release:
