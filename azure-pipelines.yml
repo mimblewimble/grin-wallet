@@ -33,13 +33,13 @@ jobs:
     vmImage: ubuntu-16.04
   strategy:
     matrix:
-      servers:
+      config/libwallet/api:
         CI_JOB: test
         CI_JOB_ARGS: config libwallet api
-      chain/core/keychain:
+      impls:
         CI_JOB: test
         CI_JOB_ARGS: impls
-      pool/p2p/src:
+      controller/.:
         CI_JOB: test
         CI_JOB_ARGS: controller .
       release:
