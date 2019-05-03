@@ -231,14 +231,50 @@ subcommands:
             long: input
             takes_value: true
   - outputs:
-      about: Raw wallet output info (list of outputs)
-  - txs:
+      about: Raw wallet self owned output info (list of outputs)
+      args:
+        - minvalue:
+            help: Filter outputs by minimum value
+            short: m
+            long: minvalue
+            takes_value: true
+        - status:
+            help: Filter outputs by status (unconfirmed/unspent/locked/spent)
+            short: s
+            long: status
+            takes_value: true
+        - limit:
+            help: Limit the maximum display lines (show the latest ones)
+            short: l
+            long: limit
+            takes_value: true
+   - txs:
       about: Display transaction information
       args:
         - id:
             help: If specified, display transaction with given Id and all associated Inputs/Outputs
             short: i
             long: id
+            takes_value: true
+        - type:
+            help: Filter txs by tx type (coinbase/rx/tx/rxc/txc, means Coinbase/Received/Sent/ReceivedCanceled/SentCanceled)
+            short: t
+            long: type
+            takes_value: true
+        - startdate:
+            help: Filter txs by creation date from 'startdate' to 'enddate', with format '1970-01-01 00:00:00'
+            short: s
+            long: startdate
+            takes_value: true
+        - enddate:
+            help: Filter txs by creation date from 'startdate' to 'enddate', with format '1970-01-01 00:00:00'
+            short: e
+            long: enddate
+            takes_value: true
+        - limit:
+            help: Limit the maximum display lines (show the latest ones)
+            short: l
+            long: limit
             takes_value: true
   - repost:
       about: Reposts a stored, completed but unconfirmed transaction to the chain, or dumps it to a file

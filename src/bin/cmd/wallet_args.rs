@@ -20,7 +20,7 @@ use clap::ArgMatches;
 use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
-use grin_wallet_controller::{Error, ErrorKind};
+use grin_wallet_controller::{DateTime, Error, ErrorKind};
 use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
 use grin_wallet_util::grin_core as core;
@@ -241,6 +241,71 @@ fn parse_u64(arg: &str, name: &str) -> Result<u64, ParseError> {
 		Ok(v) => Ok(v),
 		Err(e) => {
 			let msg = format!("Could not parse {} as a whole number. e={}", name, e);
+			Err(ParseError::ArgumentError(msg))
+		}
+	}
+}
+
+// parses a float Grin value, or throws error with message otherwise
+fn parse_value(arg: &str, name: &str) -> Result<u64, ParseError> {
+	let amount = core::core::amount_from_hr_string(arg);
+	match amount {
+		Ok(a) => Ok(a),
+		Err(e) => {
+			let msg = format!(
+				"Could not parse {} as a number with optional decimal point. e={}",
+				name, e
+			);
+			Err(ParseError::ArgumentError(msg))
+		}
+	}
+}
+
+// parses an output status, or throws error with message otherwise
+fn parse_status(arg: &str, name: &str) -> Result<OutputStatus, ParseError> {
+	let status = match arg.to_lowercase().as_str() {
+		"unconfirmed" => Ok(OutputStatus::Unconfirmed),
+		"unspent" => Ok(OutputStatus::Unspent),
+		"locked" => Ok(OutputStatus::Locked),
+		"spent" => Ok(OutputStatus::Spent),
+		"confirmed" => Ok(OutputStatus::Confirmed),
+		_ => Err(()),
+	};
+	match status {
+		Ok(a) => Ok(a),
+		Err(_) => {
+			let msg = format!("Could not parse {} as an output status", name);
+			Err(ParseError::ArgumentError(msg))
+		}
+	}
+}
+
+// parses a tx type, or throws error with message otherwise
+fn parse_tx_type(arg: &str, name: &str) -> Result<TxLogEntryType, ParseError> {
+	let status = match arg.to_lowercase().as_str() {
+		"coinbase" => Ok(TxLogEntryType::ConfirmedCoinbase),
+		"rx" => Ok(TxLogEntryType::TxReceived),
+		"tx" => Ok(TxLogEntryType::TxSent),
+		"rxc" => Ok(TxLogEntryType::TxReceivedCancelled),
+		"txc" => Ok(TxLogEntryType::TxSentCancelled),
+		_ => Err(()),
+	};
+	match status {
+		Ok(a) => Ok(a),
+		Err(_) => {
+			let msg = format!("Could not parse {} as a tx type", name);
+			Err(ParseError::ArgumentError(msg))
+		}
+	}
+}
+
+// parses a date, or throws error with message otherwise
+fn parse_date(arg: &str, name: &str) -> Result<DateTime, ParseError> {
+	let status = DateTime::parse_from_str(arg, "%Y-%m-%d %H:%M:%S");
+	match status {
+		Ok(a) => Ok(a),
+		Err(_) => {
+			let msg = format!("Could not parse {} as a tx type", name);
 			Err(ParseError::ArgumentError(msg))
 		}
 	}
@@ -664,12 +729,66 @@ pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseEr
 	})
 }
 
+pub fn parse_outputs_args(args: &ArgMatches) -> Result<command::OutputsArgs, ParseError> {
+	let minvalue = match args.value_of("minvalue") {
+		None => None,
+		Some(value) => Some(parse_value(value, "minvalue")? as u64),
+	};
+	let status = match args.value_of("status") {
+		None => None,
+		Some(status) => Some(parse_status(status, "status")? as OutputStatus),
+	};
+	let limit = match args.value_of("limit") {
+		None => None,
+		Some(limit) => Some(parse_u64(limit, "limit")? as u64),
+	};
+	Ok(command::OutputsArgs {
+		minvalue,
+		status,
+		limit,
+	})
+}
+
+pub fn parse_payments_args(args: &ArgMatches) -> Result<command::PaymentsArgs, ParseError> {
+	let status = match args.value_of("status") {
+		None => None,
+		Some(status) => Some(parse_status(status, "status")? as OutputStatus),
+	};
+	let limit = match args.value_of("limit") {
+		None => None,
+		Some(limit) => Some(parse_u64(limit, "limit")? as u64),
+	};
+	Ok(command::PaymentsArgs { status, limit })
+}
+
 pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError> {
 	let tx_id = match args.value_of("id") {
 		None => None,
 		Some(tx) => Some(parse_u64(tx, "id")? as u32),
 	};
-	Ok(command::TxsArgs { id: tx_id })
+	let tx_type = match args.value_of("type") {
+		None => None,
+		Some(tx_type) => Some(parse_tx_type(tx_type, "type")? as TxLogEntryType),
+	};
+	let start_date = match args.value_of("startdate") {
+		None => None,
+		Some(date) => Some(parse_date(date, "startdate")? as DateTime),
+	};
+	let end_date = match args.value_of("enddate") {
+		None => None,
+		Some(date) => Some(parse_date(date, "enddate")? as DateTime),
+	};
+	let limit = match args.value_of("limit") {
+		None => None,
+		Some(limit) => Some(parse_u64(limit, "limit")? as u64),
+	};
+	Ok(command::TxsArgs {
+		id: tx_id,
+		tx_type,
+		start_date,
+		end_date,
+		limit,
+	})
 }
 
 pub fn parse_repost_args(args: &ArgMatches) -> Result<command::RepostArgs, ParseError> {

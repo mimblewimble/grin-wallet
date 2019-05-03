@@ -58,6 +58,7 @@ pub fn outputs(
 		bMG->"Tx"
 	]);
 
+	let len = outputs.len();
 	for m in outputs {
 		let commit = format!("{}", util::to_hex(m.commit.as_ref().to_vec()));
 		let index = match m.output.mmr_index {
@@ -111,6 +112,7 @@ pub fn outputs(
 	table.set_format(*prettytable::format::consts::FORMAT_NO_COLSEP);
 	table.printstd();
 	println!();
+	println!("total displayed outputs: {}", len);
 
 	if !validated {
 		println!(
@@ -252,6 +254,7 @@ pub fn txs(
 	table.set_format(*prettytable::format::consts::FORMAT_NO_COLSEP);
 	table.printstd();
 	println!();
+	println!("total displayed txs: {}", txs.len());
 
 	if !validated && include_status {
 		println!(

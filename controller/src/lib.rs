@@ -21,6 +21,8 @@ extern crate prettytable;
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
+extern crate chrono;
+
 use failure;
 use grin_wallet_api as apiwallet;
 use grin_wallet_config as config;
@@ -37,3 +39,4 @@ pub mod display;
 mod error;
 
 pub use crate::error::{Error, ErrorKind};
+pub use chrono::NaiveDateTime as DateTime;
