@@ -733,11 +733,11 @@ pub fn wallet_command(
 			let a = arg_parse!(parse_finalize_args(&args));
 			command::finalize(inst_wallet(), a)
 		}
-		("issue_invoice", Some(args)) => {
+		("invoice", Some(args)) => {
 			let a = arg_parse!(parse_issue_invoice_args(&args));
 			command::issue_invoice_tx(inst_wallet(), a)
 		}
-		("process_invoice", Some(args)) => {
+		("pay", Some(args)) => {
 			let a = arg_parse!(parse_process_invoice_args(&args));
 			command::process_invoice(
 				inst_wallet(),

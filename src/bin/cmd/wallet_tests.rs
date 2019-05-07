@@ -481,14 +481,14 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 		// issue an invoice tx
-		let file_name = format!("{}/issue_invoice.slate", test_dir);
+		let file_name = format!("{}/invoice.slate", test_dir);
 		let arg_vec = vec![
 			"grin-wallet",
 			"-p",
 			"password",
 			"-a",
 			"mining",
-			"issue_invoice",
+			"invoice",
 			"-d",
 			&file_name,
 			"-g",

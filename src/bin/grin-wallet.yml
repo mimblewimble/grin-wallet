@@ -162,7 +162,7 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
-  - issue_invoice:
+  - invoice:
       about: Initialize an invoice transction.
       args:
         - amount:
@@ -183,7 +183,7 @@ subcommands:
             short: d
             long: dest
             takes_value: true
-  - process_invoice:
+  - pay:
       about: Spend coins to pay the provided invoice transaction
       args:
         - minimum_confirmations:
