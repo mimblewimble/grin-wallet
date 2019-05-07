@@ -27,15 +27,15 @@ use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
-use crate::grin_util::{self, secp, RwLock};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::Signature;
+use crate::grin_util::{self, secp, RwLock};
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde_json;
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v0::SlateV0;
@@ -125,7 +125,11 @@ impl fmt::Display for ParticipantMessageData {
 		writeln!(f, "---------------------")?;
 		let static_secp = grin_util::static_secp_instance();
 		let static_secp = static_secp.lock();
-		writeln!(f, "Public Key: {}", &grin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec()))?;
+		writeln!(
+			f,
+			"Public Key: {}",
+			&grin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec())
+		)?;
 		let message = match self.message.clone() {
 			None => "None".to_owned(),
 			Some(m) => m,

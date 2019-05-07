@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 use crate::api::TLSConfig;
 use crate::util::file::get_first_line;
 use crate::util::{Mutex, ZeroingString};
@@ -25,13 +24,13 @@ use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
 use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::path::Path;
 use std::sync::Arc;
-use grin_wallet_util::grin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -146,12 +145,19 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 	let interface = Arc::new(Interface::new("pay")?);
 	let amount = amount_to_hr_string(slate.amount, false);
 	interface.set_report_signal(Signal::Interrupt, true);
-	interface.set_prompt("To proceed, type the exact amount of the invoice as displayed above (or Q/q to quit) > ")?;
+	interface.set_prompt(
+		"To proceed, type the exact amount of the invoice as displayed above (or Q/q to quit) > ",
+	)?;
 	println!();
-	println!("This command will pay the amount specified in the invoice using your wallet's funds.");
+	println!(
+		"This command will pay the amount specified in the invoice using your wallet's funds."
+	);
 	println!("After you confirm, the following will occur: ");
 	println!();
-	println!("* {} of your wallet funds will be added to the transaction to pay this invoice.", amount);
+	println!(
+		"* {} of your wallet funds will be added to the transaction to pay this invoice.",
+		amount
+	);
 	if method == "http" {
 		println!("* The resulting transaction will IMMEDIATELY be sent to the wallet listening at: '{}'.", dest);
 	} else {
@@ -174,17 +180,19 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 					return Err(ParseError::CancelledError);
 				}
 			}
-			ReadResult::Input(line) => match line.trim() {
-				"Q" | "q" => return Err(ParseError::CancelledError),
-				result => {
-					if result == amount {
-						return Ok(true);
-					} else {
-						println!("Please enter exact amount of the invoice as shown above or Q to quit");
-						println!();
+			ReadResult::Input(line) => {
+				match line.trim() {
+					"Q" | "q" => return Err(ParseError::CancelledError),
+					result => {
+						if result == amount {
+							return Ok(true);
+						} else {
+							println!("Please enter exact amount of the invoice as shown above or Q to quit");
+							println!();
+						}
 					}
-				},
-			},
+				}
+			}
 		}
 	}
 }
