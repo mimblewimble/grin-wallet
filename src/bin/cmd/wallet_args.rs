@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 use crate::api::TLSConfig;
 use crate::util::file::get_first_line;
 use crate::util::{Mutex, ZeroingString};
@@ -21,8 +22,8 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
+use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
@@ -30,6 +31,7 @@ use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::path::Path;
 use std::sync::Arc;
+use grin_wallet_util::grin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -138,6 +140,53 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 		}
 	}
 	Ok(phrase)
+}
+
+fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
+	let interface = Arc::new(Interface::new("pay")?);
+	let amount = amount_to_hr_string(slate.amount, false);
+	interface.set_report_signal(Signal::Interrupt, true);
+	interface.set_prompt("To proceed, type the exact amount of the invoice as displayed above (or Q/q to quit) > ")?;
+	println!();
+	println!("This command will pay the amount specified in the invoice using your wallet's funds.");
+	println!("After you confirm, the following will occur: ");
+	println!();
+	println!("* {} of your wallet funds will be added to the transaction to pay this invoice.", amount);
+	if method == "http" {
+		println!("* The resulting transaction will IMMEDIATELY be sent to the wallet listening at: '{}'.", dest);
+	} else {
+		println!("* The resulting transaction will be saved to the file '{}', which you can manually send back to the invoice creator.", dest);
+	}
+	println!();
+	println!("The invoice slate's participant info is:");
+	for m in slate.participant_messages().messages {
+		println!("{}", m);
+	}
+	println!("Please review the above information carefully before proceeding");
+	println!();
+	loop {
+		let res = interface.read_line()?;
+		match res {
+			ReadResult::Eof => return Ok(false),
+			ReadResult::Signal(sig) => {
+				if sig == Signal::Interrupt {
+					interface.cancel_read_line()?;
+					return Err(ParseError::CancelledError);
+				}
+			}
+			ReadResult::Input(line) => match line.trim() {
+				"Q" | "q" => return Err(ParseError::CancelledError),
+				result => {
+					if result == amount {
+						return Ok(true);
+					} else {
+						println!("Please enter exact amount of the invoice as shown above or Q to quit");
+						println!();
+					}
+				},
+			},
+		}
+	}
 }
 
 // instantiate wallet (needed by most functions)
@@ -566,6 +615,17 @@ pub fn parse_process_invoice_args(
 
 	// file input only
 	let tx_file = parse_required(args, "input")?;
+
+	// Now we need to prompt the user whether they want to do this,
+	// which requires reading the slate
+	let adapter = FileWalletCommAdapter::new();
+	let slate = match adapter.receive_tx_async(&tx_file) {
+		Ok(s) => s,
+		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
+	};
+
+	#[cfg(not(test))] // don't prompt during automated testing
+	prompt_pay_invoice(&slate, method, dest)?;
 
 	Ok(command::ProcessInvoiceArgs {
 		message: message,

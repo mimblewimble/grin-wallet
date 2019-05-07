@@ -480,20 +480,36 @@ mod wallet_tests {
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-		// issue an invoice tx
+		// issue an invoice tx, wallet 2
 		let file_name = format!("{}/invoice.slate", test_dir);
 		let arg_vec = vec![
 			"grin-wallet",
 			"-p",
 			"password",
-			"-a",
-			"mining",
 			"invoice",
 			"-d",
 			&file_name,
 			"-g",
 			"Please give me your precious grins. Love, Yeast",
 			"65",
+		];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+		let output_file_name = format!("{}/invoice.slate.paid", test_dir);
+
+		// now pay the invoice tx, wallet 1
+		let arg_vec = vec![
+			"grin-wallet",
+			"-a",
+			"mining",
+			"-p",
+			"password",
+			"pay",
+			"-i",
+			&file_name,
+			"-d",
+			&output_file_name,
+			"-g",
+			"Here you go",
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 

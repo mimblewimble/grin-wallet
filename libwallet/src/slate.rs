@@ -27,15 +27,15 @@ use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
-use crate::grin_util::secp;
+use crate::grin_util::{self, secp, RwLock};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::Signature;
-use crate::grin_util::RwLock;
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde_json;
 use std::sync::Arc;
+use std::fmt;
 use uuid::Uuid;
 
 use crate::slate_versions::v0::SlateV0;
@@ -110,6 +110,32 @@ impl ParticipantMessageData {
 			message: p.message.clone(),
 			message_sig: p.message_sig.clone(),
 		}
+	}
+}
+
+impl fmt::Display for ParticipantMessageData {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		writeln!(f, "")?;
+		write!(f, "Participant ID {} ", self.id)?;
+		if self.id == 0 {
+			writeln!(f, "(Sender)")?;
+		} else {
+			writeln!(f, "(Recipient)")?;
+		}
+		writeln!(f, "---------------------")?;
+		let static_secp = grin_util::static_secp_instance();
+		let static_secp = static_secp.lock();
+		writeln!(f, "Public Key: {}", &grin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec()))?;
+		let message = match self.message.clone() {
+			None => "None".to_owned(),
+			Some(m) => m,
+		};
+		writeln!(f, "Message: {}", message)?;
+		let message_sig = match self.message_sig.clone() {
+			None => "None".to_owned(),
+			Some(m) => grin_util::to_hex(m.to_raw_data().to_vec()),
+		};
+		writeln!(f, "Message Signature: {}", message_sig)
 	}
 }
 
