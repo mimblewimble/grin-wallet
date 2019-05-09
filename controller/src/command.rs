@@ -35,7 +35,7 @@ use crate::impls::{
 	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{InitTxArgs, NodeClient, WalletInst};
+use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -377,13 +377,45 @@ pub fn finalize(
 ) -> Result<(), Error> {
 	let adapter = FileWalletCommAdapter::new();
 	let mut slate = adapter.receive_tx_async(&args.input)?;
-	controller::owner_single_use(wallet.clone(), |api| {
-		if let Err(e) = api.verify_slate_messages(&slate) {
-			error!("Error validating participant messages: {}", e);
-			return Err(e);
+	// Rather than duplicating the entire command, we'll just
+	// try to determine what kind of finalization this is
+	// based on the slate contents
+	// for now, we can tell this is an invoice transaction
+	// if the receipient (participant 1) hasn't completed sigs
+	let part_data = slate.participant_with_id(1);
+	let is_invoice = {
+		match part_data {
+			None => {
+				error!("Expected slate participant data missing");
+				return Err(ErrorKind::ArgumentError(
+					"Expected Slate participant data missing".into(),
+				))?;
+			}
+			Some(p) => !p.is_complete(),
 		}
-		slate = api.finalize_tx(&mut slate).expect("Finalize failed");
+	};
 
+	if is_invoice {
+		controller::foreign_single_use(wallet.clone(), |api| {
+			if let Err(e) = api.verify_slate_messages(&slate) {
+				error!("Error validating participant messages: {}", e);
+				return Err(e);
+			}
+			slate = api.finalize_invoice_tx(&mut slate)?;
+			Ok(())
+		})?;
+	} else {
+		controller::owner_single_use(wallet.clone(), |api| {
+			if let Err(e) = api.verify_slate_messages(&slate) {
+				error!("Error validating participant messages: {}", e);
+				return Err(e);
+			}
+			slate = api.finalize_tx(&mut slate)?;
+			Ok(())
+		})?;
+	}
+
+	controller::owner_single_use(wallet.clone(), |api| {
 		let result = api.post_tx(&slate.tx, args.fluff);
 		match result {
 			Ok(_) => {
@@ -396,9 +428,130 @@ pub fn finalize(
 			}
 		}
 	})?;
+
 	Ok(())
 }
 
+/// Issue Invoice Args
+pub struct IssueInvoiceArgs {
+	/// output file
+	pub dest: String,
+	/// issue invoice tx args
+	pub issue_args: IssueInvoiceTxArgs,
+}
+
+pub fn issue_invoice_tx(
+	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+	args: IssueInvoiceArgs,
+) -> Result<(), Error> {
+	controller::owner_single_use(wallet.clone(), |api| {
+		let slate = api.issue_invoice_tx(args.issue_args)?;
+		let mut tx_file = File::create(args.dest.clone())?;
+		tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
+		tx_file.sync_all()?;
+		Ok(())
+	})?;
+	Ok(())
+}
+
+/// Arguments for the process_invoice command
+pub struct ProcessInvoiceArgs {
+	pub message: Option<String>,
+	pub minimum_confirmations: u64,
+	pub selection_strategy: String,
+	pub method: String,
+	pub dest: String,
+	pub max_outputs: usize,
+	pub target_slate_version: Option<u16>,
+	pub input: String,
+	pub estimate_selection_strategies: bool,
+}
+
+/// Process invoice
+pub fn process_invoice(
+	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+	args: ProcessInvoiceArgs,
+	dark_scheme: bool,
+) -> Result<(), Error> {
+	let adapter = FileWalletCommAdapter::new();
+	let slate = adapter.receive_tx_async(&args.input)?;
+	controller::owner_single_use(wallet.clone(), |api| {
+		if args.estimate_selection_strategies {
+			let strategies = vec!["smallest", "all"]
+				.into_iter()
+				.map(|strategy| {
+					let init_args = InitTxArgs {
+						src_acct_name: None,
+						amount: slate.amount,
+						minimum_confirmations: args.minimum_confirmations,
+						max_outputs: args.max_outputs as u32,
+						num_change_outputs: 1u32,
+						selection_strategy_is_use_all: strategy == "all",
+						estimate_only: Some(true),
+						..Default::default()
+					};
+					let slate = api.init_send_tx(init_args).unwrap();
+					(strategy, slate.amount, slate.fee)
+				})
+				.collect();
+			display::estimate(slate.amount, strategies, dark_scheme);
+		} else {
+			let init_args = InitTxArgs {
+				src_acct_name: None,
+				amount: 0,
+				minimum_confirmations: args.minimum_confirmations,
+				max_outputs: args.max_outputs as u32,
+				num_change_outputs: 1u32,
+				selection_strategy_is_use_all: args.selection_strategy == "all",
+				message: args.message.clone(),
+				target_slate_version: args.target_slate_version,
+				send_args: None,
+				..Default::default()
+			};
+			if let Err(e) = api.verify_slate_messages(&slate) {
+				error!("Error validating participant messages: {}", e);
+				return Err(e);
+			}
+			let result = api.process_invoice_tx(&slate, init_args);
+			let mut slate = match result {
+				Ok(s) => {
+					info!(
+						"Invoice processed: {} grin to {} (strategy '{}')",
+						core::amount_to_hr_string(slate.amount, false),
+						args.dest,
+						args.selection_strategy,
+					);
+					s
+				}
+				Err(e) => {
+					info!("Tx not created: {}", e);
+					return Err(e);
+				}
+			};
+			let adapter = match args.method.as_str() {
+				"http" => HTTPWalletCommAdapter::new(),
+				"file" => FileWalletCommAdapter::new(),
+				"self" => NullWalletCommAdapter::new(),
+				_ => NullWalletCommAdapter::new(),
+			};
+			if adapter.supports_sync() {
+				slate = adapter.send_tx_sync(&args.dest, &slate)?;
+				api.tx_lock_outputs(&slate)?;
+				if args.method == "self" {
+					controller::foreign_single_use(wallet, |api| {
+						slate = api.finalize_invoice_tx(&slate)?;
+						Ok(())
+					})?;
+				}
+			} else {
+				adapter.send_tx_async(&args.dest, &slate)?;
+				api.tx_lock_outputs(&slate)?;
+			}
+		}
+		Ok(())
+	})?;
+	Ok(())
+}
 /// Info command args
 pub struct InfoArgs {
 	pub minimum_confirmations: u64,

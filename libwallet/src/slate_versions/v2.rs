@@ -29,7 +29,7 @@
 //! * TxKernel fields serialized as hex strings instead of arrays:
 //!    commit
 //!    signature
-//! * version_info field removed
+//! * version field removed
 //! * VersionCompatInfo struct created with fields and added to beginning of struct
 //!    version: u16
 //!    orig_verion: u16,

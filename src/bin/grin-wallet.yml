@@ -162,6 +162,74 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
+  - invoice:
+      about: Initialize an invoice transction.
+      args:
+        - amount:
+            help: Number of coins to invoice  with optional fraction, e.g. 12.423
+            index: 1
+        - message:
+            help: Optional participant message to include
+            short: g
+            long: message
+            takes_value: true
+        - slate_version:
+            help: Target slate version to output/send to receiver
+            short: v
+            long: slate_version
+            takes_value: true
+        - dest:
+            help: Name of destination slate output file
+            short: d
+            long: dest
+            takes_value: true
+  - pay:
+      about: Spend coins to pay the provided invoice transaction
+      args:
+        - minimum_confirmations:
+            help: Minimum number of confirmations required for an output to be spendable
+            short: c
+            long: min_conf
+            default_value: "10"
+            takes_value: true
+        - selection_strategy:
+            help: Coin/Output selection strategy.
+            short: s
+            long: selection
+            possible_values:
+              - all
+              - smallest
+            default_value: all
+            takes_value: true
+        - estimate_selection_strategies:
+            help: Estimates all possible Coin/Output selection strategies.
+            short: e
+            long: estimate-selection
+        - method:
+            help: Method for sending the processed invoice back to the invoice creator
+            short: m
+            long: method
+            possible_values:
+              - file
+              - http
+              - self
+            default_value: file
+            takes_value: true
+        - dest:
+            help: Send the transaction to the provided server (start with http://) or save as file.
+            short: d
+            long: dest
+            takes_value: true
+        - message:
+            help: Optional participant message to include
+            short: g
+            long: message
+            takes_value: true
+        - input:
+            help: Partial transaction to process, expects the invoicer's transaction file.
+            short: i
+            long: input
+            takes_value: true
   - outputs:
       about: Raw wallet output info (list of outputs)
   - txs:

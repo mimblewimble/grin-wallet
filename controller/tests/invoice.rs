@@ -124,6 +124,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 				..Default::default()
 			};
 			slate = api.process_invoice_tx(&slate, args)?;
+			api.tx_lock_outputs(&slate)?;
 			Ok(())
 		})?;
 

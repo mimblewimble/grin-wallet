@@ -21,9 +21,10 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::{NodeClient, WalletInst};
+use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
 use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
@@ -138,6 +139,62 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 		}
 	}
 	Ok(phrase)
+}
+
+fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
+	let interface = Arc::new(Interface::new("pay")?);
+	let amount = amount_to_hr_string(slate.amount, false);
+	interface.set_report_signal(Signal::Interrupt, true);
+	interface.set_prompt(
+		"To proceed, type the exact amount of the invoice as displayed above (or Q/q to quit) > ",
+	)?;
+	println!();
+	println!(
+		"This command will pay the amount specified in the invoice using your wallet's funds."
+	);
+	println!("After you confirm, the following will occur: ");
+	println!();
+	println!(
+		"* {} of your wallet funds will be added to the transaction to pay this invoice.",
+		amount
+	);
+	if method == "http" {
+		println!("* The resulting transaction will IMMEDIATELY be sent to the wallet listening at: '{}'.", dest);
+	} else {
+		println!("* The resulting transaction will be saved to the file '{}', which you can manually send back to the invoice creator.", dest);
+	}
+	println!();
+	println!("The invoice slate's participant info is:");
+	for m in slate.participant_messages().messages {
+		println!("{}", m);
+	}
+	println!("Please review the above information carefully before proceeding");
+	println!();
+	loop {
+		let res = interface.read_line()?;
+		match res {
+			ReadResult::Eof => return Ok(false),
+			ReadResult::Signal(sig) => {
+				if sig == Signal::Interrupt {
+					interface.cancel_read_line()?;
+					return Err(ParseError::CancelledError);
+				}
+			}
+			ReadResult::Input(line) => {
+				match line.trim() {
+					"Q" | "q" => return Err(ParseError::CancelledError),
+					result => {
+						if result == amount {
+							return Ok(true);
+						} else {
+							println!("Please enter exact amount of the invoice as shown above or Q to quit");
+							println!();
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // instantiate wallet (needed by most functions)
@@ -457,6 +514,140 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 	})
 }
 
+pub fn parse_issue_invoice_args(
+	args: &ArgMatches,
+) -> Result<command::IssueInvoiceArgs, ParseError> {
+	let amount = parse_required(args, "amount")?;
+	let amount = core::core::amount_from_hr_string(amount);
+	let amount = match amount {
+		Ok(a) => a,
+		Err(e) => {
+			let msg = format!(
+				"Could not parse amount as a number with optional decimal point. e={}",
+				e
+			);
+			return Err(ParseError::ArgumentError(msg));
+		}
+	};
+	// message
+	let message = match args.is_present("message") {
+		true => Some(args.value_of("message").unwrap().to_owned()),
+		false => None,
+	};
+	// target slate version to create
+	let target_slate_version = {
+		match args.is_present("slate_version") {
+			true => {
+				let v = parse_required(args, "slate_version")?;
+				Some(parse_u64(v, "slate_version")? as u16)
+			}
+			false => None,
+		}
+	};
+	// dest (output file)
+	let dest = parse_required(args, "dest")?;
+	Ok(command::IssueInvoiceArgs {
+		dest: dest.into(),
+		issue_args: IssueInvoiceTxArgs {
+			dest_acct_name: None,
+			amount,
+			message,
+			target_slate_version,
+		},
+	})
+}
+
+pub fn parse_process_invoice_args(
+	args: &ArgMatches,
+) -> Result<command::ProcessInvoiceArgs, ParseError> {
+	// TODO: display and prompt for confirmation of what we're doing
+	// message
+	let message = match args.is_present("message") {
+		true => Some(args.value_of("message").unwrap().to_owned()),
+		false => None,
+	};
+
+	// minimum_confirmations
+	let min_c = parse_required(args, "minimum_confirmations")?;
+	let min_c = parse_u64(min_c, "minimum_confirmations")?;
+
+	// selection_strategy
+	let selection_strategy = parse_required(args, "selection_strategy")?;
+
+	// estimate_selection_strategies
+	let estimate_selection_strategies = args.is_present("estimate_selection_strategies");
+
+	// method
+	let method = parse_required(args, "method")?;
+
+	// dest
+	let dest = {
+		if method == "self" {
+			match args.value_of("dest") {
+				Some(d) => d,
+				None => "default",
+			}
+		} else {
+			if !estimate_selection_strategies {
+				parse_required(args, "dest")?
+			} else {
+				""
+			}
+		}
+	};
+	if !estimate_selection_strategies
+		&& method == "http"
+		&& !dest.starts_with("http://")
+		&& !dest.starts_with("https://")
+	{
+		let msg = format!(
+			"HTTP Destination should start with http://: or https://: {}",
+			dest,
+		);
+		return Err(ParseError::ArgumentError(msg));
+	}
+
+	// max_outputs
+	let max_outputs = 500;
+
+	// target slate version to create/send
+	let target_slate_version = {
+		match args.is_present("slate_version") {
+			true => {
+				let v = parse_required(args, "slate_version")?;
+				Some(parse_u64(v, "slate_version")? as u16)
+			}
+			false => None,
+		}
+	};
+
+	// file input only
+	let tx_file = parse_required(args, "input")?;
+
+	// Now we need to prompt the user whether they want to do this,
+	// which requires reading the slate
+	let adapter = FileWalletCommAdapter::new();
+	let slate = match adapter.receive_tx_async(&tx_file) {
+		Ok(s) => s,
+		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
+	};
+
+	#[cfg(not(test))] // don't prompt during automated testing
+	prompt_pay_invoice(&slate, method, dest)?;
+
+	Ok(command::ProcessInvoiceArgs {
+		message: message,
+		minimum_confirmations: min_c,
+		selection_strategy: selection_strategy.to_owned(),
+		estimate_selection_strategies,
+		method: method.to_owned(),
+		dest: dest.to_owned(),
+		max_outputs: max_outputs,
+		target_slate_version: target_slate_version,
+		input: tx_file.to_owned(),
+	})
+}
+
 pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseError> {
 	// minimum_confirmations
 	let mc = parse_required(args, "minimum_confirmations")?;
@@ -609,6 +800,18 @@ pub fn wallet_command(
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
 			command::finalize(inst_wallet(), a)
+		}
+		("invoice", Some(args)) => {
+			let a = arg_parse!(parse_issue_invoice_args(&args));
+			command::issue_invoice_tx(inst_wallet(), a)
+		}
+		("pay", Some(args)) => {
+			let a = arg_parse!(parse_process_invoice_args(&args));
+			command::process_invoice(
+				inst_wallet(),
+				a,
+				wallet_config.dark_background_color_scheme.unwrap_or(true),
+			)
 		}
 		("info", Some(args)) => {
 			let a = arg_parse!(parse_info_args(&args));
