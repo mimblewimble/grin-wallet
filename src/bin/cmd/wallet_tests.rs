@@ -513,7 +513,7 @@ mod wallet_tests {
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-		// and finalize, wallet 2 
+		// and finalize, wallet 2
 		let arg_vec = vec![
 			"grin-wallet",
 			"-p",

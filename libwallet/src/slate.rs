@@ -382,7 +382,7 @@ impl Slate {
 		self.finalize_transaction(keychain, &final_sig)
 	}
 
-	/// Return the participant with the given id 
+	/// Return the participant with the given id
 	pub fn participant_with_id(&self, id: usize) -> Option<ParticipantData> {
 		for p in self.participant_data.iter() {
 			if p.id as usize == id {

@@ -387,7 +387,9 @@ pub fn finalize(
 		match part_data {
 			None => {
 				error!("Expected slate participant data missing");
-				return Err(ErrorKind::ArgumentError("Expected Slate participant data missing".into()))?;
+				return Err(ErrorKind::ArgumentError(
+					"Expected Slate participant data missing".into(),
+				))?;
 			}
 			Some(p) => !p.is_complete(),
 		}
