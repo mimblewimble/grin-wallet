@@ -22,7 +22,7 @@ use prettytable;
 use std::io::prelude::Write;
 use term;
 
-/// Display outputs in a pretty way
+/// Display outputs in a pretty wa
 pub fn outputs(
 	account: &str,
 	cur_height: u64,
