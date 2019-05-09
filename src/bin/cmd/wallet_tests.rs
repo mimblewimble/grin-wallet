@@ -513,6 +513,21 @@ mod wallet_tests {
 		];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
+		// and finalize, wallet 2 
+		let arg_vec = vec![
+			"grin-wallet",
+			"-p",
+			"password",
+			"finalize",
+			"-i",
+			&output_file_name,
+		];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		// bit more mining
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5, false);
+		//bh += 5;
+
 		// txs and outputs (mostly spit out for a visual in test logs)
 		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "txs"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
@@ -533,6 +548,12 @@ mod wallet_tests {
 		// txs and outputs (mostly spit out for a visual in test logs)
 		let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "outputs"];
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "txs"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "outputs"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 		// let logging finish
 		thread::sleep(Duration::from_millis(200));

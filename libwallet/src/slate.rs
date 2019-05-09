@@ -374,13 +374,22 @@ impl Slate {
 
 	/// Creates the final signature, callable by either the sender or recipient
 	/// (after phase 3: sender confirmation)
-	/// TODO: Only callable by receiver at the moment
 	pub fn finalize<K>(&mut self, keychain: &K) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		let final_sig = self.finalize_signature(keychain)?;
 		self.finalize_transaction(keychain, &final_sig)
+	}
+
+	/// Return the participant with the given id 
+	pub fn participant_with_id(&self, id: usize) -> Option<ParticipantData> {
+		for p in self.participant_data.iter() {
+			if p.id as usize == id {
+				return Some(p.clone());
+			}
+		}
+		None
 	}
 
 	/// Return the sum of public nonces

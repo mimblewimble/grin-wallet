@@ -377,13 +377,43 @@ pub fn finalize(
 ) -> Result<(), Error> {
 	let adapter = FileWalletCommAdapter::new();
 	let mut slate = adapter.receive_tx_async(&args.input)?;
-	controller::owner_single_use(wallet.clone(), |api| {
-		if let Err(e) = api.verify_slate_messages(&slate) {
-			error!("Error validating participant messages: {}", e);
-			return Err(e);
+	// Rather than duplicating the entire command, we'll just
+	// try to determine what kind of finalization this is
+	// based on the slate contents
+	// for now, we can tell this is an invoice transaction
+	// if the receipient (participant 1) hasn't completed sigs
+	let part_data = slate.participant_with_id(1);
+	let is_invoice = {
+		match part_data {
+			None => {
+				error!("Expected slate participant data missing");
+				return Err(ErrorKind::ArgumentError("Expected Slate participant data missing".into()))?;
+			}
+			Some(p) => !p.is_complete(),
 		}
-		slate = api.finalize_tx(&mut slate).expect("Finalize failed");
+	};
 
+	if is_invoice {
+		controller::foreign_single_use(wallet.clone(), |api| {
+			if let Err(e) = api.verify_slate_messages(&slate) {
+				error!("Error validating participant messages: {}", e);
+				return Err(e);
+			}
+			slate = api.finalize_invoice_tx(&mut slate)?;
+			Ok(())
+		})?;
+	} else {
+		controller::owner_single_use(wallet.clone(), |api| {
+			if let Err(e) = api.verify_slate_messages(&slate) {
+				error!("Error validating participant messages: {}", e);
+				return Err(e);
+			}
+			slate = api.finalize_tx(&mut slate)?;
+			Ok(())
+		})?;
+	}
+
+	controller::owner_single_use(wallet.clone(), |api| {
 		let result = api.post_tx(&slate.tx, args.fluff);
 		match result {
 			Ok(_) => {
@@ -396,6 +426,7 @@ pub fn finalize(
 			}
 		}
 	})?;
+
 	Ok(())
 }
 
