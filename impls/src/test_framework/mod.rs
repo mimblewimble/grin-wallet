@@ -25,7 +25,7 @@ use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::{
 	BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend, WalletInfo, WalletInst,
 };
-use crate::lmdb_wallet::LMDBBackend;
+use crate::LMDBBackend;
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::Mutex;

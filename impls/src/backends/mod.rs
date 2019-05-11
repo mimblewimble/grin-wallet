@@ -14,4 +14,4 @@
 
 mod lmdb;
 
-pub use self::lmdb::LMDBBackend;
+pub use self::lmdb::{wallet_db_exists, LMDBBackend};

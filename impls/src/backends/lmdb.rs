@@ -30,8 +30,11 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 
 use crate::core::core::Transaction;
 use crate::core::{global, ser};
-use crate::libwallet::types::*;
-use crate::libwallet::{internal, Error, ErrorKind};
+use crate::libwallet::{check_repair, restore};
+use crate::libwallet::{
+	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
+	WalletOutputBatch,
+};
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::ZeroingString;
@@ -235,7 +238,7 @@ where
 	}
 
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a> {
-		Box::new(self.db.iter(&[OUTPUT_PREFIX]).unwrap())
+		Box::new(self.db.iter(&[OUTPUT_PREFIX]).unwrap().map(|o| o.1))
 	}
 
 	fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
@@ -244,7 +247,7 @@ where
 	}
 
 	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a> {
-		Box::new(self.db.iter(&[TX_LOG_ENTRY_PREFIX]).unwrap())
+		Box::new(self.db.iter(&[TX_LOG_ENTRY_PREFIX]).unwrap().map(|o| o.1))
 	}
 
 	fn get_private_context(&mut self, slate_id: &[u8]) -> Result<Context, Error> {
@@ -265,7 +268,12 @@ where
 	}
 
 	fn acct_path_iter<'a>(&'a self) -> Box<dyn Iterator<Item = AcctPathMapping> + 'a> {
-		Box::new(self.db.iter(&[ACCOUNT_PATH_MAPPING_PREFIX]).unwrap())
+		Box::new(
+			self.db
+				.iter(&[ACCOUNT_PATH_MAPPING_PREFIX])
+				.unwrap()
+				.map(|o| o.1),
+		)
 	}
 
 	fn get_acct_path(&self, label: String) -> Result<Option<AcctPathMapping>, Error> {
@@ -346,12 +354,12 @@ where
 	}
 
 	fn restore(&mut self) -> Result<(), Error> {
-		internal::restore::restore(self).context(ErrorKind::Restore)?;
+		restore(self).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 
 	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error> {
-		internal::restore::check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
+		check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }
@@ -411,7 +419,8 @@ where
 				.as_ref()
 				.unwrap()
 				.iter(&[OUTPUT_PREFIX])
-				.unwrap(),
+				.unwrap()
+				.map(|o| o.1),
 		)
 	}
 
@@ -449,7 +458,8 @@ where
 				.as_ref()
 				.unwrap()
 				.iter(&[TX_LOG_ENTRY_PREFIX])
-				.unwrap(),
+				.unwrap()
+				.map(|o| o.1),
 		)
 	}
 
@@ -518,7 +528,8 @@ where
 				.as_ref()
 				.unwrap()
 				.iter(&[ACCOUNT_PATH_MAPPING_PREFIX])
-				.unwrap(),
+				.unwrap()
+				.map(|o| o.1),
 		)
 	}
 
