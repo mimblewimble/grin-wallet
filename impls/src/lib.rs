@@ -32,8 +32,8 @@ use grin_wallet_util::grin_util as util;
 extern crate grin_wallet_config as config;
 
 mod adapters;
+mod backends;
 mod error;
-mod lmdb_wallet;
 mod node_clients;
 mod seed;
 pub mod test_framework;
@@ -42,8 +42,8 @@ pub use crate::adapters::{
 	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, NullWalletCommAdapter,
 	WalletCommAdapter,
 };
+pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};
-pub use crate::lmdb_wallet::{wallet_db_exists, LMDBBackend};
 pub use crate::node_clients::HTTPNodeClient;
 pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
