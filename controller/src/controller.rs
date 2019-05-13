@@ -776,9 +776,7 @@ where
 					err(e)
 				} else {
 					match api.receive_tx(&slate, None, None) {
-						Ok(s) => ok(s
-							.serialize_to_version(Some(s.version_info.orig_version))
-							.unwrap()),
+						Ok(s) => ok(serde_json::to_string(&s).unwrap()),
 						Err(e) => {
 							error!("receive_tx: failed with error: {}", e);
 							err(e)

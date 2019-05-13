@@ -17,8 +17,8 @@ use std::fs::File;
 use std::io::{Read, Write};
 
 use crate::config::WalletConfig;
-use crate::libwallet::{Error, Slate};
-use crate::WalletCommAdapter;
+use crate::libwallet::{Error, ErrorKind, Slate};
+use crate::{WalletCommAdapter};
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -42,8 +42,9 @@ impl WalletCommAdapter for FileWalletCommAdapter {
 
 	fn send_tx_async(&self, dest: &str, slate: &Slate) -> Result<(), Error> {
 		let mut pub_tx = File::create(dest)?;
-		let slate_string = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
-		pub_tx.write_all(slate_string.as_bytes())?;
+		pub_tx.write_all(serde_json::to_string(slate)
+			.map_err(|_| ErrorKind::SlateSer)?
+			.as_bytes())?;
 		pub_tx.sync_all()?;
 		Ok(())
 	}
