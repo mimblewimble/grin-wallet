@@ -47,14 +47,12 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
 		debug!("Posting transaction slate to {}", url);
-		let res: String = api::client::post(url.as_str(), None, &slate)
-			.map_err(|e| {
-				let report = format!("Posting transaction slate (is recipient listening?): {}", e);
-				error!("{}", report);
-				ErrorKind::ClientCallback(report)
-			})?;
-		let slate = Slate::deserialize_upgrade(&res)
-			.map_err(|_| ErrorKind::SlateDeser)?;
+		let res: String = api::client::post(url.as_str(), None, &slate).map_err(|e| {
+			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
+			error!("{}", report);
+			ErrorKind::ClientCallback(report)
+		})?;
+		let slate = Slate::deserialize_upgrade(&res).map_err(|_| ErrorKind::SlateDeser)?;
 
 		Ok(slate)
 	}

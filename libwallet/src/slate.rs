@@ -199,8 +199,8 @@ pub struct ParticipantMessages {
 impl Slate {
 	/// Attempt to find slate version
 	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
-		let probe: SlateVersionProbe = serde_json::from_str(slate_json)
-			.map_err(|_| ErrorKind::SlateVersionParse)?;
+		let probe: SlateVersionProbe =
+			serde_json::from_str(slate_json).map_err(|_| ErrorKind::SlateVersionParse)?;
 		Ok(probe.version())
 	}
 
@@ -698,26 +698,26 @@ impl Slate {
 
 impl Serialize for Slate {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+	where
+		S: Serializer,
+	{
 		use serde::ser::Error;
 
 		let v2 = SlateV2::from(self);
 		match self.version_info.orig_version {
-			2 => {
-				v2.serialize(serializer)
-			},
+			2 => v2.serialize(serializer),
 			1 => {
 				let v1 = SlateV1::from(v2);
 				v1.serialize(serializer)
-			},
+			}
 			0 => {
 				let v1 = SlateV1::from(v2);
 				let v0 = SlateV0::from(v1);
 				v0.serialize(serializer)
-			},
+			}
 			v => Err(S::Error::custom(format!("Unknown slate version {}", v))),
 		}
-    }
+	}
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
