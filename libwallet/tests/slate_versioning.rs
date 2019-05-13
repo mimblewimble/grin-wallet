@@ -22,47 +22,63 @@ fn slate_conversions() {
 	let res = Slate::deserialize_upgrade(&v0);
 	assert!(res.is_ok());
 	// should serialize as latest
-	let res = res.unwrap();
+	let mut res = res.unwrap();
 	assert_eq!(res.version_info.orig_version, 0);
-	let s = res.serialize_to_version(Some(2));
+	res.version_info.orig_version = 2;
+	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
-	println!("v0 -> v2: {}", s.unwrap());
+	let s = s.unwrap();
+	assert_eq!(Slate::parse_slate_version(&s), Ok(2));
+	println!("v0 -> v2: {}", s);
 
 	// Test V1 to V2
 	let v1 = include_str!("slates/v1.slate");
 	let res = Slate::deserialize_upgrade(&v1);
 	assert!(res.is_ok());
 	// should serialize as latest
-	let res = res.unwrap();
+	let mut res = res.unwrap();
 	assert_eq!(res.version_info.orig_version, 1);
-	let s = res.serialize_to_version(Some(2));
+	res.version_info.orig_version = 2;
+	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
-	println!("v1 -> v2: {}", s.unwrap());
+	let s = s.unwrap();
+	assert_eq!(Slate::parse_slate_version(&s), Ok(2));
+	println!("v1 -> v2: {}", s);
 
 	// V2 -> V2, check version
 	let v2 = include_str!("slates/v2.slate");
 	let res = Slate::deserialize_upgrade(&v2);
 	assert!(res.is_ok());
-	let res = res.unwrap().serialize_to_version(Some(2));
-	let s = res.unwrap();
-	let res = Slate::deserialize_upgrade(&s).unwrap();
+	let res = res.unwrap();
 	assert_eq!(res.version_info.orig_version, 2);
+	let s = serde_json::to_string(&res);
+	assert!(s.is_ok());
+	let s = s.unwrap();
+	assert_eq!(Slate::parse_slate_version(&s), Ok(2));
 
 	// Downgrade to V1
 	let v2 = include_str!("slates/v2.slate");
 	let res = Slate::deserialize_upgrade(&v2);
 	assert!(res.is_ok());
+	let mut res = res.unwrap();
 	// downgrade
-	let s = res.unwrap().serialize_to_version(Some(1));
+	res.version_info.orig_version = 1;
+	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
-	println!("v2 -> v1: {}", s.unwrap());
+	let s = s.unwrap();
+	assert_eq!(Slate::parse_slate_version(&s), Ok(1));
+	println!("v2 -> v1: {}", s);
 
 	// Downgrade to V0
 	let v2 = include_str!("slates/v2.slate");
 	let res = Slate::deserialize_upgrade(&v2);
 	assert!(res.is_ok());
+	let mut res = res.unwrap();
 	// downgrade
-	let s = res.unwrap().serialize_to_version(Some(0));
+	res.version_info.orig_version = 0;
+	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
-	println!("v2 -> v0: {}", s.unwrap());
+	let s = s.unwrap();
+	assert_eq!(Slate::parse_slate_version(&s), Ok(0));
+	println!("v2 -> v0: {}", s);
 }
