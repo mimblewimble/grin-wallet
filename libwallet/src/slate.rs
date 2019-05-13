@@ -226,31 +226,6 @@ impl Slate {
 		Ok(v2.into())
 	}
 
-	/// Downgrate slate to desired version
-	/*pub fn serialize_to_version(&self, version: Option<u16>) -> Result<String, Error> {
-		let version = match version {
-			Some(v) => v,
-			None => CURRENT_SLATE_VERSION,
-		};
-		let ser_self = serde_json::to_string(&self).context(ErrorKind::SlateDeser)?;
-		match version {
-			2 => Ok(ser_self.clone()),
-			1 => {
-				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
-				let v1 = SlateV1::from(v2);
-				let slate = serde_json::to_string(&v1).context(ErrorKind::SlateDeser)?;
-				Ok(slate)
-			}
-			0 => {
-				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
-				let v1 = SlateV1::from(v2);
-				let v0 = SlateV0::from(v1);
-				Ok(serde_json::to_string(&v0).context(ErrorKind::SlateDeser)?)
-			}
-			_ => Err(ErrorKind::SlateVersion(version))?,
-		}
-	}*/
-
 	/// Create a new slate
 	pub fn blank(num_participants: usize) -> Slate {
 		Slate {
