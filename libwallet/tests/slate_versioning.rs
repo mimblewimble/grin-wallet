@@ -28,7 +28,9 @@ fn slate_conversions() {
 	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
 	let s = s.unwrap();
-	assert_eq!(Slate::parse_slate_version(&s), Ok(2));
+	let v = Slate::parse_slate_version(&s);
+	assert!(v.is_ok());
+	assert_eq!(v.unwrap(), 2);
 	println!("v0 -> v2: {}", s);
 
 	// Test V1 to V2
@@ -42,7 +44,9 @@ fn slate_conversions() {
 	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
 	let s = s.unwrap();
-	assert_eq!(Slate::parse_slate_version(&s), Ok(2));
+	let v = Slate::parse_slate_version(&s);
+	assert!(v.is_ok());
+	assert_eq!(v.unwrap(), 2);
 	println!("v1 -> v2: {}", s);
 
 	// V2 -> V2, check version
@@ -54,7 +58,9 @@ fn slate_conversions() {
 	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
 	let s = s.unwrap();
-	assert_eq!(Slate::parse_slate_version(&s), Ok(2));
+	let v = Slate::parse_slate_version(&s);
+	assert!(v.is_ok());
+	assert_eq!(v.unwrap(), 2);
 
 	// Downgrade to V1
 	let v2 = include_str!("slates/v2.slate");
@@ -66,7 +72,9 @@ fn slate_conversions() {
 	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
 	let s = s.unwrap();
-	assert_eq!(Slate::parse_slate_version(&s), Ok(1));
+	let v = Slate::parse_slate_version(&s);
+	assert!(v.is_ok());
+	assert_eq!(v.unwrap(), 1);
 	println!("v2 -> v1: {}", s);
 
 	// Downgrade to V0
@@ -79,6 +87,8 @@ fn slate_conversions() {
 	let s = serde_json::to_string(&res);
 	assert!(s.is_ok());
 	let s = s.unwrap();
-	assert_eq!(Slate::parse_slate_version(&s), Ok(0));
+	let v = Slate::parse_slate_version(&s);
+	assert!(v.is_ok());
+	assert_eq!(v.unwrap(), 0);
 	println!("v2 -> v0: {}", s);
 }
