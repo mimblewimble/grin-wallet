@@ -25,7 +25,7 @@ use crate::Owner;
 use easy_jsonrpc;
 
 /// Public definition used to generate Owner jsonrpc api.
-/// * When running `grin-wallet listen` with defaults, the V2 api is available at
+/// * When running `grin-wallet owner_api` with defaults, the V2 api is available at
 /// `localhost:3420/v2/owner`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
 #[easy_jsonrpc::rpc]
