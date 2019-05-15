@@ -19,6 +19,7 @@ use crate::api;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use config::WalletConfig;
+use serde::Serialize;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -47,7 +48,7 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
 		debug!("Posting transaction slate to {}", url);
-		let res: String = api::client::post(url.as_str(), None, &slate).map_err(|e| {
+		let res: String = post(url.as_str(), None, &slate).map_err(|e| {
 			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
@@ -75,4 +76,13 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 	) -> Result<(), Error> {
 		unimplemented!();
 	}
+}
+
+pub fn post<IN>(url: &str, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
+where
+	IN: Serialize,
+{
+	let req = api::client::create_post_request(url, api_secret, input)?;
+	let res = api::client::send_request(req)?;
+	Ok(res)
 }
