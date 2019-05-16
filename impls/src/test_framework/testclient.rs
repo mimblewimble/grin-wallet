@@ -30,7 +30,7 @@ use crate::libwallet::{NodeClient, Slate, TxWrapper, WalletInst};
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
-use crate::util::{Mutex, RwLock, StopState};
+use crate::util::{Mutex, RwLock};
 use crate::{libwallet, WalletCommAdapter};
 use failure::ResultExt;
 use serde_json;
@@ -105,7 +105,6 @@ where
 			pow::verify_size,
 			verifier_cache,
 			false,
-			Arc::new(Mutex::new(StopState::new())),
 		)
 		.unwrap();
 		let (tx, rx) = channel();
