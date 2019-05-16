@@ -389,8 +389,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 							// Reply to the same channel with topic SLATE_SIGNED
 							Ok(s) => {
 								let slate =
-									s.serialize_to_version(Some(slate.version_info.orig_version))?;
-								// TODO: Send the same version of slate that was sent to us
+									serde_json::to_string(&s).map_err(|_| ErrorKind::SlateSer)?;
 								let success = send(slate, channel, SLATE_SIGNED, TTL);
 
 								if success {

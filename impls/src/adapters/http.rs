@@ -16,11 +16,10 @@
 
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
-use crate::libwallet::slate_versions::{v0, v1};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use config::WalletConfig;
-use failure::ResultExt;
+use serde::Serialize;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -49,66 +48,14 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
 		debug!("Posting transaction slate to {}", url);
-		//TODO: Use VersionedSlate when converting to V2 API
-		let slate = slate.serialize_to_version(Some(slate.version_info.orig_version))?;
-		// For compatibility with older clients
-		let res: Slate = {
-			if let None = slate.find("version_info") {
-				let version = Slate::parse_slate_version(&slate)?;
-				match version {
-					1 => {
-						let ver1: v1::SlateV1 =
-							serde_json::from_str(&slate).context(ErrorKind::SlateDeser)?;
-						let r: Result<v1::SlateV1, _> =
-							api::client::post(url.as_str(), None, &ver1);
-						match r {
-							Err(e) => {
-								let report = format!(
-									"Posting transaction slate (is recipient listening?): {}",
-									e
-								);
-								error!("{}", report);
-								return Err(ErrorKind::ClientCallback(report).into());
-							}
-							Ok(s) => Slate::deserialize_upgrade(
-								&serde_json::to_string(&s).context(ErrorKind::SlateDeser)?,
-							)?,
-						}
-					}
-					_ => {
-						let ver0: v0::SlateV0 =
-							serde_json::from_str(&slate).context(ErrorKind::SlateDeser)?;
-						let r: Result<v0::SlateV0, _> =
-							api::client::post(url.as_str(), None, &ver0);
-						match r {
-							Err(e) => {
-								let report = format!(
-									"Posting transaction slate (is recipient listening?): {}",
-									e
-								);
-								error!("{}", report);
-								return Err(ErrorKind::ClientCallback(report).into());
-							}
-							Ok(s) => Slate::deserialize_upgrade(
-								&serde_json::to_string(&s).context(ErrorKind::SlateDeser)?,
-							)?,
-						}
-					}
-				}
-			} else {
-				let res: Result<String, _> = api::client::post(url.as_str(), None, &slate);
-				match res {
-					Err(e) => {
-						let report =
-							format!("Posting transaction slate (is recipient listening?): {}", e);
-						error!("{}", report);
-						return Err(ErrorKind::ClientCallback(report).into());
-					}
-					Ok(r) => Slate::deserialize_upgrade(&r)?,
-				}
-			}
-		};
-		Ok(res)
+		let res: String = post(url.as_str(), None, &slate).map_err(|e| {
+			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
+			error!("{}", report);
+			ErrorKind::ClientCallback(report)
+		})?;
+		let slate = Slate::deserialize_upgrade(&res).map_err(|_| ErrorKind::SlateDeser)?;
+
+		Ok(slate)
 	}
 
 	fn send_tx_async(&self, _dest: &str, _slate: &Slate) -> Result<(), Error> {
@@ -129,4 +76,13 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 	) -> Result<(), Error> {
 		unimplemented!();
 	}
+}
+
+pub fn post<IN>(url: &str, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
+where
+	IN: Serialize,
+{
+	let req = api::client::create_post_request(url, api_secret, input)?;
+	let res = api::client::send_request(req)?;
+	Ok(res)
 }

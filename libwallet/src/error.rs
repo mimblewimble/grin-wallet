@@ -181,6 +181,10 @@ pub enum ErrorKind {
 	#[fail(display = "Can't parse slate version")]
 	SlateVersionParse,
 
+	/// Can't serialize slate
+	#[fail(display = "Can't Serialize slate")]
+	SlateSer,
+
 	/// Can't deserialize slate
 	#[fail(display = "Can't Deserialize slate")]
 	SlateDeser,

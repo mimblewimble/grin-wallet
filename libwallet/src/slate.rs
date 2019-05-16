@@ -33,6 +33,7 @@ use crate::grin_util::{self, secp, RwLock};
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
+use serde::ser::{Serialize, Serializer};
 use serde_json;
 use std::fmt;
 use std::sync::Arc;
@@ -148,7 +149,7 @@ impl fmt::Display for ParticipantMessageData {
 /// the slate around by whatever means they choose, (but we can provide some
 /// binary or JSON serialization helpers here).
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Slate {
 	/// Versioning info
 	pub version_info: VersionCompatInfo,
@@ -196,24 +197,11 @@ pub struct ParticipantMessages {
 }
 
 impl Slate {
-	/// TODO: Reduce the number of changes that need to occur below for each new
-	/// slate version
+	/// Attempt to find slate version
 	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
-		// keep attempting to deser, working through known versions until we have
-		// enough to get the version out
-		let res: Result<SlateV2, serde_json::Error> = serde_json::from_str(slate_json);
-		if let Ok(s) = res {
-			return Ok(s.version_info.version);
-		}
-		let res: Result<SlateV1, serde_json::Error> = serde_json::from_str(slate_json);
-		if let Ok(s) = res {
-			return Ok(s.version as u16);
-		}
-		let res: Result<SlateV0, serde_json::Error> = serde_json::from_str(slate_json);
-		if let Ok(_) = res {
-			return Ok(0);
-		}
-		Err(ErrorKind::SlateVersionParse)?
+		let probe: SlateVersionProbe =
+			serde_json::from_str(slate_json).map_err(|_| ErrorKind::SlateVersionParse)?;
+		Ok(probe.version())
 	}
 
 	/// Recieve a slate, upgrade it to the latest version internally
@@ -233,35 +221,9 @@ impl Slate {
 				let v1 = SlateV1::from(v0);
 				SlateV2::from(v1)
 			}
-			_ => return Err(ErrorKind::SlateVersion(version))?,
+			_ => return Err(ErrorKind::SlateVersion(version).into()),
 		};
-		let f = serde_json::to_string(&v2).context(ErrorKind::SlateDeser)?;
-		Ok(serde_json::from_str(&f).context(ErrorKind::SlateDeser)?)
-	}
-
-	/// Downgrate slate to desired version
-	pub fn serialize_to_version(&self, version: Option<u16>) -> Result<String, Error> {
-		let version = match version {
-			Some(v) => v,
-			None => CURRENT_SLATE_VERSION,
-		};
-		let ser_self = serde_json::to_string(&self).context(ErrorKind::SlateDeser)?;
-		match version {
-			2 => Ok(ser_self.clone()),
-			1 => {
-				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
-				let v1 = SlateV1::from(v2);
-				let slate = serde_json::to_string(&v1).context(ErrorKind::SlateDeser)?;
-				Ok(slate)
-			}
-			0 => {
-				let v2: SlateV2 = serde_json::from_str(&ser_self).context(ErrorKind::SlateDeser)?;
-				let v1 = SlateV1::from(v2);
-				let v0 = SlateV0::from(v1);
-				Ok(serde_json::to_string(&v0).context(ErrorKind::SlateDeser)?)
-			}
-			_ => Err(ErrorKind::SlateVersion(version))?,
-		}
+		Ok(v2.into())
 	}
 
 	/// Create a new slate
@@ -709,6 +671,50 @@ impl Slate {
 	}
 }
 
+impl Serialize for Slate {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		use serde::ser::Error;
+
+		let v2 = SlateV2::from(self);
+		match self.version_info.orig_version {
+			2 => v2.serialize(serializer),
+			1 => {
+				let v1 = SlateV1::from(v2);
+				v1.serialize(serializer)
+			}
+			0 => {
+				let v1 = SlateV1::from(v2);
+				let v0 = SlateV0::from(v1);
+				v0.serialize(serializer)
+			}
+			v => Err(S::Error::custom(format!("Unknown slate version {}", v))),
+		}
+	}
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SlateVersionProbe {
+	#[serde(default)]
+	version: Option<u64>,
+	#[serde(default)]
+	version_info: Option<VersionCompatInfo>,
+}
+
+impl SlateVersionProbe {
+	pub fn version(&self) -> u16 {
+		match &self.version_info {
+			Some(v) => v.version,
+			None => match self.version {
+				Some(_) => 1,
+				None => 0,
+			},
+		}
+	}
+}
+
 // Current slate version to versioned conversions
 
 // Slate to versioned
@@ -728,6 +734,42 @@ impl From<Slate> for SlateV2 {
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV2::from(data));
 		let version_info = VersionCompatInfoV2::from(&version_info);
 		let tx = TransactionV2::from(tx);
+		SlateV2 {
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			participant_data,
+			version_info,
+		}
+	}
+}
+
+impl From<&Slate> for SlateV2 {
+	fn from(slate: &Slate) -> SlateV2 {
+		let Slate {
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			participant_data,
+			version_info,
+		} = slate;
+		let num_participants = *num_participants;
+		let id = *id;
+		let tx = TransactionV2::from(tx);
+		let amount = *amount;
+		let fee = *fee;
+		let height = *height;
+		let lock_height = *lock_height;
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV2::from(data));
+		let version_info = VersionCompatInfoV2::from(version_info);
 		SlateV2 {
 			num_participants,
 			id,
@@ -791,6 +833,15 @@ impl From<Transaction> for TransactionV2 {
 	fn from(tx: Transaction) -> TransactionV2 {
 		let Transaction { offset, body } = tx;
 		let body = TransactionBodyV2::from(&body);
+		TransactionV2 { offset, body }
+	}
+}
+
+impl From<&Transaction> for TransactionV2 {
+	fn from(tx: &Transaction) -> TransactionV2 {
+		let Transaction { offset, body } = tx;
+		let offset = *offset;
+		let body = TransactionBodyV2::from(body);
 		TransactionV2 { offset, body }
 	}
 }
