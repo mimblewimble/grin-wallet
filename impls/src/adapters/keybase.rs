@@ -388,9 +388,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 						match res {
 							// Reply to the same channel with topic SLATE_SIGNED
 							Ok(s) => {
-								let slate =
-									serde_json::to_string(&s).map_err(|_| ErrorKind::SlateSer)?;
-								let success = send(slate, channel, SLATE_SIGNED, TTL);
+								let success = send(s, channel, SLATE_SIGNED, TTL);
 
 								if success {
 									notify_on_receive(
