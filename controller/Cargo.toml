@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_controller"
-version = "1.1.0-beta.2"
+version = "1.1.0-beta.3"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Controllers for grin wallet instantiation"
 license = "Apache-2.0"
@@ -32,9 +32,9 @@ chrono = { version = "0.4.4", features = ["serde"] }
 easy-jsonrpc = "0.5.1"
 lazy_static = "1"
 
-grin_wallet_util = { path = "../util", version = "1.1.0-beta.2" }
+grin_wallet_util = { path = "../util", version = "1.1.0-beta.3" }
 
-grin_wallet_api = { path = "../api", version = "1.1.0-beta.2" }
-grin_wallet_impls = { path = "../impls", version = "1.1.0-beta.2" }
-grin_wallet_libwallet = { path = "../libwallet", version = "1.1.0-beta.2" }
-grin_wallet_config = { path = "../config", version = "1.1.0-beta.2" }
+grin_wallet_api = { path = "../api", version = "1.1.0-beta.3" }
+grin_wallet_impls = { path = "../impls", version = "1.1.0-beta.3" }
+grin_wallet_libwallet = { path = "../libwallet", version = "1.1.0-beta.3" }
+grin_wallet_config = { path = "../config", version = "1.1.0-beta.3" }
