@@ -15,12 +15,12 @@
 /// Standard Input/Output 'plugin' implementation
 use std::io::{stdin, stdout, Read, Write};
 
+use crate::base64;
 use crate::config::WalletConfig;
-use crate::libwallet::{Error, Slate};
 use crate::libwallet::slate_versions::VersionedSlate;
+use crate::libwallet::{Error, Slate};
 use crate::WalletCommAdapter;
 use std::collections::HashMap;
-use crate::base64;
 
 #[derive(Clone)]
 pub struct StdioWalletCommAdapter {}
@@ -46,9 +46,7 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 		let v2 = VersionedSlate::V2(slate.into());
 		let bytes = v2.encode()?;
 
-		stream.write_all(
-			base64::encode(&bytes).as_bytes()
-		)?;
+		stream.write_all(base64::encode(&bytes).as_bytes())?;
 		stream.flush()?;
 		Ok(())
 	}
