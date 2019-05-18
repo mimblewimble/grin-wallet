@@ -17,12 +17,12 @@
 //! Versions earlier than V2 are removed for the 2.0.0 release, but versioning code
 //! remains for future needs
 
+use crate::error::{Error, ErrorKind};
 use crate::slate::Slate;
 use crate::slate_versions::v2::SlateV2;
-use crate::error::{ErrorKind, Error};
 
-use byteorder::{WriteBytesExt, BigEndian};
 use crate::grin_util::secp;
+use byteorder::{BigEndian, WriteBytesExt};
 
 #[allow(missing_docs)]
 pub mod v2;
@@ -75,13 +75,16 @@ impl VersionedSlate {
 	/// Encodes a slate into a vec of bytes by serializing the fields in order
 	/// and prepending variable length fields with their length
 	pub fn encode(&self) -> Result<Vec<u8>, Error> {
-
 		let slate: &SlateV2 = match self {
 			VersionedSlate::V2(s) => s,
-			VersionedSlate::V1(_) => { return Err(ErrorKind::SlateSer)?; },
-			VersionedSlate::V0(_) => { return Err(ErrorKind::SlateSer)?; }
+			VersionedSlate::V1(_) => {
+				return Err(ErrorKind::SlateSer)?;
+			}
+			VersionedSlate::V0(_) => {
+				return Err(ErrorKind::SlateSer)?;
+			}
 		};
-		let mut buf: Vec<u8> =  Vec::new();
+		let mut buf: Vec<u8> = Vec::new();
 
 		// Save 3 bytes by casting u16 to u8 (should be fine up to slate v255)
 		buf.push(slate.version_info.version as u8);
@@ -91,7 +94,7 @@ impl VersionedSlate {
 		buf.write_u16::<BigEndian>(slate.num_participants as u16)?;
 
 		let txid = slate.id.to_hyphenated().to_string().into_bytes();
-		buf.push(txid.len() as u8);  // max 255 bytes long txid
+		buf.push(txid.len() as u8); // max 255 bytes long txid
 		buf.extend(txid);
 
 		buf.extend(slate.tx.offset.as_ref());
@@ -131,12 +134,12 @@ impl VersionedSlate {
 		buf.write_u64::<BigEndian>(slate.lock_height)?;
 
 		buf.write_u16::<BigEndian>(slate.participant_data.len() as u16)?;
-		
+
 		let s = secp::Secp256k1::new();
 
 		for pd in slate.participant_data.iter() {
 			// Save 7 bytes by casting u64 to u8, we only use 1 bit anyway
-			buf.push(pd.id as u8);  
+			buf.push(pd.id as u8);
 			buf.extend(pd.public_blind_excess.serialize_vec(&s, true));
 			buf.extend(pd.public_nonce.serialize_vec(&s, true));
 
@@ -152,7 +155,7 @@ impl VersionedSlate {
 				None => buf.push(0),
 				Some(n) => {
 					let msg = n.clone().into_bytes();
-					buf.push(msg.len() as u8);  // maximum message size 255 bytes
+					buf.push(msg.len() as u8); // maximum message size 255 bytes
 					buf.extend(msg);
 				}
 			}
