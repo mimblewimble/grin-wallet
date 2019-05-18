@@ -19,6 +19,10 @@
 
 use crate::slate::Slate;
 use crate::slate_versions::v2::SlateV2;
+use crate::error::{ErrorKind, Error};
+
+use byteorder::{WriteBytesExt, BigEndian};
+use crate::grin_util::secp;
 
 #[allow(missing_docs)]
 pub mod v2;
@@ -66,6 +70,101 @@ impl VersionedSlate {
 				VersionedSlate::V0(s)
 			}*/
 		}
+	}
+
+	/// Encodes a slate into a vec of bytes by serializing the fields in order
+	/// and prepending variable length fields with their length
+	pub fn encode(&self) -> Result<Vec<u8>, Error> {
+
+		let slate: &SlateV2 = match self {
+			VersionedSlate::V2(s) => s,
+			VersionedSlate::V1(_) => { return Err(ErrorKind::SlateSer)?; },
+			VersionedSlate::V0(_) => { return Err(ErrorKind::SlateSer)?; }
+		};
+		let mut buf: Vec<u8> =  Vec::new();
+
+		// Save 3 bytes by casting u16 to u8 (should be fine up to slate v255)
+		buf.push(slate.version_info.version as u8);
+		buf.push(slate.version_info.orig_version as u8);
+		buf.push(slate.version_info.min_compat_version as u8);
+
+		buf.write_u16::<BigEndian>(slate.num_participants as u16)?;
+
+		let txid = slate.id.to_hyphenated().to_string().into_bytes();
+		buf.push(txid.len() as u8);  // max 255 bytes long txid
+		buf.extend(txid);
+
+		buf.extend(slate.tx.offset.as_ref());
+		buf.write_u16::<BigEndian>(slate.tx.body.inputs.len() as u16)?;
+
+		for input in slate.tx.body.inputs.iter() {
+			buf.push(input.features as u8);
+			buf.extend(input.commit.0.iter())
+		}
+
+		buf.write_u16::<BigEndian>(slate.tx.body.outputs.len() as u16)?;
+
+		for output in slate.tx.body.outputs.iter() {
+			buf.push(output.features as u8);
+
+			buf.extend(output.commit.0.iter());
+
+			buf.write_u16::<BigEndian>(output.proof.len() as u16)?;
+			buf.extend(output.proof.bytes().iter())
+		}
+
+		buf.write_u16::<BigEndian>(slate.tx.body.kernels.len() as u16)?;
+
+		for kernel in slate.tx.body.kernels.iter() {
+			buf.push(kernel.features as u8);
+
+			buf.write_u64::<BigEndian>(kernel.fee)?;
+
+			buf.write_u64::<BigEndian>(kernel.lock_height)?;
+			buf.extend(kernel.excess.0.iter());
+			buf.extend(kernel.excess_sig.as_ref());
+		}
+
+		buf.write_u64::<BigEndian>(slate.amount)?;
+		buf.write_u64::<BigEndian>(slate.fee)?;
+		buf.write_u64::<BigEndian>(slate.height)?;
+		buf.write_u64::<BigEndian>(slate.lock_height)?;
+
+		buf.write_u16::<BigEndian>(slate.participant_data.len() as u16)?;
+		
+		let s = secp::Secp256k1::new();
+
+		for pd in slate.participant_data.iter() {
+			// Save 7 bytes by casting u64 to u8, we only use 1 bit anyway
+			buf.push(pd.id as u8);  
+			buf.extend(pd.public_blind_excess.serialize_vec(&s, true));
+			buf.extend(pd.public_nonce.serialize_vec(&s, true));
+
+			match pd.part_sig {
+				None => buf.push(0),
+				Some(n) => {
+					buf.push(n.as_ref().len() as u8);
+					buf.extend(n.as_ref().iter());
+				}
+			};
+
+			match &pd.message {
+				None => buf.push(0),
+				Some(n) => {
+					let msg = n.clone().into_bytes();
+					buf.push(msg.len() as u8);  // maximum message size 255 bytes
+					buf.extend(msg);
+				}
+			}
+			match pd.message_sig {
+				None => buf.push(0),
+				Some(n) => {
+					buf.push(n.as_ref().len() as u8);
+					buf.extend(n.as_ref().iter());
+				}
+			}
+		}
+		Ok(buf)
 	}
 }
 
