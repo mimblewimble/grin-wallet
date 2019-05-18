@@ -16,15 +16,18 @@ mod file;
 mod http;
 mod keybase;
 mod null;
+mod stdio;
 
 pub use self::file::FileWalletCommAdapter;
 pub use self::http::HTTPWalletCommAdapter;
 pub use self::keybase::KeybaseWalletCommAdapter;
 pub use self::null::NullWalletCommAdapter;
+pub use self::stdio::StdioWalletCommAdapter;
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, Slate};
 use std::collections::HashMap;
+extern crate base64;
 
 /// Encapsulate wallet to wallet communication functions
 pub trait WalletCommAdapter {
