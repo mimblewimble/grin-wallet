@@ -367,6 +367,7 @@ pub fn receive(
 
 /// Finalize command args
 pub struct FinalizeArgs {
+	pub method: String,
 	pub input: String,
 	pub fluff: bool,
 }
@@ -375,7 +376,11 @@ pub fn finalize(
 	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
 	args: FinalizeArgs,
 ) -> Result<(), Error> {
-	let adapter = FileWalletCommAdapter::new();
+	let adapter = match &args.method[..] {
+		"file" => FileWalletCommAdapter::new(),
+		"string" => StdioWalletCommAdapter::new(),
+		_ => NullWalletCommAdapter::new(),
+	};
 	let mut slate = adapter.receive_tx_async(&args.input)?;
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
@@ -479,8 +484,6 @@ pub fn process_invoice(
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error> {
-	// let adapter = FileWalletCommAdapter::new();
-	// let slate = adapter.receive_tx_async(&args.input)?;
 	let slate = args.slate.clone();
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {

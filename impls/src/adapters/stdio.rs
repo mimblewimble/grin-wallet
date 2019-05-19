@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// Standard Input/Output 'plugin' implementation
-use std::io::{stdin, stdout, Read, Write};
+use std::io::{stdin, Read};
 
 use crate::base64;
 use crate::config::WalletConfig;
@@ -42,24 +42,20 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 	}
 
 	fn send_tx_async(&self, _dest: &str, slate: &Slate) -> Result<(), Error> {
-		// let mut stream = stdout();
 		let v2 = VersionedSlate::V2(slate.into());
 		let bytes = v2.encode()?;
 		println!("{}", base64::encode(&bytes));
-
-		// stream.write_all(base64::encode(&bytes).as_bytes())?;
-		// stream.flush()?;
 		Ok(())
 	}
 
 	fn receive_tx_async(&self, params: &str) -> Result<Slate, Error> {
+		let params = params.trim();
 		// if user passed the string as input decode that, else
 		// read from stdin
 		let b64string = match params {
 			"" => {
 				let mut stream = stdin();
 				let mut content = String::new();
-				println!("Paste your base64 slate here.");
 				stream.read_to_string(&mut content)?;
 				content
 			}

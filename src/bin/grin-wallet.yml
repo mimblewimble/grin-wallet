@@ -155,7 +155,7 @@ subcommands:
       about: Processes a receiver's transaction file to finalize a transfer.
       args:
         - input:
-            help: Partial transaction to process, expects the receiver's transaction file.
+            help: Partial transaction to process, expects the receiver's transaction file or a base64 string.
             short: i
             long: input
             takes_value: true
@@ -163,6 +163,16 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
+        - method:
+            help: Method of input for the slate
+            short: m
+            long: method
+            possible_values:
+              - file
+              - string
+            default_value: file
+            takes_value: true
+
   - invoice:
       about: Initialize an invoice transction.
       args:

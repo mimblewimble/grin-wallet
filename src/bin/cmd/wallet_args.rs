@@ -513,15 +513,25 @@ pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveA
 }
 
 pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, ParseError> {
+	let method = parse_required(args, "method")?;
 	let fluff = args.is_present("fluff");
-	let tx_file = parse_required(args, "input")?;
 
-	if !Path::new(&tx_file).is_file() {
-		let msg = format!("File {} not found.", tx_file);
+	let params = match method {
+		// tx_file location
+		"file" => parse_required(args, "input")?,
+		// if user provided the string as input use that or else wait
+		// for input from stdin (the adapter does that if string is empty)
+		"string" => args.value_of("input").unwrap_or(""), // b64 string
+		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned())),
+	};
+
+	if method == "file" && !Path::new(&params).is_file() {
+		let msg = format!("File {} not found.", params);
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::FinalizeArgs {
-		input: tx_file.to_owned(),
+		method: method.to_owned(),
+		input: params.to_owned(),
 		fluff: fluff,
 	})
 }
