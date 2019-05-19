@@ -32,10 +32,10 @@ use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
 	instantiate_wallet, FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter,
-	LMDBBackend, NullWalletCommAdapter,
+	LMDBBackend, NullWalletCommAdapter, StdioWalletCommAdapter
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
+use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, Slate};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -436,6 +436,7 @@ pub fn finalize(
 pub struct IssueInvoiceArgs {
 	/// output file
 	pub dest: String,
+	pub method: String,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
 }
@@ -446,9 +447,14 @@ pub fn issue_invoice_tx(
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
 		let slate = api.issue_invoice_tx(args.issue_args)?;
-		let mut tx_file = File::create(args.dest.clone())?;
-		tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
-		tx_file.sync_all()?;
+		let adapter = match args.method.as_str() {
+			"file" => FileWalletCommAdapter::new(),
+			"string" => StdioWalletCommAdapter::new(),
+			_ => NullWalletCommAdapter::new(),
+		};
+
+		adapter.send_tx_async(args.dest.as_str(), &slate)?;
+
 		Ok(())
 	})?;
 	Ok(())
@@ -462,7 +468,8 @@ pub struct ProcessInvoiceArgs {
 	pub method: String,
 	pub dest: String,
 	pub max_outputs: usize,
-	pub input: String,
+	pub target_slate_version: Option<u16>,
+	pub slate: Slate,
 	pub estimate_selection_strategies: bool,
 }
 
@@ -472,8 +479,9 @@ pub fn process_invoice(
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error> {
-	let adapter = FileWalletCommAdapter::new();
-	let slate = adapter.receive_tx_async(&args.input)?;
+	// let adapter = FileWalletCommAdapter::new();
+	// let slate = adapter.receive_tx_async(&args.input)?;
+	let slate = args.slate.clone();
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -530,6 +538,7 @@ pub fn process_invoice(
 				"http" => HTTPWalletCommAdapter::new(),
 				"file" => FileWalletCommAdapter::new(),
 				"self" => NullWalletCommAdapter::new(),
+				"string" => StdioWalletCommAdapter::new(),
 				_ => NullWalletCommAdapter::new(),
 			};
 			if adapter.supports_sync() {

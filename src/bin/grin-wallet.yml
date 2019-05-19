@@ -111,6 +111,7 @@ subcommands:
               - file
               - self
               - keybase
+              - string
             default_value: http
             takes_value: true
         - dest:
@@ -183,6 +184,15 @@ subcommands:
             short: d
             long: dest
             takes_value: true
+        - method:
+            help: Method for sending this invoice
+            short: m
+            long: method
+            possible_values:
+              - file
+              - string
+            default_value: string
+            takes_value: true
   - pay:
       about: Spend coins to pay the provided invoice transaction
       args:
@@ -213,7 +223,8 @@ subcommands:
               - file
               - http
               - self
-            default_value: file
+              - string
+            default_value: string
             takes_value: true
         - dest:
             help: Send the transaction to the provided server (start with http://) or save as file.

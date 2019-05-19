@@ -18,7 +18,7 @@ use std::io::{stdin, stdout, Read, Write};
 use crate::base64;
 use crate::config::WalletConfig;
 use crate::libwallet::slate_versions::VersionedSlate;
-use crate::libwallet::{Error, Slate};
+use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use std::collections::HashMap;
 
@@ -42,21 +42,34 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 	}
 
 	fn send_tx_async(&self, _dest: &str, slate: &Slate) -> Result<(), Error> {
-		let mut stream = stdout();
+		
+		// let mut stream = stdout();
 		let v2 = VersionedSlate::V2(slate.into());
 		let bytes = v2.encode()?;
+		println!("{}", base64::encode(&bytes));
 
-		stream.write_all(base64::encode(&bytes).as_bytes())?;
-		stream.flush()?;
+		// stream.write_all(base64::encode(&bytes).as_bytes())?;
+		// stream.flush()?;
 		Ok(())
 	}
 
 	fn receive_tx_async(&self, params: &str) -> Result<Slate, Error> {
-		let mut stream = stdin();
-		let mut content = String::new();
-		stream.read_to_string(&mut content)?;
-		let bytes = base64::decode(content.as_bytes());
-		Ok(Slate::deserialize_upgrade(&content)?) // TODO replace with slate.decode()
+		// if user passed the string as input decode that, else
+		// read from stdin
+		let b64string = match params {
+			"" => {
+				let mut stream = stdin();
+				let mut content = String::new();
+				println!("Paste your base64 slate here.");
+				stream.read_to_string(&mut content)?;
+				content
+			}
+			_ => params.to_owned()
+		};
+
+		let bytes = base64::decode(b64string.as_bytes()).map_err(|_| ErrorKind::SlateDeser)?;
+		let v2 = VersionedSlate::from_bytes(bytes)?;
+		Ok(v2.into())
 	}
 
 	fn listen(

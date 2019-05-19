@@ -35,14 +35,15 @@
 //!    orig_version: u16,
 //!    block_header_version: u16,
 
-use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
+pub use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
 use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::BlindingFactor;
+use crate::grin_core::map_vec;
+pub use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp;
-use crate::grin_util::secp::key::PublicKey;
-use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-use crate::grin_util::secp::Signature;
-use uuid::Uuid;
+pub use crate::grin_util::secp::key::PublicKey;
+pub use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+pub use crate::grin_util::secp::Signature;
+pub use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV2 {

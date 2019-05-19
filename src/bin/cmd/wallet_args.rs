@@ -21,8 +21,8 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
+use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, StdioWalletCommAdapter, WalletSeed};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
@@ -151,7 +151,7 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 #[cfg(not(test))]
 fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
 	let interface = Arc::new(Interface::new("pay")?);
-	let amount = amount_to_hr_string(slate.amount, false);
+	let amount = amount_to_hr_string(slate.amount, true);
 	interface.set_report_signal(Signal::Interrupt, true);
 	interface.set_prompt(
 		"To proceed, type the exact amount of the invoice as displayed above (or Q/q to quit) > ",
@@ -168,8 +168,10 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 	);
 	if method == "http" {
 		println!("* The resulting transaction will IMMEDIATELY be sent to the wallet listening at: '{}'.", dest);
-	} else {
+	} else if method == "file" {
 		println!("* The resulting transaction will be saved to the file '{}', which you can manually send back to the invoice creator.", dest);
+	} else if method == "string" {
+		println!("* The resulting transaction will be printed to the screen, and you can manually send it back to the invoice creator.");
 	}
 	println!();
 	println!("The invoice slate's participant info is:");
@@ -553,9 +555,15 @@ pub fn parse_issue_invoice_args(
 		}
 	};
 	// dest (output file)
-	let dest = parse_required(args, "dest")?;
+	let method = parse_required(args, "method")?;
+	let dest = match method {
+		"string" => "",
+		_ => parse_required(args, "dest")?
+	};
+
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
+		method: method.to_string(),
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,
@@ -596,7 +604,7 @@ pub fn parse_process_invoice_args(
 				None => "default",
 			}
 		} else {
-			if !estimate_selection_strategies {
+			if !estimate_selection_strategies && method != "string" {
 				parse_required(args, "dest")?
 			} else {
 				""
@@ -618,18 +626,38 @@ pub fn parse_process_invoice_args(
 	// max_outputs
 	let max_outputs = 500;
 
-	// file input only
-	let tx_file = parse_required(args, "input")?;
+	// target slate version to create/send
+	let target_slate_version = {
+		match args.is_present("slate_version") {
+			true => {
+				let v = parse_required(args, "slate_version")?;
+				Some(parse_u64(v, "slate_version")? as u16)
+			}
+			false => None,
+		}
+	};
+
+	let params = match method {
+		// tx_file location
+		"file" => parse_required(args, "input")?, 
+		// if user provided the string as input use that or else wait
+		// for input from stdin (the adapter does that if string is empty)
+		"string" => args.value_of("input").unwrap_or(""),  // b64 string
+		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned()))
+	};
+
+	let adapter = match method {
+		"file" => FileWalletCommAdapter::new(),
+		"string" => StdioWalletCommAdapter::new(),
+		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned()))
+	};
 
 	// Now we need to prompt the user whether they want to do this,
 	// which requires reading the slate
-	#[cfg(not(test))]
-	let adapter = FileWalletCommAdapter::new();
-	#[cfg(not(test))]
-	let slate = match adapter.receive_tx_async(&tx_file) {
+	let slate = match adapter.receive_tx_async(&params) {
 		Ok(s) => s,
 		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
-	};
+	};	
 
 	#[cfg(not(test))] // don't prompt during automated testing
 	prompt_pay_invoice(&slate, method, dest)?;
@@ -642,9 +670,10 @@ pub fn parse_process_invoice_args(
 		method: method.to_owned(),
 		dest: dest.to_owned(),
 		max_outputs: max_outputs,
-		input: tx_file.to_owned(),
-	})
-}
+		target_slate_version: target_slate_version,
+		slate: slate,
+		})
+	}
 
 pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseError> {
 	// minimum_confirmations
