@@ -348,7 +348,6 @@ pub fn receive(
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 ) -> Result<(), Error> {
-
 	let adapter = match args.method.as_str() {
 		"file" => FileWalletCommAdapter::new(),
 		"string" => StdioWalletCommAdapter::new(),
