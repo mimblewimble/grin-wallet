@@ -296,6 +296,7 @@ pub fn send(
 				"file" => FileWalletCommAdapter::new(),
 				"keybase" => KeybaseWalletCommAdapter::new(),
 				"self" => NullWalletCommAdapter::new(),
+				"string" => StdioWalletCommAdapter::new(),
 				_ => NullWalletCommAdapter::new(),
 			};
 			if adapter.supports_sync() {
@@ -337,6 +338,7 @@ pub fn send(
 
 /// Receive command argument
 pub struct ReceiveArgs {
+	pub method: String,
 	pub input: String,
 	pub message: Option<String>,
 }
@@ -346,7 +348,12 @@ pub fn receive(
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 ) -> Result<(), Error> {
-	let adapter = FileWalletCommAdapter::new();
+
+	let adapter = match args.method.as_str() {
+		"file" => FileWalletCommAdapter::new(),
+		"string" => StdioWalletCommAdapter::new(),
+		_ => NullWalletCommAdapter::new(),
+	};
 	let mut slate = adapter.receive_tx_async(&args.input)?;
 	controller::foreign_single_use(wallet, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
@@ -358,10 +365,12 @@ pub fn receive(
 	})?;
 	let send_tx = format!("{}.response", args.input);
 	adapter.send_tx_async(&send_tx, &slate)?;
-	info!(
-		"Response file {}.response generated, and can be sent back to the transaction originator.",
-		args.input
-	);
+	if args.method.as_str() == "file" {
+		info!(
+			"Response file {}.response generated, sending it back to the transaction originator.",
+			args.input
+		);
+	}
 	Ok(())
 }
 
@@ -376,7 +385,7 @@ pub fn finalize(
 	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
 	args: FinalizeArgs,
 ) -> Result<(), Error> {
-	let adapter = match &args.method[..] {
+	let adapter = match args.method.as_str() {
 		"file" => FileWalletCommAdapter::new(),
 		"string" => StdioWalletCommAdapter::new(),
 		_ => NullWalletCommAdapter::new(),

@@ -151,6 +151,15 @@ subcommands:
             short: i
             long: input
             takes_value: true
+        - method:
+            help: Method for sending this transaction
+            short: m
+            long: method
+            possible_values:
+              - file
+              - string
+            default_value: file
+            takes_value: true
   - finalize:
       about: Processes a receiver's transaction file to finalize a transfer.
       args:
