@@ -21,7 +21,9 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, StdioWalletCommAdapter, WalletSeed};
+use grin_wallet_impls::{
+	instantiate_wallet, FileWalletCommAdapter, StdioWalletCommAdapter, WalletSeed,
+};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
@@ -558,7 +560,7 @@ pub fn parse_issue_invoice_args(
 	let method = parse_required(args, "method")?;
 	let dest = match method {
 		"string" => "",
-		_ => parse_required(args, "dest")?
+		_ => parse_required(args, "dest")?,
 	};
 
 	Ok(command::IssueInvoiceArgs {
@@ -639,17 +641,17 @@ pub fn parse_process_invoice_args(
 
 	let params = match method {
 		// tx_file location
-		"file" => parse_required(args, "input")?, 
+		"file" => parse_required(args, "input")?,
 		// if user provided the string as input use that or else wait
 		// for input from stdin (the adapter does that if string is empty)
-		"string" => args.value_of("input").unwrap_or(""),  // b64 string
-		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned()))
+		"string" => args.value_of("input").unwrap_or(""), // b64 string
+		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned())),
 	};
 
 	let adapter = match method {
 		"file" => FileWalletCommAdapter::new(),
 		"string" => StdioWalletCommAdapter::new(),
-		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned()))
+		_ => return Err(ParseError::ArgumentError("Unknown method".to_owned())),
 	};
 
 	// Now we need to prompt the user whether they want to do this,
@@ -657,7 +659,7 @@ pub fn parse_process_invoice_args(
 	let slate = match adapter.receive_tx_async(&params) {
 		Ok(s) => s,
 		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
-	};	
+	};
 
 	#[cfg(not(test))] // don't prompt during automated testing
 	prompt_pay_invoice(&slate, method, dest)?;
@@ -672,8 +674,8 @@ pub fn parse_process_invoice_args(
 		max_outputs: max_outputs,
 		target_slate_version: target_slate_version,
 		slate: slate,
-		})
-	}
+	})
+}
 
 pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseError> {
 	// minimum_confirmations

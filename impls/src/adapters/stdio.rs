@@ -42,7 +42,6 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 	}
 
 	fn send_tx_async(&self, _dest: &str, slate: &Slate) -> Result<(), Error> {
-		
 		// let mut stream = stdout();
 		let v2 = VersionedSlate::V2(slate.into());
 		let bytes = v2.encode()?;
@@ -64,7 +63,7 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 				stream.read_to_string(&mut content)?;
 				content
 			}
-			_ => params.to_owned()
+			_ => params.to_owned(),
 		};
 
 		let bytes = base64::decode(b64string.as_bytes()).map_err(|_| ErrorKind::SlateDeser)?;

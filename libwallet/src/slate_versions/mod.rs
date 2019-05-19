@@ -21,11 +21,11 @@ use crate::error::{Error, ErrorKind};
 use crate::slate::Slate;
 use crate::slate_versions::v2::SlateV2;
 
+use crate::enum_primitive::FromPrimitive;
 use crate::grin_util::secp;
-use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Cursor, Read};
 use std::str;
-use crate::enum_primitive::FromPrimitive;
 
 #[allow(missing_docs)]
 pub mod v2;
@@ -177,10 +177,10 @@ impl VersionedSlate {
 	pub fn from_bytes(data: Vec<u8>) -> Result<Self, Error> {
 		let mut rdr = Cursor::new(data);
 
-		let version_info = v2::VersionCompatInfoV2{
-			version: rdr.read_u8()? as u16, 
-			orig_version: rdr.read_u8()? as u16, 
-			min_compat_version: rdr.read_u8()? as u16
+		let version_info = v2::VersionCompatInfoV2 {
+			version: rdr.read_u8()? as u16,
+			orig_version: rdr.read_u8()? as u16,
+			min_compat_version: rdr.read_u8()? as u16,
 		};
 
 		let num_participants = rdr.read_u16::<BigEndian>()? as usize;
@@ -198,18 +198,20 @@ impl VersionedSlate {
 		let mut inputs: Vec<v2::InputV2> = Vec::with_capacity(n_inputs);
 
 		for _ in 0..n_inputs {
-			let features = v2::OutputFeatures::from_u8(rdr.read_u8()?).ok_or_else(|| ErrorKind::SlateDeser)?;
+			let features =
+				v2::OutputFeatures::from_u8(rdr.read_u8()?).ok_or_else(|| ErrorKind::SlateDeser)?;
 			let mut commit = [0u8; secp::constants::PEDERSEN_COMMITMENT_SIZE];
 			rdr.read_exact(&mut commit)?;
 			let commit = v2::Commitment(commit);
-			inputs.push(v2::InputV2{features, commit});
+			inputs.push(v2::InputV2 { features, commit });
 		}
 
 		let n_outputs = rdr.read_u16::<BigEndian>()? as usize;
 		let mut outputs: Vec<v2::OutputV2> = Vec::with_capacity(n_outputs);
 
 		for _ in 0..n_outputs {
-			let features = v2::OutputFeatures::from_u8(rdr.read_u8()?).ok_or_else(|| ErrorKind::SlateDeser)?;
+			let features =
+				v2::OutputFeatures::from_u8(rdr.read_u8()?).ok_or_else(|| ErrorKind::SlateDeser)?;
 			let mut commit = [0u8; secp::constants::PEDERSEN_COMMITMENT_SIZE];
 			rdr.read_exact(&mut commit)?;
 			let commit = v2::Commitment(commit);
@@ -217,13 +219,10 @@ impl VersionedSlate {
 			let plen = rdr.read_u16::<BigEndian>()? as usize;
 			rdr.read_exact(&mut proof[..plen])?;
 
-			let output = v2::OutputV2{
+			let output = v2::OutputV2 {
 				features,
 				commit,
-				proof: v2::RangeProof {
-					proof,
-					plen
-				}
+				proof: v2::RangeProof { proof, plen },
 			};
 			outputs.push(output);
 		}
@@ -232,10 +231,11 @@ impl VersionedSlate {
 		let mut kernels: Vec<v2::TxKernelV2> = Vec::with_capacity(n_kernels);
 
 		for _ in 0..n_kernels {
-			let features = v2::KernelFeatures::from_u8(rdr.read_u8()?).ok_or_else(|| ErrorKind::SlateDeser)?;
+			let features =
+				v2::KernelFeatures::from_u8(rdr.read_u8()?).ok_or_else(|| ErrorKind::SlateDeser)?;
 			let fee = rdr.read_u64::<BigEndian>()?;
 			let lock_height = rdr.read_u64::<BigEndian>()?;
-			
+
 			let mut excess = [0u8; secp::constants::PEDERSEN_COMMITMENT_SIZE];
 			rdr.read_exact(&mut excess)?;
 			let excess = v2::Commitment(excess);
@@ -244,16 +244,22 @@ impl VersionedSlate {
 			rdr.read_exact(&mut excess_sig)?;
 			let excess_sig = v2::Signature::from_raw_data(&excess_sig)?;
 
-			kernels.push(v2::TxKernelV2{features, fee, lock_height, excess, excess_sig});
+			kernels.push(v2::TxKernelV2 {
+				features,
+				fee,
+				lock_height,
+				excess,
+				excess_sig,
+			});
 		}
 
-		let tx = v2::TransactionV2{
+		let tx = v2::TransactionV2 {
 			offset,
-			body: v2::TransactionBodyV2{
+			body: v2::TransactionBodyV2 {
 				inputs,
 				outputs,
-				kernels
-			}
+				kernels,
+			},
 		};
 
 		let amount = rdr.read_u64::<BigEndian>()?;
@@ -263,8 +269,6 @@ impl VersionedSlate {
 
 		let pdata_len = rdr.read_u16::<BigEndian>()? as usize;
 		let mut participant_data: Vec<v2::ParticipantDataV2> = Vec::with_capacity(pdata_len);
-
-
 
 		let s = secp::Secp256k1::new();
 
@@ -294,7 +298,8 @@ impl VersionedSlate {
 					let n = n as usize;
 					let mut msg = [0u8; 255];
 					rdr.read_exact(&mut msg[..n])?;
-					let string = String::from_utf8(msg[..n].to_vec()).map_err(|_| ErrorKind::SlateDeser)?;
+					let string =
+						String::from_utf8(msg[..n].to_vec()).map_err(|_| ErrorKind::SlateDeser)?;
 					Some(string)
 				}
 			};
@@ -308,17 +313,17 @@ impl VersionedSlate {
 				}
 			};
 
-			participant_data.push(v2::ParticipantDataV2{
+			participant_data.push(v2::ParticipantDataV2 {
 				id,
 				public_blind_excess,
 				public_nonce,
 				part_sig,
 				message,
-				message_sig
+				message_sig,
 			});
 		}
 
-		let slate = v2::SlateV2{
+		let slate = v2::SlateV2 {
 			version_info,
 			num_participants,
 			id,
@@ -327,7 +332,7 @@ impl VersionedSlate {
 			fee,
 			height,
 			lock_height,
-			participant_data
+			participant_data,
 		};
 
 		Ok(VersionedSlate::V2(slate))
