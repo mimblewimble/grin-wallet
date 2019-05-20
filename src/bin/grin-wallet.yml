@@ -1,6 +1,6 @@
-name: grin
-version: "1.0.1"
-about: Lightweight implementation of the MimbleWimble protocol.
+name: grin-wallet
+version: "1.1.0"
+about: Reference Grin Wallet
 author: The Grin Team
 
 args:
