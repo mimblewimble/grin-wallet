@@ -308,6 +308,9 @@ where
 		None => None,
 	};
 
+	// update slate current height
+	ret_slate.height = w.w2n_client().get_chain_height()?;
+
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
 		&mut ret_slate,
