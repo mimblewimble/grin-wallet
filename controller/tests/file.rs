@@ -121,7 +121,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		// output tx file
 		let file_adapter = FileWalletCommAdapter::new();
 		file_adapter.send_tx_async(&send_file, &mut slate)?;
-		api.tx_lock_outputs(&slate)?;
+		api.tx_lock_outputs(&slate, 0)?;
 		Ok(())
 	})?;
 

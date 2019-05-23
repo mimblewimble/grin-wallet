@@ -118,13 +118,13 @@ where
 	K: Keychain,
 {
 	let mut sl = slate.clone();
-	let context = w.get_private_context(sl.id.as_bytes())?;
+	let context = w.get_private_context(sl.id.as_bytes(), 1)?;
 	tx::complete_tx(&mut *w, &mut sl, 1, &context)?;
 	tx::update_stored_tx(&mut *w, &mut sl, true)?;
 	tx::update_message(&mut *w, &mut sl)?;
 	{
 		let mut batch = w.batch()?;
-		batch.delete_private_context(sl.id.as_bytes())?;
+		batch.delete_private_context(sl.id.as_bytes(), 1)?;
 		batch.commit()?;
 	}
 	Ok(sl)

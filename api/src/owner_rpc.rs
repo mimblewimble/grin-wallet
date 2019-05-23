@@ -690,7 +690,8 @@ pub trait OwnerRpc {
 				"orig_version": 2,
 				"version": 2
 				}
-			}
+			},
+			0
 		]
 	}
 	# "#
@@ -708,7 +709,7 @@ pub trait OwnerRpc {
 
 	```
 	 */
-	fn tx_lock_outputs(&self, slate: Slate) -> Result<(), ErrorKind>;
+	fn tx_lock_outputs(&self, slate: Slate, participant_id: usize) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::finalize_tx](struct.Owner.html#method.finalize_tx).
@@ -1293,8 +1294,8 @@ where
 		Owner::finalize_tx(self, &mut slate).map_err(|e| e.kind())
 	}
 
-	fn tx_lock_outputs(&self, mut slate: Slate) -> Result<(), ErrorKind> {
-		Owner::tx_lock_outputs(self, &mut slate).map_err(|e| e.kind())
+	fn tx_lock_outputs(&self, mut slate: Slate, participant_id: usize) -> Result<(), ErrorKind> {
+		Owner::tx_lock_outputs(self, &mut slate, participant_id).map_err(|e| e.kind())
 	}
 
 	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind> {
@@ -1420,7 +1421,7 @@ pub fn run_doctest_owner(
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		if lock_tx {
-			api_impl::owner::tx_lock_outputs(&mut *w, &slate).unwrap();
+			api_impl::owner::tx_lock_outputs(&mut *w, &slate, 0).unwrap();
 		}
 		if finalize_tx {
 			api_impl::owner::finalize_tx(&mut *w, &slate).unwrap();
