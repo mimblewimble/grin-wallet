@@ -201,7 +201,7 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch()?;
-		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
 		batch.commit()?;
 	}
 	if let Some(v) = args.target_slate_version {
@@ -255,7 +255,7 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch()?;
-		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.save_private_context(slate.id.as_bytes(), 1, &context)?;
 		batch.commit()?;
 	}
 
@@ -329,7 +329,7 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch()?;
-		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
 		batch.commit()?;
 	}
 
@@ -337,13 +337,17 @@ where
 }
 
 /// Lock sender outputs
-pub fn tx_lock_outputs<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<(), Error>
+pub fn tx_lock_outputs<T: ?Sized, C, K>(
+	w: &mut T,
+	slate: &Slate,
+	participant_id: usize,
+) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
-	let context = w.get_private_context(slate.id.as_bytes())?;
+	let context = w.get_private_context(slate.id.as_bytes(), participant_id)?;
 	selection::lock_tx_context(&mut *w, slate, &context)
 }
 
@@ -355,13 +359,13 @@ where
 	K: Keychain,
 {
 	let mut sl = slate.clone();
-	let context = w.get_private_context(sl.id.as_bytes())?;
+	let context = w.get_private_context(sl.id.as_bytes(), 0)?;
 	tx::complete_tx(&mut *w, &mut sl, 0, &context)?;
 	tx::update_stored_tx(&mut *w, &mut sl, false)?;
 	tx::update_message(&mut *w, &mut sl)?;
 	{
 		let mut batch = w.batch()?;
-		batch.delete_private_context(sl.id.as_bytes())?;
+		batch.delete_private_context(sl.id.as_bytes(), 0)?;
 		batch.commit()?;
 	}
 	Ok(sl)

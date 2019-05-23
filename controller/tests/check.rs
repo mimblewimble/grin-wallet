@@ -192,7 +192,7 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		let file_adapter = FileWalletCommAdapter::new();
 		let send_file = format!("{}/part_tx_1.tx", test_dir);
 		file_adapter.send_tx_async(&send_file, &mut slate)?;
-		api.tx_lock_outputs(&slate)?;
+		api.tx_lock_outputs(&slate, 0)?;
 		Ok(())
 	})?;
 

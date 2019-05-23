@@ -66,6 +66,7 @@ where
 		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
+		0,
 	);
 
 	context.fee = fee;
@@ -199,6 +200,7 @@ where
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,
+		1,
 	);
 
 	context.add_output(&key_id, &None, amount);

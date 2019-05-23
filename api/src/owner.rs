@@ -482,7 +482,7 @@ where
 	/// 	// Send slate somehow
 	/// 	// ...
 	/// 	// Lock our outputs if we're happy the slate was (or is being) sent
-	/// 	api_owner.tx_lock_outputs(&slate);
+	/// 	api_owner.tx_lock_outputs(&slate, 0);
 	/// }
 	/// ```
 
@@ -513,7 +513,7 @@ where
 						))?;
 					}
 				}
-				self.tx_lock_outputs(&slate)?;
+				self.tx_lock_outputs(&slate, 0)?;
 				let slate = match sa.finalize {
 					true => self.finalize_tx(&slate)?,
 					false => slate,
@@ -645,6 +645,8 @@ where
 	///
 	/// # Arguments
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
+	/// * `participant_id` - The participant id, generally 0 for the party putting in funds, 1 for the
+	/// party receiving.
 	/// elements in the `input` vector of the `tx` field that are found in the wallet's currently
 	/// active account will be set to status `Locked`
 	///
@@ -676,14 +678,14 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate);
+	///		api_owner.tx_lock_outputs(&slate, 0);
 	/// }
 	/// ```
 
-	pub fn tx_lock_outputs(&self, slate: &Slate) -> Result<(), Error> {
+	pub fn tx_lock_outputs(&self, slate: &Slate, participant_id: usize) -> Result<(), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let res = owner::tx_lock_outputs(&mut *w, slate);
+		let res = owner::tx_lock_outputs(&mut *w, slate, participant_id);
 		w.close()?;
 		res
 	}
@@ -734,7 +736,7 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		let res = api_owner.tx_lock_outputs(&slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
@@ -791,7 +793,7 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		let res = api_owner.tx_lock_outputs(&slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
@@ -852,7 +854,7 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		let res = api_owner.tx_lock_outputs(&slate, 0);
 	///		//
 	///		// We didn't get the slate back, or something else went wrong
 	///		//
@@ -945,7 +947,7 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate);
+	///		let res = api_owner.tx_lock_outputs(&slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//

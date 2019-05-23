@@ -124,7 +124,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 				..Default::default()
 			};
 			slate = api.process_invoice_tx(&slate, args)?;
-			api.tx_lock_outputs(&slate)?;
+			api.tx_lock_outputs(&slate, 0)?;
 			Ok(())
 		})?;
 
@@ -160,9 +160,6 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			Ok(())
 		})?;
 
-		// let logging finish
-		thread::sleep(Duration::from_millis(200));
-
 		// Check transaction log for wallet 1, ensure only 1 entry
 		// exists
 		wallet::controller::owner_single_use(wallet1.clone(), |api| {
@@ -176,7 +173,44 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			);
 			Ok(())
 		})?;
+
+		// Test self-sending
+		wallet::controller::owner_single_use(wallet1.clone(), |api| {
+			// Wallet 1 inititates an invoice transaction, requesting payment
+			let args = IssueInvoiceTxArgs {
+				amount: reward * 2,
+				..Default::default()
+			};
+			slate = api.issue_invoice_tx(args)?;
+			// Wallet 1 receives the invoice transaction
+			let args = InitTxArgs {
+				src_acct_name: None,
+				amount: slate.amount,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			slate = api.process_invoice_tx(&slate, args)?;
+			api.tx_lock_outputs(&slate, 0)?;
+			Ok(())
+		})?;
+
+		// wallet 1 finalizes and posts
+		wallet::controller::foreign_single_use(wallet1.clone(), |api| {
+			// Wallet 2 receives the invoice transaction
+			slate = api.finalize_invoice_tx(&slate)?;
+			Ok(())
+		})?;
+
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
+		//bh += 3;
+
+		// let logging finish
+		thread::sleep(Duration::from_millis(200));
 	}
+
 	teardown(test_dir);
 	Ok(())
 }

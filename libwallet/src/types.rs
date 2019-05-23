@@ -95,7 +95,11 @@ where
 	fn get_tx_log_entry(&self, uuid: &Uuid) -> Result<Option<TxLogEntry>, Error>;
 
 	/// Retrieves the private context associated with a given slate id
-	fn get_private_context(&mut self, slate_id: &[u8]) -> Result<Context, Error>;
+	fn get_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+	) -> Result<Context, Error>;
 
 	/// Iterate over all output data stored by the backend
 	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a>;
@@ -181,10 +185,19 @@ where
 	fn lock_output(&mut self, out: &mut OutputData) -> Result<(), Error>;
 
 	/// Saves the private context associated with a slate id
-	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error>;
+	fn save_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+		ctx: &Context,
+	) -> Result<(), Error>;
 
 	/// Delete the private context associated with the slate id
-	fn delete_private_context(&mut self, slate_id: &[u8]) -> Result<(), Error>;
+	fn delete_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+	) -> Result<(), Error>;
 
 	/// Write the wallet data to backend file
 	fn commit(&self) -> Result<(), Error>;
@@ -391,6 +404,8 @@ pub struct Context {
 	pub input_ids: Vec<(Identifier, Option<u64>, u64)>,
 	/// store the calculated fee
 	pub fee: u64,
+	/// keep track of the participant id
+	pub participant_id: usize,
 }
 
 impl Context {
@@ -400,6 +415,7 @@ impl Context {
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
+		participant_id: usize,
 	) -> Context {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
@@ -412,6 +428,7 @@ impl Context {
 			input_ids: vec![],
 			output_ids: vec![],
 			fee: 0,
+			participant_id: participant_id,
 		}
 	}
 }

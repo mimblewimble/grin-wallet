@@ -300,7 +300,7 @@ pub fn send(
 			};
 			if adapter.supports_sync() {
 				slate = adapter.send_tx_sync(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate)?;
+				api.tx_lock_outputs(&slate, 0)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
 						slate = api.receive_tx(&slate, Some(&args.dest), None)?;
@@ -314,7 +314,7 @@ pub fn send(
 				slate = api.finalize_tx(&slate)?;
 			} else {
 				adapter.send_tx_async(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate)?;
+				api.tx_lock_outputs(&slate, 0)?;
 			}
 			if adapter.supports_sync() {
 				let result = api.post_tx(&slate.tx, args.fluff);
@@ -536,7 +536,7 @@ pub fn process_invoice(
 			};
 			if adapter.supports_sync() {
 				slate = adapter.send_tx_sync(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate)?;
+				api.tx_lock_outputs(&slate, 0)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
 						slate = api.finalize_invoice_tx(&slate)?;
@@ -545,7 +545,7 @@ pub fn process_invoice(
 				}
 			} else {
 				adapter.send_tx_async(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate)?;
+				api.tx_lock_outputs(&slate, 0)?;
 			}
 		}
 		Ok(())

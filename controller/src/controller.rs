@@ -400,7 +400,7 @@ where
 					))?;
 				}
 			}
-			api.tx_lock_outputs(&slate)?;
+			api.tx_lock_outputs(&slate, 0)?;
 			if args.method != "file" {
 				slate = api.finalize_tx(&slate)?;
 			}

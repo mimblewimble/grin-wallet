@@ -250,8 +250,16 @@ where
 		Box::new(self.db.iter(&[TX_LOG_ENTRY_PREFIX]).unwrap().map(|o| o.1))
 	}
 
-	fn get_private_context(&mut self, slate_id: &[u8]) -> Result<Context, Error> {
-		let ctx_key = to_key(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec());
+	fn get_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+	) -> Result<Context, Error> {
+		let ctx_key = to_key_u64(
+			PRIVATE_TX_CONTEXT_PREFIX,
+			&mut slate_id.to_vec(),
+			participant_id as u64,
+		);
 		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain(), slate_id)?;
 
 		let mut ctx: Context = option_to_not_found(
@@ -538,8 +546,17 @@ where
 		self.save(out.clone())
 	}
 
-	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error> {
-		let ctx_key = to_key(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec());
+	fn save_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+		ctx: &Context,
+	) -> Result<(), Error> {
+		let ctx_key = to_key_u64(
+			PRIVATE_TX_CONTEXT_PREFIX,
+			&mut slate_id.to_vec(),
+			participant_id as u64,
+		);
 		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain(), slate_id)?;
 
 		let mut s_ctx = ctx.clone();
@@ -556,8 +573,16 @@ where
 		Ok(())
 	}
 
-	fn delete_private_context(&mut self, slate_id: &[u8]) -> Result<(), Error> {
-		let ctx_key = to_key(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec());
+	fn delete_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+	) -> Result<(), Error> {
+		let ctx_key = to_key_u64(
+			PRIVATE_TX_CONTEXT_PREFIX,
+			&mut slate_id.to_vec(),
+			participant_id as u64,
+		);
 		self.db
 			.borrow()
 			.as_ref()
