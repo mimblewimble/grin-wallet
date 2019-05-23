@@ -536,7 +536,7 @@ pub fn process_invoice(
 			};
 			if adapter.supports_sync() {
 				slate = adapter.send_tx_sync(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, 1)?;
+				api.tx_lock_outputs(&slate, 0)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
 						slate = api.finalize_invoice_tx(&slate)?;
@@ -545,7 +545,7 @@ pub fn process_invoice(
 				}
 			} else {
 				adapter.send_tx_async(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, 1)?;
+				api.tx_lock_outputs(&slate, 0)?;
 			}
 		}
 		Ok(())
