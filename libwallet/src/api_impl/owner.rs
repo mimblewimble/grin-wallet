@@ -337,7 +337,11 @@ where
 }
 
 /// Lock sender outputs
-pub fn tx_lock_outputs<T: ?Sized, C, K>(w: &mut T, slate: &Slate, participant_id: usize) -> Result<(), Error>
+pub fn tx_lock_outputs<T: ?Sized, C, K>(
+	w: &mut T,
+	slate: &Slate,
+	participant_id: usize,
+) -> Result<(), Error>
 where
 	T: WalletBackend<C, K>,
 	C: NodeClient,

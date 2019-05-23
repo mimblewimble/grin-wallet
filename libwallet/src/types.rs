@@ -95,7 +95,11 @@ where
 	fn get_tx_log_entry(&self, uuid: &Uuid) -> Result<Option<TxLogEntry>, Error>;
 
 	/// Retrieves the private context associated with a given slate id
-	fn get_private_context(&mut self, slate_id: &[u8], participant_id: usize) -> Result<Context, Error>;
+	fn get_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+	) -> Result<Context, Error>;
 
 	/// Iterate over all output data stored by the backend
 	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a>;
@@ -181,10 +185,19 @@ where
 	fn lock_output(&mut self, out: &mut OutputData) -> Result<(), Error>;
 
 	/// Saves the private context associated with a slate id
-	fn save_private_context(&mut self, slate_id: &[u8], participant_id: usize, ctx: &Context) -> Result<(), Error>;
+	fn save_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+		ctx: &Context,
+	) -> Result<(), Error>;
 
 	/// Delete the private context associated with the slate id
-	fn delete_private_context(&mut self, slate_id: &[u8], participant_id: usize) -> Result<(), Error>;
+	fn delete_private_context(
+		&mut self,
+		slate_id: &[u8],
+		participant_id: usize,
+	) -> Result<(), Error>;
 
 	/// Write the wallet data to backend file
 	fn commit(&self) -> Result<(), Error>;

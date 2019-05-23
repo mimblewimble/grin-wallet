@@ -203,7 +203,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			slate = api.finalize_invoice_tx(&slate)?;
 			Ok(())
 		})?;
-		
+
 		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3, false);
 		//bh += 3;
 
