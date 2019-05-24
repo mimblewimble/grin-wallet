@@ -20,7 +20,6 @@
 use crate::slate::Slate;
 use crate::slate_versions::v2::SlateV2;
 
-
 #[allow(missing_docs)]
 pub mod v2;
 

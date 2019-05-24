@@ -20,14 +20,14 @@ use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::committed::Committed;
 use crate::grin_core::core::transaction::{
-	kernel_features, kernel_sig_msg, Input, Output, Transaction, TransactionBody, TxKernel,
-	Weighting, OutputFeatures, KernelFeatures
+	kernel_features, kernel_sig_msg, Input, KernelFeatures, Output, OutputFeatures, Transaction,
+	TransactionBody, TxKernel, Weighting,
 };
-use crate::grin_core::ser;
-use crate::grin_core::ser::{Readable, Writeable, Writer, Reader};
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
 use crate::grin_core::map_vec;
+use crate::grin_core::ser;
+use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
@@ -704,9 +704,7 @@ impl Serialize for Slate {
 }
 
 impl Writeable for Slate {
-
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
-		
 		// Save 3 bytes by casting u16 to u8 (should be fine up to slate v255)
 		writer.write_u8(self.version_info.version as u8)?;
 		writer.write_u8(self.version_info.orig_version as u8)?;
@@ -715,24 +713,24 @@ impl Writeable for Slate {
 		writer.write_u16(self.num_participants as u16)?;
 
 		let txid = self.id.to_hyphenated().to_string().into_bytes();
-		writer.write_u8(txid.len() as u8)?;  // max 255 bytes long txid
+		writer.write_u8(txid.len() as u8)?; // max 255 bytes long txid
 		writer.write_fixed_bytes(&txid)?;
 
 		writer.write_fixed_bytes(&self.tx.offset)?;
-		
+
 		writer.write_u16(self.tx.body.inputs.len() as u16)?;
-		
+
 		for input in self.tx.body.inputs.iter() {
 			writer.write_u8(input.features as u8)?;
 			input.commit.write(writer)?;
-		}		
+		}
 
 		writer.write_u16(self.tx.body.outputs.len() as u16)?;
 
 		for output in self.tx.body.outputs.iter() {
 			writer.write_u8(output.features as u8)?;
 			writer.write_fixed_bytes(&output.commit)?;
-			
+
 			// Don't use RangeProof::write() because it encodes length as u64
 			writer.write_u16(output.proof.len() as u16)?;
 			writer.write_fixed_bytes(&output.proof)?;
@@ -746,8 +744,7 @@ impl Writeable for Slate {
 			writer.write_u64(kernel.lock_height)?;
 			kernel.excess.write(writer)?;
 			kernel.excess_sig.write(writer)?;
-			
-		}				
+		}
 
 		writer.write_u64(self.amount)?;
 		writer.write_u64(self.fee)?;
@@ -776,7 +773,7 @@ impl Writeable for Slate {
 				None => writer.write_u8(0)?,
 				Some(n) => {
 					let msg = n.clone().into_bytes();
-					writer.write_u8(msg.len() as u8)?;  // maximum message size 255 bytes
+					writer.write_u8(msg.len() as u8)?; // maximum message size 255 bytes
 					msg.write(writer)?;
 				}
 			};
@@ -788,21 +785,19 @@ impl Writeable for Slate {
 					n.write(writer)?;
 				}
 			};
-		}		
+		}
 
 		Ok(())
-	 }
+	}
 }
 
 impl Readable for Slate {
-
 	fn read(reader: &mut dyn Reader) -> Result<Self, ser::Error> {
-
 		let version_info = VersionCompatInfo {
 			version: reader.read_u8()? as u16,
 			orig_version: reader.read_u8()? as u16,
 			min_compat_version: reader.read_u8()? as u16,
-		};		
+		};
 
 		let num_participants = reader.read_u16()? as usize;
 		let txid_len = reader.read_u8()? as usize;
@@ -845,7 +840,7 @@ impl Readable for Slate {
 		let n_kernels = reader.read_u16()? as usize;
 		let mut kernels: Vec<TxKernel> = Vec::with_capacity(n_kernels);
 
-		for _ in 0..n_kernels { 
+		for _ in 0..n_kernels {
 			let features = KernelFeatures::read(reader)?;
 			let fee = reader.read_u64()?;
 			let lock_height = reader.read_u64()?;
@@ -883,16 +878,18 @@ impl Readable for Slate {
 			let id = reader.read_u8()? as u64;
 
 			let buf = reader.read_fixed_bytes(secp::constants::COMPRESSED_PUBLIC_KEY_SIZE)?;
-			let public_blind_excess = PublicKey::from_slice(&s, &buf).map_err(|_| ser::Error::CorruptedData)?;
+			let public_blind_excess =
+				PublicKey::from_slice(&s, &buf).map_err(|_| ser::Error::CorruptedData)?;
 
 			let buf = reader.read_fixed_bytes(secp::constants::COMPRESSED_PUBLIC_KEY_SIZE)?;
-			let public_nonce = PublicKey::from_slice(&s, &buf).map_err(|_| ser::Error::CorruptedData)?;
+			let public_nonce =
+				PublicKey::from_slice(&s, &buf).map_err(|_| ser::Error::CorruptedData)?;
 
 			// The next u8 should be either 0 for no signature or the size of the signature (should be 64)
 			let part_sig: Option<Signature> = match reader.read_u8()? as usize {
 				0 => None,
 				secp::constants::AGG_SIGNATURE_SIZE => Some(Signature::read(reader)?),
-				_ => return Err(ser::Error::CountError)
+				_ => return Err(ser::Error::CountError),
 			};
 
 			let message: Option<String> = match reader.read_u8()? {
@@ -908,7 +905,7 @@ impl Readable for Slate {
 			let message_sig: Option<Signature> = match reader.read_u8()? as usize {
 				0 => None,
 				secp::constants::AGG_SIGNATURE_SIZE => Some(Signature::read(reader)?),
-				_ => return Err(ser::Error::CountError)
+				_ => return Err(ser::Error::CountError),
 			};
 
 			participant_data.push(ParticipantData {
@@ -918,9 +915,7 @@ impl Readable for Slate {
 				part_sig,
 				message,
 				message_sig,
-			});			
-
-
+			});
 		}
 
 		Ok(Slate {
@@ -934,11 +929,8 @@ impl Readable for Slate {
 			lock_height,
 			participant_data,
 		})
-
-
 	}
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateVersionProbe {
