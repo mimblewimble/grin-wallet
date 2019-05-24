@@ -17,7 +17,6 @@ use std::io::{stdin, Read};
 
 use crate::base64;
 use crate::config::WalletConfig;
-use crate::libwallet::slate_versions::VersionedSlate;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use std::collections::HashMap;
@@ -42,8 +41,7 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 	}
 
 	fn send_tx_async(&self, _dest: &str, slate: &Slate) -> Result<(), Error> {
-		let v2 = VersionedSlate::V2(slate.into());
-		let bytes = v2.encode()?;
+		let bytes = slate.to_bytes()?;
 		println!("{}", base64::encode(&bytes));
 		Ok(())
 	}
@@ -63,8 +61,8 @@ impl WalletCommAdapter for StdioWalletCommAdapter {
 		};
 
 		let bytes = base64::decode(b64string.as_bytes()).map_err(|_| ErrorKind::SlateDeser)?;
-		let v2 = VersionedSlate::from_bytes(bytes)?;
-		Ok(v2.into())
+		let slate = Slate::from_bytes(&bytes)?;
+		Ok(slate)
 	}
 
 	fn listen(

@@ -49,7 +49,6 @@ mod internal;
 mod slate;
 pub mod slate_versions;
 mod types;
-extern crate enum_primitive;
 
 pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::{ParticipantData, ParticipantMessageData, Slate};

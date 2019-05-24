@@ -21,13 +21,17 @@ use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::committed::Committed;
 use crate::grin_core::core::transaction::{
 	kernel_features, kernel_sig_msg, Input, Output, Transaction, TransactionBody, TxKernel,
-	Weighting,
+	Weighting, OutputFeatures, KernelFeatures
 };
+use crate::grin_core::ser;
+use crate::grin_core::ser::{Readable, Writeable, Writer, Reader};
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{self, secp, RwLock};
 use failure::ResultExt;
@@ -36,6 +40,7 @@ use rand::thread_rng;
 use serde::ser::{Serialize, Serializer};
 use serde_json;
 use std::fmt;
+use std::str;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -662,6 +667,19 @@ impl Slate {
 		self.tx = final_tx;
 		Ok(())
 	}
+
+	/// Encodes a slate into a vec of bytes by serializing the fields in order
+	/// and prepending variable length fields with their length
+	pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+		let vec = ser::ser_vec(self).map_err(|_| ErrorKind::SlateSer)?;
+		Ok(vec)
+	}
+
+	/// Deserialize raw bytes into a slate
+	pub fn from_bytes(bytes: &Vec<u8>) -> Result<Self, Error> {
+		let slate = ser::deserialize(&mut &bytes[..]).map_err(|_| ErrorKind::SlateDeser)?;
+		Ok(slate)
+	}
 }
 
 impl Serialize for Slate {
@@ -684,6 +702,243 @@ impl Serialize for Slate {
 		}
 	}
 }
+
+impl Writeable for Slate {
+
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		
+		// Save 3 bytes by casting u16 to u8 (should be fine up to slate v255)
+		writer.write_u8(self.version_info.version as u8)?;
+		writer.write_u8(self.version_info.orig_version as u8)?;
+		writer.write_u8(self.version_info.min_compat_version as u8)?;
+
+		writer.write_u16(self.num_participants as u16)?;
+
+		let txid = self.id.to_hyphenated().to_string().into_bytes();
+		writer.write_u8(txid.len() as u8)?;  // max 255 bytes long txid
+		writer.write_fixed_bytes(&txid)?;
+
+		writer.write_fixed_bytes(&self.tx.offset)?;
+		
+		writer.write_u16(self.tx.body.inputs.len() as u16)?;
+		
+		for input in self.tx.body.inputs.iter() {
+			writer.write_u8(input.features as u8)?;
+			input.commit.write(writer)?;
+		}		
+
+		writer.write_u16(self.tx.body.outputs.len() as u16)?;
+
+		for output in self.tx.body.outputs.iter() {
+			writer.write_u8(output.features as u8)?;
+			writer.write_fixed_bytes(&output.commit)?;
+			
+			// Don't use RangeProof::write() because it encodes length as u64
+			writer.write_u16(output.proof.len() as u16)?;
+			writer.write_fixed_bytes(&output.proof)?;
+		}
+
+		writer.write_u16(self.tx.body.kernels.len() as u16)?;
+
+		for kernel in self.tx.body.kernels.iter() {
+			kernel.features.write(writer)?;
+			writer.write_u64(kernel.fee)?;
+			writer.write_u64(kernel.lock_height)?;
+			kernel.excess.write(writer)?;
+			kernel.excess_sig.write(writer)?;
+			
+		}				
+
+		writer.write_u64(self.amount)?;
+		writer.write_u64(self.fee)?;
+		writer.write_u64(self.height)?;
+		writer.write_u64(self.lock_height)?;
+
+		writer.write_u16(self.participant_data.len() as u16)?;
+
+		let s = secp::Secp256k1::new();
+
+		for pd in self.participant_data.iter() {
+			// Save 7 bytes by casting u64 to u8, we only use 1 bit anyway
+			writer.write_u8(pd.id as u8)?;
+			writer.write_fixed_bytes(&pd.public_blind_excess.serialize_vec(&s, true).as_ref())?;
+			writer.write_fixed_bytes(&pd.public_nonce.serialize_vec(&s, true).as_ref())?;
+
+			match pd.part_sig {
+				None => writer.write_u8(0)?,
+				Some(n) => {
+					writer.write_u8(n.as_ref().len() as u8)?;
+					n.write(writer)?;
+				}
+			};
+
+			match &pd.message {
+				None => writer.write_u8(0)?,
+				Some(n) => {
+					let msg = n.clone().into_bytes();
+					writer.write_u8(msg.len() as u8)?;  // maximum message size 255 bytes
+					msg.write(writer)?;
+				}
+			};
+
+			match pd.message_sig {
+				None => writer.write_u8(0)?,
+				Some(n) => {
+					writer.write_u8(n.as_ref().len() as u8)?;
+					n.write(writer)?;
+				}
+			};
+		}		
+
+		Ok(())
+	 }
+}
+
+impl Readable for Slate {
+
+	fn read(reader: &mut dyn Reader) -> Result<Self, ser::Error> {
+
+		let version_info = VersionCompatInfo {
+			version: reader.read_u8()? as u16,
+			orig_version: reader.read_u8()? as u16,
+			min_compat_version: reader.read_u8()? as u16,
+		};		
+
+		let num_participants = reader.read_u16()? as usize;
+		let txid_len = reader.read_u8()? as usize;
+		let id = reader.read_fixed_bytes(txid_len)?;
+		let id = str::from_utf8(&id).map_err(|_| ser::Error::CorruptedData)?;
+		let id = Uuid::parse_str(id).map_err(|_| ser::Error::CorruptedData)?;
+
+		let offset = BlindingFactor::read(reader)?;
+
+		let n_inputs = reader.read_u16()? as usize;
+		let mut inputs: Vec<Input> = Vec::with_capacity(n_inputs);
+
+		for _ in 0..n_inputs {
+			let features = OutputFeatures::read(reader)?;
+			let commit = Commitment::read(reader)?;
+			inputs.push(Input { features, commit });
+		}
+
+		let n_outputs = reader.read_u16()? as usize;
+		let mut outputs: Vec<Output> = Vec::with_capacity(n_outputs);
+
+		for _ in 0..n_outputs {
+			let features = OutputFeatures::read(reader)?;
+			let commit = Commitment::read(reader)?;
+
+			// Don't use RangeProof::read() because it expects the length as u64
+			let mut proof = [0u8; secp::constants::MAX_PROOF_SIZE];
+			let plen = reader.read_u16()? as usize;
+			let p = reader.read_fixed_bytes(plen)?;
+			proof[..plen].clone_from_slice(&p[..]);
+
+			let output = Output {
+				features,
+				commit,
+				proof: RangeProof { proof, plen },
+			};
+			outputs.push(output);
+		}
+
+		let n_kernels = reader.read_u16()? as usize;
+		let mut kernels: Vec<TxKernel> = Vec::with_capacity(n_kernels);
+
+		for _ in 0..n_kernels { 
+			let features = KernelFeatures::read(reader)?;
+			let fee = reader.read_u64()?;
+			let lock_height = reader.read_u64()?;
+			let excess = Commitment::read(reader)?;
+			let excess_sig = Signature::read(reader)?;
+			kernels.push(TxKernel {
+				features,
+				fee,
+				lock_height,
+				excess,
+				excess_sig,
+			});
+		}
+
+		let tx = Transaction {
+			offset,
+			body: TransactionBody {
+				inputs,
+				outputs,
+				kernels,
+			},
+		};
+
+		let amount = reader.read_u64()?;
+		let fee = reader.read_u64()?;
+		let height = reader.read_u64()?;
+		let lock_height = reader.read_u64()?;
+
+		let n_pdata = reader.read_u16()? as usize;
+		let mut participant_data: Vec<ParticipantData> = Vec::with_capacity(n_pdata);
+
+		let s = secp::Secp256k1::with_caps(secp::ContextFlag::None);
+
+		for _ in 0..n_pdata {
+			let id = reader.read_u8()? as u64;
+
+			let buf = reader.read_fixed_bytes(secp::constants::COMPRESSED_PUBLIC_KEY_SIZE)?;
+			let public_blind_excess = PublicKey::from_slice(&s, &buf).map_err(|_| ser::Error::CorruptedData)?;
+
+			let buf = reader.read_fixed_bytes(secp::constants::COMPRESSED_PUBLIC_KEY_SIZE)?;
+			let public_nonce = PublicKey::from_slice(&s, &buf).map_err(|_| ser::Error::CorruptedData)?;
+
+			// The next u8 should be either 0 for no signature or the size of the signature (should be 64)
+			let part_sig: Option<Signature> = match reader.read_u8()? as usize {
+				0 => None,
+				secp::constants::AGG_SIGNATURE_SIZE => Some(Signature::read(reader)?),
+				_ => return Err(ser::Error::CountError)
+			};
+
+			let message: Option<String> = match reader.read_u8()? {
+				0 => None,
+				n => {
+					let msg = reader.read_fixed_bytes(n as usize)?;
+					let string = String::from_utf8(msg).map_err(|_| ser::Error::CorruptedData)?;
+					Some(string)
+				}
+			};
+
+			// The next u8 should be either 0 for no signature or the size of the signature (should be 64)
+			let message_sig: Option<Signature> = match reader.read_u8()? as usize {
+				0 => None,
+				secp::constants::AGG_SIGNATURE_SIZE => Some(Signature::read(reader)?),
+				_ => return Err(ser::Error::CountError)
+			};
+
+			participant_data.push(ParticipantData {
+				id,
+				public_blind_excess,
+				public_nonce,
+				part_sig,
+				message,
+				message_sig,
+			});			
+
+
+		}
+
+		Ok(Slate {
+			version_info,
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			participant_data,
+		})
+
+
+	}
+}
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateVersionProbe {
