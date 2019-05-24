@@ -24,16 +24,16 @@ tokio =  "0.1.11"
 blake2-rfc = "0.2"
 bufstream = "0.1"
 
-grin_apiwallet = { path = "../apiwallet", version = "1.1.0" }
-grin_libwallet = { path = "../libwallet", version = "1.1.0" }
-grin_refwallet = { path = "../refwallet", version = "1.1.0" }
-grin_wallet_config = { path = "../config", version = "1.1.0" }
+#grin_apiwallet = { path = "../apiwallet", version = "1.1.0" }
+#grin_libwallet = { path = "../libwallet", version = "1.1.0" }
+#grin_refwallet = { path = "../refwallet", version = "1.1.0" }
+#grin_wallet_config = { path = "../config", version = "1.1.0" }
 
-grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_p2p = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
-grin_servers = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_core = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_util = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_api = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_store = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_p2p = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
+#grin_servers = { git = "https://github.com/mimblewimble/grin", branch = "milestone/1.1.0" }
