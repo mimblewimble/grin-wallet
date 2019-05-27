@@ -438,6 +438,7 @@ where
 
 		let part_change = change / num_change_outputs as u64;
 		let remainder_change = change % part_change;
+		let mut change_amounts_and_keys = vec![];
 
 		for x in 0..num_change_outputs {
 			// n-1 equal change_outputs and a final one accounting for any remainder
@@ -450,7 +451,13 @@ where
 			let change_key = wallet.next_child().unwrap();
 
 			change_amounts_derivations.push((change_amount, change_key.clone(), None));
-			parts.push(build::output(change_amount, change_key));
+			change_amounts_and_keys.push((change_amount, change_key));
+		}
+
+		match change_amounts_and_keys.len() {
+			0 => {},
+			1 => parts.push(build::output(change_amounts_and_keys[0].0, change_amounts_and_keys[0].1.to_owned())),
+			_ => parts.push(build::outputs(change_amounts_and_keys)),
 		}
 	}
 
