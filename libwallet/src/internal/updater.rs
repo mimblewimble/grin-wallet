@@ -23,7 +23,7 @@ use crate::grin_core::consensus::reward;
 use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::global;
 use crate::grin_core::libtx::reward;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util as util;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
@@ -74,7 +74,7 @@ where
 		.map(|output| {
 			let commit = match output.commit.clone() {
 				Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
-				None => keychain.commit(output.value, &output.key_id).unwrap(),
+				None => keychain.commit(output.value, &output.key_id, &SwitchCommitmentType::Regular).unwrap(), // TODO: proper support for different switch commitment schemes
 			};
 			OutputCommitMapping { output, commit }
 		})
@@ -186,7 +186,7 @@ where
 	for out in unspents {
 		let commit = match out.commit.clone() {
 			Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
-			None => keychain.commit(out.value, &out.key_id).unwrap(),
+			None => keychain.commit(out.value, &out.key_id, &SwitchCommitmentType::Regular).unwrap(), // TODO: proper support for different switch commitment schemes
 		};
 		wallet_outputs.insert(commit, (out.key_id.clone(), out.mmr_index));
 	}

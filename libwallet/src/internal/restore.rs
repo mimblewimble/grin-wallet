@@ -15,8 +15,8 @@
 
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
-use crate::grin_keychain::{ExtKeychain, Identifier, Keychain};
-use crate::grin_util::secp::{key::SecretKey, pedersen};
+use crate::grin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
+use crate::grin_util::secp::pedersen;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
@@ -41,8 +41,6 @@ struct OutputResult {
 	pub lock_height: u64,
 	///
 	pub is_coinbase: bool,
-	///
-	pub blinding: SecretKey,
 }
 
 #[derive(Debug, Clone)]
@@ -73,15 +71,19 @@ where
 		outputs.len(),
 	);
 
+	let keychain = wallet.keychain();
+	// TODO: use both proof builders, depending on height
+	let builder = proof::LegacyProofBuilder::new(keychain);
+
 	for output in outputs.iter() {
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = proof::rewind(wallet.keychain(), *commit, None, *proof)?;
-
-		if !info.success {
+		let info = proof::rewind(keychain, &builder, *commit, None, *proof)?;
+		if info.is_none() {
 			continue;
 		}
+		let (amount, key_id, switch) = info.unwrap();
 
 		let lock_height = if *is_coinbase {
 			*height + global::coinbase_maturity()
@@ -89,24 +91,23 @@ where
 			*height
 		};
 
-		// TODO: Output paths are always going to be length 3 for now, but easy enough to grind
-		// through to find the right path if required later
-		let key_id = Identifier::from_serialized_path(3u8, &info.message.as_bytes());
-
 		info!(
 			"Output found: {:?}, amount: {:?}, key_id: {:?}, mmr_index: {},",
-			commit, info.value, key_id, mmr_index,
+			commit, amount, key_id, mmr_index,
 		);
+
+		if switch != SwitchCommitmentType::Regular {
+			warn!("Unexpected switch commitment type {:?}", switch);
+		}
 
 		wallet_outputs.push(OutputResult {
 			commit: *commit,
 			key_id: key_id.clone(),
 			n_child: key_id.to_path().last_path_index(),
-			value: info.value,
+			value: amount,
 			height: *height,
 			lock_height: lock_height,
 			is_coinbase: *is_coinbase,
-			blinding: info.blinding,
 			mmr_index: *mmr_index,
 		});
 	}
