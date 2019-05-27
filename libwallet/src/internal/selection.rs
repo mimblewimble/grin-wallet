@@ -455,8 +455,11 @@ where
 		}
 
 		match change_amounts_and_keys.len() {
-			0 => {},
-			1 => parts.push(build::output(change_amounts_and_keys[0].0, change_amounts_and_keys[0].1.to_owned())),
+			0 => {}
+			1 => parts.push(build::output(
+				change_amounts_and_keys[0].0,
+				change_amounts_and_keys[0].1.to_owned(),
+			)),
 			_ => parts.push(build::outputs(change_amounts_and_keys)),
 		}
 	}
