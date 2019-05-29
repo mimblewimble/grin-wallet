@@ -185,8 +185,6 @@ pub struct VersionCompatInfo {
 	pub version: u16,
 	/// Original version this slate was converted from
 	pub orig_version: u16,
-	/// Minimum version this slate is compatible with
-	pub min_compat_version: u16,
 }
 
 /// Helper just to facilitate serialization
@@ -240,7 +238,6 @@ impl Slate {
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
 				orig_version: CURRENT_SLATE_VERSION,
-				min_compat_version: 0,
 			},
 		}
 	}
@@ -816,15 +813,12 @@ impl From<&VersionCompatInfo> for VersionCompatInfoV2 {
 		let VersionCompatInfo {
 			version,
 			orig_version,
-			min_compat_version,
 		} = data;
 		let version = *version;
 		let orig_version = *orig_version;
-		let min_compat_version = *min_compat_version;
 		VersionCompatInfoV2 {
 			version,
 			orig_version,
-			min_compat_version,
 		}
 	}
 }
@@ -969,15 +963,12 @@ impl From<&VersionCompatInfoV2> for VersionCompatInfo {
 		let VersionCompatInfoV2 {
 			version,
 			orig_version,
-			min_compat_version,
 		} = data;
 		let version = *version;
 		let orig_version = *orig_version;
-		let min_compat_version = *min_compat_version;
 		VersionCompatInfo {
 			version,
 			orig_version,
-			min_compat_version,
 		}
 	}
 }
