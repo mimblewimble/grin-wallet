@@ -50,8 +50,12 @@ pub trait ForeignRpc {
 		"jsonrpc": "2.0",
 		"result": {
 			"Ok": {
-				"default_slate_version": 2,
-				"foreign_api_version": 2
+				"foreign_api_version": 2,
+				"supported_slate_versions": [
+					"V0",
+					"V1",
+					"V2"
+				]
 			}
 		}
 	}

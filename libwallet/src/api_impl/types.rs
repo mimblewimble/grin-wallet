@@ -19,6 +19,7 @@ use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::Identifier;
 use crate::grin_util::secp::pedersen;
 use crate::types::OutputData;
+use crate::slate_versions::SlateVersion;
 
 /// Send TX API Args
 // TODO: This is here to ensure the legacy V1 API remains intact
@@ -218,5 +219,5 @@ pub struct VersionInfo {
 	/// API version
 	pub foreign_api_version: u16,
 	/// Slate version
-	pub default_slate_version: u16,
+	pub supported_slate_versions: Vec<SlateVersion>,
 }

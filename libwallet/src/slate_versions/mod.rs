@@ -30,7 +30,7 @@ pub mod v2;
 pub const CURRENT_SLATE_VERSION: u16 = 2;
 
 /// Existing versions of the slate
-#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(EnumIter, Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum SlateVersion {
 	/// V0
 	V0,
