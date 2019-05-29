@@ -18,8 +18,8 @@ use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::Identifier;
 use crate::grin_util::secp::pedersen;
-use crate::types::OutputData;
 use crate::slate_versions::SlateVersion;
+use crate::types::OutputData;
 
 /// Send TX API Args
 // TODO: This is here to ensure the legacy V1 API remains intact
