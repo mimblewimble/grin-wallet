@@ -1433,7 +1433,6 @@ pub fn run_doctest_owner(
 		w.close().unwrap();
 	}
 
-
 	if perform_tx && lock_tx && finalize_tx {
 		// mine to move the chain on
 		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 3 as usize, false);
