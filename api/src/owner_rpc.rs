@@ -389,8 +389,9 @@ pub trait OwnerRpc {
 			"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 		  },
 		  "version_info": {
-			"orig_version": 2,
-			"version": 2
+				"orig_version": 2,
+				"version": 2,
+				"block_header_version": 1
 		  }
 		}
 	  }
@@ -469,7 +470,8 @@ pub trait OwnerRpc {
 					},
 					"version_info": {
 						"orig_version": 2,
-						"version": 2
+						"version": 2,
+						"block_header_version": 1
 					}
 				}
 			}
@@ -532,7 +534,8 @@ pub trait OwnerRpc {
 					},
 					"version_info": {
 						"orig_version": 2,
-						"version": 2
+						"version": 2,
+						"block_header_version": 1
 					}
 				},
 				{
@@ -615,7 +618,8 @@ pub trait OwnerRpc {
 				},
 				"version_info": {
 					"orig_version": 2,
-					"version": 2
+					"version": 2,
+					"block_header_version": 1
 				}
 			}
 		}
@@ -682,8 +686,9 @@ pub trait OwnerRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-				"orig_version": 2,
-				"version": 2
+					"orig_version": 2,
+					"version": 2,
+					"block_header_version": 1
 				}
 			},
 			0
@@ -720,7 +725,8 @@ pub trait OwnerRpc {
 		{
 			"version_info": {
 				"version": 2,
-				"orig_version": 2
+				"orig_version": 2,
+				"block_header_version": 1
 			},
 			"num_participants": 2,
 			"id": "0436430c-2b02-624c-2032-570501212b00",
@@ -855,7 +861,8 @@ pub trait OwnerRpc {
 				},
 				"version_info": {
 					"orig_version": 2,
-					"version": 2
+					"version": 2,
+					"block_header_version": 1
 				}
 			}
 		}
@@ -1112,8 +1119,9 @@ pub trait OwnerRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-				"orig_version": 2,
-				"version": 2
+					"orig_version": 2,
+					"version": 2,
+					"block_header_version": 1
 				}
 			}
 		]
