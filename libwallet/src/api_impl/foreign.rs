@@ -13,12 +13,14 @@
 // limitations under the License.
 
 //! Generic implementation of owner API functions
+use strum::IntoEnumIterator;
 
 use crate::grin_keychain::Keychain;
 use crate::internal::{tx, updater};
+use crate::slate_versions::SlateVersion;
 use crate::{
-	slate_versions, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType,
-	VersionInfo, WalletBackend,
+	BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
+	WalletBackend,
 };
 
 const FOREIGN_API_VERSION: u16 = 2;
@@ -28,7 +30,7 @@ const USER_MESSAGE_MAX_LEN: usize = 256;
 pub fn check_version() -> VersionInfo {
 	VersionInfo {
 		foreign_api_version: FOREIGN_API_VERSION,
-		default_slate_version: slate_versions::CURRENT_SLATE_VERSION,
+		supported_slate_versions: SlateVersion::iter().collect(),
 	}
 }
 

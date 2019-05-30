@@ -18,6 +18,7 @@ use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::Identifier;
 use crate::grin_util::secp::pedersen;
+use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 
 /// Send TX API Args
@@ -218,5 +219,5 @@ pub struct VersionInfo {
 	/// API version
 	pub foreign_api_version: u16,
 	/// Slate version
-	pub default_slate_version: u16,
+	pub supported_slate_versions: Vec<SlateVersion>,
 }
