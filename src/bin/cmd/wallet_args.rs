@@ -459,7 +459,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 				let v = parse_required(args, "slate_version")?;
 				Some(parse_u64(v, "slate_version")? as u16)
 			}
-			false => None,
+			false => Some(0),
 		}
 	};
 
@@ -610,17 +610,6 @@ pub fn parse_process_invoice_args(
 	// max_outputs
 	let max_outputs = 500;
 
-	// target slate version to create/send
-	let target_slate_version = {
-		match args.is_present("slate_version") {
-			true => {
-				let v = parse_required(args, "slate_version")?;
-				Some(parse_u64(v, "slate_version")? as u16)
-			}
-			false => None,
-		}
-	};
-
 	// file input only
 	let tx_file = parse_required(args, "input")?;
 
@@ -643,7 +632,6 @@ pub fn parse_process_invoice_args(
 		method: method.to_owned(),
 		dest: dest.to_owned(),
 		max_outputs: max_outputs,
-		target_slate_version: target_slate_version,
 		input: tx_file.to_owned(),
 	})
 }
