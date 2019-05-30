@@ -21,16 +21,23 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
+use grin_wallet_impls::{instantiate_wallet, WalletSeed};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
 use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::path::Path;
 use std::sync::Arc;
+
+// shut up test compilation warnings
+#[cfg(not(test))]
+use grin_wallet_impls::FileWalletCommAdapter;
+#[cfg(not(test))]
+use grin_wallet_libwallet::Slate;
+#[cfg(not(test))]
+use grin_wallet_util::grin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -141,6 +148,7 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 	Ok(phrase)
 }
 
+#[cfg(not(test))]
 fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
 	let interface = Arc::new(Interface::new("pay")?);
 	let amount = amount_to_hr_string(slate.amount, false);
@@ -615,7 +623,9 @@ pub fn parse_process_invoice_args(
 
 	// Now we need to prompt the user whether they want to do this,
 	// which requires reading the slate
+	#[cfg(not(test))]
 	let adapter = FileWalletCommAdapter::new();
+	#[cfg(not(test))]
 	let slate = match adapter.receive_tx_async(&tx_file) {
 		Ok(s) => s,
 		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
