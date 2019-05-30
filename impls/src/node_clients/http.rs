@@ -91,7 +91,7 @@ impl NodeClient for HTTPNodeClient {
 				let report = format!("Getting chain height from node: {}", e);
 				error!("Get chain height error: {}", e);
 				Err(libwallet::ErrorKind::ClientCallback(report).into())
-			},
+			}
 			Ok(r) => Ok(r.height),
 		}
 	}

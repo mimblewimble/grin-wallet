@@ -61,10 +61,10 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 				println!();
 				return 1;
 			}
-		},
+		}
 		// just continue if can't connect to node, as user won't be able to do
 		// anything meaninful anyhow
-		Err(_) => {},
+		Err(_) => {}
 	}
 
 	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client);
