@@ -40,6 +40,11 @@ impl HTTPNodeClient {
 			node_api_secret: node_api_secret,
 		}
 	}
+
+	/// Allow returning the chain height without needing a wallet instantiated
+	pub fn chain_height(&self) -> Result<u64, libwallet::Error> {
+		self.get_chain_height()
+	}
 }
 
 impl NodeClient for HTTPNodeClient {
@@ -86,7 +91,7 @@ impl NodeClient for HTTPNodeClient {
 				let report = format!("Getting chain height from node: {}", e);
 				error!("Get chain height error: {}", e);
 				Err(libwallet::ErrorKind::ClientCallback(report).into())
-			}
+			},
 			Ok(r) => Ok(r.height),
 		}
 	}
