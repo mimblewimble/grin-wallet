@@ -22,7 +22,9 @@ use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind, NaiveDateTime};
 use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, OutputStatus, TxLogEntryType,WalletInst};
+use grin_wallet_libwallet::{
+	IssueInvoiceTxArgs, NodeClient, OutputStatus, TxLogEntryType, WalletInst,
+};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
