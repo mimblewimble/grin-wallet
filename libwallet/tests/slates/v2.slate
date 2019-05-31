@@ -2,7 +2,7 @@
   "version_info": {
     "version": 2,
     "orig_version": 2,
-    "min_compat_version": 0
+    "block_header_version": 1
   },
   "num_participants": 2,
   "id": "e0c69803-db50-40d9-a968-496e86660cd4",

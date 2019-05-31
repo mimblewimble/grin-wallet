@@ -32,7 +32,8 @@
 //! * version field removed
 //! * VersionCompatInfo struct created with fields and added to beginning of struct
 //!    version: u16
-//!    orig_verion: u16,
+//!    orig_version: u16,
+//!    block_header_version: u16,
 
 use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
 use crate::grin_core::libtx::secp_ser;
@@ -83,6 +84,8 @@ pub struct VersionCompatInfoV2 {
 	pub version: u16,
 	/// Original version this slate was converted from
 	pub orig_version: u16,
+	/// Version of grin block header this slate is compatible with
+	pub block_header_version: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -336,10 +339,12 @@ impl From<SlateV1> for SlateV2 {
 		let tx = TransactionV2::from(tx);
 		let version = 2;
 		let orig_version = orig_version as u16;
+		let block_header_version = 1;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV2::from(data));
 		let version_info = VersionCompatInfoV2 {
 			version,
 			orig_version,
+			block_header_version,
 		};
 		SlateV2 {
 			num_participants,
