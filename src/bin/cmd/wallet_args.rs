@@ -20,9 +20,9 @@ use clap::ArgMatches;
 use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
-use grin_wallet_controller::{DateTime, Error, ErrorKind};
+use grin_wallet_controller::{NaiveDateTime, Error, ErrorKind};
 use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, OutputStatus, Slate, TxLogEntryType, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
@@ -268,7 +268,6 @@ fn parse_status(arg: &str, name: &str) -> Result<OutputStatus, ParseError> {
 		"unspent" => Ok(OutputStatus::Unspent),
 		"locked" => Ok(OutputStatus::Locked),
 		"spent" => Ok(OutputStatus::Spent),
-		"confirmed" => Ok(OutputStatus::Confirmed),
 		_ => Err(()),
 	};
 	match status {
@@ -300,8 +299,8 @@ fn parse_tx_type(arg: &str, name: &str) -> Result<TxLogEntryType, ParseError> {
 }
 
 // parses a date, or throws error with message otherwise
-fn parse_date(arg: &str, name: &str) -> Result<DateTime, ParseError> {
-	let status = DateTime::parse_from_str(arg, "%Y-%m-%d %H:%M:%S");
+fn parse_date(arg: &str, name: &str) -> Result<NaiveDateTime, ParseError> {
+	let status = NaiveDateTime::parse_from_str(arg, "%Y-%m-%d %H:%M:%S");
 	match status {
 		Ok(a) => Ok(a),
 		Err(_) => {
@@ -749,18 +748,6 @@ pub fn parse_outputs_args(args: &ArgMatches) -> Result<command::OutputsArgs, Par
 	})
 }
 
-pub fn parse_payments_args(args: &ArgMatches) -> Result<command::PaymentsArgs, ParseError> {
-	let status = match args.value_of("status") {
-		None => None,
-		Some(status) => Some(parse_status(status, "status")? as OutputStatus),
-	};
-	let limit = match args.value_of("limit") {
-		None => None,
-		Some(limit) => Some(parse_u64(limit, "limit")? as u64),
-	};
-	Ok(command::PaymentsArgs { status, limit })
-}
-
 pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError> {
 	let tx_id = match args.value_of("id") {
 		None => None,
@@ -772,11 +759,11 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 	};
 	let start_date = match args.value_of("startdate") {
 		None => None,
-		Some(date) => Some(parse_date(date, "startdate")? as DateTime),
+		Some(date) => Some(parse_date(date, "startdate")? as NaiveDateTime),
 	};
 	let end_date = match args.value_of("enddate") {
 		None => None,
-		Some(date) => Some(parse_date(date, "enddate")? as DateTime),
+		Some(date) => Some(parse_date(date, "enddate")? as NaiveDateTime),
 	};
 	let limit = match args.value_of("limit") {
 		None => None,
@@ -941,11 +928,15 @@ pub fn wallet_command(
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
-		("outputs", Some(_)) => command::outputs(
+		("outputs", Some(args)) => {
+			let a = arg_parse!(parse_outputs_args(&args));
+			command::outputs(
 			inst_wallet(),
 			&global_wallet_args,
+			a,
 			wallet_config.dark_background_color_scheme.unwrap_or(true),
-		),
+			)
+		}
 		("txs", Some(args)) => {
 			let a = arg_parse!(parse_txs_args(&args));
 			command::txs(

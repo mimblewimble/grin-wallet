@@ -248,7 +248,7 @@ subcommands:
             short: l
             long: limit
             takes_value: true
-   - txs:
+  - txs:
       about: Display transaction information
       args:
         - id:

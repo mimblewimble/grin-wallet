@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::util::{Mutex, ZeroingString};
-use chrono::NaiveDateTime as DateTime;
+use crate::NaiveDateTime;
 use std::collections::HashMap;
 /// Grin wallet command-line function implementations
 use std::fs::File;
@@ -36,7 +36,7 @@ use crate::impls::{
 	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
+use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, OutputStatus, TxLogEntryType, WalletInst};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -245,7 +245,7 @@ pub fn send(
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {
-			let strategies = vec!["smallest", "biggest", "all"]
+			let strategies = vec!["smallest", "all"]
 				.into_iter()
 				.map(|strategy| {
 					let init_args = InitTxArgs {
@@ -254,8 +254,7 @@ pub fn send(
 						minimum_confirmations: args.minimum_confirmations,
 						max_outputs: args.max_outputs as u32,
 						num_change_outputs: args.change_outputs as u32,
-						selection_strategy: strategy.to_owned(),
-						estimate_only: Some(true),
+						selection_strategy_is_use_all: strategy == "all",						estimate_only: Some(true),
 						..Default::default()
 					};
 					let slate = api.init_send_tx(init_args).unwrap();
@@ -632,8 +631,8 @@ pub fn outputs(
 pub struct TxsArgs {
 	pub id: Option<u32>,
 	pub tx_type: Option<TxLogEntryType>,
-	pub start_date: Option<DateTime>,
-	pub end_date: Option<DateTime>,
+	pub start_date: Option<NaiveDateTime>,
+	pub end_date: Option<NaiveDateTime>,
 	pub limit: Option<u64>,
 }
 
@@ -695,21 +694,7 @@ pub fn txs(
 			let (_, outputs) = api.retrieve_outputs(true, false, args.id)?;
 			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 			// should only be one here, but just in case
-			for tx in &txs {
-				let (_, outputs) = api.retrieve_payments(true, tx.tx_slate_id)?;
-				if outputs.len() > 0 {
-					display::payments(
-						&g_args.account,
-						res.height,
-						validated,
-						outputs,
-						dark_scheme,
-					)?;
-				}
-			}
-
-			// should only be one here, but just in case
-			for tx in &txs {
+			for tx in &filtered_txs {
 				display::tx_messages(tx, dark_scheme)?;
 			}
 		};
