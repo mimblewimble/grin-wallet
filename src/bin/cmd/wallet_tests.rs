@@ -551,8 +551,26 @@ mod wallet_tests {
 
 		let arg_vec = vec!["grin-wallet", "-p", "password", "txs"];
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
-
 		let arg_vec = vec!["grin-wallet", "-p", "password", "outputs"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		// txs and outputs filter feature
+		let arg_vec = vec!["grin-wallet", "-p", "password", "txs", "-l", "10"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "txs", "-t", "rx"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "txs", "-s", "'2019-01-15 00:00:00'", "-e", "'2020-01-25 00:00:00'"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "outputs", "-l", "10"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "outputs", "-m", "0.1"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+		let arg_vec = vec!["grin-wallet", "-p", "password", "outputs", "-s", "unspent"];
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 		// let logging finish
