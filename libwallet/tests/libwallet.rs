@@ -23,7 +23,9 @@ use grin_wallet_util::grin_util::secp::key::{PublicKey, SecretKey};
 use rand::thread_rng;
 
 fn kernel_sig_msg() -> secp::Message {
-	transaction::kernel_sig_msg(0, 0, transaction::KernelFeatures::Plain).unwrap()
+	transaction::KernelFeatures::Plain { fee: 0 }
+		.kernel_sig_msg()
+		.unwrap()
 }
 
 #[test]

@@ -20,8 +20,7 @@ use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::committed::Committed;
 use crate::grin_core::core::transaction::{
-	kernel_features, kernel_sig_msg, Input, Output, Transaction, TransactionBody, TxKernel,
-	Weighting,
+	Input, KernelFeatures, Output, Transaction, TransactionBody, TxKernel, Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee};
@@ -290,11 +289,16 @@ impl Slate {
 	}
 
 	// This is the msg that we will sign as part of the tx kernel.
-	// Currently includes the fee and the lock_height.
+	// If lock_height is 0 then build a plain kernel, otherwise build a height locked kernel.
 	fn msg_to_sign(&self) -> Result<secp::Message, Error> {
-		// Currently we only support interactively creating a tx with a "default" kernel.
-		let features = kernel_features(self.lock_height);
-		let msg = kernel_sig_msg(self.fee, self.lock_height, features)?;
+		let features = match self.lock_height {
+			0 => KernelFeatures::Plain { fee: self.fee },
+			_ => KernelFeatures::HeightLocked {
+				fee: self.fee,
+				lock_height: self.lock_height,
+			},
+		};
+		let msg = features.kernel_sig_msg()?;
 		Ok(msg)
 	}
 
@@ -881,19 +885,19 @@ impl From<&Output> for OutputV2 {
 
 impl From<&TxKernel> for TxKernelV2 {
 	fn from(kernel: &TxKernel) -> TxKernelV2 {
-		let TxKernel {
-			features,
-			fee,
-			lock_height,
-			excess,
-			excess_sig,
-		} = *kernel;
+		let (features, fee, lock_height) = match kernel.features {
+			KernelFeatures::Plain { fee } => (CompatKernelFeatures::Plain, fee, 0),
+			KernelFeatures::Coinbase => (CompatKernelFeatures::Coinbase, 0, 0),
+			KernelFeatures::HeightLocked { fee, lock_height } => {
+				(CompatKernelFeatures::HeightLocked, fee, lock_height)
+			}
+		};
 		TxKernelV2 {
 			features,
 			fee,
 			lock_height,
-			excess,
-			excess_sig,
+			excess: kernel.excess,
+			excess_sig: kernel.excess_sig,
 		}
 	}
 }
@@ -1025,19 +1029,23 @@ impl From<&OutputV2> for Output {
 
 impl From<&TxKernelV2> for TxKernel {
 	fn from(kernel: &TxKernelV2) -> TxKernel {
-		let TxKernelV2 {
-			features,
-			fee,
-			lock_height,
-			excess,
-			excess_sig,
-		} = *kernel;
+		let (fee, lock_height) = (kernel.fee, kernel.lock_height);
+		let features = match kernel.features {
+			CompatKernelFeatures::Plain => KernelFeatures::Plain { fee },
+			CompatKernelFeatures::Coinbase => KernelFeatures::Coinbase,
+			CompatKernelFeatures::HeightLocked => KernelFeatures::HeightLocked { fee, lock_height },
+		};
 		TxKernel {
 			features,
-			fee,
-			lock_height,
-			excess,
-			excess_sig,
+			excess: kernel.excess,
+			excess_sig: kernel.excess_sig,
 		}
 	}
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum CompatKernelFeatures {
+	Plain,
+	Coinbase,
+	HeightLocked,
 }
