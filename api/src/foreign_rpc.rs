@@ -95,7 +95,7 @@ pub trait ForeignRpc {
 			"Ok": {
 				"kernel": {
 					"excess": "08dfe86d732f2dd24bac36aa7502685221369514197c26d33fac03041d47e4b490",
-					"excess_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f4f0471a33b6465cdb9e72b635f5611aa6c89ebd51aeee038f69b4cc598a02fe0",
+					"excess_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841be02fa098c54c9bf638e0ee1ad5eb896caa11565f632be7b9cd65643ba371044f",
 					"features": "Coinbase",
 					"fee": "0",
 					"lock_height": "0"
@@ -138,7 +138,7 @@ pub trait ForeignRpc {
 				{
 					"id": "0",
 					"message": "my message",
-					"message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f756f655333250204644c1cb169e7a78f21b57437930db91e808f39be58134c1d",
+					"message_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b1d4c1358be398f801eb90d933774b5218fa7e769b11c4c640402253353656f75",
 					"part_sig": null,
 					"public_blind_excess": "034b4df2f0558b73ea72a1ca5c4ab20217c66bbe0829056fca7abe76888e9349ee",
 					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
@@ -172,8 +172,9 @@ pub trait ForeignRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-				"orig_version": 2,
-				"version": 2
+					"orig_version": 2,
+					"version": 2,
+					"block_header_version": 1
 				}
 			}
 		]
@@ -210,7 +211,8 @@ pub trait ForeignRpc {
 			{
 			"version_info": {
 				"version": 2,
-				"orig_version": 2
+				"orig_version": 2,
+				"block_header_version": 1
 			},
 			"num_participants": 2,
 			"id": "0436430c-2b02-624c-2032-570501212b00",
@@ -290,8 +292,8 @@ pub trait ForeignRpc {
 				{
 					"id": "1",
 					"message": "Thanks, Yeastplume",
-		  "message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078ff97f43f2eda0f695161ba23dc48db7a1bcbd7f131f1e21bdb4e1ad1eb2f1a130",
-					"part_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078ffc965b05962362aee43e5264bd3fd0f26dbd7092cfe070069e26d2df28bd352b",
+		  "message_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b30a1f1b21eade1b4bd211e1f137fbdbca1b78dc43da21b1695f6a0edf2437ff9",
+					"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b2b35bd28dfd2269e0670e0cf9270bd6df2d03fbd64523ee4ae622396055b96fc",
 					"public_blind_excess": "038fe0443243dab173c068ef5fa891b242d2b5eb890ea09475e6e381170442ee16",
 					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 				}
@@ -333,8 +335,9 @@ pub trait ForeignRpc {
 				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-				"orig_version": 2,
-				"version": 2
+					"orig_version": 2,
+					"version": 2,
+					"block_header_version": 1
 				}
 			}
 		}
@@ -366,7 +369,8 @@ pub trait ForeignRpc {
 		"params": [{
 			"version_info": {
 				"version": 2,
-				"orig_version": 2
+				"orig_version": 2,
+				"block_header_version": 1
 			},
 			"num_participants": 2,
 			"id": "0436430c-2b02-624c-2032-570501212b00",
@@ -423,7 +427,7 @@ pub trait ForeignRpc {
 					"id": "0",
 					"public_blind_excess": "029f12f9f8c5489a18904de7cd46dc3384b79369d4cbc17cd74b299da8c2cf7445",
 					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-					"part_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fe3cccc5ff1d832edb7e3cb3b1414b9e9d3d1d503294224b4c93bf3d59ed64018",
+					"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b1840d69ed5f33bc9b424422903d5d1d3e9b914143bcbe3b7ed32d8f15fcccce3",
 					"message": null,
 					"message_sig": null
 				}
@@ -449,7 +453,7 @@ pub trait ForeignRpc {
 						"id": "1",
 						"message": null,
 						"message_sig": null,
-						"part_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fc0e6f263f91010a6fea7099029c70eabdf75b48aefd977e14d1ed659b221eac9",
+						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841bc9ea21b259d61e4de177d9ef8ab475dfab0ec7299009a7fea61010f963f2e6c0",
 						"public_blind_excess": "033bbe2a419ea2e9d6810a8d66552e709d1783ca50759a44dbaf63fc79c0164c4c",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 					},
@@ -457,7 +461,7 @@ pub trait ForeignRpc {
 						"id": "0",
 						"message": null,
 						"message_sig": null,
-						"part_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fe3cccc5ff1d832edb7e3cb3b1414b9e9d3d1d503294224b4c93bf3d59ed64018",
+						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b1840d69ed5f33bc9b424422903d5d1d3e9b914143bcbe3b7ed32d8f15fcccce3",
 						"public_blind_excess": "029f12f9f8c5489a18904de7cd46dc3384b79369d4cbc17cd74b299da8c2cf7445",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 					}
@@ -477,7 +481,7 @@ pub trait ForeignRpc {
 						"kernels": [
 							{
 								"excess": "09bac6083b05a32a9d9b37710c70dd0a1ef9329fde0848558976b6f1b81d80ceed",
-								"excess_sig": "4d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766a4b3bec3eae84394b68ad4cb3ddbc896f898aca769d2fc5a56886ba280c1e9a0",
+								"excess_sig": "66074d25a751c4743342c90ad8ead9454daa00d9b9aed29bca321036d16c4b4da0e9c180a26b88565afcd269a7ac98f896c8db3dcbd48ab69443e8eac3beb3a4",
 								"features": "Plain",
 								"fee": "7000000",
 								"lock_height": "0"
@@ -500,7 +504,8 @@ pub trait ForeignRpc {
 				},
 				"version_info": {
 					"orig_version": 2,
-					"version": 2
+					"version": 2,
+					"block_header_version": 1
 				}
 			}
 		}

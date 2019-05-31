@@ -45,7 +45,7 @@ use crate::slate_versions::v2::{
 	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2, TxKernelV2,
 	VersionCompatInfoV2,
 };
-use crate::slate_versions::CURRENT_SLATE_VERSION;
+use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 
 /// Public data for each participant in the slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -185,6 +185,8 @@ pub struct VersionCompatInfo {
 	pub version: u16,
 	/// Original version this slate was converted from
 	pub orig_version: u16,
+	/// The grin block header version this slate is intended for
+	pub block_header_version: u16,
 }
 
 /// Helper just to facilitate serialization
@@ -238,6 +240,7 @@ impl Slate {
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
 				orig_version: CURRENT_SLATE_VERSION,
+				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
 		}
 	}
@@ -813,12 +816,15 @@ impl From<&VersionCompatInfo> for VersionCompatInfoV2 {
 		let VersionCompatInfo {
 			version,
 			orig_version,
+			block_header_version,
 		} = data;
 		let version = *version;
 		let orig_version = *orig_version;
+		let block_header_version = *block_header_version;
 		VersionCompatInfoV2 {
 			version,
 			orig_version,
+			block_header_version,
 		}
 	}
 }
@@ -963,12 +969,15 @@ impl From<&VersionCompatInfoV2> for VersionCompatInfo {
 		let VersionCompatInfoV2 {
 			version,
 			orig_version,
+			block_header_version,
 		} = data;
 		let version = *version;
 		let orig_version = *orig_version;
+		let block_header_version = *block_header_version;
 		VersionCompatInfo {
 			version,
 			orig_version,
+			block_header_version,
 		}
 	}
 }
