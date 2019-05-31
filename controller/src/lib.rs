@@ -39,4 +39,4 @@ pub mod display;
 mod error;
 
 pub use crate::error::{Error, ErrorKind};
-pub use chrono::NaiveDateTime as NaiveDateTime;
+pub use chrono::NaiveDateTime;

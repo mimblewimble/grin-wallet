@@ -20,9 +20,11 @@ use clap::ArgMatches;
 use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
-use grin_wallet_controller::{NaiveDateTime, Error, ErrorKind};
+use grin_wallet_controller::{Error, ErrorKind, NaiveDateTime};
 use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, OutputStatus, Slate, TxLogEntryType, WalletInst};
+use grin_wallet_libwallet::{
+	IssueInvoiceTxArgs, NodeClient, OutputStatus, Slate, TxLogEntryType, WalletInst,
+};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
@@ -931,10 +933,10 @@ pub fn wallet_command(
 		("outputs", Some(args)) => {
 			let a = arg_parse!(parse_outputs_args(&args));
 			command::outputs(
-			inst_wallet(),
-			&global_wallet_args,
-			a,
-			wallet_config.dark_background_color_scheme.unwrap_or(true),
+				inst_wallet(),
+				&global_wallet_args,
+				a,
+				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("txs", Some(args)) => {

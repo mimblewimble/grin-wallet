@@ -36,7 +36,9 @@ use crate::impls::{
 	LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, OutputStatus, TxLogEntryType, WalletInst};
+use crate::libwallet::{
+	InitTxArgs, IssueInvoiceTxArgs, NodeClient, OutputStatus, TxLogEntryType, WalletInst,
+};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -254,7 +256,8 @@ pub fn send(
 						minimum_confirmations: args.minimum_confirmations,
 						max_outputs: args.max_outputs as u32,
 						num_change_outputs: args.change_outputs as u32,
-						selection_strategy_is_use_all: strategy == "all",						estimate_only: Some(true),
+						selection_strategy_is_use_all: strategy == "all",
+						estimate_only: Some(true),
 						..Default::default()
 					};
 					let slate = api.init_send_tx(init_args).unwrap();
