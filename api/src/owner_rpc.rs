@@ -1336,7 +1336,6 @@ pub fn run_doctest_owner(
 	lock_tx: bool,
 	finalize_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
-	use crate::{Owner, OwnerRpc};
 	use easy_jsonrpc::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_libwallet::api_impl;

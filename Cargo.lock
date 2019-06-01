@@ -753,19 +753,19 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "built 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ctrlc 3.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_wallet_api 1.1.0-beta.3",
- "grin_wallet_config 1.1.0-beta.3",
- "grin_wallet_controller 1.1.0-beta.3",
- "grin_wallet_impls 1.1.0-beta.3",
- "grin_wallet_libwallet 1.1.0-beta.3",
- "grin_wallet_util 1.1.0-beta.3",
+ "grin_wallet_api 1.1.0-beta.4",
+ "grin_wallet_config 1.1.0-beta.4",
+ "grin_wallet_controller 1.1.0-beta.4",
+ "grin_wallet_impls 1.1.0-beta.4",
+ "grin_wallet_libwallet 1.1.0-beta.4",
+ "grin_wallet_util 1.1.0-beta.4",
  "linefeed 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "prettytable-rs 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -774,16 +774,16 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_api"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "easy-jsonrpc 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_wallet_config 1.1.0-beta.3",
- "grin_wallet_impls 1.1.0-beta.3",
- "grin_wallet_libwallet 1.1.0-beta.3",
- "grin_wallet_util 1.1.0-beta.3",
+ "grin_wallet_config 1.1.0-beta.4",
+ "grin_wallet_impls 1.1.0-beta.4",
+ "grin_wallet_libwallet 1.1.0-beta.4",
+ "grin_wallet_util 1.1.0-beta.4",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -792,10 +792,10 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_config"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "dirs 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_wallet_util 1.1.0-beta.3",
+ "grin_wallet_util 1.1.0-beta.4",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -805,18 +805,18 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_controller"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "easy-jsonrpc 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_wallet_api 1.1.0-beta.3",
- "grin_wallet_config 1.1.0-beta.3",
- "grin_wallet_impls 1.1.0-beta.3",
- "grin_wallet_libwallet 1.1.0-beta.3",
- "grin_wallet_util 1.1.0-beta.3",
+ "grin_wallet_api 1.1.0-beta.4",
+ "grin_wallet_config 1.1.0-beta.4",
+ "grin_wallet_impls 1.1.0-beta.4",
+ "grin_wallet_libwallet 1.1.0-beta.4",
+ "grin_wallet_util 1.1.0-beta.4",
  "hyper 0.12.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -836,16 +836,16 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_impls"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_wallet_config 1.1.0-beta.3",
- "grin_wallet_libwallet 1.1.0-beta.3",
- "grin_wallet_util 1.1.0-beta.3",
+ "grin_wallet_config 1.1.0-beta.4",
+ "grin_wallet_libwallet 1.1.0-beta.4",
+ "grin_wallet_util 1.1.0-beta.4",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.13.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -860,14 +860,14 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_libwallet"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grin_wallet_config 1.1.0-beta.3",
- "grin_wallet_util 1.1.0-beta.3",
+ "grin_wallet_config 1.1.0-beta.4",
+ "grin_wallet_util 1.1.0-beta.4",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -881,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_util"
-version = "1.1.0-beta.3"
+version = "1.1.0-beta.4"
 dependencies = [
  "dirs 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "grin_api 1.1.0-beta.2 (git+https://github.com/mimblewimble/grin)",
