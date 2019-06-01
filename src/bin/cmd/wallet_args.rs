@@ -40,6 +40,7 @@ use grin_wallet_libwallet::Slate;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
+#[macro_export]
 macro_rules! arg_parse {
 	( $r:expr ) => {
 		match $r {

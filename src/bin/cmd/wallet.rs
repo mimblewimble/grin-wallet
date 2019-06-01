@@ -14,6 +14,7 @@
 
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
+use grin_wallet_libwallet::NodeClient;
 use clap::ArgMatches;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{HTTPNodeClient, WalletSeed, SEED_FILE};
@@ -43,11 +44,14 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 	// just get defaults from the global config
 	let wallet_config = config.members.unwrap().wallet;
 
-	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-
 	// TODO: Very temporary code to obsolete grin wallet for the first hard fork
 	// All tx operations call get_chain_height as a first order of business,
 	// so this is the most non-intrusive place to put this
+	let mut node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+	let global_wallet_args = wallet_args::parse_global_args(&wallet_config, &wallet_args)
+		.expect("Can't read configuration file");
+	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
+
 	match node_client.clone().chain_height() {
 		Ok(h) => {
 			if h >= 262080 {
