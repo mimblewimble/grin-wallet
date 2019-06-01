@@ -14,10 +14,10 @@
 
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
-use grin_wallet_libwallet::NodeClient;
 use clap::ArgMatches;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{HTTPNodeClient, WalletSeed, SEED_FILE};
+use grin_wallet_libwallet::NodeClient;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;

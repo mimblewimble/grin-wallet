@@ -13,8 +13,8 @@
 // limitations under the License.
 
 mod config;
-mod wallet_args;
 mod wallet;
+mod wallet_args;
 mod wallet_tests;
 
 pub use self::config::config_command_wallet;
