@@ -203,7 +203,10 @@ where
 			Ok(None)
 		} else {
 			Ok(Some(util::to_hex(
-				self.keychain().commit(amount, &id, &SwitchCommitmentType::Regular)?.0.to_vec(), // TODO: proper support for different switch commitment schemes
+				self.keychain()
+					.commit(amount, &id, &SwitchCommitmentType::Regular)?
+					.0
+					.to_vec(), // TODO: proper support for different switch commitment schemes
 			)))
 		}
 	}

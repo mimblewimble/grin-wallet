@@ -13,6 +13,7 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
+use crate::grin_core::consensus::HARD_FORK_INTERVAL;
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
@@ -72,14 +73,18 @@ where
 	);
 
 	let keychain = wallet.keychain();
-	// TODO: use both proof builders, depending on height
-	let builder = proof::LegacyProofBuilder::new(keychain);
+	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
+	let builder = proof::ProofBuilder::new(keychain);
 
 	for output in outputs.iter() {
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = proof::rewind(keychain, &builder, *commit, None, *proof)?;
+		let info = match height >= HARD_FORK_INTERVAL {
+			true => proof::rewind(keychain, &builder, *commit, None, *proof),
+			false => proof::rewind(keychain, &legacy_builder, *commit, None, *proof),
+		}?;
+
 		if info.is_none() {
 			continue;
 		}
