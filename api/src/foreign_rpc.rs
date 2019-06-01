@@ -567,7 +567,6 @@ pub fn run_doctest_foreign(
 	init_tx: bool,
 	init_invoice_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
-	use crate::{Foreign, ForeignRpc};
 	use easy_jsonrpc::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_libwallet::api_impl;

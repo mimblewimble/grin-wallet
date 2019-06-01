@@ -23,7 +23,7 @@ use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
 
-/// static for incrementing test UUIDs
+// static for incrementing test UUIDs
 lazy_static! {
 	static ref SLATE_COUNTER: Mutex<u8> = { Mutex::new(0) };
 }
