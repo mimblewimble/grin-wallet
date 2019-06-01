@@ -58,9 +58,9 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 				let err_str = "This version of grin-wallet is obsolete as of block 252080. Please download v2.0.0 from https://github.com/mimblewimble/grin-wallet/releases";
 				error!("{}", err_str);
 				println!();
-				println!("**************");
+				println!("***************");
 				println!("{}", err_str);
-				println!("**************");
+				println!("***************");
 				println!("(You can still view your balances by disconnecting from the grin node, however you will not be able to transact until you upgrade)");
 				println!();
 				return 1;
