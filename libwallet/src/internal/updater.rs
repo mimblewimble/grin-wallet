@@ -19,9 +19,10 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::grin_core::consensus::reward;
+use crate::grin_core::consensus::{reward, HARD_FORK_INTERVAL};
 use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::global;
+use crate::grin_core::libtx::proof::{LegacyProofBuilder, ProofBuilder};
 use crate::grin_core::libtx::reward;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util as util;
@@ -509,6 +510,15 @@ where
 
 	debug!("receive_coinbase: {:?}", block_fees);
 
-	let (out, kern) = reward::output(wallet.keychain(), &key_id, block_fees.fees, test_mode)?;
+	let hf_height = HARD_FORK_INTERVAL; // TODO: floonet fork height
+
+	let keychain = wallet.keychain();
+	let (out, kern) = if height >= hf_height {
+		let builder = ProofBuilder::new(keychain);
+		reward::output(keychain, &builder, &key_id, block_fees.fees, test_mode)?
+	} else {
+		let builder = LegacyProofBuilder::new(keychain);
+		reward::output(keychain, &builder, &key_id, block_fees.fees, test_mode)?
+	};
 	Ok((out, kern, block_fees))
 }

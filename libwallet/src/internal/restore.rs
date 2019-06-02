@@ -75,14 +75,16 @@ where
 	let keychain = wallet.keychain();
 	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
 	let builder = proof::ProofBuilder::new(keychain);
+	let hf_height = HARD_FORK_INTERVAL; // TODO: floonet fork height
 
 	for output in outputs.iter() {
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = match height >= HARD_FORK_INTERVAL {
-			true => proof::rewind(keychain, &builder, *commit, None, *proof),
-			false => proof::rewind(keychain, &legacy_builder, *commit, None, *proof),
+		let info = if height >= &hf_height {
+			proof::rewind(keychain, &builder, *commit, None, *proof)
+		} else {
+			proof::rewind(keychain, &legacy_builder, *commit, None, *proof)
 		}?;
 
 		if info.is_none() {
