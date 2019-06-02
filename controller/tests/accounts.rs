@@ -130,7 +130,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.total, 5 * reward);
 		assert_eq!(wallet1_info.amount_currently_spendable, (5 - cm) * reward);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		assert_eq!(txs.len(), 5);
 		Ok(())
 	})?;
@@ -149,7 +149,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.total, 7 * reward);
 		assert_eq!(wallet1_info.amount_currently_spendable, 7 * reward);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		assert_eq!(txs.len(), 7);
 		Ok(())
 	})?;
@@ -168,7 +168,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.total, 0,);
 		assert_eq!(wallet1_info.amount_currently_spendable, 0,);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		assert_eq!(txs.len(), 0);
 		Ok(())
 	})?;
@@ -201,7 +201,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, 13);
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		assert_eq!(txs.len(), 9);
 		Ok(())
 	})?;
@@ -216,7 +216,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet1_info.last_confirmed_height, 12);
 		let (_, wallet1_info) = api.retrieve_summary_info(true, 1)?;
 		assert_eq!(wallet1_info.last_confirmed_height, 13);
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		println!("{:?}", txs);
 		assert_eq!(txs.len(), 5);
 		Ok(())
@@ -227,7 +227,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.last_confirmed_height, 13);
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		Ok(())
 	})?;
@@ -245,7 +245,7 @@ fn accounts_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		assert_eq!(wallet2_info.total, 0,);
 		assert_eq!(wallet2_info.amount_currently_spendable, 0,);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(true, None, None)?;
+		let (_, txs) = api.retrieve_txs(true, None, None, None, None)?;
 		assert_eq!(txs.len(), 0);
 		Ok(())
 	})?;

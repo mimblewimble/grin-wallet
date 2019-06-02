@@ -315,6 +315,8 @@ where
 	/// the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
 	/// the given [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) uuid.
+	/// * `skip` - If `Some(count)`, skip first `count` transactions.
+	/// * `take` - If `Some(count)`, take only `count` transactions.
 	///
 	/// # Returns
 	/// * `(bool, Vec<TxLogEntry)` - A tuple:
@@ -347,10 +349,13 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		skip: Option<usize>,
+		count: Option<usize>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
-		let mut res = owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id)?;
+		let mut res =
+			owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id, skip, count)?;
 		if self.doctest_mode {
 			res.1 = res
 				.1

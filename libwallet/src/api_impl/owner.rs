@@ -93,6 +93,8 @@ pub fn retrieve_txs<T: ?Sized, C, K>(
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
+	skip: Option<usize>,
+	count: Option<usize>,
 ) -> Result<(bool, Vec<TxLogEntry>), Error>
 where
 	T: WalletBackend<C, K>,
@@ -108,7 +110,15 @@ where
 
 	Ok((
 		validated,
-		updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?,
+		updater::retrieve_txs_paginated(
+			&mut *w,
+			tx_id,
+			tx_slate_id,
+			Some(&parent_key_id),
+			false,
+			skip,
+			count,
+		)?,
 	))
 }
 

@@ -313,7 +313,7 @@ mod wallet_tests {
 		// Check our transaction log, should have 10 entries
 		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
 			api.set_active_account("mining")?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len(), bh as usize);
 			Ok(())
@@ -389,7 +389,7 @@ mod wallet_tests {
 
 		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
 			api.set_active_account("mining")?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len(), bh as usize + 1);
 			Ok(())
@@ -423,7 +423,7 @@ mod wallet_tests {
 
 		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
 			api.set_active_account("mining")?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len(), bh as usize + 2);
 			Ok(())

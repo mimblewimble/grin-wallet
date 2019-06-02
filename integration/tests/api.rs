@@ -97,6 +97,9 @@ fn simple_server_wallet() {
 	let last_block_by_height_compact =
 		get_block_by_height_compact(&base_addr, api_server_port, current_tip.height);
 	assert!(last_block_by_height_compact.is_ok());
+	let last_block_by_height_no_merkle_proof =
+		get_block_by_height_no_merkle_proof(&base_addr, api_server_port, current_tip.height);
+	assert!(last_block_by_height_no_merkle_proof.is_ok());
 
 	let block_hash = current_tip.last_block_pushed;
 	let last_block_by_hash = get_block_by_hash(&base_addr, api_server_port, &block_hash);
@@ -104,6 +107,9 @@ fn simple_server_wallet() {
 	let last_block_by_hash_compact =
 		get_block_by_hash_compact(&base_addr, api_server_port, &block_hash);
 	assert!(last_block_by_hash_compact.is_ok());
+	let last_block_by_hash_no_merkle_proof =
+		get_block_by_hash_no_merkle_proof(&base_addr, api_server_port, &block_hash);
+	assert!(last_block_by_hash_no_merkle_proof.is_ok());
 
 	warn!("Testing chain output handler");
 	let start_height = 0;
@@ -274,6 +280,18 @@ fn get_block_by_height_compact(
 	api::client::get::<api::CompactBlockPrintable>(url.as_str(), None).map_err(|e| Error::API(e))
 }
 
+fn get_block_by_height_no_merkle_proof(
+	base_addr: &String,
+	api_server_port: u16,
+	height: u64,
+) -> Result<api::CompactBlockPrintable, Error> {
+	let url = format!(
+		"http://{}:{}/v1/blocks/{}?no_merkle_proof",
+		base_addr, api_server_port, height
+	);
+	api::client::get::<api::CompactBlockPrintable>(url.as_str(), None).map_err(|e| Error::API(e))
+}
+
 fn get_block_by_hash(
 	base_addr: &String,
 	api_server_port: u16,
@@ -293,6 +311,18 @@ fn get_block_by_hash_compact(
 ) -> Result<api::CompactBlockPrintable, Error> {
 	let url = format!(
 		"http://{}:{}/v1/blocks/{}?compact",
+		base_addr, api_server_port, block_hash
+	);
+	api::client::get::<api::CompactBlockPrintable>(url.as_str(), None).map_err(|e| Error::API(e))
+}
+
+fn get_block_by_hash_no_merkle_proof(
+	base_addr: &String,
+	api_server_port: u16,
+	block_hash: &String,
+) -> Result<api::CompactBlockPrintable, Error> {
+	let url = format!(
+		"http://{}:{}/v1/blocks/{}?no_merkle_proof",
 		base_addr, api_server_port, block_hash
 	);
 	api::client::get::<api::CompactBlockPrintable>(url.as_str(), None).map_err(|e| Error::API(e))

@@ -148,7 +148,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		// Check transaction log for wallet 2
 		wallet::controller::owner_single_use(wallet2.clone(), |api| {
 			let (_, wallet2_info) = api.retrieve_summary_info(true, 1)?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None, None, None)?;
 			assert!(refreshed);
 			assert!(txs.len() == 1);
 			println!(
@@ -164,7 +164,7 @@ fn invoice_tx_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		// exists
 		wallet::controller::owner_single_use(wallet1.clone(), |api| {
 			let (_, wallet1_info) = api.retrieve_summary_info(true, 1)?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+			let (refreshed, txs) = api.retrieve_txs(true, None, None, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len() as u64, bh + 1);
 			println!(

@@ -597,7 +597,7 @@ pub fn txs(
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
 		let res = api.node_height()?;
-		let (validated, txs) = api.retrieve_txs(true, args.id, None)?;
+		let (validated, txs) = api.retrieve_txs(true, args.id, None, None, None)?;
 		let include_status = !args.id.is_some();
 		display::txs(
 			&g_args.account,
@@ -634,7 +634,7 @@ pub fn repost(
 	args: RepostArgs,
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
-		let (_, txs) = api.retrieve_txs(true, Some(args.id), None)?;
+		let (_, txs) = api.retrieve_txs(true, Some(args.id), None, None, None)?;
 		let stored_tx = api.get_stored_tx(&txs[0])?;
 		if stored_tx.is_none() {
 			error!(

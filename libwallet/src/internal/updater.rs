@@ -126,6 +126,31 @@ where
 	Ok(txs)
 }
 
+/// Retrieve all of the transaction entries, then skip `skip` and take `count` elements.
+/// If `parent_key_id` is set, only return entries from that key
+pub fn retrieve_txs_paginated<T: ?Sized, C, K>(
+	wallet: &mut T,
+	tx_id: Option<u32>,
+	tx_slate_id: Option<Uuid>,
+	parent_key_id: Option<&Identifier>,
+	outstanding_only: bool,
+	skip: Option<usize>,
+	count: Option<usize>,
+) -> Result<Vec<TxLogEntry>, Error>
+where
+	T: WalletBackend<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	retrieve_txs(wallet, tx_id, tx_slate_id, parent_key_id, outstanding_only).map(|log_entries| {
+		let result_iter = log_entries.into_iter().skip(skip.unwrap_or(0));
+		match count {
+			Some(take_count) => result_iter.take(take_count).collect(),
+			None => result_iter.collect(),
+		}
+	})
+}
+
 /// Refreshes the outputs in a wallet with the latest information
 /// from a node
 pub fn refresh_outputs<T: ?Sized, C, K>(

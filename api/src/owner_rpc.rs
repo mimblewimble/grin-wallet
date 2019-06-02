@@ -1266,7 +1266,8 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind> {
-		Owner::retrieve_txs(self, refresh_from_node, tx_id, tx_slate_id).map_err(|e| e.kind())
+		Owner::retrieve_txs(self, refresh_from_node, tx_id, tx_slate_id, None, None)
+			.map_err(|e| e.kind())
 	}
 
 	fn retrieve_summary_info(

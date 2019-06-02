@@ -240,6 +240,8 @@ where
 		let mut tx_id = None;
 		let mut tx_slate_id = None;
 		let mut update_from_node = false;
+		let mut skip = None;
+		let mut count = None;
 
 		let params = parse_params(req);
 
@@ -256,7 +258,18 @@ where
 				tx_slate_id = Some(x.parse().unwrap());
 			}
 		}
-		api.retrieve_txs(update_from_node, tx_id, tx_slate_id)
+		if let Some(skip_parameters) = params.get("skip") {
+			if let Some(x) = skip_parameters.first() {
+				skip = Some(x.parse().unwrap());
+			}
+		}
+		if let Some(count_parameters) = params.get("count") {
+			if let Some(x) = count_parameters.first() {
+				count = Some(x.parse().unwrap());
+			}
+		}
+
+		api.retrieve_txs(update_from_node, tx_id, tx_slate_id, skip, count)
 	}
 
 	pub fn retrieve_stored_tx(
@@ -267,7 +280,7 @@ where
 		let params = parse_params(req);
 		if let Some(id_string) = params.get("id") {
 			match id_string[0].parse() {
-				Ok(id) => match api.retrieve_txs(true, Some(id), None) {
+				Ok(id) => match api.retrieve_txs(true, Some(id), None, None, None) {
 					Ok((_, txs)) => {
 						let stored_tx = api.get_stored_tx(&txs[0])?;
 						Ok((txs[0].confirmed, stored_tx))
@@ -539,7 +552,7 @@ where
 			.into()));
 		}
 
-		let res = api.retrieve_txs(true, id_int, tx_uuid);
+		let res = api.retrieve_txs(true, id_int, tx_uuid, None, None);
 		if let Err(e) = res {
 			return Box::new(err(ErrorKind::GenericError(format!(
 				"repost: cannot repost transaction. retrieve_txs failed, err: {:?}",
