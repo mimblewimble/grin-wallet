@@ -57,6 +57,10 @@ pub enum ErrorKind {
 	#[fail(display = "Wallet seed doesn't exist error")]
 	WalletSeedDoesntExist,
 
+	/// Wallet seed doesn't exist
+	#[fail(display = "Wallet doesn't exist at {}. {}", _0, _1)]
+	WalletDoesntExist(String, String),
+
 	/// Enc/Decryption Error
 	#[fail(display = "Enc/Decryption error (check password?)")]
 	Encryption,
