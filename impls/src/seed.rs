@@ -138,6 +138,13 @@ impl WalletSeed {
 		if WalletSeed::seed_file_exists(wallet_config).is_err() {
 			WalletSeed::backup_seed(wallet_config)?;
 		}
+		if !Path::new(&wallet_config.data_file_dir).exists() {
+			return Err(ErrorKind::WalletDoesntExist(
+				wallet_config.data_file_dir.clone(),
+				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
+					.to_owned(),
+			))?;
+		}
 		let seed = WalletSeed::from_mnemonic(word_list)?;
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).context(ErrorKind::Format)?;
