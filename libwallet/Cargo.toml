@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_libwallet"
-version = "1.1.0"
+version = "2.0.0-beta.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
 license = "Apache-2.0"
@@ -25,7 +25,7 @@ lazy_static = "1"
 strum = "0.15"
 strum_macros = "0.15"
 
-grin_wallet_util = { path = "../util", version = "1.1.0" }
+grin_wallet_util = { path = "../util", version = "2.0.0-beta.1" }
 
 [dev-dependencies]
-grin_wallet_config = { path = "../config", version = "1.1.0" }
+grin_wallet_config = { path = "../config", version = "2.0.0-beta.1" }
