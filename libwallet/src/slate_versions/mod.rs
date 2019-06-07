@@ -75,14 +75,13 @@ impl From<VersionedSlate> for Slate {
 			VersionedSlate::V2(s) => {
 				let s = SlateV2::from(s);
 				Slate::from(s)
-			}
-			// Again, left in as a reminder
-			/*VersionedSlate::V0(s) => {
-				let s = SlateV0::from(s);
-				let s = SlateV1::from(s);
-				let s = SlateV2::from(s);
-				Slate::from(s)
-			}*/
+			} // Again, left in as a reminder
+			  /*VersionedSlate::V0(s) => {
+				  let s = SlateV0::from(s);
+				  let s = SlateV1::from(s);
+				  let s = SlateV2::from(s);
+				  Slate::from(s)
+			  }*/
 		}
 	}
 }

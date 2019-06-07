@@ -205,7 +205,7 @@ impl Slate {
 	/// Recieve a slate, upgrade it to the latest version internally
 	pub fn deserialize_upgrade(slate_json: &str) -> Result<Slate, Error> {
 		let version = Slate::parse_slate_version(slate_json)?;
-		let v2:SlateV2 = match version {
+		let v2: SlateV2 = match version {
 			2 => serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?,
 			// left as a reminder
 			/*0 => {
