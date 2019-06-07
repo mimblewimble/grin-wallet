@@ -467,7 +467,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 				let v = parse_required(args, "slate_version")?;
 				Some(parse_u64(v, "slate_version")? as u16)
 			}
-			false => Some(0),
+			false => None,
 		}
 	};
 
