@@ -52,8 +52,6 @@ pub trait ForeignRpc {
 			"Ok": {
 				"foreign_api_version": 2,
 				"supported_slate_versions": [
-					"V0",
-					"V1",
 					"V2"
 				]
 			}
@@ -174,7 +172,7 @@ pub trait ForeignRpc {
 				"version_info": {
 					"orig_version": 2,
 					"version": 2,
-					"block_header_version": 1
+					"block_header_version": 2
 				}
 			}
 		]
@@ -212,7 +210,7 @@ pub trait ForeignRpc {
 			"version_info": {
 				"version": 2,
 				"orig_version": 2,
-				"block_header_version": 1
+				"block_header_version": 2
 			},
 			"num_participants": 2,
 			"id": "0436430c-2b02-624c-2032-570501212b00",
@@ -337,7 +335,7 @@ pub trait ForeignRpc {
 				"version_info": {
 					"orig_version": 2,
 					"version": 2,
-					"block_header_version": 1
+					"block_header_version": 2
 				}
 			}
 		}
@@ -370,7 +368,7 @@ pub trait ForeignRpc {
 			"version_info": {
 				"version": 2,
 				"orig_version": 2,
-				"block_header_version": 1
+				"block_header_version": 2
 			},
 			"num_participants": 2,
 			"id": "0436430c-2b02-624c-2032-570501212b00",
@@ -505,7 +503,7 @@ pub trait ForeignRpc {
 				"version_info": {
 					"orig_version": 2,
 					"version": 2,
-					"block_header_version": 1
+					"block_header_version": 2
 				}
 			}
 		}

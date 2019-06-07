@@ -39,8 +39,6 @@ use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::slate_versions::v0::SlateV0;
-use crate::slate_versions::v1::SlateV1;
 use crate::slate_versions::v2::{
 	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2, TxKernelV2,
 	VersionCompatInfoV2,
@@ -207,20 +205,15 @@ impl Slate {
 	/// Recieve a slate, upgrade it to the latest version internally
 	pub fn deserialize_upgrade(slate_json: &str) -> Result<Slate, Error> {
 		let version = Slate::parse_slate_version(slate_json)?;
-		let v2 = match version {
+		let v2: SlateV2 = match version {
 			2 => serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?,
-			1 => {
-				let mut v1: SlateV1 =
-					serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
-				v1.orig_version = 1;
-				SlateV2::from(v1)
-			}
-			0 => {
+			// left as a reminder
+			/*0 => {
 				let v0: SlateV0 =
 					serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
 				let v1 = SlateV1::from(v0);
 				SlateV2::from(v1)
-			}
+			}*/
 			_ => return Err(ErrorKind::SlateVersion(version).into()),
 		};
 		Ok(v2.into())
@@ -681,15 +674,12 @@ impl Serialize for Slate {
 		let v2 = SlateV2::from(self);
 		match self.version_info.orig_version {
 			2 => v2.serialize(serializer),
-			1 => {
-				let v1 = SlateV1::from(v2);
-				v1.serialize(serializer)
-			}
-			0 => {
+			// left as a reminder
+			/*0 => {
 				let v1 = SlateV1::from(v2);
 				let v0 = SlateV0::from(v1);
 				v0.serialize(serializer)
-			}
+			}*/
 			v => Err(S::Error::custom(format!("Unknown slate version {}", v))),
 		}
 	}
