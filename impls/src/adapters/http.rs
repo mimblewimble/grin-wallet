@@ -70,9 +70,9 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		let res: Value = serde_json::from_str(&res).unwrap();
 		trace!("Response: {}", res);
 		if res["result"]["error"] != json!(null) {
-			let report = format!("Posting transaction slate: Error: {}, Message: {}",
-				res["result"]["error"]["code"],
-				res["result"]["error"]["message"]
+			let report = format!(
+				"Posting transaction slate: Error: {}, Message: {}",
+				res["result"]["error"]["code"], res["result"]["error"]["message"]
 			);
 			error!("{}", report);
 			return Err(ErrorKind::ClientCallback(report).into());
@@ -80,7 +80,8 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 
 		let slate_value = res["result"]["Ok"].clone();
 		trace!("slate_value: {}", slate_value);
-		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap()).map_err(|_| ErrorKind::SlateDeser)?;
+		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
+			.map_err(|_| ErrorKind::SlateDeser)?;
 
 		Ok(slate)
 	}
