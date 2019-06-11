@@ -39,6 +39,10 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
+extern crate strum;
+#[macro_use]
+extern crate strum_macros;
+
 pub mod api_impl;
 mod error;
 mod internal;

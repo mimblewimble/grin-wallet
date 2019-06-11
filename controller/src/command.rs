@@ -359,7 +359,7 @@ pub fn receive(
 	let send_tx = format!("{}.response", args.input);
 	adapter.send_tx_async(&send_tx, &slate)?;
 	info!(
-		"Response file {}.response generated, sending it back to the transaction originator.",
+		"Response file {}.response generated, and can be sent back to the transaction originator.",
 		args.input
 	);
 	Ok(())
@@ -462,7 +462,6 @@ pub struct ProcessInvoiceArgs {
 	pub method: String,
 	pub dest: String,
 	pub max_outputs: usize,
-	pub target_slate_version: Option<u16>,
 	pub input: String,
 	pub estimate_selection_strategies: bool,
 }
@@ -504,7 +503,6 @@ pub fn process_invoice(
 				num_change_outputs: 1u32,
 				selection_strategy_is_use_all: args.selection_strategy == "all",
 				message: args.message.clone(),
-				target_slate_version: args.target_slate_version,
 				send_args: None,
 				..Default::default()
 			};

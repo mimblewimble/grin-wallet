@@ -21,16 +21,23 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, FileWalletCommAdapter, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
+use grin_wallet_impls::{instantiate_wallet, WalletSeed};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
 use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::path::Path;
 use std::sync::Arc;
+
+// shut up test compilation warnings
+#[cfg(not(test))]
+use grin_wallet_impls::FileWalletCommAdapter;
+#[cfg(not(test))]
+use grin_wallet_libwallet::Slate;
+#[cfg(not(test))]
+use grin_wallet_util::grin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -141,6 +148,7 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 	Ok(phrase)
 }
 
+#[cfg(not(test))]
 fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
 	let interface = Arc::new(Interface::new("pay")?);
 	let amount = amount_to_hr_string(slate.amount, false);
@@ -610,23 +618,14 @@ pub fn parse_process_invoice_args(
 	// max_outputs
 	let max_outputs = 500;
 
-	// target slate version to create/send
-	let target_slate_version = {
-		match args.is_present("slate_version") {
-			true => {
-				let v = parse_required(args, "slate_version")?;
-				Some(parse_u64(v, "slate_version")? as u16)
-			}
-			false => None,
-		}
-	};
-
 	// file input only
 	let tx_file = parse_required(args, "input")?;
 
 	// Now we need to prompt the user whether they want to do this,
 	// which requires reading the slate
+	#[cfg(not(test))]
 	let adapter = FileWalletCommAdapter::new();
+	#[cfg(not(test))]
 	let slate = match adapter.receive_tx_async(&tx_file) {
 		Ok(s) => s,
 		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
@@ -643,7 +642,6 @@ pub fn parse_process_invoice_args(
 		method: method.to_owned(),
 		dest: dest.to_owned(),
 		max_outputs: max_outputs,
-		target_slate_version: target_slate_version,
 		input: tx_file.to_owned(),
 	})
 }

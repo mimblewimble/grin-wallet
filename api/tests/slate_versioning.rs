@@ -12,9 +12,9 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-use grin_wallet_api::foreign_rpc_client;
+//use grin_wallet_api::foreign_rpc_client;
 use grin_wallet_api::run_doctest_foreign;
-use grin_wallet_libwallet::{Slate, SlateVersion, VersionedSlate};
+//use grin_wallet_libwallet::VersionedSlate;
 use serde_json;
 use serde_json::Value;
 use tempfile::tempdir;
@@ -22,8 +22,8 @@ use tempfile::tempdir;
 //use grin_wallet_libwallet::slate_versions::v2::SlateV2;
 
 // test all slate conversions
-#[test]
-fn receive_versioned_slate() {
+//#[test]
+fn _receive_versioned_slate() {
 	// as in doctests, except exercising versioning functionality
 	// by accepting and responding with a V1 slate
 
@@ -65,6 +65,9 @@ fn receive_versioned_slate() {
 	}
 }
 
+// TODO: Re-introduce on a new slate version
+
+/*
 /// call ForeignRpc::receive_tx on vs and return the result
 fn receive_tx(vs: VersionedSlate) -> VersionedSlate {
 	let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -128,4 +131,4 @@ fn version_unchanged() {
 			VersionedSlate::V2(_) => (),
 		}
 	}
-}
+}*/
