@@ -62,8 +62,10 @@ where
 	slate.fee = fee;
 
 	let keychain = wallet.keychain();
-	let builder = ProofBuilder::new(keychain);
-	let blinding = slate.add_transaction_elements(keychain, &builder, elems)?;
+	let blinding = {
+		let builder = ProofBuilder::new(keychain);
+		slate.add_transaction_elements(keychain, &builder, elems)?
+	};
 
 	// Create our own private context
 	let mut context = Context::new(
