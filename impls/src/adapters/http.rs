@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//TODO: Update to V2 API when after Hard fork
-
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use config::WalletConfig;
 use serde::Serialize;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -46,14 +45,43 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 			error!("{}", err_str,);
 			Err(ErrorKind::Uri)?
 		}
-		let url = format!("{}/v1/wallet/foreign/receive_tx", dest);
+		let url = format!("{}/v2/foreign", dest);
 		debug!("Posting transaction slate to {}", url);
-		let res: String = post(url.as_str(), None, &slate).map_err(|e| {
+
+		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
+		let req = json!({
+			"jsonrpc": "2.0",
+			"method": "receive_tx",
+			"id": 1,
+			"params": [
+						slate,
+						null,
+						null
+					]
+		});
+		trace!("Sending receive_tx request: {}", req);
+
+		let res: String = post(url.as_str(), None, &req).map_err(|e| {
 			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
 		})?;
-		let slate = Slate::deserialize_upgrade(&res).map_err(|_| ErrorKind::SlateDeser)?;
+
+		let res: Value = serde_json::from_str(&res).unwrap();
+		trace!("Response: {}", res);
+		if res["result"]["error"] != json!(null) {
+			let report = format!(
+				"Posting transaction slate: Error: {}, Message: {}",
+				res["result"]["error"]["code"], res["result"]["error"]["message"]
+			);
+			error!("{}", report);
+			return Err(ErrorKind::ClientCallback(report).into());
+		}
+
+		let slate_value = res["result"]["Ok"].clone();
+		trace!("slate_value: {}", slate_value);
+		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
+			.map_err(|_| ErrorKind::SlateDeser)?;
 
 		Ok(slate)
 	}
