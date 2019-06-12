@@ -37,7 +37,6 @@
 
 use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
 use crate::grin_core::libtx::secp_ser;
-use crate::grin_core::map_vec;
 use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp;
 use crate::grin_util::secp::key::PublicKey;

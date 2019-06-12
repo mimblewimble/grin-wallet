@@ -708,7 +708,7 @@ impl Writeable for Slate {
 		// Save 3 bytes by casting u16 to u8 (should be fine up to slate v255)
 		writer.write_u8(self.version_info.version as u8)?;
 		writer.write_u8(self.version_info.orig_version as u8)?;
-		writer.write_u8(self.version_info.min_compat_version as u8)?;
+		writer.write_u8(self.version_info.block_header_version as u8)?;
 
 		writer.write_u16(self.num_participants as u16)?;
 
@@ -796,7 +796,7 @@ impl Readable for Slate {
 		let version_info = VersionCompatInfo {
 			version: reader.read_u8()? as u16,
 			orig_version: reader.read_u8()? as u16,
-			min_compat_version: reader.read_u8()? as u16,
+			block_header_version: reader.read_u8()? as u16,
 		};
 
 		let num_participants = reader.read_u16()? as usize;

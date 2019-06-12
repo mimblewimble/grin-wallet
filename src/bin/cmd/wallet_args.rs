@@ -24,7 +24,7 @@ use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{
 	instantiate_wallet, FileWalletCommAdapter, StdioWalletCommAdapter, WalletSeed,
 };
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, Slate, WalletInst};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
@@ -34,8 +34,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 // shut up test compilation warnings
-#[cfg(not(test))]
-use grin_wallet_impls::FileWalletCommAdapter;
 #[cfg(not(test))]
 use grin_wallet_libwallet::Slate;
 #[cfg(not(test))]

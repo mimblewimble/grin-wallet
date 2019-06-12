@@ -38,8 +38,8 @@ extern crate serde_derive;
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
-
 extern crate strum;
+
 #[macro_use]
 extern crate strum_macros;
 
