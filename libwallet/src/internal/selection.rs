@@ -16,9 +16,10 @@
 
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
+use crate::grin_core::global;
 use crate::grin_core::libtx::{
 	build,
-	proof::{ProofBuild, ProofBuilder},
+	proof::{LegacyProofBuilder, ProofBuild, ProofBuilder},
 	tx_fee,
 };
 use crate::grin_keychain::{Identifier, Keychain};
@@ -47,25 +48,45 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
-		wallet,
-		slate.amount,
-		slate.height,
-		minimum_confirmations,
-		slate.lock_height,
-		max_outputs,
-		change_outputs,
-		selection_strategy_is_use_all,
-		&parent_key_id,
-	)?;
-
-	slate.fee = fee;
+	let chain_type = global::CHAIN_TYPE.read().clone();
+	let (inputs, change_amounts_derivations, fee, blinding) = if chain_type
+		== global::ChainTypes::AutomatedTesting
+	{
+		let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
+			wallet,
+			slate.amount,
+			slate.height,
+			minimum_confirmations,
+			slate.lock_height,
+			max_outputs,
+			change_outputs,
+			selection_strategy_is_use_all,
+			&parent_key_id,
+		)?;
+		let keychain = wallet.keychain();
+		let blinding =
+			slate.add_transaction_elements(keychain, &LegacyProofBuilder::new(keychain), elems)?;
+		(inputs, change_amounts_derivations, fee, blinding)
+	} else {
+		let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
+			wallet,
+			slate.amount,
+			slate.height,
+			minimum_confirmations,
+			slate.lock_height,
+			max_outputs,
+			change_outputs,
+			selection_strategy_is_use_all,
+			&parent_key_id,
+		)?;
+		let keychain = wallet.keychain();
+		let blinding =
+			slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
+		(inputs, change_amounts_derivations, fee, blinding)
+	};
 
 	let keychain = wallet.keychain();
-	let blinding = {
-		let builder = ProofBuilder::new(keychain);
-		slate.add_transaction_elements(keychain, &builder, elems)?
-	};
+	slate.fee = fee;
 
 	// Create our own private context
 	let mut context = Context::new(
@@ -189,19 +210,26 @@ where
 {
 	// Create a potential output for this transaction
 	let key_id = keys::next_available_key(wallet).unwrap();
-
 	let keychain = wallet.keychain().clone();
-	let builder = ProofBuilder::new(&keychain);
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
 	let height = slate.height;
 
 	let slate_id = slate.id.clone();
-	let blinding = slate.add_transaction_elements(
-		&keychain,
-		&builder,
-		vec![build::output(amount, key_id.clone())],
-	)?;
+	let chain_type = global::CHAIN_TYPE.read().clone();
+	let blinding = if chain_type == global::ChainTypes::AutomatedTesting {
+		slate.add_transaction_elements(
+			&keychain,
+			&LegacyProofBuilder::new(&keychain),
+			vec![build::output(amount, key_id.clone())],
+		)
+	} else {
+		slate.add_transaction_elements(
+			&keychain,
+			&ProofBuilder::new(&keychain),
+			vec![build::output(amount, key_id.clone())],
+		)
+	}?;
 
 	// Add blinding sum to our context
 	let mut context = Context::new(
