@@ -29,10 +29,9 @@ impl HTTPWalletCommAdapter {
 	pub fn new() -> Box<dyn WalletCommAdapter> {
 		Box::new(HTTPWalletCommAdapter {})
 	}
-	
+
 	/// Check version of the other wallet
 	fn check_other_version(&self, url: &str) -> Result<(), Error> {
-
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -59,22 +58,20 @@ impl HTTPWalletCommAdapter {
 
 		let resp_value = res["result"]["Ok"].clone();
 		trace!("resp_value: {}", resp_value.clone());
-		let foreign_api_version:u16 = serde_json::from_value(resp_value["foreign_api_version"].clone()).unwrap();
-		let supported_slate_versions:Vec<String> = serde_json::from_value(resp_value["supported_slate_versions"].clone()).unwrap();
+		let foreign_api_version: u16 =
+			serde_json::from_value(resp_value["foreign_api_version"].clone()).unwrap();
+		let supported_slate_versions: Vec<String> =
+			serde_json::from_value(resp_value["supported_slate_versions"].clone()).unwrap();
 
 		// trivial tests for now, but will be expanded later
 		if foreign_api_version < 2 {
-			let report = format!(
-				"Other wallet reports unrecognized API format."
-			);
+			let report = format!("Other wallet reports unrecognized API format.");
 			error!("{}", report);
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
 
 		if !supported_slate_versions.contains(&"V2".to_owned()) {
-			let report = format!(
-				"Unable to negotiate slate format with other wallet."
-			);
+			let report = format!("Unable to negotiate slate format with other wallet.");
 			error!("{}", report);
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
