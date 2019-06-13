@@ -753,17 +753,21 @@ impl Writeable for Slate {
 
 		writer.write_u16(self.participant_data.len() as u16)?;
 
+		let s = secp::Secp256k1::with_caps(secp::ContextFlag::None);
+
 		for pd in self.participant_data.iter() {
 			// Save 7 bytes by casting u64 to u8, we only use 1 bit anyway
 			writer.write_u8(pd.id as u8)?;
 			pd.public_blind_excess.write(writer)?;
 			pd.public_nonce.write(writer)?;
 
+			
 			match pd.part_sig {
 				None => writer.write_u8(0)?,
-				Some(n) => {
-					writer.write_u8(n.as_ref().len() as u8)?;
-					n.write(writer)?;
+				Some(sig) => {
+					let serialized_sig = sig.serialize_compact(&s);
+					writer.write_u8(serialized_sig.len() as u8)?;
+					writer.write_fixed_bytes(&serialized_sig.as_ref())?;
 				}
 			};
 
@@ -778,9 +782,10 @@ impl Writeable for Slate {
 
 			match pd.message_sig {
 				None => writer.write_u8(0)?,
-				Some(n) => {
-					writer.write_u8(n.as_ref().len() as u8)?;
-					n.write(writer)?;
+				Some(sig) => {
+					let serialized_sig = sig.serialize_compact(&s);
+					writer.write_u8(serialized_sig.len() as u8)?;
+					writer.write_fixed_bytes(&serialized_sig.as_ref())?;
 				}
 			};
 		}
@@ -870,6 +875,7 @@ impl Readable for Slate {
 		let n_pdata = reader.read_u16()? as usize;
 		let mut participant_data: Vec<ParticipantData> = Vec::with_capacity(n_pdata);
 
+		let s = secp::Secp256k1::with_caps(secp::ContextFlag::None);
 
 		for _ in 0..n_pdata {
 			let id = reader.read_u8()? as u64;
@@ -880,7 +886,11 @@ impl Readable for Slate {
 			// The next u8 should be either 0 for no signature or the size of the signature (should be 64)
 			let part_sig: Option<Signature> = match reader.read_u8()? as usize {
 				0 => None,
-				secp::constants::AGG_SIGNATURE_SIZE => Some(Signature::read(reader)?),
+				secp::constants::AGG_SIGNATURE_SIZE => {
+						let bytes = reader.read_fixed_bytes(secp::constants::AGG_SIGNATURE_SIZE as usize)?;
+						let sig = Signature::from_compact(&s, &bytes).map_err(|_| ser::Error::CorruptedData)?;
+						Some(sig)
+					},
 				_ => return Err(ser::Error::CountError),
 			};
 
@@ -896,7 +906,11 @@ impl Readable for Slate {
 			// The next u8 should be either 0 for no signature or the size of the signature (should be 64)
 			let message_sig: Option<Signature> = match reader.read_u8()? as usize {
 				0 => None,
-				secp::constants::AGG_SIGNATURE_SIZE => Some(Signature::read(reader)?),
+				secp::constants::AGG_SIGNATURE_SIZE => {
+					let bytes = reader.read_fixed_bytes(secp::constants::AGG_SIGNATURE_SIZE as usize)?;
+					let sig = Signature::from_compact(&s, &bytes).map_err(|_| ser::Error::CorruptedData)?;
+					Some(sig)
+				},
 				_ => return Err(ser::Error::CountError),
 			};
 
