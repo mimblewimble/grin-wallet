@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use crate::blake2::blake2b::Blake2b;
 
-use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
+use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
 use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 
 use crate::core::core::Transaction;
@@ -68,7 +68,7 @@ fn private_ctx_xor_keys<K>(
 where
 	K: Keychain,
 {
-	let root_key = keychain.derive_key(0, &K::root_key_id())?;
+	let root_key = keychain.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
 
 	// derive XOR values for storing secret values in DB
 	// h(root_key|slate_id|"blind")
@@ -203,7 +203,10 @@ where
 			Ok(None)
 		} else {
 			Ok(Some(util::to_hex(
-				self.keychain().commit(amount, &id)?.0.to_vec(),
+				self.keychain()
+					.commit(amount, &id, &SwitchCommitmentType::Regular)?
+					.0
+					.to_vec(), // TODO: proper support for different switch commitment schemes
 			)))
 		}
 	}

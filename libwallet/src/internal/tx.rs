@@ -330,7 +330,7 @@ where
 
 #[cfg(test)]
 mod test {
-	use crate::grin_core::libtx::build;
+	use crate::grin_core::libtx::{build, ProofBuilder};
 	use crate::grin_keychain::{ExtKeychain, ExtKeychainPath, Keychain};
 
 	#[test]
@@ -338,10 +338,21 @@ mod test {
 	// based on the public key and amount begin spent
 	fn output_commitment_equals_input_commitment_on_spend() {
 		let keychain = ExtKeychain::from_random_seed(false).unwrap();
+		let builder = ProofBuilder::new(&keychain);
 		let key_id1 = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 
-		let tx1 = build::transaction(vec![build::output(105, key_id1.clone())], &keychain).unwrap();
-		let tx2 = build::transaction(vec![build::input(105, key_id1.clone())], &keychain).unwrap();
+		let tx1 = build::transaction(
+			vec![build::output(105, key_id1.clone())],
+			&keychain,
+			&builder,
+		)
+		.unwrap();
+		let tx2 = build::transaction(
+			vec![build::input(105, key_id1.clone())],
+			&keychain,
+			&builder,
+		)
+		.unwrap();
 
 		assert_eq!(tx1.outputs()[0].features, tx2.inputs()[0].features);
 		assert_eq!(tx1.outputs()[0].commitment(), tx2.inputs()[0].commitment());

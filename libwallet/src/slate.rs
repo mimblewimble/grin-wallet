@@ -24,7 +24,7 @@ use crate::grin_core::core::transaction::{
 	Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
-use crate::grin_core::libtx::{aggsig, build, secp_ser, tx_fee};
+use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
@@ -240,19 +240,21 @@ impl Slate {
 
 	/// Adds selected inputs and outputs to the slate's transaction
 	/// Returns blinding factor
-	pub fn add_transaction_elements<K>(
+	pub fn add_transaction_elements<K, B>(
 		&mut self,
 		keychain: &K,
-		mut elems: Vec<Box<build::Append<K>>>,
+		builder: &B,
+		mut elems: Vec<Box<build::Append<K, B>>>,
 	) -> Result<BlindingFactor, Error>
 	where
 		K: Keychain,
+		B: ProofBuild,
 	{
 		// Append to the exiting transaction
 		if self.tx.kernels().len() != 0 {
 			elems.insert(0, build::initial_tx(self.tx.clone()));
 		}
-		let (tx, blind) = build::partial_transaction(elems, keychain)?;
+		let (tx, blind) = build::partial_transaction(elems, keychain, builder)?;
 		self.tx = tx;
 		Ok(blind)
 	}

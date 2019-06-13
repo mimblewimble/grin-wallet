@@ -13,10 +13,12 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
+use crate::grin_core::consensus::valid_header_version;
+use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
-use crate::grin_keychain::{ExtKeychain, Identifier, Keychain};
-use crate::grin_util::secp::{key::SecretKey, pedersen};
+use crate::grin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
+use crate::grin_util::secp::pedersen;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
@@ -41,8 +43,6 @@ struct OutputResult {
 	pub lock_height: u64,
 	///
 	pub is_coinbase: bool,
-	///
-	pub blinding: SecretKey,
 }
 
 #[derive(Debug, Clone)]
@@ -73,15 +73,25 @@ where
 		outputs.len(),
 	);
 
+	let keychain = wallet.keychain();
+	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
+	let builder = proof::ProofBuilder::new(keychain);
+	let legacy_version = HeaderVersion(1);
+
 	for output in outputs.iter() {
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = proof::rewind(wallet.keychain(), *commit, None, *proof)?;
+		let info = if valid_header_version(*height, legacy_version) {
+			proof::rewind(keychain.secp(), &legacy_builder, *commit, None, *proof)
+		} else {
+			proof::rewind(keychain.secp(), &builder, *commit, None, *proof)
+		}?;
 
-		if !info.success {
+		if info.is_none() {
 			continue;
 		}
+		let (amount, key_id, switch) = info.unwrap();
 
 		let lock_height = if *is_coinbase {
 			*height + global::coinbase_maturity()
@@ -89,24 +99,23 @@ where
 			*height
 		};
 
-		// TODO: Output paths are always going to be length 3 for now, but easy enough to grind
-		// through to find the right path if required later
-		let key_id = Identifier::from_serialized_path(3u8, &info.message.as_bytes());
-
 		info!(
 			"Output found: {:?}, amount: {:?}, key_id: {:?}, mmr_index: {},",
-			commit, info.value, key_id, mmr_index,
+			commit, amount, key_id, mmr_index,
 		);
+
+		if switch != SwitchCommitmentType::Regular {
+			warn!("Unexpected switch commitment type {:?}", switch);
+		}
 
 		wallet_outputs.push(OutputResult {
 			commit: *commit,
 			key_id: key_id.clone(),
 			n_child: key_id.to_path().last_path_index(),
-			value: info.value,
+			value: amount,
 			height: *height,
 			lock_height: lock_height,
 			is_coinbase: *is_coinbase,
-			blinding: info.blinding,
 			mmr_index: *mmr_index,
 		});
 	}

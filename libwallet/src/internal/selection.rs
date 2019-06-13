@@ -16,12 +16,44 @@
 
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_core::libtx::{build, tx_fee};
+use crate::grin_core::global;
+use crate::grin_core::libtx::{
+	build,
+	proof::{LegacyProofBuilder, ProofBuild, ProofBuilder},
+	tx_fee,
+};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
 use std::collections::HashMap;
+
+macro_rules! add_transaction_elements {
+	($a:expr, $b:ident) => {{
+		let slate = $a.1;
+		let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
+			$a.0,
+			slate.amount,
+			slate.height,
+			$a.2,
+			slate.lock_height,
+			$a.3,
+			$a.4,
+			$a.5,
+			$a.6,
+		)?;
+		let keychain = $a.0.keychain();
+		let blinding = slate.add_transaction_elements(keychain, &$b::new(keychain), elems)?;
+			(
+			$a.0,
+			slate,
+			inputs,
+			change_amounts_derivations,
+			fee,
+			blinding,
+			)
+		}};
+}
 
 /// Initialize a transaction on the sender side, returns a corresponding
 /// libwallet transaction slate with the appropriate inputs selected,
@@ -43,26 +75,29 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
+	let chain_type = global::CHAIN_TYPE.read().clone();
+	let args = (
 		wallet,
-		slate.amount,
-		slate.height,
+		slate,
 		minimum_confirmations,
-		slate.lock_height,
 		max_outputs,
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
-	)?;
+	);
+	let (wallet, mut slate, inputs, change_amounts_derivations, fee, blinding) =
+		if chain_type == global::ChainTypes::AutomatedTesting {
+			add_transaction_elements!(args, LegacyProofBuilder)
+		} else {
+			add_transaction_elements!(args, ProofBuilder)
+		};
 
+	let keychain = wallet.keychain();
 	slate.fee = fee;
-
-	let keychain = wallet.keychain().clone();
-	let blinding = slate.add_transaction_elements(&keychain, elems)?;
 
 	// Create our own private context
 	let mut context = Context::new(
-		wallet.keychain().secp(),
+		keychain.secp(),
 		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
@@ -182,15 +217,26 @@ where
 {
 	// Create a potential output for this transaction
 	let key_id = keys::next_available_key(wallet).unwrap();
-
 	let keychain = wallet.keychain().clone();
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
 	let height = slate.height;
 
 	let slate_id = slate.id.clone();
-	let blinding =
-		slate.add_transaction_elements(&keychain, vec![build::output(amount, key_id.clone())])?;
+	let chain_type = global::CHAIN_TYPE.read().clone();
+	let blinding = if chain_type == global::ChainTypes::AutomatedTesting {
+		slate.add_transaction_elements(
+			&keychain,
+			&LegacyProofBuilder::new(&keychain),
+			vec![build::output(amount, key_id.clone())],
+		)
+	} else {
+		slate.add_transaction_elements(
+			&keychain,
+			&ProofBuilder::new(&keychain),
+			vec![build::output(amount, key_id.clone())],
+		)
+	}?;
 
 	// Add blinding sum to our context
 	let mut context = Context::new(
@@ -235,7 +281,7 @@ where
 /// Builds a transaction to send to someone from the HD seed associated with the
 /// wallet and the amount to send. Handles reading through the wallet data file,
 /// selecting outputs to spend and building the change.
-pub fn select_send_tx<T: ?Sized, C, K>(
+pub fn select_send_tx<T: ?Sized, C, K, B>(
 	wallet: &mut T,
 	amount: u64,
 	current_height: u64,
@@ -247,7 +293,7 @@ pub fn select_send_tx<T: ?Sized, C, K>(
 	parent_key_id: &Identifier,
 ) -> Result<
 	(
-		Vec<Box<build::Append<K>>>,
+		Vec<Box<build::Append<K, B>>>,
 		Vec<OutputData>,
 		Vec<(u64, Identifier, Option<u64>)>, // change amounts and derivations
 		u64,                                 // fee
@@ -258,6 +304,7 @@ where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
+	B: ProofBuild,
 {
 	let (coins, _total, amount, fee) = select_coins_and_fee(
 		wallet,
@@ -387,7 +434,7 @@ where
 }
 
 /// Selects inputs and change for a transaction
-pub fn inputs_and_change<T: ?Sized, C, K>(
+pub fn inputs_and_change<T: ?Sized, C, K, B>(
 	coins: &Vec<OutputData>,
 	wallet: &mut T,
 	amount: u64,
@@ -395,7 +442,7 @@ pub fn inputs_and_change<T: ?Sized, C, K>(
 	num_change_outputs: usize,
 ) -> Result<
 	(
-		Vec<Box<build::Append<K>>>,
+		Vec<Box<build::Append<K, B>>>,
 		Vec<(u64, Identifier, Option<u64>)>,
 	),
 	Error,
@@ -404,6 +451,7 @@ where
 	T: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
+	B: ProofBuild,
 {
 	let mut parts = vec![];
 
