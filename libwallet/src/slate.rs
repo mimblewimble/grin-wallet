@@ -761,7 +761,6 @@ impl Writeable for Slate {
 			pd.public_blind_excess.write(writer)?;
 			pd.public_nonce.write(writer)?;
 
-			
 			match pd.part_sig {
 				None => writer.write_u8(0)?,
 				Some(sig) => {
@@ -887,10 +886,12 @@ impl Readable for Slate {
 			let part_sig: Option<Signature> = match reader.read_u8()? as usize {
 				0 => None,
 				secp::constants::AGG_SIGNATURE_SIZE => {
-						let bytes = reader.read_fixed_bytes(secp::constants::AGG_SIGNATURE_SIZE as usize)?;
-						let sig = Signature::from_compact(&s, &bytes).map_err(|_| ser::Error::CorruptedData)?;
-						Some(sig)
-					},
+					let bytes =
+						reader.read_fixed_bytes(secp::constants::AGG_SIGNATURE_SIZE as usize)?;
+					let sig = Signature::from_compact(&s, &bytes)
+						.map_err(|_| ser::Error::CorruptedData)?;
+					Some(sig)
+				}
 				_ => return Err(ser::Error::CountError),
 			};
 
@@ -907,10 +908,12 @@ impl Readable for Slate {
 			let message_sig: Option<Signature> = match reader.read_u8()? as usize {
 				0 => None,
 				secp::constants::AGG_SIGNATURE_SIZE => {
-					let bytes = reader.read_fixed_bytes(secp::constants::AGG_SIGNATURE_SIZE as usize)?;
-					let sig = Signature::from_compact(&s, &bytes).map_err(|_| ser::Error::CorruptedData)?;
+					let bytes =
+						reader.read_fixed_bytes(secp::constants::AGG_SIGNATURE_SIZE as usize)?;
+					let sig = Signature::from_compact(&s, &bytes)
+						.map_err(|_| ser::Error::CorruptedData)?;
 					Some(sig)
-				},
+				}
 				_ => return Err(ser::Error::CountError),
 			};
 
