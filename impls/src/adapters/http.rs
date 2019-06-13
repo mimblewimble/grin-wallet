@@ -29,6 +29,55 @@ impl HTTPWalletCommAdapter {
 	pub fn new() -> Box<dyn WalletCommAdapter> {
 		Box::new(HTTPWalletCommAdapter {})
 	}
+
+	/// Check version of the other wallet
+	fn check_other_version(&self, url: &str) -> Result<(), Error> {
+		let req = json!({
+			"jsonrpc": "2.0",
+			"method": "check_version",
+			"id": 1,
+			"params": []
+		});
+
+		let res: String = post(url, None, &req).map_err(|e| {
+			let report = format!("Performing version check (is recipient listening?): {}", e);
+			error!("{}", report);
+			ErrorKind::ClientCallback(report)
+		})?;
+
+		let res: Value = serde_json::from_str(&res).unwrap();
+		trace!("Response: {}", res);
+		if res["error"] != json!(null) {
+			let report = format!(
+				"Posting transaction slate: Error: {}, Message: {}",
+				res["error"]["code"], res["error"]["message"]
+			);
+			error!("{}", report);
+			return Err(ErrorKind::ClientCallback(report).into());
+		}
+
+		let resp_value = res["result"]["Ok"].clone();
+		trace!("resp_value: {}", resp_value.clone());
+		let foreign_api_version: u16 =
+			serde_json::from_value(resp_value["foreign_api_version"].clone()).unwrap();
+		let supported_slate_versions: Vec<String> =
+			serde_json::from_value(resp_value["supported_slate_versions"].clone()).unwrap();
+
+		// trivial tests for now, but will be expanded later
+		if foreign_api_version < 2 {
+			let report = format!("Other wallet reports unrecognized API format.");
+			error!("{}", report);
+			return Err(ErrorKind::ClientCallback(report).into());
+		}
+
+		if !supported_slate_versions.contains(&"V2".to_owned()) {
+			let report = format!("Unable to negotiate slate format with other wallet.");
+			error!("{}", report);
+			return Err(ErrorKind::ClientCallback(report).into());
+		}
+
+		Ok(())
+	}
 }
 
 impl WalletCommAdapter for HTTPWalletCommAdapter {
@@ -47,6 +96,8 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		}
 		let url = format!("{}/v2/foreign", dest);
 		debug!("Posting transaction slate to {}", url);
+
+		self.check_other_version(&url)?;
 
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = json!({
@@ -69,10 +120,10 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 
 		let res: Value = serde_json::from_str(&res).unwrap();
 		trace!("Response: {}", res);
-		if res["result"]["error"] != json!(null) {
+		if res["error"] != json!(null) {
 			let report = format!(
 				"Posting transaction slate: Error: {}, Message: {}",
-				res["result"]["error"]["code"], res["result"]["error"]["message"]
+				res["error"]["code"], res["error"]["message"]
 			);
 			error!("{}", report);
 			return Err(ErrorKind::ClientCallback(report).into());
