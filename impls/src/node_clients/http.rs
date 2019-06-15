@@ -63,9 +63,9 @@ impl NodeClient for HTTPNodeClient {
 		self.node_api_secret = node_api_secret;
 	}
 
-	fn get_version_info(&self) -> Result<NodeVersionInfo, libwallet::Error>{
+	fn get_version_info(&self) -> Result<NodeVersionInfo, libwallet::Error> {
 		let url = format!("{}/v1/version", self.node_url());
-		match api::client::get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()){
+		match api::client::get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()) {
 			Ok(n) => Ok(n),
 			Err(e) => {
 				let report = format!("Getting version info from node: {}", e);

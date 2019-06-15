@@ -18,12 +18,12 @@ use clap::ArgMatches;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::{HTTPNodeClient, WalletSeed, SEED_FILE};
 use grin_wallet_libwallet::NodeClient;
+use semver::Version;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
-use semver::Version;
 
-const MIN_COMPAT_NODE_VERSION:&str = "2.0.0-beta.1";
+const MIN_COMPAT_NODE_VERSION: &str = "2.0.0-beta.1";
 // TODO: Change to 2 for HF
 const MIN_COMPAT_BLOCK_HEADER_VERSION: u16 = 1;
 
@@ -59,19 +59,22 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 		Ok(v) => {
 			// Isn't going to happen just yet (as of 2.0.0) but keep this here for
 			// the future
-			if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION){
+			if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
 				println!("Specified Grin Node (version {}) is outdated and incompatible with this wallet version", v.node_version);
 				println!("Please update the node or use a different one");
 				return 1;
 			}
 			if v.block_header_version < MIN_COMPAT_BLOCK_HEADER_VERSION {
-				println!("Node reported Block Header Version ({}) incompatible with this wallet", v.block_header_version);
+				println!(
+					"Node reported Block Header Version ({}) incompatible with this wallet",
+					v.block_header_version
+				);
 				println!("Please update the node or use a different one");
 				return 1;
 			}
-		},
+		}
 		Err(e) => {
-			// If node isn't available, allow offline functions 
+			// If node isn't available, allow offline functions
 			// unfortunately have to parse string due to error structure
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
