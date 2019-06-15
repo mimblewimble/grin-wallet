@@ -17,7 +17,7 @@
 
 use futures::{stream, Stream};
 
-use crate::libwallet::{NodeClient, TxWrapper};
+use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
@@ -63,14 +63,26 @@ impl NodeClient for HTTPNodeClient {
 		self.node_api_secret = node_api_secret;
 	}
 
+	fn get_version_info(&self) -> Result<NodeVersionInfo, libwallet::Error>{
+		let url = format!("{}/v1/version", self.node_url());
+		match api::client::get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()){
+			Ok(n) => Ok(n),
+			Err(e) => {
+				let report = format!("Getting version info from node: {}", e);
+				error!("Unable to get version info from Node: {}", e);
+				Err(libwallet::ErrorKind::ClientCallback(report).into())
+			}
+		}
+	}
+
 	/// Posts a transaction to a grin node
 	fn post_tx(&self, tx: &TxWrapper, fluff: bool) -> Result<(), libwallet::Error> {
 		let url;
 		let dest = self.node_url();
 		if fluff {
-			url = format!("{}/v1/pool/push?fluff", dest);
+			url = format!("{}/v1/pool/push_tx?fluff", dest);
 		} else {
-			url = format!("{}/v1/pool/push", dest);
+			url = format!("{}/v1/pool/push_tx", dest);
 		}
 		let res = api::client::post_no_ret(url.as_str(), self.node_api_secret(), tx);
 		if let Err(e) = res {

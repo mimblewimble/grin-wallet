@@ -21,6 +21,11 @@ use grin_wallet_libwallet::NodeClient;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
+use semver::Version;
+
+const MIN_COMPAT_NODE_VERSION:&str = "2.0.0-beta.1";
+// TODO: Change to 2 for HF
+const MIN_COMPAT_BLOCK_HEADER_VERSION: u16 = 1;
 
 pub fn _init_wallet_seed(wallet_config: WalletConfig, password: &str) {
 	if let Err(_) = WalletSeed::from_file(&wallet_config, password) {
@@ -44,31 +49,37 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 	// just get defaults from the global config
 	let wallet_config = config.members.unwrap().wallet;
 
-	// TODO: Very temporary code to obsolete grin wallet for the first hard fork
-	// All tx operations call get_chain_height as a first order of business,
-	// so this is the most non-intrusive place to put this
+	// Check the node version info, and exit with report if we're not compatible
 	let mut node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
 	let global_wallet_args = wallet_args::parse_global_args(&wallet_config, &wallet_args)
 		.expect("Can't read configuration file");
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
-	match node_client.clone().chain_height() {
-		Ok(h) => {
-			if h >= 262080 {
-				let err_str = "This version of grin-wallet is obsolete as of block 252080. Please download v2.0.0 from https://github.com/mimblewimble/grin-wallet/releases";
-				error!("{}", err_str);
-				println!();
-				println!("***************");
-				println!("{}", err_str);
-				println!("***************");
-				println!("(You can still view your balances by disconnecting from the grin node, however you will not be able to transact until you upgrade)");
-				println!();
+	match node_client.clone().get_version_info() {
+		Ok(v) => {
+			// Isn't going to happen just yet (as of 2.0.0) but keep this here for
+			// the future
+			if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION){
+				println!("Specified Grin Node (version {}) is outdated and incompatible with this wallet version", v.node_version);
+				println!("Please update the node or use a different one");
+				return 1;
+			}
+			if v.block_header_version < MIN_COMPAT_BLOCK_HEADER_VERSION {
+				println!("Node reported Block Header Version ({}) incompatible with this wallet", v.block_header_version);
+				println!("Please update the node or use a different one");
+				return 1;
+			}
+		},
+		Err(e) => {
+			// If node isn't available, allow offline functions 
+			// unfortunately have to parse string due to error structure
+			let err_string = format!("{}", e);
+			if err_string.contains("404") {
+				println!("Specified Grin Node is outdated (pre-2.0.0) and incompatible with this wallet version");
+				println!("Please update the node or use a different one");
 				return 1;
 			}
 		}
-		// just continue if can't connect to node, as user won't be able to do
-		// anything meaninful anyhow
-		Err(_) => {}
 	}
 
 	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client);
