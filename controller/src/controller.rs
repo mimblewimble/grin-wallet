@@ -16,7 +16,7 @@
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, Slate, NodeVersionInfo};
+use crate::libwallet::{Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;
@@ -39,7 +39,10 @@ lazy_static! {
 		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
 }
 
-fn check_middleware(_node_version_info: Option<NodeVersionInfo>, _slate: Option<&Slate>) -> Result<(), Error> {
+fn check_middleware(
+	_node_version_info: Option<NodeVersionInfo>,
+	_slate: Option<&Slate>,
+) -> Result<(), Error> {
 	// TODO: Implement checks
 	Ok(())
 }

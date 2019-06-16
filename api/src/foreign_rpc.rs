@@ -15,9 +15,9 @@
 //! JSON-RPC Stub generation for the Foreign API
 
 use crate::keychain::Keychain;
-use crate::libwallet::{self,
-	BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeVersionInfo, NodeClient, Slate, VersionInfo,
-	VersionedSlate, WalletBackend,
+use crate::libwallet::{
+	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletBackend,
 };
 use crate::Foreign;
 use easy_jsonrpc;
@@ -557,7 +557,10 @@ where
 	}
 }
 
-fn test_check_middleware(_node_version_info: Option<NodeVersionInfo>, _slate: Option<&Slate>) -> Result<(), libwallet::Error> {
+fn test_check_middleware(
+	_node_version_info: Option<NodeVersionInfo>,
+	_slate: Option<&Slate>,
+) -> Result<(), libwallet::Error> {
 	// TODO: Implement checks
 	// return Err(ErrorKind::GenericError("Test Rejection".into()))?
 	Ok(())
