@@ -402,8 +402,8 @@ impl NodeClient for LocalWalletClient {
 	}
 	fn set_node_url(&mut self, _node_url: &str) {}
 	fn set_node_api_secret(&mut self, _node_api_secret: Option<String>) {}
-	fn get_version_info(&self) -> Result<NodeVersionInfo, libwallet::Error> {
-		unimplemented!()
+	fn get_version_info(&mut self) -> Option<NodeVersionInfo> {
+		None
 	}
 	/// Posts a transaction to a grin node
 	/// In this case it will create a new block with award rewarded to

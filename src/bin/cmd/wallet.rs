@@ -24,8 +24,6 @@ use std::thread;
 use std::time::Duration;
 
 const MIN_COMPAT_NODE_VERSION: &str = "2.0.0-beta.1";
-// TODO: Change to 2 for HF
-const MIN_COMPAT_BLOCK_HEADER_VERSION: u16 = 1;
 
 pub fn _init_wallet_seed(wallet_config: WalletConfig, password: &str) {
 	if let Err(_) = WalletSeed::from_file(&wallet_config, password) {
@@ -55,35 +53,23 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 		.expect("Can't read configuration file");
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
-	match node_client.clone().get_version_info() {
-		Ok(v) => {
-			// Isn't going to happen just yet (as of 2.0.0) but keep this here for
-			// the future
-			if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
-				println!("Specified Grin Node (version {}) is outdated and incompatible with this wallet version", v.node_version);
-				println!("Please update the node or use a different one");
-				return 1;
-			}
-			if v.block_header_version < MIN_COMPAT_BLOCK_HEADER_VERSION {
-				println!(
-					"Node reported Block Header Version ({}) incompatible with this wallet",
-					v.block_header_version
-				);
-				println!("Please update the node or use a different one");
-				return 1;
-			}
-		}
-		Err(e) => {
-			// If node isn't available, allow offline functions
-			// unfortunately have to parse string due to error structure
-			let err_string = format!("{}", e);
-			if err_string.contains("404") {
-				println!("Specified Grin Node is outdated (pre-2.0.0) and incompatible with this wallet version");
-				println!("Please update the node or use a different one");
-				return 1;
-			}
+	// This will also cache the node version info for calls to foreign API check middleware
+	if let Some(v) = node_client.clone().get_version_info() {
+		// Isn't going to happen just yet (as of 2.0.0) but keep this here for
+		// the future. the nodeclient's get_version_info will return 1.0 if
+		// it gets a 404 for the version function
+		if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
+			let version = if v.node_version == "1.0.0" {
+				"1.0.x series"
+			} else {
+				&v.node_version
+			};
+			println!("Specified Grin Node (version {}) is outdated and incompatible with this wallet version", version);
+			println!("Please update the node or use a different one");
+			return 1;
 		}
 	}
+	// ... if node isn't available, allow offline functions
 
 	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client);
 

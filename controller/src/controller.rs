@@ -16,7 +16,7 @@
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend};
+use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, Slate, NodeVersionInfo};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;
@@ -37,6 +37,11 @@ use easy_jsonrpc::{Handler, MaybeReply};
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
 		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
+}
+
+fn check_middleware(_node_version_info: Option<NodeVersionInfo>, _slate: Option<&Slate>) -> Result<(), Error> {
+	// TODO: Implement checks
+	Ok(())
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
@@ -61,7 +66,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	f(&mut Foreign::new(wallet.clone()))?;
+	f(&mut Foreign::new(wallet.clone(), Some(check_middleware)))?;
 	Ok(())
 }
 
@@ -279,7 +284,7 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Foreign::new(self.wallet.clone());
+		let api = Foreign::new(self.wallet.clone(), Some(check_middleware));
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),
