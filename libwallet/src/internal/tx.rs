@@ -16,10 +16,10 @@
 
 use uuid::Uuid;
 
+use crate::grin_core::consensus::valid_header_version;
+use crate::grin_core::core::HeaderVersion;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::Mutex;
-use crate::grin_core::consensus::{valid_header_version};
-use crate::grin_core::core::{HeaderVersion};
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};

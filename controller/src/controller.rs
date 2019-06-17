@@ -16,8 +16,10 @@
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend,
-CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
+use crate::libwallet::{
+	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend, CURRENT_SLATE_VERSION,
+	GRIN_BLOCK_HEADER_VERSION,
+};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;
@@ -31,7 +33,7 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::apiwallet::{Foreign, ForeignRpc, ForeignCheckMiddlewareFn, Owner, OwnerRpc};
+use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc};
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
 
@@ -54,10 +56,14 @@ fn check_middleware(
 				bhv = n.block_header_version;
 			}
 			if let Some(s) = slate {
-				if s.version_info.version < CURRENT_SLATE_VERSION ||
-					(bhv > 1 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION) {
-					Err(ErrorKind::Compatibility("Incoming Slate is not compatible with this wallet. \
-					Please upgrade the node or use a different one.".into()))?;
+				if s.version_info.version < CURRENT_SLATE_VERSION
+					|| (bhv > 1 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION)
+				{
+					Err(ErrorKind::Compatibility(
+						"Incoming Slate is not compatible with this wallet. \
+						 Please upgrade the node or use a different one."
+							.into(),
+					))?;
 				}
 			}
 			Ok(())
