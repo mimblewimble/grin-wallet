@@ -57,6 +57,7 @@ fn check_middleware(
 			}
 			if let Some(s) = slate {
 				if s.version_info.version < CURRENT_SLATE_VERSION
+					|| (bhv == 1 && s.version_info.block_header_version != 1)
 					|| (bhv > 1 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION)
 				{
 					Err(ErrorKind::Compatibility(
