@@ -19,7 +19,7 @@ use crate::libwallet::{
 	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletBackend,
 };
-use crate::Foreign;
+use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -558,6 +558,7 @@ where
 }
 
 fn test_check_middleware(
+	_name: ForeignCheckMiddlewareFn,
 	_node_version_info: Option<NodeVersionInfo>,
 	_slate: Option<&Slate>,
 ) -> Result<(), libwallet::Error> {

@@ -24,7 +24,21 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
-pub type ForeignCheckMiddleware = fn(Option<NodeVersionInfo>, Option<&Slate>) -> Result<(), Error>;
+pub type ForeignCheckMiddleware = fn(ForeignCheckMiddlewareFn, Option<NodeVersionInfo>, Option<&Slate>) -> Result<(), Error>;
+
+/// Middleware Identifiers for each function
+pub enum ForeignCheckMiddlewareFn {
+	/// check_version
+	CheckVersion,
+	/// build_coinbase
+	BuildCoinbase,
+	/// verify_slate_messages
+	VerifySlateMessages,
+	/// receive_tx
+	ReceiveTx,
+	/// finalize_invoice_tx
+	FinalizeInvoiceTx,
+}
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -154,7 +168,7 @@ where
 	pub fn check_version(&self) -> Result<VersionInfo, Error> {
 		if let Some(m) = self.middleware.as_ref() {
 			let mut w = self.wallet.lock();
-			m(w.w2n_client().get_version_info(), None)?;
+			m(ForeignCheckMiddlewareFn::CheckVersion, w.w2n_client().get_version_info(), None)?;
 		}
 		Ok(foreign::check_version())
 	}
@@ -212,7 +226,7 @@ where
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w = self.wallet.lock();
 		if let Some(m) = self.middleware.as_ref() {
-			m(w.w2n_client().get_version_info(), None)?;
+			m(ForeignCheckMiddlewareFn::BuildCoinbase, w.w2n_client().get_version_info(), None)?;
 		}
 		w.open_with_credentials()?;
 		let res = foreign::build_coinbase(&mut *w, block_fees, self.doctest_mode);
@@ -261,7 +275,7 @@ where
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		if let Some(m) = self.middleware.as_ref() {
 			let mut w = self.wallet.lock();
-			m(w.w2n_client().get_version_info(), None)?;
+			m(ForeignCheckMiddlewareFn::VerifySlateMessages, w.w2n_client().get_version_info(), Some(slate))?;
 		}
 		foreign::verify_slate_messages(slate)
 	}
@@ -330,7 +344,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		if let Some(m) = self.middleware.as_ref() {
-			m(w.w2n_client().get_version_info(), None)?;
+			m(ForeignCheckMiddlewareFn::ReceiveTx, w.w2n_client().get_version_info(), Some(slate))?;
 		}
 		w.open_with_credentials()?;
 		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, self.doctest_mode);
@@ -388,9 +402,8 @@ where
 	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		if let Some(m) = self.middleware.as_ref() {
-			m(w.w2n_client().get_version_info(), None)?;
+			m(ForeignCheckMiddlewareFn::FinalizeInvoiceTx, w.w2n_client().get_version_info(), Some(slate))?;
 		}
-		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let res = foreign::finalize_invoice_tx(&mut *w, slate);
 		w.close()?;

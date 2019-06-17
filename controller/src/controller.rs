@@ -16,7 +16,8 @@
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend};
+use crate::libwallet::{Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend,
+CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;
@@ -30,7 +31,7 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::apiwallet::{Foreign, ForeignRpc, Owner, OwnerRpc};
+use crate::apiwallet::{Foreign, ForeignRpc, ForeignCheckMiddlewareFn, Owner, OwnerRpc};
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
 
@@ -40,11 +41,28 @@ lazy_static! {
 }
 
 fn check_middleware(
-	_node_version_info: Option<NodeVersionInfo>,
-	_slate: Option<&Slate>,
+	name: ForeignCheckMiddlewareFn,
+	node_version_info: Option<NodeVersionInfo>,
+	slate: Option<&Slate>,
 ) -> Result<(), Error> {
-	// TODO: Implement checks
-	Ok(())
+	match name {
+		// allow coinbases to be built regardless
+		ForeignCheckMiddlewareFn::BuildCoinbase => Ok(()),
+		_ => {
+			let mut bhv = 1;
+			if let Some(n) = node_version_info {
+				bhv = n.block_header_version;
+			}
+			if let Some(s) = slate {
+				if s.version_info.version < CURRENT_SLATE_VERSION ||
+					(bhv > 1 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION) {
+					Err(ErrorKind::Compatibility("Incoming Slate is not compatible with this wallet. \
+					Please upgrade the node or use a different one.".into()))?;
+				}
+			}
+			Ok(())
+		}
+	}
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
