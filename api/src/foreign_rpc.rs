@@ -16,10 +16,10 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, Slate, VersionInfo,
-	VersionedSlate, WalletBackend,
+	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletBackend,
 };
-use crate::Foreign;
+use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -557,6 +557,16 @@ where
 	}
 }
 
+fn test_check_middleware(
+	_name: ForeignCheckMiddlewareFn,
+	_node_version_info: Option<NodeVersionInfo>,
+	_slate: Option<&Slate>,
+) -> Result<(), libwallet::Error> {
+	// TODO: Implement checks
+	// return Err(ErrorKind::GenericError("Test Rejection".into()))?
+	Ok(())
+}
+
 /// helper to set up a real environment to run integrated doctests
 pub fn run_doctest_foreign(
 	request: serde_json::Value,
@@ -675,8 +685,8 @@ pub fn run_doctest_foreign(
 	}
 
 	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1.clone()),
-		true => Foreign::new(wallet2.clone()),
+		false => Foreign::new(wallet1.clone(), Some(test_check_middleware)),
+		true => Foreign::new(wallet2.clone(), Some(test_check_middleware)),
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;

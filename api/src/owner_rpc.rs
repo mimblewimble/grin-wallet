@@ -391,7 +391,7 @@ pub trait OwnerRpc {
 		  "version_info": {
 				"orig_version": 2,
 				"version": 2,
-				"block_header_version": 2
+				"block_header_version": 1
 		  }
 		}
 	  }
@@ -471,7 +471,7 @@ pub trait OwnerRpc {
 					"version_info": {
 						"orig_version": 2,
 						"version": 2,
-						"block_header_version": 2
+						"block_header_version": 1
 					}
 				}
 			}

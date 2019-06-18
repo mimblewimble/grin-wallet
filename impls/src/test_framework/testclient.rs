@@ -26,7 +26,7 @@ use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{NodeClient, Slate, TxWrapper, WalletInst};
+use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst};
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
@@ -402,6 +402,9 @@ impl NodeClient for LocalWalletClient {
 	}
 	fn set_node_url(&mut self, _node_url: &str) {}
 	fn set_node_api_secret(&mut self, _node_api_secret: Option<String>) {}
+	fn get_version_info(&mut self) -> Option<NodeVersionInfo> {
+		None
+	}
 	/// Posts a transaction to a grin node
 	/// In this case it will create a new block with award rewarded to
 	fn post_tx(&self, tx: &TxWrapper, _fluff: bool) -> Result<(), libwallet::Error> {

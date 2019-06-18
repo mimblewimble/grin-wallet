@@ -16,7 +16,10 @@
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend};
+use crate::libwallet::{
+	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend, CURRENT_SLATE_VERSION,
+	GRIN_BLOCK_HEADER_VERSION,
+};
 use crate::util::to_base64;
 use crate::util::Mutex;
 use failure::ResultExt;
@@ -30,13 +33,43 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::apiwallet::{Foreign, ForeignRpc, Owner, OwnerRpc};
+use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc};
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
 
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
 		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
+}
+
+fn check_middleware(
+	name: ForeignCheckMiddlewareFn,
+	node_version_info: Option<NodeVersionInfo>,
+	slate: Option<&Slate>,
+) -> Result<(), Error> {
+	match name {
+		// allow coinbases to be built regardless
+		ForeignCheckMiddlewareFn::BuildCoinbase => Ok(()),
+		_ => {
+			let mut bhv = 1;
+			if let Some(n) = node_version_info {
+				bhv = n.block_header_version;
+			}
+			if let Some(s) = slate {
+				if s.version_info.version < CURRENT_SLATE_VERSION
+					|| (bhv == 1 && s.version_info.block_header_version != 1)
+					|| (bhv > 1 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION)
+				{
+					Err(ErrorKind::Compatibility(
+						"Incoming Slate is not compatible with this wallet. \
+						 Please upgrade the node or use a different one."
+							.into(),
+					))?;
+				}
+			}
+			Ok(())
+		}
+	}
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
@@ -61,7 +94,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	f(&mut Foreign::new(wallet.clone()))?;
+	f(&mut Foreign::new(wallet.clone(), Some(check_middleware)))?;
 	Ok(())
 }
 
@@ -279,7 +312,7 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Foreign::new(self.wallet.clone());
+		let api = Foreign::new(self.wallet.clone(), Some(check_middleware));
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),
