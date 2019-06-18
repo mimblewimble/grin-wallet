@@ -13,7 +13,7 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
-use crate::grin_core::consensus::valid_header_version;
+use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
@@ -23,6 +23,9 @@ use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
 use std::collections::HashMap;
+
+const FLOONET_RELEASE_HEIGHT: u64 = 177_700;
+const MAINNET_RELEASE_HEIGHT: u64 = 220_700;
 
 /// Utility struct for return values from below
 #[derive(Clone)]
@@ -67,6 +70,12 @@ where
 	K: Keychain,
 {
 	let mut wallet_outputs: Vec<OutputResult> = Vec::new();
+	let chain_type = global::CHAIN_TYPE.read().clone();
+	let testing = chain_type == global::ChainTypes::AutomatedTesting;
+	let release_height = match chain_type {
+		global::ChainTypes::Floonet => FLOONET_RELEASE_HEIGHT,
+		_ => MAINNET_RELEASE_HEIGHT,
+	};
 
 	warn!(
 		"Scanning {} outputs in the current Grin utxo set",
@@ -82,16 +91,31 @@ where
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = if valid_header_version(*height, legacy_version) {
-			proof::rewind(keychain.secp(), &legacy_builder, *commit, None, *proof)
-		} else {
-			proof::rewind(keychain.secp(), &builder, *commit, None, *proof)
-		}?;
+		let info = {
+			// Before HF+1wk, try legacy rewind first
+			let info_legacy =
+				if valid_header_version(height.saturating_sub(WEEK_HEIGHT), legacy_version)
+					&& !testing
+				{
+					proof::rewind(keychain.secp(), &legacy_builder, *commit, None, *proof)?
+				} else {
+					None
+				};
 
-		if info.is_none() {
-			continue;
-		}
-		let (amount, key_id, switch) = info.unwrap();
+			// If legacy didn't work, try new rewind from a certain height
+			if (info_legacy.is_none() && *height >= release_height) || testing {
+				proof::rewind(keychain.secp(), &builder, *commit, None, *proof)?
+			} else {
+				info_legacy
+			}
+		};
+
+		let (amount, key_id, switch) = match info {
+			Some(i) => i,
+			None => {
+				continue;
+			}
+		};
 
 		let lock_height = if *is_coinbase {
 			*height + global::coinbase_maturity()
