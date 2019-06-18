@@ -19,10 +19,10 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::grin_core::consensus::{reward, valid_header_version};
-use crate::grin_core::core::{HeaderVersion, Output, TxKernel};
+use crate::grin_core::consensus::reward;
+use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::global;
-use crate::grin_core::libtx::proof::{LegacyProofBuilder, ProofBuilder};
+use crate::grin_core::libtx::proof::ProofBuilder;
 use crate::grin_core::libtx::reward;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util as util;
@@ -511,12 +511,12 @@ where
 	debug!("receive_coinbase: {:?}", block_fees);
 
 	let keychain = wallet.keychain();
-	let (out, kern) = if valid_header_version(height, HeaderVersion(1)) {
-		let builder = LegacyProofBuilder::new(keychain);
-		reward::output(keychain, &builder, &key_id, block_fees.fees, test_mode)?
-	} else {
-		let builder = ProofBuilder::new(keychain);
-		reward::output(keychain, &builder, &key_id, block_fees.fees, test_mode)?
-	};
+	let (out, kern) = reward::output(
+		keychain,
+		&ProofBuilder::new(keychain),
+		&key_id,
+		block_fees.fees,
+		test_mode,
+	)?;
 	Ok((out, kern, block_fees))
 }

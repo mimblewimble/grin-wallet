@@ -13,7 +13,7 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
-use crate::grin_core::consensus::valid_header_version;
+use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
@@ -23,6 +23,7 @@ use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
 use std::collections::HashMap;
+use std::time::Instant;
 
 /// Utility struct for return values from below
 #[derive(Clone)]
@@ -82,16 +83,29 @@ where
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = if valid_header_version(*height, legacy_version) {
-			proof::rewind(keychain.secp(), &legacy_builder, *commit, None, *proof)
-		} else {
-			proof::rewind(keychain.secp(), &builder, *commit, None, *proof)
-		}?;
+		let info = {
+			// Before HF+2wk, try legacy rewind first
+			let info_legacy =
+				if valid_header_version(height.saturating_sub(2 * WEEK_HEIGHT), legacy_version) {
+					proof::rewind(keychain.secp(), &legacy_builder, *commit, None, *proof)?
+				} else {
+					None
+				};
 
-		if info.is_none() {
-			continue;
-		}
-		let (amount, key_id, switch) = info.unwrap();
+			// If legacy didn't work, try new rewind
+			if info_legacy.is_none() {
+				proof::rewind(keychain.secp(), &builder, *commit, None, *proof)?
+			} else {
+				info_legacy
+			}
+		};
+
+		let (amount, key_id, switch) = match info {
+			Some(i) => i,
+			None => {
+				continue;
+			}
+		};
 
 		let lock_height = if *is_coinbase {
 			*height + global::coinbase_maturity()
@@ -411,6 +425,7 @@ where
 		return Ok(());
 	}
 
+	let now = Instant::now();
 	warn!("Starting restore.");
 
 	let result_vec = collect_chain_outputs(wallet)?;
@@ -459,5 +474,11 @@ where
 		debug!("Next child for account {} is {}", path, max_child_index + 1);
 		batch.commit()?;
 	}
+
+	let mut sec = now.elapsed().as_secs();
+	let min = sec / 60;
+	sec %= 60;
+	info!("Restored wallet in {}m{}s", min, sec);
+
 	Ok(())
 }
