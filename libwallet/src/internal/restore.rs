@@ -23,9 +23,7 @@ use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
 use std::collections::HashMap;
-
-const FLOONET_RELEASE_HEIGHT: u64 = 177_700;
-const MAINNET_RELEASE_HEIGHT: u64 = 220_700;
+use std::time::Instant;
 
 /// Utility struct for return values from below
 #[derive(Clone)]
@@ -70,12 +68,6 @@ where
 	K: Keychain,
 {
 	let mut wallet_outputs: Vec<OutputResult> = Vec::new();
-	let chain_type = global::CHAIN_TYPE.read().clone();
-	let testing = chain_type == global::ChainTypes::AutomatedTesting;
-	let release_height = match chain_type {
-		global::ChainTypes::Floonet => FLOONET_RELEASE_HEIGHT,
-		_ => MAINNET_RELEASE_HEIGHT,
-	};
 
 	warn!(
 		"Scanning {} outputs in the current Grin utxo set",
@@ -92,18 +84,16 @@ where
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
 		let info = {
-			// Before HF+1wk, try legacy rewind first
+			// Before HF+2wk, try legacy rewind first
 			let info_legacy =
-				if valid_header_version(height.saturating_sub(WEEK_HEIGHT), legacy_version)
-					&& !testing
-				{
+				if valid_header_version(height.saturating_sub(2 * WEEK_HEIGHT), legacy_version) {
 					proof::rewind(keychain.secp(), &legacy_builder, *commit, None, *proof)?
 				} else {
 					None
 				};
 
 			// If legacy didn't work, try new rewind from a certain height
-			if (info_legacy.is_none() && *height >= release_height) || testing {
+			if info_legacy.is_none() {
 				proof::rewind(keychain.secp(), &builder, *commit, None, *proof)?
 			} else {
 				info_legacy
@@ -435,6 +425,7 @@ where
 		return Ok(());
 	}
 
+	let now = Instant::now();
 	warn!("Starting restore.");
 
 	let result_vec = collect_chain_outputs(wallet)?;
@@ -483,5 +474,11 @@ where
 		debug!("Next child for account {} is {}", path, max_child_index + 1);
 		batch.commit()?;
 	}
+
+	let mut sec = now.elapsed().as_secs();
+	let min = sec / 60;
+	sec %= 60;
+	info!("Restored wallet in {}m{}s", min, sec);
+
 	Ok(())
 }
