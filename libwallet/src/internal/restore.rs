@@ -92,7 +92,7 @@ where
 					None
 				};
 
-			// If legacy didn't work, try new rewind from a certain height
+			// If legacy didn't work, try new rewind
 			if info_legacy.is_none() {
 				proof::rewind(keychain.secp(), &builder, *commit, None, *proof)?
 			} else {
