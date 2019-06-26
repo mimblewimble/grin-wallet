@@ -44,8 +44,10 @@ impl HTTPWalletCommAdapter {
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
 				// Report that the other version of the wallet is out of date
-				report = format!("Other wallet is incompatible and requires an upgrade. \
-				Please urge the other wallet owner to upgrade and try the transaction again.");
+				report = format!(
+					"Other wallet is incompatible and requires an upgrade. \
+					 Please urge the other wallet owner to upgrade and try the transaction again."
+				);
 			}
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
