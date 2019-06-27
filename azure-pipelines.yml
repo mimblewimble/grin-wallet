@@ -25,7 +25,7 @@ pr:
 
 variables:
   RUST_BACKTRACE: '1'
-  RUST_FLAGS: '-C debug-assertions'
+  RUSTFLAGS: '-C debug-assertions'
 
 jobs:
 - job: linux
