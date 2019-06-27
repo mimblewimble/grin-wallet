@@ -221,6 +221,10 @@ pub trait NodeClient: Sync + Send + Clone {
 	/// Posts a transaction to a grin node
 	fn post_tx(&self, tx: &TxWrapper, fluff: bool) -> Result<(), Error>;
 
+	/// Returns the api version string and block header version as reported
+	/// by the node. Result can be cached for later use
+	fn get_version_info(&mut self) -> Option<NodeVersionInfo>;
+
 	/// retrieves the current tip from the specified grin node
 	fn get_chain_height(&self) -> Result<u64, Error>;
 
@@ -248,6 +252,17 @@ pub trait NodeClient: Sync + Send + Clone {
 		),
 		Error,
 	>;
+}
+
+/// Node version info
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NodeVersionInfo {
+	/// Semver version string
+	pub node_version: String,
+	/// block header verson
+	pub block_header_version: u16,
+	/// Whether this version info was successfully verified from a node
+	pub verified: Option<bool>,
 }
 
 /// Information about an output that's being tracked by the wallet. Must be
