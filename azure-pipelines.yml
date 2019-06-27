@@ -59,10 +59,7 @@ jobs:
         CI_JOB: release
         PLATFORM: macos
   steps:
-    - script: |
-        curl https://sh.rustup.rs -sSf | sh -s -- -y
-        echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-      displayName: macOS Install Rust
+    - template: '.ci/install.yml'
     - template: '.ci/test.yml'
     - template: '.ci/release.yml'
 - job: windows
@@ -76,5 +73,6 @@ jobs:
         CI_JOB: release
         PLATFORM: win-x64
   steps:
+    - template: '.ci/install.yml'
     - template: '.ci/test.yml'
     - template: '.ci/windows-release.yml'
