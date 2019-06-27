@@ -38,7 +38,7 @@ mod foreign;
 mod foreign_rpc;
 mod owner;
 mod owner_rpc;
-pub use crate::foreign::Foreign;
+pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddlewareFn};
 pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;

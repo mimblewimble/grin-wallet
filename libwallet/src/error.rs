@@ -193,6 +193,10 @@ pub enum ErrorKind {
 	#[fail(display = "Unknown Slate Version: {}", _0)]
 	SlateVersion(u16),
 
+	/// Compatibility error between incoming slate versions and what's expected
+	#[fail(display = "Compatibility Error: {}", _0)]
+	Compatibility(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

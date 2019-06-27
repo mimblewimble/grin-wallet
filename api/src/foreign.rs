@@ -16,10 +16,30 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{BlockFees, CbData, Error, NodeClient, Slate, VersionInfo, WalletBackend};
+use crate::libwallet::{
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletBackend,
+};
 use crate::util::Mutex;
 use std::marker::PhantomData;
 use std::sync::Arc;
+
+/// ForeignAPI Middleware Check callback
+pub type ForeignCheckMiddleware =
+	fn(ForeignCheckMiddlewareFn, Option<NodeVersionInfo>, Option<&Slate>) -> Result<(), Error>;
+
+/// Middleware Identifiers for each function
+pub enum ForeignCheckMiddlewareFn {
+	/// check_version
+	CheckVersion,
+	/// build_coinbase
+	BuildCoinbase,
+	/// verify_slate_messages
+	VerifySlateMessages,
+	/// receive_tx
+	ReceiveTx,
+	/// finalize_invoice_tx
+	FinalizeInvoiceTx,
+}
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -46,8 +66,12 @@ where
 	pub wallet: Arc<Mutex<W>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
+	/// phantom
 	phantom: PhantomData<K>,
+	/// phantom
 	phantom_c: PhantomData<C>,
+	/// foreign check middleware
+	middleware: Option<ForeignCheckMiddleware>,
 }
 
 impl<'a, W: ?Sized, C, K> Foreign<W, C, K>
@@ -67,6 +91,8 @@ where
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
 	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	/// * middleware - Option middleware which containts the NodeVersionInfo and can call
+	/// a predefined function with the slate to check if the operation should continue
 	///
 	/// # Returns
 	/// * An instance of the ForeignApi holding a reference to the provided wallet
@@ -109,17 +135,18 @@ where
 	///			LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
 	///		));
 	///
-	/// let api_owner = Foreign::new(wallet.clone());
+	/// let api_foreign = Foreign::new(wallet.clone(), None);
 	/// // .. perform wallet operations
 	///
 	/// ```
 
-	pub fn new(wallet_in: Arc<Mutex<W>>) -> Self {
+	pub fn new(wallet_in: Arc<Mutex<W>>, middleware: Option<ForeignCheckMiddleware>) -> Self {
 		Foreign {
 			wallet: wallet_in,
 			doctest_mode: false,
 			phantom: PhantomData,
 			phantom_c: PhantomData,
+			middleware,
 		}
 	}
 
@@ -133,13 +160,21 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone());
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
 	/// let version_info = api_foreign.check_version();
 	/// // check and proceed accordingly
 	/// ```
 
 	pub fn check_version(&self) -> Result<VersionInfo, Error> {
+		if let Some(m) = self.middleware.as_ref() {
+			let mut w = self.wallet.lock();
+			m(
+				ForeignCheckMiddlewareFn::CheckVersion,
+				w.w2n_client().get_version_info(),
+				None,
+			)?;
+		}
 		Ok(foreign::check_version())
 	}
 
@@ -176,7 +211,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone());
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
 	/// let block_fees = BlockFees {
 	///		fees: 800000,
@@ -195,6 +230,13 @@ where
 
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w = self.wallet.lock();
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::BuildCoinbase,
+				w.w2n_client().get_version_info(),
+				None,
+			)?;
+		}
 		w.open_with_credentials()?;
 		let res = foreign::build_coinbase(&mut *w, block_fees, self.doctest_mode);
 		w.close()?;
@@ -222,7 +264,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone());
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
 	/// # let slate = Slate::blank(2);
 	/// // Receive a slate via some means
@@ -240,6 +282,14 @@ where
 	/// ```
 
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
+		if let Some(m) = self.middleware.as_ref() {
+			let mut w = self.wallet.lock();
+			m(
+				ForeignCheckMiddlewareFn::VerifySlateMessages,
+				w.w2n_client().get_version_info(),
+				Some(slate),
+			)?;
+		}
 		foreign::verify_slate_messages(slate)
 	}
 
@@ -286,7 +336,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone());
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	/// # let slate = Slate::blank(2);
 	///
 	/// // . . .
@@ -306,6 +356,13 @@ where
 		message: Option<String>,
 	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::ReceiveTx,
+				w.w2n_client().get_version_info(),
+				Some(slate),
+			)?;
+		}
 		w.open_with_credentials()?;
 		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, self.doctest_mode);
 		w.close()?;
@@ -340,7 +397,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let mut api_foreign = Foreign::new(wallet.clone());
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
 	/// // . . .
 	/// // Issue the invoice tx via the owner API
@@ -361,6 +418,13 @@ where
 
 	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::FinalizeInvoiceTx,
+				w.w2n_client().get_version_info(),
+				Some(slate),
+			)?;
+		}
 		w.open_with_credentials()?;
 		let res = foreign::finalize_invoice_tx(&mut *w, slate);
 		w.close()?;
