@@ -19,6 +19,7 @@ trigger:
   tags:
     include: ['*']
 
+    
 pr:
   branches:
     include: ['*']
