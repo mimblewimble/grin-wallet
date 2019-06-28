@@ -60,7 +60,7 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 		// it gets a 404 for the version function
 		if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
 			let version = if v.node_version == "1.0.0" {
-				"1.0.x series"
+				"1.x.x series"
 			} else {
 				&v.node_version
 			};
