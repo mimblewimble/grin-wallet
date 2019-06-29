@@ -60,12 +60,12 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 		// it gets a 404 for the version function
 		if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
 			let version = if v.node_version == "1.0.0" {
-				"1.0.x series"
+				"1.x.x series"
 			} else {
 				&v.node_version
 			};
-			println!("Specified Grin Node (version {}) is outdated and incompatible with this wallet version", version);
-			println!("Please update the node or use a different one");
+			println!("The Grin Node in use (version {}) is outdated and incompatible with this wallet version.", version);
+			println!("Please update the node to version 2.0.0 or later and try again.");
 			return 1;
 		}
 	}
