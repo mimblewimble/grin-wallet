@@ -13,12 +13,12 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
-use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
-use crate::grin_core::core::HeaderVersion;
-use crate::grin_core::global;
-use crate::grin_core::libtx::proof;
-use crate::grin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util::secp::pedersen;
+use crate::bitgrin_core::consensus::{valid_header_version, WEEK_HEIGHT};
+use crate::bitgrin_core::core::HeaderVersion;
+use crate::bitgrin_core::global;
+use crate::bitgrin_core::libtx::proof;
+use crate::bitgrin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
+use crate::bitgrin_util::secp::pedersen;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
@@ -418,7 +418,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	// Don't proceed if wallet_data has anything in it
+	// Don't proceed if bg_wallet_data has anything in it
 	let is_empty = wallet.iter().next().is_none();
 	if !is_empty {
 		error!("Not restoring. Please back up and remove existing db directory first.");

@@ -12,7 +12,7 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-//use grin_wallet_libwallet::Slate;
+//use bitgrin_wallet_libwallet::Slate;
 
 // test all slate conversions
 /* TODO: Turn back on upon release of new slate version

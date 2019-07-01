@@ -22,10 +22,10 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-use grin_wallet_util::grin_core;
-use grin_wallet_util::grin_keychain;
-use grin_wallet_util::grin_store;
-use grin_wallet_util::grin_util;
+use bitgrin_wallet_util::bitgrin_core;
+use bitgrin_wallet_util::bitgrin_keychain;
+use bitgrin_wallet_util::bitgrin_store;
+use bitgrin_wallet_util::bitgrin_util;
 
 use blake2_rfc as blake2;
 

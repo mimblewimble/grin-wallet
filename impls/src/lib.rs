@@ -22,14 +22,14 @@ use blake2_rfc as blake2;
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
-use grin_wallet_libwallet as libwallet;
-use grin_wallet_util::grin_api as api;
-use grin_wallet_util::grin_chain as chain;
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_store as store;
-use grin_wallet_util::grin_util as util;
-extern crate grin_wallet_config as config;
+use bitgrin_wallet_libwallet as libwallet;
+use bitgrin_wallet_util::bitgrin_api as api;
+use bitgrin_wallet_util::bitgrin_chain as chain;
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_keychain as keychain;
+use bitgrin_wallet_util::bitgrin_store as store;
+use bitgrin_wallet_util::bitgrin_util as util;
+extern crate bitgrin_wallet_config as config;
 
 mod adapters;
 mod backends;

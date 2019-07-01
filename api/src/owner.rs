@@ -81,12 +81,12 @@ where
 	///
 	/// # Example
 	/// ```
-	/// use grin_wallet_util::grin_keychain as keychain;
-	/// use grin_wallet_util::grin_util as util;
-	/// use grin_wallet_api as api;
-	/// use grin_wallet_config as config;
-	/// use grin_wallet_impls as impls;
-	/// use grin_wallet_libwallet as libwallet;
+	/// use bitgrin_wallet_util::bitgrin_keychain as keychain;
+	/// use bitgrin_wallet_util::bitgrin_util as util;
+	/// use bitgrin_wallet_api as api;
+	/// use bitgrin_wallet_config as config;
+	/// use bitgrin_wallet_impls as impls;
+	/// use bitgrin_wallet_libwallet as libwallet;
 	///
 	/// use keychain::ExtKeychain;
 	/// use tempfile::tempdir;
@@ -148,7 +148,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
@@ -190,7 +190,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
@@ -230,7 +230,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
@@ -275,7 +275,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let show_spent = false;
@@ -327,7 +327,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let update_from_node = true;
@@ -387,7 +387,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let update_from_node = true;
@@ -460,7 +460,7 @@ where
 	/// # Example
 	/// Set up as in [new](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// // Attempt to create a transaction using the 'default' account
@@ -546,7 +546,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	///
@@ -597,7 +597,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	///
@@ -657,7 +657,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let args = InitTxArgs {
@@ -715,7 +715,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let args = InitTxArgs {
@@ -757,7 +757,7 @@ where
 	/// for mining.
 	///
 	/// # Arguments
-	/// * `tx` - A completed [`Transaction`](../grin_core/core/transaction/struct.Transaction.html),
+	/// * `tx` - A completed [`Transaction`](../bitgrin_core/core/transaction/struct.Transaction.html),
 	/// typically the `tx` field in the transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
 	///
 	/// * `fluff` - Instruct the node whether to use the Dandelion protocol when posting the
@@ -772,7 +772,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let args = InitTxArgs {
@@ -833,7 +833,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let args = InitTxArgs {
@@ -878,14 +878,14 @@ where
 	/// * `tx_log_entry` - A [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	///
 	/// # Returns
-	/// * Ok with the stored  [`Transaction`](../grin_core/core/transaction/struct.Transaction.html)
+	/// * Ok with the stored  [`Transaction`](../bitgrin_core/core/transaction/struct.Transaction.html)
 	/// if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let update_from_node = true;
@@ -926,7 +926,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let args = InitTxArgs {
@@ -982,7 +982,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let result = api_owner.restore();
@@ -1033,7 +1033,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let result = api_owner.check_repair(
@@ -1077,7 +1077,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let result = api_owner.node_height();
@@ -1104,12 +1104,12 @@ where
 #[macro_export]
 macro_rules! doctest_helper_setup_doc_env {
 	($wallet:ident, $wallet_config:ident) => {
-		use grin_wallet_api as api;
-		use grin_wallet_config as config;
-		use grin_wallet_impls as impls;
-		use grin_wallet_libwallet as libwallet;
-		use grin_wallet_util::grin_keychain as keychain;
-		use grin_wallet_util::grin_util as util;
+		use bitgrin_wallet_api as api;
+		use bitgrin_wallet_config as config;
+		use bitgrin_wallet_impls as impls;
+		use bitgrin_wallet_libwallet as libwallet;
+		use bitgrin_wallet_util::bitgrin_keychain as keychain;
+		use bitgrin_wallet_util::bitgrin_util as util;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;

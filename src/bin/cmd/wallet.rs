@@ -15,9 +15,9 @@
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
 use clap::ArgMatches;
-use grin_wallet_config::WalletConfig;
-use grin_wallet_impls::{HTTPNodeClient, WalletSeed, SEED_FILE};
-use grin_wallet_libwallet::NodeClient;
+use bitgrin_wallet_config::WalletConfig;
+use bitgrin_wallet_impls::{HTTPNodeClient, WalletSeed, SEED_FILE};
+use bitgrin_wallet_libwallet::NodeClient;
 use semver::Version;
 use std::path::PathBuf;
 use std::thread;

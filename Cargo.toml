@@ -1,19 +1,19 @@
 [package]
-name = "grin_wallet"
+name = "bitgrin_wallet"
 version = "2.0.0"
-authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
+authors = ["Bitgrin Developers <bitgrin@protonmail.com>"]
 description = "Simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
 license = "Apache-2.0"
-repository = "https://github.com/mimblewimble/grin-wallet"
-keywords = [ "crypto", "grin", "mimblewimble" ]
+repository = "https://github.com/bitgrin/bitgrin-wallet"
+keywords = [ "crypto", "bitgrin", "mimblewimble" ]
 readme = "README.md"
-exclude = ["**/*.grin", "**/*.grin2"]
+exclude = ["**/*.bitgrin", "**/*.bitgrin2"]
 build = "src/build/build.rs"
 edition = "2018"
 
 [[bin]]
-name = "grin-wallet"
-path = "src/bin/grin-wallet.rs"
+name = "bitgrin-wallet"
+path = "src/bin/bitgrin-wallet.rs"
 
 [workspace]
 members = ["api", "config", "controller", "impls", "libwallet", "util"]
@@ -30,13 +30,13 @@ log = "0.4"
 linefeed = "0.5"
 semver = "0.9"
 
-grin_wallet_api = { path = "./api", version = "2.0.0" }
-grin_wallet_impls = { path = "./impls", version = "2.0.0" }
-grin_wallet_libwallet = { path = "./libwallet", version = "2.0.0" }
-grin_wallet_controller = { path = "./controller", version = "2.0.0" }
-grin_wallet_config = { path = "./config", version = "2.0.0" }
+bitgrin_wallet_api = { path = "./api", version = "2.0.0" }
+bitgrin_wallet_impls = { path = "./impls", version = "2.0.0" }
+bitgrin_wallet_libwallet = { path = "./libwallet", version = "2.0.0" }
+bitgrin_wallet_controller = { path = "./controller", version = "2.0.0" }
+bitgrin_wallet_config = { path = "./config", version = "2.0.0" }
 
-grin_wallet_util = { path = "./util", version = "2.0.0" }
+bitgrin_wallet_util = { path = "./util", version = "2.0.0" }
 
 [build-dependencies]
 built = "0.3"

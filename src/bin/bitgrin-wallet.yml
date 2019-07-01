@@ -1,15 +1,15 @@
-name: grin-wallet
+name: bitgrin-wallet
 version: "2.0.0-beta.2"
-about: Reference Grin Wallet
-author: The Grin Team
+about: Reference Bitgrin Wallet
+author: The Bitgrin Team
 
 args:
   - floonet:
-      help: Run grin against the Floonet (as opposed to mainnet)
+      help: Run bitgrin against the Floonet (as opposed to mainnet)
       long: floonet
       takes_value: false
   - usernet:
-      help: Run grin as a local-only network. Doesn't block peer connections but will not connect to any peer or seed
+      help: Run bitgrin as a local-only network. Doesn't block peer connections but will not connect to any peer or seed
       long: usernet
       takes_value: false
   - pass:
@@ -283,7 +283,7 @@ subcommands:
       about: Initialize a new wallet seed file and database
       args:
         - here:
-            help: Create wallet files in the current directory instead of the default ~/.grin directory
+            help: Create wallet files in the current directory instead of the default ~/.bitgrin directory
             short: h
             long: here
             takes_value: false

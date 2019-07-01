@@ -1,10 +1,10 @@
 [package]
-name = "grin_wallet_libwallet"
+name = "bitgrin_wallet_libwallet"
 version = "2.0.0"
-authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
+authors = ["Bitgrin Developers <bitgrin@protonmail.com>"]
 description = "Simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
 license = "Apache-2.0"
-repository = "https://github.com/mimblewimble/grin-wallet"
+repository = "https://github.com/bitgrin/bitgrin-wallet"
 keywords = [ "crypto", "grin", "mimblewimble" ]
 exclude = ["**/*.grin", "**/*.grin2"]
 #build = "src/build/build.rs"
@@ -25,7 +25,7 @@ lazy_static = "1"
 strum = "0.15"
 strum_macros = "0.15"
 
-grin_wallet_util = { path = "../util", version = "2.0.0" }
+bitgrin_wallet_util = { path = "../util", version = "2.0.0" }
 
 [dev-dependencies]
-grin_wallet_config = { path = "../config", version = "2.0.0" }
+bitgrin_wallet_config = { path = "../config", version = "2.0.0" }

@@ -99,12 +99,12 @@ where
 	///
 	/// # Example
 	/// ```
-	/// use grin_wallet_util::grin_keychain as keychain;
-	/// use grin_wallet_util::grin_util as util;
-	/// use grin_wallet_api as api;
-	/// use grin_wallet_config as config;
-	/// use grin_wallet_impls as impls;
-	/// use grin_wallet_libwallet as libwallet;
+	/// use bitgrin_wallet_util::bitgrin_keychain as keychain;
+	/// use bitgrin_wallet_util::bitgrin_util as util;
+	/// use bitgrin_wallet_api as api;
+	/// use bitgrin_wallet_config as config;
+	/// use bitgrin_wallet_impls as impls;
+	/// use bitgrin_wallet_libwallet as libwallet;
 	///
 	/// use keychain::ExtKeychain;
 	/// use tempfile::tempdir;
@@ -158,7 +158,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Foreign.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
@@ -209,7 +209,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Foreign.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
@@ -262,7 +262,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Foreign.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	///
@@ -334,7 +334,7 @@ where
 	/// # Example
 	/// Set up as in [new](struct.Foreign.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
 	/// # let slate = Slate::blank(2);
@@ -394,7 +394,7 @@ where
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// # bitgrin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
@@ -436,12 +436,12 @@ where
 #[macro_export]
 macro_rules! doctest_helper_setup_doc_env_foreign {
 	($wallet:ident, $wallet_config:ident) => {
-		use grin_wallet_api as api;
-		use grin_wallet_config as config;
-		use grin_wallet_impls as impls;
-		use grin_wallet_libwallet as libwallet;
-		use grin_wallet_util::grin_keychain as keychain;
-		use grin_wallet_util::grin_util as util;
+		use bitgrin_wallet_api as api;
+		use bitgrin_wallet_config as config;
+		use bitgrin_wallet_impls as impls;
+		use bitgrin_wallet_libwallet as libwallet;
+		use bitgrin_wallet_util::bitgrin_keychain as keychain;
+		use bitgrin_wallet_util::bitgrin_util as util;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;

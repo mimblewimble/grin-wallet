@@ -12,14 +12,14 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-use grin_wallet_libwallet::Context;
-use grin_wallet_util::grin_core::core::transaction;
-use grin_wallet_util::grin_core::libtx::{aggsig, proof};
-use grin_wallet_util::grin_keychain::{
+use bitgrin_wallet_libwallet::Context;
+use bitgrin_wallet_util::bitgrin_core::core::transaction;
+use bitgrin_wallet_util::bitgrin_core::libtx::{aggsig, proof};
+use bitgrin_wallet_util::bitgrin_keychain::{
 	BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
 };
-use grin_wallet_util::grin_util::secp;
-use grin_wallet_util::grin_util::secp::key::{PublicKey, SecretKey};
+use bitgrin_wallet_util::bitgrin_util::secp;
+use bitgrin_wallet_util::bitgrin_util::secp::key::{PublicKey, SecretKey};
 use rand::thread_rng;
 
 fn kernel_sig_msg() -> secp::Message {

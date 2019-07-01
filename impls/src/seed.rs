@@ -141,7 +141,7 @@ impl WalletSeed {
 		if !Path::new(&wallet_config.data_file_dir).exists() {
 			return Err(ErrorKind::WalletDoesntExist(
 				wallet_config.data_file_dir.clone(),
-				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
+				"To create a new wallet from a recovery phrase, use 'bitgrin-wallet init -r'"
 					.to_owned(),
 			))?;
 		}

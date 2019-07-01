@@ -10,7 +10,7 @@ If you don't have a static IP you may want to consider using services like DynDN
 If you don't have a domain name there is a possibility to get a TLS certificate for your IP, but you have to pay for that (so perhaps it's cheaper to buy a domain name) and it's rarely supported by certificate providers.
 
 ## I have a TLS certificate already
-Uncomment and update the following lines in wallet config (by default `~/.grin/grin-wallet.toml`):
+Uncomment and update the following lines in wallet config (by default `~/.grin/bitgrin-wallet.toml`):
 
 ```toml
 tls_certificate_file = "/path/to/my/cerificate/fullchain.pem"

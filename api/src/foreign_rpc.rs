@@ -23,7 +23,7 @@ use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
-/// * When running `grin-wallet listen` with defaults, the V2 api is available at
+/// * When running `bitgrin-wallet listen` with defaults, the V2 api is available at
 /// `localhost:3415/v2/foreign`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
 #[easy_jsonrpc::rpc]
@@ -34,7 +34,7 @@ pub trait ForeignRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -69,7 +69,7 @@ pub trait ForeignRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -119,7 +119,7 @@ pub trait ForeignRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -199,7 +199,7 @@ pub trait ForeignRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -358,7 +358,7 @@ pub trait ForeignRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -576,13 +576,13 @@ pub fn run_doctest_foreign(
 	init_invoice_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc::Handler;
-	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
-	use grin_wallet_libwallet::api_impl;
-	use grin_wallet_util::grin_keychain::ExtKeychain;
+	use bitgrin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+	use bitgrin_wallet_libwallet::api_impl;
+	use bitgrin_wallet_util::bitgrin_keychain::ExtKeychain;
 
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
-	use grin_wallet_util::grin_util as util;
+	use bitgrin_wallet_util::bitgrin_util as util;
 
 	use std::fs;
 	use std::thread;
@@ -700,7 +700,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
-		use grin_wallet_api::run_doctest_foreign;
+		use bitgrin_wallet_api::run_doctest_foreign;
 		use serde_json;
 		use serde_json::Value;
 		use tempfile::tempdir;

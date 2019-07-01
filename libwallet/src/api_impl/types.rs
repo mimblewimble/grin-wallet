@@ -14,10 +14,10 @@
 
 //! Types specific to the wallet api, mostly argument serialization
 
-use crate::grin_core::core::{Output, TxKernel};
-use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::Identifier;
-use crate::grin_util::secp::pedersen;
+use crate::bitgrin_core::core::{Output, TxKernel};
+use crate::bitgrin_core::libtx::secp_ser;
+use crate::bitgrin_keychain::Identifier;
+use crate::bitgrin_util::secp::pedersen;
 use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 

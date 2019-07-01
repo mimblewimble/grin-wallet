@@ -25,7 +25,7 @@ use crate::Owner;
 use easy_jsonrpc;
 
 /// Public definition used to generate Owner jsonrpc api.
-/// * When running `grin-wallet owner_api` with defaults, the V2 api is available at
+/// * When running `bitgrin-wallet owner_api` with defaults, the V2 api is available at
 /// `localhost:3420/v2/owner`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
 #[easy_jsonrpc::rpc]
@@ -36,7 +36,7 @@ pub trait OwnerRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -71,7 +71,7 @@ pub trait OwnerRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -101,7 +101,7 @@ pub trait OwnerRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -131,7 +131,7 @@ pub trait OwnerRpc {
 	# Json rpc example
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -202,7 +202,7 @@ pub trait OwnerRpc {
 	# Json rpc example
 
 	```
-		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 		# r#"
 		{
 			"jsonrpc": "2.0",
@@ -272,7 +272,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::retrieve_summary_info](struct.Owner.html#method.retrieve_summary_info).
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -317,7 +317,7 @@ pub trait OwnerRpc {
 		Networked version of [Owner::init_send_tx](struct.Owner.html#method.init_send_tx).
 
 	```
-		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 		# r#"
 		{
 			"jsonrpc": "2.0",
@@ -407,7 +407,7 @@ pub trait OwnerRpc {
 		Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
 
 	```
-		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 		# r#"
 		{
 			"jsonrpc": "2.0",
@@ -487,7 +487,7 @@ pub trait OwnerRpc {
 		 Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
 
 	```
-		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 		# r#"
 		{
 			"jsonrpc": "2.0",
@@ -635,7 +635,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -715,7 +715,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::finalize_tx](struct.Owner.html#method.finalize_tx).
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -877,7 +877,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::post_tx](struct.Owner.html#method.post_tx).
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -945,7 +945,7 @@ pub trait OwnerRpc {
 
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -973,7 +973,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::get_stored_tx](struct.Owner.html#method.get_stored_tx).
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -1068,7 +1068,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::verify_slate_messages](struct.Owner.html#method.verify_slate_messages).
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -1147,7 +1147,7 @@ pub trait OwnerRpc {
 
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -1176,7 +1176,7 @@ pub trait OwnerRpc {
 
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -1205,7 +1205,7 @@ pub trait OwnerRpc {
 
 
 	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# bitgrin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
@@ -1337,13 +1337,13 @@ pub fn run_doctest_owner(
 	finalize_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc::Handler;
-	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
-	use grin_wallet_libwallet::api_impl;
-	use grin_wallet_util::grin_keychain::ExtKeychain;
+	use bitgrin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+	use bitgrin_wallet_libwallet::api_impl;
+	use bitgrin_wallet_util::bitgrin_keychain::ExtKeychain;
 
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
-	use grin_wallet_util::grin_util as util;
+	use bitgrin_wallet_util::bitgrin_util as util;
 
 	use std::fs;
 	use std::thread;
@@ -1450,7 +1450,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
-		use grin_wallet_api::run_doctest_owner;
+		use bitgrin_wallet_api::run_doctest_owner;
 		use serde_json;
 		use serde_json::Value;
 		use tempfile::tempdir;

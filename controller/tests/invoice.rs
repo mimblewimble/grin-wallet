@@ -14,17 +14,17 @@
 //! Test a wallet sending to self
 #[macro_use]
 extern crate log;
-extern crate grin_wallet_controller as wallet;
-extern crate grin_wallet_impls as impls;
+extern crate bitgrin_wallet_controller as wallet;
+extern crate bitgrin_wallet_impls as impls;
 
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_util as util;
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_keychain as keychain;
+use bitgrin_wallet_util::bitgrin_util as util;
 
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
-use grin_wallet_libwallet as libwallet;
+use bitgrin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
 use std::fs;

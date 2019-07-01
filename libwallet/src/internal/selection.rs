@@ -15,13 +15,13 @@
 //! Selection of inputs for building transactions
 
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_core::libtx::{
+use crate::bitgrin_core::core::amount_to_hr_string;
+use crate::bitgrin_core::libtx::{
 	build,
 	proof::{ProofBuild, ProofBuilder},
 	tx_fee,
 };
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::bitgrin_keychain::{Identifier, Keychain};
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;

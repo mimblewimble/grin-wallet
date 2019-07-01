@@ -18,13 +18,13 @@ use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
-use grin_wallet_config::WalletConfig;
-use grin_wallet_controller::command;
-use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{instantiate_wallet, WalletSeed};
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
+use bitgrin_wallet_config::WalletConfig;
+use bitgrin_wallet_controller::command;
+use bitgrin_wallet_controller::{Error, ErrorKind};
+use bitgrin_wallet_impls::{instantiate_wallet, WalletSeed};
+use bitgrin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst};
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
@@ -33,11 +33,11 @@ use std::sync::Arc;
 
 // shut up test compilation warnings
 #[cfg(not(test))]
-use grin_wallet_impls::FileWalletCommAdapter;
+use bitgrin_wallet_impls::FileWalletCommAdapter;
 #[cfg(not(test))]
-use grin_wallet_libwallet::Slate;
+use bitgrin_wallet_libwallet::Slate;
 #[cfg(not(test))]
-use grin_wallet_util::grin_core::core::amount_to_hr_string;
+use bitgrin_wallet_util::bitgrin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -219,7 +219,7 @@ pub fn inst_wallet(
 		Err(e) => {
 			let msg = {
 				match e.kind() {
-					grin_wallet_impls::ErrorKind::Encryption => {
+					bitgrin_wallet_impls::ErrorKind::Encryption => {
 						format!("Error decrypting wallet seed (check provided password)")
 					}
 					_ => format!("Error instantiating wallet: {}", e),

@@ -19,14 +19,14 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::grin_core::consensus::reward;
-use crate::grin_core::core::{Output, TxKernel};
-use crate::grin_core::global;
-use crate::grin_core::libtx::proof::ProofBuilder;
-use crate::grin_core::libtx::reward;
-use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util as util;
-use crate::grin_util::secp::pedersen;
+use crate::bitgrin_core::consensus::{reward, get_coinbase_maturity_for_block};
+use crate::bitgrin_core::core::{Output, TxKernel};
+use crate::bitgrin_core::global;
+use crate::bitgrin_core::libtx::proof::ProofBuilder;
+use crate::bitgrin_core::libtx::reward;
+use crate::bitgrin_keychain::{Identifier, Keychain, SwitchCommitmentType};
+use crate::bitgrin_util as util;
+use crate::bitgrin_util::secp::pedersen;
 use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
@@ -466,7 +466,8 @@ where
 	K: Keychain,
 {
 	let height = block_fees.height;
-	let lock_height = height + global::coinbase_maturity();
+	//let lock_height = height + global::coinbase_maturity();
+	let lock_height = height + get_coinbase_maturity_for_block(block_fees.fees, height);
 	let key_id = block_fees.key_id();
 	let parent_key_id = wallet.parent_key_id();
 
@@ -480,7 +481,7 @@ where
 
 	{
 		// Now acquire the wallet lock and write the new output.
-		let amount = reward(block_fees.fees);
+		let amount = reward(block_fees.fees, height).0;
 		let commit = wallet.calc_commit_for_cache(amount, &key_id)?;
 		let mut batch = wallet.batch()?;
 		batch.save(OutputData {
@@ -516,6 +517,7 @@ where
 		&ProofBuilder::new(keychain),
 		&key_id,
 		block_fees.fees,
+        height,
 		test_mode,
 	)?;
 	Ok((out, kern, block_fees))

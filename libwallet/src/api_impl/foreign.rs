@@ -15,7 +15,7 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
-use crate::grin_keychain::Keychain;
+use crate::bitgrin_keychain::Keychain;
 use crate::internal::{tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{

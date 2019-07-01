@@ -1,12 +1,12 @@
 [package]
-name = "grin_wallet_api"
+name = "bitgrin_wallet_api"
 version = "2.0.0"
-authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
-description = "Grin Wallet API"
+authors = ["Bitgrin Developers <bitgrin@protonmail.com>"]
+description = "Bitgrin Wallet API"
 license = "Apache-2.0"
-repository = "https://github.com/mimblewimble/grin-wallet"
-keywords = [ "crypto", "grin", "mimblewimble" ]
-exclude = ["**/*.grin", "**/*.grin2"]
+repository = "https://github.com/bitgrin/bitgrin-wallet"
+keywords = [ "crypto", "bitgrin", "mimblewimble" ]
+exclude = ["**/*.bitgrin", "**/*.bitgrin2"]
 edition = "2018"
 
 [dependencies]
@@ -18,10 +18,10 @@ serde_json = "1"
 easy-jsonrpc = "0.5.1"
 chrono = { version = "0.4.4", features = ["serde"] }
 
-grin_wallet_libwallet = { path = "../libwallet", version = "2.0.0" }
-grin_wallet_config = { path = "../config", version = "2.0.0" }
-grin_wallet_impls = { path = "../impls", version = "2.0.0" }
-grin_wallet_util = { path = "../util", version = "2.0.0" }
+bitgrin_wallet_libwallet = { path = "../libwallet", version = "2.0.0" }
+bitgrin_wallet_config = { path = "../config", version = "2.0.0" }
+bitgrin_wallet_impls = { path = "../impls", version = "2.0.0" }
+bitgrin_wallet_util = { path = "../util", version = "2.0.0" }
 
 [dev-dependencies]
 serde_json = "1"

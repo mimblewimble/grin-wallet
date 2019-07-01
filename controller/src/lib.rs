@@ -22,14 +22,14 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 use failure;
-use grin_wallet_api as apiwallet;
-use grin_wallet_config as config;
-use grin_wallet_impls as impls;
-use grin_wallet_libwallet as libwallet;
-use grin_wallet_util::grin_api as api;
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_util as util;
+use bitgrin_wallet_api as apiwallet;
+use bitgrin_wallet_config as config;
+use bitgrin_wallet_impls as impls;
+use bitgrin_wallet_libwallet as libwallet;
+use bitgrin_wallet_util::bitgrin_api as api;
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_keychain as keychain;
+use bitgrin_wallet_util::bitgrin_util as util;
 
 pub mod command;
 pub mod controller;

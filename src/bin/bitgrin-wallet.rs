@@ -22,10 +22,10 @@ extern crate log;
 use crate::core::global;
 use crate::util::init_logger;
 use clap::App;
-use grin_wallet_config as config;
-use grin_wallet_util::grin_api as api;
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_util as util;
+use bitgrin_wallet_config as config;
+use bitgrin_wallet_util::bitgrin_api as api;
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_util as util;
 use std::process::exit;
 
 mod cmd;
@@ -66,7 +66,7 @@ fn main() {
 }
 
 fn real_main() -> i32 {
-	let yml = load_yaml!("grin-wallet.yml");
+	let yml = load_yaml!("bitgrin-wallet.yml");
 	let args = App::from_yaml(yml).get_matches();
 
 	let chain_type = if args.is_present("floonet") {
@@ -97,7 +97,7 @@ fn real_main() -> i32 {
 	if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
 		if "init" == args.subcommand().0 || "recover" == args.subcommand().0 {
 		} else {
-			println!("Wallet seed file doesn't exist. Run `grin-wallet init` first");
+			println!("Wallet seed file doesn't exist. Run `bitgrin-wallet init` first");
 			exit(1);
 		}
 	}

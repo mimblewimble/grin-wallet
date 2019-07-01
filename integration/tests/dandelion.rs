@@ -19,8 +19,8 @@ mod framework;
 
 use self::util::Mutex;
 use crate::framework::{LocalServerContainer, LocalServerContainerConfig};
-use grin_core as core;
-use grin_util as util;
+use bitgrin_core as core;
+use bitgrin_util as util;
 use std::sync::Arc;
 use std::{thread, time};
 

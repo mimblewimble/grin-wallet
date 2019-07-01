@@ -32,11 +32,11 @@ use crate::types::{ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers};
 use crate::util::LoggingConfig;
 
 /// Wallet configuration file name
-pub const WALLET_CONFIG_FILE_NAME: &'static str = "grin-wallet.toml";
-const WALLET_LOG_FILE_NAME: &'static str = "grin-wallet.log";
+pub const WALLET_CONFIG_FILE_NAME: &'static str = "bitgrin-wallet.toml";
+const WALLET_LOG_FILE_NAME: &'static str = "bitgrin-wallet.log";
 const GRIN_HOME: &'static str = ".grin";
 /// Wallet data directory
-pub const GRIN_WALLET_DIR: &'static str = "wallet_data";
+pub const BITGRIN_WALLET_DIR: &'static str = "bg_wallet_data";
 /// API secret
 pub const API_SECRET_FILE_NAME: &'static str = ".api_secret";
 
@@ -224,7 +224,7 @@ impl GlobalWalletConfig {
 	/// Update paths
 	pub fn update_paths(&mut self, wallet_home: &PathBuf) {
 		let mut wallet_path = wallet_home.clone();
-		wallet_path.push(GRIN_WALLET_DIR);
+		wallet_path.push(BITGRIN_WALLET_DIR);
 		self.members.as_mut().unwrap().wallet.data_file_dir =
 			wallet_path.to_str().unwrap().to_owned();
 		let mut secret_path = wallet_home.clone();

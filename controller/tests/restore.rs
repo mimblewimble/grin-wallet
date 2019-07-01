@@ -14,13 +14,13 @@
 //! tests for wallet restore
 #[macro_use]
 extern crate log;
-extern crate grin_wallet_controller as wallet;
-extern crate grin_wallet_impls as impls;
-extern crate grin_wallet_libwallet as libwallet;
+extern crate bitgrin_wallet_controller as wallet;
+extern crate bitgrin_wallet_impls as impls;
+extern crate bitgrin_wallet_libwallet as libwallet;
 
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_util as util;
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_keychain as keychain;
+use bitgrin_wallet_util::bitgrin_util as util;
 
 use self::core::global;
 use self::core::global::ChainTypes;

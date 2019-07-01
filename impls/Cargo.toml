@@ -1,10 +1,10 @@
 [package]
-name = "grin_wallet_impls"
+name = "bitgrin_wallet_impls"
 version = "2.0.0"
-authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
+authors = ["Bitgrin Developers <bitgrin@protonmail.com>"]
 description = "Concrete types derived from libwallet traits"
 license = "Apache-2.0"
-repository = "https://github.com/mimblewimble/grin-wallet"
+repository = "https://github.com/bitgrin/bitgrin-wallet"
 keywords = [ "crypto", "grin", "mimblewimble" ]
 exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2018"
@@ -26,7 +26,7 @@ tokio-retry = "0.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
 
-grin_wallet_util = { path = "../util", version = "2.0.0" }
+bitgrin_wallet_util = { path = "../util", version = "2.0.0" }
 
-grin_wallet_libwallet = { path = "../libwallet", version = "2.0.0" }
-grin_wallet_config = { path = "../config", version = "2.0.0" }
+bitgrin_wallet_libwallet = { path = "../libwallet", version = "2.0.0" }
+bitgrin_wallet_config = { path = "../config", version = "2.0.0" }

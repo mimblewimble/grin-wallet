@@ -16,10 +16,10 @@
 
 use uuid::Uuid;
 
-use crate::grin_core::consensus::valid_header_version;
-use crate::grin_core::core::HeaderVersion;
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::Mutex;
+use crate::bitgrin_core::consensus::valid_header_version;
+use crate::bitgrin_core::core::HeaderVersion;
+use crate::bitgrin_keychain::{Identifier, Keychain};
+use crate::bitgrin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
@@ -336,8 +336,8 @@ where
 
 #[cfg(test)]
 mod test {
-	use crate::grin_core::libtx::{build, ProofBuilder};
-	use crate::grin_keychain::{ExtKeychain, ExtKeychainPath, Keychain};
+	use crate::bitgrin_core::libtx::{build, ProofBuilder};
+	use crate::bitgrin_keychain::{ExtKeychain, ExtKeychainPath, Keychain};
 
 	#[test]
 	// demonstrate that input.commitment == referenced output.commitment

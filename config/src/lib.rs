@@ -23,12 +23,12 @@
 #[macro_use]
 extern crate serde_derive;
 
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_util as util;
+use bitgrin_wallet_util::bitgrin_core as core;
+use bitgrin_wallet_util::bitgrin_util as util;
 
 mod comments;
 pub mod config;
 pub mod types;
 
-pub use crate::config::{initial_setup_wallet, GRIN_WALLET_DIR, WALLET_CONFIG_FILE_NAME};
+pub use crate::config::{initial_setup_wallet, BITGRIN_WALLET_DIR, WALLET_CONFIG_FILE_NAME};
 pub use crate::types::{ConfigError, GlobalWalletConfig, WalletConfig};

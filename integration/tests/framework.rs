@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate grin_apiwallet as apiwallet;
-extern crate grin_libwallet as libwallet;
-extern crate grin_refwallet as wallet;
-extern crate grin_wallet_config as wallet_config;
+extern crate bitgrin_apiwallet as apiwallet;
+extern crate bitgrin_libwallet as libwallet;
+extern crate bitgrin_refwallet as wallet;
+extern crate bitgrin_wallet_config as wallet_config;
 
 use self::keychain::Keychain;
 use self::util::Mutex;
 use self::wallet::{HTTPNodeClient, HTTPWalletCommAdapter, LMDBBackend};
 use self::wallet_config::WalletConfig;
 use blake2_rfc as blake2;
-use grin_api as api;
-use grin_core as core;
-use grin_keychain as keychain;
-use grin_p2p as p2p;
-use grin_servers as servers;
-use grin_util as util;
+use bitgrin_api as api;
+use bitgrin_core as core;
+use bitgrin_keychain as keychain;
+use bitgrin_p2p as p2p;
+use bitgrin_servers as servers;
+use bitgrin_util as util;
 use p2p::PeerAddr;
 use std::default::Default;
 use std::ops::Deref;

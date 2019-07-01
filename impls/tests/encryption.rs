@@ -12,7 +12,7 @@
 // limitations under the License.
 
 //! Wallet seed encryption tests
-extern crate grin_wallet_impls as impls;
+extern crate bitgrin_wallet_impls as impls;
 
 use impls::{EncryptedWalletSeed, WalletSeed};
 

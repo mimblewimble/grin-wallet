@@ -1,13 +1,13 @@
-@startuml grin-transaction
+@startuml bitgrin-transaction
 
 title 
-**Current Grin Tranaction Workflow** 
+**Current Bitgrin Tranaction Workflow** 
 Accurate as of Oct 10, 2018 - Master branch only
 end title
 
 actor "Sender" as sender
 actor "Recipient" as recipient
-entity "Grin Node" as grin_node
+entity "Bitgrin Node" as bitgrin_node
 
 == Round 1 ==
 
@@ -74,15 +74,15 @@ note left of sender
 		 **lock_height**
 end note
 sender -> sender: Create final transaction **tx** from **Slate**
-sender -> grin_node: Post **tx** to mempool
-grin_node --> recipient: "Ok"
+sender -> bitgrin_node: Post **tx** to mempool
+bitgrin_node --> recipient: "Ok"
 alt All Okay
 recipient --> sender: "Ok" - **UUID**
 sender -> sender: Execute wallet lock function **sF**
 ...Await confirmation...
-recipient -> grin_node: Confirm **receiver_output**
+recipient -> bitgrin_node: Confirm **receiver_output**
 recipient -> recipient: Change status of **receiver_output** to "Confirmed"
-sender -> grin_node: Confirm **change_output**
+sender -> bitgrin_node: Confirm **change_output**
 sender -> sender: Change status of **inputs** to "Spent"
 sender -> sender: Change status of **change_output** to "Confirmed"
 else Any Error

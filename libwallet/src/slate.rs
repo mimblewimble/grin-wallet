@@ -17,19 +17,19 @@
 
 use crate::blake2::blake2b::blake2b;
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_core::core::committed::Committed;
-use crate::grin_core::core::transaction::{
+use crate::bitgrin_core::core::amount_to_hr_string;
+use crate::bitgrin_core::core::committed::Committed;
+use crate::bitgrin_core::core::transaction::{
 	kernel_features, kernel_sig_msg, Input, Output, Transaction, TransactionBody, TxKernel,
 	Weighting,
 };
-use crate::grin_core::core::verifier_cache::LruVerifierCache;
-use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee};
-use crate::grin_core::map_vec;
-use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
-use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::Signature;
-use crate::grin_util::{self, secp, RwLock};
+use crate::bitgrin_core::core::verifier_cache::LruVerifierCache;
+use crate::bitgrin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee};
+use crate::bitgrin_core::map_vec;
+use crate::bitgrin_keychain::{BlindSum, BlindingFactor, Keychain};
+use crate::bitgrin_util::secp::key::{PublicKey, SecretKey};
+use crate::bitgrin_util::secp::Signature;
+use crate::bitgrin_util::{self, secp, RwLock};
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
@@ -122,12 +122,12 @@ impl fmt::Display for ParticipantMessageData {
 			writeln!(f, "(Recipient)")?;
 		}
 		writeln!(f, "---------------------")?;
-		let static_secp = grin_util::static_secp_instance();
+		let static_secp = bitgrin_util::static_secp_instance();
 		let static_secp = static_secp.lock();
 		writeln!(
 			f,
 			"Public Key: {}",
-			&grin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec())
+			&bitgrin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec())
 		)?;
 		let message = match self.message.clone() {
 			None => "None".to_owned(),
@@ -136,7 +136,7 @@ impl fmt::Display for ParticipantMessageData {
 		writeln!(f, "Message: {}", message)?;
 		let message_sig = match self.message_sig.clone() {
 			None => "None".to_owned(),
-			Some(m) => grin_util::to_hex(m.to_raw_data().to_vec()),
+			Some(m) => bitgrin_util::to_hex(m.to_raw_data().to_vec()),
 		};
 		writeln!(f, "Message Signature: {}", message_sig)
 	}

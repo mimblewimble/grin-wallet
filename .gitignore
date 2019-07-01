@@ -1,13 +1,13 @@
 *.swp
 .DS_Store
-.grin*
+.bitgrin*
 node*
 !node_clients
 !node_clients.rs
 target
 */Cargo.lock
 *.iml
-grin.log
+bitgrin.log
 wallet.seed
 test_output
 wallet*

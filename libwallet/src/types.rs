@@ -16,13 +16,13 @@
 //! implementation
 
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::core::hash::Hash;
-use crate::grin_core::core::Transaction;
-use crate::grin_core::libtx::{aggsig, secp_ser};
-use crate::grin_core::ser;
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::bitgrin_core::core::hash::Hash;
+use crate::bitgrin_core::core::Transaction;
+use crate::bitgrin_core::libtx::{aggsig, secp_ser};
+use crate::bitgrin_core::ser;
+use crate::bitgrin_keychain::{Identifier, Keychain};
+use crate::bitgrin_util::secp::key::{PublicKey, SecretKey};
+use crate::bitgrin_util::secp::{self, pedersen, Secp256k1};
 use crate::slate::ParticipantMessages;
 use chrono::prelude::*;
 use failure::ResultExt;
