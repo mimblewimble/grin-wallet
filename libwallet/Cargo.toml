@@ -6,7 +6,7 @@ description = "Simple, private and scalable cryptocurrency implementation based 
 license = "Apache-2.0"
 repository = "https://github.com/bitgrin/bitgrin-wallet"
 keywords = [ "crypto", "grin", "mimblewimble" ]
-exclude = ["**/*.grin", "**/*.grin2"]
+exclude = ["**/*.bitgrin", "**/*.bitgrin2"]
 #build = "src/build/build.rs"
 edition = "2018"
 

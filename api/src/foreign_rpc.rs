@@ -24,7 +24,7 @@ use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
 /// * When running `bitgrin-wallet listen` with defaults, the V2 api is available at
-/// `localhost:3415/v2/foreign`
+/// `localhost:8515/v2/foreign`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
 #[easy_jsonrpc::rpc]
 pub trait ForeignRpc {

@@ -127,7 +127,7 @@ where
 		let log_id = batch.next_tx_log_id(&parent_key_id)?;
 		let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
 		t.tx_slate_id = Some(slate_id.clone());
-		let filename = format!("{}.grintx", slate_id);
+		let filename = format!("{}.bitgrintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = Some(slate.fee);
 		let mut amount_debited = 0;

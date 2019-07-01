@@ -15,7 +15,7 @@
 #[cfg(test)]
 mod wallet_tests {
 	use clap;
-	use bitgrin_wallet_util::grin_util as util;
+	use bitgrin_wallet_util::bitgrin_util as util;
 
 	use bitgrin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
@@ -29,8 +29,8 @@ mod wallet_tests {
 	use bitgrin_wallet_config::{GlobalWalletConfig, WalletConfig};
 	use bitgrin_wallet_impls::{LMDBBackend, WalletSeed};
 	use bitgrin_wallet_libwallet::{WalletBackend, WalletInst};
-	use bitgrin_wallet_util::grin_core::global::{self, ChainTypes};
-	use bitgrin_wallet_util::grin_keychain::ExtKeychain;
+	use bitgrin_wallet_util::bitgrin_core::global::{self, ChainTypes};
+	use bitgrin_wallet_util::bitgrin_keychain::ExtKeychain;
 
 	use super::super::wallet_args;
 

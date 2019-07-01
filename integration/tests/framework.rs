@@ -111,10 +111,10 @@ impl Default for LocalServerContainerConfig {
 		LocalServerContainerConfig {
 			name: String::from("test_host"),
 			base_addr: String::from("127.0.0.1"),
-			api_server_port: 13413,
-			p2p_server_port: 13414,
-			wallet_port: 13415,
-			owner_port: 13420,
+			api_server_port: 18513,
+			p2p_server_port: 18514,
+			wallet_port: 18515,
+			owner_port: 18520,
 			owner_api_include_foreign: false,
 			seed_addr: String::from(""),
 			is_seeding: false,
@@ -205,7 +205,7 @@ impl LocalServerContainer {
 		let s = servers::Server::new(servers::ServerConfig {
 			api_http_addr: api_addr,
 			api_secret_path: None,
-			db_root: format!("{}/.grin", self.working_dir),
+			db_root: format!("{}/.bitgrin", self.working_dir),
 			p2p_config: p2p::P2PConfig {
 				port: self.config.p2p_server_port,
 				seeds: Some(seeds),
@@ -673,10 +673,10 @@ pub fn config(n: u16, test_name_dir: &str, seed_n: u16) -> servers::ServerConfig
 pub fn stratum_config() -> servers::common::types::StratumServerConfig {
 	servers::common::types::StratumServerConfig {
 		enable_stratum_server: Some(true),
-		stratum_server_addr: Some(String::from("127.0.0.1:13416")),
+		stratum_server_addr: Some(String::from("127.0.0.1:18516")),
 		attempt_time_per_block: 60,
 		minimum_share_difficulty: 1,
-		wallet_listener_url: String::from("http://127.0.0.1:13415"),
+		wallet_listener_url: String::from("http://127.0.0.1:18515"),
 		burn_reward: false,
 	}
 }

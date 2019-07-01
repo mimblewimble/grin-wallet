@@ -26,7 +26,7 @@ use easy_jsonrpc;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// * When running `bitgrin-wallet owner_api` with defaults, the V2 api is available at
-/// `localhost:3420/v2/owner`
+/// `localhost:8520/v2/owner`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
 #[easy_jsonrpc::rpc]
 pub trait OwnerRpc {
@@ -1007,7 +1007,7 @@ pub trait OwnerRpc {
 				"num_inputs": 2,
 				"num_outputs": 1,
 				"parent_key_id": "0200000000000000000000000000000000",
-				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.grintx",
+				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.bitgrintx",
 				"tx_slate_id": "0436430c-2b02-624c-2032-570501212b00",
 				"tx_type": "TxSent"
 			}

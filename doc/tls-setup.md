@@ -10,14 +10,14 @@ If you don't have a static IP you may want to consider using services like DynDN
 If you don't have a domain name there is a possibility to get a TLS certificate for your IP, but you have to pay for that (so perhaps it's cheaper to buy a domain name) and it's rarely supported by certificate providers.
 
 ## I have a TLS certificate already
-Uncomment and update the following lines in wallet config (by default `~/.grin/bitgrin-wallet.toml`):
+Uncomment and update the following lines in wallet config (by default `~/.bitgrin/bitgrin-wallet.toml`):
 
 ```toml
 tls_certificate_file = "/path/to/my/cerificate/fullchain.pem"
 tls_certificate_key =  "/path/to/my/cerificate/privkey.pem"
 ```
 
-If you have Stratum server enabled (you run a miner) make sure that wallet listener URL starts with `https` in node config (by default `~/.grin/grin-server.toml`):
+If you have Stratum server enabled (you run a miner) make sure that wallet listener URL starts with `https` in node config (by default `~/.bitgrin/grin-server.toml`):
 
 ```toml
 wallet_listener_url = "https://grin1.example.com:13415"

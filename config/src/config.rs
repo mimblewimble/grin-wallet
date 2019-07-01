@@ -34,7 +34,7 @@ use crate::util::LoggingConfig;
 /// Wallet configuration file name
 pub const WALLET_CONFIG_FILE_NAME: &'static str = "bitgrin-wallet.toml";
 const WALLET_LOG_FILE_NAME: &'static str = "bitgrin-wallet.log";
-const GRIN_HOME: &'static str = ".grin";
+const GRIN_HOME: &'static str = ".bitgrin";
 /// Wallet data directory
 pub const BITGRIN_WALLET_DIR: &'static str = "bg_wallet_data";
 /// API secret
@@ -111,7 +111,7 @@ pub fn initial_setup_wallet(
 	chain_type: &global::ChainTypes,
 ) -> Result<GlobalWalletConfig, ConfigError> {
 	check_api_secret_file(chain_type)?;
-	// Use config file if current directory if it exists, .grin home otherwise
+	// Use config file if current directory if it exists, .bitgrin home otherwise
 	if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
 		GlobalWalletConfig::new(p.to_str().unwrap())
 	} else {
