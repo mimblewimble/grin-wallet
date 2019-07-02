@@ -142,6 +142,38 @@ impl fmt::Display for ParticipantMessageData {
 	}
 }
 
+/// Generic Slate wrapper for REST calls
+/// Conforms to original Slate spec
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct FlexSlate {
+	/// The number of participants intended to take part in this transaction
+	pub num_participants: usize,
+	/// Unique transaction ID, selected by sender
+	pub id: Uuid,
+	/// The core transaction data:
+	/// inputs, outputs, kernels, kernel offset
+	pub tx: Transaction,
+	/// base amount (excluding fee)
+	pub amount: u64,
+	/// fee amount
+	pub fee: u64,
+	/// Block height for the transaction
+	pub height: u64,
+	/// Lock height
+	pub lock_height: u64,
+	/// Participant data, each participant in the transaction will
+	/// insert their public data here. For now, 0 is sender and 1
+	/// is receiver, though this will change for multi-party
+	pub participant_data: Vec<ParticipantData>,
+	/// Slate format version
+	#[serde(default = "no_version")]
+	pub version: u64,
+}
+fn no_version() -> u64 {
+	0
+}
+
 /// A 'Slate' is passed around to all parties to build up all of the public
 /// transaction data needed to create a finalized transaction. Callers can pass
 /// the slate around by whatever means they choose, (but we can provide some
