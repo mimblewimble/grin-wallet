@@ -163,12 +163,12 @@ impl GlobalWalletConfig {
 		match *chain_type {
 			global::ChainTypes::Mainnet => {}
 			global::ChainTypes::Floonet => {
-				defaults.api_listen_port = 13415;
-				defaults.check_node_api_http_addr = "http://127.0.0.1:13413".to_owned();
+				defaults.api_listen_port = 18515;
+				defaults.check_node_api_http_addr = "http://127.0.0.1:18513".to_owned();
 			}
 			global::ChainTypes::UserTesting => {
-				defaults.api_listen_port = 23415;
-				defaults.check_node_api_http_addr = "http://127.0.0.1:23413".to_owned();
+				defaults.api_listen_port = 28515;
+				defaults.check_node_api_http_addr = "http://127.0.0.1:28513".to_owned();
 			}
 			global::ChainTypes::AutomatedTesting => {
 				panic!("Can't run automated testing directly");

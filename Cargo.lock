@@ -143,14 +143,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bitgrin_api"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
- "bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_p2p 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_pool 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_p2p 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_pool 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.28 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -176,13 +176,13 @@ dependencies = [
 [[package]]
 name = "bitgrin_chain"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
  "bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "croaring 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -199,10 +199,10 @@ dependencies = [
 [[package]]
 name = "bitgrin_core"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
- "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -226,9 +226,9 @@ dependencies = [
 [[package]]
 name = "bitgrin_keychain"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -249,13 +249,13 @@ dependencies = [
 [[package]]
 name = "bitgrin_p2p"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
  "bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "enum_primitive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -271,12 +271,12 @@ dependencies = [
 [[package]]
 name = "bitgrin_pool"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
- "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -290,10 +290,10 @@ dependencies = [
 [[package]]
 name = "bitgrin_store"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
- "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "croaring 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -311,7 +311,7 @@ dependencies = [
 [[package]]
 name = "bitgrin_util"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/bitgrin/grin#c614e68b45b4fe9229985bb1d964acda74d1399b"
+source = "git+https://github.com/bitgrin/bitgrin#756f387c8802003b54cd83caeaef26469dc296e3"
 dependencies = [
  "backtrace 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -462,12 +462,12 @@ dependencies = [
 name = "bitgrin_wallet_util"
 version = "2.0.0"
 dependencies = [
- "bitgrin_api 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
- "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)",
+ "bitgrin_api 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
+ "bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)",
  "dirs 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2885,14 +2885,14 @@ dependencies = [
 "checksum bitflags 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8dead7461c1127cf637931a1e50934eb6eee8bff2f74433ac7909e9afcee04a3"
 "checksum bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4efd02e230a02e18f92fc2735f44597385ed02ad8f831e7c1c1156ee5e1ab3a5"
 "checksum bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3d155346769a6855b86399e9bc3814ab343cd3d62c7e985113d46a0ec3c281fd"
-"checksum bitgrin_api 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_p2p 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_pool 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
-"checksum bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/grin)" = "<none>"
+"checksum bitgrin_api 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_chain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_core 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_keychain 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_p2p 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_pool 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_store 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
+"checksum bitgrin_util 2.0.0-beta.2 (git+https://github.com/bitgrin/bitgrin)" = "<none>"
 "checksum blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)" = "5d6d530bdd2d52966a6d03b7a964add7ae1a288d25214066fd4b600f0f796400"
 "checksum block-buffer 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "a076c298b9ecdb530ed9d967e74a6027d6a7478924520acddcddc24c1c8ab3ab"
 "checksum built 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9e7bff98465f9ff426a6e99829629b69acb0048504584934c1fb8b5822457535"

@@ -33,12 +33,12 @@ dirs = "1.0.3"
 # bitgrin_store = { git = "https://github.com/bitgrin/grin", tag = "2.0.0-beta.2" }
 
 # For bleeding edge
-bitgrin_core = { git = "https://github.com/bitgrin/grin", branch = "master" }
-bitgrin_keychain = { git = "https://github.com/bitgrin/grin", branch = "master" }
-bitgrin_chain = { git = "https://github.com/bitgrin/grin", branch = "master" }
-bitgrin_util = { git = "https://github.com/bitgrin/grin", branch = "master" }
-bitgrin_api = { git = "https://github.com/bitgrin/grin", branch = "master" }
-bitgrin_store = { git = "https://github.com/bitgrin/grin", branch = "master" }
+bitgrin_core = { git = "https://github.com/bitgrin/bitgrin", branch = "master" }
+bitgrin_keychain = { git = "https://github.com/bitgrin/bitgrin", branch = "master" }
+bitgrin_chain = { git = "https://github.com/bitgrin/bitgrin", branch = "master" }
+bitgrin_util = { git = "https://github.com/bitgrin/bitgrin", branch = "master" }
+bitgrin_api = { git = "https://github.com/bitgrin/bitgrin", branch = "master" }
+bitgrin_store = { git = "https://github.com/bitgrin/bitgrin", branch = "master" }
 
 # For local testing
 #grin_core = { path = "../../grin/core", version= "2.0.0-beta.2"}
