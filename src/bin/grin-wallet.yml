@@ -239,6 +239,11 @@ subcommands:
             short: i
             long: id
             takes_value: true
+        - txid:
+            help: If specified, display transaction with given TxID UUID and all associated Inputs/Outputs
+            short: t
+            long: txid
+            takes_value: true
   - repost:
       about: Reposts a stored, completed but unconfirmed transaction to the chain, or dumps it to a file
       args:
