@@ -165,11 +165,25 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 	}
 }
 
-pub fn post<IN>(url: &str, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
+pub fn post<IN>(
+	url: &str,
+	server_auth: &ServerAuth,
+	api_secret: Option<String>,
+	input: &IN,
+) -> Result<String, api::Error>
 where
 	IN: Serialize,
 {
-	let req = api::client::create_post_request(url, api_secret, input)?;
-	let res = api::client::send_request(req)?;
-	Ok(res)
+	// need to configure https client to use a custom TlsServerVerifier that checks to server pk
+	// against ServerAuth
+	unimplemented!()
+	// let req = api::client::create_post_request(url, api_secret, input)?;
+	// let res = api::client::send_request(req)?;
+	// Ok(res)
+}
+
+/// Setting to enable or disable server authentication using the servers know public key.
+enum ServerAuth {
+	AllowUnauthenticated,
+	AllowPublicKey([u8; 32]),
 }
