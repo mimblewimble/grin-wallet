@@ -667,7 +667,24 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		None => None,
 		Some(tx) => Some(parse_u64(tx, "id")? as u32),
 	};
-	Ok(command::TxsArgs { id: tx_id })
+	let tx_slate_id = match args.value_of("txid") {
+		None => None,
+		Some(tx) => match tx.parse() {
+			Ok(t) => Some(t),
+			Err(e) => {
+				let msg = format!("Could not parse txid parameter. e={}", e);
+				return Err(ParseError::ArgumentError(msg));
+			}
+		},
+	};
+	if tx_id.is_some() && tx_slate_id.is_some() {
+		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		return Err(ParseError::ArgumentError(msg));
+	}
+	Ok(command::TxsArgs {
+		id: tx_id,
+		tx_slate_id: tx_slate_id,
+	})
 }
 
 pub fn parse_repost_args(args: &ArgMatches) -> Result<command::RepostArgs, ParseError> {

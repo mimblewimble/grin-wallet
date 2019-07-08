@@ -587,6 +587,7 @@ pub fn outputs(
 /// Txs command args
 pub struct TxsArgs {
 	pub id: Option<u32>,
+	pub tx_slate_id: Option<Uuid>,
 }
 
 pub fn txs(
@@ -597,8 +598,8 @@ pub fn txs(
 ) -> Result<(), Error> {
 	controller::owner_single_use(wallet.clone(), |api| {
 		let res = api.node_height()?;
-		let (validated, txs) = api.retrieve_txs(true, args.id, None)?;
-		let include_status = !args.id.is_some();
+		let (validated, txs) = api.retrieve_txs(true, args.id, args.tx_slate_id)?;
+		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
 		display::txs(
 			&g_args.account,
 			res.height,
@@ -607,16 +608,31 @@ pub fn txs(
 			include_status,
 			dark_scheme,
 		)?;
-		// if given a particular transaction id, also get and display associated
+
+		// if given a particular transaction id or uuid, also get and display associated
 		// inputs/outputs and messages
-		if args.id.is_some() {
-			let (_, outputs) = api.retrieve_outputs(true, false, args.id)?;
+		let id = if args.id.is_some() {
+			args.id
+		} else if args.tx_slate_id.is_some() {
+			if let Some(tx) = txs.iter().find(|t| t.tx_slate_id == args.tx_slate_id) {
+				Some(tx.id)
+			} else {
+				println!("Could not find a transaction matching given txid.\n");
+				None
+			}
+		} else {
+			None
+		};
+
+		if id.is_some() {
+			let (_, outputs) = api.retrieve_outputs(true, false, id)?;
 			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
 			// should only be one here, but just in case
 			for tx in txs {
 				display::tx_messages(&tx, dark_scheme)?;
 			}
-		};
+		}
+
 		Ok(())
 	})?;
 	Ok(())
