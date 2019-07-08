@@ -67,7 +67,9 @@ fn main() {
 
 fn real_main() -> i32 {
 	let yml = load_yaml!("grin-wallet.yml");
-	let args = App::from_yaml(yml).get_matches();
+	let args = App::from_yaml(yml)
+		.version(built_info::PKG_VERSION)
+		.get_matches();
 
 	let chain_type = if args.is_present("floonet") {
 		global::ChainTypes::Floonet
