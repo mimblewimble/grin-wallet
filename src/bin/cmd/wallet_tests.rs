@@ -555,6 +555,19 @@ mod wallet_tests {
 		let arg_vec = vec!["grin-wallet", "-p", "password", "outputs"];
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
+		// get tx output via -tx parameter
+		let mut tx_id = "".to_string();
+		grin_wallet_controller::controller::owner_single_use(wallet2.clone(), |api| {
+			api.set_active_account("default")?;
+			let (_, txs) = api.retrieve_txs(true, None, None)?;
+			let some_tx_id = txs[0].tx_slate_id.clone();
+			assert!(some_tx_id.is_some());
+			tx_id = some_tx_id.unwrap().to_hyphenated().to_string().clone();
+			Ok(())
+		})?;
+		let arg_vec = vec!["grin-wallet", "-p", "password", "txs", "-t", &tx_id[..]];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
 		// let logging finish
 		thread::sleep(Duration::from_millis(200));
 		Ok(())
