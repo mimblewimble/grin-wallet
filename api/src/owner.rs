@@ -14,10 +14,7 @@
 
 //! Owner API External Definition
 
-use crate::util::Mutex;
 use chrono::prelude::*;
-use std::marker::PhantomData;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
@@ -26,8 +23,11 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletBackend, WalletInfo,
+	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo,
+	WalletLCProvider
 };
+use crate::util::Mutex;
+use std::sync::Arc;
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -43,24 +43,21 @@ use crate::libwallet::{
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Owner<W: ?Sized, C, K>
+pub struct Owner<C, K>
 where
-	W: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
-	/// A reference-counted mutex to an implementation of the
-	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
-	pub wallet: Arc<Mutex<W>>,
+	/// Reference to implementation of a [wallet lifecycle provider]
+	/// (./types/trait.WalletLCProvider.html).
+	/// contain all methods to manage the wallet
+	pub lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
-	phantom: PhantomData<K>,
-	phantom_c: PhantomData<C>,
 }
 
-impl<W: ?Sized, C, K> Owner<W, C, K>
+impl<C, K> Owner<C, K>
 where
-	W: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -122,12 +119,10 @@ where
 	///
 	/// ```
 
-	pub fn new(wallet_in: Arc<Mutex<W>>) -> Self {
+	pub fn new(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>> ) -> Self {
 		Owner {
-			wallet: wallet_in,
+			lc_provider,
 			doctest_mode: false,
-			phantom: PhantomData,
-			phantom_c: PhantomData,
 		}
 	}
 
@@ -160,8 +155,9 @@ where
 	/// ```
 
 	pub fn accounts(&self) -> Result<Vec<AcctPathMapping>, Error> {
-		let mut w = self.wallet.lock();
-		owner::accounts(&mut *w)
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
+		owner::accounts(&mut **w)
 	}
 
 	/// Creates a new 'account', which is a mapping of a user-specified
@@ -202,8 +198,9 @@ where
 	/// ```
 
 	pub fn create_account_path(&self, label: &str) -> Result<Identifier, Error> {
-		let mut w = self.wallet.lock();
-		owner::create_account_path(&mut *w, label)
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
+		owner::create_account_path(&mut **w, label)
 	}
 
 	/// Sets the wallet's currently active account. This sets the
@@ -243,8 +240,9 @@ where
 	/// ```
 
 	pub fn set_active_account(&self, label: &str) -> Result<(), Error> {
-		let mut w = self.wallet.lock();
-		owner::set_active_account(&mut *w, label)
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
+		owner::set_active_account(&mut **w, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
@@ -295,9 +293,10 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::retrieve_outputs(&mut *w, include_spent, refresh_from_node, tx_id);
+		let res = owner::retrieve_outputs(&mut **w, include_spent, refresh_from_node, tx_id);
 		w.close()?;
 		res
 	}
@@ -348,9 +347,10 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let mut res = owner::retrieve_txs(&mut *w, refresh_from_node, tx_id, tx_slate_id)?;
+		let mut res = owner::retrieve_txs(&mut **w, refresh_from_node, tx_id, tx_slate_id)?;
 		if self.doctest_mode {
 			res.1 = res
 				.1
@@ -406,9 +406,10 @@ where
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::retrieve_summary_info(&mut *w, refresh_from_node, minimum_confirmations);
+		let res = owner::retrieve_summary_info(&mut **w, refresh_from_node, minimum_confirmations);
 		w.close()?;
 		res
 	}
@@ -489,9 +490,10 @@ where
 	pub fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let mut slate = {
-			let mut w = self.wallet.lock();
+			let mut w_lock = self.lc_provider.lock();
+			let w = w_lock.wallet_inst()?;
 			w.open_with_credentials()?;
-			let slate = owner::init_send_tx(&mut *w, args, self.doctest_mode)?;
+			let slate = owner::init_send_tx(&mut **w, args, self.doctest_mode)?;
 			w.close()?;
 			slate
 		};
@@ -562,9 +564,10 @@ where
 	/// }
 	/// ```
 	pub fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let slate = owner::issue_invoice_tx(&mut *w, args, self.doctest_mode)?;
+		let slate = owner::issue_invoice_tx(&mut **w, args, self.doctest_mode)?;
 		w.close()?;
 		Ok(slate)
 	}
@@ -623,9 +626,10 @@ where
 	/// ```
 
 	pub fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let slate = owner::process_invoice_tx(&mut *w, slate, args, self.doctest_mode)?;
+		let slate = owner::process_invoice_tx(&mut **w, slate, args, self.doctest_mode)?;
 		w.close()?;
 		Ok(slate)
 	}
@@ -683,9 +687,10 @@ where
 	/// ```
 
 	pub fn tx_lock_outputs(&self, slate: &Slate, participant_id: usize) -> Result<(), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::tx_lock_outputs(&mut *w, slate, participant_id);
+		let res = owner::tx_lock_outputs(&mut **w, slate, participant_id);
 		w.close()?;
 		res
 	}
@@ -745,12 +750,12 @@ where
 	/// ```
 
 	pub fn finalize_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
-		let mut slate = slate.clone();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		slate = owner::finalize_tx(&mut *w, &slate)?;
+		let out_slate = owner::finalize_tx(&mut **w, &slate)?;
 		w.close()?;
-		Ok(slate)
+		Ok(out_slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -804,7 +809,8 @@ where
 
 	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
 		let client = {
-			let mut w = self.wallet.lock();
+			let mut w_lock = self.lc_provider.lock();
+			let w = w_lock.wallet_inst()?;
 			w.w2n_client().clone()
 		};
 		owner::post_tx(&client, tx, fluff)
@@ -863,9 +869,10 @@ where
 	/// ```
 
 	pub fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::cancel_tx(&mut *w, tx_id, tx_slate_id);
+		let res = owner::cancel_tx(&mut **w, tx_id, tx_slate_id);
 		w.close()?;
 		res
 	}
@@ -903,8 +910,9 @@ where
 
 	// TODO: Should be accepting an id, not an entire entry struct
 	pub fn get_stored_tx(&self, tx_log_entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
-		let w = self.wallet.lock();
-		owner::get_stored_tx(&*w, tx_log_entry)
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
+		owner::get_stored_tx(&**w, tx_log_entry)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -993,9 +1001,10 @@ where
 	/// }
 	/// ```
 	pub fn restore(&self) -> Result<(), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::restore(&mut *w);
+		let res = owner::restore(&mut **w);
 		w.close()?;
 		res
 	}
@@ -1047,9 +1056,10 @@ where
 	/// ```
 
 	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::check_repair(&mut *w, delete_unconfirmed);
+		let res = owner::check_repair(&mut **w, delete_unconfirmed);
 		w.close()?;
 		res
 	}
@@ -1092,9 +1102,10 @@ where
 	/// ```
 
 	pub fn node_height(&self) -> Result<NodeHeightResult, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		w.open_with_credentials()?;
-		let res = owner::node_height(&mut *w);
+		let res = owner::node_height(&mut **w);
 		w.close()?;
 		res
 	}
@@ -1133,8 +1144,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		let pw = "";
 
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-		let mut $wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(
-			Mutex::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap()),
+		let mut $wallet: Arc<Mutex<Box<WalletBackend<HTTPNodeClient, ExtKeychain>>>> = Arc::new(
+			Mutex::new(Box::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap())),
 			);
 	};
 }

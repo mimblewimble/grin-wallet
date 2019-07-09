@@ -33,18 +33,50 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Combined trait to allow dynamic wallet dispatch
-pub trait WalletInst<C, K>: WalletBackend<C, K> + Send + Sync + 'static
+pub trait WalletInst<L, C, K>
 where
+	L: WalletLCProvider<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
+	/// Return the stored instance
+	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<C, K>, Error>;
 }
-impl<T, C, K> WalletInst<C, K> for T
+
+/// Trait for a provider of wallet lifecycle methods
+pub trait WalletLCProvider<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient,
 	K: Keychain,
 {
+	/// Sets the top level system wallet directory
+	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
+	fn set_wallet_directory(&mut self, dir: &str);
+
+	/// Output a grin-wallet.toml file into the current top-level system wallet directory
+	/// ? Optionally takes wallet config structure?
+	fn create_config(&self, data_dir: Option<String>) -> Result<(), Error>;
+
+  ///
+	fn create_wallet(&mut self, name: Option<&str>, mnemonic: Option<&str>, password: &str) -> Result<(), Error>;
+
+	///
+	fn open_wallet(&mut self, name: Option<&str>, password: &str) -> Result<(), Error>;
+
+	///
+	fn close_wallet(&self, name: Option<String>) -> Result<(), Error>;
+
+	///
+	fn get_mnemonic(&self) -> Result<String, Error>;
+
+	/// changes password
+	fn change_password(&self, old: String, new: String) -> Result<(), Error>;
+
+	/// deletes wallet
+	fn delete_wallet(&self, name: Option<String>, password: String) -> Result<(), Error>;
+	
+	/// return wallet instance
+	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<C, K>>, Error>;
 }
 
 /// TODO:
@@ -205,7 +237,7 @@ where
 
 /// Encapsulate all wallet-node communication functions. No functions within libwallet
 /// should care about communication details
-pub trait NodeClient: Sync + Send + Clone {
+pub trait NodeClient: Clone {
 	/// Return the URL of the check node
 	fn node_url(&self) -> &str;
 

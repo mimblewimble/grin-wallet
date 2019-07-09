@@ -1,4 +1,4 @@
-// Copyright 2018 The Grin Developers
+// Copyright 2019 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ mod backends;
 mod error;
 mod node_clients;
 mod seed;
+mod lifecycle;
 pub mod test_framework;
 
 pub use crate::adapters::{
@@ -45,24 +46,54 @@ pub use crate::adapters::{
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};
 pub use crate::node_clients::HTTPNodeClient;
+pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
-use crate::util::Mutex;
-use std::sync::Arc;
+use crate::keychain::{ExtKeychain, Keychain};
 
-use libwallet::{NodeClient, WalletBackend, WalletInst};
+use libwallet::{NodeClient, WalletInst, WalletLCProvider, WalletBackend};
 
-/// Helper to create an instance of the LMDB wallet
-pub fn instantiate_wallet(
-	wallet_config: config::WalletConfig,
-	node_client: impl NodeClient + 'static,
-	passphrase: &str,
-	account: &str,
-) -> Result<Arc<Mutex<WalletInst<impl NodeClient, keychain::ExtKeychain>>>, Error> {
-	// First test decryption, so we can abort early if we have the wrong password
-	let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
-	let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client)?;
-	db_wallet.set_parent_key_id_by_name(account)?;
-	info!("Using LMDB Backend for wallet");
-	Ok(Arc::new(Mutex::new(db_wallet)))
+/// Main wallet instance
+
+pub struct DefaultWalletImpl<C>
+where
+	C: NodeClient,
+{
+	lc_provider: DefaultLCProvider<C, ExtKeychain>,
+}
+
+impl<C> DefaultWalletImpl<C>
+where
+	C: NodeClient + 'static
+{
+	pub fn new(
+		/*dir: &str,
+		wallet_config: config::WalletConfig,*/
+		node_client: C,
+		/*passphrase: &str,
+		account: &str,*/
+	) -> Result<Self, Error>
+	{
+		// First test decryption, so we can abort early if we have the wrong password
+		/*let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
+		let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client.clone())?;*/
+		/*db_wallet.set_parent_key_id_by_name(account)?;*/
+		let lc_provider = DefaultLCProvider::new(node_client);
+		info!("Using LMDB Backend for wallet");
+		Ok(DefaultWalletImpl {
+			lc_provider: lc_provider,
+		})
+	}
+}
+
+impl<L, C, K> WalletInst<L, C, K> for DefaultWalletImpl<C>
+where
+	DefaultLCProvider<C, ExtKeychain>: WalletLCProvider<C, K>,
+	L: WalletLCProvider<C, K>,
+	C: NodeClient,
+	K: Keychain,
+{
+	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<C, K>, libwallet::Error> {
+		Ok(&mut self.lc_provider)
+	}
 }

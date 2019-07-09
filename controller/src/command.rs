@@ -32,7 +32,7 @@ use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
 	instantiate_wallet, FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter,
-	LMDBBackend, NullWalletCommAdapter,
+	LMDBBackend, NullWalletCommAdapter, DefaultLCProvider
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};

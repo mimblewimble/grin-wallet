@@ -15,9 +15,10 @@
 // Keybase Wallet Plugin
 
 use crate::config::WalletConfig;
+use crate::keychain::ExtKeychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter};
+use crate::libwallet::{Error, ErrorKind, WalletLCProvider, Slate, WalletBackend, WalletInst};
+use crate::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient, WalletCommAdapter};
 use failure::ResultExt;
 use serde::Serialize;
 use serde_json::{from_str, json, to_string, Value};
@@ -337,8 +338,9 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 		node_api_secret: Option<String>,
 	) -> Result<(), Error> {
 		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
-		let wallet = instantiate_wallet(config.clone(), node_client, passphrase, account)
-			.context(ErrorKind::WalletSeedDecryption)?;
+		/*let wallet = DefaultWalletImpl::<HTTPNodeClient>::new("", config.clone(), node_client, passphrase, account)
+			.context(ErrorKind::WalletSeedDecryption)?;*/
+		let wallet = DefaultWalletImpl::new(node_client.clone());
 
 		info!("Listening for transactions on keybase ...");
 		loop {
@@ -379,13 +381,17 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 							return Err(e);
 						}
 						let res = {
-							let mut w = wallet.lock();
+							// TODO: Unwrap
+							/*let provider:&mut DefaultLCProvider<HTTPNodeClient, ExtKeychain> = wallet.lc_provider()
+								.context(ErrorKind::Lifecycle("lifecycle provider".to_owned()))?;
+							let w = provider.wallet_inst()
+								.context(ErrorKind::Lifecycle("wallet inst".to_owned()))?;
 							w.open_with_credentials()?;
-							let r = foreign::receive_tx(&mut *w, &slate, None, None, false);
+							let r = foreign::receive_tx(&mut **w, &slate, None, None, false);
 							w.close()?;
-							r
+							r*/
 						};
-						match res {
+						/*match res {
 							// Reply to the same channel with topic SLATE_SIGNED
 							Ok(s) => {
 								let success = send(s, channel, SLATE_SIGNED, TTL);
@@ -408,7 +414,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 									e
 								);
 							}
-						}
+						}*/
 					}
 					Err(_) => debug!("Failed to deserialize keybase message: {}", msg),
 				}

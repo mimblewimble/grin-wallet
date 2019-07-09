@@ -26,7 +26,7 @@ use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst};
+use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider};
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
@@ -35,7 +35,6 @@ use crate::{libwallet, WalletCommAdapter};
 use failure::ResultExt;
 use serde_json;
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -57,8 +56,9 @@ pub struct WalletProxyMessage {
 
 /// communicates with a chain instance or other wallet
 /// listener APIs via message queues
-pub struct WalletProxy<C, K>
+pub struct WalletProxy<L, C, K>
 where
+	L: WalletLCProvider<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -71,7 +71,7 @@ where
 		String,
 		(
 			Sender<WalletProxyMessage>,
-			Arc<Mutex<dyn WalletInst<LocalWalletClient, K>>>,
+			Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
 		),
 	>,
 	/// simulate json send to another client
@@ -81,14 +81,11 @@ where
 	pub rx: Receiver<WalletProxyMessage>,
 	/// queue control
 	pub running: Arc<AtomicBool>,
-	/// Phantom
-	phantom_c: PhantomData<C>,
-	/// Phantom
-	phantom_k: PhantomData<K>,
 }
 
-impl<C, K> WalletProxy<C, K>
+impl<L, C, K> WalletProxy<L, C, K>
 where
+	L: WalletLCProvider<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -115,8 +112,6 @@ where
 			rx: rx,
 			wallets: HashMap::new(),
 			running: Arc::new(AtomicBool::new(false)),
-			phantom_c: PhantomData,
-			phantom_k: PhantomData,
 		};
 		retval
 	}
@@ -126,7 +121,7 @@ where
 		&mut self,
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
-		wallet: Arc<Mutex<dyn WalletInst<LocalWalletClient, K>>>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
 	) {
 		self.wallets.insert(addr.to_owned(), (tx, wallet));
 	}
@@ -212,10 +207,11 @@ where
 		)?;
 ;
 		{
-			let mut w = wallet.1.lock();
+			let mut w_lock = wallet.1.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			w.open_with_credentials()?;
 			// receive tx
-			slate = foreign::receive_tx(&mut *w, &slate, None, None, false)?;
+			slate = foreign::receive_tx(&mut **w, &slate, None, None, false)?;
 			w.close()?;
 		}
 
@@ -535,3 +531,9 @@ impl NodeClient for LocalWalletClient {
 		Ok((o.highest_index, o.last_retrieved_index, api_outputs))
 	}
 }
+/*unsafe impl<C, K> Send for WalletProxy<C, K>
+where
+	C: NodeClient,
+	K: Keychain,
+	{}*/
+

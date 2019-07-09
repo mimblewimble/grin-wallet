@@ -17,11 +17,10 @@
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletBackend, CURRENT_SLATE_VERSION,
+	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletLCProvider, CURRENT_SLATE_VERSION,
 	GRIN_BLOCK_HEADER_VERSION,
 };
-use crate::util::to_base64;
-use crate::util::Mutex;
+use crate::util::{to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -29,7 +28,6 @@ use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -74,45 +72,42 @@ fn check_middleware(
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
-pub fn owner_single_use<F, T: ?Sized, C, K>(wallet: Arc<Mutex<T>>, f: F) -> Result<(), Error>
+pub fn owner_single_use<F, C, K>(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>, f: F) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	F: FnOnce(&mut Owner<T, C, K>) -> Result<(), Error>,
-	C: NodeClient,
-	K: Keychain,
+	F: FnOnce(&mut Owner<C, K>) -> Result<(), Error>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
-	f(&mut Owner::new(wallet.clone()))?;
+	f(&mut Owner::new(lc_provider))?;
 	Ok(())
 }
 
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
-pub fn foreign_single_use<F, T: ?Sized, C, K>(wallet: Arc<Mutex<T>>, f: F) -> Result<(), Error>
+pub fn foreign_single_use<F, C, K>(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>, f: F) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	F: FnOnce(&mut Foreign<T, C, K>) -> Result<(), Error>,
-	C: NodeClient,
-	K: Keychain,
+	F: FnOnce(&mut Foreign<C, K>) -> Result<(), Error>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
-	f(&mut Foreign::new(wallet.clone(), Some(check_middleware)))?;
+	f(&mut Foreign::new(lc_provider, Some(check_middleware)))?;
 	Ok(())
 }
 
 /// Listener version, providing same API but listening for requests on a
 /// port and wrapping the calls
 pub fn owner_listener<T: ?Sized, C, K>(
-	wallet: Arc<Mutex<T>>,
+	lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
 	addr: &str,
 	api_secret: Option<String>,
 	tls_config: Option<TLSConfig>,
 	owner_api_include_foreign: Option<bool>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
+	let api_handler_v2 = OwnerAPIHandlerV2::new(lc_provider);
 
 	let mut router = Router::new();
 	if api_secret.is_some() {
@@ -132,7 +127,7 @@ where
 	// If so configured, add the foreign API to the same port
 	if owner_api_include_foreign.unwrap_or(false) {
 		info!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet.clone());
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(lc_provider);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
@@ -154,12 +149,11 @@ where
 /// Listener version, providing same API but listening for requests on a
 /// port and wrapping the calls
 pub fn foreign_listener<T: ?Sized, C, K>(
-	wallet: Arc<Mutex<T>>,
+	wallet: Arc<Mutex<Box<dyn WalletLCProvider<C, K> + Send + 'static>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
@@ -189,37 +183,31 @@ where
 type WalletResponseFuture = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
 
 /// V2 API Handler/Wrapper for owner functions
-pub struct OwnerAPIHandlerV2<T: ?Sized, C, K>
+pub struct OwnerAPIHandlerV2<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
 	/// Wallet instance
-	pub wallet: Arc<Mutex<T>>,
-	phantom: PhantomData<K>,
-	phantom_c: PhantomData<C>,
+	pub wallet: Arc<Mutex<dyn WalletLCProvider<C, K>>>,
 }
 
-impl<T: ?Sized, C, K> OwnerAPIHandlerV2<T, C, K>
+impl<C, K> OwnerAPIHandlerV2<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
 	/// Create a new owner API handler for GET methods
-	pub fn new(wallet: Arc<Mutex<T>>) -> OwnerAPIHandlerV2<T, C, K> {
+	pub fn new(wallet: Arc<Mutex<dyn WalletLCProvider<C, K>>>) -> OwnerAPIHandlerV2<C, K> {
 		OwnerAPIHandlerV2 {
 			wallet,
-			phantom: PhantomData,
-			phantom_c: PhantomData,
 		}
 	}
 
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Owner<T, C, K>,
+		api: Owner<C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let owner_api = &api as &dyn OwnerRpc;
@@ -243,9 +231,8 @@ where
 	}
 }
 
-impl<T: ?Sized, C, K> api::Handler for OwnerAPIHandlerV2<T, C, K>
+impl<C, K> api::Handler for OwnerAPIHandlerV2<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
@@ -266,37 +253,31 @@ where
 }
 
 /// V2 API Handler/Wrapper for foreign functions
-pub struct ForeignAPIHandlerV2<T: ?Sized, C, K>
+pub struct ForeignAPIHandlerV2<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
 	/// Wallet instance
-	pub wallet: Arc<Mutex<T>>,
-	phantom: PhantomData<K>,
-	phantom_c: PhantomData<C>,
+	pub wallet: Arc<Mutex<Box<dyn WalletLCProvider<C, K> + Send + 'static>>>,
 }
 
-impl<T: ?Sized, C, K> ForeignAPIHandlerV2<T, C, K>
+impl<C, K> ForeignAPIHandlerV2<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
 	/// Create a new foreign API handler for GET methods
-	pub fn new(wallet: Arc<Mutex<T>>) -> ForeignAPIHandlerV2<T, C, K> {
+	pub fn new(wallet: Arc<Mutex<Box<dyn WalletLCProvider<C, K> + Send + 'static>>>) -> ForeignAPIHandlerV2<C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
-			phantom: PhantomData,
-			phantom_c: PhantomData,
 		}
 	}
 
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Foreign<T, C, K>,
+		api: Foreign<C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let foreign_api = &api as &dyn ForeignRpc;
@@ -320,9 +301,8 @@ where
 	}
 }
 
-impl<T: ?Sized, C, K> api::Handler for ForeignAPIHandlerV2<T, C, K>
+impl<C, K> api::Handler for ForeignAPIHandlerV2<C, K>
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {

@@ -197,6 +197,10 @@ pub enum ErrorKind {
 	#[fail(display = "Compatibility Error: {}", _0)]
 	Compatibility(String),
 
+	/// Lifecycle Error
+	#[fail(display = "Lifecycle Error: {}", _0)]
+	Lifecycle(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

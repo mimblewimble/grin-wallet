@@ -17,10 +17,9 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletBackend,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletLCProvider,
 };
 use crate::util::Mutex;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -55,28 +54,22 @@ pub enum ForeignCheckMiddlewareFn {
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Foreign<W: ?Sized, C, K>
+pub struct Foreign<C, K>
 where
-	W: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	/// Wallet, contains its keychain (TODO: Split these up into 2 traits
 	/// perhaps)
-	pub wallet: Arc<Mutex<W>>,
+	pub lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
-	/// phantom
-	phantom: PhantomData<K>,
-	/// phantom
-	phantom_c: PhantomData<C>,
 	/// foreign check middleware
 	middleware: Option<ForeignCheckMiddleware>,
 }
 
-impl<'a, W: ?Sized, C, K> Foreign<W, C, K>
+impl<'a, C, K> Foreign<C, K>
 where
-	W: WalletBackend<C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -140,12 +133,10 @@ where
 	///
 	/// ```
 
-	pub fn new(wallet_in: Arc<Mutex<W>>, middleware: Option<ForeignCheckMiddleware>) -> Self {
+	pub fn new(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>, middleware: Option<ForeignCheckMiddleware>) -> Self {
 		Foreign {
-			wallet: wallet_in,
+			lc_provider,
 			doctest_mode: false,
-			phantom: PhantomData,
-			phantom_c: PhantomData,
 			middleware,
 		}
 	}
@@ -168,7 +159,8 @@ where
 
 	pub fn check_version(&self) -> Result<VersionInfo, Error> {
 		if let Some(m) = self.middleware.as_ref() {
-			let mut w = self.wallet.lock();
+			let mut w_lock = self.lc_provider.lock();
+			let w = w_lock.wallet_inst()?;
 			m(
 				ForeignCheckMiddlewareFn::CheckVersion,
 				w.w2n_client().get_version_info(),
@@ -229,7 +221,8 @@ where
 	/// ```
 
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::BuildCoinbase,
@@ -238,7 +231,7 @@ where
 			)?;
 		}
 		w.open_with_credentials()?;
-		let res = foreign::build_coinbase(&mut *w, block_fees, self.doctest_mode);
+		let res = foreign::build_coinbase(&mut **w, block_fees, self.doctest_mode);
 		w.close()?;
 		res
 	}
@@ -283,7 +276,8 @@ where
 
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		if let Some(m) = self.middleware.as_ref() {
-			let mut w = self.wallet.lock();
+			let mut w_lock = self.lc_provider.lock();
+			let w = w_lock.wallet_inst()?;
 			m(
 				ForeignCheckMiddlewareFn::VerifySlateMessages,
 				w.w2n_client().get_version_info(),
@@ -355,7 +349,8 @@ where
 		dest_acct_name: Option<&str>,
 		message: Option<String>,
 	) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::ReceiveTx,
@@ -364,7 +359,7 @@ where
 			)?;
 		}
 		w.open_with_credentials()?;
-		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, self.doctest_mode);
+		let res = foreign::receive_tx(&mut **w, slate, dest_acct_name, message, self.doctest_mode);
 		w.close()?;
 		res
 	}
@@ -417,7 +412,8 @@ where
 	/// ```
 
 	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.lc_provider.lock();
+		let w = w_lock.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::FinalizeInvoiceTx,
@@ -426,7 +422,7 @@ where
 			)?;
 		}
 		w.open_with_credentials()?;
-		let res = foreign::finalize_invoice_tx(&mut *w, slate);
+		let res = foreign::finalize_invoice_tx(&mut **w, slate);
 		w.close()?;
 		res
 	}
