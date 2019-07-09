@@ -22,7 +22,7 @@ use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::{
-	BlockFees, CbData, InitTxArgs, NodeClient, WalletInfo, WalletLCProvider, WalletInst,
+	BlockFees, CbData, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::secp::pedersen;
 use crate::util::Mutex;

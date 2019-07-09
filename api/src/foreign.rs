@@ -133,7 +133,10 @@ where
 	///
 	/// ```
 
-	pub fn new(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>, middleware: Option<ForeignCheckMiddleware>) -> Self {
+	pub fn new(
+		lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
+		middleware: Option<ForeignCheckMiddleware>,
+	) -> Self {
 		Foreign {
 			lc_provider,
 			doctest_mode: false,

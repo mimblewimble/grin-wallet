@@ -17,8 +17,8 @@
 use crate::config::WalletConfig;
 use crate::keychain::ExtKeychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{Error, ErrorKind, WalletLCProvider, Slate, WalletBackend, WalletInst};
-use crate::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient, WalletCommAdapter};
+use crate::libwallet::{Error, ErrorKind, Slate, WalletBackend, WalletInst, WalletLCProvider};
+use crate::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient, WalletCommAdapter};
 use failure::ResultExt;
 use serde::Serialize;
 use serde_json::{from_str, json, to_string, Value};
@@ -339,7 +339,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 	) -> Result<(), Error> {
 		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
 		/*let wallet = DefaultWalletImpl::<HTTPNodeClient>::new("", config.clone(), node_client, passphrase, account)
-			.context(ErrorKind::WalletSeedDecryption)?;*/
+		.context(ErrorKind::WalletSeedDecryption)?;*/
 		let wallet = DefaultWalletImpl::new(node_client.clone());
 
 		info!("Listening for transactions on keybase ...");

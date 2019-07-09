@@ -23,8 +23,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo,
-	WalletLCProvider
+	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletLCProvider,
 };
 use crate::util::Mutex;
 use std::sync::Arc;
@@ -119,7 +118,7 @@ where
 	///
 	/// ```
 
-	pub fn new(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>> ) -> Self {
+	pub fn new(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>) -> Self {
 		Owner {
 			lc_provider,
 			doctest_mode: false,
@@ -1144,8 +1143,9 @@ macro_rules! doctest_helper_setup_doc_env {
 		let pw = "";
 
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-		let mut $wallet: Arc<Mutex<Box<WalletBackend<HTTPNodeClient, ExtKeychain>>>> = Arc::new(
-			Mutex::new(Box::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap())),
-			);
+		let mut $wallet: Arc<Mutex<Box<WalletBackend<HTTPNodeClient, ExtKeychain>>>> =
+			Arc::new(Mutex::new(Box::new(
+				LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap(),
+			)));
 	};
 }

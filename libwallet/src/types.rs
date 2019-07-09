@@ -57,8 +57,13 @@ where
 	/// ? Optionally takes wallet config structure?
 	fn create_config(&self, data_dir: Option<String>) -> Result<(), Error>;
 
-  ///
-	fn create_wallet(&mut self, name: Option<&str>, mnemonic: Option<&str>, password: &str) -> Result<(), Error>;
+	///
+	fn create_wallet(
+		&mut self,
+		name: Option<&str>,
+		mnemonic: Option<&str>,
+		password: &str,
+	) -> Result<(), Error>;
 
 	///
 	fn open_wallet(&mut self, name: Option<&str>, password: &str) -> Result<(), Error>;
@@ -74,7 +79,7 @@ where
 
 	/// deletes wallet
 	fn delete_wallet(&self, name: Option<String>, password: String) -> Result<(), Error>;
-	
+
 	/// return wallet instance
 	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<C, K>>, Error>;
 }

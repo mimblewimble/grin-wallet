@@ -17,7 +17,7 @@
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeVersionInfo, Slate, VersionInfo, VersionedSlate
+	NodeVersionInfo, Slate, VersionInfo, VersionedSlate,
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
@@ -584,8 +584,8 @@ pub fn run_doctest_foreign(
 	use crate::core::global::ChainTypes;
 	use grin_wallet_util::grin_util as util;
 
-	use util::Mutex;
 	use std::sync::Arc;
+	use util::Mutex;
 
 	use std::fs;
 	use std::thread;

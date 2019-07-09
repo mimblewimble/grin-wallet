@@ -72,7 +72,10 @@ fn check_middleware(
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
-pub fn owner_single_use<F, C, K>(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>, f: F) -> Result<(), Error>
+pub fn owner_single_use<F, C, K>(
+	lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
+	f: F,
+) -> Result<(), Error>
 where
 	F: FnOnce(&mut Owner<C, K>) -> Result<(), Error>,
 	C: NodeClient + 'static,
@@ -84,7 +87,10 @@ where
 
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
-pub fn foreign_single_use<F, C, K>(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>, f: F) -> Result<(), Error>
+pub fn foreign_single_use<F, C, K>(
+	lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
+	f: F,
+) -> Result<(), Error>
 where
 	F: FnOnce(&mut Foreign<C, K>) -> Result<(), Error>,
 	C: NodeClient + 'static,
@@ -199,9 +205,7 @@ where
 {
 	/// Create a new owner API handler for GET methods
 	pub fn new(wallet: Arc<Mutex<dyn WalletLCProvider<C, K>>>) -> OwnerAPIHandlerV2<C, K> {
-		OwnerAPIHandlerV2 {
-			wallet,
-		}
+		OwnerAPIHandlerV2 { wallet }
 	}
 
 	fn call_api(
@@ -268,10 +272,10 @@ where
 	K: Keychain + 'static,
 {
 	/// Create a new foreign API handler for GET methods
-	pub fn new(wallet: Arc<Mutex<Box<dyn WalletLCProvider<C, K> + Send + 'static>>>) -> ForeignAPIHandlerV2<C, K> {
-		ForeignAPIHandlerV2 {
-			wallet,
-		}
+	pub fn new(
+		wallet: Arc<Mutex<Box<dyn WalletLCProvider<C, K> + Send + 'static>>>,
+	) -> ForeignAPIHandlerV2<C, K> {
+		ForeignAPIHandlerV2 { wallet }
 	}
 
 	fn call_api(

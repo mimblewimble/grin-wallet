@@ -34,9 +34,9 @@ extern crate grin_wallet_config as config;
 mod adapters;
 mod backends;
 mod error;
+mod lifecycle;
 mod node_clients;
 mod seed;
-mod lifecycle;
 pub mod test_framework;
 
 pub use crate::adapters::{
@@ -45,13 +45,13 @@ pub use crate::adapters::{
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};
-pub use crate::node_clients::HTTPNodeClient;
 pub use crate::lifecycle::DefaultLCProvider;
+pub use crate::node_clients::HTTPNodeClient;
 pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
 use crate::keychain::{ExtKeychain, Keychain};
 
-use libwallet::{NodeClient, WalletInst, WalletLCProvider, WalletBackend};
+use libwallet::{NodeClient, WalletBackend, WalletInst, WalletLCProvider};
 
 /// Main wallet instance
 
@@ -64,16 +64,15 @@ where
 
 impl<C> DefaultWalletImpl<C>
 where
-	C: NodeClient + 'static
+	C: NodeClient + 'static,
 {
 	pub fn new(
 		/*dir: &str,
 		wallet_config: config::WalletConfig,*/
-		node_client: C,
+		node_client: C
 		/*passphrase: &str,
 		account: &str,*/
-	) -> Result<Self, Error>
-	{
+	) -> Result<Self, Error> {
 		// First test decryption, so we can abort early if we have the wrong password
 		/*let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
 		let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client.clone())?;*/

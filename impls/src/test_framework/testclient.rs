@@ -26,7 +26,9 @@ use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider};
+use crate::libwallet::{
+	NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider,
+};
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
@@ -536,4 +538,3 @@ where
 	C: NodeClient,
 	K: Keychain,
 	{}*/
-

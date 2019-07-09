@@ -21,10 +21,10 @@ use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
 	OutputCommitMapping, Slate, TxLogEntry, WalletInfo,
 };
-use crate::Owner;
 use crate::util::Mutex;
-use std::sync::Arc;
+use crate::Owner;
 use easy_jsonrpc;
+use std::sync::Arc;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// * When running `grin-wallet owner_api` with defaults, the V2 api is available at
@@ -1340,7 +1340,7 @@ pub fn run_doctest_owner(
 	use easy_jsonrpc::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-	use grin_wallet_libwallet::{api_impl, WalletLCProvider, WalletInst};
+	use grin_wallet_libwallet::{api_impl, WalletInst, WalletLCProvider};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
 
 	use crate::core::global;
@@ -1354,7 +1354,11 @@ pub fn run_doctest_owner(
 	let _ = fs::remove_dir_all(test_dir);
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 
-	let mut wallet_proxy: WalletProxy<DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+	let mut wallet_proxy: WalletProxy<
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
+	> = WalletProxy::new(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
 	let rec_phrase_1 =
