@@ -69,9 +69,8 @@ where
 	pub fn new(
 		/*dir: &str,
 		wallet_config: config::WalletConfig,*/
-		node_client: C
-		/*passphrase: &str,
-		account: &str,*/
+		node_client: C /*passphrase: &str,
+					   account: &str,*/
 	) -> Result<Self, Error> {
 		// First test decryption, so we can abort early if we have the wrong password
 		/*let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
