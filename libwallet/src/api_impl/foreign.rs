@@ -62,7 +62,7 @@ pub fn receive_tx<'a, T: ?Sized, C, K>(
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T:  WalletBackend<'a, C, K>,
+	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {

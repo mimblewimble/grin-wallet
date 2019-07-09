@@ -18,8 +18,8 @@ use std::{fs, path};
 // for writing storedtransaction files
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
 use std::marker::PhantomData;
+use std::path::Path;
 
 use failure::ResultExt;
 use uuid::Uuid;

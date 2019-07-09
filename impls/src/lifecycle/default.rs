@@ -71,10 +71,10 @@ where
 		let mut wallet_config = WalletConfig::default();
 		wallet_config.data_file_dir = String::from(self.data_dir.clone());
 		let _ = WalletSeed::init_file(&wallet_config, 32, z_string, "");
-		let mut wallet: LMDBBackend<'a, C, K> = LMDBBackend::new(wallet_config.clone(), "", self.node_client.clone())
-			.unwrap_or_else(|e| {
-				panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config)
-			});
+		let mut wallet: LMDBBackend<'a, C, K> =
+			LMDBBackend::new(wallet_config.clone(), "", self.node_client.clone()).unwrap_or_else(
+				|e| panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config),
+			);
 		wallet.open_with_credentials().unwrap_or_else(|e| {
 			panic!(
 				"Error initializing wallet: {:?} Config: {:?}",
@@ -88,10 +88,10 @@ where
 	fn open_wallet(&mut self, _name: Option<&str>, password: &str) -> Result<(), Error> {
 		let mut wallet_config = WalletConfig::default();
 		wallet_config.data_file_dir = String::from(self.data_dir.clone());
-		let mut wallet: LMDBBackend<'a, C, K> = LMDBBackend::new(wallet_config.clone(), "", self.node_client.clone())
-			.unwrap_or_else(|e| {
-				panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config)
-			});
+		let mut wallet: LMDBBackend<'a, C, K> =
+			LMDBBackend::new(wallet_config.clone(), "", self.node_client.clone()).unwrap_or_else(
+				|e| panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config),
+			);
 		wallet.open_with_credentials().unwrap_or_else(|e| {
 			panic!(
 				"Error initializing wallet: {:?} Config: {:?}",
