@@ -51,20 +51,20 @@ pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
 use crate::keychain::{ExtKeychain, Keychain};
 
-use libwallet::{NodeClient, WalletBackend, WalletInst, WalletLCProvider};
+use libwallet::{NodeClient, WalletInst, WalletLCProvider};
 
 /// Main wallet instance
 
-pub struct DefaultWalletImpl<C>
+pub struct DefaultWalletImpl<'a, C>
 where
-	C: NodeClient,
+	C: NodeClient + 'a,
 {
-	lc_provider: DefaultLCProvider<C, ExtKeychain>,
+	lc_provider: DefaultLCProvider<'a, C, ExtKeychain>,
 }
 
-impl<C> DefaultWalletImpl<C>
+impl<'a, C> DefaultWalletImpl<'a, C>
 where
-	C: NodeClient + 'static,
+	C: NodeClient + 'a,
 {
 	pub fn new(
 		/*dir: &str,
@@ -84,14 +84,14 @@ where
 	}
 }
 
-impl<L, C, K> WalletInst<L, C, K> for DefaultWalletImpl<C>
+impl<'a, L, C, K> WalletInst<'a, L, C, K> for DefaultWalletImpl<'a, C>
 where
-	DefaultLCProvider<C, ExtKeychain>: WalletLCProvider<C, K>,
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	DefaultLCProvider<'a, C, ExtKeychain>: WalletLCProvider<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
-	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<C, K>, libwallet::Error> {
+	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<'a, C, K>, libwallet::Error> {
 		Ok(&mut self.lc_provider)
 	}
 }

@@ -33,21 +33,21 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Combined trait to allow dynamic wallet dispatch
-pub trait WalletInst<L, C, K>
+pub trait WalletInst<'a, L, C, K>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// Return the stored instance
-	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<C, K>, Error>;
+	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<'a, C, K>, Error>;
 }
 
 /// Trait for a provider of wallet lifecycle methods
-pub trait WalletLCProvider<C, K>
+pub trait WalletLCProvider<'a, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// Sets the top level system wallet directory
 	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
@@ -81,17 +81,17 @@ where
 	fn delete_wallet(&self, name: Option<String>, password: String) -> Result<(), Error>;
 
 	/// return wallet instance
-	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<C, K>>, Error>;
+	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error>;
 }
 
 /// TODO:
 /// Wallets should implement this backend for their storage. All functions
 /// here expect that the wallet instance has instantiated itself or stored
 /// whatever credentials it needs
-pub trait WalletBackend<C, K>
+pub trait WalletBackend<'ck, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
 {
 	/// Initialize with whatever stored credentials we have
 	fn open_with_credentials(&mut self) -> Result<(), Error>;

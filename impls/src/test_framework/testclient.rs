@@ -58,11 +58,11 @@ pub struct WalletProxyMessage {
 
 /// communicates with a chain instance or other wallet
 /// listener APIs via message queues
-pub struct WalletProxy<L, C, K>
+pub struct WalletProxy<'a, L, C, K>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// directory to create the chain in
 	pub chain_dir: String,
@@ -73,7 +73,7 @@ where
 		String,
 		(
 			Sender<WalletProxyMessage>,
-			Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
+			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 		),
 	>,
 	/// simulate json send to another client
@@ -85,11 +85,11 @@ where
 	pub running: Arc<AtomicBool>,
 }
 
-impl<L, C, K> WalletProxy<L, C, K>
+impl<'a, L, C, K> WalletProxy<'a, L, C, K>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// Create a new client that will communicate with the given grin node
 	pub fn new(chain_dir: &str) -> Self {
@@ -123,7 +123,7 @@ where
 		&mut self,
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	) {
 		self.wallets.insert(addr.to_owned(), (tx, wallet));
 	}

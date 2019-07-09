@@ -104,12 +104,12 @@ pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbDa
 pub fn award_block_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	txs: Vec<&Transaction>,
-	wallet: Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 ) -> Result<(), libwallet::Error>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	// build block fees
 	let prev = chain.head_header().unwrap();
@@ -133,16 +133,16 @@ where
 }
 
 /// Award a blocks to a wallet directly
-pub fn award_blocks_to_wallet<L, C, K>(
+pub fn award_blocks_to_wallet<'a, L, C, K>(
 	chain: &Chain,
-	wallet: Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	number: usize,
 	pause_between: bool,
 ) -> Result<(), libwallet::Error>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	for _ in 0..number {
 		award_block_to_wallet(chain, vec![], wallet.clone())?;
@@ -154,17 +154,17 @@ where
 }
 
 /// send an amount to a destination
-pub fn send_to_dest<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
+pub fn send_to_dest<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	client: LocalWalletClient,
 	dest: &str,
 	amount: u64,
 	test_mode: bool,
 ) -> Result<(), libwallet::Error>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	let slate = {
 		let mut w_lock = wallet.lock();
@@ -196,13 +196,13 @@ where
 }
 
 /// get wallet info totals
-pub fn wallet_info<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<L, C, K>>>>,
+pub fn wallet_info<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 ) -> Result<WalletInfo, libwallet::Error>
 where
-	L: WalletLCProvider<C, K>,
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	let mut w_lock = wallet.lock();
 	let w = w_lock.lc_provider()?.wallet_inst()?;

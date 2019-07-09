@@ -19,6 +19,7 @@ use std::{fs, path};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::marker::PhantomData;
 
 use failure::ResultExt;
 use uuid::Uuid;
@@ -92,7 +93,11 @@ where
 	Ok((ret_blind, ret_nonce))
 }
 
-pub struct LMDBBackend<C, K> {
+pub struct LMDBBackend<'ck, C, K>
+where
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
+{
 	db: store::Store,
 	config: WalletConfig,
 	/// passphrase: TODO better ways of dealing with this other than storing
@@ -103,9 +108,15 @@ pub struct LMDBBackend<C, K> {
 	parent_key_id: Identifier,
 	/// wallet to node client
 	w2n_client: C,
+	///phantom
+	phantom: &'ck PhantomData<C>,
 }
 
-impl<C, K> LMDBBackend<C, K> {
+impl<'ck, C, K> LMDBBackend<'ck, C, K>
+where
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
+{
 	pub fn new(config: WalletConfig, passphrase: &str, n_client: C) -> Result<Self, Error> {
 		let db_path = path::Path::new(&config.data_file_dir).join(DB_DIR);
 		fs::create_dir_all(&db_path).expect("Couldn't create wallet backend directory!");
@@ -141,6 +152,7 @@ impl<C, K> LMDBBackend<C, K> {
 			keychain: None,
 			parent_key_id: LMDBBackend::<C, K>::default_path(),
 			w2n_client: n_client,
+			phantom: &PhantomData,
 		};
 		Ok(res)
 	}
@@ -160,10 +172,10 @@ impl<C, K> LMDBBackend<C, K> {
 	}
 }
 
-impl<C, K> WalletBackend<C, K> for LMDBBackend<C, K>
+impl<'ck, C, K> WalletBackend<'ck, C, K> for LMDBBackend<'ck, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
 {
 	/// Initialise with whatever stored credentials we have
 	fn open_with_credentials(&mut self) -> Result<(), Error> {
@@ -382,7 +394,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	_store: &'a LMDBBackend<C, K>,
+	_store: &'a LMDBBackend<'a, C, K>,
 	db: RefCell<Option<store::Batch<'a>>>,
 	/// Keychain
 	keychain: Option<K>,
