@@ -538,4 +538,5 @@ where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
-	{}
+{
+}

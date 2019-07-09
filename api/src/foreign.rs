@@ -17,8 +17,8 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletLCProvider,
-	WalletInst,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
+	WalletLCProvider,
 };
 use crate::util::Mutex;
 use std::sync::Arc;

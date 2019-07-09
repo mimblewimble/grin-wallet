@@ -91,7 +91,9 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	fn lc_provider(&mut self) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), libwallet::Error> {
+	fn lc_provider(
+		&mut self,
+	) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), libwallet::Error> {
 		Ok(&mut self.lc_provider)
 	}
 }

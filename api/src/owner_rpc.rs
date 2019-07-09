@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletLCProvider
+	OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletLCProvider,
 };
 use crate::util::Mutex;
 use crate::Owner;
@@ -1366,8 +1366,16 @@ pub fn run_doctest_owner(
 		"fat twenty mean degree forget shell check candy immense awful \
 		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch";
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let mut wallet1 = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
-		as Box<WalletInst<'static, DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>>;
+	let mut wallet1 =
+		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
+			as Box<
+				WalletInst<
+					'static,
+					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>;
 	let lc = wallet1.lc_provider().unwrap();
 	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_1), "").unwrap();
@@ -1380,8 +1388,16 @@ pub fn run_doctest_owner(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile";
 	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let mut wallet2 = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
-		as Box<WalletInst<'static, DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>>;
+	let mut wallet2 =
+		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
+			as Box<
+				WalletInst<
+					'static,
+					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>;
 	let lc = wallet2.lc_provider().unwrap();
 	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), "").unwrap();
