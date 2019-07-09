@@ -40,7 +40,7 @@ where
 	K: Keychain + 'a,
 {
 	/// Return the stored instance
-	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<'a, C, K>, Error>;
+	fn lc_provider(&mut self) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), Error>;
 }
 
 /// Trait for a provider of wallet lifecycle methods

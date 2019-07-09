@@ -17,7 +17,7 @@
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeVersionInfo, Slate, VersionInfo, VersionedSlate,
+	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
@@ -515,10 +515,11 @@ pub trait ForeignRpc {
 	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind>;
 }
 
-impl<C, K> ForeignRpc for Foreign<C, K>
+impl<'a, L, C, K> ForeignRpc for Foreign<'a, L, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	fn check_version(&self) -> Result<VersionInfo, ErrorKind> {
 		Foreign::check_version(self).map_err(|e| e.kind())
@@ -576,8 +577,8 @@ pub fn run_doctest_foreign(
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
-	use grin_wallet_impls::DefaultLCProvider;
-	use grin_wallet_libwallet::api_impl;
+	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+	use grin_wallet_libwallet::{api_impl, WalletInst};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
 
 	use crate::core::global;
@@ -594,31 +595,39 @@ pub fn run_doctest_foreign(
 	let _ = fs::remove_dir_all(test_dir);
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+	let mut wallet_proxy: WalletProxy<
+	DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+	LocalWalletClient,
+	ExtKeychain,
+	> = WalletProxy::new(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
 	let rec_phrase_1 =
 		"fat twenty mean degree forget shell check candy immense awful \
 		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch";
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 = test_framework::create_wallet(
-		&format!("{}/wallet1", test_dir),
-		client1.clone(),
-		Some(rec_phrase_1),
-	);
+	let mut wallet1 = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
+		as Box<WalletInst<'static, DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>>;
+	let lc = wallet1.lc_provider().unwrap();
+	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
+	lc.create_wallet(None, Some(rec_phrase_1), "").unwrap();
+	lc.open_wallet(None, "").unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
+
 	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
 
 	let rec_phrase_2 =
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile";
 	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let wallet2 = test_framework::create_wallet(
-		&format!("{}/wallet2", test_dir),
-		client2.clone(),
-		Some(rec_phrase_2),
-	);
+	let mut wallet2 = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
+		as Box<WalletInst<'static, DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>>;
+	let lc = wallet2.lc_provider().unwrap();
+	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
+	lc.create_wallet(None, Some(rec_phrase_2), "").unwrap();
+	lc.open_wallet(None, "").unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
+
 	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
 
 	// Set the wallet proxy listener running
@@ -633,7 +642,7 @@ pub fn run_doctest_foreign(
 		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
-		let w = w_lock.wallet_inst().unwrap();
+		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		w.open_with_credentials().unwrap();
 		let (wallet_refreshed, _) =
 			api_impl::owner::retrieve_summary_info(&mut **w, true, 1).unwrap();
@@ -644,8 +653,8 @@ pub fn run_doctest_foreign(
 	if init_invoice_tx {
 		let amount = 60_000_000_000;
 		let mut slate = {
-			let mut w_lock = wallet2.lock();
-			let w = w_lock.wallet_inst().unwrap();
+			let mut w_lock = wallet1.lock();
+			let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 			w.open_with_credentials().unwrap();
 			let args = IssueInvoiceTxArgs {
 				amount,
@@ -655,7 +664,7 @@ pub fn run_doctest_foreign(
 		};
 		slate = {
 			let mut w_lock = wallet1.lock();
-			let w = w_lock.wallet_inst().unwrap();
+			let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 			let args = InitTxArgs {
 				src_acct_name: None,
 				amount: slate.amount,
@@ -675,7 +684,7 @@ pub fn run_doctest_foreign(
 	if init_tx {
 		let amount = 60_000_000_000;
 		let mut w_lock = wallet1.lock();
-		let w = w_lock.wallet_inst().unwrap();
+		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		w.open_with_credentials().unwrap();
 		let args = InitTxArgs {
 			src_acct_name: None,

@@ -35,16 +35,16 @@ extern crate serde_json;
 extern crate log;
 
 mod foreign;
-//mod foreign_rpc;
+mod foreign_rpc;
 
 mod owner;
 mod owner_rpc;
 
 pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddlewareFn};
-//pub use crate::foreign_rpc::ForeignRpc;
+pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;
 
-//pub use crate::foreign_rpc::foreign_rpc as foreign_rpc_client;
-//pub use crate::foreign_rpc::run_doctest_foreign;
+pub use crate::foreign_rpc::foreign_rpc as foreign_rpc_client;
+pub use crate::foreign_rpc::run_doctest_foreign;
 pub use crate::owner_rpc::run_doctest_owner;

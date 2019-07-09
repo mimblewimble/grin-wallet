@@ -23,7 +23,8 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletLCProvider,
+	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
+	WalletLCProvider,
 };
 use crate::util::Mutex;
 use std::sync::Arc;
@@ -42,21 +43,21 @@ use std::sync::Arc;
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Owner<C, K>
+pub struct Owner<'a, L, C, K>
 where
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
-	/// Reference to implementation of a [wallet lifecycle provider]
-	/// (./types/trait.WalletLCProvider.html).
 	/// contain all methods to manage the wallet
-	pub lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
+	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 }
 
-impl<C, K> Owner<C, K>
+impl<'a, L, C, K> Owner<'a, L, C, K>
 where
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -118,9 +119,9 @@ where
 	///
 	/// ```
 
-	pub fn new(lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>) -> Self {
+	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>) -> Self {
 		Owner {
-			lc_provider,
+			wallet_inst,
 			doctest_mode: false,
 		}
 	}
@@ -154,8 +155,8 @@ where
 	/// ```
 
 	pub fn accounts(&self) -> Result<Vec<AcctPathMapping>, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::accounts(&mut **w)
 	}
 
@@ -197,8 +198,8 @@ where
 	/// ```
 
 	pub fn create_account_path(&self, label: &str) -> Result<Identifier, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::create_account_path(&mut **w, label)
 	}
 
@@ -239,8 +240,8 @@ where
 	/// ```
 
 	pub fn set_active_account(&self, label: &str) -> Result<(), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::set_active_account(&mut **w, label)
 	}
 
@@ -292,8 +293,8 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let res = owner::retrieve_outputs(&mut **w, include_spent, refresh_from_node, tx_id);
 		w.close()?;
@@ -346,8 +347,8 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let mut res = owner::retrieve_txs(&mut **w, refresh_from_node, tx_id, tx_slate_id)?;
 		if self.doctest_mode {
@@ -405,8 +406,8 @@ where
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let res = owner::retrieve_summary_info(&mut **w, refresh_from_node, minimum_confirmations);
 		w.close()?;
@@ -489,8 +490,8 @@ where
 	pub fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let mut slate = {
-			let mut w_lock = self.lc_provider.lock();
-			let w = w_lock.wallet_inst()?;
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			w.open_with_credentials()?;
 			let slate = owner::init_send_tx(&mut **w, args, self.doctest_mode)?;
 			w.close()?;
@@ -563,8 +564,8 @@ where
 	/// }
 	/// ```
 	pub fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let slate = owner::issue_invoice_tx(&mut **w, args, self.doctest_mode)?;
 		w.close()?;
@@ -625,8 +626,8 @@ where
 	/// ```
 
 	pub fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let slate = owner::process_invoice_tx(&mut **w, slate, args, self.doctest_mode)?;
 		w.close()?;
@@ -686,8 +687,8 @@ where
 	/// ```
 
 	pub fn tx_lock_outputs(&self, slate: &Slate, participant_id: usize) -> Result<(), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let res = owner::tx_lock_outputs(&mut **w, slate, participant_id);
 		w.close()?;
@@ -749,8 +750,8 @@ where
 	/// ```
 
 	pub fn finalize_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let out_slate = owner::finalize_tx(&mut **w, &slate)?;
 		w.close()?;
@@ -808,8 +809,8 @@ where
 
 	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
 		let client = {
-			let mut w_lock = self.lc_provider.lock();
-			let w = w_lock.wallet_inst()?;
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			w.w2n_client().clone()
 		};
 		owner::post_tx(&client, tx, fluff)
@@ -868,8 +869,8 @@ where
 	/// ```
 
 	pub fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let res = owner::cancel_tx(&mut **w, tx_id, tx_slate_id);
 		w.close()?;
@@ -909,8 +910,8 @@ where
 
 	// TODO: Should be accepting an id, not an entire entry struct
 	pub fn get_stored_tx(&self, tx_log_entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::get_stored_tx(&**w, tx_log_entry)
 	}
 
@@ -1000,9 +1001,8 @@ where
 	/// }
 	/// ```
 	pub fn restore(&self) -> Result<(), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
-		w.open_with_credentials()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let res = owner::restore(&mut **w);
 		w.close()?;
 		res
@@ -1055,8 +1055,8 @@ where
 	/// ```
 
 	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let res = owner::check_repair(&mut **w, delete_unconfirmed);
 		w.close()?;
@@ -1101,8 +1101,8 @@ where
 	/// ```
 
 	pub fn node_height(&self) -> Result<NodeHeightResult, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.open_with_credentials()?;
 		let res = owner::node_height(&mut **w);
 		w.close()?;

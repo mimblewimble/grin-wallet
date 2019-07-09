@@ -104,7 +104,7 @@ pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbDa
 pub fn award_block_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	txs: Vec<&Transaction>,
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 ) -> Result<(), libwallet::Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -135,7 +135,7 @@ where
 /// Award a blocks to a wallet directly
 pub fn award_blocks_to_wallet<'a, L, C, K>(
 	chain: &Chain,
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 	number: usize,
 	pause_between: bool,
 ) -> Result<(), libwallet::Error>

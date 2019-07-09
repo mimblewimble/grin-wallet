@@ -19,7 +19,7 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, TxLogEntry, WalletInfo,
+	OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletLCProvider
 };
 use crate::util::Mutex;
 use crate::Owner;
@@ -1235,10 +1235,11 @@ pub trait OwnerRpc {
 	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind>;
 }
 
-impl<C, K> OwnerRpc for Owner<C, K>
+impl<'a, L, C, K> OwnerRpc for Owner<'a, L, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind> {
 		Owner::accounts(self).map_err(|e| e.kind())
@@ -1365,12 +1366,13 @@ pub fn run_doctest_owner(
 		"fat twenty mean degree forget shell check candy immense awful \
 		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch";
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 = DefaultWalletImpl::new(client1.clone()).unwrap();
-	let mut lc = wallet1.lc_provider().unwrap();
+	let mut wallet1 = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
+		as Box<WalletInst<'static, DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>>;
+	let lc = wallet1.lc_provider().unwrap();
 	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_1), "").unwrap();
 	lc.open_wallet(None, "").unwrap();
-	let wallet1 = Arc::new(Mutex::new(Box::new(wallet1)));
+	let wallet1 = Arc::new(Mutex::new(wallet1));
 
 	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
 
@@ -1378,12 +1380,13 @@ pub fn run_doctest_owner(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile";
 	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let wallet2 = DefaultWalletImpl::new(client2.clone()).unwrap();
-	let mut lc = wallet2.lc_provider().unwrap();
+	let mut wallet2 = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
+		as Box<WalletInst<'static, DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>>;
+	let lc = wallet2.lc_provider().unwrap();
 	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
-	lc.create_wallet(None, Some(rec_phrase_1), "").unwrap();
+	lc.create_wallet(None, Some(rec_phrase_2), "").unwrap();
 	lc.open_wallet(None, "").unwrap();
-	let wallet2 = Arc::new(Mutex::new(Box::new(wallet2)));
+	let wallet2 = Arc::new(Mutex::new(wallet2));
 
 	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
 
@@ -1399,7 +1402,7 @@ pub fn run_doctest_owner(
 		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
-		let w = w_lock.wallet_inst().unwrap();
+		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		w.open_with_credentials().unwrap();
 		let (wallet_refreshed, _) =
 			api_impl::owner::retrieve_summary_info(&mut **w, true, 1).unwrap();
@@ -1410,7 +1413,7 @@ pub fn run_doctest_owner(
 	if perform_tx {
 		let amount = 60_000_000_000;
 		let mut w_lock = wallet1.lock();
-		let w = w_lock.wallet_inst().unwrap();
+		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		w.open_with_credentials().unwrap();
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -1426,7 +1429,7 @@ pub fn run_doctest_owner(
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		{
 			let mut w_lock = wallet2.lock();
-			let w2 = w_lock.wallet_inst().unwrap();
+			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 			w2.open_with_credentials().unwrap();
 			slate = api_impl::foreign::receive_tx(&mut **w2, &slate, None, None, true).unwrap();
 			w2.close().unwrap();

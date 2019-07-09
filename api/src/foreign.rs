@@ -18,6 +18,7 @@ use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletLCProvider,
+	WalletInst,
 };
 use crate::util::Mutex;
 use std::sync::Arc;
@@ -54,24 +55,25 @@ pub enum ForeignCheckMiddlewareFn {
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Foreign<C, K>
+pub struct Foreign<'a, L, C, K>
 where
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
-	/// Wallet, contains its keychain (TODO: Split these up into 2 traits
-	/// perhaps)
-	pub lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
+	/// Wallet instance
+	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// foreign check middleware
 	middleware: Option<ForeignCheckMiddleware>,
 }
 
-impl<'a, C, K> Foreign<C, K>
+impl<'a, L, C, K> Foreign<'a, L, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// Create a new API instance with the given wallet instance. All subsequent
 	/// API calls will operate on this instance of the wallet.
@@ -134,11 +136,11 @@ where
 	/// ```
 
 	pub fn new(
-		lc_provider: Arc<Mutex<Box<dyn WalletLCProvider<C, K>>>>,
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 		middleware: Option<ForeignCheckMiddleware>,
 	) -> Self {
 		Foreign {
-			lc_provider,
+			wallet_inst,
 			doctest_mode: false,
 			middleware,
 		}
@@ -162,8 +164,8 @@ where
 
 	pub fn check_version(&self) -> Result<VersionInfo, Error> {
 		if let Some(m) = self.middleware.as_ref() {
-			let mut w_lock = self.lc_provider.lock();
-			let w = w_lock.wallet_inst()?;
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			m(
 				ForeignCheckMiddlewareFn::CheckVersion,
 				w.w2n_client().get_version_info(),
@@ -224,8 +226,8 @@ where
 	/// ```
 
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::BuildCoinbase,
@@ -279,8 +281,8 @@ where
 
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		if let Some(m) = self.middleware.as_ref() {
-			let mut w_lock = self.lc_provider.lock();
-			let w = w_lock.wallet_inst()?;
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			m(
 				ForeignCheckMiddlewareFn::VerifySlateMessages,
 				w.w2n_client().get_version_info(),
@@ -352,8 +354,8 @@ where
 		dest_acct_name: Option<&str>,
 		message: Option<String>,
 	) -> Result<Slate, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::ReceiveTx,
@@ -415,8 +417,8 @@ where
 	/// ```
 
 	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let mut w_lock = self.lc_provider.lock();
-		let w = w_lock.wallet_inst()?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::FinalizeInvoiceTx,

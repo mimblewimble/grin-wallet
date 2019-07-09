@@ -73,7 +73,7 @@ where
 		String,
 		(
 			Sender<WalletProxyMessage>,
-			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 		),
 	>,
 	/// simulate json send to another client
@@ -123,7 +123,7 @@ where
 		&mut self,
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 	) {
 		self.wallets.insert(addr.to_owned(), (tx, wallet));
 	}
@@ -533,8 +533,9 @@ impl NodeClient for LocalWalletClient {
 		Ok((o.highest_index, o.last_retrieved_index, api_outputs))
 	}
 }
-/*unsafe impl<C, K> Send for WalletProxy<C, K>
+unsafe impl<'a, L, C, K> Send for WalletProxy<'a, L, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
-	{}*/
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+	{}
