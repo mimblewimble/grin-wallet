@@ -21,7 +21,7 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{HTTPNodeClient, DefaultLCProvider, DefaultWalletImpl, WalletSeed};
+use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient, WalletSeed};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
@@ -219,16 +219,8 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let passphrase = prompt_password(&g_args.password);
-	let mut wallet =
-		Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
-			as Box<
-				WalletInst<
-					'static,
-					L,
-					C,
-					K,
-				>,
-			>;
+	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
+		as Box<WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	lc.set_wallet_directory(&config.data_file_dir);
 	lc.open_wallet(None, &passphrase).unwrap();
@@ -785,10 +777,15 @@ pub fn wallet_command(
 
 	// closure to instantiate wallet as needed by each subcommand
 	let inst_wallet = || {
-		let res = inst_wallet::<DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
-		HTTPNodeClient, 
-		keychain::ExtKeychain>
-		(wallet_config.clone(), &global_wallet_args, node_client as HTTPNodeClient);
+		let res = inst_wallet::<
+			DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
+			HTTPNodeClient,
+			keychain::ExtKeychain,
+		>(
+			wallet_config.clone(),
+			&global_wallet_args,
+			node_client as HTTPNodeClient,
+		);
 		res.unwrap_or_else(|e| {
 			println!("{}", e);
 			std::process::exit(1);
