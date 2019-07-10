@@ -130,14 +130,15 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 				&config.check_node_api_http_addr,
 				g_args.node_api_secret.clone(),
 			);
-		let mut wallet =
-			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone())?)
+			let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(
+				node_client.clone(),
+			)?)
 				as Box<
-						WalletInst<
-							'static,
-							DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
-							HTTPNodeClient,
-							keychain::ExtKeychain,
+					WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
+						HTTPNodeClient,
+						keychain::ExtKeychain,
 					>,
 				>;
 			let lc = wallet.lc_provider()?;
@@ -183,7 +184,7 @@ pub fn owner_api<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	config: &WalletConfig,
 	g_args: &GlobalArgs,
-) -> Result<(), Error> 
+) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -407,7 +408,7 @@ pub struct FinalizeArgs {
 pub fn finalize<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: FinalizeArgs,
-) -> Result<(), Error> 
+) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -514,7 +515,7 @@ pub fn process_invoice<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> 
+) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -608,7 +609,7 @@ pub fn info<'a, L, C, K>(
 	g_args: &GlobalArgs,
 	args: InfoArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> 
+) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,

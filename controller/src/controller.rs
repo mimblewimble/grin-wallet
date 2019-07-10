@@ -80,7 +80,7 @@ where
 	L: WalletLCProvider<'a, C, K>,
 	F: FnOnce(&mut Owner<'a, L, C, K>) -> Result<(), Error>,
 	C: NodeClient + 'a,
-	K: Keychain + 'a
+	K: Keychain + 'a,
 {
 	f(&mut Owner::new(lc_provider))?;
 	Ok(())
@@ -96,7 +96,7 @@ where
 	L: WalletLCProvider<'a, C, K>,
 	F: FnOnce(&mut Foreign<'a, L, C, K>) -> Result<(), Error>,
 	C: NodeClient + 'a,
-	K: Keychain + 'a
+	K: Keychain + 'a,
 {
 	f(&mut Foreign::new(lc_provider, Some(check_middleware)))?;
 	Ok(())
@@ -210,7 +210,9 @@ where
 	K: Keychain + 'a,
 {
 	/// Create a new owner API handler for GET methods
-	pub fn new(wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>) -> OwnerAPIHandlerV2<'a, L, C, K>{
+	pub fn new(
+		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+	) -> OwnerAPIHandlerV2<'a, L, C, K> {
 		OwnerAPIHandlerV2 { wallet }
 	}
 
@@ -278,7 +280,7 @@ impl<'a, L, C, K> ForeignAPIHandlerV2<'a, L, C, K>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
-	K: Keychain + 'a
+	K: Keychain + 'a,
 {
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
