@@ -31,11 +31,11 @@ use crate::keychain;
 use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
-	instantiate_wallet, DefaultLCProvider, FileWalletCommAdapter, HTTPWalletCommAdapter,
+	DefaultLCProvider, DefaultWalletImpl, FileWalletCommAdapter, HTTPWalletCommAdapter,
 	KeybaseWalletCommAdapter, LMDBBackend, NullWalletCommAdapter,
 };
 use crate::impls::{HTTPNodeClient, WalletSeed};
-use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
+use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use crate::{controller, display};
 
 /// Arguments common to all wallet commands
@@ -130,12 +130,25 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 				&config.check_node_api_http_addr,
 				g_args.node_api_secret.clone(),
 			);
-			let wallet = instantiate_wallet(
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone())?)
+				as Box<
+						WalletInst<
+							'static,
+							DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
+							HTTPNodeClient,
+							keychain::ExtKeychain,
+					>,
+				>;
+			let lc = wallet.lc_provider()?;
+			lc.set_wallet_directory(&format!("{}/wallet1", &config.data_file_dir));
+			lc.open_wallet(None, &g_args.password.clone().unwrap())?;
+			/*let wallet = instantiate_wallet(
 				config.clone(),
 				node_client,
 				&g_args.password.clone().unwrap(),
 				&g_args.account,
-			)?;
+			)?;*/
 			let listen_addr = params.get("api_listen_addr").unwrap();
 			let tls_conf = match params.get("certificate") {
 				Some(s) => Some(TLSConfig::new(
@@ -144,7 +157,7 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 				)),
 				None => None,
 			};
-			controller::foreign_listener(wallet.clone(), &listen_addr, tls_conf)?;
+			controller::foreign_listener(Arc::new(Mutex::new(wallet)), &listen_addr, tls_conf)?;
 			Ok(())
 		}
 		"keybase" => {
@@ -166,11 +179,16 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 	Ok(())
 }
 
-pub fn owner_api(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn owner_api<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	config: &WalletConfig,
 	g_args: &GlobalArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error> 
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	let res = controller::owner_listener(
 		wallet,
 		config.owner_api_listen_addr().as_str(),
@@ -189,10 +207,15 @@ pub struct AccountArgs {
 	pub create: Option<String>,
 }
 
-pub fn account(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn account<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: AccountArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	if args.create.is_none() {
 		let res = controller::owner_single_use(wallet, |api| {
 			let acct_mappings = api.accounts()?;
@@ -237,11 +260,16 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 }
 
-pub fn send(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn send<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: SendArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -341,11 +369,16 @@ pub struct ReceiveArgs {
 	pub message: Option<String>,
 }
 
-pub fn receive(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn receive<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	let adapter = FileWalletCommAdapter::new();
 	let mut slate = adapter.receive_tx_async(&args.input)?;
 	controller::foreign_single_use(wallet, |api| {
@@ -371,10 +404,15 @@ pub struct FinalizeArgs {
 	pub fluff: bool,
 }
 
-pub fn finalize(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn finalize<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: FinalizeArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error> 
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	let adapter = FileWalletCommAdapter::new();
 	let mut slate = adapter.receive_tx_async(&args.input)?;
 	// Rather than duplicating the entire command, we'll just
@@ -440,10 +478,15 @@ pub struct IssueInvoiceArgs {
 	pub issue_args: IssueInvoiceTxArgs,
 }
 
-pub fn issue_invoice_tx(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn issue_invoice_tx<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: IssueInvoiceArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let slate = api.issue_invoice_tx(args.issue_args)?;
 		let mut tx_file = File::create(args.dest.clone())?;
@@ -467,11 +510,16 @@ pub struct ProcessInvoiceArgs {
 }
 
 /// Process invoice
-pub fn process_invoice(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn process_invoice<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> {
+) -> Result<(), Error> 
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	let adapter = FileWalletCommAdapter::new();
 	let slate = adapter.receive_tx_async(&args.input)?;
 	controller::owner_single_use(wallet.clone(), |api| {
@@ -555,12 +603,17 @@ pub struct InfoArgs {
 	pub minimum_confirmations: u64,
 }
 
-pub fn info(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn info<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	g_args: &GlobalArgs,
 	args: InfoArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> {
+) -> Result<(), Error> 
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let (validated, wallet_info) =
 			api.retrieve_summary_info(true, args.minimum_confirmations)?;
@@ -570,11 +623,16 @@ pub fn info(
 	Ok(())
 }
 
-pub fn outputs(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn outputs<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	g_args: &GlobalArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let res = api.node_height()?;
 		let (validated, outputs) = api.retrieve_outputs(g_args.show_spent, true, None)?;
@@ -590,12 +648,17 @@ pub struct TxsArgs {
 	pub tx_slate_id: Option<Uuid>,
 }
 
-pub fn txs(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn txs<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	g_args: &GlobalArgs,
 	args: TxsArgs,
 	dark_scheme: bool,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let res = api.node_height()?;
 		let (validated, txs) = api.retrieve_txs(true, args.id, args.tx_slate_id)?;
@@ -645,10 +708,15 @@ pub struct RepostArgs {
 	pub fluff: bool,
 }
 
-pub fn repost(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn repost<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: RepostArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let (_, txs) = api.retrieve_txs(true, Some(args.id), None)?;
 		let stored_tx = api.get_stored_tx(&txs[0])?;
@@ -691,10 +759,15 @@ pub struct CancelArgs {
 	pub tx_id_string: String,
 }
 
-pub fn cancel(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn cancel<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: CancelArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let result = api.cancel_tx(args.tx_id, args.tx_slate_id);
 		match result {
@@ -711,9 +784,14 @@ pub fn cancel(
 	Ok(())
 }
 
-pub fn restore(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
-) -> Result<(), Error> {
+pub fn restore<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		let result = api.restore();
 		match result {
@@ -736,10 +814,15 @@ pub struct CheckArgs {
 	pub delete_unconfirmed: bool,
 }
 
-pub fn check_repair(
-	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+pub fn check_repair<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	args: CheckArgs,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	controller::owner_single_use(wallet.clone(), |api| {
 		warn!("Starting wallet check...",);
 		warn!("Updating all wallet outputs, please wait ...",);
