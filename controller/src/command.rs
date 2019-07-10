@@ -180,15 +180,15 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 	Ok(())
 }
 
-pub fn owner_api<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn owner_api<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	config: &WalletConfig,
 	g_args: &GlobalArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + Send + Sync + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static
 {
 	let res = controller::owner_listener(
 		wallet,

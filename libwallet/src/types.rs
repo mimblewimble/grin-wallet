@@ -33,9 +33,9 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Combined trait to allow dynamic wallet dispatch
-pub trait WalletInst<'a, L, C, K>
+pub trait WalletInst<'a, L, C, K>: Send + Sync
 where
-	L: WalletLCProvider<'a, C, K>,
+	L: WalletLCProvider<'a, C, K> + Send + Sync,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
@@ -44,7 +44,7 @@ where
 }
 
 /// Trait for a provider of wallet lifecycle methods
-pub trait WalletLCProvider<'a, C, K>
+pub trait WalletLCProvider<'a, C, K>: Send + Sync
 where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
@@ -88,7 +88,7 @@ where
 /// Wallets should implement this backend for their storage. All functions
 /// here expect that the wallet instance has instantiated itself or stored
 /// whatever credentials it needs
-pub trait WalletBackend<'ck, C, K>
+pub trait WalletBackend<'ck, C, K>: Send + Sync
 where
 	C: NodeClient + 'ck,
 	K: Keychain + 'ck,
@@ -242,7 +242,7 @@ where
 
 /// Encapsulate all wallet-node communication functions. No functions within libwallet
 /// should care about communication details
-pub trait NodeClient: Clone {
+pub trait NodeClient: Send + Sync + Clone {
 	/// Return the URL of the check node
 	fn node_url(&self) -> &str;
 

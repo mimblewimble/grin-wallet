@@ -109,7 +109,7 @@ where
 	/// wallet to node client
 	w2n_client: C,
 	///phantom
-	phantom: &'ck PhantomData<C>,
+	_phantom: &'ck PhantomData<C>,
 }
 
 impl<'ck, C, K> LMDBBackend<'ck, C, K>
@@ -152,7 +152,7 @@ where
 			keychain: None,
 			parent_key_id: LMDBBackend::<C, K>::default_path(),
 			w2n_client: n_client,
-			phantom: &PhantomData,
+			_phantom: &PhantomData,
 		};
 		Ok(res)
 	}
