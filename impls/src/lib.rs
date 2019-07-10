@@ -62,15 +62,9 @@ where
 	lc_provider: DefaultLCProvider<'a, C, ExtKeychain>,
 }
 
-unsafe impl<'a, C> Send for DefaultWalletImpl<'a, C>
-where
-	C: NodeClient + 'a,
-{}
+unsafe impl<'a, C> Send for DefaultWalletImpl<'a, C> where C: NodeClient + 'a {}
 
-unsafe impl<'a, C> Sync for DefaultWalletImpl<'a, C>
-where
-	C: NodeClient + 'a
-{}
+unsafe impl<'a, C> Sync for DefaultWalletImpl<'a, C> where C: NodeClient + 'a {}
 
 impl<'a, C> DefaultWalletImpl<'a, C>
 where

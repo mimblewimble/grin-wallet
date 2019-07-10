@@ -188,7 +188,7 @@ pub fn owner_api<L, C, K>(
 where
 	L: WalletLCProvider<'static, C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
-	K: keychain::Keychain + 'static
+	K: keychain::Keychain + 'static,
 {
 	let res = controller::owner_listener(
 		wallet,
