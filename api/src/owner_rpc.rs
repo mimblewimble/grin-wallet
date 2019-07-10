@@ -1341,7 +1341,7 @@ pub fn run_doctest_owner(
 	use easy_jsonrpc::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-	use grin_wallet_libwallet::{api_impl, WalletInst, WalletLCProvider};
+	use grin_wallet_libwallet::{api_impl, WalletInst};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
 
 	use crate::core::global;
@@ -1419,18 +1419,15 @@ pub fn run_doctest_owner(
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-		w.open_with_credentials().unwrap();
 		let (wallet_refreshed, _) =
 			api_impl::owner::retrieve_summary_info(&mut **w, true, 1).unwrap();
 		assert!(wallet_refreshed);
-		w.close().unwrap();
 	}
 
 	if perform_tx {
 		let amount = 60_000_000_000;
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-		w.open_with_credentials().unwrap();
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount,
@@ -1446,7 +1443,6 @@ pub fn run_doctest_owner(
 		{
 			let mut w_lock = wallet2.lock();
 			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			w2.open_with_credentials().unwrap();
 			slate = api_impl::foreign::receive_tx(&mut **w2, &slate, None, None, true).unwrap();
 			w2.close().unwrap();
 		}
@@ -1461,7 +1457,6 @@ pub fn run_doctest_owner(
 			error!("FINALIZED TX SLATE");
 			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		}
-		w.close().unwrap();
 	}
 
 	if perform_tx && lock_tx && finalize_tx {

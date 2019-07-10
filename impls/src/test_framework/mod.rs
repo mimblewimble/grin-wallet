@@ -123,9 +123,7 @@ where
 	let coinbase_tx = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		w.open_with_credentials()?;
 		let res = foreign::build_coinbase(&mut **w, &block_fees, false)?;
-		w.close()?;
 		res
 	};
 	add_block_with_reward(chain, txs, coinbase_tx.clone());
@@ -169,7 +167,6 @@ where
 	let slate = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		w.open_with_credentials()?;
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount,
@@ -183,7 +180,6 @@ where
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut **w, &slate, 0)?;
 		let slate = owner::finalize_tx(&mut **w, &slate)?;
-		w.close()?;
 		slate
 	};
 	let client = {

@@ -13,5 +13,6 @@
 // limitations under the License.
 
 mod default;
+mod seed;
 
 pub use self::default::DefaultLCProvider;

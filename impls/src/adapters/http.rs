@@ -16,7 +16,7 @@
 use crate::api;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
-use config::WalletConfig;
+use crate::config::WalletConfig;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;

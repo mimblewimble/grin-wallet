@@ -211,10 +211,8 @@ where
 		{
 			let mut w_lock = wallet.1.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			w.open_with_credentials()?;
 			// receive tx
 			slate = foreign::receive_tx(&mut **w, &slate, None, None, false)?;
-			w.close()?;
 		}
 
 		Ok(WalletProxyMessage {

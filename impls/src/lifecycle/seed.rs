@@ -27,7 +27,6 @@ use ring::{digest, pbkdf2};
 use crate::keychain::{mnemonic, Keychain};
 use crate::util;
 use crate::{Error, ErrorKind};
-use config::WalletConfig;
 use failure::ResultExt;
 
 pub const SEED_FILE: &'static str = "wallet.seed";
@@ -85,10 +84,10 @@ impl WalletSeed {
 		WalletSeed(seed)
 	}
 
-	pub fn seed_file_exists(wallet_config: &WalletConfig) -> Result<(), Error> {
+	pub fn seed_file_exists(data_file_dir: &str) -> Result<(), Error> {
 		let seed_file_path = &format!(
 			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
+			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
 		);
 		if Path::new(seed_file_path).exists() {
 			return Err(ErrorKind::WalletSeedExists(seed_file_path.to_owned()))?;
@@ -96,23 +95,23 @@ impl WalletSeed {
 		Ok(())
 	}
 
-	pub fn backup_seed(wallet_config: &WalletConfig) -> Result<(), Error> {
+	pub fn backup_seed(data_file_dir: &str) -> Result<(), Error> {
 		let seed_file_name = &format!(
 			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
+			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
 		);
 
 		let mut path = Path::new(seed_file_name).to_path_buf();
 		path.pop();
 		let mut backup_seed_file_name = format!(
 			"{}{}{}.bak",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE
+			data_file_dir, MAIN_SEPARATOR, SEED_FILE
 		);
 		let mut i = 1;
 		while Path::new(&backup_seed_file_name).exists() {
 			backup_seed_file_name = format!(
 				"{}{}{}.bak.{}",
-				wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE, i
+				data_file_dir, MAIN_SEPARATOR, SEED_FILE, i
 			);
 			i += 1;
 		}
@@ -127,20 +126,20 @@ impl WalletSeed {
 	}
 
 	pub fn recover_from_phrase(
-		wallet_config: &WalletConfig,
+		data_file_dir: &str,
 		word_list: &str,
 		password: &str,
 	) -> Result<(), Error> {
 		let seed_file_path = &format!(
 			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
+			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
 		);
-		if WalletSeed::seed_file_exists(wallet_config).is_err() {
-			WalletSeed::backup_seed(wallet_config)?;
+		if WalletSeed::seed_file_exists(data_file_dir).is_err() {
+			WalletSeed::backup_seed(data_file_dir)?;
 		}
-		if !Path::new(&wallet_config.data_file_dir).exists() {
+		if !Path::new(&data_file_dir).exists() {
 			return Err(ErrorKind::WalletDoesntExist(
-				wallet_config.data_file_dir.clone(),
+				data_file_dir.to_owned(),
 				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
 					.to_owned(),
 			))?;
@@ -165,21 +164,21 @@ impl WalletSeed {
 	}
 
 	pub fn init_file(
-		wallet_config: &WalletConfig,
+		data_file_dir: &str,
 		seed_length: usize,
 		recovery_phrase: Option<util::ZeroingString>,
 		password: &str,
 	) -> Result<WalletSeed, Error> {
 		// create directory if it doesn't exist
-		fs::create_dir_all(&wallet_config.data_file_dir).context(ErrorKind::IO)?;
+		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
 		let seed_file_path = &format!(
 			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
+			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
 		);
 
 		warn!("Generating wallet seed file at: {}", seed_file_path);
-		let _ = WalletSeed::seed_file_exists(wallet_config)?;
+		let _ = WalletSeed::seed_file_exists(data_file_dir)?;
 
 		let seed = match recovery_phrase {
 			Some(p) => WalletSeed::from_mnemonic(&p)?,
@@ -195,13 +194,14 @@ impl WalletSeed {
 		Ok(seed)
 	}
 
-	pub fn from_file(wallet_config: &WalletConfig, password: &str) -> Result<WalletSeed, Error> {
+	pub fn from_file(data_file_dir: &str, password: &str) -> Result<WalletSeed, Error> {
+		// TODO: Is this desirable any more?
 		// create directory if it doesn't exist
-		fs::create_dir_all(&wallet_config.data_file_dir).context(ErrorKind::IO)?;
+		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
 		let seed_file_path = &format!(
 			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
+			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
 		);
 
 		debug!("Using wallet seed file at: {}", seed_file_path);

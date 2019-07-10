@@ -69,7 +69,7 @@ where
 	fn open_wallet(&mut self, name: Option<&str>, password: &str) -> Result<(), Error>;
 
 	///
-	fn close_wallet(&self, name: Option<String>) -> Result<(), Error>;
+	fn close_wallet(&mut self, name: Option<String>) -> Result<(), Error>;
 
 	///
 	fn get_mnemonic(&self) -> Result<String, Error>;
@@ -93,14 +93,14 @@ where
 	C: NodeClient + 'ck,
 	K: Keychain + 'ck,
 {
-	/// Initialize with whatever stored credentials we have
-	fn open_with_credentials(&mut self) -> Result<(), Error>;
+	/// Set the keychain, which should already be initialized
+	fn set_keychain(&mut self, k: Box<K>);
 
 	/// Close wallet and remove any stored credentials (TBD)
 	fn close(&mut self) -> Result<(), Error>;
 
 	/// Return the keychain being used
-	fn keychain(&mut self) -> &mut K;
+	fn keychain(&mut self) -> Result<&mut K, Error>;
 
 	/// Return the client being used to communicate with the node
 	fn w2n_client(&mut self) -> &mut C;

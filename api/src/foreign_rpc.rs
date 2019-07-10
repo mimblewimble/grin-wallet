@@ -659,11 +659,9 @@ pub fn run_doctest_foreign(
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-		w.open_with_credentials().unwrap();
 		let (wallet_refreshed, _) =
 			api_impl::owner::retrieve_summary_info(&mut **w, true, 1).unwrap();
 		assert!(wallet_refreshed);
-		w.close().unwrap();
 	}
 
 	if init_invoice_tx {
@@ -671,7 +669,6 @@ pub fn run_doctest_foreign(
 		let mut slate = {
 			let mut w_lock = wallet1.lock();
 			let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			w.open_with_credentials().unwrap();
 			let args = IssueInvoiceTxArgs {
 				amount,
 				..Default::default()
@@ -701,7 +698,6 @@ pub fn run_doctest_foreign(
 		let amount = 60_000_000_000;
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-		w.open_with_credentials().unwrap();
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount,

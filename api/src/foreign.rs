@@ -235,10 +235,7 @@ where
 				None,
 			)?;
 		}
-		w.open_with_credentials()?;
-		let res = foreign::build_coinbase(&mut **w, block_fees, self.doctest_mode);
-		w.close()?;
-		res
+		foreign::build_coinbase(&mut **w, block_fees, self.doctest_mode)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -363,10 +360,7 @@ where
 				Some(slate),
 			)?;
 		}
-		w.open_with_credentials()?;
-		let res = foreign::receive_tx(&mut **w, slate, dest_acct_name, message, self.doctest_mode);
-		w.close()?;
-		res
+		foreign::receive_tx(&mut **w, slate, dest_acct_name, message, self.doctest_mode)
 	}
 
 	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
@@ -426,10 +420,7 @@ where
 				Some(slate),
 			)?;
 		}
-		w.open_with_credentials()?;
-		let res = foreign::finalize_invoice_tx(&mut **w, slate);
-		w.close()?;
-		res
+		foreign::finalize_invoice_tx(&mut **w, slate)
 	}
 }
 

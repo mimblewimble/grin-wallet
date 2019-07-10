@@ -157,7 +157,7 @@ where
 	// the offset in the slate's transaction kernel, and adds our public key
 	// information to the slate
 	let _ = slate.fill_round_1(
-		wallet.keychain(),
+		wallet.keychain()?,
 		&mut context.sec_key,
 		&context.sec_nonce,
 		participant_id,
@@ -168,7 +168,7 @@ where
 	if !is_initator {
 		// perform partial sig
 		let _ = slate.fill_round_2(
-			wallet.keychain(),
+			wallet.keychain()?,
 			&context.sec_key,
 			&context.sec_nonce,
 			participant_id,
@@ -199,7 +199,7 @@ where
 
 	// fill public keys
 	let _ = slate.fill_round_1(
-		wallet.keychain(),
+		wallet.keychain()?,
 		&mut context.sec_key,
 		&context.sec_nonce,
 		1,
@@ -210,7 +210,7 @@ where
 	if !is_initiator {
 		// perform partial sig
 		let _ = slate.fill_round_2(
-			wallet.keychain(),
+			wallet.keychain()?,
 			&context.sec_key,
 			&context.sec_nonce,
 			participant_id,
@@ -233,14 +233,14 @@ where
 	K: Keychain + 'a,
 {
 	let _ = slate.fill_round_2(
-		wallet.keychain(),
+		wallet.keychain()?,
 		&context.sec_key,
 		&context.sec_nonce,
 		participant_id,
 	)?;
 
 	// Final transaction can be built by anyone at this stage
-	slate.finalize(wallet.keychain())?;
+	slate.finalize(wallet.keychain()?)?;
 	Ok(())
 }
 

@@ -68,7 +68,7 @@ where
 	}
 
 	outputs.sort_by_key(|out| out.n_child);
-	let keychain = wallet.keychain().clone();
+	let keychain = wallet.keychain()?.clone();
 
 	let res = outputs
 		.into_iter()
@@ -160,7 +160,7 @@ where
 {
 	let mut wallet_outputs: HashMap<pedersen::Commitment, (Identifier, Option<u64>)> =
 		HashMap::new();
-	let keychain = wallet.keychain().clone();
+	let keychain = wallet.keychain()?.clone();
 	let unspents: Vec<OutputData> = wallet
 		.iter()
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
@@ -510,7 +510,7 @@ where
 
 	debug!("receive_coinbase: {:?}", block_fees);
 
-	let keychain = wallet.keychain();
+	let keychain = wallet.keychain()?;
 	let (out, kern) = reward::output(
 		keychain,
 		&ProofBuilder::new(keychain),

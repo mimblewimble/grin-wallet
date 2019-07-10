@@ -14,11 +14,13 @@
 
 //! Default wallet lifecycle provider
 
-use crate::config::WalletConfig;
+use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
 use crate::util;
-use crate::{LMDBBackend, WalletSeed};
+use crate::LMDBBackend;
+use crate::lifecycle::seed::WalletSeed;
+use failure::ResultExt;
 
 pub struct DefaultLCProvider<'a, C, K>
 where
@@ -54,7 +56,7 @@ where
 		self.data_dir = dir.to_owned();
 	}
 
-	fn create_config(&self, data_dir: Option<String>) -> Result<(), Error> {
+	fn create_config(&self, _data_dir: Option<String>) -> Result<(), Error> {
 		unimplemented!()
 	}
 
@@ -68,53 +70,48 @@ where
 			Some(s) => Some(util::ZeroingString::from(s)),
 			None => None,
 		};
-		let mut wallet_config = WalletConfig::default();
-		wallet_config.data_file_dir = String::from(self.data_dir.clone());
-		let _ = WalletSeed::init_file(&wallet_config, 32, z_string, "");
-		let mut wallet: LMDBBackend<'a, C, K> =
-			LMDBBackend::new(wallet_config.clone(), "", self.node_client.clone()).unwrap_or_else(
-				|e| panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config),
+		let _ = WalletSeed::init_file(&self.data_dir, 32, z_string, password);
+		let _wallet: LMDBBackend<'a, C, K> =
+			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(
+				|e| panic!("Error creating wallet: {:?} Data Dir: {:?}", e, self.data_dir),
 			);
-		wallet.open_with_credentials().unwrap_or_else(|e| {
-			panic!(
-				"Error initializing wallet: {:?} Config: {:?}",
-				e, wallet_config
-			)
-		});
-		self.backend = Some(Box::new(wallet));
 		Ok(())
 	}
 
 	fn open_wallet(&mut self, _name: Option<&str>, password: &str) -> Result<(), Error> {
-		let mut wallet_config = WalletConfig::default();
-		wallet_config.data_file_dir = String::from(self.data_dir.clone());
 		let mut wallet: LMDBBackend<'a, C, K> =
-			LMDBBackend::new(wallet_config.clone(), "", self.node_client.clone()).unwrap_or_else(
-				|e| panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config),
+			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(
+				|e| panic!("Error creating wallet: {:?} Data Dir: {:?}", e, self.data_dir),
 			);
-		wallet.open_with_credentials().unwrap_or_else(|e| {
-			panic!(
-				"Error initializing wallet: {:?} Config: {:?}",
-				e, wallet_config
-			)
-		});
+		let wallet_seed = WalletSeed::from_file(&self.data_dir, password)
+			.context(ErrorKind::CallbackImpl("Error opening wallet"))?;
+		let keychain = wallet_seed.derive_keychain(global::is_floonet())
+			.context(ErrorKind::CallbackImpl("Error deriving keychain"))?;
+		wallet.set_keychain(Box::new(keychain));
 		self.backend = Some(Box::new(wallet));
 		Ok(())
 	}
 
-	fn close_wallet(&self, _name: Option<String>) -> Result<(), Error> {
-		unimplemented!()
+	fn close_wallet(&mut self, _name: Option<String>) -> Result<(), Error> {
+		match self.backend.as_mut() {
+			Some(b) => {
+				b.close()?
+			},
+			None => {}
+		};
+		self.backend = None;
+		Ok(())
 	}
 
 	fn get_mnemonic(&self) -> Result<String, Error> {
 		unimplemented!()
 	}
 
-	fn change_password(&self, old: String, new: String) -> Result<(), Error> {
+	fn change_password(&self, _old: String, _new: String) -> Result<(), Error> {
 		unimplemented!()
 	}
 
-	fn delete_wallet(&self, name: Option<String>, password: String) -> Result<(), Error> {
+	fn delete_wallet(&self, _name: Option<String>, _password: String) -> Result<(), Error> {
 		unimplemented!()
 	}
 

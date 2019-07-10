@@ -58,7 +58,7 @@ where
 		selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-	let keychain = wallet.keychain();
+	let keychain = wallet.keychain()?;
 	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	slate.fee = fee;
@@ -185,7 +185,7 @@ where
 {
 	// Create a potential output for this transaction
 	let key_id = keys::next_available_key(wallet).unwrap();
-	let keychain = wallet.keychain().clone();
+	let keychain = wallet.keychain()?.clone();
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
 	let height = slate.height;
@@ -201,7 +201,7 @@ where
 	let mut context = Context::new(
 		keychain.secp(),
 		blinding
-			.secret_key(wallet.keychain().clone().secp())
+			.secret_key(wallet.keychain()?.clone().secp())
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,

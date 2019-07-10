@@ -74,7 +74,7 @@ where
 		outputs.len(),
 	);
 
-	let keychain = wallet.keychain();
+	let keychain = wallet.keychain()?;
 	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
 	let builder = proof::ProofBuilder::new(keychain);
 	let legacy_version = HeaderVersion(1);

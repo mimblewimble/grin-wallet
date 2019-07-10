@@ -29,14 +29,14 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_util::grin_store as store;
 use grin_wallet_util::grin_util as util;
-extern crate grin_wallet_config as config;
+
+use grin_wallet_config as config;
 
 mod adapters;
 mod backends;
 mod error;
 mod lifecycle;
 mod node_clients;
-mod seed;
 pub mod test_framework;
 
 pub use crate::adapters::{
@@ -47,7 +47,6 @@ pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};
 pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::node_clients::HTTPNodeClient;
-pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
 use crate::keychain::{ExtKeychain, Keychain};
 

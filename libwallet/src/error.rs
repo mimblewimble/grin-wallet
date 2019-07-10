@@ -197,6 +197,10 @@ pub enum ErrorKind {
 	#[fail(display = "Compatibility Error: {}", _0)]
 	Compatibility(String),
 
+	/// Keychain doesn't exist (wallet not openend)
+	#[fail(display = "Keychain doesn't exist (has wallet been opened?)")]
+	KeychainDoesntExist,
+
 	/// Lifecycle Error
 	#[fail(display = "Lifecycle Error: {}", _0)]
 	Lifecycle(String),
