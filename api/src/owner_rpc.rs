@@ -1358,7 +1358,7 @@ pub fn run_doctest_owner(
 	let rec_phrase_1 =
 		"fat twenty mean degree forget shell check candy immense awful \
 		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch";
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
+	let client1 = LocalWalletClient::new("unknown AD", "wallet1", wallet_proxy.tx.clone());
 	let wallet1 = test_framework::create_wallet(
 		&format!("{}/wallet1", test_dir),
 		client1.clone(),
@@ -1369,7 +1369,7 @@ pub fn run_doctest_owner(
 	let rec_phrase_2 =
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile";
-	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
+	let client2 = LocalWalletClient::new("unknown AD", "wallet2", wallet_proxy.tx.clone());
 	let wallet2 = test_framework::create_wallet(
 		&format!("{}/wallet2", test_dir),
 		client2.clone(),

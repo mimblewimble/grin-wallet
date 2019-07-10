@@ -288,6 +288,7 @@ where
 
 #[derive(Clone)]
 pub struct LocalWalletClient {
+	pub dest: String,
 	/// wallet identifier for the proxy queue
 	pub id: String,
 	/// proxy's tx queue (receive messages from other wallets or node
@@ -300,9 +301,10 @@ pub struct LocalWalletClient {
 
 impl LocalWalletClient {
 	/// new
-	pub fn new(id: &str, proxy_rx: Sender<WalletProxyMessage>) -> Self {
+	pub fn new(dest: &str, id: &str, proxy_rx: Sender<WalletProxyMessage>) -> Self {
 		let (tx, rx) = channel();
 		LocalWalletClient {
+			dest: dest.to_owned(),
 			id: id.to_owned(),
 			proxy_tx: Arc::new(Mutex::new(proxy_rx)),
 			rx: Arc::new(Mutex::new(rx)),
@@ -350,10 +352,10 @@ impl WalletCommAdapter for LocalWalletClient {
 	}
 
 	/// Send the slate to a listening wallet instance
-	fn send_tx_sync(&self, dest: &str, slate: &Slate) -> Result<Slate, libwallet::Error> {
+	fn send_tx_sync(&self, slate: &Slate) -> Result<Slate, libwallet::Error> {
 		let m = WalletProxyMessage {
 			sender_id: self.id.clone(),
-			dest: dest.to_owned(),
+			dest: self.dest.clone(),
 			method: "send_tx_slate".to_owned(),
 			body: serde_json::to_string(slate).unwrap(),
 		};
@@ -373,7 +375,7 @@ impl WalletCommAdapter for LocalWalletClient {
 		)
 	}
 
-	fn send_tx_async(&self, _dest: &str, _slate: &Slate) -> Result<(), libwallet::Error> {
+	fn send_tx_async(&self, _slate: &Slate) -> Result<(), libwallet::Error> {
 		unimplemented!();
 	}
 

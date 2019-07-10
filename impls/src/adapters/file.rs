@@ -20,14 +20,17 @@ use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Clone)]
-pub struct FileWalletCommAdapter {}
+pub struct FileWalletCommAdapter {
+	dest: PathBuf,
+}
 
 impl FileWalletCommAdapter {
 	/// Create
-	pub fn new() -> Box<dyn WalletCommAdapter> {
-		Box::new(FileWalletCommAdapter {})
+	pub fn new(dest: PathBuf) -> Box<dyn WalletCommAdapter> {
+		Box::new(FileWalletCommAdapter { dest })
 	}
 }
 
@@ -36,12 +39,12 @@ impl WalletCommAdapter for FileWalletCommAdapter {
 		false
 	}
 
-	fn send_tx_sync(&self, _dest: &str, _slate: &Slate) -> Result<Slate, Error> {
+	fn send_tx_sync(&self, _slate: &Slate) -> Result<Slate, Error> {
 		unimplemented!();
 	}
 
-	fn send_tx_async(&self, dest: &str, slate: &Slate) -> Result<(), Error> {
-		let mut pub_tx = File::create(dest)?;
+	fn send_tx_async(&self, slate: &Slate) -> Result<(), Error> {
+		let mut pub_tx = File::create(&self.dest)?;
 		pub_tx.write_all(
 			serde_json::to_string(slate)
 				.map_err(|_| ErrorKind::SlateSer)?

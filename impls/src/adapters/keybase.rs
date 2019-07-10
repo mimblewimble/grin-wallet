@@ -36,11 +36,21 @@ const SLATE_NEW: &str = "grin_slate_new";
 const SLATE_SIGNED: &str = "grin_slate_signed";
 
 #[derive(Clone)]
-pub struct KeybaseWalletCommAdapter {}
+pub struct KeybaseWalletCommAdapter {
+	channel: String,
+}
 
 impl KeybaseWalletCommAdapter {
 	/// Check if keybase is installed and return an adapter object.
-	pub fn new() -> Box<WalletCommAdapter> {
+	pub fn new(channel: String) -> Result<Box<dyn WalletCommAdapter>, Error> {
+		// Limit only one recipient
+		if channel.matches(",").count() > 0 {
+			return Err(
+				ErrorKind::GenericError("Only one recipient is supported!".to_owned()).into(),
+			);
+		}
+
+		// Check if keybase executable exists in path
 		let mut proc = if cfg!(target_os = "windows") {
 			Command::new("where")
 		} else {
@@ -49,9 +59,14 @@ impl KeybaseWalletCommAdapter {
 		proc.arg("keybase")
 			.stdout(Stdio::null())
 			.status()
-			.expect("Keybase executable not found, make sure it is installed and in your PATH");
+			.map_err(|_| {
+				ErrorKind::GenericError(
+					"Keybase executable not found, make sure it is installed and in your PATH"
+						.to_owned(),
+				)
+			})?;
 
-		Box::new(KeybaseWalletCommAdapter {})
+		Ok(Box::new(KeybaseWalletCommAdapter { channel }))
 	}
 }
 
@@ -286,17 +301,11 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 	}
 
 	// Send a slate to a keybase username then wait for a response for TTL seconds.
-	fn send_tx_sync(&self, addr: &str, slate: &Slate) -> Result<Slate, Error> {
-		// Limit only one recipient
-		if addr.matches(",").count() > 0 {
-			error!("Only one recipient is supported!");
-			return Err(ErrorKind::GenericError("Tx rejected".to_owned()))?;
-		}
-
+	fn send_tx_sync(&self, slate: &Slate) -> Result<Slate, Error> {
 		let id = slate.id;
 
 		// Send original slate to recipient with the SLATE_NEW topic
-		match send(&slate, addr, SLATE_NEW, TTL) {
+		match send(&slate, &self.channel, SLATE_NEW, TTL) {
 			true => (),
 			false => {
 				return Err(ErrorKind::ClientCallback(
@@ -304,9 +313,12 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 				))?;
 			}
 		}
-		info!("tx request has been sent to @{}, tx uuid: {}", addr, id);
+		info!(
+			"tx request has been sent to @{}, tx uuid: {}",
+			&self.channel, id
+		);
 		// Wait for response from recipient with SLATE_SIGNED topic
-		match poll(TTL as u64, addr) {
+		match poll(TTL as u64, &self.channel) {
 			Some(slate) => return Ok(slate),
 			None => {
 				return Err(ErrorKind::ClientCallback(
@@ -317,7 +329,7 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 	}
 
 	/// Send a transaction asynchronously (result will be returned via the listener)
-	fn send_tx_async(&self, _addr: &str, _slate: &Slate) -> Result<(), Error> {
+	fn send_tx_async(&self, _slate: &Slate) -> Result<(), Error> {
 		unimplemented!();
 	}
 

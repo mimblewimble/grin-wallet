@@ -12,31 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::util::{Mutex, ZeroingString};
-use std::collections::HashMap;
-/// Grin wallet command-line function implementations
-use std::fs::File;
-use std::io::Write;
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
-
-use serde_json as json;
-use uuid::Uuid;
+//! Grin wallet command-line function implementations
 
 use crate::api::TLSConfig;
-use crate::core::core;
-use crate::keychain;
-
 use crate::config::WalletConfig;
+use crate::core::core;
 use crate::error::{Error, ErrorKind};
+use crate::impls::{create_adapter, HTTPNodeClient, WalletSeed};
 use crate::impls::{
 	instantiate_wallet, FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter,
 	LMDBBackend, NullWalletCommAdapter,
 };
-use crate::impls::{HTTPNodeClient, WalletSeed};
+use crate::keychain;
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
+use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
+use serde_json as json;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use url::Url;
+use uuid::Uuid;
 
 /// Arguments common to all wallet commands
 #[derive(Clone)]
@@ -148,7 +148,9 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 			Ok(())
 		}
 		"keybase" => {
-			let adapter = KeybaseWalletCommAdapter::new();
+			// This adapter is never used as a client, so it doesn't need a channel target channel,
+			// Still, it's smelly to store an address that is never used.
+			let adapter = KeybaseWalletCommAdapter::new("".to_string())?;
 			adapter.listen(
 				params,
 				config.clone(),
@@ -291,15 +293,9 @@ pub fn send(
 					return Err(e);
 				}
 			};
-			let adapter = match args.method.as_str() {
-				"http" => HTTPWalletCommAdapter::new(),
-				"file" => FileWalletCommAdapter::new(),
-				"keybase" => KeybaseWalletCommAdapter::new(),
-				"self" => NullWalletCommAdapter::new(),
-				_ => NullWalletCommAdapter::new(),
-			};
+			let adapter = create_adapter(&args.method, &args.dest)?;
 			if adapter.supports_sync() {
-				slate = adapter.send_tx_sync(&args.dest, &slate)?;
+				slate = adapter.send_tx_sync(&slate)?;
 				api.tx_lock_outputs(&slate, 0)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
@@ -313,7 +309,7 @@ pub fn send(
 				}
 				slate = api.finalize_tx(&slate)?;
 			} else {
-				adapter.send_tx_async(&args.dest, &slate)?;
+				adapter.send_tx_async(&slate)?;
 				api.tx_lock_outputs(&slate, 0)?;
 			}
 			if adapter.supports_sync() {
@@ -346,7 +342,7 @@ pub fn receive(
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 ) -> Result<(), Error> {
-	let adapter = FileWalletCommAdapter::new();
+	let adapter = FileWalletCommAdapter::new(format!("{}.response", args.input).into());
 	let mut slate = adapter.receive_tx_async(&args.input)?;
 	controller::foreign_single_use(wallet, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
@@ -356,8 +352,7 @@ pub fn receive(
 		slate = api.receive_tx(&slate, Some(&g_args.account), args.message.clone())?;
 		Ok(())
 	})?;
-	let send_tx = format!("{}.response", args.input);
-	adapter.send_tx_async(&send_tx, &slate)?;
+	adapter.send_tx_async(&slate)?;
 	info!(
 		"Response file {}.response generated, and can be sent back to the transaction originator.",
 		args.input
@@ -375,8 +370,9 @@ pub fn finalize(
 	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
 	args: FinalizeArgs,
 ) -> Result<(), Error> {
-	let adapter = FileWalletCommAdapter::new();
+	let adapter = FileWalletCommAdapter::new((&args.input).into());
 	let mut slate = adapter.receive_tx_async(&args.input)?;
+
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
 	// based on the slate contents
@@ -472,7 +468,7 @@ pub fn process_invoice(
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error> {
-	let adapter = FileWalletCommAdapter::new();
+	let adapter = FileWalletCommAdapter::new((&args.dest).into());
 	let slate = adapter.receive_tx_async(&args.input)?;
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {
@@ -527,13 +523,19 @@ pub fn process_invoice(
 				}
 			};
 			let adapter = match args.method.as_str() {
-				"http" => HTTPWalletCommAdapter::new(),
-				"file" => FileWalletCommAdapter::new(),
+				"http" => {
+					let url: Url = args
+						.dest
+						.parse()
+						.map_err(|_| crate::libwallet::ErrorKind::Uri)?;
+					HTTPWalletCommAdapter::new(url).map_err(|_| crate::libwallet::ErrorKind::Uri)?
+				}
+				"file" => FileWalletCommAdapter::new(PathBuf::from(args.dest)),
 				"self" => NullWalletCommAdapter::new(),
 				_ => NullWalletCommAdapter::new(),
 			};
 			if adapter.supports_sync() {
-				slate = adapter.send_tx_sync(&args.dest, &slate)?;
+				slate = adapter.send_tx_sync(&slate)?;
 				api.tx_lock_outputs(&slate, 0)?;
 				if args.method == "self" {
 					controller::foreign_single_use(wallet, |api| {
@@ -542,7 +544,7 @@ pub fn process_invoice(
 					})?;
 				}
 			} else {
-				adapter.send_tx_async(&args.dest, &slate)?;
+				adapter.send_tx_async(&slate)?;
 				api.tx_lock_outputs(&slate, 0)?;
 			}
 		}

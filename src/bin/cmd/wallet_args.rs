@@ -624,9 +624,9 @@ pub fn parse_process_invoice_args(
 	// Now we need to prompt the user whether they want to do this,
 	// which requires reading the slate
 	#[cfg(not(test))]
-	let adapter = FileWalletCommAdapter::new();
+	let adapter = FileWalletCommAdapter::new(&tx_file);
 	#[cfg(not(test))]
-	let slate = match adapter.receive_tx_async(&tx_file) {
+	let slate = match adapter.receive_tx_async() {
 		Ok(s) => s,
 		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
 	};

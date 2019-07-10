@@ -23,7 +23,7 @@ pub use self::keybase::KeybaseWalletCommAdapter;
 pub use self::null::NullWalletCommAdapter;
 
 use crate::config::WalletConfig;
-use crate::libwallet::{Error, Slate};
+use crate::libwallet::{Error, ErrorKind, Slate};
 use std::collections::HashMap;
 
 /// Encapsulate wallet to wallet communication functions
@@ -33,10 +33,10 @@ pub trait WalletCommAdapter {
 
 	/// Send a transaction slate to another listening wallet and return result
 	/// TODO: Probably need a slate wrapper type
-	fn send_tx_sync(&self, addr: &str, slate: &Slate) -> Result<Slate, Error>;
+	fn send_tx_sync(&self, slate: &Slate) -> Result<Slate, Error>;
 
 	/// Send a transaction asynchronously (result will be returned via the listener)
-	fn send_tx_async(&self, addr: &str, slate: &Slate) -> Result<(), Error>;
+	fn send_tx_async(&self, slate: &Slate) -> Result<(), Error>;
 
 	/// Receive a transaction async. (Actually just read it from wherever and return the slate)
 	fn receive_tx_async(&self, params: &str) -> Result<Slate, Error>;
@@ -52,4 +52,33 @@ pub trait WalletCommAdapter {
 		account: &str,
 		node_api_secret: Option<String>,
 	) -> Result<(), Error>;
+}
+
+/// select a WalletCommAdapter based on method and dest fields from, e.g., SendArgs
+pub fn create_adapter(method: &str, dest: &str) -> Result<Box<dyn WalletCommAdapter>, Error> {
+	use std::path::PathBuf;
+	use url::Url;
+
+	let invalid = || {
+		ErrorKind::WalletComms(format!(
+			"Invalid wallet comm type and destination. method: {}, dest: {}",
+			method, dest
+		))
+	};
+	Ok(match method {
+		"http" => {
+			let url: Url = dest.parse().map_err(|_| invalid())?;
+			HTTPWalletCommAdapter::new(url).map_err(|_| invalid())?
+		}
+		"file" => FileWalletCommAdapter::new(PathBuf::from(dest)),
+		"self" => NullWalletCommAdapter::new(),
+		"keybase" => KeybaseWalletCommAdapter::new(dest.to_owned())?,
+		_ => {
+			return Err(ErrorKind::WalletComms(format!(
+				"Wallet comm method \"{}\" does not exist.",
+				method
+			))
+			.into());
+		}
+	})
 }

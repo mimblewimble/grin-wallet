@@ -21,7 +21,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
-use crate::impls::{HTTPWalletCommAdapter, KeybaseWalletCommAdapter};
+use crate::impls::create_adapter;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
@@ -499,20 +499,18 @@ where
 		match send_args {
 			Some(sa) => {
 				match sa.method.as_ref() {
-					"http" => {
-						slate = HTTPWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?
-					}
-					"keybase" => {
-						//TODO: in case of keybase, the response might take 60s and leave the service hanging
-						slate = KeybaseWalletCommAdapter::new().send_tx_sync(&sa.dest, &slate)?;
-					}
+					"http" | "keybase" => {}
 					_ => {
 						error!("unsupported payment method: {}", sa.method);
 						return Err(ErrorKind::ClientCallback(
 							"unsupported payment method".to_owned(),
-						))?;
+						)
+						.into());
 					}
-				}
+				};
+				let comm_adapter = create_adapter(&sa.method, &sa.dest)
+					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
+				slate = comm_adapter.send_tx_sync(&slate)?;
 				self.tx_lock_outputs(&slate, 0)?;
 				let slate = match sa.finalize {
 					true => self.finalize_tx(&slate)?,
