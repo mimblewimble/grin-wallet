@@ -14,9 +14,9 @@
 
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
+use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::WalletCommAdapter;
-use crate::config::WalletConfig;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;

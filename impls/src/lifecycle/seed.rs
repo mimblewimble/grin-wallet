@@ -85,10 +85,7 @@ impl WalletSeed {
 	}
 
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<(), Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if Path::new(seed_file_path).exists() {
 			return Err(ErrorKind::WalletSeedExists(seed_file_path.to_owned()))?;
 		}
@@ -96,23 +93,16 @@ impl WalletSeed {
 	}
 
 	pub fn backup_seed(data_file_dir: &str) -> Result<(), Error> {
-		let seed_file_name = &format!(
-			"{}{}{}",
-			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_name = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		let mut path = Path::new(seed_file_name).to_path_buf();
 		path.pop();
-		let mut backup_seed_file_name = format!(
-			"{}{}{}.bak",
-			data_file_dir, MAIN_SEPARATOR, SEED_FILE
-		);
+		let mut backup_seed_file_name =
+			format!("{}{}{}.bak", data_file_dir, MAIN_SEPARATOR, SEED_FILE);
 		let mut i = 1;
 		while Path::new(&backup_seed_file_name).exists() {
-			backup_seed_file_name = format!(
-				"{}{}{}.bak.{}",
-				data_file_dir, MAIN_SEPARATOR, SEED_FILE, i
-			);
+			backup_seed_file_name =
+				format!("{}{}{}.bak.{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE, i);
 			i += 1;
 		}
 		path.push(backup_seed_file_name.clone());
@@ -130,10 +120,7 @@ impl WalletSeed {
 		word_list: &str,
 		password: &str,
 	) -> Result<(), Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if WalletSeed::seed_file_exists(data_file_dir).is_err() {
 			WalletSeed::backup_seed(data_file_dir)?;
 		}
@@ -172,10 +159,7 @@ impl WalletSeed {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		warn!("Generating wallet seed file at: {}", seed_file_path);
 		let _ = WalletSeed::seed_file_exists(data_file_dir)?;
@@ -199,10 +183,7 @@ impl WalletSeed {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		debug!("Using wallet seed file at: {}", seed_file_path);
 

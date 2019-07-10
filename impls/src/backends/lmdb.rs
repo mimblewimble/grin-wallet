@@ -30,7 +30,7 @@ use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchComm
 use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 
 use crate::core::core::Transaction;
-use crate::core::{ser};
+use crate::core::ser;
 use crate::libwallet::{check_repair, restore};
 use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
@@ -172,7 +172,7 @@ where
 	K: Keychain + 'ck,
 {
 	/// Set the keychain, which should already have been opened
-	fn set_keychain(&mut self, k: Box<K>){
+	fn set_keychain(&mut self, k: Box<K>) {
 		self.keychain = Some(*k);
 	}
 

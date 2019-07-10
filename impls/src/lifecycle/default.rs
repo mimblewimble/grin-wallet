@@ -17,9 +17,9 @@
 use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
+use crate::lifecycle::seed::WalletSeed;
 use crate::util;
 use crate::LMDBBackend;
-use crate::lifecycle::seed::WalletSeed;
 use failure::ResultExt;
 
 pub struct DefaultLCProvider<'a, C, K>
@@ -72,20 +72,27 @@ where
 		};
 		let _ = WalletSeed::init_file(&self.data_dir, 32, z_string, password);
 		let _wallet: LMDBBackend<'a, C, K> =
-			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(
-				|e| panic!("Error creating wallet: {:?} Data Dir: {:?}", e, self.data_dir),
-			);
+			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(|e| {
+				panic!(
+					"Error creating wallet: {:?} Data Dir: {:?}",
+					e, self.data_dir
+				)
+			});
 		Ok(())
 	}
 
 	fn open_wallet(&mut self, _name: Option<&str>, password: &str) -> Result<(), Error> {
 		let mut wallet: LMDBBackend<'a, C, K> =
-			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(
-				|e| panic!("Error creating wallet: {:?} Data Dir: {:?}", e, self.data_dir),
-			);
+			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(|e| {
+				panic!(
+					"Error creating wallet: {:?} Data Dir: {:?}",
+					e, self.data_dir
+				)
+			});
 		let wallet_seed = WalletSeed::from_file(&self.data_dir, password)
 			.context(ErrorKind::CallbackImpl("Error opening wallet"))?;
-		let keychain = wallet_seed.derive_keychain(global::is_floonet())
+		let keychain = wallet_seed
+			.derive_keychain(global::is_floonet())
 			.context(ErrorKind::CallbackImpl("Error deriving keychain"))?;
 		wallet.set_keychain(Box::new(keychain));
 		self.backend = Some(Box::new(wallet));
@@ -94,9 +101,7 @@ where
 
 	fn close_wallet(&mut self, _name: Option<String>) -> Result<(), Error> {
 		match self.backend.as_mut() {
-			Some(b) => {
-				b.close()?
-			},
+			Some(b) => b.close()?,
 			None => {}
 		};
 		self.backend = None;
