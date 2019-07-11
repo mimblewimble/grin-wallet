@@ -14,10 +14,11 @@
 
 // Keybase Wallet Plugin
 
+use crate::adapters::{SlateReceiver, SlateSender};
 use crate::config::WalletConfig;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::{instantiate_wallet, HTTPNodeClient, WalletCommAdapter};
+use crate::{instantiate_wallet, HTTPNodeClient};
 use failure::ResultExt;
 use serde::Serialize;
 use serde_json::{from_str, json, to_string, Value};
@@ -36,23 +37,38 @@ const SLATE_NEW: &str = "grin_slate_new";
 const SLATE_SIGNED: &str = "grin_slate_signed";
 
 #[derive(Clone)]
-pub struct KeybaseWalletCommAdapter {}
+pub struct KeybaseChannel(String);
 
-impl KeybaseWalletCommAdapter {
+impl KeybaseChannel {
 	/// Check if keybase is installed and return an adapter object.
-	pub fn new() -> Box<WalletCommAdapter> {
-		let mut proc = if cfg!(target_os = "windows") {
-			Command::new("where")
-		} else {
-			Command::new("which")
-		};
-		proc.arg("keybase")
-			.stdout(Stdio::null())
-			.status()
-			.expect("Keybase executable not found, make sure it is installed and in your PATH");
+	pub fn new(channel: String) -> Result<KeybaseChannel, Error> {
+		// Limit only one recipient
+		if channel.matches(",").count() > 0 {
+			return Err(
+				ErrorKind::GenericError("Only one recipient is supported!".to_owned()).into(),
+			);
+		}
 
-		Box::new(KeybaseWalletCommAdapter {})
+		if !keybase_installed() {
+			return Err(ErrorKind::GenericError(
+				"Keybase executable not found, make sure it is installed and in your PATH"
+					.to_owned(),
+			)
+			.into());
+		}
+
+		Ok(KeybaseChannel(channel))
 	}
+}
+
+/// Check if keybase executable exists in path
+fn keybase_installed() -> bool {
+	let mut proc = if cfg!(target_os = "windows") {
+		Command::new("where")
+	} else {
+		Command::new("which")
+	};
+	proc.arg("keybase").stdout(Stdio::null()).status().is_ok()
 }
 
 /// Send a json object to the keybase process. Type `keybase chat api --help` for a list of available methods.
@@ -280,23 +296,13 @@ fn poll(nseconds: u64, channel: &str) -> Option<Slate> {
 	None
 }
 
-impl WalletCommAdapter for KeybaseWalletCommAdapter {
-	fn supports_sync(&self) -> bool {
-		true
-	}
-
-	// Send a slate to a keybase username then wait for a response for TTL seconds.
-	fn send_tx_sync(&self, addr: &str, slate: &Slate) -> Result<Slate, Error> {
-		// Limit only one recipient
-		if addr.matches(",").count() > 0 {
-			error!("Only one recipient is supported!");
-			return Err(ErrorKind::GenericError("Tx rejected".to_owned()))?;
-		}
-
+impl SlateSender for KeybaseChannel {
+	/// Send a slate to a keybase username then wait for a response for TTL seconds.
+	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let id = slate.id;
 
 		// Send original slate to recipient with the SLATE_NEW topic
-		match send(&slate, addr, SLATE_NEW, TTL) {
+		match send(&slate, &self.0, SLATE_NEW, TTL) {
 			true => (),
 			false => {
 				return Err(ErrorKind::ClientCallback(
@@ -304,9 +310,9 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 				))?;
 			}
 		}
-		info!("tx request has been sent to @{}, tx uuid: {}", addr, id);
+		info!("tx request has been sent to @{}, tx uuid: {}", &self.0, id);
 		// Wait for response from recipient with SLATE_SIGNED topic
-		match poll(TTL as u64, addr) {
+		match poll(TTL as u64, &self.0) {
 			Some(slate) => return Ok(slate),
 			None => {
 				return Err(ErrorKind::ClientCallback(
@@ -315,17 +321,29 @@ impl WalletCommAdapter for KeybaseWalletCommAdapter {
 			}
 		}
 	}
+}
 
-	/// Send a transaction asynchronously (result will be returned via the listener)
-	fn send_tx_async(&self, _addr: &str, _slate: &Slate) -> Result<(), Error> {
-		unimplemented!();
+/// Receives slates on all channels with topic SLATE_NEW
+pub struct KeybaseAllChannels {
+	_priv: (), // makes KeybaseAllChannels unconstructable without checking for existence of keybase executable
+}
+
+impl KeybaseAllChannels {
+	/// Create a KeybaseAllChannels, return error if keybase executable is not present
+	pub fn new() -> Result<KeybaseAllChannels, Error> {
+		if !keybase_installed() {
+			Err(ErrorKind::GenericError(
+				"Keybase executable not found, make sure it is installed and in your PATH"
+					.to_owned(),
+			)
+			.into())
+		} else {
+			Ok(KeybaseAllChannels { _priv: () })
+		}
 	}
+}
 
-	/// Receive a transaction async. (Actually just read it from wherever and return the slate)
-	fn receive_tx_async(&self, _params: &str) -> Result<Slate, Error> {
-		unimplemented!();
-	}
-
+impl SlateReceiver for KeybaseAllChannels {
 	/// Start a listener, passing received messages to the wallet api directly
 	#[allow(unreachable_code)]
 	fn listen(

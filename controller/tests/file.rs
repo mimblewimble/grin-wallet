@@ -26,7 +26,7 @@ use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use impls::FileWalletCommAdapter;
+use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -119,8 +119,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		};
 		let mut slate = api.init_send_tx(args)?;
 		// output tx file
-		let file_adapter = FileWalletCommAdapter::new();
-		file_adapter.send_tx_async(&send_file, &mut slate)?;
+		PathToSlate((&send_file).into()).put_tx(&mut slate)?;
 		api.tx_lock_outputs(&slate, 0)?;
 		Ok(())
 	})?;
@@ -131,8 +130,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let adapter = FileWalletCommAdapter::new();
-	let mut slate = adapter.receive_tx_async(&send_file)?;
+	let mut slate = PathToSlate((&send_file).into()).get_tx("unused")?;
 	let mut naughty_slate = slate.clone();
 	naughty_slate.participant_data[0].message = Some("I changed the message".to_owned());
 
@@ -148,14 +146,13 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), |api| {
 		slate = api.receive_tx(&slate, None, Some(sender2_message.clone()))?;
-		adapter.send_tx_async(&receive_file, &mut slate)?;
+		PathToSlate((&receive_file).into()).put_tx(&slate)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		let adapter = FileWalletCommAdapter::new();
-		let mut slate = adapter.receive_tx_async(&receive_file)?;
+		let mut slate = PathToSlate(receive_file.into()).get_tx("unused")?;
 		api.verify_slate_messages(&slate)?;
 		slate = api.finalize_tx(&slate)?;
 		api.post_tx(&slate.tx, false)?;
