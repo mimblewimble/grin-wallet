@@ -21,7 +21,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
-use crate::impls::create_adapter;
+use crate::impls::create_sender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{
@@ -508,9 +508,9 @@ where
 						.into());
 					}
 				};
-				let comm_adapter = create_adapter(&sa.method, &sa.dest)
+				let comm_adapter = create_sender(&sa.method, &sa.dest)
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
-				slate = comm_adapter.send_tx_sync(&slate)?;
+				slate = comm_adapter.send_tx(&slate)?;
 				self.tx_lock_outputs(&slate, 0)?;
 				let slate = match sa.finalize {
 					true => self.finalize_tx(&slate)?,

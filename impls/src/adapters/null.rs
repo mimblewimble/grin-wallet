@@ -12,48 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::config::WalletConfig;
-/// Null Output 'plugin' implementation
-use crate::libwallet::{Error, Slate};
-use crate::WalletCommAdapter;
+//! Null implementation of some wallet comm adapters
 
-use std::collections::HashMap;
+use crate::libwallet::{Error, Slate};
+use crate::{SlatePutter, SlateSender};
 
 #[derive(Clone)]
-pub struct NullWalletCommAdapter {}
+pub struct NullAdapter;
 
-impl NullWalletCommAdapter {
-	/// Create
-	pub fn new() -> Box<NullWalletCommAdapter> {
-		Box::new(NullWalletCommAdapter {})
+impl SlateSender for NullAdapter {
+	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+		Ok(slate.clone())
 	}
 }
 
-impl WalletCommAdapter for NullWalletCommAdapter {
-	fn supports_sync(&self) -> bool {
-		true
-	}
-
-	fn send_tx_sync(&self, slate: &Slate) -> Result<Slate, Error> {
-		Ok(slate.clone())
-	}
-
-	fn send_tx_async(&self, _slate: &Slate) -> Result<(), Error> {
+impl SlatePutter for NullAdapter {
+	fn put_tx(&self, _slate: &Slate) -> Result<(), Error> {
 		Ok(())
-	}
-
-	fn receive_tx_async(&self, _params: &str) -> Result<Slate, Error> {
-		unimplemented!();
-	}
-
-	fn listen(
-		&self,
-		_params: HashMap<String, String>,
-		_config: WalletConfig,
-		_passphrase: &str,
-		_account: &str,
-		_node_api_secret: Option<String>,
-	) -> Result<(), Error> {
-		unimplemented!();
 	}
 }

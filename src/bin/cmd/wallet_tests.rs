@@ -162,12 +162,12 @@ mod wallet_tests {
 		// wallet init
 		let arg_vec = vec!["grin-wallet", "-p", "password", "init", "-h"];
 		// should create new wallet file
-		let client1 = LocalWalletClient::new("unknown AD", "wallet1", wallet_proxy.tx.clone());
+		let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone())?;
 
 		// trying to init twice - should fail
 		assert!(execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone()).is_err());
-		let client1 = LocalWalletClient::new("unknown AD", "wallet1", wallet_proxy.tx.clone());
+		let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 
 		// add wallet to proxy
 		//let wallet1 = test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone());
@@ -176,7 +176,7 @@ mod wallet_tests {
 		wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
 
 		// Create wallet 2
-		let client2 = LocalWalletClient::new("unknown AD", "wallet2", wallet_proxy.tx.clone());
+		let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 		let config2 = initial_setup_wallet(test_dir, "wallet2");

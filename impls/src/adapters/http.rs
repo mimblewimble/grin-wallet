@@ -15,29 +15,27 @@
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
 use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::WalletCommAdapter;
-use config::WalletConfig;
+use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use url::Url;
 
 #[derive(Clone)]
-pub struct HTTPWalletCommAdapter {
+pub struct HttpSlateSender {
 	base_url: Url,
 }
 
-impl HTTPWalletCommAdapter {
+impl HttpSlateSender {
 	/// Create, return Err if scheme is not "http"
-	pub fn new(base_url: Url) -> Result<Box<dyn WalletCommAdapter>, SchemeNotHttp> {
+	pub fn new(base_url: Url) -> Result<HttpSlateSender, SchemeNotHttp> {
 		if base_url.scheme() != "http" {
 			Err(SchemeNotHttp)
 		} else {
-			Ok(Box::new(HTTPWalletCommAdapter { base_url }))
+			Ok(HttpSlateSender { base_url })
 		}
 	}
 
-	/// Check version of the other wallet
+	/// Check version of the listening wallet
 	fn check_other_version(&self) -> Result<(), Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
@@ -95,12 +93,8 @@ impl HTTPWalletCommAdapter {
 	}
 }
 
-impl WalletCommAdapter for HTTPWalletCommAdapter {
-	fn supports_sync(&self) -> bool {
-		true
-	}
-
-	fn send_tx_sync(&self, slate: &Slate) -> Result<Slate, Error> {
+impl SlateSender for HttpSlateSender {
+	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let url: Url = self
 			.base_url
 			.join("/v2/foreign")
@@ -145,25 +139,6 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 			.map_err(|_| ErrorKind::SlateDeser)?;
 
 		Ok(slate)
-	}
-
-	fn send_tx_async(&self, _slate: &Slate) -> Result<(), Error> {
-		unimplemented!();
-	}
-
-	fn receive_tx_async(&self, _params: &str) -> Result<Slate, Error> {
-		unimplemented!();
-	}
-
-	fn listen(
-		&self,
-		_params: HashMap<String, String>,
-		_config: WalletConfig,
-		_passphrase: &str,
-		_account: &str,
-		_node_api_secret: Option<String>,
-	) -> Result<(), Error> {
-		unimplemented!();
 	}
 }
 

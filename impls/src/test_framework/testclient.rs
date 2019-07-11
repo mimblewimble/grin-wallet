@@ -19,19 +19,18 @@
 use crate::api;
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
-use crate::config::WalletConfig;
 use crate::core::core::verifier_cache::LruVerifierCache;
 use crate::core::core::Transaction;
 use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
+use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst};
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{Mutex, RwLock};
-use crate::{libwallet, WalletCommAdapter};
 use failure::ResultExt;
 use serde_json;
 use std::collections::HashMap;
@@ -288,7 +287,6 @@ where
 
 #[derive(Clone)]
 pub struct LocalWalletClient {
-	pub dest: String,
 	/// wallet identifier for the proxy queue
 	pub id: String,
 	/// proxy's tx queue (receive messages from other wallets or node
@@ -301,10 +299,9 @@ pub struct LocalWalletClient {
 
 impl LocalWalletClient {
 	/// new
-	pub fn new(dest: &str, id: &str, proxy_rx: Sender<WalletProxyMessage>) -> Self {
+	pub fn new(id: &str, proxy_rx: Sender<WalletProxyMessage>) -> Self {
 		let (tx, rx) = channel();
 		LocalWalletClient {
-			dest: dest.to_owned(),
 			id: id.to_owned(),
 			proxy_tx: Arc::new(Mutex::new(proxy_rx)),
 			rx: Arc::new(Mutex::new(rx)),
@@ -343,55 +340,6 @@ impl LocalWalletClient {
 				"Parsing send_tx_slate response".to_owned(),
 			))?,
 		)
-	}
-}
-
-impl WalletCommAdapter for LocalWalletClient {
-	fn supports_sync(&self) -> bool {
-		true
-	}
-
-	/// Send the slate to a listening wallet instance
-	fn send_tx_sync(&self, slate: &Slate) -> Result<Slate, libwallet::Error> {
-		let m = WalletProxyMessage {
-			sender_id: self.id.clone(),
-			dest: self.dest.clone(),
-			method: "send_tx_slate".to_owned(),
-			body: serde_json::to_string(slate).unwrap(),
-		};
-		{
-			let p = self.proxy_tx.lock();
-			p.send(m).context(libwallet::ErrorKind::ClientCallback(
-				"Send TX Slate".to_owned(),
-			))?;
-		}
-		let r = self.rx.lock();
-		let m = r.recv().unwrap();
-		trace!("Received send_tx_slate response: {:?}", m.clone());
-		Ok(
-			serde_json::from_str(&m.body).context(libwallet::ErrorKind::ClientCallback(
-				"Parsing send_tx_slate response".to_owned(),
-			))?,
-		)
-	}
-
-	fn send_tx_async(&self, _slate: &Slate) -> Result<(), libwallet::Error> {
-		unimplemented!();
-	}
-
-	fn receive_tx_async(&self, _params: &str) -> Result<Slate, libwallet::Error> {
-		unimplemented!();
-	}
-
-	fn listen(
-		&self,
-		_params: HashMap<String, String>,
-		_config: WalletConfig,
-		_passphrase: &str,
-		_account: &str,
-		_node_api_secret: Option<String>,
-	) -> Result<(), libwallet::Error> {
-		unimplemented!();
 	}
 }
 

@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 // shut up test compilation warnings
 #[cfg(not(test))]
-use grin_wallet_impls::FileWalletCommAdapter;
+use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 #[cfg(not(test))]
 use grin_wallet_libwallet::Slate;
 #[cfg(not(test))]
@@ -624,9 +624,7 @@ pub fn parse_process_invoice_args(
 	// Now we need to prompt the user whether they want to do this,
 	// which requires reading the slate
 	#[cfg(not(test))]
-	let adapter = FileWalletCommAdapter::new(&tx_file);
-	#[cfg(not(test))]
-	let slate = match adapter.receive_tx_async() {
+	let slate = match PathToSlate((&tx_file).into()).get_tx("unused") {
 		Ok(s) => s,
 		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
 	};
