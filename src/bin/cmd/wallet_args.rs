@@ -21,7 +21,7 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient, WalletSeed};
+use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
@@ -133,7 +133,9 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 				}
 			}
 			ReadResult::Input(line) => {
-				if WalletSeed::from_mnemonic(&line).is_ok() {
+				//TODO: 
+				if true {
+				//if WalletSeed::from_mnemonic(&line).is_ok() {
 					phrase = ZeroingString::from(line);
 					break;
 				} else {
@@ -223,7 +225,7 @@ where
 		as Box<WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	lc.set_wallet_directory(&config.data_file_dir);
-	lc.open_wallet(None, &passphrase).unwrap();
+	lc.open_wallet(None, passphrase).unwrap();
 	//TODO: Set account???
 	/*let res = instantiate_wallet(config.clone(), node_client, &passphrase, &g_args.account);
 	match res {
@@ -305,13 +307,21 @@ pub fn parse_global_args(
 	})
 }
 
-pub fn parse_init_args(
+pub fn parse_init_args<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
-) -> Result<command::InitArgs, ParseError> {
-	if let Err(e) = WalletSeed::seed_file_exists(config) {
-		let msg = format!("Not creating wallet - {}", e.inner);
+) -> Result<command::InitArgs, ParseError>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
+	let mut w_lock = wallet.lock();
+	let p = w_lock.lc_provider().unwrap();
+	if p.wallet_exists(None).unwrap() {
+		let msg = format!("Not creating wallet - Wallet Exists");
 		return Err(ParseError::ArgumentError(msg));
 	}
 	let list_length = match args.is_present("short_wordlist") {
@@ -343,17 +353,25 @@ pub fn parse_init_args(
 	})
 }
 
-pub fn parse_recover_args(
+pub fn parse_recover_args<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
-) -> Result<command::RecoverArgs, ParseError> {
+) -> Result<command::RecoverArgs, ParseError>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
 	let (passphrase, recovery_phrase) = {
 		match args.is_present("display") {
 			true => (prompt_password(&g_args.password), None),
 			false => {
 				let cont = {
-					if command::wallet_seed_exists(config).is_err() {
+					let mut w_lock = wallet.lock();
+					let p = w_lock.lc_provider().unwrap();
+					if p.wallet_exists(None).unwrap() {
 						prompt_replace_seed()?
 					} else {
 						true
@@ -776,8 +794,7 @@ pub fn wallet_command(
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
 	// closure to instantiate wallet as needed by each subcommand
-	let inst_wallet = || {
-		let res = inst_wallet::<
+	let wallet = inst_wallet::<
 			DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
 			HTTPNodeClient,
 			keychain::ExtKeychain,
@@ -785,25 +802,24 @@ pub fn wallet_command(
 			wallet_config.clone(),
 			&global_wallet_args,
 			node_client as HTTPNodeClient,
-		);
-		res.unwrap_or_else(|e| {
+		).unwrap_or_else(|e| {
 			println!("{}", e);
 			std::process::exit(1);
-		})
-	};
+		});
 
 	let res = match wallet_args.subcommand() {
 		("init", Some(args)) => {
-			let a = arg_parse!(parse_init_args(&wallet_config, &global_wallet_args, &args));
-			command::init(&global_wallet_args, a)
+			let a = arg_parse!(parse_init_args(wallet.clone(), &wallet_config, &global_wallet_args, &args));
+			command::init(wallet, a)
 		}
 		("recover", Some(args)) => {
 			let a = arg_parse!(parse_recover_args(
+				wallet.clone(),
 				&wallet_config,
 				&global_wallet_args,
 				&args
 			));
-			command::recover(&wallet_config, a)
+			command::recover(wallet, a)
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
@@ -814,37 +830,37 @@ pub fn wallet_command(
 		("owner_api", Some(_)) => {
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
-			command::owner_api(inst_wallet(), &wallet_config, &g)
+			command::owner_api(wallet, &wallet_config, &g)
 		}
-		("web", Some(_)) => command::owner_api(inst_wallet(), &wallet_config, &global_wallet_args),
+		("web", Some(_)) => command::owner_api(wallet, &wallet_config, &global_wallet_args),
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
-			command::account(inst_wallet(), a)
+			command::account(wallet, a)
 		}
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(&args));
 			command::send(
-				inst_wallet(),
+				wallet,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(inst_wallet(), &global_wallet_args, a)
+			command::receive(wallet, &global_wallet_args, a)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
-			command::finalize(inst_wallet(), a)
+			command::finalize(wallet, a)
 		}
 		("invoice", Some(args)) => {
 			let a = arg_parse!(parse_issue_invoice_args(&args));
-			command::issue_invoice_tx(inst_wallet(), a)
+			command::issue_invoice_tx(wallet, a)
 		}
 		("pay", Some(args)) => {
 			let a = arg_parse!(parse_process_invoice_args(&args));
 			command::process_invoice(
-				inst_wallet(),
+				wallet,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -852,21 +868,21 @@ pub fn wallet_command(
 		("info", Some(args)) => {
 			let a = arg_parse!(parse_info_args(&args));
 			command::info(
-				inst_wallet(),
+				wallet,
 				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("outputs", Some(_)) => command::outputs(
-			inst_wallet(),
+			wallet,
 			&global_wallet_args,
 			wallet_config.dark_background_color_scheme.unwrap_or(true),
 		),
 		("txs", Some(args)) => {
 			let a = arg_parse!(parse_txs_args(&args));
 			command::txs(
-				inst_wallet(),
+				wallet,
 				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
@@ -874,16 +890,16 @@ pub fn wallet_command(
 		}
 		("repost", Some(args)) => {
 			let a = arg_parse!(parse_repost_args(&args));
-			command::repost(inst_wallet(), a)
+			command::repost(wallet, a)
 		}
 		("cancel", Some(args)) => {
 			let a = arg_parse!(parse_cancel_args(&args));
-			command::cancel(inst_wallet(), a)
+			command::cancel(wallet, a)
 		}
-		("restore", Some(_)) => command::restore(inst_wallet()),
+		("restore", Some(_)) => command::restore(wallet),
 		("check", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
-			command::check_repair(inst_wallet(), a)
+			command::check_repair(wallet, a)
 		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin help wallet' for details");

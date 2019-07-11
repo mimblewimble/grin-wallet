@@ -32,11 +32,20 @@ use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
 	DefaultLCProvider, DefaultWalletImpl, FileWalletCommAdapter, HTTPWalletCommAdapter,
-	KeybaseWalletCommAdapter, LMDBBackend, NullWalletCommAdapter,
+	KeybaseWalletCommAdapter, NullWalletCommAdapter,
 };
-use crate::impls::{HTTPNodeClient, WalletSeed};
+use crate::impls::HTTPNodeClient;
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use crate::{controller, display};
+
+fn show_recovery_phrase(_phrase: &ZeroingString) {
+	println!("Your recovery phrase is:");
+	println!();
+	println!("TODO");
+	//println!("{}", *phrase);
+	println!();
+	println!("Please back-up these words in a non-digital format.");
+}
 
 /// Arguments common to all wallet commands
 #[derive(Clone)]
@@ -58,21 +67,20 @@ pub struct InitArgs {
 	pub restore: bool,
 }
 
-pub fn init(g_args: &GlobalArgs, args: InitArgs) -> Result<(), Error> {
-	WalletSeed::init_file(
-		&args.config,
-		args.list_length,
-		args.recovery_phrase,
-		&args.password,
-	)?;
-	info!("Wallet seed file created");
-	let client_n = HTTPNodeClient::new(
-		&args.config.check_node_api_http_addr,
-		g_args.node_api_secret.clone(),
-	);
-	let _: LMDBBackend<HTTPNodeClient, keychain::ExtKeychain> =
-		LMDBBackend::new(args.config.clone(), &args.password, client_n)?;
-	info!("Wallet database backend created");
+pub fn init<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	args: InitArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
+	let mut w_lock = wallet.lock();
+	let p = w_lock.lc_provider()?;
+	p.create_wallet(None, args.recovery_phrase, args.list_length, args.password)?;
+	let m = p.get_mnemonic()?;
+	show_recovery_phrase(&m);
 	Ok(())
 }
 
@@ -82,30 +90,26 @@ pub struct RecoverArgs {
 	pub passphrase: ZeroingString,
 }
 
-/// Check whether seed file exists
-pub fn wallet_seed_exists(config: &WalletConfig) -> Result<(), Error> {
-	let res = WalletSeed::seed_file_exists(&config)?;
-	Ok(res)
-}
-
-pub fn recover(config: &WalletConfig, args: RecoverArgs) -> Result<(), Error> {
-	if args.recovery_phrase.is_none() {
-		let res = WalletSeed::from_file(config, &args.passphrase);
-		if let Err(e) = res {
-			error!("Error loading wallet seed (check password): {}", e);
-			return Err(e.into());
-		}
-		let _ = res.unwrap().show_recovery_phrase();
-	} else {
-		let res = WalletSeed::recover_from_phrase(
-			&config,
-			&args.recovery_phrase.as_ref().unwrap(),
-			&args.passphrase,
-		);
-		if let Err(e) = res {
-			error!("Error recovering seed - {}", e);
-			return Err(e.into());
-		}
+pub fn recover<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	args: RecoverArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
+	let mut w_lock = wallet.lock();
+	let p = w_lock.lc_provider()?;
+	match args.recovery_phrase {
+		None => {
+			let m = p.get_mnemonic()?;
+			show_recovery_phrase(&m);
+		},
+		Some(phrase) =>
+			// TODO: WalletSeed recover_from_phrase (backup existing
+			// seed, etc)
+			p.create_wallet(None, Some(phrase), 0, args.passphrase)?,
 	}
 	Ok(())
 }
@@ -143,7 +147,8 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 				>;
 			let lc = wallet.lc_provider()?;
 			lc.set_wallet_directory(&format!("{}/wallet1", &config.data_file_dir));
-			lc.open_wallet(None, &g_args.password.clone().unwrap())?;
+			//TODO: Account?
+			lc.open_wallet(None, g_args.password.clone().unwrap())?;
 			/*let wallet = instantiate_wallet(
 				config.clone(),
 				node_client,

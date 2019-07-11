@@ -79,8 +79,9 @@ fn real_main() -> i32 {
 		global::ChainTypes::Mainnet
 	};
 
+	// Todo: Handle cases within the libs
 	// Deal with configuration file creation
-	match args.subcommand() {
+	/* match args.subcommand() {
 		// wallet init command should spit out its config file then continue
 		// (if desired)
 		("init", Some(init_args)) => {
@@ -89,20 +90,20 @@ fn real_main() -> i32 {
 			}
 		}
 		_ => {}
-	}
+	}*/
 
 	// Load relevant config, try and load a wallet config file
 	let mut w = config::initial_setup_wallet(&chain_type).unwrap_or_else(|e| {
 		panic!("Error loading wallet configuration: {}", e);
 	});
 
-	if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
+	/*if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
 		if "init" == args.subcommand().0 || "recover" == args.subcommand().0 {
 		} else {
 			println!("Wallet seed file doesn't exist. Run `grin-wallet init` first");
 			exit(1);
 		}
-	}
+	}*/
 
 	// Load logging config
 	let l = w.members.as_mut().unwrap().logging.clone().unwrap();

@@ -23,6 +23,7 @@ use crate::grin_core::ser;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::grin_util::ZeroingString;
 use crate::slate::ParticipantMessages;
 use chrono::prelude::*;
 use failure::ResultExt;
@@ -61,18 +62,22 @@ where
 	fn create_wallet(
 		&mut self,
 		name: Option<&str>,
-		mnemonic: Option<&str>,
-		password: &str,
+		mnemonic: Option<ZeroingString>,
+		mnemonic_length: usize,
+		password: ZeroingString,
 	) -> Result<(), Error>;
 
 	///
-	fn open_wallet(&mut self, name: Option<&str>, password: &str) -> Result<(), Error>;
+	fn open_wallet(&mut self, name: Option<&str>, password: ZeroingString) -> Result<(), Error>;
 
 	///
-	fn close_wallet(&mut self, name: Option<String>) -> Result<(), Error>;
+	fn close_wallet(&mut self, name: Option<&str>) -> Result<(), Error>;
+
+	/// whether a wallet exists at the given directory
+	fn wallet_exists(&self, name: Option<&str>) -> Result<bool, Error>;
 
 	///
-	fn get_mnemonic(&self) -> Result<String, Error>;
+	fn get_mnemonic(&self) -> Result<ZeroingString, Error>;
 
 	/// changes password
 	fn change_password(&self, old: String, new: String) -> Result<(), Error>;

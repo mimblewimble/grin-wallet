@@ -602,9 +602,10 @@ pub fn run_doctest_foreign(
 	> = WalletProxy::new(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	let rec_phrase_1 =
+	let rec_phrase_1 = util::ZeroingString::from(
 		"fat twenty mean degree forget shell check candy immense awful \
-		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch";
+		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch");
+	let empty_string = util::ZeroingString::from("");
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 	let mut wallet1 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
@@ -618,15 +619,15 @@ pub fn run_doctest_foreign(
 			>;
 	let lc = wallet1.lc_provider().unwrap();
 	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
-	lc.create_wallet(None, Some(rec_phrase_1), "").unwrap();
-	lc.open_wallet(None, "").unwrap();
+	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone()).unwrap();
+	lc.open_wallet(None, empty_string.clone()).unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
 
 	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
 
-	let rec_phrase_2 =
+	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
-		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile";
+		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile");
 	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
 	let mut wallet2 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
@@ -640,8 +641,8 @@ pub fn run_doctest_foreign(
 			>;
 	let lc = wallet2.lc_provider().unwrap();
 	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
-	lc.create_wallet(None, Some(rec_phrase_2), "").unwrap();
-	lc.open_wallet(None, "").unwrap();
+	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone()).unwrap();
+	lc.open_wallet(None, empty_string.clone()).unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
 	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());

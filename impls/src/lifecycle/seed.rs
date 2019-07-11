@@ -39,8 +39,8 @@ impl WalletSeed {
 		WalletSeed(bytes.to_vec())
 	}
 
-	pub fn from_mnemonic(word_list: &str) -> Result<WalletSeed, Error> {
-		let res = mnemonic::to_entropy(word_list);
+	pub fn from_mnemonic(word_list: util::ZeroingString) -> Result<WalletSeed, Error> {
+		let res = mnemonic::to_entropy(&word_list);
 		match res {
 			Ok(s) => Ok(WalletSeed::from_bytes(&s)),
 			Err(_) => Err(ErrorKind::Mnemonic.into()),
@@ -84,12 +84,13 @@ impl WalletSeed {
 		WalletSeed(seed)
 	}
 
-	pub fn seed_file_exists(data_file_dir: &str) -> Result<(), Error> {
+	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if Path::new(seed_file_path).exists() {
-			return Err(ErrorKind::WalletSeedExists(seed_file_path.to_owned()))?;
+			Ok(false)
+		} else {
+			Ok(true)
 		}
-		Ok(())
 	}
 
 	pub fn backup_seed(data_file_dir: &str) -> Result<(), Error> {
@@ -117,8 +118,8 @@ impl WalletSeed {
 
 	pub fn recover_from_phrase(
 		data_file_dir: &str,
-		word_list: &str,
-		password: &str,
+		word_list: util::ZeroingString,
+		password: util::ZeroingString,
 	) -> Result<(), Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if WalletSeed::seed_file_exists(data_file_dir).is_err() {
@@ -141,20 +142,11 @@ impl WalletSeed {
 		Ok(())
 	}
 
-	pub fn show_recovery_phrase(&self) -> Result<(), Error> {
-		println!("Your recovery phrase is:");
-		println!();
-		println!("{}", self.to_mnemonic()?);
-		println!();
-		println!("Please back-up these words in a non-digital format.");
-		Ok(())
-	}
-
 	pub fn init_file(
 		data_file_dir: &str,
 		seed_length: usize,
 		recovery_phrase: Option<util::ZeroingString>,
-		password: &str,
+		password: util::ZeroingString,
 	) -> Result<WalletSeed, Error> {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
@@ -165,7 +157,7 @@ impl WalletSeed {
 		let _ = WalletSeed::seed_file_exists(data_file_dir)?;
 
 		let seed = match recovery_phrase {
-			Some(p) => WalletSeed::from_mnemonic(&p)?,
+			Some(p) => WalletSeed::from_mnemonic(p)?,
 			None => WalletSeed::init_new(seed_length),
 		};
 
@@ -174,11 +166,10 @@ impl WalletSeed {
 		let mut file = File::create(seed_file_path).context(ErrorKind::IO)?;
 		file.write_all(&enc_seed_json.as_bytes())
 			.context(ErrorKind::IO)?;
-		seed.show_recovery_phrase()?;
 		Ok(seed)
 	}
 
-	pub fn from_file(data_file_dir: &str, password: &str) -> Result<WalletSeed, Error> {
+	pub fn from_file(data_file_dir: &str, password: util::ZeroingString) -> Result<WalletSeed, Error> {
 		// TODO: Is this desirable any more?
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
@@ -193,7 +184,7 @@ impl WalletSeed {
 			file.read_to_string(&mut buffer).context(ErrorKind::IO)?;
 			let enc_seed: EncryptedWalletSeed =
 				serde_json::from_str(&buffer).context(ErrorKind::Format)?;
-			let wallet_seed = enc_seed.decrypt(password)?;
+			let wallet_seed = enc_seed.decrypt(&password)?;
 			Ok(wallet_seed)
 		} else {
 			error!(
@@ -221,7 +212,7 @@ pub struct EncryptedWalletSeed {
 
 impl EncryptedWalletSeed {
 	/// Create a new encrypted seed from the given seed + password
-	pub fn from_seed(seed: &WalletSeed, password: &str) -> Result<EncryptedWalletSeed, Error> {
+	pub fn from_seed(seed: &WalletSeed, password: util::ZeroingString) -> Result<EncryptedWalletSeed, Error> {
 		let salt: [u8; 8] = thread_rng().gen();
 		let nonce: [u8; 12] = thread_rng().gen();
 		let password = password.as_bytes();

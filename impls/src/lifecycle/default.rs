@@ -18,7 +18,7 @@ use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
 use crate::lifecycle::seed::WalletSeed;
-use crate::util;
+use crate::util::ZeroingString;
 use crate::LMDBBackend;
 use failure::ResultExt;
 
@@ -63,14 +63,12 @@ where
 	fn create_wallet(
 		&mut self,
 		_name: Option<&str>,
-		mnemonic: Option<&str>,
-		password: &str,
+		mnemonic: Option<ZeroingString>,
+		mnemonic_length: usize,
+		password: ZeroingString,
 	) -> Result<(), Error> {
-		let z_string = match mnemonic {
-			Some(s) => Some(util::ZeroingString::from(s)),
-			None => None,
-		};
-		let _ = WalletSeed::init_file(&self.data_dir, 32, z_string, password);
+		let _ = WalletSeed::init_file(&self.data_dir, mnemonic_length, mnemonic, password);
+		warn!("Wallet seed file created");
 		let _wallet: LMDBBackend<'a, C, K> =
 			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(|e| {
 				panic!(
@@ -78,10 +76,11 @@ where
 					e, self.data_dir
 				)
 			});
+		warn!("Wallet database backend created");
 		Ok(())
 	}
 
-	fn open_wallet(&mut self, _name: Option<&str>, password: &str) -> Result<(), Error> {
+	fn open_wallet(&mut self, _name: Option<&str>, password: ZeroingString) -> Result<(), Error> {
 		let mut wallet: LMDBBackend<'a, C, K> =
 			LMDBBackend::new(&self.data_dir, self.node_client.clone()).unwrap_or_else(|e| {
 				panic!(
@@ -99,7 +98,7 @@ where
 		Ok(())
 	}
 
-	fn close_wallet(&mut self, _name: Option<String>) -> Result<(), Error> {
+	fn close_wallet(&mut self, _name: Option<&str>) -> Result<(), Error> {
 		match self.backend.as_mut() {
 			Some(b) => b.close()?,
 			None => {}
@@ -108,7 +107,13 @@ where
 		Ok(())
 	}
 
-	fn get_mnemonic(&self) -> Result<String, Error> {
+	fn wallet_exists(&self, _name: Option<&str>) -> Result<bool, Error>{
+		let res = WalletSeed::seed_file_exists(&self.data_dir)
+			.context(ErrorKind::CallbackImpl("Error checking for wallet existence"))?;
+		Ok(res)
+	}
+
+	fn get_mnemonic(&self) -> Result<ZeroingString, Error> {
 		unimplemented!()
 	}
 

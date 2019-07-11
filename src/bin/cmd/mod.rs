@@ -18,4 +18,4 @@ mod wallet_args;
 mod wallet_tests;
 
 pub use self::config::config_command_wallet;
-pub use self::wallet::{seed_exists, wallet_command};
+pub use self::wallet::wallet_command;
