@@ -130,7 +130,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = PathToSlate((&send_file).into()).get_tx("unused")?;
+	let mut slate = PathToSlate((&send_file).into()).get_tx()?;
 	let mut naughty_slate = slate.clone();
 	naughty_slate.participant_data[0].message = Some("I changed the message".to_owned());
 
@@ -152,7 +152,7 @@ fn file_exchange_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		let mut slate = PathToSlate(receive_file.into()).get_tx("unused")?;
+		let mut slate = PathToSlate(receive_file.into()).get_tx()?;
 		api.verify_slate_messages(&slate)?;
 		slate = api.finalize_tx(&slate)?;
 		api.post_tx(&slate.tx, false)?;

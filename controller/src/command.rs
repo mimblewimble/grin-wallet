@@ -31,11 +31,9 @@ use serde_json as json;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use url::Url;
 use uuid::Uuid;
 
 /// Arguments common to all wallet commands
@@ -342,7 +340,7 @@ pub fn receive(
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 ) -> Result<(), Error> {
-	let mut slate = PathToSlate((&args.input).into()).get_tx("unused")?;
+	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
 	controller::foreign_single_use(wallet, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);
@@ -369,7 +367,7 @@ pub fn finalize(
 	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
 	args: FinalizeArgs,
 ) -> Result<(), Error> {
-	let mut slate = PathToSlate((&args.input).into()).get_tx("unused")?;
+	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
@@ -466,7 +464,7 @@ pub fn process_invoice(
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error> {
-	let slate = PathToSlate((&args.input).into()).get_tx("unused")?;
+	let slate = PathToSlate((&args.input).into()).get_tx()?;
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]

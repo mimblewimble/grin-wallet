@@ -15,12 +15,10 @@
 mod file;
 mod http;
 mod keybase;
-mod null;
 
 pub use self::file::PathToSlate;
 pub use self::http::HttpSlateSender;
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
-pub use self::null::NullAdapter;
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
@@ -56,7 +54,7 @@ pub trait SlatePutter {
 /// Checks for a transaction from a corresponding SlatePutter, returns the transaction if it exists
 pub trait SlateGetter {
 	/// Receive a transaction async. (Actually just read it from wherever and return the slate)
-	fn get_tx(&self, params: &str) -> Result<Slate, Error>; // TODO, stringly typed, 'params' arg
+	fn get_tx(&self) -> Result<Slate, Error>;
 }
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs
@@ -75,7 +73,12 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 			Box::new(HttpSlateSender::new(url).map_err(|_| invalid())?)
 		}
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
-		"self" => Box::new(NullAdapter), // TODO: Returning NullAdapter has potential to cause frustrating bugs.
+		"self" => {
+			return Err(ErrorKind::WalletComms(
+				"No sender implementation for \"self\".".to_string(),
+			)
+			.into());
+		}
 		"file" => {
 			return Err(ErrorKind::WalletComms(
 				"File based transactions must be performed asynchronously.".to_string(),

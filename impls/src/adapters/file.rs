@@ -37,7 +37,7 @@ impl SlatePutter for PathToSlate {
 }
 
 impl SlateGetter for PathToSlate {
-	fn get_tx(&self, _params: &str) -> Result<Slate, Error> {
+	fn get_tx(&self) -> Result<Slate, Error> {
 		let mut pub_tx_f = File::open(&self.0)?;
 		let mut content = String::new();
 		pub_tx_f.read_to_string(&mut content)?;
