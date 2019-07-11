@@ -133,9 +133,9 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 				}
 			}
 			ReadResult::Input(line) => {
-				//TODO: 
+				//TODO:
 				if true {
-				//if WalletSeed::from_mnemonic(&line).is_ok() {
+					//if WalletSeed::from_mnemonic(&line).is_ok() {
 					phrase = ZeroingString::from(line);
 					break;
 				} else {
@@ -795,21 +795,27 @@ pub fn wallet_command(
 
 	// closure to instantiate wallet as needed by each subcommand
 	let wallet = inst_wallet::<
-			DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
-			HTTPNodeClient,
-			keychain::ExtKeychain,
-		>(
-			wallet_config.clone(),
-			&global_wallet_args,
-			node_client as HTTPNodeClient,
-		).unwrap_or_else(|e| {
-			println!("{}", e);
-			std::process::exit(1);
-		});
+		DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
+		HTTPNodeClient,
+		keychain::ExtKeychain,
+	>(
+		wallet_config.clone(),
+		&global_wallet_args,
+		node_client as HTTPNodeClient,
+	)
+	.unwrap_or_else(|e| {
+		println!("{}", e);
+		std::process::exit(1);
+	});
 
 	let res = match wallet_args.subcommand() {
 		("init", Some(args)) => {
-			let a = arg_parse!(parse_init_args(wallet.clone(), &wallet_config, &global_wallet_args, &args));
+			let a = arg_parse!(parse_init_args(
+				wallet.clone(),
+				&wallet_config,
+				&global_wallet_args,
+				&args
+			));
 			command::init(wallet, a)
 		}
 		("recover", Some(args)) => {

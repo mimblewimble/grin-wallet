@@ -30,11 +30,11 @@ use crate::keychain;
 
 use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
+use crate::impls::HTTPNodeClient;
 use crate::impls::{
 	DefaultLCProvider, DefaultWalletImpl, FileWalletCommAdapter, HTTPWalletCommAdapter,
 	KeybaseWalletCommAdapter, NullWalletCommAdapter,
 };
-use crate::impls::HTTPNodeClient;
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use crate::{controller, display};
 
@@ -105,11 +105,13 @@ where
 		None => {
 			let m = p.get_mnemonic()?;
 			show_recovery_phrase(&m);
-		},
+		}
 		Some(phrase) =>
-			// TODO: WalletSeed recover_from_phrase (backup existing
-			// seed, etc)
-			p.create_wallet(None, Some(phrase), 0, args.passphrase)?,
+		// TODO: WalletSeed recover_from_phrase (backup existing
+		// seed, etc)
+		{
+			p.create_wallet(None, Some(phrase), 0, args.passphrase)?
+		}
 	}
 	Ok(())
 }

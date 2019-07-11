@@ -169,7 +169,10 @@ impl WalletSeed {
 		Ok(seed)
 	}
 
-	pub fn from_file(data_file_dir: &str, password: util::ZeroingString) -> Result<WalletSeed, Error> {
+	pub fn from_file(
+		data_file_dir: &str,
+		password: util::ZeroingString,
+	) -> Result<WalletSeed, Error> {
 		// TODO: Is this desirable any more?
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
@@ -212,7 +215,10 @@ pub struct EncryptedWalletSeed {
 
 impl EncryptedWalletSeed {
 	/// Create a new encrypted seed from the given seed + password
-	pub fn from_seed(seed: &WalletSeed, password: util::ZeroingString) -> Result<EncryptedWalletSeed, Error> {
+	pub fn from_seed(
+		seed: &WalletSeed,
+		password: util::ZeroingString,
+	) -> Result<EncryptedWalletSeed, Error> {
 		let salt: [u8; 8] = thread_rng().gen();
 		let nonce: [u8; 12] = thread_rng().gen();
 		let password = password.as_bytes();

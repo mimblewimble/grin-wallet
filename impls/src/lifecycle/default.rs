@@ -107,9 +107,10 @@ where
 		Ok(())
 	}
 
-	fn wallet_exists(&self, _name: Option<&str>) -> Result<bool, Error>{
-		let res = WalletSeed::seed_file_exists(&self.data_dir)
-			.context(ErrorKind::CallbackImpl("Error checking for wallet existence"))?;
+	fn wallet_exists(&self, _name: Option<&str>) -> Result<bool, Error> {
+		let res = WalletSeed::seed_file_exists(&self.data_dir).context(ErrorKind::CallbackImpl(
+			"Error checking for wallet existence",
+		))?;
 		Ok(res)
 	}
 
