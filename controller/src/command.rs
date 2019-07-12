@@ -31,8 +31,7 @@ use crate::keychain;
 use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::error::{Error, ErrorKind};
 use crate::impls::{
-	FileWalletCommAdapter, HTTPWalletCommAdapter,
-	KeybaseWalletCommAdapter, NullWalletCommAdapter,
+	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, NullWalletCommAdapter,
 };
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use crate::{controller, display};
