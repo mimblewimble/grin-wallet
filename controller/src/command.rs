@@ -25,10 +25,10 @@ use serde_json as json;
 use uuid::Uuid;
 
 use crate::api::TLSConfig;
-use crate::core::core;
+use crate::core::{core, global};
 use crate::keychain;
 
-use crate::config::WalletConfig;
+use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::error::{Error, ErrorKind};
 use crate::impls::HTTPNodeClient;
 use crate::impls::{
@@ -38,11 +38,10 @@ use crate::impls::{
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use crate::{controller, display};
 
-fn show_recovery_phrase(_phrase: &ZeroingString) {
+fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("Your recovery phrase is:");
 	println!();
-	println!("TODO");
-	//println!("{}", *phrase);
+	println!("{}", &*phrase);
 	println!();
 	println!("Please back-up these words in a non-digital format.");
 }
@@ -53,6 +52,7 @@ pub struct GlobalArgs {
 	pub account: String,
 	pub node_api_secret: Option<String>,
 	pub show_spent: bool,
+	pub chain_type: global::ChainTypes,
 	pub password: Option<ZeroingString>,
 	pub tls_conf: Option<TLSConfig>,
 }
@@ -69,6 +69,7 @@ pub struct InitArgs {
 
 pub fn init<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	g_args: &GlobalArgs,
 	args: InitArgs,
 ) -> Result<(), Error>
 where
@@ -78,9 +79,11 @@ where
 {
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
-	p.create_wallet(None, args.recovery_phrase, args.list_length, args.password)?;
-	let m = p.get_mnemonic()?;
-	show_recovery_phrase(&m);
+	p.create_config(&g_args.chain_type, WALLET_CONFIG_FILE_NAME)?;
+	p.create_wallet(None, args.recovery_phrase, args.list_length, args.password.clone())?;
+
+	let m = p.get_mnemonic(None, args.password)?;
+	show_recovery_phrase(m);
 	Ok(())
 }
 
@@ -103,8 +106,8 @@ where
 	let p = w_lock.lc_provider()?;
 	match args.recovery_phrase {
 		None => {
-			let m = p.get_mnemonic()?;
-			show_recovery_phrase(&m);
+			let m = p.get_mnemonic(None, args.passphrase)?;
+			show_recovery_phrase(m);
 		}
 		Some(phrase) =>
 		// TODO: WalletSeed recover_from_phrase (backup existing

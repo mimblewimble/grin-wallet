@@ -15,7 +15,7 @@
 use std::cell::RefCell;
 use std::{fs, path};
 
-// for writing storedtransaction files
+// for writing stored transaction files
 use std::fs::File;
 use std::io::{Read, Write};
 use std::marker::PhantomData;

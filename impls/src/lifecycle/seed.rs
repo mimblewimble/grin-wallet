@@ -87,9 +87,9 @@ impl WalletSeed {
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if Path::new(seed_file_path).exists() {
-			Ok(false)
-		} else {
 			Ok(true)
+		} else {
+			Ok(false)
 		}
 	}
 

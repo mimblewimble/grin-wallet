@@ -19,7 +19,7 @@ use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::Transaction;
 use crate::grin_core::libtx::{aggsig, secp_ser};
-use crate::grin_core::ser;
+use crate::grin_core::{ser, global};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
@@ -55,8 +55,7 @@ where
 	fn set_wallet_directory(&mut self, dir: &str);
 
 	/// Output a grin-wallet.toml file into the current top-level system wallet directory
-	/// ? Optionally takes wallet config structure?
-	fn create_config(&self, data_dir: Option<String>) -> Result<(), Error>;
+	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str) -> Result<(), Error>;
 
 	///
 	fn create_wallet(
@@ -76,8 +75,8 @@ where
 	/// whether a wallet exists at the given directory
 	fn wallet_exists(&self, name: Option<&str>) -> Result<bool, Error>;
 
-	///
-	fn get_mnemonic(&self) -> Result<ZeroingString, Error>;
+	/// return mnemonic of given wallet
+	fn get_mnemonic(&self, name: Option<&str>, password: ZeroingString) -> Result<ZeroingString, Error>;
 
 	/// changes password
 	fn change_password(&self, old: String, new: String) -> Result<(), Error>;

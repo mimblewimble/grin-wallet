@@ -15,6 +15,7 @@
 use crate::api::TLSConfig;
 use crate::util::file::get_first_line;
 use crate::util::{Mutex, ZeroingString};
+use crate::config::GRIN_WALLET_DIR;
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
@@ -28,7 +29,7 @@ use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 // shut up test compilation warnings
@@ -211,7 +212,6 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 
 pub fn inst_wallet<L, C, K>(
 	config: WalletConfig,
-	g_args: &command::GlobalArgs,
 	node_client: C,
 ) -> Result<Arc<Mutex<Box<WalletInst<'static, L, C, K>>>>, ParseError>
 where
@@ -220,12 +220,10 @@ where
 	C: NodeClient + 'static + Clone,
 	K: keychain::Keychain + 'static,
 {
-	let passphrase = prompt_password(&g_args.password);
 	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
 		as Box<WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	lc.set_wallet_directory(&config.data_file_dir);
-	lc.open_wallet(None, passphrase).unwrap();
 	//TODO: Set account???
 	/*let res = instantiate_wallet(config.clone(), node_client, &passphrase, &g_args.account);
 	match res {
@@ -298,32 +296,24 @@ pub fn parse_global_args(
 		}
 	};
 
+	let chain_type = config.chain_type.as_ref().unwrap().clone();
+
 	Ok(command::GlobalArgs {
 		account: account.to_owned(),
 		show_spent: show_spent,
+		chain_type: chain_type,
 		node_api_secret: node_api_secret,
 		password: password,
 		tls_conf: tls_conf,
 	})
 }
 
-pub fn parse_init_args<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn parse_init_args(
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
 ) -> Result<command::InitArgs, ParseError>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
 {
-	let mut w_lock = wallet.lock();
-	let p = w_lock.lc_provider().unwrap();
-	if p.wallet_exists(None).unwrap() {
-		let msg = format!("Not creating wallet - Wallet Exists");
-		return Err(ParseError::ArgumentError(msg));
-	}
 	let list_length = match args.is_present("short_wordlist") {
 		false => 32,
 		true => 16,
@@ -355,7 +345,6 @@ where
 
 pub fn parse_recover_args<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
 ) -> Result<command::RecoverArgs, ParseError>
@@ -793,14 +782,22 @@ pub fn wallet_command(
 	node_client.set_node_url(&wallet_config.check_node_api_http_addr);
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
-	// closure to instantiate wallet as needed by each subcommand
+	// legacy hack to avoid the need for changes in existing grin-wallet.toml files
+	// remove `wallet_data` from end of path as 
+	// new lifecycle provider assumes grin_wallet.toml is in root of data directory
+	let mut top_level_wallet_dir = PathBuf::from(wallet_config.clone().data_file_dir);
+	if top_level_wallet_dir.ends_with(GRIN_WALLET_DIR) {
+		top_level_wallet_dir.pop();
+		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
+	}
+
+	// Instantiate wallet (doesn't open the wallet)
 	let wallet = inst_wallet::<
 		DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
 		HTTPNodeClient,
 		keychain::ExtKeychain,
 	>(
 		wallet_config.clone(),
-		&global_wallet_args,
 		node_client as HTTPNodeClient,
 	)
 	.unwrap_or_else(|e| {
@@ -808,20 +805,35 @@ pub fn wallet_command(
 		std::process::exit(1);
 	});
 
+	{
+		let mut wallet_lock = wallet.lock();
+		let lc = wallet_lock.lc_provider().unwrap();
+		lc.set_wallet_directory(&wallet_config.data_file_dir);
+	}
+
+	// don't open wallet for certain lifecycle commands
+	match wallet_args.subcommand() {
+		("init", Some(_)) => {},
+		("recover", _) => {},
+		_ => {
+			let mut wallet_lock = wallet.lock();
+			let lc = wallet_lock.lc_provider().unwrap();
+			lc.open_wallet(None, prompt_password(&global_wallet_args.password))?;
+		}
+	}
+
 	let res = match wallet_args.subcommand() {
 		("init", Some(args)) => {
 			let a = arg_parse!(parse_init_args(
-				wallet.clone(),
 				&wallet_config,
 				&global_wallet_args,
 				&args
 			));
-			command::init(wallet, a)
+			command::init(wallet, &global_wallet_args, a)
 		}
 		("recover", Some(args)) => {
 			let a = arg_parse!(parse_recover_args(
 				wallet.clone(),
-				&wallet_config,
 				&global_wallet_args,
 				&args
 			));
