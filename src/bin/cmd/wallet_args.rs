@@ -382,15 +382,8 @@ where
 
 pub fn parse_listen_args(
 	config: &mut WalletConfig,
-	g_args: &mut command::GlobalArgs,
 	args: &ArgMatches,
 ) -> Result<command::ListenArgs, ParseError> {
-	// listen args
-	let pass = match g_args.password.clone() {
-		Some(p) => Some(p.to_owned()),
-		None => Some(prompt_password(&None)),
-	};
-	g_args.password = pass;
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
@@ -833,9 +826,8 @@ pub fn wallet_command(
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
-			let mut g = global_wallet_args.clone();
-			let a = arg_parse!(parse_listen_args(&mut c, &mut g, &args));
-			command::listen(&c, &a, &g)
+			let a = arg_parse!(parse_listen_args(&mut c, &args));
+			command::listen(wallet, &c, &a, &global_wallet_args.clone())
 		}
 		("owner_api", Some(_)) => {
 			let mut g = global_wallet_args.clone();

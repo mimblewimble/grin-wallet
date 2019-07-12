@@ -30,9 +30,8 @@ use crate::keychain;
 
 use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::error::{Error, ErrorKind};
-use crate::impls::HTTPNodeClient;
 use crate::impls::{
-	DefaultLCProvider, DefaultWalletImpl, FileWalletCommAdapter, HTTPWalletCommAdapter,
+	FileWalletCommAdapter, HTTPWalletCommAdapter,
 	KeybaseWalletCommAdapter, NullWalletCommAdapter,
 };
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
@@ -129,7 +128,17 @@ pub struct ListenArgs {
 	pub method: String,
 }
 
-pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> Result<(), Error> {
+pub fn listen<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	config: &WalletConfig,
+	args: &ListenArgs,
+	g_args: &GlobalArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
 	let mut params = HashMap::new();
 	params.insert("api_listen_addr".to_owned(), config.api_listen_addr());
 	if let Some(t) = g_args.tls_conf.as_ref() {
@@ -138,33 +147,6 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 	}
 	let res = match args.method.as_str() {
 		"http" => {
-			// HTTP adapter can't use the listen trait method because of the
-			// crate structure. May be able to fix when V1 API is deprecated
-			let node_client = HTTPNodeClient::new(
-				&config.check_node_api_http_addr,
-				g_args.node_api_secret.clone(),
-			);
-			let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(
-				node_client.clone(),
-			)?)
-				as Box<
-					WalletInst<
-						'static,
-						DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
-						HTTPNodeClient,
-						keychain::ExtKeychain,
-					>,
-				>;
-			let lc = wallet.lc_provider()?;
-			lc.set_wallet_directory(&format!("{}/wallet1", &config.data_file_dir));
-			//TODO: Account?
-			lc.open_wallet(None, g_args.password.clone().unwrap())?;
-			/*let wallet = instantiate_wallet(
-				config.clone(),
-				node_client,
-				&g_args.password.clone().unwrap(),
-				&g_args.account,
-			)?;*/
 			let listen_addr = params.get("api_listen_addr").unwrap();
 			let tls_conf = match params.get("certificate") {
 				Some(s) => Some(TLSConfig::new(
@@ -173,7 +155,7 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 				)),
 				None => None,
 			};
-			controller::foreign_listener(Arc::new(Mutex::new(wallet)), &listen_addr, tls_conf)?;
+			controller::foreign_listener(wallet, &listen_addr, tls_conf)?;
 			Ok(())
 		}
 		"keybase" => {

@@ -135,7 +135,7 @@ where
 
 	// If so configured, add the foreign API to the same port
 	if owner_api_include_foreign.unwrap_or(false) {
-		info!("Starting HTTP Foreign API on Owner server at {}.", addr);
+		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
 		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
@@ -143,13 +143,14 @@ where
 	}
 
 	let mut apis = ApiServer::new();
-	info!("Starting HTTP Owner API server at {}.", addr);
+	warn!("Starting HTTP Owner API server at {}.", addr);
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
 	let api_thread =
 		apis.start(socket_addr, router, tls_config)
 			.context(ErrorKind::GenericError(
 				"API thread failed to start".to_string(),
 			))?;
+	warn!("HTTP Owner listener started.");
 	api_thread
 		.join()
 		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
