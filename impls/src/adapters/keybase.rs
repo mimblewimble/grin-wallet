@@ -348,7 +348,6 @@ impl SlateReceiver for KeybaseAllChannels {
 	#[allow(unreachable_code)]
 	fn listen(
 		&self,
-		_params: HashMap<String, String>,
 		config: WalletConfig,
 		passphrase: &str,
 		account: &str,

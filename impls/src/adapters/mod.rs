@@ -22,7 +22,6 @@ pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
-use std::collections::HashMap;
 
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
@@ -37,7 +36,6 @@ pub trait SlateReceiver {
 	/// type parameters on this trait
 	fn listen(
 		&self,
-		params: HashMap<String, String>,
 		config: WalletConfig,
 		passphrase: &str,
 		account: &str,

@@ -28,7 +28,6 @@ use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst};
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 use serde_json as json;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
@@ -114,12 +113,6 @@ pub struct ListenArgs {
 }
 
 pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> Result<(), Error> {
-	let mut params = HashMap::new();
-	params.insert("api_listen_addr".to_owned(), config.api_listen_addr());
-	if let Some(t) = g_args.tls_conf.as_ref() {
-		params.insert("certificate".to_owned(), t.certificate.clone());
-		params.insert("private_key".to_owned(), t.private_key.clone());
-	}
 	let res = match args.method.as_str() {
 		"http" => {
 			// HTTP adapter can't use the listen trait method because of the
@@ -134,25 +127,24 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 				&g_args.password.clone().unwrap(),
 				&g_args.account,
 			)?;
-			let listen_addr = params.get("api_listen_addr").unwrap();
-			let tls_conf = match params.get("certificate") {
-				Some(s) => Some(TLSConfig::new(
-					s.to_owned(),
-					params.get("private_key").unwrap().to_owned(),
-				)),
-				None => None,
-			};
-			controller::foreign_listener(wallet.clone(), &listen_addr, tls_conf)?;
-			Ok(())
+			controller::foreign_listener(
+				wallet.clone(),
+				&config.api_listen_addr(),
+				g_args.tls_conf.clone(),
+			)
 		}
 		"keybase" => KeybaseAllChannels::new()?.listen(
-			params,
 			config.clone(),
 			&g_args.password.clone().unwrap(),
 			&g_args.account,
 			g_args.node_api_secret.clone(),
 		),
-		_ => Ok(()),
+		method => {
+			return Err(ErrorKind::ArgumentError(format!(
+				"No listener for method \"{}\".",
+				method
+			)).into());
+		}
 	};
 
 	if let Err(e) = res {
