@@ -15,10 +15,12 @@
 mod file;
 mod http;
 mod keybase;
+mod server_auth;
 
 pub use self::file::PathToSlate;
 pub use self::http::HttpSlateSender;
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
+pub use self::server_auth::AuthenticatedHttpsSlateSender;
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
