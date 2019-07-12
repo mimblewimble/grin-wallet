@@ -2,8 +2,10 @@
 //! matches an expected public key. Provides server authentication and encryption without
 //! relying on Public Key Infastructure.
 
+// use crate::foreign_rpc_client;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
+use serde_json::{json, Value};
 use url::Url;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -11,7 +13,7 @@ pub struct PublicKey(pub [u8; 32]);
 
 /// Address to and public key of server running the V2 jsonrpc foreign api on https
 pub struct AuthenticatedHttpsSlateSender {
-	remote_base_url: Url,
+	remote_foreign_url: Url,
 	remote_pk: PublicKey,
 }
 
@@ -20,27 +22,55 @@ impl AuthenticatedHttpsSlateSender {
 	fn new(url: Url, public_key: PublicKey) -> Result<AuthenticatedHttpsSlateSender, NotHttps> {
 		if url.scheme() == "https" {
 			Ok(AuthenticatedHttpsSlateSender {
-				remote_base_url: url,
+				remote_foreign_url: url
+					.join("/v2/foreign")
+					.expect("/v2/foreign is an invalid url path"),
 				remote_pk: public_key,
 			})
 		} else {
 			Err(NotHttps)
 		}
 	}
-}
 
-impl SlateSender for AuthenticatedHttpsSlateSender {
-	fn send_tx(&self, _slate: &Slate) -> Result<Slate, Error> {
+	fn post_authenticated(&self, body: &Value) -> Result<String, Error> {
 		// create TLSConfig with custom cert validation logic. That custom logic should only
 		// assert the cert is valid if the servers public key == self.remote_pk
 		// check out https://github.com/bddap/tryquinn for a starting point
 
-		// create jsonrpc request maually, or if you want type checking use the generated
-		// client stubs for foreign api
+		// make an https post to server using said TLSConfig
+	}
+}
 
-		// send post request to self.remote_base_url + "/v2/foreign" using custom tls config
+impl SlateSender for AuthenticatedHttpsSlateSender {
+	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+		// create jsonrpc request maually
+		// not using generated client helpers as adding grin_wallet_api to impls/Cargo.toml creates a
+		// dependency cycle
+		let req = json!({
+			"jsonrpc": "2.0",
+			"method": "receive_tx",
+			"id": 1,
+			"params": [slate, null, null]
+		});
+
+		// send post request to self.remote_foreign_url using custom tls config
+		let res = self.post_authenticated(&req)?;
 
 		// parse and return result
+		let res: Value = serde_json::from_str(&res).map_err(|e| ErrorKind::SlateDeser)?;
+		if res["error"] != json!(null) {
+			Err(ErrorKind::ClientCallback(format!(
+				"Posting transaction slate: Error: {}, Message: {}",
+				res["error"]["code"], res["error"]["message"]
+			))
+			.into())
+		} else {
+			Slate::deserialize_upgrade(
+				&serde_json::to_string(&res["result"]["Ok"])
+					.expect("error serializing json value to string"),
+			)
+			.map_err(|_| ErrorKind::SlateDeser.into())
+		}
 	}
 }
 
