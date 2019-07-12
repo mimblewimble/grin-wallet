@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use crate::api::TLSConfig;
+use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
 use crate::util::{Mutex, ZeroingString};
-use crate::config::GRIN_WALLET_DIR;
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
@@ -312,8 +312,7 @@ pub fn parse_init_args(
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
-) -> Result<command::InitArgs, ParseError>
-{
+) -> Result<command::InitArgs, ParseError> {
 	let list_length = match args.is_present("short_wordlist") {
 		false => 32,
 		true => 16,
@@ -783,7 +782,7 @@ pub fn wallet_command(
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
 	// legacy hack to avoid the need for changes in existing grin-wallet.toml files
-	// remove `wallet_data` from end of path as 
+	// remove `wallet_data` from end of path as
 	// new lifecycle provider assumes grin_wallet.toml is in root of data directory
 	let mut top_level_wallet_dir = PathBuf::from(wallet_config.clone().data_file_dir);
 	if top_level_wallet_dir.ends_with(GRIN_WALLET_DIR) {
@@ -796,10 +795,7 @@ pub fn wallet_command(
 		DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
 		HTTPNodeClient,
 		keychain::ExtKeychain,
-	>(
-		wallet_config.clone(),
-		node_client as HTTPNodeClient,
-	)
+	>(wallet_config.clone(), node_client as HTTPNodeClient)
 	.unwrap_or_else(|e| {
 		println!("{}", e);
 		std::process::exit(1);
@@ -813,8 +809,8 @@ pub fn wallet_command(
 
 	// don't open wallet for certain lifecycle commands
 	match wallet_args.subcommand() {
-		("init", Some(_)) => {},
-		("recover", _) => {},
+		("init", Some(_)) => {}
+		("recover", _) => {}
 		_ => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
@@ -824,11 +820,7 @@ pub fn wallet_command(
 
 	let res = match wallet_args.subcommand() {
 		("init", Some(args)) => {
-			let a = arg_parse!(parse_init_args(
-				&wallet_config,
-				&global_wallet_args,
-				&args
-			));
+			let a = arg_parse!(parse_init_args(&wallet_config, &global_wallet_args, &args));
 			command::init(wallet, &global_wallet_args, a)
 		}
 		("recover", Some(args)) => {

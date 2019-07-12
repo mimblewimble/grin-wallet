@@ -89,10 +89,9 @@ fn real_main() -> i32 {
 					panic!("Error creating config file: {}", e);
 				}));
 			}
-		},
-		("recover", _) => {},
-		_ => {
 		}
+		("recover", _) => {}
+		_ => {}
 	}
 
 	// Load relevant config, try and load a wallet config file
@@ -114,7 +113,8 @@ fn real_main() -> i32 {
 	log_build_info();
 
 	global::set_mining_mode(
-		config.members
+		config
+			.members
 			.as_ref()
 			.unwrap()
 			.wallet

@@ -19,7 +19,7 @@ use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::Transaction;
 use crate::grin_core::libtx::{aggsig, secp_ser};
-use crate::grin_core::{ser, global};
+use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
@@ -76,7 +76,11 @@ where
 	fn wallet_exists(&self, name: Option<&str>) -> Result<bool, Error>;
 
 	/// return mnemonic of given wallet
-	fn get_mnemonic(&self, name: Option<&str>, password: ZeroingString) -> Result<ZeroingString, Error>;
+	fn get_mnemonic(
+		&self,
+		name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<ZeroingString, Error>;
 
 	/// changes password
 	fn change_password(&self, old: String, new: String) -> Result<(), Error>;

@@ -21,8 +21,8 @@ use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProv
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::ZeroingString;
 use crate::LMDBBackend;
-use std::path::PathBuf;
 use failure::ResultExt;
+use std::path::PathBuf;
 
 pub struct DefaultLCProvider<'a, C, K>
 where
@@ -70,7 +70,8 @@ where
 			let msg = format!(
 				"{} already exists in the target directory ({}). Please remove it first",
 				file_name,
-				config_file_name.to_str().unwrap());
+				config_file_name.to_str().unwrap()
+			);
 			return Err(ErrorKind::Lifecycle(msg).into());
 		}
 
@@ -80,13 +81,13 @@ where
 		}
 
 		default_config.update_paths(&PathBuf::from(self.data_dir.clone()));
-		let res = default_config
-			.write_to_file(config_file_name.to_str().unwrap());
+		let res = default_config.write_to_file(config_file_name.to_str().unwrap());
 		if let Err(e) = res {
 			let msg = format!(
 				"Error creating config file as ({}): {}",
 				config_file_name.to_str().unwrap(),
-				e);
+				e
+			);
 			return Err(ErrorKind::Lifecycle(msg).into());
 		}
 
@@ -119,14 +120,13 @@ where
 		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic, password);
 		info!("Wallet seed file created");
 		let _wallet: LMDBBackend<'a, C, K> =
-			match LMDBBackend::new(&data_dir_name, self.node_client.clone()){
+			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
 					return Err(ErrorKind::Lifecycle(msg).into());
-				},
-				Ok(d) => d
-			}
-		;
+				}
+				Ok(d) => d,
+			};
 		info!("Wallet database backend created at {}", data_dir_name);
 		Ok(())
 	}
@@ -136,14 +136,13 @@ where
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		let mut wallet: LMDBBackend<'a, C, K> =
-			match LMDBBackend::new(&data_dir_name, self.node_client.clone()){
+			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, &data_dir_name);
 					return Err(ErrorKind::Lifecycle(msg).into());
-				},
-				Ok(d) => d
-			}
-		;
+				}
+				Ok(d) => d,
+			};
 		let wallet_seed = WalletSeed::from_file(&data_dir_name, password)
 			.context(ErrorKind::Lifecycle("Error opening wallet".into()))?;
 		let keychain = wallet_seed
@@ -173,15 +172,20 @@ where
 		Ok(res)
 	}
 
-	fn get_mnemonic(&self, _name: Option<&str>, password: ZeroingString) -> Result<ZeroingString, Error> {
+	fn get_mnemonic(
+		&self,
+		_name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<ZeroingString, Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password)
-			.context(ErrorKind::Lifecycle("Error opening wallet seed file".into()))?;
-		let res = wallet_seed.to_mnemonic().context(ErrorKind::Lifecycle(
-			"Error recovering wallet seed".into(),
-		))?;
+		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).context(
+			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
+		)?;
+		let res = wallet_seed
+			.to_mnemonic()
+			.context(ErrorKind::Lifecycle("Error recovering wallet seed".into()))?;
 		Ok(ZeroingString::from(res))
 	}
 

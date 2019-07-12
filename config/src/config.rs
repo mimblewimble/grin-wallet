@@ -95,10 +95,13 @@ pub fn check_api_secret(api_secret_path: &PathBuf) -> Result<(), ConfigError> {
 }
 
 /// Check that the api secret file exists and is valid
-fn check_api_secret_file(chain_type: &global::ChainTypes, data_path: Option<PathBuf>) -> Result<(), ConfigError> {
+fn check_api_secret_file(
+	chain_type: &global::ChainTypes,
+	data_path: Option<PathBuf>,
+) -> Result<(), ConfigError> {
 	let grin_path = match data_path {
 		Some(p) => p,
-		None => get_grin_path(chain_type)?
+		None => get_grin_path(chain_type)?,
 	};
 	let mut api_secret_path = grin_path.clone();
 	api_secret_path.push(API_SECRET_FILE_NAME);
@@ -122,7 +125,7 @@ pub fn initial_setup_wallet(
 		// Check if grin dir exists
 		let grin_path = match data_path {
 			Some(p) => p,
-			None => get_grin_path(chain_type)?
+			None => get_grin_path(chain_type)?,
 		};
 
 		// Get path to default config file

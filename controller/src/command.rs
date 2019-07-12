@@ -80,7 +80,12 @@ where
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
 	p.create_config(&g_args.chain_type, WALLET_CONFIG_FILE_NAME)?;
-	p.create_wallet(None, args.recovery_phrase, args.list_length, args.password.clone())?;
+	p.create_wallet(
+		None,
+		args.recovery_phrase,
+		args.list_length,
+		args.password.clone(),
+	)?;
 
 	let m = p.get_mnemonic(None, args.password)?;
 	show_recovery_phrase(m);
