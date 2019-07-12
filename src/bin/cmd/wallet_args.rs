@@ -621,16 +621,17 @@ pub fn parse_process_invoice_args(
 	// file input only
 	let tx_file = parse_required(args, "input")?;
 
-	// Now we need to prompt the user whether they want to do this,
-	// which requires reading the slate
-	#[cfg(not(test))]
-	let slate = match PathToSlate((&tx_file).into()).get_tx("unused") {
-		Ok(s) => s,
-		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
-	};
+	if cfg!(not(test)) {
+		// Now we need to prompt the user whether they want to do this,
+		// which requires reading the slate
 
-	#[cfg(not(test))] // don't prompt during automated testing
-	prompt_pay_invoice(&slate, method, dest)?;
+		let slate = match PathToSlate((&tx_file).into()).get_tx() {
+			Ok(s) => s,
+			Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
+		};
+
+		prompt_pay_invoice(&slate, method, dest)?;
+	}
 
 	Ok(command::ProcessInvoiceArgs {
 		message: message,
