@@ -1098,12 +1098,12 @@ where
 #[macro_export]
 macro_rules! doctest_helper_setup_doc_env {
 	($wallet:ident, $wallet_config:ident) => {
-		use grin_wallet_util::grin_keychain as keychain;
-		use grin_wallet_util::grin_util as util;
 		use grin_wallet_api as api;
 		use grin_wallet_config as config;
 		use grin_wallet_impls as impls;
 		use grin_wallet_libwallet as libwallet;
+		use grin_wallet_util::grin_keychain as keychain;
+		use grin_wallet_util::grin_util as util;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
@@ -1113,8 +1113,8 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
-		use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
-		use libwallet::{InitTxArgs, WalletInst, BlockFees, Slate, IssueInvoiceTxArgs};
+		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
+		use libwallet::{BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate, WalletInst};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
@@ -1127,8 +1127,17 @@ macro_rules! doctest_helper_setup_doc_env {
 		let pw = ZeroingString::from("");
 
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-		let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
-			as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+		let mut wallet = Box::new(
+			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+			)
+			as Box<
+				WalletInst<
+					'static,
+					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+					HTTPNodeClient,
+					ExtKeychain,
+				>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_wallet_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw);
