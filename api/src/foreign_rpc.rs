@@ -672,7 +672,7 @@ pub fn run_doctest_foreign(
 	if init_invoice_tx {
 		let amount = 60_000_000_000;
 		let mut slate = {
-			let mut w_lock = wallet1.lock();
+			let mut w_lock = wallet2.lock();
 			let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 			let args = IssueInvoiceTxArgs {
 				amount,

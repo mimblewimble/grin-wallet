@@ -105,12 +105,12 @@ where
 	/// use tempfile::tempdir;
 	///
 	/// use std::sync::Arc;
-	/// use util::Mutex;
+	/// use util::{Mutex, ZeroingString};
 	///
 	/// use api::Foreign;
 	/// use config::WalletConfig;
-	/// use impls::{HTTPNodeClient, LMDBBackend};
-	/// use libwallet::WalletBackend;
+	/// use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
+	/// use libwallet::WalletInst;
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -123,12 +123,29 @@ where
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
-	///
 	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	///		Arc::new(Mutex::new(
-	///			LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	///		));
+	///
+	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
+	/// // It contains the LMDBBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
+	/// // by the reference wallet implementation.
+	/// // These traits can be replaced with alternative implementations if desired
+	///
+	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	///		as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+	///
+	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
+	/// let lc = wallet.lc_provider().unwrap();
+	///
+	/// // The top level wallet directory should be set manually (in the reference implementation,
+	/// // this is provided in the WalletConfig)
+	/// lc.set_wallet_directory(&wallet_config.data_file_dir);
+	///
+	/// // Wallet must be opened with the password (TBD)
+	/// let pw = ZeroingString::from("wallet_password");
+	/// lc.open_wallet(None, pw);
+	///
+	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
+	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
 	/// let api_foreign = Foreign::new(wallet.clone(), None);
 	/// // .. perform wallet operations
@@ -428,23 +445,23 @@ where
 #[macro_export]
 macro_rules! doctest_helper_setup_doc_env_foreign {
 	($wallet:ident, $wallet_config:ident) => {
+		use grin_wallet_util::grin_keychain as keychain;
+		use grin_wallet_util::grin_util as util;
 		use grin_wallet_api as api;
 		use grin_wallet_config as config;
 		use grin_wallet_impls as impls;
 		use grin_wallet_libwallet as libwallet;
-		use grin_wallet_util::grin_keychain as keychain;
-		use grin_wallet_util::grin_util as util;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
 
 		use std::sync::Arc;
-		use util::Mutex;
+		use util::{Mutex, ZeroingString};
 
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
-		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletBackend};
+		use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
+		use libwallet::{WalletInst, BlockFees, Slate, IssueInvoiceTxArgs};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
@@ -454,11 +471,14 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 			.unwrap();
 		let mut wallet_config = WalletConfig::default();
 		wallet_config.data_file_dir = dir.to_owned();
-		let pw = "";
+		let pw = ZeroingString::from("");
 
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-		let mut $wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(
-			Mutex::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap()),
-			);
+		let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+			as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+		let lc = wallet.lc_provider().unwrap();
+		lc.set_wallet_directory(&wallet_config.data_file_dir);
+		lc.open_wallet(None, pw);
+		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
 }

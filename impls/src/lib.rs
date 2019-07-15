@@ -53,7 +53,6 @@ use crate::keychain::{ExtKeychain, Keychain};
 use libwallet::{NodeClient, WalletInst, WalletLCProvider};
 
 /// Main wallet instance
-
 pub struct DefaultWalletImpl<'a, C>
 where
 	C: NodeClient + 'a,
@@ -61,26 +60,14 @@ where
 	lc_provider: DefaultLCProvider<'a, C, ExtKeychain>,
 }
 
-unsafe impl<'a, C> Send for DefaultWalletImpl<'a, C> where C: NodeClient + 'a {}
-
-unsafe impl<'a, C> Sync for DefaultWalletImpl<'a, C> where C: NodeClient + 'a {}
-
 impl<'a, C> DefaultWalletImpl<'a, C>
 where
 	C: NodeClient + 'a,
 {
 	pub fn new(
-		/*dir: &str,
-		wallet_config: config::WalletConfig,*/
-		node_client: C /*passphrase: &str,
-					   account: &str,*/
+		node_client: C
 	) -> Result<Self, Error> {
-		// First test decryption, so we can abort early if we have the wrong password
-		/*let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
-		let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client.clone())?;*/
-		/*db_wallet.set_parent_key_id_by_name(account)?;*/
 		let lc_provider = DefaultLCProvider::new(node_client);
-		info!("Using LMDB Backend for wallet");
 		Ok(DefaultWalletImpl {
 			lc_provider: lc_provider,
 		})
