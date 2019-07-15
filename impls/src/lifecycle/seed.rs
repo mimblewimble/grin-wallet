@@ -267,3 +267,27 @@ impl EncryptedWalletSeed {
 		Ok(WalletSeed::from_bytes(&decrypted_data))
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::util::ZeroingString;
+	#[test]
+	fn wallet_seed_encrypt() {
+		let password = ZeroingString::from("passwoid");
+		let wallet_seed = WalletSeed::init_new(32);
+		let mut enc_wallet_seed = EncryptedWalletSeed::from_seed(&wallet_seed, password.clone()).unwrap();
+		println!("EWS: {:?}", enc_wallet_seed);
+		let decrypted_wallet_seed = enc_wallet_seed.decrypt(&password).unwrap();
+		assert_eq!(wallet_seed, decrypted_wallet_seed);
+
+		// Wrong password
+		let decrypted_wallet_seed = enc_wallet_seed.decrypt("");
+		assert!(decrypted_wallet_seed.is_err());
+
+		// Wrong nonce
+		enc_wallet_seed.nonce = "wrongnonce".to_owned();
+		let decrypted_wallet_seed = enc_wallet_seed.decrypt(&password);
+		assert!(decrypted_wallet_seed.is_err());
+	}
+}
