@@ -18,14 +18,12 @@ use crate::api::TLSConfig;
 use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
-use crate::impls::{
-	create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _
-};
+use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _};
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
-use crate::{controller, display};
 use crate::util::{Mutex, ZeroingString};
+use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
 use std::io::Write;
@@ -137,13 +135,11 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let res = match args.method.as_str() {
-		"http" => {
-			controller::foreign_listener(
-				wallet.clone(),
-				&config.api_listen_addr(),
-				g_args.tls_conf.clone(),
-			)
-		}
+		"http" => controller::foreign_listener(
+			wallet.clone(),
+			&config.api_listen_addr(),
+			g_args.tls_conf.clone(),
+		),
 		"keybase" => KeybaseAllChannels::new()?.listen(
 			config.clone(),
 			&g_args.password.clone().unwrap(),
@@ -154,7 +150,8 @@ where
 			return Err(ErrorKind::ArgumentError(format!(
 				"No listener for method \"{}\".",
 				method
-			)).into());
+			))
+			.into());
 		}
 	};
 

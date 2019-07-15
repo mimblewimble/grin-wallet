@@ -489,7 +489,7 @@ where
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
-                //TODO: in case of keybase, the response might take 60s and leave the service hanging
+				//TODO: in case of keybase, the response might take 60s and leave the service hanging
 				match sa.method.as_ref() {
 					"http" | "keybase" => {}
 					_ => {
