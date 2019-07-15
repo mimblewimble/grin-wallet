@@ -327,13 +327,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), bh as usize, false);
 
 	// send some funds to wallets 1
-	test_framework::send_to_dest(
-		miner.clone(),
-		m_client.clone(),
-		"wallet1",
-		base_amount * 1,
-		false,
-	)?;
+	send_to_dest!(miner.clone(), m_client.clone(), "wallet1", base_amount * 1)?;
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet1", base_amount * 2)?;
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet1", base_amount * 3)?;
 	bh += 3;

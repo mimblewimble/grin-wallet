@@ -994,7 +994,6 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let res = owner::restore(&mut **w);
-		w.close()?;
 		res
 	}
 

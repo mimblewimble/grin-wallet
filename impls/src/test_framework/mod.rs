@@ -204,6 +204,5 @@ where
 	let w = w_lock.lc_provider()?.wallet_inst()?;
 	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(&mut **w, true, 1)?;
 	assert!(wallet_refreshed);
-	w.close()?;
 	Ok(wallet_info)
 }
