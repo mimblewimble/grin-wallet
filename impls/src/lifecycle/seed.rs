@@ -276,7 +276,8 @@ mod tests {
 	fn wallet_seed_encrypt() {
 		let password = ZeroingString::from("passwoid");
 		let wallet_seed = WalletSeed::init_new(32);
-		let mut enc_wallet_seed = EncryptedWalletSeed::from_seed(&wallet_seed, password.clone()).unwrap();
+		let mut enc_wallet_seed =
+			EncryptedWalletSeed::from_seed(&wallet_seed, password.clone()).unwrap();
 		println!("EWS: {:?}", enc_wallet_seed);
 		let decrypted_wallet_seed = enc_wallet_seed.decrypt(&password).unwrap();
 		assert_eq!(wallet_seed, decrypted_wallet_seed);
