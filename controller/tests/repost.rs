@@ -27,7 +27,7 @@ use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use self::libwallet::{InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use impls::FileWalletCommAdapter;
+use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
 use std::fs;
 use std::thread;
 use std::time::Duration;
@@ -112,10 +112,8 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let mut slate = api.init_send_tx(args)?;
-		// output tx file
-		let file_adapter = FileWalletCommAdapter::new();
-		file_adapter.send_tx_async(&send_file, &mut slate)?;
+		let slate = api.init_send_tx(args)?;
+		PathToSlate((&send_file).into()).put_tx(&slate)?;
 		api.tx_lock_outputs(&slate, 0)?;
 		Ok(())
 	})?;
@@ -130,10 +128,9 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	}
 
 	wallet::controller::foreign_single_use(wallet1.clone(), |api| {
-		let adapter = FileWalletCommAdapter::new();
-		slate = adapter.receive_tx_async(&send_file)?;
+		slate = PathToSlate((&send_file).into()).get_tx()?;
 		slate = api.receive_tx(&slate, None, None)?;
-		adapter.send_tx_async(&receive_file, &mut slate)?;
+		PathToSlate((&receive_file).into()).put_tx(&slate)?;
 		Ok(())
 	})?;
 
@@ -145,8 +142,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// wallet 1 finalize
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {
-		let adapter = FileWalletCommAdapter::new();
-		slate = adapter.receive_tx_async(&receive_file)?;
+		slate = PathToSlate((&receive_file).into()).get_tx()?;
 		slate = api.finalize_tx(&slate)?;
 		Ok(())
 	})?;
