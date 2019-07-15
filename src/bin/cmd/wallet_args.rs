@@ -24,21 +24,16 @@ use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_impls::{PathToSlate, SlateGetter as _};
+use grin_wallet_libwallet::Slate;
 use grin_wallet_util::grin_core as core;
+use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-
-// shut up test compilation warnings
-#[cfg(not(test))]
-use grin_wallet_impls::FileWalletCommAdapter;
-#[cfg(not(test))]
-use grin_wallet_libwallet::Slate;
-#[cfg(not(test))]
-use grin_wallet_util::grin_core::core::amount_to_hr_string;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -151,7 +146,6 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 	Ok(phrase)
 }
 
-#[cfg(not(test))]
 fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
 	let interface = Arc::new(Interface::new("pay")?);
 	let amount = amount_to_hr_string(slate.amount, false);
@@ -633,18 +627,17 @@ pub fn parse_process_invoice_args(
 	// file input only
 	let tx_file = parse_required(args, "input")?;
 
-	// Now we need to prompt the user whether they want to do this,
-	// which requires reading the slate
-	#[cfg(not(test))]
-	let adapter = FileWalletCommAdapter::new();
-	#[cfg(not(test))]
-	let slate = match adapter.receive_tx_async(&tx_file) {
-		Ok(s) => s,
-		Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
-	};
+	if cfg!(not(test)) {
+		// Now we need to prompt the user whether they want to do this,
+		// which requires reading the slate
 
-	#[cfg(not(test))] // don't prompt during automated testing
-	prompt_pay_invoice(&slate, method, dest)?;
+		let slate = match PathToSlate((&tx_file).into()).get_tx() {
+			Ok(s) => s,
+			Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
+		};
+
+		prompt_pay_invoice(&slate, method, dest)?;
+	}
 
 	Ok(command::ProcessInvoiceArgs {
 		message: message,

@@ -19,12 +19,12 @@
 use crate::api;
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
-use crate::config::WalletConfig;
 use crate::core::core::verifier_cache::LruVerifierCache;
 use crate::core::core::Transaction;
 use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
+use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
 	NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider,
@@ -33,7 +33,6 @@ use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{Mutex, RwLock};
-use crate::{libwallet, WalletCommAdapter};
 use failure::ResultExt;
 use serde_json;
 use std::collections::HashMap;
@@ -337,55 +336,6 @@ impl LocalWalletClient {
 				"Parsing send_tx_slate response".to_owned(),
 			))?,
 		)
-	}
-}
-
-impl WalletCommAdapter for LocalWalletClient {
-	fn supports_sync(&self) -> bool {
-		true
-	}
-
-	/// Send the slate to a listening wallet instance
-	fn send_tx_sync(&self, dest: &str, slate: &Slate) -> Result<Slate, libwallet::Error> {
-		let m = WalletProxyMessage {
-			sender_id: self.id.clone(),
-			dest: dest.to_owned(),
-			method: "send_tx_slate".to_owned(),
-			body: serde_json::to_string(slate).unwrap(),
-		};
-		{
-			let p = self.proxy_tx.lock();
-			p.send(m).context(libwallet::ErrorKind::ClientCallback(
-				"Send TX Slate".to_owned(),
-			))?;
-		}
-		let r = self.rx.lock();
-		let m = r.recv().unwrap();
-		trace!("Received send_tx_slate response: {:?}", m.clone());
-		Ok(
-			serde_json::from_str(&m.body).context(libwallet::ErrorKind::ClientCallback(
-				"Parsing send_tx_slate response".to_owned(),
-			))?,
-		)
-	}
-
-	fn send_tx_async(&self, _dest: &str, _slate: &Slate) -> Result<(), libwallet::Error> {
-		unimplemented!();
-	}
-
-	fn receive_tx_async(&self, _params: &str) -> Result<Slate, libwallet::Error> {
-		unimplemented!();
-	}
-
-	fn listen(
-		&self,
-		_params: HashMap<String, String>,
-		_config: WalletConfig,
-		_passphrase: &str,
-		_account: &str,
-		_node_api_secret: Option<String>,
-	) -> Result<(), libwallet::Error> {
-		unimplemented!();
 	}
 }
 

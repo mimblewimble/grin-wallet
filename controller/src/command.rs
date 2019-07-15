@@ -12,29 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Grin wallet command-line function implementations
+
+use crate::api::TLSConfig;
+use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
+use crate::core::{core, global};
+use crate::error::{Error, ErrorKind};
+use crate::impls::{
+	create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _
+};
+use crate::impls::{PathToSlate, SlatePutter};
+use crate::keychain;
+use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+use crate::{controller, display};
 use crate::util::{Mutex, ZeroingString};
-use std::collections::HashMap;
-/// Grin wallet command-line function implementations
+use serde_json as json;
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-
-use serde_json as json;
 use uuid::Uuid;
-
-use crate::api::TLSConfig;
-use crate::core::{core, global};
-use crate::keychain;
-
-use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
-use crate::error::{Error, ErrorKind};
-use crate::impls::{
-	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, NullWalletCommAdapter,
-};
-use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
-use crate::{controller, display};
 
 fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("Your recovery phrase is:");
@@ -138,36 +136,26 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut params = HashMap::new();
-	params.insert("api_listen_addr".to_owned(), config.api_listen_addr());
-	if let Some(t) = g_args.tls_conf.as_ref() {
-		params.insert("certificate".to_owned(), t.certificate.clone());
-		params.insert("private_key".to_owned(), t.private_key.clone());
-	}
 	let res = match args.method.as_str() {
 		"http" => {
-			let listen_addr = params.get("api_listen_addr").unwrap();
-			let tls_conf = match params.get("certificate") {
-				Some(s) => Some(TLSConfig::new(
-					s.to_owned(),
-					params.get("private_key").unwrap().to_owned(),
-				)),
-				None => None,
-			};
-			controller::foreign_listener(wallet, &listen_addr, tls_conf)?;
-			Ok(())
-		}
-		"keybase" => {
-			let adapter = KeybaseWalletCommAdapter::new();
-			adapter.listen(
-				params,
-				config.clone(),
-				&g_args.password.clone().unwrap(),
-				&g_args.account,
-				g_args.node_api_secret.clone(),
+			controller::foreign_listener(
+				wallet.clone(),
+				&config.api_listen_addr(),
+				g_args.tls_conf.clone(),
 			)
 		}
-		_ => Ok(()),
+		"keybase" => KeybaseAllChannels::new()?.listen(
+			config.clone(),
+			&g_args.password.clone().unwrap(),
+			&g_args.account,
+			g_args.node_api_secret.clone(),
+		),
+		method => {
+			return Err(ErrorKind::ArgumentError(format!(
+				"No listener for method \"{}\".",
+				method
+			)).into());
+		}
 	};
 
 	if let Err(e) = res {
@@ -316,42 +304,41 @@ where
 					return Err(e);
 				}
 			};
-			let adapter = match args.method.as_str() {
-				"http" => HTTPWalletCommAdapter::new(),
-				"file" => FileWalletCommAdapter::new(),
-				"keybase" => KeybaseWalletCommAdapter::new(),
-				"self" => NullWalletCommAdapter::new(),
-				_ => NullWalletCommAdapter::new(),
-			};
-			if adapter.supports_sync() {
-				slate = adapter.send_tx_sync(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, 0)?;
-				if args.method == "self" {
+
+			match args.method.as_str() {
+				"file" => {
+					PathToSlate((&args.dest).into()).put_tx(&slate)?;
+					api.tx_lock_outputs(&slate, 0)?;
+					return Ok(());
+				}
+				"self" => {
+					api.tx_lock_outputs(&slate, 0)?;
 					controller::foreign_single_use(wallet, |api| {
 						slate = api.receive_tx(&slate, Some(&args.dest), None)?;
 						Ok(())
 					})?;
 				}
-				if let Err(e) = api.verify_slate_messages(&slate) {
-					error!("Error validating participant messages: {}", e);
-					return Err(e);
+				method => {
+					let sender = create_sender(method, &args.dest)?;
+					slate = sender.send_tx(&slate)?;
+					api.tx_lock_outputs(&slate, 0)?;
 				}
-				slate = api.finalize_tx(&slate)?;
-			} else {
-				adapter.send_tx_async(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, 0)?;
 			}
-			if adapter.supports_sync() {
-				let result = api.post_tx(&slate.tx, args.fluff);
-				match result {
-					Ok(_) => {
-						info!("Tx sent ok",);
-						return Ok(());
-					}
-					Err(e) => {
-						error!("Tx sent fail: {}", e);
-						return Err(e);
-					}
+
+			api.verify_slate_messages(&slate).map_err(|e| {
+				error!("Error validating participant messages: {}", e);
+				e
+			})?;
+			slate = api.finalize_tx(&slate)?;
+			let result = api.post_tx(&slate.tx, args.fluff);
+			match result {
+				Ok(_) => {
+					info!("Tx sent ok",);
+					return Ok(());
+				}
+				Err(e) => {
+					error!("Tx sent fail: {}", e);
+					return Err(e);
 				}
 			}
 		}
@@ -376,8 +363,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	let adapter = FileWalletCommAdapter::new();
-	let mut slate = adapter.receive_tx_async(&args.input)?;
+	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
 	controller::foreign_single_use(wallet, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);
@@ -386,8 +372,7 @@ where
 		slate = api.receive_tx(&slate, Some(&g_args.account), args.message.clone())?;
 		Ok(())
 	})?;
-	let send_tx = format!("{}.response", args.input);
-	adapter.send_tx_async(&send_tx, &slate)?;
+	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate)?;
 	info!(
 		"Response file {}.response generated, and can be sent back to the transaction originator.",
 		args.input
@@ -410,8 +395,8 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	let adapter = FileWalletCommAdapter::new();
-	let mut slate = adapter.receive_tx_async(&args.input)?;
+	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
+
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
 	// based on the slate contents
@@ -517,8 +502,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	let adapter = FileWalletCommAdapter::new();
-	let slate = adapter.receive_tx_async(&args.input)?;
+	let slate = PathToSlate((&args.input).into()).get_tx()?;
 	controller::owner_single_use(wallet.clone(), |api| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -571,24 +555,25 @@ where
 					return Err(e);
 				}
 			};
-			let adapter = match args.method.as_str() {
-				"http" => HTTPWalletCommAdapter::new(),
-				"file" => FileWalletCommAdapter::new(),
-				"self" => NullWalletCommAdapter::new(),
-				_ => NullWalletCommAdapter::new(),
-			};
-			if adapter.supports_sync() {
-				slate = adapter.send_tx_sync(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, 0)?;
-				if args.method == "self" {
+
+			match args.method.as_str() {
+				"file" => {
+					let slate_putter = PathToSlate((&args.dest).into());
+					slate_putter.put_tx(&slate)?;
+					api.tx_lock_outputs(&slate, 0)?;
+				}
+				"self" => {
+					api.tx_lock_outputs(&slate, 0)?;
 					controller::foreign_single_use(wallet, |api| {
 						slate = api.finalize_invoice_tx(&slate)?;
 						Ok(())
 					})?;
 				}
-			} else {
-				adapter.send_tx_async(&args.dest, &slate)?;
-				api.tx_lock_outputs(&slate, 0)?;
+				method => {
+					let sender = create_sender(method, &args.dest)?;
+					slate = sender.send_tx(&slate)?;
+					api.tx_lock_outputs(&slate, 0)?;
+				}
 			}
 		}
 		Ok(())

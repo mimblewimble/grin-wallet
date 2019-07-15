@@ -27,7 +27,7 @@ use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use impls::FileWalletCommAdapter;
+use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
 use libwallet::{InitTxArgs, WalletInst};
 use std::fs;
 use std::thread;
@@ -189,9 +189,8 @@ fn check_repair_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 		};
 		let mut slate = api.init_send_tx(args)?;
 		// output tx file
-		let file_adapter = FileWalletCommAdapter::new();
 		let send_file = format!("{}/part_tx_1.tx", test_dir);
-		file_adapter.send_tx_async(&send_file, &mut slate)?;
+		PathToSlate(send_file.into()).put_tx(&slate)?;
 		api.tx_lock_outputs(&slate, 0)?;
 		Ok(())
 	})?;
