@@ -183,9 +183,7 @@ impl GlobalWalletConfig {
 				defaults.api_listen_port = 23415;
 				defaults.check_node_api_http_addr = "http://127.0.0.1:23413".to_owned();
 			}
-			global::ChainTypes::AutomatedTesting => {
-				panic!("Can't run automated testing directly");
-			}
+			_ => {}
 		}
 		defaults_conf
 	}

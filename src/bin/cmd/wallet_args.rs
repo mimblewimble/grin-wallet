@@ -22,12 +22,13 @@ use failure::Fail;
 use grin_wallet_config::WalletConfig;
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
+use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::Slate;
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
+use grin_wallet_util::grin_core::global;
 use grin_wallet_util::grin_keychain as keychain;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
@@ -211,29 +212,13 @@ pub fn inst_wallet<L, C, K>(
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
-	C: NodeClient + 'static + Clone,
+	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
 	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
 		as Box<WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	lc.set_wallet_directory(&config.data_file_dir);
-	//TODO: Set account???
-	/*let res = instantiate_wallet(config.clone(), node_client, &passphrase, &g_args.account);
-	match res {
-		Ok(p) => Ok(p),
-		Err(e) => {
-			let msg = {
-				match e.kind() {
-					grin_wallet_impls::ErrorKind::Encryption => {
-						format!("Error decrypting wallet seed (check provided password)")
-					}
-					_ => format!("Error instantiating wallet: {}", e),
-				}
-			};
-			Err(ParseError::ArgumentError(msg))
-		}
-	}*/
 	Ok(Arc::new(Mutex::new(wallet)))
 }
 
@@ -290,7 +275,13 @@ pub fn parse_global_args(
 		}
 	};
 
-	let chain_type = config.chain_type.as_ref().unwrap().clone();
+	let chain_type = match config.chain_type.clone() {
+		None => {
+			let param_ref = global::CHAIN_TYPE.read();
+			param_ref.clone()
+		},
+		Some(c) => c,
+	};
 
 	Ok(command::GlobalArgs {
 		account: account.to_owned(),
@@ -741,11 +732,14 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 	})
 }
 
-pub fn wallet_command(
+pub fn wallet_command<C>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
-	mut node_client: HTTPNodeClient,
-) -> Result<String, Error> {
+	mut node_client: C,
+) -> Result<String, Error> 
+where
+	C: NodeClient + 'static + Clone,
+{
 	if let Some(t) = wallet_config.chain_type.clone() {
 		core::global::set_mining_mode(t);
 	}
@@ -778,10 +772,10 @@ pub fn wallet_command(
 
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet = inst_wallet::<
-		DefaultLCProvider<HTTPNodeClient, keychain::ExtKeychain>,
-		HTTPNodeClient,
+		DefaultLCProvider<C, keychain::ExtKeychain>,
+		C,
 		keychain::ExtKeychain,
-	>(wallet_config.clone(), node_client as HTTPNodeClient)
+	>(wallet_config.clone(), node_client)
 	.unwrap_or_else(|e| {
 		println!("{}", e);
 		std::process::exit(1);
@@ -801,6 +795,10 @@ pub fn wallet_command(
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
 			lc.open_wallet(None, prompt_password(&global_wallet_args.password))?;
+			if let Some(account) = wallet_args.value_of("account") {
+				let wallet_inst = lc.wallet_inst()?;
+				wallet_inst.set_parent_key_id_by_name(account)?;
+			}
 		}
 	}
 
