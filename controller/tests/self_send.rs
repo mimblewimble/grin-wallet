@@ -27,7 +27,7 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{setup, create_wallet_proxy};
+use common::{create_wallet_proxy, setup};
 
 /// self send impl
 fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
@@ -38,7 +38,14 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// Create a new wallet test client, and set its queues to communicate with the
 	// proxy
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {

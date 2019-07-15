@@ -28,7 +28,7 @@ use std::thread;
 use std::time::Duration;
 
 mod common;
-use common::{setup, create_wallet_proxy};
+use common::{create_wallet_proxy, setup};
 
 /// Exercises the Transaction API fully with a test NodeClient operating
 /// directly on a chain instance
@@ -39,8 +39,22 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", None, &mut wallet_proxy);
-	create_wallet_and_add!(client2, wallet2, test_dir, "wallet2", None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -333,8 +347,22 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", None, &mut wallet_proxy);
-	create_wallet_and_add!(client2, wallet2, test_dir, "wallet2", None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {

@@ -17,8 +17,8 @@ extern crate log;
 extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
-use grin_wallet_util::grin_core as core;
 use grin_wallet_libwallet as libwallet;
+use grin_wallet_util::grin_core as core;
 
 use impls::test_framework::{self, LocalWalletClient};
 use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
@@ -27,19 +27,33 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{setup, clean_output_dir, create_wallet_proxy};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// self send impl
 fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	{
 		setup(test_dir);
 
-	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy = create_wallet_proxy(test_dir);
-	let chain = wallet_proxy.chain.clone();
+		// Create a new proxy to simulate server and wallet responses
+		let mut wallet_proxy = create_wallet_proxy(test_dir);
+		let chain = wallet_proxy.chain.clone();
 
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", None, &mut wallet_proxy);
-	create_wallet_and_add!(client2, wallet2, test_dir, "wallet2", None, &mut wallet_proxy);
+		create_wallet_and_add!(
+			client1,
+			wallet1,
+			test_dir,
+			"wallet1",
+			None,
+			&mut wallet_proxy
+		);
+		create_wallet_and_add!(
+			client2,
+			wallet2,
+			test_dir,
+			"wallet2",
+			None,
+			&mut wallet_proxy
+		);
 
 		// Set the wallet proxy listener running
 		thread::spawn(move || {

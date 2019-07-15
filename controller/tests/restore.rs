@@ -30,7 +30,7 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{setup, create_wallet_proxy};
+use common::{create_wallet_proxy, setup};
 
 fn restore_wallet(base_dir: &'static str, wallet_dir: &str) -> Result<(), libwallet::Error> {
 	let source_seed = format!("{}/{}/wallet_data/wallet.seed", base_dir, wallet_dir);
@@ -38,7 +38,14 @@ fn restore_wallet(base_dir: &'static str, wallet_dir: &str) -> Result<(), libwal
 	let dest_dir = format!("{}/{}/wallet_data", base_dir, dest_wallet_name);
 
 	let mut wallet_proxy = create_wallet_proxy(base_dir);
-	create_wallet_and_add!(client, wallet, base_dir, &dest_wallet_name, None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client,
+		wallet,
+		base_dir,
+		&dest_wallet_name,
+		None,
+		&mut wallet_proxy
+	);
 	// close created wallet
 	let mut w_lock = wallet.lock();
 	let lc = w_lock.lc_provider()?;
@@ -49,7 +56,13 @@ fn restore_wallet(base_dir: &'static str, wallet_dir: &str) -> Result<(), libwal
 	fs::copy(source_seed, dest_seed)?;
 
 	// reopen with new seed
-	open_wallet_and_add!(client, wallet, &base_dir, &dest_wallet_name, &mut wallet_proxy);
+	open_wallet_and_add!(
+		client,
+		wallet,
+		&base_dir,
+		&dest_wallet_name,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	let wp_running = wallet_proxy.running.clone();
@@ -80,8 +93,20 @@ fn compare_wallet_restore(
 	let restore_name = format!("{}_restore", wallet_dir);
 	let mut wallet_proxy = create_wallet_proxy(base_dir);
 
-	open_wallet_and_add!(client, wallet_source, &base_dir, &wallet_dir, &mut wallet_proxy);
-	open_wallet_and_add!(client, wallet_dest, &base_dir, &restore_name, &mut wallet_proxy);
+	open_wallet_and_add!(
+		client,
+		wallet_source,
+		&base_dir,
+		&wallet_dir,
+		&mut wallet_proxy
+	);
+	open_wallet_and_add!(
+		client,
+		wallet_dest,
+		&base_dir,
+		&restore_name,
+		&mut wallet_proxy
+	);
 
 	{
 		wallet_inst!(wallet_source, w);
@@ -166,8 +191,22 @@ fn setup_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", None, &mut wallet_proxy);
-	create_wallet_and_add!(client2, wallet2, test_dir, "wallet2", None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// wallet 2 will use another account
 	wallet::controller::owner_single_use(wallet2.clone(), |api| {
@@ -183,7 +222,14 @@ fn setup_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	}
 
 	// Another wallet
-	create_wallet_and_add!(client3, wallet3, test_dir, "wallet3", None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client3,
+		wallet3,
+		test_dir,
+		"wallet3",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	let wp_running = wallet_proxy.running.clone();

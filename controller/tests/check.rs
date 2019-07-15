@@ -26,13 +26,13 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlatePutter as _};
 use libwallet::InitTxArgs;
-use util::ZeroingString;
 use std::thread;
 use std::time::Duration;
+use util::ZeroingString;
 
 #[macro_use]
 mod common;
-use common::{setup, create_wallet_proxy};
+use common::{create_wallet_proxy, setup};
 
 macro_rules! send_to_dest {
 	($a:expr, $b:expr, $c:expr, $d:expr) => {
@@ -56,8 +56,22 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// Create a new wallet test client, and set its queues to communicate with the
 	// proxy
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", None, &mut wallet_proxy);
-	create_wallet_and_add!(client2, wallet2, test_dir, "wallet2", None, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -210,22 +224,92 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	create_wallet_and_add!(m_client, miner, test_dir, "miner", None, &mut wallet_proxy);
 
 	// non-mining recipient wallets
-	create_wallet_and_add!(client1, wallet1, test_dir, "wallet1", seed_phrase, &mut wallet_proxy);
-	create_wallet_and_add!(client2, wallet2, test_dir, "wallet2", seed_phrase, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		seed_phrase,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		seed_phrase,
+		&mut wallet_proxy
+	);
 	// we'll restore into here
-	create_wallet_and_add!(client3, wallet3, test_dir, "wallet3", seed_phrase, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client3,
+		wallet3,
+		test_dir,
+		"wallet3",
+		seed_phrase,
+		&mut wallet_proxy
+	);
 	// also restore into here
-	create_wallet_and_add!(client4, wallet4, test_dir, "wallet4", seed_phrase, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client4,
+		wallet4,
+		test_dir,
+		"wallet4",
+		seed_phrase,
+		&mut wallet_proxy
+	);
 	// Simulate a recover from seed without restore into here
-	create_wallet_and_add!(client5, wallet5, test_dir, "wallet5", seed_phrase, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client5,
+		wallet5,
+		test_dir,
+		"wallet5",
+		seed_phrase,
+		&mut wallet_proxy
+	);
 	//simulate a recover from seed without restore into here
-	create_wallet_and_add!(client6, wallet6, test_dir, "wallet6", seed_phrase, &mut wallet_proxy);
+	create_wallet_and_add!(
+		client6,
+		wallet6,
+		test_dir,
+		"wallet6",
+		seed_phrase,
+		&mut wallet_proxy
+	);
 
-	create_wallet_and_add!(client7, wallet7, test_dir, "wallet7", seed_phrase, &mut wallet_proxy);
-	create_wallet_and_add!(client8, wallet8, test_dir, "wallet8", seed_phrase, &mut wallet_proxy);
-	create_wallet_and_add!(client9, wallet9, test_dir, "wallet9", seed_phrase, &mut wallet_proxy);
-	create_wallet_and_add!(client10, wallet10, test_dir, "wallet10", seed_phrase, &mut wallet_proxy);
-	
+	create_wallet_and_add!(
+		client7,
+		wallet7,
+		test_dir,
+		"wallet7",
+		seed_phrase,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client8,
+		wallet8,
+		test_dir,
+		"wallet8",
+		seed_phrase,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client9,
+		wallet9,
+		test_dir,
+		"wallet9",
+		seed_phrase,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client10,
+		wallet10,
+		test_dir,
+		"wallet10",
+		seed_phrase,
+		&mut wallet_proxy
+	);
+
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {
@@ -243,7 +327,13 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), bh as usize, false);
 
 	// send some funds to wallets 1
-	test_framework::send_to_dest(miner.clone(), m_client.clone(), "wallet1", base_amount * 1, false)?;
+	test_framework::send_to_dest(
+		miner.clone(),
+		m_client.clone(),
+		"wallet1",
+		base_amount * 1,
+		false,
+	)?;
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet1", base_amount * 2)?;
 	send_to_dest!(miner.clone(), m_client.clone(), "wallet1", base_amount * 3)?;
 	bh += 3;
