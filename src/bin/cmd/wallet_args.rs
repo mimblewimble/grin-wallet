@@ -279,7 +279,7 @@ pub fn parse_global_args(
 		None => {
 			let param_ref = global::CHAIN_TYPE.read();
 			param_ref.clone()
-		},
+		}
 		Some(c) => c,
 	};
 
@@ -736,7 +736,7 @@ pub fn wallet_command<C>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
 	mut node_client: C,
-) -> Result<String, Error> 
+) -> Result<String, Error>
 where
 	C: NodeClient + 'static + Clone,
 {
@@ -771,15 +771,15 @@ where
 	}
 
 	// Instantiate wallet (doesn't open the wallet)
-	let wallet = inst_wallet::<
-		DefaultLCProvider<C, keychain::ExtKeychain>,
-		C,
-		keychain::ExtKeychain,
-	>(wallet_config.clone(), node_client)
-	.unwrap_or_else(|e| {
-		println!("{}", e);
-		std::process::exit(1);
-	});
+	let wallet =
+		inst_wallet::<DefaultLCProvider<C, keychain::ExtKeychain>, C, keychain::ExtKeychain>(
+			wallet_config.clone(),
+			node_client,
+		)
+		.unwrap_or_else(|e| {
+			println!("{}", e);
+			std::process::exit(1);
+		});
 
 	{
 		let mut wallet_lock = wallet.lock();
