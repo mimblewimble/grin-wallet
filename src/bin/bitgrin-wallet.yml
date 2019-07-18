@@ -297,6 +297,16 @@ subcommands:
             short: r
             long: recover
             takes_value: false
+        - mnemonic:
+            help: Mnemonic to recover from
+            short: m
+            long: phrase
+            takes_value: true
+        - pass:
+            help: Password to secure this new wallet
+            short: p
+            long: phrase
+            takes_value: true
   - recover:
       about: Recover a wallet.seed file from a recovery phrase (default) or displays a recovery phrase for an existing seed file
       args:

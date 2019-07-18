@@ -301,6 +301,24 @@ pub fn parse_init_args(
 		let msg = format!("Not creating wallet - {}", e.inner);
 		return Err(ParseError::ArgumentError(msg));
 	}
+	let mnemonic: Option<String> = match args.value_of("mnemonic") {
+		Some(s) => Some(s.to_owned()),
+		None => { None }
+	};
+	let pass: Option<String> = match args.value_of("pass") {
+		Some(s) => Some(s.to_owned()),
+		None => { None }
+	};
+	if mnemonic.is_some() && pass.is_some() {
+		// Recovering without user interaction
+		return 	Ok(command::InitArgs {
+					list_length: 32,
+					password: ZeroingString::from(pass.unwrap()),
+					config: config.clone(),
+					recovery_phrase: Some(ZeroingString::from(mnemonic.unwrap())),
+					restore: false,
+				});
+	}
 	let list_length = match args.is_present("short_wordlist") {
 		false => 32,
 		true => 16,
