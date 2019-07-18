@@ -67,7 +67,7 @@ fn file_repost_test_impl(test_dir: &str) -> Result<(), libwallet::Error> {
 	});
 
 	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
+	let reward = 5;
 
 	// add some accounts
 	wallet::controller::owner_single_use(wallet1.clone(), |api| {

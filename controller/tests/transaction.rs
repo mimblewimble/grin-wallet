@@ -72,7 +72,7 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 	});
 
 	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
+	let reward = 5;
 	let cm = global::coinbase_maturity();
 	// mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 10, false);
@@ -376,7 +376,7 @@ fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
 	});
 
 	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
+	let reward = 5;
 	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
 									  // mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5, false);
