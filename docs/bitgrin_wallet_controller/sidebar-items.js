@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["ErrorKind","Wallet errors, mostly wrappers around underlying crypto or I/O errors."]],"mod":[["command",""],["controller","Controller for wallet.. instantiates and handles listeners (or single-run invocations) as needed."],["display",""]],"struct":[["Error","Error definition"]]});
