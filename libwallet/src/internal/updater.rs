@@ -466,8 +466,7 @@ where
 	K: Keychain,
 {
 	let height = block_fees.height;
-	//let lock_height = height + global::coinbase_maturity();
-	let lock_height = height + get_coinbase_maturity_for_block(block_fees.fees, height);
+	let lock_height = get_coinbase_maturity_for_block(block_fees.fees, height);
 	let key_id = block_fees.key_id();
 	let parent_key_id = wallet.parent_key_id();
 

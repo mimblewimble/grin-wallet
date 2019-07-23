@@ -18,7 +18,7 @@ serde_json = "1"
 easy-jsonrpc = "0.5.1"
 chrono = { version = "0.4.4", features = ["serde"] }
 
-bitgrin_wallet_libwallet = { path = "../libwallet", version = "2.0.0" }
+bitgrin_wallet_libwallet = { path = "../libwallet", version = "2.0.1" }
 bitgrin_wallet_config = { path = "../config", version = "2.0.0" }
 bitgrin_wallet_impls = { path = "../impls", version = "2.0.0" }
 bitgrin_wallet_util = { path = "../util", version = "2.0.0" }
