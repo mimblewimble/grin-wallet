@@ -18,9 +18,9 @@ use crate::adapters::{SlateReceiver, SlateSender};
 use crate::config::WalletConfig;
 use crate::keychain::ExtKeychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{Error, ErrorKind, Slate, WalletBackend, WalletInst, WalletLCProvider};
+use crate::libwallet::{Error, ErrorKind, Slate, WalletInst};
 use crate::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
-use failure::ResultExt;
+use crate::util::ZeroingString;
 use serde::Serialize;
 use serde_json::{from_str, json, to_string, Value};
 use std::collections::{HashMap, HashSet};
@@ -350,14 +350,18 @@ impl SlateReceiver for KeybaseAllChannels {
 	fn listen(
 		&self,
 		config: WalletConfig,
-		passphrase: &str,
+		passphrase: ZeroingString,
 		account: &str,
 		node_api_secret: Option<String>,
 	) -> Result<(), Error> {
 		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
-		/*let wallet = DefaultWalletImpl::<HTTPNodeClient>::new("", config.clone(), node_client, passphrase, account)
-		.context(ErrorKind::WalletSeedDecryption)?;*/
-		let wallet = DefaultWalletImpl::new(node_client.clone());
+		let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+			as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+		let lc = wallet.lc_provider().unwrap();
+		lc.set_wallet_directory(&config.data_file_dir);
+		lc.open_wallet(None, passphrase)?;
+		let wallet_inst = lc.wallet_inst()?;
+		wallet_inst.set_parent_key_id_by_name(account)?;
 
 		info!("Listening for transactions on keybase ...");
 		loop {
@@ -398,17 +402,10 @@ impl SlateReceiver for KeybaseAllChannels {
 							return Err(e);
 						}
 						let res = {
-							// TODO: Unwrap
-							/*let provider:&mut DefaultLCProvider<HTTPNodeClient, ExtKeychain> = wallet.lc_provider()
-								.context(ErrorKind::Lifecycle("lifecycle provider".to_owned()))?;
-							let w = provider.wallet_inst()
-								.context(ErrorKind::Lifecycle("wallet inst".to_owned()))?;
-							w.open_with_credentials()?;
-							let r = foreign::receive_tx(&mut **w, &slate, None, None, false);
-							w.close()?;
-							r*/
+							let r = foreign::receive_tx(&mut **wallet_inst, &slate, None, None, false);
+							r
 						};
-						/*match res {
+						match res {
 							// Reply to the same channel with topic SLATE_SIGNED
 							Ok(s) => {
 								let success = send(s, channel, SLATE_SIGNED, TTL);
@@ -431,7 +428,7 @@ impl SlateReceiver for KeybaseAllChannels {
 									e
 								);
 							}
-						}*/
+						}
 					}
 					Err(_) => debug!("Failed to deserialize keybase message: {}", msg),
 				}
