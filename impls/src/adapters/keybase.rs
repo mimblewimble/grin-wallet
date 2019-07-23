@@ -19,8 +19,8 @@ use crate::config::WalletConfig;
 use crate::keychain::ExtKeychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{Error, ErrorKind, Slate, WalletInst};
-use crate::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use crate::util::ZeroingString;
+use crate::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use serde::Serialize;
 use serde_json::{from_str, json, to_string, Value};
 use std::collections::{HashMap, HashSet};
@@ -355,8 +355,17 @@ impl SlateReceiver for KeybaseAllChannels {
 		node_api_secret: Option<String>,
 	) -> Result<(), Error> {
 		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
-		let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
-			as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+		let mut wallet = Box::new(
+			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+		)
+			as Box<
+				WalletInst<
+					'static,
+					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+					HTTPNodeClient,
+					ExtKeychain,
+				>,
+			>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_wallet_directory(&config.data_file_dir);
 		lc.open_wallet(None, passphrase)?;
@@ -402,7 +411,8 @@ impl SlateReceiver for KeybaseAllChannels {
 							return Err(e);
 						}
 						let res = {
-							let r = foreign::receive_tx(&mut **wallet_inst, &slate, None, None, false);
+							let r =
+								foreign::receive_tx(&mut **wallet_inst, &slate, None, None, false);
 							r
 						};
 						match res {
