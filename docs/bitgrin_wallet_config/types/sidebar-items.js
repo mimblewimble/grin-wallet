@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["ConfigError","Error type wrapping config errors."]],"struct":[["GlobalWalletConfig","Wallet should be split into a separate configuration file"],["GlobalWalletConfigMembers","Wallet internal members"],["WalletConfig","Command-line wallet configuration"]]});

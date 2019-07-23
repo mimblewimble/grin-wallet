@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["accounts","Display list of wallet accounts in a pretty way"],["estimate","Display summary info in a pretty way"],["info","Display summary info in a pretty way"],["outputs","Display outputs in a pretty way"],["tx_messages","Display transaction log messages"],["txs","Display transaction log in a pretty way"]]});

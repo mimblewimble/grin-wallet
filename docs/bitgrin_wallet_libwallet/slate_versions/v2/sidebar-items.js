@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["InputV2",""],["OutputV2",""],["ParticipantDataV2",""],["SlateV2",""],["TransactionBodyV2","TransactionBody is a common abstraction for transaction and block"],["TransactionV2","A transaction"],["TxKernelV2",""],["VersionCompatInfoV2",""]]});
