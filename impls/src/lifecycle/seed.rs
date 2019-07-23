@@ -124,7 +124,7 @@ impl WalletSeed {
 	) -> Result<(), Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		println!("data file dir: {}", data_file_dir);
-		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir)  {
+		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir) {
 			println!("seed file exists");
 			WalletSeed::backup_seed(data_file_dir)?;
 		}

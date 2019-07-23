@@ -189,19 +189,23 @@ where
 		Ok(ZeroingString::from(res))
 	}
 
-	fn validate_mnemonic(&self, mnemonic: ZeroingString) -> Result<(), Error>{
+	fn validate_mnemonic(&self, mnemonic: ZeroingString) -> Result<(), Error> {
 		match WalletSeed::from_mnemonic(mnemonic) {
 			Ok(_) => Ok(()),
-			Err(_) => Err(ErrorKind::GenericError("Validating mnemonic".into()))?
+			Err(_) => Err(ErrorKind::GenericError("Validating mnemonic".into()))?,
 		}
 	}
 
-	fn recover_from_mnemonic(&self, mnemonic: ZeroingString, password: ZeroingString) -> Result<(), Error>{
+	fn recover_from_mnemonic(
+		&self,
+		mnemonic: ZeroingString,
+		password: ZeroingString,
+	) -> Result<(), Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		WalletSeed::recover_from_phrase(data_dir_name, mnemonic, password).context(
-			ErrorKind::Lifecycle("Error recovering from mnemonic".into())
+			ErrorKind::Lifecycle("Error recovering from mnemonic".into()),
 		)?;
 		Ok(())
 	}

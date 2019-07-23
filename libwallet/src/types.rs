@@ -87,7 +87,11 @@ where
 
 	/// Recover a seed from phrase, without destroying existing data
 	/// should back up seed
-	fn recover_from_mnemonic(&self, mnemonic: ZeroingString, password: ZeroingString) -> Result<(), Error>;
+	fn recover_from_mnemonic(
+		&self,
+		mnemonic: ZeroingString,
+		password: ZeroingString,
+	) -> Result<(), Error>;
 
 	/// changes password
 	fn change_password(&self, old: String, new: String) -> Result<(), Error>;

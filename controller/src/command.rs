@@ -108,9 +108,7 @@ where
 			let m = p.get_mnemonic(None, args.passphrase)?;
 			show_recovery_phrase(m);
 		}
-		Some(phrase) => {
-			p.recover_from_mnemonic(phrase, args.passphrase)?
-		}
+		Some(phrase) => p.recover_from_mnemonic(phrase, args.passphrase)?,
 	}
 	Ok(())
 }
