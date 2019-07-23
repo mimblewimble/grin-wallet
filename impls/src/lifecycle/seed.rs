@@ -47,13 +47,13 @@ impl WalletSeed {
 		}
 	}
 
-	pub fn from_hex(hex: &str) -> Result<WalletSeed, Error> {
+	pub fn _from_hex(hex: &str) -> Result<WalletSeed, Error> {
 		let bytes = util::from_hex(hex.to_string())
 			.context(ErrorKind::GenericError("Invalid hex".to_owned()))?;
 		Ok(WalletSeed::from_bytes(&bytes))
 	}
 
-	pub fn to_hex(&self) -> String {
+	pub fn _to_hex(&self) -> String {
 		util::to_hex(self.0.to_vec())
 	}
 
@@ -65,7 +65,7 @@ impl WalletSeed {
 		}
 	}
 
-	pub fn derive_keychain_old(old_wallet_seed: [u8; 32], password: &str) -> Vec<u8> {
+	pub fn _derive_keychain_old(old_wallet_seed: [u8; 32], password: &str) -> Vec<u8> {
 		let seed = blake2::blake2b::blake2b(64, password.as_bytes(), &old_wallet_seed);
 		seed.as_bytes().to_vec()
 	}
@@ -86,6 +86,7 @@ impl WalletSeed {
 
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		println!("Seed file path: {}", seed_file_path);
 		if Path::new(seed_file_path).exists() {
 			Ok(true)
 		} else {
@@ -122,7 +123,9 @@ impl WalletSeed {
 		password: util::ZeroingString,
 	) -> Result<(), Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
-		if WalletSeed::seed_file_exists(data_file_dir).is_err() {
+		println!("data file dir: {}", data_file_dir);
+		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir)  {
+			println!("seed file exists");
 			WalletSeed::backup_seed(data_file_dir)?;
 		}
 		if !Path::new(&data_file_dir).exists() {

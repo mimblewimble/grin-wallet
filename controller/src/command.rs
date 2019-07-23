@@ -108,11 +108,8 @@ where
 			let m = p.get_mnemonic(None, args.passphrase)?;
 			show_recovery_phrase(m);
 		}
-		Some(phrase) =>
-		// TODO: WalletSeed recover_from_phrase (backup existing
-		// seed, etc)
-		{
-			p.create_wallet(None, Some(phrase), 0, args.passphrase)?
+		Some(phrase) => {
+			p.recover_from_mnemonic(phrase, args.passphrase)?
 		}
 	}
 	Ok(())

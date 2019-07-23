@@ -113,7 +113,15 @@ fn prompt_replace_seed() -> Result<bool, ParseError> {
 	}
 }
 
-fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
+fn prompt_recovery_phrase<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>
+	) -> Result<ZeroingString, ParseError>
+where
+	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
 	let interface = Arc::new(Interface::new("recover")?);
 	let mut phrase = ZeroingString::from("");
 	interface.set_report_signal(Signal::Interrupt, true);
@@ -130,9 +138,9 @@ fn prompt_recovery_phrase() -> Result<ZeroingString, ParseError> {
 				}
 			}
 			ReadResult::Input(line) => {
-				//TODO:
-				if true {
-					//if WalletSeed::from_mnemonic(&line).is_ok() {
+				let mut w_lock = wallet.lock();
+				let p = w_lock.lc_provider().unwrap();
+				if p.validate_mnemonic(ZeroingString::from(line.clone())).is_ok() {
 					phrase = ZeroingString::from(line);
 					break;
 				} else {
@@ -293,17 +301,24 @@ pub fn parse_global_args(
 	})
 }
 
-pub fn parse_init_args(
+pub fn parse_init_args<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
-) -> Result<command::InitArgs, ParseError> {
+) -> Result<command::InitArgs, ParseError>
+where
+	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{	
 	let list_length = match args.is_present("short_wordlist") {
 		false => 32,
 		true => 16,
 	};
 	let recovery_phrase = match args.is_present("recover") {
-		true => Some(prompt_recovery_phrase()?),
+		true => Some(prompt_recovery_phrase(wallet)?),
 		false => None,
 	};
 
@@ -327,15 +342,16 @@ pub fn parse_init_args(
 	})
 }
 
-pub fn parse_recover_args<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn parse_recover_args<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
 ) -> Result<command::RecoverArgs, ParseError>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	let (passphrase, recovery_phrase) = {
 		match args.is_present("display") {
@@ -353,7 +369,7 @@ where
 				if !cont {
 					return Err(ParseError::CancelledError);
 				}
-				let phrase = prompt_recovery_phrase()?;
+				let phrase = prompt_recovery_phrase(wallet.clone())?;
 				println!("Please provide a new password for the recovered wallet");
 				(prompt_password_confirm(), Some(phrase.to_owned()))
 			}
@@ -804,7 +820,7 @@ where
 
 	let res = match wallet_args.subcommand() {
 		("init", Some(args)) => {
-			let a = arg_parse!(parse_init_args(&wallet_config, &global_wallet_args, &args));
+			let a = arg_parse!(parse_init_args(wallet.clone(), &wallet_config, &global_wallet_args, &args));
 			command::init(wallet, &global_wallet_args, a)
 		}
 		("recover", Some(args)) => {
