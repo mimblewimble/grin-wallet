@@ -132,8 +132,6 @@ pub fn initial_setup_wallet(
 		let mut config_path = grin_path.clone();
 		config_path.push(WALLET_CONFIG_FILE_NAME);
 
-		println!("CONFIG PATH: {}", config_path.to_str().unwrap());
-
 		// Return defaults if file doesn't exist
 		if !config_path.exists() {
 			let mut default_config = GlobalWalletConfig::for_chain(chain_type);
