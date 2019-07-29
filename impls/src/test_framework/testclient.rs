@@ -30,9 +30,9 @@ use crate::libwallet::{
 	NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider,
 };
 use crate::util;
+use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
-use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, RwLock};
 use failure::ResultExt;
 use serde_json;
@@ -127,7 +127,8 @@ where
 		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 		keychain_mask: SecretKey,
 	) {
-		self.wallets.insert(addr.to_owned(), (tx, wallet, keychain_mask));
+		self.wallets
+			.insert(addr.to_owned(), (tx, wallet, keychain_mask));
 	}
 
 	pub fn stop(&mut self) {
@@ -182,9 +183,10 @@ where
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx_bin".to_owned()),
 		)?;
 
-		let tx: Transaction = ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion::local()).context(
-			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx".to_owned()),
-		)?;
+		let tx: Transaction = ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion::local())
+			.context(libwallet::ErrorKind::ClientCallback(
+				"Error parsing TxWrapper: tx".to_owned(),
+			))?;
 
 		super::award_block_to_wallet(&self.chain, vec![&tx], dest_wallet, &dest_wallet_mask)?;
 

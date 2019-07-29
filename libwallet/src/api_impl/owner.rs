@@ -85,7 +85,13 @@ where
 
 	Ok((
 		validated,
-		updater::retrieve_outputs(&mut *w, keychain_mask, include_spent, tx_id, Some(&parent_key_id))?,
+		updater::retrieve_outputs(
+			&mut *w,
+			keychain_mask,
+			include_spent,
+			tx_id,
+			Some(&parent_key_id),
+		)?,
 	))
 }
 
@@ -372,7 +378,11 @@ where
 }
 
 /// Finalize slate
-pub fn finalize_tx<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: &SecretKey, slate: &Slate) -> Result<Slate, Error>
+pub fn finalize_tx<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: &SecretKey,
+	slate: &Slate,
+) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -462,7 +472,11 @@ where
 }
 
 /// check repair
-pub fn check_repair<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error>
+pub fn check_repair<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: &SecretKey,
+	delete_unconfirmed: bool,
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -473,7 +487,10 @@ where
 }
 
 /// node height
-pub fn node_height<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: &SecretKey) -> Result<NodeHeightResult, Error>
+pub fn node_height<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: &SecretKey,
+) -> Result<NodeHeightResult, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -500,7 +517,11 @@ where
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful
-fn update_outputs<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: &SecretKey, update_all: bool) -> bool
+fn update_outputs<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: &SecretKey,
+	update_all: bool,
+) -> bool
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

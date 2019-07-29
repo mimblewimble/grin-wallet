@@ -24,8 +24,8 @@ use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::{
 	BlockFees, CbData, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
 };
-use crate::util::secp::pedersen;
 use crate::util::secp::key::SecretKey;
+use crate::util::secp::pedersen;
 use crate::util::Mutex;
 use chrono::Duration;
 use std::sync::Arc;
@@ -207,7 +207,8 @@ where
 {
 	let mut w_lock = wallet.lock();
 	let w = w_lock.lc_provider()?.wallet_inst()?;
-	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(&mut **w, keychain_mask, true, 1)?;
+	let (wallet_refreshed, wallet_info) =
+		owner::retrieve_summary_info(&mut **w, keychain_mask, true, 1)?;
 	assert!(wallet_refreshed);
 	Ok(wallet_info)
 }

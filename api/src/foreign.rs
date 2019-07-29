@@ -16,11 +16,11 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::util::secp::key::SecretKey;
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,
 };
+use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
 use std::sync::Arc;
 
@@ -243,7 +243,11 @@ where
 	/// }
 	/// ```
 
-	pub fn build_coinbase(&self, token: Option<SecretKey>, block_fees: &BlockFees) -> Result<CbData, Error> {
+	pub fn build_coinbase(
+		&self,
+		token: Option<SecretKey>,
+		block_fees: &BlockFees,
+	) -> Result<CbData, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -379,7 +383,14 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::receive_tx(&mut **w, token, slate, dest_acct_name, message, self.doctest_mode)
+		foreign::receive_tx(
+			&mut **w,
+			token,
+			slate,
+			dest_acct_name,
+			message,
+			self.doctest_mode,
+		)
 	}
 
 	/// Finalizes an invoice transaction initiated by this wallet's Owner api.

@@ -19,8 +19,8 @@ use uuid::Uuid;
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::Mutex;
 use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
@@ -200,8 +200,13 @@ where
 	K: Keychain + 'a,
 {
 	// create an output using the amount in the slate
-	let (_, mut context) =
-		selection::build_recipient_output(wallet, keychain_mask, slate, parent_key_id.clone(), use_test_rng)?;
+	let (_, mut context) = selection::build_recipient_output(
+		wallet,
+		keychain_mask,
+		slate,
+		parent_key_id.clone(),
+		use_test_rng,
+	)?;
 
 	// fill public keys
 	let _ = slate.fill_round_1(
@@ -282,7 +287,13 @@ where
 		return Err(ErrorKind::TransactionNotCancellable(tx_id_string))?;
 	}
 	// get outputs associated with tx
-	let res = updater::retrieve_outputs(wallet, keychain_mask, false, Some(tx.id), Some(&parent_key_id))?;
+	let res = updater::retrieve_outputs(
+		wallet,
+		keychain_mask,
+		false,
+		Some(tx.id),
+		Some(&parent_key_id),
+	)?;
 	let outputs = res.iter().map(|m| m.output.clone()).collect();
 	updater::cancel_tx_and_outputs(wallet, tx, outputs, parent_key_id)?;
 	Ok(())

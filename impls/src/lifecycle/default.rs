@@ -19,9 +19,9 @@ use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
 use crate::lifecycle::seed::WalletSeed;
-use crate::LMDBBackend;
-use crate::util::ZeroingString;
 use crate::util::secp::key::SecretKey;
+use crate::util::ZeroingString;
+use crate::LMDBBackend;
 use failure::ResultExt;
 use std::path::PathBuf;
 
@@ -132,7 +132,11 @@ where
 		Ok(())
 	}
 
-	fn open_wallet(&mut self, _name: Option<&str>, password: ZeroingString) -> Result<Option<SecretKey>, Error> {
+	fn open_wallet(
+		&mut self,
+		_name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<Option<SecretKey>, Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();

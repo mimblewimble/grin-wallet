@@ -18,8 +18,8 @@ use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util::secp::pedersen;
 use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::secp::pedersen;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
@@ -138,7 +138,10 @@ where
 	Ok(wallet_outputs)
 }
 
-fn collect_chain_outputs<'a, T, C, K>(wallet: &mut T, keychain_mask: &SecretKey) -> Result<Vec<OutputResult>, Error>
+fn collect_chain_outputs<'a, T, C, K>(
+	wallet: &mut T,
+	keychain_mask: &SecretKey,
+) -> Result<Vec<OutputResult>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -158,7 +161,11 @@ where
 			last_retrieved_index,
 		);
 
-		result_vec.append(&mut identify_utxo_outputs(wallet, keychain_mask, outputs.clone())?);
+		result_vec.append(&mut identify_utxo_outputs(
+			wallet,
+			keychain_mask,
+			outputs.clone(),
+		)?);
 
 		if highest_index == last_retrieved_index {
 			break;
@@ -293,7 +300,11 @@ where
 /// Check / repair wallet contents
 /// assume wallet contents have been freshly updated with contents
 /// of latest block
-pub fn check_repair<'a, T, C, K>(wallet: &mut T, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error>
+pub fn check_repair<'a, T, C, K>(
+	wallet: &mut T,
+	keychain_mask: &SecretKey,
+	delete_unconfirmed: bool,
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

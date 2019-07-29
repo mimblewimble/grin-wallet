@@ -117,7 +117,11 @@ where
 }
 
 /// Receive an tx that this wallet has issued
-pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: &SecretKey, slate: &Slate) -> Result<Slate, Error>
+pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: &SecretKey,
+	slate: &Slate,
+) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

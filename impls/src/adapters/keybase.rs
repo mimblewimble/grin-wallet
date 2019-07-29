@@ -411,8 +411,14 @@ impl SlateReceiver for KeybaseAllChannels {
 							return Err(e);
 						}
 						let res = {
-							let r =
-								foreign::receive_tx(&mut **wallet_inst, mask.as_ref().unwrap(), &slate, None, None, false);
+							let r = foreign::receive_tx(
+								&mut **wallet_inst,
+								mask.as_ref().unwrap(),
+								&slate,
+								None,
+								None,
+								false,
+							);
 							r
 						};
 						match res {

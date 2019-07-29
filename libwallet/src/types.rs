@@ -67,7 +67,11 @@ where
 	) -> Result<(), Error>;
 
 	///
-	fn open_wallet(&mut self, name: Option<&str>, password: ZeroingString) -> Result<Option<SecretKey>, Error>;
+	fn open_wallet(
+		&mut self,
+		name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<Option<SecretKey>, Error>;
 
 	///
 	fn close_wallet(&mut self, name: Option<&str>) -> Result<(), Error>;
@@ -191,7 +195,11 @@ where
 	fn restore(&mut self, keychain_mask: &SecretKey) -> Result<(), Error>;
 
 	/// Attempt to check and fix wallet state
-	fn check_repair(&mut self, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error>;
+	fn check_repair(
+		&mut self,
+		keychain_mask: &SecretKey,
+		delete_unconfirmed: bool,
+	) -> Result<(), Error>;
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a

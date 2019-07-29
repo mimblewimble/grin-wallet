@@ -22,10 +22,10 @@ use crate::grin_core::libtx::{
 	tx_fee,
 };
 use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_util::secp::key::SecretKey;
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
-use crate::grin_util::secp::key::SecretKey;
 use std::collections::HashMap;
 
 /// Initialize a transaction on the sender side, returns a corresponding

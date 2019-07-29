@@ -36,9 +36,9 @@ use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
 	WalletOutputBatch,
 };
-use crate::util::{self, secp};
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::secp::key::SecretKey;
+use crate::util::{self, secp};
 
 use rand::thread_rng;
 
@@ -201,8 +201,8 @@ where
 					k.mask_master_key(m)?;
 				}
 				Ok(k)
-			},
-			None => Err(ErrorKind::KeychainDoesntExist.into())
+			}
+			None => Err(ErrorKind::KeychainDoesntExist.into()),
 		}
 	}
 
@@ -285,7 +285,8 @@ where
 			&mut slate_id.to_vec(),
 			participant_id as u64,
 		);
-		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(&self.keychain(Some(keychain_mask))?, slate_id)?;
+		let (blind_xor_key, nonce_xor_key) =
+			private_ctx_xor_keys(&self.keychain(Some(keychain_mask))?, slate_id)?;
 
 		let mut ctx: Context = option_to_not_found(
 			self.db.get_ser(&ctx_key),
@@ -341,7 +342,8 @@ where
 		tx_f.read_to_string(&mut content)?;
 		let tx_bin = util::from_hex(content).unwrap();
 		Ok(Some(
-			ser::deserialize::<Transaction>(&mut &tx_bin[..], ser::ProtocolVersion::local()).unwrap(),
+			ser::deserialize::<Transaction>(&mut &tx_bin[..], ser::ProtocolVersion::local())
+				.unwrap(),
 		))
 	}
 
@@ -391,7 +393,11 @@ where
 		Ok(())
 	}
 
-	fn check_repair(&mut self, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error> {
+	fn check_repair(
+		&mut self,
+		keychain_mask: &SecretKey,
+		delete_unconfirmed: bool,
+	) -> Result<(), Error> {
 		check_repair(self, keychain_mask, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
