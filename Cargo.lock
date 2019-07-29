@@ -331,13 +331,13 @@ dependencies = [
 
 [[package]]
 name = "bitgrin_wallet"
-version = "2.0.0"
+version = "2.0.2"
 dependencies = [
  "bitgrin_wallet_api 2.0.0",
  "bitgrin_wallet_config 2.0.0",
  "bitgrin_wallet_controller 2.0.0",
  "bitgrin_wallet_impls 2.0.0",
- "bitgrin_wallet_libwallet 2.0.0",
+ "bitgrin_wallet_libwallet 2.0.2",
  "bitgrin_wallet_util 2.0.0",
  "built 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -357,7 +357,7 @@ version = "2.0.0"
 dependencies = [
  "bitgrin_wallet_config 2.0.0",
  "bitgrin_wallet_impls 2.0.0",
- "bitgrin_wallet_libwallet 2.0.0",
+ "bitgrin_wallet_libwallet 2.0.2",
  "bitgrin_wallet_util 2.0.0",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "easy-jsonrpc 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -389,7 +389,7 @@ dependencies = [
  "bitgrin_wallet_api 2.0.0",
  "bitgrin_wallet_config 2.0.0",
  "bitgrin_wallet_impls 2.0.0",
- "bitgrin_wallet_libwallet 2.0.0",
+ "bitgrin_wallet_libwallet 2.0.2",
  "bitgrin_wallet_util 2.0.0",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "easy-jsonrpc 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -418,7 +418,7 @@ name = "bitgrin_wallet_impls"
 version = "2.0.0"
 dependencies = [
  "bitgrin_wallet_config 2.0.0",
- "bitgrin_wallet_libwallet 2.0.0",
+ "bitgrin_wallet_libwallet 2.0.2",
  "bitgrin_wallet_util 2.0.0",
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "bitgrin_wallet_libwallet"
-version = "2.0.0"
+version = "2.0.2"
 dependencies = [
  "bitgrin_wallet_config 2.0.0",
  "bitgrin_wallet_util 2.0.0",

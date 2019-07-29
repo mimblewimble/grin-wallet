@@ -36,5 +36,5 @@ bitgrin_wallet_util = { path = "../util", version = "2.0.0" }
 
 bitgrin_wallet_api = { path = "../api", version = "2.0.0" }
 bitgrin_wallet_impls = { path = "../impls", version = "2.0.0" }
-bitgrin_wallet_libwallet = { path = "../libwallet", version = "2.0.1" }
+bitgrin_wallet_libwallet = { path = "../libwallet", version = "2.0.2" }
 bitgrin_wallet_config = { path = "../config", version = "2.0.0" }
