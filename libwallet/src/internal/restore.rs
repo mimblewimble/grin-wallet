@@ -58,14 +58,14 @@ struct RestoredTxStats {
 	pub num_outputs: usize,
 }
 
-fn identify_utxo_outputs<T, C, K>(
+fn identify_utxo_outputs<'a, T, C, K>(
 	wallet: &mut T,
 	outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
 ) -> Result<Vec<OutputResult>, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let mut wallet_outputs: Vec<OutputResult> = Vec::new();
 
@@ -74,7 +74,7 @@ where
 		outputs.len(),
 	);
 
-	let keychain = wallet.keychain();
+	let keychain = wallet.keychain()?;
 	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
 	let builder = proof::ProofBuilder::new(keychain);
 	let legacy_version = HeaderVersion(1);
@@ -136,11 +136,11 @@ where
 	Ok(wallet_outputs)
 }
 
-fn collect_chain_outputs<T, C, K>(wallet: &mut T) -> Result<Vec<OutputResult>, Error>
+fn collect_chain_outputs<'a, T, C, K>(wallet: &mut T) -> Result<Vec<OutputResult>, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let batch_size = 1000;
 	let mut start_index = 1;
@@ -167,16 +167,16 @@ where
 }
 
 ///
-fn restore_missing_output<T, C, K>(
+fn restore_missing_output<'a, T, C, K>(
 	wallet: &mut T,
 	output: OutputResult,
 	found_parents: &mut HashMap<Identifier, u32>,
 	tx_stats: &mut Option<&mut HashMap<Identifier, RestoredTxStats>>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let commit = wallet.calc_commit_for_cache(output.value, &output.key_id)?;
 	let mut batch = wallet.batch()?;
@@ -250,11 +250,11 @@ where
 }
 
 ///
-fn cancel_tx_log_entry<T, C, K>(wallet: &mut T, output: &OutputData) -> Result<(), Error>
+fn cancel_tx_log_entry<'a, T, C, K>(wallet: &mut T, output: &OutputData) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = output.key_id.parent_path();
 	let updated_tx_entry = if output.tx_log_entry.is_some() {
@@ -290,11 +290,11 @@ where
 /// Check / repair wallet contents
 /// assume wallet contents have been freshly updated with contents
 /// of latest block
-pub fn check_repair<T, C, K>(wallet: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
+pub fn check_repair<'a, T, C, K>(wallet: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	// First, get a definitive list of outputs we own from the chain
 	warn!("Starting wallet check.");
@@ -412,11 +412,11 @@ where
 }
 
 /// Restore a wallet
-pub fn restore<T, C, K>(wallet: &mut T) -> Result<(), Error>
+pub fn restore<'a, T, C, K>(wallet: &mut T) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	// Don't proceed if wallet_data has anything in it
 	let is_empty = wallet.iter().next().is_none();

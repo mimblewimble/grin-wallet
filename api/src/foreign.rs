@@ -17,10 +17,10 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletBackend,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
+	WalletLCProvider,
 };
 use crate::util::Mutex;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -55,30 +55,25 @@ pub enum ForeignCheckMiddlewareFn {
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Foreign<W: ?Sized, C, K>
+pub struct Foreign<'a, L, C, K>
 where
-	W: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
-	/// Wallet, contains its keychain (TODO: Split these up into 2 traits
-	/// perhaps)
-	pub wallet: Arc<Mutex<W>>,
+	/// Wallet instance
+	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
-	/// phantom
-	phantom: PhantomData<K>,
-	/// phantom
-	phantom_c: PhantomData<C>,
 	/// foreign check middleware
 	middleware: Option<ForeignCheckMiddleware>,
 }
 
-impl<'a, W: ?Sized, C, K> Foreign<W, C, K>
+impl<'a, L, C, K> Foreign<'a, L, C, K>
 where
-	W: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// Create a new API instance with the given wallet instance. All subsequent
 	/// API calls will operate on this instance of the wallet.
@@ -110,12 +105,12 @@ where
 	/// use tempfile::tempdir;
 	///
 	/// use std::sync::Arc;
-	/// use util::Mutex;
+	/// use util::{Mutex, ZeroingString};
 	///
 	/// use api::Foreign;
 	/// use config::WalletConfig;
-	/// use impls::{HTTPNodeClient, LMDBBackend};
-	/// use libwallet::WalletBackend;
+	/// use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
+	/// use libwallet::WalletInst;
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -128,24 +123,42 @@ where
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
-	///
 	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-	/// let mut wallet:Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> =
-	///		Arc::new(Mutex::new(
-	///			LMDBBackend::new(wallet_config.clone(), "", node_client).unwrap()
-	///		));
+	///
+	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
+	/// // It contains the LMDBBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
+	/// // by the reference wallet implementation.
+	/// // These traits can be replaced with alternative implementations if desired
+	///
+	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	///		as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+	///
+	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
+	/// let lc = wallet.lc_provider().unwrap();
+	///
+	/// // The top level wallet directory should be set manually (in the reference implementation,
+	/// // this is provided in the WalletConfig)
+	/// lc.set_wallet_directory(&wallet_config.data_file_dir);
+	///
+	/// // Wallet must be opened with the password (TBD)
+	/// let pw = ZeroingString::from("wallet_password");
+	/// lc.open_wallet(None, pw);
+	///
+	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
+	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
 	/// let api_foreign = Foreign::new(wallet.clone(), None);
 	/// // .. perform wallet operations
 	///
 	/// ```
 
-	pub fn new(wallet_in: Arc<Mutex<W>>, middleware: Option<ForeignCheckMiddleware>) -> Self {
+	pub fn new(
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		middleware: Option<ForeignCheckMiddleware>,
+	) -> Self {
 		Foreign {
-			wallet: wallet_in,
+			wallet_inst,
 			doctest_mode: false,
-			phantom: PhantomData,
-			phantom_c: PhantomData,
 			middleware,
 		}
 	}
@@ -168,7 +181,8 @@ where
 
 	pub fn check_version(&self) -> Result<VersionInfo, Error> {
 		if let Some(m) = self.middleware.as_ref() {
-			let mut w = self.wallet.lock();
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			m(
 				ForeignCheckMiddlewareFn::CheckVersion,
 				w.w2n_client().get_version_info(),
@@ -229,7 +243,8 @@ where
 	/// ```
 
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::BuildCoinbase,
@@ -237,10 +252,7 @@ where
 				None,
 			)?;
 		}
-		w.open_with_credentials()?;
-		let res = foreign::build_coinbase(&mut *w, block_fees, self.doctest_mode);
-		w.close()?;
-		res
+		foreign::build_coinbase(&mut **w, block_fees, self.doctest_mode)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -283,7 +295,8 @@ where
 
 	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
 		if let Some(m) = self.middleware.as_ref() {
-			let mut w = self.wallet.lock();
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			m(
 				ForeignCheckMiddlewareFn::VerifySlateMessages,
 				w.w2n_client().get_version_info(),
@@ -355,7 +368,8 @@ where
 		dest_acct_name: Option<&str>,
 		message: Option<String>,
 	) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::ReceiveTx,
@@ -363,10 +377,7 @@ where
 				Some(slate),
 			)?;
 		}
-		w.open_with_credentials()?;
-		let res = foreign::receive_tx(&mut *w, slate, dest_acct_name, message, self.doctest_mode);
-		w.close()?;
-		res
+		foreign::receive_tx(&mut **w, slate, dest_acct_name, message, self.doctest_mode)
 	}
 
 	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
@@ -417,7 +428,8 @@ where
 	/// ```
 
 	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let mut w = self.wallet.lock();
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
 				ForeignCheckMiddlewareFn::FinalizeInvoiceTx,
@@ -425,10 +437,7 @@ where
 				Some(slate),
 			)?;
 		}
-		w.open_with_credentials()?;
-		let res = foreign::finalize_invoice_tx(&mut *w, slate);
-		w.close()?;
-		res
+		foreign::finalize_invoice_tx(&mut **w, slate)
 	}
 }
 
@@ -447,12 +456,12 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use tempfile::tempdir;
 
 		use std::sync::Arc;
-		use util::Mutex;
+		use util::{Mutex, ZeroingString};
 
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
-		use impls::{HTTPNodeClient, LMDBBackend, WalletSeed};
-		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletBackend};
+		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
+		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletInst};
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
@@ -462,11 +471,23 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 			.unwrap();
 		let mut wallet_config = WalletConfig::default();
 		wallet_config.data_file_dir = dir.to_owned();
-		let pw = "";
+		let pw = ZeroingString::from("");
 
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
-		let mut $wallet: Arc<Mutex<WalletBackend<HTTPNodeClient, ExtKeychain>>> = Arc::new(
-			Mutex::new(LMDBBackend::new(wallet_config.clone(), pw, node_client).unwrap()),
-			);
+		let mut wallet = Box::new(
+			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+			)
+			as Box<
+				WalletInst<
+					'static,
+					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+					HTTPNodeClient,
+					ExtKeychain,
+				>,
+				>;
+		let lc = wallet.lc_provider().unwrap();
+		lc.set_wallet_directory(&wallet_config.data_file_dir);
+		lc.open_wallet(None, pw);
+		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
 }

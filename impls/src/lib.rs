@@ -1,4 +1,4 @@
-// Copyright 2018 The Grin Developers
+// Copyright 2019 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,40 +29,59 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_util::grin_store as store;
 use grin_wallet_util::grin_util as util;
-extern crate grin_wallet_config as config;
+
+use grin_wallet_config as config;
 
 mod adapters;
 mod backends;
 mod error;
+mod lifecycle;
 mod node_clients;
-mod seed;
 pub mod test_framework;
 
 pub use crate::adapters::{
-	FileWalletCommAdapter, HTTPWalletCommAdapter, KeybaseWalletCommAdapter, NullWalletCommAdapter,
-	WalletCommAdapter,
+	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,
+	SlatePutter, SlateReceiver, SlateSender,
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};
+pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::node_clients::HTTPNodeClient;
-pub use crate::seed::{EncryptedWalletSeed, WalletSeed, SEED_FILE};
 
-use crate::util::Mutex;
-use std::sync::Arc;
+use crate::keychain::{ExtKeychain, Keychain};
 
-use libwallet::{NodeClient, WalletBackend, WalletInst};
+use libwallet::{NodeClient, WalletInst, WalletLCProvider};
 
-/// Helper to create an instance of the LMDB wallet
-pub fn instantiate_wallet(
-	wallet_config: config::WalletConfig,
-	node_client: impl NodeClient + 'static,
-	passphrase: &str,
-	account: &str,
-) -> Result<Arc<Mutex<WalletInst<impl NodeClient, keychain::ExtKeychain>>>, Error> {
-	// First test decryption, so we can abort early if we have the wrong password
-	let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
-	let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client)?;
-	db_wallet.set_parent_key_id_by_name(account)?;
-	info!("Using LMDB Backend for wallet");
-	Ok(Arc::new(Mutex::new(db_wallet)))
+/// Main wallet instance
+pub struct DefaultWalletImpl<'a, C>
+where
+	C: NodeClient + 'a,
+{
+	lc_provider: DefaultLCProvider<'a, C, ExtKeychain>,
+}
+
+impl<'a, C> DefaultWalletImpl<'a, C>
+where
+	C: NodeClient + 'a,
+{
+	pub fn new(node_client: C) -> Result<Self, Error> {
+		let lc_provider = DefaultLCProvider::new(node_client);
+		Ok(DefaultWalletImpl {
+			lc_provider: lc_provider,
+		})
+	}
+}
+
+impl<'a, L, C, K> WalletInst<'a, L, C, K> for DefaultWalletImpl<'a, C>
+where
+	DefaultLCProvider<'a, C, ExtKeychain>: WalletLCProvider<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	fn lc_provider(
+		&mut self,
+	) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), libwallet::Error> {
+		Ok(&mut self.lc_provider)
+	}
 }
