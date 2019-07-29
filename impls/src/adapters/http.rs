@@ -15,23 +15,28 @@
 /// HTTP Wallet 'plugin' implementation
 use crate::api;
 use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::WalletCommAdapter;
-use config::WalletConfig;
+use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use url::Url;
 
 #[derive(Clone)]
-pub struct HTTPWalletCommAdapter {}
+pub struct HttpSlateSender {
+	base_url: Url,
+}
 
-impl HTTPWalletCommAdapter {
-	/// Create
-	pub fn new() -> Box<dyn WalletCommAdapter> {
-		Box::new(HTTPWalletCommAdapter {})
+impl HttpSlateSender {
+	/// Create, return Err if scheme is not "http"
+	pub fn new(base_url: Url) -> Result<HttpSlateSender, SchemeNotHttp> {
+		if base_url.scheme() != "http" {
+			Err(SchemeNotHttp)
+		} else {
+			Ok(HttpSlateSender { base_url })
+		}
 	}
 
-	/// Check version of the other wallet
-	fn check_other_version(&self, url: &str) -> Result<(), Error> {
+	/// Check version of the listening wallet
+	fn check_other_version(&self) -> Result<(), Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -39,7 +44,7 @@ impl HTTPWalletCommAdapter {
 			"params": []
 		});
 
-		let res: String = post(url, None, &req).map_err(|e| {
+		let res: String = post(&self.base_url, None, &req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
@@ -88,24 +93,15 @@ impl HTTPWalletCommAdapter {
 	}
 }
 
-impl WalletCommAdapter for HTTPWalletCommAdapter {
-	fn supports_sync(&self) -> bool {
-		true
-	}
-
-	fn send_tx_sync(&self, dest: &str, slate: &Slate) -> Result<Slate, Error> {
-		if &dest[..4] != "http" {
-			let err_str = format!(
-				"dest formatted as {} but send -d expected stdout or http://IP:port",
-				dest
-			);
-			error!("{}", err_str,);
-			Err(ErrorKind::Uri)?
-		}
-		let url = format!("{}/v2/foreign", dest);
+impl SlateSender for HttpSlateSender {
+	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+		let url: Url = self
+			.base_url
+			.join("/v2/foreign")
+			.expect("/v2/foreign is an invalid url path");
 		debug!("Posting transaction slate to {}", url);
 
-		self.check_other_version(&url)?;
+		self.check_other_version()?;
 
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = json!({
@@ -120,7 +116,7 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 		});
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = post(url.as_str(), None, &req).map_err(|e| {
+		let res: String = post(&url, None, &req).map_err(|e| {
 			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
@@ -144,32 +140,24 @@ impl WalletCommAdapter for HTTPWalletCommAdapter {
 
 		Ok(slate)
 	}
+}
 
-	fn send_tx_async(&self, _dest: &str, _slate: &Slate) -> Result<(), Error> {
-		unimplemented!();
-	}
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct SchemeNotHttp;
 
-	fn receive_tx_async(&self, _params: &str) -> Result<Slate, Error> {
-		unimplemented!();
-	}
-
-	fn listen(
-		&self,
-		_params: HashMap<String, String>,
-		_config: WalletConfig,
-		_passphrase: &str,
-		_account: &str,
-		_node_api_secret: Option<String>,
-	) -> Result<(), Error> {
-		unimplemented!();
+impl Into<Error> for SchemeNotHttp {
+	fn into(self) -> Error {
+		let err_str = format!("url scheme must be http",);
+		ErrorKind::GenericError(err_str).into()
 	}
 }
 
-pub fn post<IN>(url: &str, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
+pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
 where
 	IN: Serialize,
 {
-	let req = api::client::create_post_request(url, api_secret, input)?;
+	// TODO: change create_post_request to accept a url instead of a &str
+	let req = api::client::create_post_request(url.as_str(), api_secret, input)?;
 	let res = api::client::send_request(req)?;
 	Ok(res)
 }

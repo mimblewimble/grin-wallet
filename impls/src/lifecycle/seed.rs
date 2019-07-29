@@ -27,7 +27,6 @@ use ring::{digest, pbkdf2};
 use crate::keychain::{mnemonic, Keychain};
 use crate::util;
 use crate::{Error, ErrorKind};
-use config::WalletConfig;
 use failure::ResultExt;
 
 pub const SEED_FILE: &'static str = "wallet.seed";
@@ -40,21 +39,21 @@ impl WalletSeed {
 		WalletSeed(bytes.to_vec())
 	}
 
-	pub fn from_mnemonic(word_list: &str) -> Result<WalletSeed, Error> {
-		let res = mnemonic::to_entropy(word_list);
+	pub fn from_mnemonic(word_list: util::ZeroingString) -> Result<WalletSeed, Error> {
+		let res = mnemonic::to_entropy(&word_list);
 		match res {
 			Ok(s) => Ok(WalletSeed::from_bytes(&s)),
 			Err(_) => Err(ErrorKind::Mnemonic.into()),
 		}
 	}
 
-	pub fn from_hex(hex: &str) -> Result<WalletSeed, Error> {
+	pub fn _from_hex(hex: &str) -> Result<WalletSeed, Error> {
 		let bytes = util::from_hex(hex.to_string())
 			.context(ErrorKind::GenericError("Invalid hex".to_owned()))?;
 		Ok(WalletSeed::from_bytes(&bytes))
 	}
 
-	pub fn to_hex(&self) -> String {
+	pub fn _to_hex(&self) -> String {
 		util::to_hex(self.0.to_vec())
 	}
 
@@ -66,7 +65,7 @@ impl WalletSeed {
 		}
 	}
 
-	pub fn derive_keychain_old(old_wallet_seed: [u8; 32], password: &str) -> Vec<u8> {
+	pub fn _derive_keychain_old(old_wallet_seed: [u8; 32], password: &str) -> Vec<u8> {
 		let seed = blake2::blake2b::blake2b(64, password.as_bytes(), &old_wallet_seed);
 		seed.as_bytes().to_vec()
 	}
@@ -85,35 +84,27 @@ impl WalletSeed {
 		WalletSeed(seed)
 	}
 
-	pub fn seed_file_exists(wallet_config: &WalletConfig) -> Result<(), Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		println!("Seed file path: {}", seed_file_path);
 		if Path::new(seed_file_path).exists() {
-			return Err(ErrorKind::WalletSeedExists(seed_file_path.to_owned()))?;
+			Ok(true)
+		} else {
+			Ok(false)
 		}
-		Ok(())
 	}
 
-	pub fn backup_seed(wallet_config: &WalletConfig) -> Result<(), Error> {
-		let seed_file_name = &format!(
-			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+	pub fn backup_seed(data_file_dir: &str) -> Result<(), Error> {
+		let seed_file_name = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		let mut path = Path::new(seed_file_name).to_path_buf();
 		path.pop();
-		let mut backup_seed_file_name = format!(
-			"{}{}{}.bak",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE
-		);
+		let mut backup_seed_file_name =
+			format!("{}{}{}.bak", data_file_dir, MAIN_SEPARATOR, SEED_FILE);
 		let mut i = 1;
 		while Path::new(&backup_seed_file_name).exists() {
-			backup_seed_file_name = format!(
-				"{}{}{}.bak.{}",
-				wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE, i
-			);
+			backup_seed_file_name =
+				format!("{}{}{}.bak.{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE, i);
 			i += 1;
 		}
 		path.push(backup_seed_file_name.clone());
@@ -127,20 +118,19 @@ impl WalletSeed {
 	}
 
 	pub fn recover_from_phrase(
-		wallet_config: &WalletConfig,
-		word_list: &str,
-		password: &str,
+		data_file_dir: &str,
+		word_list: util::ZeroingString,
+		password: util::ZeroingString,
 	) -> Result<(), Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
-		if WalletSeed::seed_file_exists(wallet_config).is_err() {
-			WalletSeed::backup_seed(wallet_config)?;
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		println!("data file dir: {}", data_file_dir);
+		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir) {
+			println!("seed file exists");
+			WalletSeed::backup_seed(data_file_dir)?;
 		}
-		if !Path::new(&wallet_config.data_file_dir).exists() {
+		if !Path::new(&data_file_dir).exists() {
 			return Err(ErrorKind::WalletDoesntExist(
-				wallet_config.data_file_dir.clone(),
+				data_file_dir.to_owned(),
 				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
 					.to_owned(),
 			))?;
@@ -155,34 +145,22 @@ impl WalletSeed {
 		Ok(())
 	}
 
-	pub fn show_recovery_phrase(&self) -> Result<(), Error> {
-		println!("Your recovery phrase is:");
-		println!();
-		println!("{}", self.to_mnemonic()?);
-		println!();
-		println!("Please back-up these words in a non-digital format.");
-		Ok(())
-	}
-
 	pub fn init_file(
-		wallet_config: &WalletConfig,
+		data_file_dir: &str,
 		seed_length: usize,
 		recovery_phrase: Option<util::ZeroingString>,
-		password: &str,
+		password: util::ZeroingString,
 	) -> Result<WalletSeed, Error> {
 		// create directory if it doesn't exist
-		fs::create_dir_all(&wallet_config.data_file_dir).context(ErrorKind::IO)?;
+		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		warn!("Generating wallet seed file at: {}", seed_file_path);
-		let _ = WalletSeed::seed_file_exists(wallet_config)?;
+		let _ = WalletSeed::seed_file_exists(data_file_dir)?;
 
 		let seed = match recovery_phrase {
-			Some(p) => WalletSeed::from_mnemonic(&p)?,
+			Some(p) => WalletSeed::from_mnemonic(p)?,
 			None => WalletSeed::init_new(seed_length),
 		};
 
@@ -191,18 +169,18 @@ impl WalletSeed {
 		let mut file = File::create(seed_file_path).context(ErrorKind::IO)?;
 		file.write_all(&enc_seed_json.as_bytes())
 			.context(ErrorKind::IO)?;
-		seed.show_recovery_phrase()?;
 		Ok(seed)
 	}
 
-	pub fn from_file(wallet_config: &WalletConfig, password: &str) -> Result<WalletSeed, Error> {
+	pub fn from_file(
+		data_file_dir: &str,
+		password: util::ZeroingString,
+	) -> Result<WalletSeed, Error> {
+		// TODO: Is this desirable any more?
 		// create directory if it doesn't exist
-		fs::create_dir_all(&wallet_config.data_file_dir).context(ErrorKind::IO)?;
+		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			wallet_config.data_file_dir, MAIN_SEPARATOR, SEED_FILE,
-		);
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		debug!("Using wallet seed file at: {}", seed_file_path);
 
@@ -212,7 +190,7 @@ impl WalletSeed {
 			file.read_to_string(&mut buffer).context(ErrorKind::IO)?;
 			let enc_seed: EncryptedWalletSeed =
 				serde_json::from_str(&buffer).context(ErrorKind::Format)?;
-			let wallet_seed = enc_seed.decrypt(password)?;
+			let wallet_seed = enc_seed.decrypt(&password)?;
 			Ok(wallet_seed)
 		} else {
 			error!(
@@ -240,7 +218,10 @@ pub struct EncryptedWalletSeed {
 
 impl EncryptedWalletSeed {
 	/// Create a new encrypted seed from the given seed + password
-	pub fn from_seed(seed: &WalletSeed, password: &str) -> Result<EncryptedWalletSeed, Error> {
+	pub fn from_seed(
+		seed: &WalletSeed,
+		password: util::ZeroingString,
+	) -> Result<EncryptedWalletSeed, Error> {
 		let salt: [u8; 8] = thread_rng().gen();
 		let nonce: [u8; 12] = thread_rng().gen();
 		let password = password.as_bytes();
@@ -287,5 +268,30 @@ impl EncryptedWalletSeed {
 			.context(ErrorKind::Encryption)?;
 
 		Ok(WalletSeed::from_bytes(&decrypted_data))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::util::ZeroingString;
+	#[test]
+	fn wallet_seed_encrypt() {
+		let password = ZeroingString::from("passwoid");
+		let wallet_seed = WalletSeed::init_new(32);
+		let mut enc_wallet_seed =
+			EncryptedWalletSeed::from_seed(&wallet_seed, password.clone()).unwrap();
+		println!("EWS: {:?}", enc_wallet_seed);
+		let decrypted_wallet_seed = enc_wallet_seed.decrypt(&password).unwrap();
+		assert_eq!(wallet_seed, decrypted_wallet_seed);
+
+		// Wrong password
+		let decrypted_wallet_seed = enc_wallet_seed.decrypt("");
+		assert!(decrypted_wallet_seed.is_err());
+
+		// Wrong nonce
+		enc_wallet_seed.nonce = "wrongnonce".to_owned();
+		let decrypted_wallet_seed = enc_wallet_seed.decrypt(&password);
+		assert!(decrypted_wallet_seed.is_err());
 	}
 }

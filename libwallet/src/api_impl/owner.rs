@@ -33,46 +33,46 @@ use crate::{
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// List of accounts
-pub fn accounts<T: ?Sized, C, K>(w: &mut T) -> Result<Vec<AcctPathMapping>, Error>
+pub fn accounts<'a, T: ?Sized, C, K>(w: &mut T) -> Result<Vec<AcctPathMapping>, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	keys::accounts(&mut *w)
 }
 
 /// new account path
-pub fn create_account_path<T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<Identifier, Error>
+pub fn create_account_path<'a, T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<Identifier, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	keys::new_acct_path(&mut *w, label)
 }
 
 /// set active account
-pub fn set_active_account<T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<(), Error>
+pub fn set_active_account<'a, T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	w.set_parent_key_id_by_name(label)
 }
 
 /// retrieve outputs
-pub fn retrieve_outputs<T: ?Sized, C, K>(
+pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	include_spent: bool,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 ) -> Result<(bool, Vec<OutputCommitMapping>), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
 
@@ -88,16 +88,16 @@ where
 }
 
 /// Retrieve txs
-pub fn retrieve_txs<T: ?Sized, C, K>(
+pub fn retrieve_txs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(bool, Vec<TxLogEntry>), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
 
@@ -113,15 +113,15 @@ where
 }
 
 /// Retrieve summary info
-pub fn retrieve_summary_info<T: ?Sized, C, K>(
+pub fn retrieve_summary_info<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	refresh_from_node: bool,
 	minimum_confirmations: u64,
 ) -> Result<(bool, WalletInfo), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
 
@@ -135,15 +135,15 @@ where
 }
 
 /// Initiate tx as sender
-pub fn init_send_tx<T: ?Sized, C, K>(
+pub fn init_send_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	args: InitTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
@@ -211,15 +211,15 @@ where
 }
 
 /// Initiate a transaction as the recipient (invoicing)
-pub fn issue_invoice_tx<T: ?Sized, C, K>(
+pub fn issue_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	args: IssueInvoiceTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = match args.dest_acct_name {
 		Some(d) => {
@@ -268,16 +268,16 @@ where
 
 /// Receive an invoice tx, essentially adding inputs to whatever
 /// output was specified
-pub fn process_invoice_tx<T: ?Sized, C, K>(
+pub fn process_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	slate: &Slate,
 	args: InitTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let mut ret_slate = slate.clone();
 	let parent_key_id = match args.src_acct_name {
@@ -345,26 +345,26 @@ where
 }
 
 /// Lock sender outputs
-pub fn tx_lock_outputs<T: ?Sized, C, K>(
+pub fn tx_lock_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	slate: &Slate,
 	participant_id: usize,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let context = w.get_private_context(slate.id.as_bytes(), participant_id)?;
 	selection::lock_tx_context(&mut *w, slate, &context)
 }
 
 /// Finalize slate
-pub fn finalize_tx<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
+pub fn finalize_tx<'a, T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
 	let context = w.get_private_context(sl.id.as_bytes(), 0)?;
@@ -380,15 +380,15 @@ where
 }
 
 /// cancel tx
-pub fn cancel_tx<T: ?Sized, C, K>(
+pub fn cancel_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
 	if !update_outputs(w, false) {
@@ -400,23 +400,23 @@ where
 }
 
 /// get stored tx
-pub fn get_stored_tx<T: ?Sized, C, K>(
+pub fn get_stored_tx<'a, T: ?Sized, C, K>(
 	w: &T,
 	entry: &TxLogEntry,
 ) -> Result<Option<Transaction>, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	w.get_stored_tx(entry)
 }
 
 /// Posts a transaction to the chain
 /// take a client impl instead of wallet so as not to have to lock the wallet
-pub fn post_tx<C>(client: &C, tx: &Transaction, fluff: bool) -> Result<(), Error>
+pub fn post_tx<'a, C>(client: &C, tx: &Transaction, fluff: bool) -> Result<(), Error>
 where
-	C: NodeClient,
+	C: NodeClient + 'a,
 {
 	let tx_hex = grin_util::to_hex(ser::ser_vec(tx).unwrap());
 	let res = client.post_tx(&TxWrapper { tx_hex: tx_hex }, fluff);
@@ -439,32 +439,32 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 }
 
 /// Attempt to restore contents of wallet
-pub fn restore<T: ?Sized, C, K>(w: &mut T) -> Result<(), Error>
+pub fn restore<'a, T: ?Sized, C, K>(w: &mut T) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	w.restore()
 }
 
 /// check repair
-pub fn check_repair<T: ?Sized, C, K>(w: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
+pub fn check_repair<'a, T: ?Sized, C, K>(w: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	update_outputs(w, true);
 	w.check_repair(delete_unconfirmed)
 }
 
 /// node height
-pub fn node_height<T: ?Sized, C, K>(w: &mut T) -> Result<NodeHeightResult, Error>
+pub fn node_height<'a, T: ?Sized, C, K>(w: &mut T) -> Result<NodeHeightResult, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let res = w.w2n_client().get_chain_height();
 	match res {
@@ -487,11 +487,11 @@ where
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful
-fn update_outputs<T: ?Sized, C, K>(w: &mut T, update_all: bool) -> bool
+fn update_outputs<'a, T: ?Sized, C, K>(w: &mut T, update_all: bool) -> bool
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
 	match updater::refresh_outputs(&mut *w, &parent_key_id, update_all) {

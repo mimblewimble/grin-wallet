@@ -15,7 +15,6 @@
 use crate::api;
 use crate::chain;
 use crate::chain::Chain;
-use crate::config::WalletConfig;
 use crate::core;
 use crate::core::core::{OutputFeatures, OutputIdentifier, Transaction};
 use crate::core::{consensus, global, pow};
@@ -23,13 +22,10 @@ use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::{
-	BlockFees, CbData, InitTxArgs, NodeClient, WalletBackend, WalletInfo, WalletInst,
+	BlockFees, CbData, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
 };
-use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::Mutex;
-use crate::LMDBBackend;
-use crate::WalletSeed;
 use chrono::Duration;
 use std::sync::Arc;
 use std::thread;
@@ -105,14 +101,15 @@ pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbDa
 /// adds a reward output to a wallet, includes that reward in a block, mines
 /// the block and adds it to the chain, with option transactions included.
 /// Helpful for building up precise wallet balances for testing.
-pub fn award_block_to_wallet<C, K>(
+pub fn award_block_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	txs: Vec<&Transaction>,
-	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 ) -> Result<(), libwallet::Error>
 where
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	// build block fees
 	let prev = chain.head_header().unwrap();
@@ -124,10 +121,9 @@ where
 	};
 	// build coinbase (via api) and add block
 	let coinbase_tx = {
-		let mut w = wallet.lock();
-		w.open_with_credentials()?;
-		let res = foreign::build_coinbase(&mut *w, &block_fees, false)?;
-		w.close()?;
+		let mut w_lock = wallet.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		let res = foreign::build_coinbase(&mut **w, &block_fees, false)?;
 		res
 	};
 	add_block_with_reward(chain, txs, coinbase_tx.clone());
@@ -135,15 +131,16 @@ where
 }
 
 /// Award a blocks to a wallet directly
-pub fn award_blocks_to_wallet<C, K>(
+pub fn award_blocks_to_wallet<'a, L, C, K>(
 	chain: &Chain,
-	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 	number: usize,
 	pause_between: bool,
 ) -> Result<(), libwallet::Error>
 where
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	for _ in 0..number {
 		award_block_to_wallet(chain, vec![], wallet.clone())?;
@@ -154,50 +151,22 @@ where
 	Ok(())
 }
 
-/// dispatch a db wallet
-pub fn create_wallet<C, K>(
-	dir: &str,
-	n_client: C,
-	rec_phrase: Option<&str>,
-) -> Arc<Mutex<dyn WalletInst<C, K>>>
-where
-	C: NodeClient + 'static,
-	K: keychain::Keychain + 'static,
-{
-	let z_string = match rec_phrase {
-		Some(s) => Some(util::ZeroingString::from(s)),
-		None => None,
-	};
-	let mut wallet_config = WalletConfig::default();
-	wallet_config.data_file_dir = String::from(dir);
-	let _ = WalletSeed::init_file(&wallet_config, 32, z_string, "");
-	let mut wallet = LMDBBackend::new(wallet_config.clone(), "", n_client)
-		.unwrap_or_else(|e| panic!("Error creating wallet: {:?} Config: {:?}", e, wallet_config));
-	wallet.open_with_credentials().unwrap_or_else(|e| {
-		panic!(
-			"Error initializing wallet: {:?} Config: {:?}",
-			e, wallet_config
-		)
-	});
-	Arc::new(Mutex::new(wallet))
-}
-
 /// send an amount to a destination
-pub fn send_to_dest<T: ?Sized, C, K>(
-	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
+pub fn send_to_dest<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	client: LocalWalletClient,
 	dest: &str,
 	amount: u64,
 	test_mode: bool,
 ) -> Result<(), libwallet::Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
 	let slate = {
-		let mut w = wallet.lock();
-		w.open_with_credentials()?;
+		let mut w_lock = wallet.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount,
@@ -207,15 +176,15 @@ where
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate_i = owner::init_send_tx(&mut *w, args, test_mode)?;
+		let slate_i = owner::init_send_tx(&mut **w, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
-		owner::tx_lock_outputs(&mut *w, &slate, 0)?;
-		let slate = owner::finalize_tx(&mut *w, &slate)?;
-		w.close()?;
+		owner::tx_lock_outputs(&mut **w, &slate, 0)?;
+		let slate = owner::finalize_tx(&mut **w, &slate)?;
 		slate
 	};
 	let client = {
-		let mut w = wallet.lock();
+		let mut w_lock = wallet.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.w2n_client().clone()
 	};
 	owner::post_tx(&client, &slate.tx, false)?; // mines a block
@@ -223,18 +192,17 @@ where
 }
 
 /// get wallet info totals
-pub fn wallet_info<T: ?Sized, C, K>(
-	wallet: Arc<Mutex<dyn WalletInst<C, K>>>,
+pub fn wallet_info<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 ) -> Result<WalletInfo, libwallet::Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: keychain::Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
 {
-	let mut w = wallet.lock();
-	w.open_with_credentials()?;
-	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(&mut *w, true, 1)?;
+	let mut w_lock = wallet.lock();
+	let w = w_lock.lc_provider()?.wallet_inst()?;
+	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(&mut **w, true, 1)?;
 	assert!(wallet_refreshed);
-	w.close()?;
 	Ok(wallet_info)
 }

@@ -26,7 +26,7 @@ use grin_wallet_config as config;
 use grin_wallet_util::grin_api as api;
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_util as util;
-use std::process::exit;
+use std::env;
 
 mod cmd;
 
@@ -79,43 +79,42 @@ fn real_main() -> i32 {
 		global::ChainTypes::Mainnet
 	};
 
-	// Deal with configuration file creation
+	let mut current_dir = None;
+
+	// special cases for certain lifecycle commands
 	match args.subcommand() {
-		// wallet init command should spit out its config file then continue
-		// (if desired)
 		("init", Some(init_args)) => {
 			if init_args.is_present("here") {
-				cmd::config_command_wallet(&chain_type, config::WALLET_CONFIG_FILE_NAME);
+				current_dir = Some(env::current_dir().unwrap_or_else(|e| {
+					panic!("Error creating config file: {}", e);
+				}));
 			}
 		}
+		("recover", _) => {}
 		_ => {}
 	}
 
 	// Load relevant config, try and load a wallet config file
-	let mut w = config::initial_setup_wallet(&chain_type).unwrap_or_else(|e| {
+	// Use defaults for configuration if config file not found anywhere
+	let mut config = config::initial_setup_wallet(&chain_type, current_dir).unwrap_or_else(|e| {
 		panic!("Error loading wallet configuration: {}", e);
 	});
 
-	if !cmd::seed_exists(w.members.as_ref().unwrap().wallet.clone()) {
-		if "init" == args.subcommand().0 || "recover" == args.subcommand().0 {
-		} else {
-			println!("Wallet seed file doesn't exist. Run `grin-wallet init` first");
-			exit(1);
-		}
-	}
+	config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
 
 	// Load logging config
-	let l = w.members.as_mut().unwrap().logging.clone().unwrap();
+	let l = config.members.as_mut().unwrap().logging.clone().unwrap();
 	init_logger(Some(l));
 	info!(
 		"Using wallet configuration file at {}",
-		w.config_file_path.as_ref().unwrap().to_str().unwrap()
+		config.config_file_path.as_ref().unwrap().to_str().unwrap()
 	);
 
 	log_build_info();
 
 	global::set_mining_mode(
-		w.members
+		config
+			.members
 			.as_ref()
 			.unwrap()
 			.wallet
@@ -125,5 +124,5 @@ fn real_main() -> i32 {
 			.clone(),
 	);
 
-	cmd::wallet_command(&args, w)
+	cmd::wallet_command(&args, config)
 }

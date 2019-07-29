@@ -19,50 +19,42 @@ extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
 use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_util as util;
 
 use self::core::core::transaction;
 use self::core::global;
-use self::core::global::ChainTypes;
-use self::keychain::ExtKeychain;
 use self::libwallet::{InitTxArgs, OutputStatus, Slate};
-use impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use std::fs;
+use impls::test_framework::{self, LocalWalletClient};
 use std::thread;
 use std::time::Duration;
 
-fn clean_output_dir(test_dir: &str) {
-	let _ = fs::remove_dir_all(test_dir);
-}
-
-fn setup(test_dir: &str) {
-	util::init_test_logger();
-	clean_output_dir(test_dir);
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
-}
+mod common;
+use common::{create_wallet_proxy, setup};
 
 /// Exercises the Transaction API fully with a test NodeClient operating
 /// directly on a chain instance
 /// Callable with any type of wallet
-fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
+fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	setup(test_dir);
 	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	// Create a new wallet test client, and set its queues to communicate with the
-	// proxy
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 =
-		test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
-
-	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	// define recipient wallet, add to proxy
-	let wallet2 =
-		test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -349,24 +341,28 @@ fn basic_transaction_api(test_dir: &str) -> Result<(), libwallet::Error> {
 
 /// Test rolling back transactions and outputs when a transaction is never
 /// posted to a chain
-fn tx_rollback(test_dir: &str) -> Result<(), libwallet::Error> {
+fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	setup(test_dir);
 	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	// Create a new wallet test client, and set its queues to communicate with the
-	// proxy
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 =
-		test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
-
-	// define recipient wallet, add to proxy
-	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let wallet2 =
-		test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {

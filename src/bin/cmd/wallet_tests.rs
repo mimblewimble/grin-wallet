@@ -20,15 +20,16 @@ mod wallet_tests {
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 	use clap::{App, ArgMatches};
+	use std::path::PathBuf;
 	use std::sync::Arc;
 	use std::thread;
 	use std::time::Duration;
 	use std::{env, fs};
-	use util::Mutex;
+	use util::{Mutex, ZeroingString};
 
-	use grin_wallet_config::{GlobalWalletConfig, WalletConfig};
-	use grin_wallet_impls::{LMDBBackend, WalletSeed};
-	use grin_wallet_libwallet::{WalletBackend, WalletInst};
+	use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
+	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+	use grin_wallet_libwallet::WalletInst;
 	use grin_wallet_util::grin_core::global::{self, ChainTypes};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
 
@@ -121,15 +122,45 @@ mod wallet_tests {
 		node_client: LocalWalletClient,
 		passphrase: &str,
 		account: &str,
-	) -> Result<Arc<Mutex<WalletInst<LocalWalletClient, ExtKeychain>>>, grin_wallet_controller::Error>
-	{
+	) -> Result<
+		Arc<
+			Mutex<
+				Box<
+					WalletInst<
+						'static,
+						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+						LocalWalletClient,
+						ExtKeychain,
+					>,
+				>,
+			>,
+		>,
+		grin_wallet_controller::Error,
+	> {
 		wallet_config.chain_type = None;
-		// First test decryption, so we can abort early if we have the wrong password
-		let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
-		let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client)?;
-		db_wallet.set_parent_key_id_by_name(account)?;
-		info!("Using LMDB Backend for wallet");
-		Ok(Arc::new(Mutex::new(db_wallet)))
+		let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(node_client).unwrap())
+			as Box<
+				WalletInst<
+					DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>;
+		let lc = wallet.lc_provider().unwrap();
+		// legacy hack to avoid the need for changes in existing grin-wallet.toml files
+		// remove `wallet_data` from end of path as
+		// new lifecycle provider assumes grin_wallet.toml is in root of data directory
+		let mut top_level_wallet_dir = PathBuf::from(wallet_config.clone().data_file_dir);
+		if top_level_wallet_dir.ends_with(GRIN_WALLET_DIR) {
+			top_level_wallet_dir.pop();
+			wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
+		}
+		lc.set_wallet_directory(&wallet_config.data_file_dir);
+		lc.open_wallet(None, ZeroingString::from(passphrase))
+			.unwrap();
+		let wallet_inst = lc.wallet_inst()?;
+		wallet_inst.set_parent_key_id_by_name(account)?;
+		Ok(Arc::new(Mutex::new(wallet)))
 	}
 
 	fn execute_command(
@@ -151,8 +182,11 @@ mod wallet_tests {
 	fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::Error> {
 		setup(test_dir);
 		// Create a new proxy to simulate server and wallet responses
-		let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> =
-			WalletProxy::new(test_dir);
+		let mut wallet_proxy: WalletProxy<
+			DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+			LocalWalletClient,
+			ExtKeychain,
+		> = WalletProxy::new(test_dir);
 		let chain = wallet_proxy.chain.clone();
 
 		// load app yaml. If it don't exist, just say so and exit

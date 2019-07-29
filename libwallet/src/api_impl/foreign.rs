@@ -35,15 +35,15 @@ pub fn check_version() -> VersionInfo {
 }
 
 /// Build a coinbase transaction
-pub fn build_coinbase<T: ?Sized, C, K>(
+pub fn build_coinbase<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	updater::build_coinbase(&mut *w, block_fees, test_mode)
 }
@@ -54,7 +54,7 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 }
 
 /// Receive a tx as recipient
-pub fn receive_tx<T: ?Sized, C, K>(
+pub fn receive_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
@@ -62,9 +62,9 @@ pub fn receive_tx<T: ?Sized, C, K>(
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let mut ret_slate = slate.clone();
 	let parent_key_id = match dest_acct_name {
@@ -113,11 +113,11 @@ where
 }
 
 /// Receive an tx that this wallet has issued
-pub fn finalize_invoice_tx<T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
+pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
 where
-	T: WalletBackend<C, K>,
-	C: NodeClient,
-	K: Keychain,
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
 	let context = w.get_private_context(sl.id.as_bytes(), 1)?;
