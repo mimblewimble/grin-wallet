@@ -26,7 +26,9 @@ use crate::core::{pow, ser};
 use crate::keychain::Keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst};
+use crate::libwallet::{
+	NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider,
+};
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
@@ -34,7 +36,6 @@ use crate::util::{Mutex, RwLock};
 use failure::ResultExt;
 use serde_json;
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -56,10 +57,11 @@ pub struct WalletProxyMessage {
 
 /// communicates with a chain instance or other wallet
 /// listener APIs via message queues
-pub struct WalletProxy<C, K>
+pub struct WalletProxy<'a, L, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// directory to create the chain in
 	pub chain_dir: String,
@@ -70,7 +72,7 @@ where
 		String,
 		(
 			Sender<WalletProxyMessage>,
-			Arc<Mutex<dyn WalletInst<LocalWalletClient, K>>>,
+			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 		),
 	>,
 	/// simulate json send to another client
@@ -80,16 +82,13 @@ where
 	pub rx: Receiver<WalletProxyMessage>,
 	/// queue control
 	pub running: Arc<AtomicBool>,
-	/// Phantom
-	phantom_c: PhantomData<C>,
-	/// Phantom
-	phantom_k: PhantomData<K>,
 }
 
-impl<C, K> WalletProxy<C, K>
+impl<'a, L, C, K> WalletProxy<'a, L, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
 	/// Create a new client that will communicate with the given grin node
 	pub fn new(chain_dir: &str) -> Self {
@@ -114,8 +113,6 @@ where
 			rx: rx,
 			wallets: HashMap::new(),
 			running: Arc::new(AtomicBool::new(false)),
-			phantom_c: PhantomData,
-			phantom_k: PhantomData,
 		};
 		retval
 	}
@@ -125,7 +122,7 @@ where
 		&mut self,
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
-		wallet: Arc<Mutex<dyn WalletInst<LocalWalletClient, K>>>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
 	) {
 		self.wallets.insert(addr.to_owned(), (tx, wallet));
 	}
@@ -211,11 +208,10 @@ where
 		)?;
 ;
 		{
-			let mut w = wallet.1.lock();
-			w.open_with_credentials()?;
+			let mut w_lock = wallet.1.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
 			// receive tx
-			slate = foreign::receive_tx(&mut *w, &slate, None, None, false)?;
-			w.close()?;
+			slate = foreign::receive_tx(&mut **w, &slate, None, None, false)?;
 		}
 
 		Ok(WalletProxyMessage {
@@ -484,4 +480,11 @@ impl NodeClient for LocalWalletClient {
 		}
 		Ok((o.highest_index, o.last_retrieved_index, api_outputs))
 	}
+}
+unsafe impl<'a, L, C, K> Send for WalletProxy<'a, L, C, K>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
 }

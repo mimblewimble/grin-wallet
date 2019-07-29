@@ -22,6 +22,7 @@ pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
+use crate::util::ZeroingString;
 
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
@@ -37,7 +38,7 @@ pub trait SlateReceiver {
 	fn listen(
 		&self,
 		config: WalletConfig,
-		passphrase: &str,
+		passphrase: ZeroingString,
 		account: &str,
 		node_api_secret: Option<String>,
 	) -> Result<(), Error>;

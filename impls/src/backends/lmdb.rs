@@ -15,9 +15,10 @@
 use std::cell::RefCell;
 use std::{fs, path};
 
-// for writing storedtransaction files
+// for writing stored transaction files
 use std::fs::File;
 use std::io::{Read, Write};
+use std::marker::PhantomData;
 use std::path::Path;
 
 use failure::ResultExt;
@@ -29,7 +30,7 @@ use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchComm
 use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 
 use crate::core::core::Transaction;
-use crate::core::{global, ser};
+use crate::core::ser;
 use crate::libwallet::{check_repair, restore};
 use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
@@ -37,9 +38,6 @@ use crate::libwallet::{
 };
 use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
-use crate::util::ZeroingString;
-use crate::WalletSeed;
-use config::WalletConfig;
 
 pub const DB_DIR: &'static str = "db";
 pub const TX_SAVE_DIR: &'static str = "saved_txs";
@@ -54,8 +52,8 @@ const ACCOUNT_PATH_MAPPING_PREFIX: u8 = 'a' as u8;
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations
-pub fn wallet_db_exists(config: WalletConfig) -> bool {
-	let db_path = path::Path::new(&config.data_file_dir).join(DB_DIR);
+pub fn wallet_db_exists(data_file_dir: &str) -> bool {
+	let db_path = path::Path::new(data_file_dir).join(DB_DIR);
 	db_path.exists()
 }
 
@@ -92,25 +90,33 @@ where
 	Ok((ret_blind, ret_nonce))
 }
 
-pub struct LMDBBackend<C, K> {
+pub struct LMDBBackend<'ck, C, K>
+where
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
+{
 	db: store::Store,
-	config: WalletConfig,
-	/// passphrase: TODO better ways of dealing with this other than storing
-	passphrase: ZeroingString,
+	data_file_dir: String,
 	/// Keychain
 	pub keychain: Option<K>,
 	/// Parent path to use by default for output operations
 	parent_key_id: Identifier,
 	/// wallet to node client
 	w2n_client: C,
+	///phantom
+	_phantom: &'ck PhantomData<C>,
 }
 
-impl<C, K> LMDBBackend<C, K> {
-	pub fn new(config: WalletConfig, passphrase: &str, n_client: C) -> Result<Self, Error> {
-		let db_path = path::Path::new(&config.data_file_dir).join(DB_DIR);
+impl<'ck, C, K> LMDBBackend<'ck, C, K>
+where
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
+{
+	pub fn new(data_file_dir: &str, n_client: C) -> Result<Self, Error> {
+		let db_path = path::Path::new(data_file_dir).join(DB_DIR);
 		fs::create_dir_all(&db_path).expect("Couldn't create wallet backend directory!");
 
-		let stored_tx_path = path::Path::new(&config.data_file_dir).join(TX_SAVE_DIR);
+		let stored_tx_path = path::Path::new(data_file_dir).join(TX_SAVE_DIR);
 		fs::create_dir_all(&stored_tx_path)
 			.expect("Couldn't create wallet backend tx storage directory!");
 
@@ -136,11 +142,11 @@ impl<C, K> LMDBBackend<C, K> {
 
 		let res = LMDBBackend {
 			db: store,
-			config: config.clone(),
-			passphrase: ZeroingString::from(passphrase),
+			data_file_dir: data_file_dir.to_owned(),
 			keychain: None,
 			parent_key_id: LMDBBackend::<C, K>::default_path(),
 			w2n_client: n_client,
+			_phantom: &PhantomData,
 		};
 		Ok(res)
 	}
@@ -154,38 +160,36 @@ impl<C, K> LMDBBackend<C, K> {
 
 	/// Just test to see if database files exist in the current directory. If
 	/// so, use a DB backend for all operations
-	pub fn exists(config: WalletConfig) -> bool {
-		let db_path = path::Path::new(&config.data_file_dir).join(DB_DIR);
+	pub fn exists(data_file_dir: &str) -> bool {
+		let db_path = path::Path::new(data_file_dir).join(DB_DIR);
 		db_path.exists()
 	}
 }
 
-impl<C, K> WalletBackend<C, K> for LMDBBackend<C, K>
+impl<'ck, C, K> WalletBackend<'ck, C, K> for LMDBBackend<'ck, C, K>
 where
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
 {
-	/// Initialise with whatever stored credentials we have
-	fn open_with_credentials(&mut self) -> Result<(), Error> {
-		let wallet_seed = WalletSeed::from_file(&self.config, &self.passphrase)
-			.context(ErrorKind::CallbackImpl("Error opening wallet"))?;
-		self.keychain = Some(
-			wallet_seed
-				.derive_keychain(global::is_floonet())
-				.context(ErrorKind::CallbackImpl("Error deriving keychain"))?,
-		);
-		Ok(())
+	/// Set the keychain, which should already have been opened
+	fn set_keychain(&mut self, k: Box<K>) {
+		self.keychain = Some(*k);
 	}
 
-	/// Close wallet and remove any stored credentials (TBD)
+	/// Close wallet
 	fn close(&mut self) -> Result<(), Error> {
+		//TODO: Ensure this is zeroed?
 		self.keychain = None;
 		Ok(())
 	}
 
 	/// Return the keychain being used
-	fn keychain(&mut self) -> &mut K {
-		self.keychain.as_mut().unwrap()
+	fn keychain(&mut self) -> Result<&mut K, Error> {
+		if self.keychain.is_some() {
+			Ok(self.keychain.as_mut().unwrap())
+		} else {
+			Err(ErrorKind::KeychainDoesntExist.into())
+		}
 	}
 
 	/// Return the node client being used
@@ -199,16 +203,18 @@ where
 		amount: u64,
 		id: &Identifier,
 	) -> Result<Option<String>, Error> {
-		if self.config.no_commit_cache == Some(true) {
+		//TODO: Check if this is really necessary, it's the only thing
+		//preventing removing the need for config in the wallet backend
+		/*if self.config.no_commit_cache == Some(true) {
 			Ok(None)
-		} else {
-			Ok(Some(util::to_hex(
-				self.keychain()
-					.commit(amount, &id, &SwitchCommitmentType::Regular)?
-					.0
-					.to_vec(), // TODO: proper support for different switch commitment schemes
-			)))
-		}
+		} else {*/
+		Ok(Some(util::to_hex(
+			self.keychain()?
+				.commit(amount, &id, &SwitchCommitmentType::Regular)?
+				.0
+				.to_vec(), // TODO: proper support for different switch commitment schemes
+		)))
+		/*}*/
 	}
 
 	/// Set parent path by account name
@@ -263,7 +269,7 @@ where
 			&mut slate_id.to_vec(),
 			participant_id as u64,
 		);
-		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain(), slate_id)?;
+		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain()?, slate_id)?;
 
 		let mut ctx: Context = option_to_not_found(
 			self.db.get_ser(&ctx_key),
@@ -294,7 +300,7 @@ where
 
 	fn store_tx(&self, uuid: &str, tx: &Transaction) -> Result<(), Error> {
 		let filename = format!("{}.grintx", uuid);
-		let path = path::Path::new(&self.config.data_file_dir)
+		let path = path::Path::new(&self.data_file_dir)
 			.join(TX_SAVE_DIR)
 			.join(filename);
 		let path_buf = Path::new(&path).to_path_buf();
@@ -310,7 +316,7 @@ where
 			Some(f) => f,
 			None => return Ok(None),
 		};
-		let path = path::Path::new(&self.config.data_file_dir)
+		let path = path::Path::new(&self.data_file_dir)
 			.join(TX_SAVE_DIR)
 			.join(filename);
 		let tx_file = Path::new(&path).to_path_buf();
@@ -382,7 +388,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	_store: &'a LMDBBackend<C, K>,
+	_store: &'a LMDBBackend<'a, C, K>,
 	db: RefCell<Option<store::Batch<'a>>>,
 	/// Keychain
 	keychain: Option<K>,

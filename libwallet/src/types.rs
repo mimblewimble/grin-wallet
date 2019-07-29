@@ -19,10 +19,11 @@ use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::Transaction;
 use crate::grin_core::libtx::{aggsig, secp_ser};
-use crate::grin_core::ser;
+use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::grin_util::ZeroingString;
 use crate::slate::ParticipantMessages;
 use chrono::prelude::*;
 use failure::ResultExt;
@@ -33,37 +34,92 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Combined trait to allow dynamic wallet dispatch
-pub trait WalletInst<C, K>: WalletBackend<C, K> + Send + Sync + 'static
+pub trait WalletInst<'a, L, C, K>: Send + Sync
 where
-	C: NodeClient,
-	K: Keychain,
+	L: WalletLCProvider<'a, C, K> + Send + Sync,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
+	/// Return the stored instance
+	fn lc_provider(&mut self) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), Error>;
 }
-impl<T, C, K> WalletInst<C, K> for T
+
+/// Trait for a provider of wallet lifecycle methods
+pub trait WalletLCProvider<'a, C, K>: Send + Sync
 where
-	T: WalletBackend<C, K> + Send + Sync + 'static,
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
 {
+	/// Sets the top level system wallet directory
+	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
+	fn set_wallet_directory(&mut self, dir: &str);
+
+	/// Output a grin-wallet.toml file into the current top-level system wallet directory
+	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str) -> Result<(), Error>;
+
+	///
+	fn create_wallet(
+		&mut self,
+		name: Option<&str>,
+		mnemonic: Option<ZeroingString>,
+		mnemonic_length: usize,
+		password: ZeroingString,
+	) -> Result<(), Error>;
+
+	///
+	fn open_wallet(&mut self, name: Option<&str>, password: ZeroingString) -> Result<(), Error>;
+
+	///
+	fn close_wallet(&mut self, name: Option<&str>) -> Result<(), Error>;
+
+	/// whether a wallet exists at the given directory
+	fn wallet_exists(&self, name: Option<&str>) -> Result<bool, Error>;
+
+	/// return mnemonic of given wallet
+	fn get_mnemonic(
+		&self,
+		name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<ZeroingString, Error>;
+
+	/// Check whether a provided mnemonic string is valid
+	fn validate_mnemonic(&self, mnemonic: ZeroingString) -> Result<(), Error>;
+
+	/// Recover a seed from phrase, without destroying existing data
+	/// should back up seed
+	fn recover_from_mnemonic(
+		&self,
+		mnemonic: ZeroingString,
+		password: ZeroingString,
+	) -> Result<(), Error>;
+
+	/// changes password
+	fn change_password(&self, old: String, new: String) -> Result<(), Error>;
+
+	/// deletes wallet
+	fn delete_wallet(&self, name: Option<String>, password: String) -> Result<(), Error>;
+
+	/// return wallet instance
+	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error>;
 }
 
 /// TODO:
 /// Wallets should implement this backend for their storage. All functions
 /// here expect that the wallet instance has instantiated itself or stored
 /// whatever credentials it needs
-pub trait WalletBackend<C, K>
+pub trait WalletBackend<'ck, C, K>: Send + Sync
 where
-	C: NodeClient,
-	K: Keychain,
+	C: NodeClient + 'ck,
+	K: Keychain + 'ck,
 {
-	/// Initialize with whatever stored credentials we have
-	fn open_with_credentials(&mut self) -> Result<(), Error>;
+	/// Set the keychain, which should already be initialized
+	fn set_keychain(&mut self, k: Box<K>);
 
 	/// Close wallet and remove any stored credentials (TBD)
 	fn close(&mut self) -> Result<(), Error>;
 
 	/// Return the keychain being used
-	fn keychain(&mut self) -> &mut K;
+	fn keychain(&mut self) -> Result<&mut K, Error>;
 
 	/// Return the client being used to communicate with the node
 	fn w2n_client(&mut self) -> &mut C;
@@ -205,7 +261,7 @@ where
 
 /// Encapsulate all wallet-node communication functions. No functions within libwallet
 /// should care about communication details
-pub trait NodeClient: Sync + Send + Clone {
+pub trait NodeClient: Send + Sync + Clone {
 	/// Return the URL of the check node
 	fn node_url(&self) -> &str;
 

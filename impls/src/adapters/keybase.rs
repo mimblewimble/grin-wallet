@@ -16,10 +16,11 @@
 
 use crate::adapters::{SlateReceiver, SlateSender};
 use crate::config::WalletConfig;
+use crate::keychain::ExtKeychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::{instantiate_wallet, HTTPNodeClient};
-use failure::ResultExt;
+use crate::libwallet::{Error, ErrorKind, Slate, WalletInst};
+use crate::util::ZeroingString;
+use crate::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 use serde::Serialize;
 use serde_json::{from_str, json, to_string, Value};
 use std::collections::{HashMap, HashSet};
@@ -349,13 +350,27 @@ impl SlateReceiver for KeybaseAllChannels {
 	fn listen(
 		&self,
 		config: WalletConfig,
-		passphrase: &str,
+		passphrase: ZeroingString,
 		account: &str,
 		node_api_secret: Option<String>,
 	) -> Result<(), Error> {
 		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
-		let wallet = instantiate_wallet(config.clone(), node_client, passphrase, account)
-			.context(ErrorKind::WalletSeedDecryption)?;
+		let mut wallet = Box::new(
+			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+		)
+			as Box<
+				WalletInst<
+					'static,
+					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+					HTTPNodeClient,
+					ExtKeychain,
+				>,
+			>;
+		let lc = wallet.lc_provider().unwrap();
+		lc.set_wallet_directory(&config.data_file_dir);
+		lc.open_wallet(None, passphrase)?;
+		let wallet_inst = lc.wallet_inst()?;
+		wallet_inst.set_parent_key_id_by_name(account)?;
 
 		info!("Listening for transactions on keybase ...");
 		loop {
@@ -396,10 +411,8 @@ impl SlateReceiver for KeybaseAllChannels {
 							return Err(e);
 						}
 						let res = {
-							let mut w = wallet.lock();
-							w.open_with_credentials()?;
-							let r = foreign::receive_tx(&mut *w, &slate, None, None, false);
-							w.close()?;
+							let r =
+								foreign::receive_tx(&mut **wallet_inst, &slate, None, None, false);
 							r
 						};
 						match res {

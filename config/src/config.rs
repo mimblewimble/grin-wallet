@@ -95,8 +95,14 @@ pub fn check_api_secret(api_secret_path: &PathBuf) -> Result<(), ConfigError> {
 }
 
 /// Check that the api secret file exists and is valid
-fn check_api_secret_file(chain_type: &global::ChainTypes) -> Result<(), ConfigError> {
-	let grin_path = get_grin_path(chain_type)?;
+fn check_api_secret_file(
+	chain_type: &global::ChainTypes,
+	data_path: Option<PathBuf>,
+) -> Result<(), ConfigError> {
+	let grin_path = match data_path {
+		Some(p) => p,
+		None => get_grin_path(chain_type)?,
+	};
 	let mut api_secret_path = grin_path.clone();
 	api_secret_path.push(API_SECRET_FILE_NAME);
 	if !api_secret_path.exists() {
@@ -109,28 +115,33 @@ fn check_api_secret_file(chain_type: &global::ChainTypes) -> Result<(), ConfigEr
 /// Handles setup and detection of paths for wallet
 pub fn initial_setup_wallet(
 	chain_type: &global::ChainTypes,
+	data_path: Option<PathBuf>,
 ) -> Result<GlobalWalletConfig, ConfigError> {
-	check_api_secret_file(chain_type)?;
+	check_api_secret_file(chain_type, data_path.clone())?;
 	// Use config file if current directory if it exists, .grin home otherwise
 	if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
 		GlobalWalletConfig::new(p.to_str().unwrap())
 	} else {
 		// Check if grin dir exists
-		let grin_path = get_grin_path(chain_type)?;
+		let grin_path = match data_path {
+			Some(p) => p,
+			None => get_grin_path(chain_type)?,
+		};
 
 		// Get path to default config file
 		let mut config_path = grin_path.clone();
 		config_path.push(WALLET_CONFIG_FILE_NAME);
 
-		// Spit it out if it doesn't exist
+		// Return defaults if file doesn't exist
 		if !config_path.exists() {
 			let mut default_config = GlobalWalletConfig::for_chain(chain_type);
+			default_config.config_file_path = Some(config_path);
 			// update paths relative to current dir
 			default_config.update_paths(&grin_path);
-			default_config.write_to_file(config_path.to_str().unwrap())?;
+			Ok(default_config)
+		} else {
+			GlobalWalletConfig::new(config_path.to_str().unwrap())
 		}
-
-		GlobalWalletConfig::new(config_path.to_str().unwrap())
 	}
 }
 
@@ -170,9 +181,7 @@ impl GlobalWalletConfig {
 				defaults.api_listen_port = 23415;
 				defaults.check_node_api_http_addr = "http://127.0.0.1:23413".to_owned();
 			}
-			global::ChainTypes::AutomatedTesting => {
-				panic!("Can't run automated testing directly");
-			}
+			_ => {}
 		}
 		defaults_conf
 	}

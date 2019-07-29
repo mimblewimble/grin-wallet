@@ -18,44 +18,51 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_util as util;
 
-use self::core::global;
-use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Identifier, Keychain};
 use self::libwallet::{AcctPathMapping, InitTxArgs, Slate};
-use impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use impls::test_framework::{self, LocalWalletClient};
 use std::fs;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-fn clean_output_dir(test_dir: &str) {
-	let _ = fs::remove_dir_all(test_dir);
-}
+#[macro_use]
+mod common;
+use common::{create_wallet_proxy, setup};
 
-fn setup(test_dir: &str) {
-	util::init_test_logger();
-	clean_output_dir(test_dir);
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
-}
+fn restore_wallet(base_dir: &'static str, wallet_dir: &str) -> Result<(), libwallet::Error> {
+	let source_seed = format!("{}/{}/wallet_data/wallet.seed", base_dir, wallet_dir);
+	let dest_wallet_name = format!("{}_restore", wallet_dir);
+	let dest_dir = format!("{}/{}/wallet_data", base_dir, dest_wallet_name);
 
-fn restore_wallet(base_dir: &str, wallet_dir: &str) -> Result<(), libwallet::Error> {
-	let source_seed = format!("{}/{}/wallet.seed", base_dir, wallet_dir);
-	let dest_dir = format!("{}/{}_restore", base_dir, wallet_dir);
-	fs::create_dir_all(dest_dir.clone())?;
+	let mut wallet_proxy = create_wallet_proxy(base_dir);
+	create_wallet_and_add!(
+		client,
+		wallet,
+		base_dir,
+		&dest_wallet_name,
+		None,
+		&mut wallet_proxy
+	);
+	// close created wallet
+	let mut w_lock = wallet.lock();
+	let lc = w_lock.lc_provider()?;
+	lc.close_wallet(None)?;
+
 	let dest_seed = format!("{}/wallet.seed", dest_dir);
 	println!("Source: {}, Dest: {}", source_seed, dest_seed);
 	fs::copy(source_seed, dest_seed)?;
 
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(base_dir);
-	let client = LocalWalletClient::new(wallet_dir, wallet_proxy.tx.clone());
-
-	let wallet = test_framework::create_wallet(&dest_dir, client.clone(), None);
-
-	wallet_proxy.add_wallet(wallet_dir, client.get_send_instance(), wallet.clone());
+	// reopen with new seed
+	open_wallet_and_add!(
+		client,
+		wallet,
+		&base_dir,
+		&dest_wallet_name,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	let wp_running = wallet_proxy.running.clone();
@@ -79,39 +86,35 @@ fn restore_wallet(base_dir: &str, wallet_dir: &str) -> Result<(), libwallet::Err
 }
 
 fn compare_wallet_restore(
-	base_dir: &str,
+	base_dir: &'static str,
 	wallet_dir: &str,
 	account_path: &Identifier,
 ) -> Result<(), libwallet::Error> {
 	let restore_name = format!("{}_restore", wallet_dir);
-	let source_dir = format!("{}/{}", base_dir, wallet_dir);
-	let dest_dir = format!("{}/{}", base_dir, restore_name);
+	let mut wallet_proxy = create_wallet_proxy(base_dir);
 
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(base_dir);
-
-	let client = LocalWalletClient::new(wallet_dir, wallet_proxy.tx.clone());
-	let wallet_source = test_framework::create_wallet(&source_dir, client.clone(), None);
-	wallet_proxy.add_wallet(
+	open_wallet_and_add!(
+		client,
+		wallet_source,
+		&base_dir,
 		&wallet_dir,
-		client.get_send_instance(),
-		wallet_source.clone(),
+		&mut wallet_proxy
 	);
-
-	let client = LocalWalletClient::new(&restore_name, wallet_proxy.tx.clone());
-	let wallet_dest = test_framework::create_wallet(&dest_dir, client.clone(), None);
-	wallet_proxy.add_wallet(
+	open_wallet_and_add!(
+		client,
+		wallet_dest,
+		&base_dir,
 		&restore_name,
-		client.get_send_instance(),
-		wallet_dest.clone(),
+		&mut wallet_proxy
 	);
 
 	{
-		let mut w = wallet_source.lock();
+		wallet_inst!(wallet_source, w);
 		w.set_parent_key_id(account_path.clone());
 	}
 
 	{
-		let mut w = wallet_dest.lock();
+		wallet_inst!(wallet_dest, w);
 		w.set_parent_key_id(account_path.clone());
 	}
 
@@ -181,24 +184,29 @@ fn compare_wallet_restore(
 
 /// Build up 2 wallets, perform a few transactions on them
 /// Then attempt to restore them in separate directories and check contents are the same
-fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
+fn setup_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	setup(test_dir);
+
 	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy: WalletProxy<LocalWalletClient, ExtKeychain> = WalletProxy::new(test_dir);
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	// Create a new wallet test client, and set its queues to communicate with the
-	// proxy
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	let wallet1 =
-		test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone(), None);
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
-
-	// define recipient wallet, add to proxy
-	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	let wallet2 =
-		test_framework::create_wallet(&format!("{}/wallet2", test_dir), client2.clone(), None);
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy
+	);
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy
+	);
 
 	// wallet 2 will use another account
 	wallet::controller::owner_single_use(wallet2.clone(), |api| {
@@ -209,15 +217,19 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// Default wallet 2 to listen on that account
 	{
-		let mut w = wallet2.lock();
+		wallet_inst!(wallet2, w);
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
 	// Another wallet
-	let client3 = LocalWalletClient::new("wallet3", wallet_proxy.tx.clone());
-	let wallet3 =
-		test_framework::create_wallet(&format!("{}/wallet3", test_dir), client3.clone(), None);
-	wallet_proxy.add_wallet("wallet3", client3.get_send_instance(), wallet3.clone());
+	create_wallet_and_add!(
+		client3,
+		wallet3,
+		test_dir,
+		"wallet3",
+		None,
+		&mut wallet_proxy
+	);
 
 	// Set the wallet proxy listener running
 	let wp_running = wallet_proxy.running.clone();
@@ -301,7 +313,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 
 	// Another listener account on wallet 2
 	{
-		let mut w = wallet2.lock();
+		wallet_inst!(wallet2, w);
 		w.set_parent_key_id_by_name("account2")?;
 	}
 
@@ -350,7 +362,7 @@ fn setup_restore(test_dir: &str) -> Result<(), libwallet::Error> {
 	Ok(())
 }
 
-fn perform_restore(test_dir: &str) -> Result<(), libwallet::Error> {
+fn perform_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	restore_wallet(test_dir, "wallet1")?;
 	compare_wallet_restore(
 		test_dir,
