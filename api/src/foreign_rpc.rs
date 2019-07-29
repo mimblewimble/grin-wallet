@@ -20,6 +20,7 @@ use crate::libwallet::{
 	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
+use crate::util::secp::key::SecretKey;
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -111,7 +112,7 @@ pub trait ForeignRpc {
 	# , 4, false, false);
 	```
 	*/
-	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
+	fn build_coinbase(&self, token: Option<SecretKey>, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
 
 	/**
 	Networked version of [Foreign::verify_slate_messages](struct.Foreign.html#method.verify_slate_messages).
@@ -525,8 +526,8 @@ where
 		Foreign::check_version(self).map_err(|e| e.kind())
 	}
 
-	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
-		Foreign::build_coinbase(self, block_fees).map_err(|e| e.kind())
+	fn build_coinbase(&self, token: Option<SecretKey>, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
+		Foreign::build_coinbase(self, token, block_fees).map_err(|e| e.kind())
 	}
 
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {

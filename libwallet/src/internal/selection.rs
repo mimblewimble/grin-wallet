@@ -25,6 +25,7 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
+use crate::grin_util::secp::key::SecretKey;
 use std::collections::HashMap;
 
 /// Initialize a transaction on the sender side, returns a corresponding
@@ -34,6 +35,8 @@ use std::collections::HashMap;
 
 pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain: &K,
+	keychain_mask: &SecretKey,
 	slate: &mut Slate,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -58,7 +61,6 @@ where
 		selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-	let keychain = wallet.keychain()?;
 	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	slate.fee = fee;
@@ -86,7 +88,7 @@ where
 		context.add_output(&id, &mmr_index, *change_amount);
 		commits.insert(
 			id.clone(),
-			wallet.calc_commit_for_cache(*change_amount, &id)?,
+			wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
 		);
 	}
 
@@ -97,6 +99,7 @@ where
 /// change outputs and tx log entry
 pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	slate: &Slate,
 	context: &Context,
 ) -> Result<(), Error>
@@ -111,7 +114,7 @@ where
 		output_commits.insert(
 			id.clone(),
 			(
-				wallet.calc_commit_for_cache(*change_amount, &id)?,
+				wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
 				*change_amount,
 			),
 		);
@@ -174,6 +177,7 @@ where
 /// Also creates a new transaction containing the output
 pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	slate: &mut Slate,
 	parent_key_id: Identifier,
 	use_test_rng: bool,
@@ -185,7 +189,7 @@ where
 {
 	// Create a potential output for this transaction
 	let key_id = keys::next_available_key(wallet).unwrap();
-	let keychain = wallet.keychain()?.clone();
+	let keychain = wallet.keychain(Some(keychain_mask))?;
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
 	let height = slate.height;
@@ -201,7 +205,7 @@ where
 	let mut context = Context::new(
 		keychain.secp(),
 		blinding
-			.secret_key(wallet.keychain()?.clone().secp())
+			.secret_key(wallet.keychain(Some(keychain_mask))?.secp())
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,
@@ -210,7 +214,7 @@ where
 
 	context.add_output(&key_id, &None, amount);
 	let messages = Some(slate.participant_messages());
-	let commit = wallet.calc_commit_for_cache(amount, &key_id_inner)?;
+	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch()?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
 	let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);

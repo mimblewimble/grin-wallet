@@ -16,6 +16,7 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
+use crate::util::secp::key::SecretKey;
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,
@@ -242,7 +243,7 @@ where
 	/// }
 	/// ```
 
-	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
+	pub fn build_coinbase(&self, token: Option<SecretKey>, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -252,7 +253,7 @@ where
 				None,
 			)?;
 		}
-		foreign::build_coinbase(&mut **w, block_fees, self.doctest_mode)
+		foreign::build_coinbase(&mut **w, token, block_fees, self.doctest_mode)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -364,6 +365,7 @@ where
 
 	pub fn receive_tx(
 		&self,
+		token: &SecretKey,
 		slate: &Slate,
 		dest_acct_name: Option<&str>,
 		message: Option<String>,
@@ -377,7 +379,7 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::receive_tx(&mut **w, slate, dest_acct_name, message, self.doctest_mode)
+		foreign::receive_tx(&mut **w, token, slate, dest_acct_name, message, self.doctest_mode)
 	}
 
 	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
@@ -427,7 +429,7 @@ where
 	/// // if okay, then post via the owner API
 	/// ```
 
-	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+	pub fn finalize_invoice_tx(&self, token: &SecretKey, slate: &Slate) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -437,7 +439,7 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::finalize_invoice_tx(&mut **w, slate)
+		foreign::finalize_invoice_tx(&mut **w, token, slate)
 	}
 }
 

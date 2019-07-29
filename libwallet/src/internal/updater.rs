@@ -27,6 +27,7 @@ use crate::grin_core::libtx::reward;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util as util;
 use crate::grin_util::secp::pedersen;
+use crate::grin_util::secp::key::SecretKey;
 use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
@@ -36,6 +37,7 @@ use crate::{BlockFees, CbData, OutputCommitMapping};
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	show_spent: bool,
 	tx_id: Option<u32>,
 	parent_key_id: Option<&Identifier>,
@@ -68,7 +70,7 @@ where
 	}
 
 	outputs.sort_by_key(|out| out.n_child);
-	let keychain = wallet.keychain()?.clone();
+	let keychain = wallet.keychain(Some(keychain_mask))?.clone();
 
 	let res = outputs
 		.into_iter()
@@ -133,6 +135,7 @@ where
 /// from a node
 pub fn refresh_outputs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	parent_key_id: &Identifier,
 	update_all: bool,
 ) -> Result<(), Error>
@@ -142,7 +145,7 @@ where
 	K: Keychain + 'a,
 {
 	let height = wallet.w2n_client().get_chain_height()?;
-	refresh_output_state(wallet, height, parent_key_id, update_all)?;
+	refresh_output_state(wallet, keychain_mask, height, parent_key_id, update_all)?;
 	Ok(())
 }
 
@@ -150,6 +153,7 @@ where
 /// and a list of outputs we want to query the node for
 pub fn map_wallet_outputs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	parent_key_id: &Identifier,
 	update_all: bool,
 ) -> Result<HashMap<pedersen::Commitment, (Identifier, Option<u64>)>, Error>
@@ -160,7 +164,7 @@ where
 {
 	let mut wallet_outputs: HashMap<pedersen::Commitment, (Identifier, Option<u64>)> =
 		HashMap::new();
-	let keychain = wallet.keychain()?.clone();
+	let keychain = wallet.keychain(Some(keychain_mask))?.clone();
 	let unspents: Vec<OutputData> = wallet
 		.iter()
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
@@ -317,6 +321,7 @@ where
 /// So we can refresh the local wallet outputs.
 fn refresh_output_state<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	height: u64,
 	parent_key_id: &Identifier,
 	update_all: bool,
@@ -330,7 +335,7 @@ where
 
 	// build a local map of wallet outputs keyed by commit
 	// and a list of outputs we want to query the node for
-	let wallet_outputs = map_wallet_outputs(wallet, parent_key_id, update_all)?;
+	let wallet_outputs = map_wallet_outputs(wallet, keychain_mask, parent_key_id, update_all)?;
 
 	let wallet_output_keys = wallet_outputs.keys().map(|commit| commit.clone()).collect();
 
@@ -436,6 +441,7 @@ where
 /// Build a coinbase output and insert into wallet
 pub fn build_coinbase<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
@@ -444,7 +450,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let (out, kern, block_fees) = receive_coinbase(wallet, block_fees, test_mode)?;
+	let (out, kern, block_fees) = receive_coinbase(wallet, keychain_mask, block_fees, test_mode)?;
 
 	Ok(CbData {
 		output: out,
@@ -457,6 +463,7 @@ where
 /// Build a coinbase output and the corresponding kernel
 pub fn receive_coinbase<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<(Output, TxKernel, BlockFees), Error>
@@ -481,7 +488,7 @@ where
 	{
 		// Now acquire the wallet lock and write the new output.
 		let amount = reward(block_fees.fees);
-		let commit = wallet.calc_commit_for_cache(amount, &key_id)?;
+		let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id)?;
 		let mut batch = wallet.batch()?;
 		batch.save(OutputData {
 			root_key_id: parent_key_id,
@@ -510,10 +517,10 @@ where
 
 	debug!("receive_coinbase: {:?}", block_fees);
 
-	let keychain = wallet.keychain()?;
+	let keychain = wallet.keychain(Some(keychain_mask))?;
 	let (out, kern) = reward::output(
-		keychain,
-		&ProofBuilder::new(keychain),
+		&keychain,
+		&ProofBuilder::new(&keychain),
 		&key_id,
 		block_fees.fees,
 		test_mode,

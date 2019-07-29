@@ -67,7 +67,7 @@ where
 	) -> Result<(), Error>;
 
 	///
-	fn open_wallet(&mut self, name: Option<&str>, password: ZeroingString) -> Result<(), Error>;
+	fn open_wallet(&mut self, name: Option<&str>, password: ZeroingString) -> Result<Option<SecretKey>, Error>;
 
 	///
 	fn close_wallet(&mut self, name: Option<&str>) -> Result<(), Error>;
@@ -113,13 +113,17 @@ where
 	K: Keychain + 'ck,
 {
 	/// Set the keychain, which should already be initialized
-	fn set_keychain(&mut self, k: Box<K>);
+	/// Optionally return a token value used to XOR the stored
+	/// key value
+	fn set_keychain(&mut self, k: Box<K>) -> Result<Option<SecretKey>, Error>;
 
 	/// Close wallet and remove any stored credentials (TBD)
 	fn close(&mut self) -> Result<(), Error>;
 
-	/// Return the keychain being used
-	fn keychain(&mut self) -> Result<&mut K, Error>;
+	/// Return the keychain being used. Ensure a cloned copy so it will be dropped
+	/// and zeroized by the caller
+	/// Can optionally take a mask value
+	fn keychain(&self, mask: Option<&SecretKey>) -> Result<K, Error>;
 
 	/// Return the client being used to communicate with the node
 	fn w2n_client(&mut self) -> &mut C;
@@ -127,6 +131,7 @@ where
 	/// return the commit for caching if allowed, none otherwise
 	fn calc_commit_for_cache(
 		&mut self,
+		keychain_mask: &SecretKey,
 		amount: u64,
 		id: &Identifier,
 	) -> Result<Option<String>, Error>;
@@ -153,6 +158,7 @@ where
 	/// Retrieves the private context associated with a given slate id
 	fn get_private_context(
 		&mut self,
+		keychain_mask: &SecretKey,
 		slate_id: &[u8],
 		participant_id: usize,
 	) -> Result<Context, Error>;
@@ -182,10 +188,10 @@ where
 	fn last_confirmed_height<'a>(&mut self) -> Result<u64, Error>;
 
 	/// Attempt to restore the contents of a wallet from seed
-	fn restore(&mut self) -> Result<(), Error>;
+	fn restore(&mut self, keychain_mask: &SecretKey) -> Result<(), Error>;
 
 	/// Attempt to check and fix wallet state
-	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error>;
+	fn check_repair(&mut self, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error>;
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a

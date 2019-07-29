@@ -32,6 +32,7 @@ use crate::libwallet::{
 use crate::util;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
+use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, RwLock};
 use failure::ResultExt;
 use serde_json;
@@ -73,6 +74,7 @@ where
 		(
 			Sender<WalletProxyMessage>,
 			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+			SecretKey,
 		),
 	>,
 	/// simulate json send to another client
@@ -123,8 +125,9 @@ where
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+		keychain_mask: SecretKey,
 	) {
-		self.wallets.insert(addr.to_owned(), (tx, wallet));
+		self.wallets.insert(addr.to_owned(), (tx, wallet, keychain_mask));
 	}
 
 	pub fn stop(&mut self) {
@@ -170,6 +173,7 @@ where
 	/// post transaction to the chain (and mine it, taking the reward)
 	fn post_tx(&mut self, m: WalletProxyMessage) -> Result<WalletProxyMessage, libwallet::Error> {
 		let dest_wallet = self.wallets.get_mut(&m.sender_id).unwrap().1.clone();
+		let dest_wallet_mask = self.wallets.get_mut(&m.sender_id).unwrap().2.clone();
 		let wrapper: TxWrapper = serde_json::from_str(&m.body).context(
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper".to_owned()),
 		)?;
@@ -178,11 +182,11 @@ where
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx_bin".to_owned()),
 		)?;
 
-		let tx: Transaction = ser::deserialize(&mut &tx_bin[..]).context(
+		let tx: Transaction = ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion::local()).context(
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx".to_owned()),
 		)?;
 
-		super::award_block_to_wallet(&self.chain, vec![&tx], dest_wallet)?;
+		super::award_block_to_wallet(&self.chain, vec![&tx], dest_wallet, &dest_wallet_mask)?;
 
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
@@ -210,8 +214,9 @@ where
 		{
 			let mut w_lock = wallet.1.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
+			let mask = wallet.2.clone();
 			// receive tx
-			slate = foreign::receive_tx(&mut **w, &slate, None, None, false)?;
+			slate = foreign::receive_tx(&mut **w, &mask, &slate, None, None, false)?;
 		}
 
 		Ok(WalletProxyMessage {

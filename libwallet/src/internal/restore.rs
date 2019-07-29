@@ -19,6 +19,7 @@ use crate::grin_core::global;
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::pedersen;
+use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{Error, OutputCommitMapping};
@@ -60,6 +61,7 @@ struct RestoredTxStats {
 
 fn identify_utxo_outputs<'a, T, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
 ) -> Result<Vec<OutputResult>, Error>
 where
@@ -74,9 +76,9 @@ where
 		outputs.len(),
 	);
 
-	let keychain = wallet.keychain()?;
-	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
-	let builder = proof::ProofBuilder::new(keychain);
+	let keychain = wallet.keychain(Some(&keychain_mask))?;
+	let legacy_builder = proof::LegacyProofBuilder::new(&keychain);
+	let builder = proof::ProofBuilder::new(&keychain);
 	let legacy_version = HeaderVersion(1);
 
 	for output in outputs.iter() {
@@ -136,7 +138,7 @@ where
 	Ok(wallet_outputs)
 }
 
-fn collect_chain_outputs<'a, T, C, K>(wallet: &mut T) -> Result<Vec<OutputResult>, Error>
+fn collect_chain_outputs<'a, T, C, K>(wallet: &mut T, keychain_mask: &SecretKey) -> Result<Vec<OutputResult>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -156,7 +158,7 @@ where
 			last_retrieved_index,
 		);
 
-		result_vec.append(&mut identify_utxo_outputs(wallet, outputs.clone())?);
+		result_vec.append(&mut identify_utxo_outputs(wallet, keychain_mask, outputs.clone())?);
 
 		if highest_index == last_retrieved_index {
 			break;
@@ -169,6 +171,7 @@ where
 ///
 fn restore_missing_output<'a, T, C, K>(
 	wallet: &mut T,
+	keychain_mask: &SecretKey,
 	output: OutputResult,
 	found_parents: &mut HashMap<Identifier, u32>,
 	tx_stats: &mut Option<&mut HashMap<Identifier, RestoredTxStats>>,
@@ -178,7 +181,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let commit = wallet.calc_commit_for_cache(output.value, &output.key_id)?;
+	let commit = wallet.calc_commit_for_cache(keychain_mask, output.value, &output.key_id)?;
 	let mut batch = wallet.batch()?;
 
 	let parent_key_id = output.key_id.parent_path();
@@ -290,7 +293,7 @@ where
 /// Check / repair wallet contents
 /// assume wallet contents have been freshly updated with contents
 /// of latest block
-pub fn check_repair<'a, T, C, K>(wallet: &mut T, delete_unconfirmed: bool) -> Result<(), Error>
+pub fn check_repair<'a, T, C, K>(wallet: &mut T, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -298,7 +301,7 @@ where
 {
 	// First, get a definitive list of outputs we own from the chain
 	warn!("Starting wallet check.");
-	let chain_outs = collect_chain_outputs(wallet)?;
+	let chain_outs = collect_chain_outputs(wallet, keychain_mask)?;
 	warn!(
 		"Identified {} wallet_outputs as belonging to this wallet",
 		chain_outs.len(),
@@ -306,7 +309,7 @@ where
 
 	// Now, get all outputs owned by this wallet (regardless of account)
 	let wallet_outputs = {
-		let res = updater::retrieve_outputs(&mut *wallet, true, None, None)?;
+		let res = updater::retrieve_outputs(&mut *wallet, keychain_mask, true, None, None)?;
 		res
 	};
 
@@ -355,7 +358,7 @@ where
 			 Restoring.",
 			m.value, m.key_id, m.commit,
 		);
-		restore_missing_output(wallet, m, &mut found_parents, &mut None)?;
+		restore_missing_output(wallet, keychain_mask, m, &mut found_parents, &mut None)?;
 	}
 
 	if delete_unconfirmed {
@@ -412,7 +415,7 @@ where
 }
 
 /// Restore a wallet
-pub fn restore<'a, T, C, K>(wallet: &mut T) -> Result<(), Error>
+pub fn restore<'a, T, C, K>(wallet: &mut T, keychain_mask: &SecretKey) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -428,7 +431,7 @@ where
 	let now = Instant::now();
 	warn!("Starting restore.");
 
-	let result_vec = collect_chain_outputs(wallet)?;
+	let result_vec = collect_chain_outputs(wallet, keychain_mask)?;
 
 	warn!(
 		"Identified {} wallet_outputs as belonging to this wallet",
@@ -442,6 +445,7 @@ where
 	for output in result_vec {
 		restore_missing_output(
 			wallet,
+			keychain_mask,
 			output,
 			&mut found_parents,
 			&mut Some(&mut restore_stats),

@@ -36,8 +36,11 @@ use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
 	WalletOutputBatch,
 };
-use crate::util;
+use crate::util::{self, secp};
 use crate::util::secp::constants::SECRET_KEY_SIZE;
+use crate::util::secp::key::SecretKey;
+
+use rand::thread_rng;
 
 pub const DB_DIR: &'static str = "db";
 pub const TX_SAVE_DIR: &'static str = "saved_txs";
@@ -172,23 +175,34 @@ where
 	K: Keychain + 'ck,
 {
 	/// Set the keychain, which should already have been opened
-	fn set_keychain(&mut self, k: Box<K>) {
+	fn set_keychain(&mut self, mut k: Box<K>) -> Result<Option<SecretKey>, Error> {
+		// Random value that must be XORed against the stored wallet seed
+		// before it is used
+		let mask_value = secp::key::SecretKey::new(&k.secp(), &mut thread_rng());
+		k.mask_master_key(&mask_value)?;
+
 		self.keychain = Some(*k);
+		Ok(Some(mask_value))
 	}
 
 	/// Close wallet
 	fn close(&mut self) -> Result<(), Error> {
-		//TODO: Ensure this is zeroed?
 		self.keychain = None;
 		Ok(())
 	}
 
-	/// Return the keychain being used
-	fn keychain(&mut self) -> Result<&mut K, Error> {
-		if self.keychain.is_some() {
-			Ok(self.keychain.as_mut().unwrap())
-		} else {
-			Err(ErrorKind::KeychainDoesntExist.into())
+	/// Return the keychain being used, cloned with XORed token value
+	/// for temporary use
+	fn keychain(&self, mask: Option<&SecretKey>) -> Result<K, Error> {
+		match self.keychain.as_ref() {
+			Some(k) => {
+				let mut k = k.clone();
+				if let Some(m) = mask {
+					k.mask_master_key(m)?;
+				}
+				Ok(k)
+			},
+			None => Err(ErrorKind::KeychainDoesntExist.into())
 		}
 	}
 
@@ -200,6 +214,7 @@ where
 	/// return the version of the commit for caching
 	fn calc_commit_for_cache(
 		&mut self,
+		keychain_mask: &SecretKey,
 		amount: u64,
 		id: &Identifier,
 	) -> Result<Option<String>, Error> {
@@ -209,7 +224,7 @@ where
 			Ok(None)
 		} else {*/
 		Ok(Some(util::to_hex(
-			self.keychain()?
+			self.keychain(Some(keychain_mask))?
 				.commit(amount, &id, &SwitchCommitmentType::Regular)?
 				.0
 				.to_vec(), // TODO: proper support for different switch commitment schemes
@@ -261,6 +276,7 @@ where
 
 	fn get_private_context(
 		&mut self,
+		keychain_mask: &SecretKey,
 		slate_id: &[u8],
 		participant_id: usize,
 	) -> Result<Context, Error> {
@@ -269,7 +285,7 @@ where
 			&mut slate_id.to_vec(),
 			participant_id as u64,
 		);
-		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain()?, slate_id)?;
+		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(&self.keychain(Some(keychain_mask))?, slate_id)?;
 
 		let mut ctx: Context = option_to_not_found(
 			self.db.get_ser(&ctx_key),
@@ -305,7 +321,7 @@ where
 			.join(filename);
 		let path_buf = Path::new(&path).to_path_buf();
 		let mut stored_tx = File::create(path_buf)?;
-		let tx_hex = util::to_hex(ser::ser_vec(tx).unwrap());;
+		let tx_hex = util::to_hex(ser::ser_vec(tx, ser::ProtocolVersion::local()).unwrap());;
 		stored_tx.write_all(&tx_hex.as_bytes())?;
 		stored_tx.sync_all()?;
 		Ok(())
@@ -325,7 +341,7 @@ where
 		tx_f.read_to_string(&mut content)?;
 		let tx_bin = util::from_hex(content).unwrap();
 		Ok(Some(
-			ser::deserialize::<Transaction>(&mut &tx_bin[..]).unwrap(),
+			ser::deserialize::<Transaction>(&mut &tx_bin[..], ser::ProtocolVersion::local()).unwrap(),
 		))
 	}
 
@@ -370,13 +386,13 @@ where
 		Ok(last_confirmed_height)
 	}
 
-	fn restore(&mut self) -> Result<(), Error> {
-		restore(self).context(ErrorKind::Restore)?;
+	fn restore(&mut self, keychain_mask: &SecretKey) -> Result<(), Error> {
+		restore(self, keychain_mask).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 
-	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error> {
-		check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
+	fn check_repair(&mut self, keychain_mask: &SecretKey, delete_unconfirmed: bool) -> Result<(), Error> {
+		check_repair(self, keychain_mask, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }
