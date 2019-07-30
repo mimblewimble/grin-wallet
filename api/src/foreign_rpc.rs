@@ -516,10 +516,7 @@ pub trait ForeignRpc {
 	# ,false, 5, false, true);
 	```
 	*/
-	fn finalize_invoice_tx(
-		&self,
-		slate: &Slate,
-	) -> Result<Slate, ErrorKind>;
+	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind>;
 }
 
 impl<'a, L, C, K> ForeignRpc for Foreign<'a, L, C, K>
@@ -560,10 +557,7 @@ where
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
-	fn finalize_invoice_tx(
-		&self,
-		slate: &Slate,
-	) -> Result<Slate, ErrorKind> {
+	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind> {
 		Foreign::finalize_invoice_tx(self, None, slate).map_err(|e| e.kind())
 	}
 }
