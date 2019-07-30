@@ -44,7 +44,11 @@ where
 }
 
 /// new account path
-pub fn create_account_path<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: Option<&SecretKey>, label: &str) -> Result<Identifier, Error>
+pub fn create_account_path<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	label: &str,
+) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -462,7 +466,10 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 }
 
 /// Attempt to restore contents of wallet
-pub fn restore<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: Option<&SecretKey>) -> Result<(), Error>
+pub fn restore<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

@@ -121,7 +121,12 @@ where
 	/// Set the keychain, which should already be initialized
 	/// Optionally return a token value used to XOR the stored
 	/// key value
-	fn set_keychain(&mut self, k: Box<K>, mask: bool, use_test_rng: bool) -> Result<Option<SecretKey>, Error>;
+	fn set_keychain(
+		&mut self,
+		k: Box<K>,
+		mask: bool,
+		use_test_rng: bool,
+	) -> Result<Option<SecretKey>, Error>;
 
 	/// Close wallet and remove any stored credentials (TBD)
 	fn close(&mut self) -> Result<(), Error>;
@@ -185,7 +190,10 @@ where
 	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, Error>;
 
 	/// Create a new write batch to update or remove output data
-	fn batch<'a>(&'a mut self, keychain_mask: Option<&SecretKey>) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
+	fn batch<'a>(
+		&'a mut self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
 
 	/// Next child ID when we want to create a new output, based on current parent
 	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;

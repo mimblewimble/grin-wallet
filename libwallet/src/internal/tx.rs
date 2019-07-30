@@ -333,7 +333,11 @@ where
 }
 
 /// Update the transaction participant messages
-pub fn update_message<'a, T: ?Sized, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, slate: &Slate) -> Result<(), Error>
+pub fn update_message<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

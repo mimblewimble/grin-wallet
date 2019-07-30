@@ -20,7 +20,7 @@ use crate::libwallet::{
 	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::{Token, Foreign, ForeignCheckMiddlewareFn};
+use crate::{Foreign, ForeignCheckMiddlewareFn, Token};
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -112,11 +112,11 @@ pub trait ForeignRpc {
 	# ,false, 4, false, false);
 	```
 	*/
-	#[deprecated(since="2.1.0", note="This function will be replaced by the current _t version of this function in 3.0.0. Please migrate to use the _t version of this function ASAP")]
-	fn build_coinbase(
-		&self,
-		block_fees: &BlockFees,
-	) -> Result<CbData, ErrorKind>;
+	#[deprecated(
+		since = "2.1.0",
+		note = "This function will be replaced by the current _t version of this function in 3.0.0. Please migrate to use the _t version of this function ASAP"
+	)]
+	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
 
 	/**
 	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
@@ -573,7 +573,11 @@ pub trait ForeignRpc {
 	# ,false, 5, false, true);
 	```
 	*/
-	fn finalize_invoice_tx(&self, keychain_mask: Option<SecretKey>, slate: &Slate) -> Result<Slate, ErrorKind>;
+	fn finalize_invoice_tx(
+		&self,
+		keychain_mask: Option<SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, ErrorKind>;
 }
 
 impl<'a, L, C, K> ForeignRpc for Foreign<'a, L, C, K>
@@ -586,19 +590,13 @@ where
 		Foreign::check_version(self).map_err(|e| e.kind())
 	}
 
-	fn build_coinbase(
-		&self,
-		block_fees: &BlockFees,
-	) -> Result<CbData, ErrorKind> {
+	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
 		Foreign::build_coinbase(self, None, block_fees).map_err(|e| e.kind())
 	}
 
-	fn build_coinbase_t(
-		&self,
-		token: Token,
-		block_fees: &BlockFees,
-	) -> Result<CbData, ErrorKind> {
-		Foreign::build_coinbase(self, (&token.keychain_mask).as_ref(), block_fees).map_err(|e| e.kind())
+	fn build_coinbase_t(&self, token: Token, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
+		Foreign::build_coinbase(self, (&token.keychain_mask).as_ref(), block_fees)
+			.map_err(|e| e.kind())
 	}
 
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {
@@ -626,7 +624,11 @@ where
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
-	fn finalize_invoice_tx(&self, keychain_mask: Option<SecretKey>, slate: &Slate) -> Result<Slate, ErrorKind> {
+	fn finalize_invoice_tx(
+		&self,
+		keychain_mask: Option<SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, ErrorKind> {
 		Foreign::finalize_invoice_tx(self, (&keychain_mask).as_ref(), slate).map_err(|e| e.kind())
 	}
 }
@@ -697,14 +699,21 @@ pub fn run_doctest_foreign(
 	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone())
 		.unwrap();
-	let mask1 = lc.open_wallet(None, empty_string.clone(), use_token, true).unwrap();
+	let mask1 = lc
+		.open_wallet(None, empty_string.clone(), use_token, true)
+		.unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
 
 	if mask1.is_some() {
 		println!("WALLET 1 MASK: {:?}", mask1.clone().unwrap());
 	}
 
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone(), mask1.clone());
+	wallet_proxy.add_wallet(
+		"wallet1",
+		client1.get_send_instance(),
+		wallet1.clone(),
+		mask1.clone(),
+	);
 
 	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
@@ -725,10 +734,17 @@ pub fn run_doctest_foreign(
 	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone())
 		.unwrap();
-	let mask2 = lc.open_wallet(None, empty_string.clone(), use_token, true).unwrap();
+	let mask2 = lc
+		.open_wallet(None, empty_string.clone(), use_token, true)
+		.unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone(), mask2.clone());
+	wallet_proxy.add_wallet(
+		"wallet2",
+		client2.get_send_instance(),
+		wallet2.clone(),
+		mask2.clone(),
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -739,7 +755,13 @@ pub fn run_doctest_foreign(
 
 	// Mine a few blocks to wallet 1 so there's something to send
 	for _ in 0..blocks_to_mine {
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), (&mask1).as_ref(), 1 as usize, false);
+		let _ = test_framework::award_blocks_to_wallet(
+			&chain,
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			1 as usize,
+			false,
+		);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
@@ -771,7 +793,8 @@ pub fn run_doctest_foreign(
 				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			api_impl::owner::process_invoice_tx(&mut **w, (&mask1).as_ref(), &slate, args, true).unwrap()
+			api_impl::owner::process_invoice_tx(&mut **w, (&mask1).as_ref(), &slate, args, true)
+				.unwrap()
 		};
 		println!("INIT INVOICE SLATE");
 		// Spit out slate for input to finalize_invoice_tx

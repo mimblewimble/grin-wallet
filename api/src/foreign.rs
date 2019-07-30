@@ -440,7 +440,11 @@ where
 	/// // if okay, then post via the owner API
 	/// ```
 
-	pub fn finalize_invoice_tx(&self, keychain_mask: Option<&SecretKey>, slate: &Slate) -> Result<Slate, Error> {
+	pub fn finalize_invoice_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {

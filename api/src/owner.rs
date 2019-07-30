@@ -26,8 +26,8 @@ use crate::libwallet::{
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
-use crate::util::Mutex;
 use crate::util::secp::key::SecretKey;
+use crate::util::Mutex;
 use std::sync::Arc;
 
 /// Main interface into all wallet API functions.
@@ -215,7 +215,11 @@ where
 	/// }
 	/// ```
 
-	pub fn create_account_path(&self, keychain_mask: Option<&SecretKey>, label: &str) -> Result<Identifier, Error> {
+	pub fn create_account_path(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		label: &str,
+	) -> Result<Identifier, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::create_account_path(&mut **w, keychain_mask, label)
@@ -314,7 +318,13 @@ where
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::retrieve_outputs(&mut **w, keychain_mask, include_spent, refresh_from_node, tx_id)
+		owner::retrieve_outputs(
+			&mut **w,
+			keychain_mask,
+			include_spent,
+			refresh_from_node,
+			tx_id,
+		)
 	}
 
 	/// Returns a list of [Transaction Log Entries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
@@ -366,7 +376,13 @@ where
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		let mut res = owner::retrieve_txs(&mut **w, keychain_mask, refresh_from_node, tx_id, tx_slate_id)?;
+		let mut res = owner::retrieve_txs(
+			&mut **w,
+			keychain_mask,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)?;
 		if self.doctest_mode {
 			res.1 = res
 				.1
@@ -424,7 +440,12 @@ where
 	) -> Result<(bool, WalletInfo), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::retrieve_summary_info(&mut **w, keychain_mask, refresh_from_node, minimum_confirmations)
+		owner::retrieve_summary_info(
+			&mut **w,
+			keychain_mask,
+			refresh_from_node,
+			minimum_confirmations,
+		)
 	}
 
 	/// Initiates a new transaction as the sender, creating a new
@@ -500,7 +521,11 @@ where
 	/// }
 	/// ```
 
-	pub fn init_send_tx(&self, keychain_mask: Option<&SecretKey>, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn init_send_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: InitTxArgs,
+	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let mut slate = {
 			let mut w_lock = self.wallet_inst.lock();
@@ -572,7 +597,11 @@ where
 	///		// . . .
 	/// }
 	/// ```
-	pub fn issue_invoice_tx(&self, keychain_mask: Option<&SecretKey>, args: IssueInvoiceTxArgs) -> Result<Slate, Error> {
+	pub fn issue_invoice_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: IssueInvoiceTxArgs,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
@@ -631,7 +660,12 @@ where
 	///	}
 	/// ```
 
-	pub fn process_invoice_tx(&self, keychain_mask: Option<&SecretKey>, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn process_invoice_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		args: InitTxArgs,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)
@@ -689,7 +723,12 @@ where
 	/// }
 	/// ```
 
-	pub fn tx_lock_outputs(&self, keychain_mask: Option<&SecretKey>, slate: &Slate, participant_id: usize) -> Result<(), Error> {
+	pub fn tx_lock_outputs(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		participant_id: usize,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::tx_lock_outputs(&mut **w, keychain_mask, slate, participant_id)
@@ -749,7 +788,11 @@ where
 	/// }
 	/// ```
 
-	pub fn finalize_tx(&self, keychain_mask: Option<&SecretKey>, slate: &Slate) -> Result<Slate, Error> {
+	pub fn finalize_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::finalize_tx(&mut **w, keychain_mask, &slate)
@@ -865,7 +908,12 @@ where
 	/// }
 	/// ```
 
-	pub fn cancel_tx(&self, keychain_mask: Option<&SecretKey>, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
+	pub fn cancel_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::cancel_tx(&mut **w, keychain_mask, tx_id, tx_slate_id)
@@ -1047,7 +1095,11 @@ where
 	/// }
 	/// ```
 
-	pub fn check_repair(&self, keychain_mask: Option<&SecretKey>, delete_unconfirmed: bool) -> Result<(), Error> {
+	pub fn check_repair(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		delete_unconfirmed: bool,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::check_repair(&mut **w, keychain_mask, delete_unconfirmed)
@@ -1090,7 +1142,10 @@ where
 	/// }
 	/// ```
 
-	pub fn node_height(&self, keychain_mask: Option<&SecretKey>) -> Result<NodeHeightResult, Error> {
+	pub fn node_height(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<NodeHeightResult, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::node_height(&mut **w, keychain_mask)

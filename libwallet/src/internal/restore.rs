@@ -260,7 +260,11 @@ where
 }
 
 ///
-fn cancel_tx_log_entry<'a, T, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, output: &OutputData) -> Result<(), Error>
+fn cancel_tx_log_entry<'a, T, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	output: &OutputData,
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

@@ -344,12 +344,23 @@ where
 	let api_outputs = wallet
 		.w2n_client()
 		.get_outputs_from_node(wallet_output_keys)?;
-	apply_api_outputs(wallet, keychain_mask, &wallet_outputs, &api_outputs, height, parent_key_id)?;
+	apply_api_outputs(
+		wallet,
+		keychain_mask,
+		&wallet_outputs,
+		&api_outputs,
+		height,
+		parent_key_id,
+	)?;
 	clean_old_unconfirmed(wallet, keychain_mask, height)?;
 	Ok(())
 }
 
-fn clean_old_unconfirmed<'a, T: ?Sized, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, height: u64) -> Result<(), Error>
+fn clean_old_unconfirmed<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	height: u64,
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,

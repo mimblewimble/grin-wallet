@@ -188,7 +188,12 @@ where
 				"Error parsing TxWrapper: tx".to_owned(),
 			))?;
 
-		super::award_block_to_wallet(&self.chain, vec![&tx], dest_wallet, (&dest_wallet_mask).as_ref())?;
+		super::award_block_to_wallet(
+			&self.chain,
+			vec![&tx],
+			dest_wallet,
+			(&dest_wallet_mask).as_ref(),
+		)?;
 
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),

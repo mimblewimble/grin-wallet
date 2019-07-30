@@ -179,7 +179,12 @@ where
 	K: Keychain + 'ck,
 {
 	/// Set the keychain, which should already have been opened
-	fn set_keychain(&mut self, mut k: Box<K>, mask: bool, use_test_rng: bool) -> Result<Option<SecretKey>, Error> {
+	fn set_keychain(
+		&mut self,
+		mut k: Box<K>,
+		mask: bool,
+		use_test_rng: bool,
+	) -> Result<Option<SecretKey>, Error> {
 		// store hash of master key, so it can be verified later after unmasking
 		let root_key = k.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
 		let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
@@ -195,13 +200,13 @@ where
 						true => {
 							let mut test_rng = StepRng::new(1234567890u64, 1);
 							secp::key::SecretKey::new(&k.secp(), &mut test_rng)
-						},
+						}
 						false => secp::key::SecretKey::new(&k.secp(), &mut thread_rng()),
 					};
 					k.mask_master_key(&mask_value)?;
 					Some(mask_value)
-				},
-				false => None
+				}
+				false => None,
 			}
 		};
 
@@ -225,10 +230,11 @@ where
 					k_masked.mask_master_key(m)?;
 				}
 				// Check if master seed is what is expected (especially if it's been xored)
-				let root_key = k_masked.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
+				let root_key =
+					k_masked.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
 				let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 				hasher.update(&root_key.0[..]);
-				if self.master_checksum != Some(hasher.finalize()){
+				if self.master_checksum != Some(hasher.finalize()) {
 					error!("Supplied keychain mask is invalid");
 					return Err(ErrorKind::InvalidKeychainMask.into());
 				}
@@ -379,7 +385,10 @@ where
 		))
 	}
 
-	fn batch<'a>(&'a mut self, keychain_mask: Option<&SecretKey>) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
+	fn batch<'a>(
+		&'a mut self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
 		Ok(Box::new(Batch {
 			_store: self,
 			db: RefCell::new(Some(self.db.batch()?)),

@@ -15,11 +15,14 @@
 //! Wallet key management functions
 use crate::error::{Error, ErrorKind};
 use crate::grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
-use crate::types::{AcctPathMapping, NodeClient, WalletBackend};
 use crate::grin_util::secp::key::SecretKey;
+use crate::types::{AcctPathMapping, NodeClient, WalletBackend};
 
 /// Get next available key in the wallet for a given parent
-pub fn next_available_key<'a, T: ?Sized, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>
+pub fn next_available_key<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -57,7 +60,11 @@ where
 }
 
 /// Adds an new parent account path with a given label
-pub fn new_acct_path<'a, T: ?Sized, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, label: &str) -> Result<Identifier, Error>
+pub fn new_acct_path<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	label: &str,
+) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
