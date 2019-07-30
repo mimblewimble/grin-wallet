@@ -16,8 +16,7 @@
 
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	BlockFees, CbData, ErrorKind, NodeClient,
-	Slate, VersionInfo, VersionedSlate, WalletLCProvider,
+	BlockFees, CbData, ErrorKind, NodeClient, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
 use crate::{Foreign, Token};
 use easy_jsonrpc;
@@ -113,11 +112,7 @@ pub trait ForeignRpcS {
 	#  ,true, 4, false, false);
 	```
 	*/
-	fn build_coinbase(
-		&self,
-		token: Token,
-		block_fees: &BlockFees,
-	) -> Result<CbData, ErrorKind>;
+	fn build_coinbase(&self, token: Token, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
 
 	/**
 	Networked version of [Foreign::verify_slate_messages](struct.Foreign.html#method.verify_slate_messages).
@@ -522,11 +517,7 @@ pub trait ForeignRpcS {
 	# ,true, 5, false, true);
 	```
 	*/
-	fn finalize_invoice_tx(
-		&self,
-		token: Token,
-		slate: &Slate,
-	) -> Result<Slate, ErrorKind>;
+	fn finalize_invoice_tx(&self, token: Token, slate: &Slate) -> Result<Slate, ErrorKind>;
 }
 
 impl<'a, L, C, K> ForeignRpcS for Foreign<'a, L, C, K>
@@ -569,11 +560,8 @@ where
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
-	fn finalize_invoice_tx(
-		&self,
-		token: Token,
-		slate: &Slate,
-	) -> Result<Slate, ErrorKind> {
-		Foreign::finalize_invoice_tx(self, (&token.keychain_mask).as_ref(), slate).map_err(|e| e.kind())
+	fn finalize_invoice_tx(&self, token: Token, slate: &Slate) -> Result<Slate, ErrorKind> {
+		Foreign::finalize_invoice_tx(self, (&token.keychain_mask).as_ref(), slate)
+			.map_err(|e| e.kind())
 	}
 }

@@ -38,12 +38,14 @@ extern crate log;
 
 mod foreign;
 mod foreign_rpc;
+mod foreign_rpc_s;
 
 mod owner;
 mod owner_rpc;
 
 pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddlewareFn};
 pub use crate::foreign_rpc::ForeignRpc;
+pub use crate::foreign_rpc_s::ForeignRpcS;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;
 
