@@ -44,13 +44,13 @@ where
 }
 
 /// new account path
-pub fn create_account_path<'a, T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<Identifier, Error>
+pub fn create_account_path<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: Option<&SecretKey>, label: &str) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	keys::new_acct_path(&mut *w, label)
+	keys::new_acct_path(&mut *w, keychain_mask, label)
 }
 
 /// set active account
@@ -66,7 +66,7 @@ where
 /// retrieve outputs
 pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	include_spent: bool,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
@@ -98,7 +98,7 @@ where
 /// Retrieve txs
 pub fn retrieve_txs<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
@@ -124,7 +124,7 @@ where
 /// Retrieve summary info
 pub fn retrieve_summary_info<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	refresh_from_node: bool,
 	minimum_confirmations: u64,
 ) -> Result<(bool, WalletInfo), Error>
@@ -147,7 +147,7 @@ where
 /// Initiate tx as sender
 pub fn init_send_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	args: InitTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
@@ -213,7 +213,7 @@ where
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
-		let mut batch = w.batch()?;
+		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
 		batch.commit()?;
 	}
@@ -226,7 +226,7 @@ where
 /// Initiate a transaction as the recipient (invoicing)
 pub fn issue_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	args: IssueInvoiceTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
@@ -269,7 +269,7 @@ where
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
-		let mut batch = w.batch()?;
+		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), 1, &context)?;
 		batch.commit()?;
 	}
@@ -285,7 +285,7 @@ where
 /// output was specified
 pub fn process_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	args: InitTxArgs,
 	use_test_rng: bool,
@@ -349,7 +349,7 @@ where
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
-		let mut batch = w.batch()?;
+		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
 		batch.commit()?;
 	}
@@ -364,7 +364,7 @@ where
 /// Lock sender outputs
 pub fn tx_lock_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	participant_id: usize,
 ) -> Result<(), Error>
@@ -380,7 +380,7 @@ where
 /// Finalize slate
 pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 ) -> Result<Slate, Error>
 where
@@ -392,9 +392,9 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
 	tx::update_stored_tx(&mut *w, &mut sl, false)?;
-	tx::update_message(&mut *w, &mut sl)?;
+	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
-		let mut batch = w.batch()?;
+		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes(), 0)?;
 		batch.commit()?;
 	}
@@ -404,7 +404,7 @@ where
 /// cancel tx
 pub fn cancel_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(), Error>
@@ -462,7 +462,7 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 }
 
 /// Attempt to restore contents of wallet
-pub fn restore<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: &SecretKey) -> Result<(), Error>
+pub fn restore<'a, T: ?Sized, C, K>(w: &mut T, keychain_mask: Option<&SecretKey>) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -474,7 +474,7 @@ where
 /// check repair
 pub fn check_repair<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
 ) -> Result<(), Error>
 where
@@ -489,7 +489,7 @@ where
 /// node height
 pub fn node_height<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 ) -> Result<NodeHeightResult, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -519,7 +519,7 @@ where
 /// Attempt to update outputs in wallet, return whether it was successful
 fn update_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
 ) -> bool
 where

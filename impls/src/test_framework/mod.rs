@@ -106,7 +106,7 @@ pub fn award_block_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	txs: Vec<&Transaction>,
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), libwallet::Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -136,7 +136,7 @@ where
 pub fn award_blocks_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	number: usize,
 	pause_between: bool,
 ) -> Result<(), libwallet::Error>
@@ -157,7 +157,7 @@ where
 /// send an amount to a destination
 pub fn send_to_dest<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	client: LocalWalletClient,
 	dest: &str,
 	amount: u64,
@@ -198,7 +198,7 @@ where
 /// get wallet info totals
 pub fn wallet_info<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 ) -> Result<WalletInfo, libwallet::Error>
 where
 	L: WalletLCProvider<'a, C, K>,

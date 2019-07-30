@@ -74,7 +74,7 @@ where
 		(
 			Sender<WalletProxyMessage>,
 			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
-			SecretKey,
+			Option<SecretKey>,
 		),
 	>,
 	/// simulate json send to another client
@@ -125,7 +125,7 @@ where
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
-		keychain_mask: SecretKey,
+		keychain_mask: Option<SecretKey>,
 	) {
 		self.wallets
 			.insert(addr.to_owned(), (tx, wallet, keychain_mask));
@@ -188,7 +188,7 @@ where
 				"Error parsing TxWrapper: tx".to_owned(),
 			))?;
 
-		super::award_block_to_wallet(&self.chain, vec![&tx], dest_wallet, &dest_wallet_mask)?;
+		super::award_block_to_wallet(&self.chain, vec![&tx], dest_wallet, (&dest_wallet_mask).as_ref())?;
 
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
@@ -218,7 +218,7 @@ where
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			let mask = wallet.2.clone();
 			// receive tx
-			slate = foreign::receive_tx(&mut **w, &mask, &slate, None, None, false)?;
+			slate = foreign::receive_tx(&mut **w, (&mask).as_ref(), &slate, None, None, false)?;
 		}
 
 		Ok(WalletProxyMessage {

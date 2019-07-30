@@ -36,7 +36,7 @@ use std::collections::HashMap;
 pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain: &K,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -52,6 +52,7 @@ where
 {
 	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
 		wallet,
+		keychain_mask,
 		slate.amount,
 		slate.height,
 		minimum_confirmations,
@@ -99,7 +100,7 @@ where
 /// change outputs and tx log entry
 pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	context: &Context,
 ) -> Result<(), Error>
@@ -126,7 +127,7 @@ where
 		let slate_id = slate.id;
 		let height = slate.height;
 		let parent_key_id = context.parent_key_id.clone();
-		let mut batch = wallet.batch()?;
+		let mut batch = wallet.batch(keychain_mask)?;
 		let log_id = batch.next_tx_log_id(&parent_key_id)?;
 		let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
 		t.tx_slate_id = Some(slate_id.clone());
@@ -177,7 +178,7 @@ where
 /// Also creates a new transaction containing the output
 pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	parent_key_id: Identifier,
 	use_test_rng: bool,
@@ -188,8 +189,8 @@ where
 	K: Keychain + 'a,
 {
 	// Create a potential output for this transaction
-	let key_id = keys::next_available_key(wallet).unwrap();
-	let keychain = wallet.keychain(Some(keychain_mask))?;
+	let key_id = keys::next_available_key(wallet, keychain_mask).unwrap();
+	let keychain = wallet.keychain(keychain_mask)?;
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
 	let height = slate.height;
@@ -205,7 +206,7 @@ where
 	let mut context = Context::new(
 		keychain.secp(),
 		blinding
-			.secret_key(wallet.keychain(Some(keychain_mask))?.secp())
+			.secret_key(wallet.keychain(keychain_mask)?.secp())
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,
@@ -215,7 +216,7 @@ where
 	context.add_output(&key_id, &None, amount);
 	let messages = Some(slate.participant_messages());
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
-	let mut batch = wallet.batch()?;
+	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
 	let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);
 	t.tx_slate_id = Some(slate_id);
@@ -246,6 +247,7 @@ where
 /// selecting outputs to spend and building the change.
 pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
 	amount: u64,
 	current_height: u64,
 	minimum_confirmations: u64,
@@ -282,7 +284,7 @@ where
 
 	// build transaction skeleton with inputs and change
 	let (mut parts, change_amounts_derivations) =
-		inputs_and_change(&coins, wallet, amount, fee, change_outputs)?;
+		inputs_and_change(&coins, wallet, keychain_mask, amount, fee, change_outputs)?;
 
 	// This is more proof of concept than anything but here we set lock_height
 	// on tx being sent (based on current chain height via api).
@@ -400,6 +402,7 @@ where
 pub fn inputs_and_change<'a, T: ?Sized, C, K, B>(
 	coins: &Vec<OutputData>,
 	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
 	amount: u64,
 	fee: u64,
 	num_change_outputs: usize,
@@ -458,7 +461,7 @@ where
 				part_change
 			};
 
-			let change_key = wallet.next_child().unwrap();
+			let change_key = wallet.next_child(keychain_mask).unwrap();
 
 			change_amounts_derivations.push((change_amount, change_key.clone(), None));
 			parts.push(build::output(change_amount, change_key));

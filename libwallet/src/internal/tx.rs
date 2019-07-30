@@ -71,7 +71,7 @@ where
 /// Estimates locked amount and fee for the transaction without creating one
 pub fn estimate_send_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	amount: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -118,7 +118,7 @@ where
 /// Add inputs to the slate (effectively becoming the sender)
 pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -147,7 +147,7 @@ where
 	// this process can be split up in any way
 	let mut context = selection::build_send_tx(
 		wallet,
-		&wallet.keychain(Some(keychain_mask))?,
+		&wallet.keychain(keychain_mask)?,
 		keychain_mask,
 		slate,
 		minimum_confirmations,
@@ -162,7 +162,7 @@ where
 	// the offset in the slate's transaction kernel, and adds our public key
 	// information to the slate
 	let _ = slate.fill_round_1(
-		&wallet.keychain(Some(keychain_mask))?,
+		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
 		participant_id,
@@ -173,7 +173,7 @@ where
 	if !is_initator {
 		// perform partial sig
 		let _ = slate.fill_round_2(
-			&wallet.keychain(Some(keychain_mask))?,
+			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
 			participant_id,
@@ -186,7 +186,7 @@ where
 /// Add receiver output to the slate
 pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	parent_key_id: &Identifier,
 	participant_id: usize,
@@ -210,7 +210,7 @@ where
 
 	// fill public keys
 	let _ = slate.fill_round_1(
-		&wallet.keychain(Some(keychain_mask))?,
+		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
 		1,
@@ -221,7 +221,7 @@ where
 	if !is_initiator {
 		// perform partial sig
 		let _ = slate.fill_round_2(
-			&wallet.keychain(Some(keychain_mask))?,
+			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
 			participant_id,
@@ -234,7 +234,7 @@ where
 /// Complete a transaction
 pub fn complete_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	participant_id: usize,
 	context: &Context,
@@ -245,21 +245,21 @@ where
 	K: Keychain + 'a,
 {
 	let _ = slate.fill_round_2(
-		&wallet.keychain(Some(keychain_mask))?,
+		&wallet.keychain(keychain_mask)?,
 		&context.sec_key,
 		&context.sec_nonce,
 		participant_id,
 	)?;
 
 	// Final transaction can be built by anyone at this stage
-	slate.finalize(&wallet.keychain(Some(keychain_mask))?)?;
+	slate.finalize(&wallet.keychain(keychain_mask)?)?;
 	Ok(())
 }
 
 /// Rollback outputs associated with a transaction in the wallet
 pub fn cancel_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
@@ -295,7 +295,7 @@ where
 		Some(&parent_key_id),
 	)?;
 	let outputs = res.iter().map(|m| m.output.clone()).collect();
-	updater::cancel_tx_and_outputs(wallet, tx, outputs, parent_key_id)?;
+	updater::cancel_tx_and_outputs(wallet, keychain_mask, tx, outputs, parent_key_id)?;
 	Ok(())
 }
 
@@ -333,7 +333,7 @@ where
 }
 
 /// Update the transaction participant messages
-pub fn update_message<'a, T: ?Sized, C, K>(wallet: &mut T, slate: &Slate) -> Result<(), Error>
+pub fn update_message<'a, T: ?Sized, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, slate: &Slate) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -343,7 +343,7 @@ where
 	if tx_vec.is_empty() {
 		return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()))?;
 	}
-	let mut batch = wallet.batch()?;
+	let mut batch = wallet.batch(keychain_mask)?;
 	for mut tx in tx_vec.into_iter() {
 		tx.messages = Some(slate.participant_messages());
 		let parent_key = tx.parent_key_id.clone();

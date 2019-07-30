@@ -38,7 +38,7 @@ pub fn check_version() -> VersionInfo {
 /// Build a coinbase transaction
 pub fn build_coinbase<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
@@ -58,7 +58,7 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 /// Receive a tx as recipient
 pub fn receive_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
 	message: Option<String>,
@@ -112,14 +112,14 @@ where
 		false,
 		use_test_rng,
 	)?;
-	tx::update_message(&mut *w, &mut ret_slate)?;
+	tx::update_message(&mut *w, keychain_mask, &mut ret_slate)?;
 	Ok(ret_slate)
 }
 
 /// Receive an tx that this wallet has issued
 pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 ) -> Result<Slate, Error>
 where
@@ -131,9 +131,9 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
 	tx::update_stored_tx(&mut *w, &mut sl, true)?;
-	tx::update_message(&mut *w, &mut sl)?;
+	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
-		let mut batch = w.batch()?;
+		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes(), 1)?;
 		batch.commit()?;
 	}

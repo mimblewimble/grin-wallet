@@ -20,7 +20,7 @@ use crate::libwallet::{
 	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::{Foreign, ForeignCheckMiddlewareFn};
+use crate::{Token, Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -59,13 +59,13 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 0, false, false);
+	# ,false, 0, false, false);
 	```
 	*/
 	fn check_version(&self) -> Result<VersionInfo, ErrorKind>;
 
 	/**
-	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
+	Networked Legacy (non-secure token) version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
 
 	# Json rpc example
 
@@ -109,12 +109,67 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 4, false, false);
+	# ,false, 4, false, false);
 	```
 	*/
+	#[deprecated(since="2.1.0", note="This function will be replaced by the current _t version of this function in 3.0.0. Please migrate to use the _t version of this function ASAP")]
 	fn build_coinbase(
 		&self,
-		token: Option<SecretKey>,
+		block_fees: &BlockFees,
+	) -> Result<CbData, ErrorKind>;
+
+	/**
+	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
+
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "build_coinbase_t",
+		"id": 1,
+		"params": {
+			"keychain_mask": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"block_fees": {
+				"fees": 0,
+				"height": 0,
+				"key_id": null
+			}
+		}
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": {
+				"kernel": {
+					"excess": "08dfe86d732f2dd24bac36aa7502685221369514197c26d33fac03041d47e4b490",
+					"excess_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841be02fa098c54c9bf638e0ee1ad5eb896caa11565f632be7b9cd65643ba371044f",
+					"features": "Coinbase",
+					"fee": "0",
+					"lock_height": "0"
+				},
+				"key_id": "0300000000000000000000000400000000",
+				"output": {
+					"commit": "08fe198e525a5937d0c5d01fa354394d2679be6df5d42064a0f7550c332fce3d9d",
+					"features": "Coinbase",
+					"proof": "9d8488fcb43c9c0f683b9ce62f3c8e047b71f2b4cd94b99a3c9a36aef3bb8361ee17b4489eb5f6d6507250532911acb76f18664604c2ca4215347a5d5d8e417d00ca2d59ec29371286986428b0ec1177fc2e416339ea8542eff8186550ad0d65ffac35d761c38819601d331fd427576e2fff823bbc3faa04f49f5332bd4de46cd4f83d0fd46cdb1dfb87069e95974e4a45e0235db71f5efe5cec83bbb30e152ac50a010ef4e57e33aabbeb894b9114f90bb5c3bb03b009014e358aa3914b1a208eb9d8806fbb679c256d4c1a47b0fce3f1235d58192cb7f615bd7c5dab48486db8962c2a594e69ff70029784a810b4eb76b0516805f3417308cda8acb38b9a3ea061568f0c97f5b46a3beff556dc7ebb58c774f08be472b4b6f603e5f8309c2d1f8d6f52667cb86816b330eca5374148aa898f5bbaf3f23a3ebcdc359ee1e14d73a65596c0ddf51f123234969ac8b557ba9dc53255dd6f5c0d3dd2c035a6d1a1185102612fdca474d018b9f9e81acfa3965d42769f5a303bbaabb78d17e0c026b8be0039c55ad1378c8316101b5206359f89fd1ee239115dde458749a040997be43c039055594cab76f602a0a1ee4f5322f3ab1157342404239adbf8b6786544cd67d9891c2689530e65f2a4b8e52d8551b92ffefb812ffa4a472a10701884151d1fb77d8cdc0b1868cb31b564e98e4c035e0eaa26203b882552c7b69deb0d8ec67cf28d5ec044554f8a91a6cae87eb377d6d906bba6ec94dda24ebfd372727f68334af798b11256d88e17cef7c4fed092128215f992e712ed128db2a9da2f5e8fadea9395bddd294a524dce47f818794c56b03e1253bf0fb9cb8beebc5742e4acf19c24824aa1d41996e839906e24be120a0bdf6800da599ec9ec3d1c4c11571c9f143eadbb554fa3c8c9777994a3f3421d454e4ec54c11b97eea3e4e6ede2d97a2bc"
+				}
+			}
+		}
+	}
+	# "#
+	#  ,true, 4, false, false);
+	```
+	*/
+	fn build_coinbase_t(
+		&self,
+		keychain_mask: Token,
 		block_fees: &BlockFees,
 	) -> Result<CbData, ErrorKind>;
 
@@ -193,7 +248,7 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# ,1 ,false, false);
+	# ,false, 1 ,false, false);
 	```
 	*/
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
@@ -346,11 +401,12 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 5, true, false);
+	# ,false, 5, true, false);
 	```
 	*/
 	fn receive_tx(
 		&self,
+		keychain_mask: Option<SecretKey>,
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
 		message: Option<String>,
@@ -514,10 +570,10 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 5, false, true);
+	# ,false, 5, false, true);
 	```
 	*/
-	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind>;
+	fn finalize_invoice_tx(&self, keychain_mask: Option<SecretKey>, slate: &Slate) -> Result<Slate, ErrorKind>;
 }
 
 impl<'a, L, C, K> ForeignRpc for Foreign<'a, L, C, K>
@@ -532,10 +588,17 @@ where
 
 	fn build_coinbase(
 		&self,
-		token: Option<SecretKey>,
 		block_fees: &BlockFees,
 	) -> Result<CbData, ErrorKind> {
-		Foreign::build_coinbase(self, token, block_fees).map_err(|e| e.kind())
+		Foreign::build_coinbase(self, None, block_fees).map_err(|e| e.kind())
+	}
+
+	fn build_coinbase_t(
+		&self,
+		token: Token,
+		block_fees: &BlockFees,
+	) -> Result<CbData, ErrorKind> {
+		Foreign::build_coinbase(self, (&token.keychain_mask).as_ref(), block_fees).map_err(|e| e.kind())
 	}
 
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {
@@ -544,6 +607,7 @@ where
 
 	fn receive_tx(
 		&self,
+		keychain_mask: Option<SecretKey>,
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
 		message: Option<String>,
@@ -552,6 +616,7 @@ where
 		let slate: Slate = slate.into();
 		let slate = Foreign::receive_tx(
 			self,
+			(&keychain_mask).as_ref(),
 			&slate,
 			dest_acct_name.as_ref().map(String::as_str),
 			message,
@@ -561,8 +626,8 @@ where
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
-	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind> {
-		Foreign::finalize_invoice_tx(self, slate).map_err(|e| e.kind())
+	fn finalize_invoice_tx(&self, keychain_mask: Option<SecretKey>, slate: &Slate) -> Result<Slate, ErrorKind> {
+		Foreign::finalize_invoice_tx(self, (&keychain_mask).as_ref(), slate).map_err(|e| e.kind())
 	}
 }
 
@@ -580,6 +645,7 @@ fn test_check_middleware(
 pub fn run_doctest_foreign(
 	request: serde_json::Value,
 	test_dir: &str,
+	use_token: bool,
 	blocks_to_mine: u64,
 	init_tx: bool,
 	init_invoice_tx: bool,
@@ -631,10 +697,14 @@ pub fn run_doctest_foreign(
 	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone())
 		.unwrap();
-	lc.open_wallet(None, empty_string.clone()).unwrap();
+	let mask1 = lc.open_wallet(None, empty_string.clone(), use_token, true).unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
 
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
+	if mask1.is_some() {
+		println!("WALLET 1 MASK: {:?}", mask1.clone().unwrap());
+	}
+
+	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone(), mask1.clone());
 
 	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
@@ -655,10 +725,10 @@ pub fn run_doctest_foreign(
 	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone())
 		.unwrap();
-	lc.open_wallet(None, empty_string.clone()).unwrap();
+	let mask2 = lc.open_wallet(None, empty_string.clone(), use_token, true).unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone(), mask2.clone());
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -669,12 +739,12 @@ pub fn run_doctest_foreign(
 
 	// Mine a few blocks to wallet 1 so there's something to send
 	for _ in 0..blocks_to_mine {
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), (&mask1).as_ref(), 1 as usize, false);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(&mut **w, true, 1).unwrap();
+			api_impl::owner::retrieve_summary_info(&mut **w, (&mask1).as_ref(), true, 1).unwrap();
 		assert!(wallet_refreshed);
 	}
 
@@ -687,7 +757,7 @@ pub fn run_doctest_foreign(
 				amount,
 				..Default::default()
 			};
-			api_impl::owner::issue_invoice_tx(&mut **w, args, true).unwrap()
+			api_impl::owner::issue_invoice_tx(&mut **w, (&mask2).as_ref(), args, true).unwrap()
 		};
 		slate = {
 			let mut w_lock = wallet1.lock();
@@ -701,7 +771,7 @@ pub fn run_doctest_foreign(
 				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			api_impl::owner::process_invoice_tx(&mut **w, &slate, args, true).unwrap()
+			api_impl::owner::process_invoice_tx(&mut **w, (&mask1).as_ref(), &slate, args, true).unwrap()
 		};
 		println!("INIT INVOICE SLATE");
 		// Spit out slate for input to finalize_invoice_tx
@@ -721,7 +791,7 @@ pub fn run_doctest_foreign(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api_impl::owner::init_send_tx(&mut **w, args, true).unwrap();
+		let slate = api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
 		println!("INIT SLATE");
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
@@ -739,7 +809,7 @@ pub fn run_doctest_foreign(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_foreign_assert_response {
-	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $init_tx:expr, $init_invoice_tx:expr) => {
+	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $init_tx:expr, $init_invoice_tx:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -761,6 +831,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 		let response = run_doctest_foreign(
 			request_val,
 			dir,
+			$use_token,
 			$blocks_to_mine,
 			$init_tx,
 			$init_invoice_tx,

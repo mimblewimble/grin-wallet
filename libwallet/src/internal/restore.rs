@@ -61,7 +61,7 @@ struct RestoredTxStats {
 
 fn identify_utxo_outputs<'a, T, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
 ) -> Result<Vec<OutputResult>, Error>
 where
@@ -76,7 +76,7 @@ where
 		outputs.len(),
 	);
 
-	let keychain = wallet.keychain(Some(&keychain_mask))?;
+	let keychain = wallet.keychain(keychain_mask)?;
 	let legacy_builder = proof::LegacyProofBuilder::new(&keychain);
 	let builder = proof::ProofBuilder::new(&keychain);
 	let legacy_version = HeaderVersion(1);
@@ -140,7 +140,7 @@ where
 
 fn collect_chain_outputs<'a, T, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 ) -> Result<Vec<OutputResult>, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -178,7 +178,7 @@ where
 ///
 fn restore_missing_output<'a, T, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	output: OutputResult,
 	found_parents: &mut HashMap<Identifier, u32>,
 	tx_stats: &mut Option<&mut HashMap<Identifier, RestoredTxStats>>,
@@ -189,7 +189,7 @@ where
 	K: Keychain + 'a,
 {
 	let commit = wallet.calc_commit_for_cache(keychain_mask, output.value, &output.key_id)?;
-	let mut batch = wallet.batch()?;
+	let mut batch = wallet.batch(keychain_mask)?;
 
 	let parent_key_id = output.key_id.parent_path();
 	if !found_parents.contains_key(&parent_key_id) {
@@ -260,7 +260,7 @@ where
 }
 
 ///
-fn cancel_tx_log_entry<'a, T, C, K>(wallet: &mut T, output: &OutputData) -> Result<(), Error>
+fn cancel_tx_log_entry<'a, T, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, output: &OutputData) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -289,7 +289,7 @@ where
 	} else {
 		None
 	};
-	let mut batch = wallet.batch()?;
+	let mut batch = wallet.batch(keychain_mask)?;
 	if let Some(t) = updated_tx_entry {
 		batch.save_tx_log_entry(t, &parent_key_id)?;
 	}
@@ -302,7 +302,7 @@ where
 /// of latest block
 pub fn check_repair<'a, T, C, K>(
 	wallet: &mut T,
-	keychain_mask: &SecretKey,
+	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
 ) -> Result<(), Error>
 where
@@ -354,8 +354,8 @@ where
 		);
 		o.status = OutputStatus::Unspent;
 		// any transactions associated with this should be cancelled
-		cancel_tx_log_entry(wallet, &o)?;
-		let mut batch = wallet.batch()?;
+		cancel_tx_log_entry(wallet, keychain_mask, &o)?;
+		let mut batch = wallet.batch(keychain_mask)?;
 		batch.save(o)?;
 		batch.commit()?;
 	}
@@ -382,8 +382,8 @@ where
 				o.value, o.key_id, m.1.commit,
 			);
 			o.status = OutputStatus::Unspent;
-			cancel_tx_log_entry(wallet, &o)?;
-			let mut batch = wallet.batch()?;
+			cancel_tx_log_entry(wallet, keychain_mask, &o)?;
+			let mut batch = wallet.batch(keychain_mask)?;
 			batch.save(o)?;
 			batch.commit()?;
 		}
@@ -400,8 +400,8 @@ where
 				 Deleting and cancelling associated transaction log entries.",
 				o.value, o.key_id, m.commit,
 			);
-			cancel_tx_log_entry(wallet, &o)?;
-			let mut batch = wallet.batch()?;
+			cancel_tx_log_entry(wallet, keychain_mask, &o)?;
+			let mut batch = wallet.batch(keychain_mask)?;
 			batch.delete(&o.key_id, &o.mmr_index)?;
 			batch.commit()?;
 		}
@@ -414,10 +414,10 @@ where
 		// default path already exists
 		if *path != ExtKeychain::derive_key_id(2, 0, 0, 0, 0) {
 			let label = format!("{}_{}", label_base, acct_index);
-			keys::set_acct_path(wallet, &label, path)?;
+			keys::set_acct_path(wallet, keychain_mask, &label, path)?;
 			acct_index += 1;
 		}
-		let mut batch = wallet.batch()?;
+		let mut batch = wallet.batch(keychain_mask)?;
 		debug!("Next child for account {} is {}", path, max_child_index + 1);
 		batch.save_child_index(path, max_child_index + 1)?;
 		batch.commit()?;
@@ -426,7 +426,7 @@ where
 }
 
 /// Restore a wallet
-pub fn restore<'a, T, C, K>(wallet: &mut T, keychain_mask: &SecretKey) -> Result<(), Error>
+pub fn restore<'a, T, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -470,12 +470,12 @@ where
 		// default path already exists
 		if *path != ExtKeychain::derive_key_id(2, 0, 0, 0, 0) {
 			let label = format!("{}_{}", label_base, acct_index);
-			keys::set_acct_path(wallet, &label, path)?;
+			keys::set_acct_path(wallet, keychain_mask, &label, path)?;
 			acct_index += 1;
 		}
 		// restore tx log entry for non-coinbase outputs
 		if let Some(s) = restore_stats.get(path) {
-			let mut batch = wallet.batch()?;
+			let mut batch = wallet.batch(keychain_mask)?;
 			let mut t = TxLogEntry::new(path.clone(), TxLogEntryType::TxReceived, s.log_id);
 			t.confirmed = true;
 			t.amount_credited = s.amount_credited;
@@ -484,7 +484,7 @@ where
 			batch.save_tx_log_entry(t, &path)?;
 			batch.commit()?;
 		}
-		let mut batch = wallet.batch()?;
+		let mut batch = wallet.batch(keychain_mask)?;
 		batch.save_child_index(path, max_child_index + 1)?;
 		debug!("Next child for account {} is {}", path, max_child_index + 1);
 		batch.commit()?;

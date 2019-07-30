@@ -71,6 +71,8 @@ where
 		&mut self,
 		name: Option<&str>,
 		password: ZeroingString,
+		create_mask: bool,
+		use_test_rng: bool,
 	) -> Result<Option<SecretKey>, Error>;
 
 	///
@@ -119,7 +121,7 @@ where
 	/// Set the keychain, which should already be initialized
 	/// Optionally return a token value used to XOR the stored
 	/// key value
-	fn set_keychain(&mut self, k: Box<K>) -> Result<Option<SecretKey>, Error>;
+	fn set_keychain(&mut self, k: Box<K>, mask: bool, use_test_rng: bool) -> Result<Option<SecretKey>, Error>;
 
 	/// Close wallet and remove any stored credentials (TBD)
 	fn close(&mut self) -> Result<(), Error>;
@@ -135,7 +137,7 @@ where
 	/// return the commit for caching if allowed, none otherwise
 	fn calc_commit_for_cache(
 		&mut self,
-		keychain_mask: &SecretKey,
+		keychain_mask: Option<&SecretKey>,
 		amount: u64,
 		id: &Identifier,
 	) -> Result<Option<String>, Error>;
@@ -162,7 +164,7 @@ where
 	/// Retrieves the private context associated with a given slate id
 	fn get_private_context(
 		&mut self,
-		keychain_mask: &SecretKey,
+		keychain_mask: Option<&SecretKey>,
 		slate_id: &[u8],
 		participant_id: usize,
 	) -> Result<Context, Error>;
@@ -183,21 +185,21 @@ where
 	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, Error>;
 
 	/// Create a new write batch to update or remove output data
-	fn batch<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
+	fn batch<'a>(&'a mut self, keychain_mask: Option<&SecretKey>) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
 
 	/// Next child ID when we want to create a new output, based on current parent
-	fn next_child<'a>(&mut self) -> Result<Identifier, Error>;
+	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
 
 	/// last verified height of outputs directly descending from the given parent key
 	fn last_confirmed_height<'a>(&mut self) -> Result<u64, Error>;
 
 	/// Attempt to restore the contents of a wallet from seed
-	fn restore(&mut self, keychain_mask: &SecretKey) -> Result<(), Error>;
+	fn restore(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error>;
 
 	/// Attempt to check and fix wallet state
 	fn check_repair(
 		&mut self,
-		keychain_mask: &SecretKey,
+		keychain_mask: Option<&SecretKey>,
 		delete_unconfirmed: bool,
 	) -> Result<(), Error>;
 }

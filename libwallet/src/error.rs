@@ -205,6 +205,10 @@ pub enum ErrorKind {
 	#[fail(display = "Lifecycle Error: {}", _0)]
 	Lifecycle(String),
 
+	/// Invalid Keychain Mask Error
+	#[fail(display = "Supplied Keychain Mask Token is incorrect")]
+	InvalidKeychainMask,
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

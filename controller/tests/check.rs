@@ -130,7 +130,7 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	{
 		wallet_inst!(wallet1, w);
 		{
-			let mut batch = w.batch()?;
+			let mut batch = w.batch(keychain_mask)?;
 			batch.delete(&w1_outputs[4].key_id, &None)?;
 			batch.delete(&w1_outputs[10].key_id, &None)?;
 			let mut accidental_spent = w1_outputs[13].clone();
