@@ -68,6 +68,8 @@ where
 	pub doctest_mode: bool,
 	/// foreign check middleware
 	middleware: Option<ForeignCheckMiddleware>,
+	/// Stored keychain mask (in case the stored wallet seed is tokenized)
+	keychain_mask: Option<SecretKey>,
 }
 
 impl<'a, L, C, K> Foreign<'a, L, C, K>
@@ -155,12 +157,14 @@ where
 
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
 	) -> Self {
 		Foreign {
 			wallet_inst,
 			doctest_mode: false,
 			middleware,
+			keychain_mask,
 		}
 	}
 
@@ -245,7 +249,6 @@ where
 
 	pub fn build_coinbase(
 		&self,
-		keychain_mask: Option<&SecretKey>,
 		block_fees: &BlockFees,
 	) -> Result<CbData, Error> {
 		let mut w_lock = self.wallet_inst.lock();
@@ -257,7 +260,7 @@ where
 				None,
 			)?;
 		}
-		foreign::build_coinbase(&mut **w, keychain_mask, block_fees, self.doctest_mode)
+		foreign::build_coinbase(&mut **w, (&self.keychain_mask).as_ref(), block_fees, self.doctest_mode)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -369,7 +372,6 @@ where
 
 	pub fn receive_tx(
 		&self,
-		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
 		dest_acct_name: Option<&str>,
 		message: Option<String>,
@@ -385,7 +387,7 @@ where
 		}
 		foreign::receive_tx(
 			&mut **w,
-			keychain_mask,
+			(&self.keychain_mask).as_ref(),
 			slate,
 			dest_acct_name,
 			message,
@@ -442,7 +444,6 @@ where
 
 	pub fn finalize_invoice_tx(
 		&self,
-		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
@@ -454,7 +455,7 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::finalize_invoice_tx(&mut **w, keychain_mask, slate)
+		foreign::finalize_invoice_tx(&mut **w, (&self.keychain_mask).as_ref(), slate)
 	}
 }
 

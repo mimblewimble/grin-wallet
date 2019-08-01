@@ -19,7 +19,7 @@ use crate::libwallet::{
 	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
-use crate::{Foreign, ForeignCheckMiddlewareFn, ForeignRpcS};
+use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -111,10 +111,7 @@ pub trait ForeignRpc {
 	# ,false, 4, false, false);
 	```
 	*/
-	/*#[deprecated(
-		since = "2.1.0",
-		note = "This function will be replaced by the current _t version of this function in 3.0.0. Please migrate to use the _t version of this function ASAP"
-	)]*/
+
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
 
 	/**
@@ -530,7 +527,7 @@ where
 	}
 
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind> {
-		Foreign::build_coinbase(self, None, block_fees).map_err(|e| e.kind())
+		Foreign::build_coinbase(self, block_fees).map_err(|e| e.kind())
 	}
 
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {
@@ -547,7 +544,6 @@ where
 		let slate: Slate = slate.into();
 		let slate = Foreign::receive_tx(
 			self,
-			None,
 			&slate,
 			dest_acct_name.as_ref().map(String::as_str),
 			message,
@@ -558,7 +554,7 @@ where
 	}
 
 	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind> {
-		Foreign::finalize_invoice_tx(self, None, slate).map_err(|e| e.kind())
+		Foreign::finalize_invoice_tx(self, slate).map_err(|e| e.kind())
 	}
 }
 
@@ -750,17 +746,12 @@ pub fn run_doctest_foreign(
 	}
 
 	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1, Some(test_check_middleware)),
-		true => Foreign::new(wallet2, Some(test_check_middleware)),
+		false => Foreign::new(wallet1, mask1, Some(test_check_middleware)),
+		true => Foreign::new(wallet2, mask2, Some(test_check_middleware)),
 	};
 	api_foreign.doctest_mode = true;
-	if use_token {
-		let foreign_api = &api_foreign as &dyn ForeignRpcS;
-		Ok(foreign_api.handle_request(request).as_option())
-	} else {
-		let foreign_api = &api_foreign as &dyn ForeignRpc;
-		Ok(foreign_api.handle_request(request).as_option())
-	}
+	let foreign_api = &api_foreign as &dyn ForeignRpc;
+	Ok(foreign_api.handle_request(request).as_option())
 }
 
 #[doc(hidden)]

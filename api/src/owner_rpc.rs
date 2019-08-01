@@ -21,9 +21,8 @@ use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
 	OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletLCProvider,
 };
-use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
-use crate::Owner;
+use crate::{Owner, OwnerRpcS};
 use easy_jsonrpc;
 use std::sync::Arc;
 
@@ -63,7 +62,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false, false);
+	# , false, 4, false, false, false);
 	```
 	*/
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind>;
@@ -93,14 +92,10 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# ,4, false, false, false);
+	# ,false, 4, false, false, false);
 	```
 	 */
-	fn create_account_path(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		label: &String,
-	) -> Result<Identifier, ErrorKind>;
+	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind>;
 
 	/**
 	Networked version of [Owner::set_active_account](struct.Owner.html#method.set_active_account).
@@ -127,7 +122,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false, false);
+	# , false, 4, false, false, false);
 	```
 	 */
 	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind>;
@@ -193,12 +188,11 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 2, false, false, false);
+	# , false, 2, false, false, false);
 	```
 	*/
 	fn retrieve_outputs(
 		&self,
-		keychain_mask: Option<SecretKey>,
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
@@ -265,13 +259,12 @@ pub trait OwnerRpc {
 	  }
 	}
 	# "#
-	# , 2, false, false, false);
+	# , false, 2, false, false, false);
 	```
 	*/
 
 	fn retrieve_txs(
 		&self,
-		keychain_mask: Option<SecretKey>,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
@@ -312,13 +305,12 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,4, false, false, false);
+	# ,false, 4, false, false, false);
 	```
 	 */
 
 	fn retrieve_summary_info(
 		&self,
-		keychain_mask: Option<SecretKey>,
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), ErrorKind>;
@@ -407,15 +399,11 @@ pub trait OwnerRpc {
 	  }
 	}
 		# "#
-		# ,4, false, false, false);
+		# ,false, 4, false, false, false);
 	```
 	*/
 
-	fn init_send_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		args: InitTxArgs,
-	) -> Result<Slate, ErrorKind>;
+	fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 		Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
@@ -491,15 +479,11 @@ pub trait OwnerRpc {
 			}
 		}
 		# "#
-		# ,4, false, false, false);
+		# ,false, 4, false, false, false);
 	```
 	*/
 
-	fn issue_invoice_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		args: IssueInvoiceTxArgs,
-	) -> Result<Slate, ErrorKind>;
+	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 		 Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
@@ -643,16 +627,11 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,4, false, false, false);
+	# ,false, 4, false, false, false);
 	```
 	*/
 
-	fn process_invoice_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		slate: Slate,
-		args: InitTxArgs,
-	) -> Result<Slate, ErrorKind>;
+	fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -728,16 +707,11 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,5 ,true, false, false);
+	# ,false, 5 ,true, false, false);
 
 	```
 	 */
-	fn tx_lock_outputs(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		slate: Slate,
-		participant_id: usize,
-	) -> Result<(), ErrorKind>;
+	fn tx_lock_outputs(&self, slate: Slate, participant_id: usize) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::finalize_tx](struct.Owner.html#method.finalize_tx).
@@ -896,14 +870,10 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false);
+	# , false, 5, true, true, false);
 	```
 	 */
-	fn finalize_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		slate: Slate,
-	) -> Result<Slate, ErrorKind>;
+	fn finalize_tx(&self, slate: Slate) -> Result<Slate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::post_tx](struct.Owner.html#method.post_tx).
@@ -966,7 +936,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, true);
+	# , false, 5, true, true, true);
 	```
 	 */
 
@@ -996,15 +966,10 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false);
+	# , false, 5, true, true, false);
 	```
 	 */
-	fn cancel_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		tx_id: Option<u32>,
-		tx_slate_id: Option<Uuid>,
-	) -> Result<(), ErrorKind>;
+	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::get_stored_tx](struct.Owner.html#method.get_stored_tx).
@@ -1096,7 +1061,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false);
+	# , false, 5, true, true, false);
 	```
 	 */
 	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind>;
@@ -1174,10 +1139,10 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,5 ,true, false, false);
+	# ,false, 5 ,true, false, false);
 	```
 	*/
-	fn verify_slate_messages(&self, slate: Slate) -> Result<(), ErrorKind>;
+	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::restore](struct.Owner.html#method.restore).
@@ -1203,10 +1168,10 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 1, false, false, false);
+	# , false, 1, false, false, false);
 	```
 	 */
-	fn restore(&self, keychain_mask: Option<SecretKey>) -> Result<(), ErrorKind>;
+	fn restore(&self) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::check_repair](struct.Owner.html#method.check_repair).
@@ -1232,14 +1197,10 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 1, false, false, false);
+	# , false, 1, false, false, false);
 	```
 	 */
-	fn check_repair(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		delete_unconfirmed: bool,
-	) -> Result<(), ErrorKind>;
+	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
@@ -1268,10 +1229,10 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, false, false, false);
+	# , false, 5, false, false, false);
 	```
 	 */
-	fn node_height(&self, keychain_mask: Option<SecretKey>) -> Result<NodeHeightResult, ErrorKind>;
+	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpc for Owner<'a, L, C, K>
@@ -1281,150 +1242,90 @@ where
 	K: Keychain + 'a,
 {
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind> {
-		Owner::accounts(self).map_err(|e| e.kind())
+		Owner::accounts(self, None).map_err(|e| e.kind())
 	}
 
-	fn create_account_path(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		label: &String,
-	) -> Result<Identifier, ErrorKind> {
-		Owner::create_account_path(self, (&keychain_mask).as_ref(), label).map_err(|e| e.kind())
+	fn create_account_path(&self, label: &String) -> Result<Identifier, ErrorKind> {
+		Owner::create_account_path(self, None, label).map_err(|e| e.kind())
 	}
 
 	fn set_active_account(&self, label: &String) -> Result<(), ErrorKind> {
-		Owner::set_active_account(self, label).map_err(|e| e.kind())
+		Owner::set_active_account(self, None, label).map_err(|e| e.kind())
 	}
 
 	fn retrieve_outputs(
 		&self,
-		keychain_mask: Option<SecretKey>,
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), ErrorKind> {
-		Owner::retrieve_outputs(
-			self,
-			(&keychain_mask).as_ref(),
-			include_spent,
-			refresh_from_node,
-			tx_id,
-		)
-		.map_err(|e| e.kind())
+		Owner::retrieve_outputs(self, None, include_spent, refresh_from_node, tx_id).map_err(|e| e.kind())
 	}
 
 	fn retrieve_txs(
 		&self,
-		keychain_mask: Option<SecretKey>,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind> {
-		Owner::retrieve_txs(
-			self,
-			(&keychain_mask).as_ref(),
-			refresh_from_node,
-			tx_id,
-			tx_slate_id,
-		)
-		.map_err(|e| e.kind())
+		Owner::retrieve_txs(self, None, refresh_from_node, tx_id, tx_slate_id).map_err(|e| e.kind())
 	}
 
 	fn retrieve_summary_info(
 		&self,
-		keychain_mask: Option<SecretKey>,
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), ErrorKind> {
-		Owner::retrieve_summary_info(
-			self,
-			(&keychain_mask).as_ref(),
-			refresh_from_node,
-			minimum_confirmations,
-		)
-		.map_err(|e| e.kind())
-	}
-
-	fn init_send_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		args: InitTxArgs,
-	) -> Result<Slate, ErrorKind> {
-		Owner::init_send_tx(self, (&keychain_mask).as_ref(), args).map_err(|e| e.kind())
-	}
-
-	fn issue_invoice_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		args: IssueInvoiceTxArgs,
-	) -> Result<Slate, ErrorKind> {
-		Owner::issue_invoice_tx(self, (&keychain_mask).as_ref(), args).map_err(|e| e.kind())
-	}
-
-	fn process_invoice_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		slate: Slate,
-		args: InitTxArgs,
-	) -> Result<Slate, ErrorKind> {
-		Owner::process_invoice_tx(self, (&keychain_mask).as_ref(), &slate, args)
+		Owner::retrieve_summary_info(self, None, refresh_from_node, minimum_confirmations)
 			.map_err(|e| e.kind())
 	}
 
-	fn finalize_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		mut slate: Slate,
-	) -> Result<Slate, ErrorKind> {
-		Owner::finalize_tx(self, (&keychain_mask).as_ref(), &mut slate).map_err(|e| e.kind())
+	fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::init_send_tx(self, None, args).map_err(|e| e.kind())
 	}
 
-	fn tx_lock_outputs(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		mut slate: Slate,
-		participant_id: usize,
-	) -> Result<(), ErrorKind> {
-		Owner::tx_lock_outputs(self, (&keychain_mask).as_ref(), &mut slate, participant_id)
-			.map_err(|e| e.kind())
+	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::issue_invoice_tx(self, None, args).map_err(|e| e.kind())
 	}
 
-	fn cancel_tx(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		tx_id: Option<u32>,
-		tx_slate_id: Option<Uuid>,
-	) -> Result<(), ErrorKind> {
-		Owner::cancel_tx(self, (&keychain_mask).as_ref(), tx_id, tx_slate_id).map_err(|e| e.kind())
+	fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, ErrorKind> {
+		Owner::process_invoice_tx(self, None, slate, args).map_err(|e| e.kind())
+	}
+
+	fn finalize_tx(&self, mut slate: Slate) -> Result<Slate, ErrorKind> {
+		Owner::finalize_tx(self, None, &mut slate).map_err(|e| e.kind())
+	}
+
+	fn tx_lock_outputs(&self, mut slate: Slate, participant_id: usize) -> Result<(), ErrorKind> {
+		Owner::tx_lock_outputs(self, None, &mut slate, participant_id).map_err(|e| e.kind())
+	}
+
+	fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), ErrorKind> {
+		Owner::cancel_tx(self, None, tx_id, tx_slate_id).map_err(|e| e.kind())
 	}
 
 	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<Transaction>, ErrorKind> {
-		Owner::get_stored_tx(self, tx).map_err(|e| e.kind())
+		Owner::get_stored_tx(self, None, tx).map_err(|e| e.kind())
 	}
 
 	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), ErrorKind> {
-		Owner::post_tx(self, tx, fluff).map_err(|e| e.kind())
+		Owner::post_tx(self, None, tx, fluff).map_err(|e| e.kind())
 	}
 
-	fn verify_slate_messages(&self, slate: Slate) -> Result<(), ErrorKind> {
-		Owner::verify_slate_messages(self, &slate).map_err(|e| e.kind())
+	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind> {
+		Owner::verify_slate_messages(self, None, slate).map_err(|e| e.kind())
 	}
 
-	fn restore(&self, keychain_mask: Option<SecretKey>) -> Result<(), ErrorKind> {
-		Owner::restore(self, (&keychain_mask).as_ref()).map_err(|e| e.kind())
+	fn restore(&self) -> Result<(), ErrorKind> {
+		Owner::restore(self, None).map_err(|e| e.kind())
 	}
 
-	fn check_repair(
-		&self,
-		keychain_mask: Option<SecretKey>,
-		delete_unconfirmed: bool,
-	) -> Result<(), ErrorKind> {
-		Owner::check_repair(self, (&keychain_mask).as_ref(), delete_unconfirmed)
-			.map_err(|e| e.kind())
+	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
+		Owner::check_repair(self, None, delete_unconfirmed).map_err(|e| e.kind())
 	}
 
-	fn node_height(&self, keychain_mask: Option<SecretKey>) -> Result<NodeHeightResult, ErrorKind> {
-		Owner::node_height(self, (&keychain_mask).as_ref()).map_err(|e| e.kind())
+	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind> {
+		Owner::node_height(self, None).map_err(|e| e.kind())
 	}
 }
 
@@ -1432,6 +1333,7 @@ where
 pub fn run_doctest_owner(
 	request: serde_json::Value,
 	test_dir: &str,
+	use_token: bool,
 	blocks_to_mine: u64,
 	perform_tx: bool,
 	lock_tx: bool,
@@ -1483,9 +1385,13 @@ pub fn run_doctest_owner(
 	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone())
 		.unwrap();
 	let mask1 = lc
-		.open_wallet(None, empty_string.clone(), true, true)
+		.open_wallet(None, empty_string.clone(), use_token, true)
 		.unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
+
+	if mask1.is_some() {
+		println!("WALLET 1 MASK: {:?}", mask1.clone().unwrap());
+	}
 
 	wallet_proxy.add_wallet(
 		"wallet1",
@@ -1514,9 +1420,13 @@ pub fn run_doctest_owner(
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone())
 		.unwrap();
 	let mask2 = lc
-		.open_wallet(None, empty_string.clone(), true, true)
+		.open_wallet(None, empty_string.clone(), use_token, true)
 		.unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
+
+	if mask2.is_some() {
+		println!("WALLET 2 MASK: {:?}", mask2.clone().unwrap());
+	}
 
 	wallet_proxy.add_wallet(
 		"wallet2",
@@ -1606,14 +1516,19 @@ pub fn run_doctest_owner(
 
 	let mut api_owner = Owner::new(wallet1);
 	api_owner.doctest_mode = true;
-	let owner_api = &api_owner as &dyn OwnerRpc;
-	Ok(owner_api.handle_request(request).as_option())
+	if use_token {
+		let owner_api = &api_owner as &dyn OwnerRpcS;
+		Ok(owner_api.handle_request(request).as_option())
+	} else {
+		let owner_api = &api_owner as &dyn OwnerRpc;
+		Ok(owner_api.handle_request(request).as_option())
+	}
 }
 
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
-	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr) => {
+	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -1635,6 +1550,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		let response = run_doctest_owner(
 			request_val,
 			dir,
+			$use_token,
 			$blocks_to_mine,
 			$perform_tx,
 			$lock_tx,
@@ -1652,3 +1568,4 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			}
 	};
 }
+

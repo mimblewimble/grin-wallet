@@ -104,7 +104,7 @@ where
 	/// Keychain
 	pub keychain: Option<K>,
 	/// Check value for XORed keychain seed
-	pub master_checksum: Option<Blake2bResult>,
+	pub master_checksum: Box<Option<Blake2bResult>>,
 	/// Parent path to use by default for output operations
 	parent_key_id: Identifier,
 	/// wallet to node client
@@ -150,7 +150,7 @@ where
 			db: store,
 			data_file_dir: data_file_dir.to_owned(),
 			keychain: None,
-			master_checksum: None,
+			master_checksum: Box::new(None),
 			parent_key_id: LMDBBackend::<C, K>::default_path(),
 			w2n_client: n_client,
 			_phantom: &PhantomData,
@@ -189,7 +189,7 @@ where
 		let root_key = k.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
 		let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 		hasher.update(&root_key.0[..]);
-		self.master_checksum = Some(hasher.finalize());
+		self.master_checksum = Box::new(Some(hasher.finalize()));
 
 		let mask_value = {
 			match mask {
@@ -234,7 +234,7 @@ where
 					k_masked.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
 				let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 				hasher.update(&root_key.0[..]);
-				if self.master_checksum != Some(hasher.finalize()) {
+				if *self.master_checksum != Some(hasher.finalize()) {
 					error!("Supplied keychain mask is invalid");
 					return Err(ErrorKind::InvalidKeychainMask.into());
 				}
