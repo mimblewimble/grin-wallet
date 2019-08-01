@@ -247,10 +247,7 @@ where
 	/// }
 	/// ```
 
-	pub fn build_coinbase(
-		&self,
-		block_fees: &BlockFees,
-	) -> Result<CbData, Error> {
+	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -260,7 +257,12 @@ where
 				None,
 			)?;
 		}
-		foreign::build_coinbase(&mut **w, (&self.keychain_mask).as_ref(), block_fees, self.doctest_mode)
+		foreign::build_coinbase(
+			&mut **w,
+			(&self.keychain_mask).as_ref(),
+			block_fees,
+			self.doctest_mode,
+		)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -442,10 +444,7 @@ where
 	/// // if okay, then post via the owner API
 	/// ```
 
-	pub fn finalize_invoice_tx(
-		&self,
-		slate: &Slate,
-	) -> Result<Slate, Error> {
+	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {

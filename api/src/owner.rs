@@ -172,7 +172,10 @@ where
 	/// }
 	/// ```
 
-	pub fn accounts(&self, keychain_mask: Option<&SecretKey>) -> Result<Vec<AcctPathMapping>, Error> {
+	pub fn accounts(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Vec<AcctPathMapping>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
@@ -263,7 +266,11 @@ where
 	/// }
 	/// ```
 
-	pub fn set_active_account(&self, keychain_mask: Option<&SecretKey>, label: &str) -> Result<(), Error> {
+	pub fn set_active_account(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		label: &str,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
@@ -851,7 +858,12 @@ where
 	/// }
 	/// ```
 
-	pub fn post_tx(&self, keychain_mask: Option<&SecretKey>, tx: &Transaction, fluff: bool) -> Result<(), Error> {
+	pub fn post_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		tx: &Transaction,
+		fluff: bool,
+	) -> Result<(), Error> {
 		let client = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -957,7 +969,11 @@ where
 	/// ```
 
 	// TODO: Should be accepting an id, not an entire entry struct
-	pub fn get_stored_tx(&self, keychain_mask: Option<&SecretKey>, tx_log_entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
+	pub fn get_stored_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		tx_log_entry: &TxLogEntry,
+	) -> Result<Option<Transaction>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
@@ -1012,7 +1028,11 @@ where
 	///		let res = api_owner.verify_slate_messages(&slate);
 	/// }
 	/// ```
-	pub fn verify_slate_messages(&self, keychain_mask: Option<&SecretKey>, slate: &Slate) -> Result<(), Error> {
+	pub fn verify_slate_messages(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<(), Error> {
 		{
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
