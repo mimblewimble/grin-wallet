@@ -20,8 +20,8 @@ use crate::libwallet::{
 	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
-use crate::util::{to_base64, Mutex};
 use crate::util::secp::key::SecretKey;
+use crate::util::{to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -101,7 +101,11 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	f(&mut Foreign::new(wallet, keychain_mask, Some(check_middleware)))?;
+	f(&mut Foreign::new(
+		wallet,
+		keychain_mask,
+		Some(check_middleware),
+	))?;
 	Ok(())
 }
 
@@ -295,7 +299,10 @@ where
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Option<SecretKey>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
-		ForeignAPIHandlerV2 { wallet, keychain_mask }
+		ForeignAPIHandlerV2 {
+			wallet,
+			keychain_mask,
+		}
 	}
 
 	fn call_api(
@@ -317,7 +324,11 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Foreign::new(self.wallet.clone(), self.keychain_mask.clone(), Some(check_middleware));
+		let api = Foreign::new(
+			self.wallet.clone(),
+			self.keychain_mask.clone(),
+			Some(check_middleware),
+		);
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),

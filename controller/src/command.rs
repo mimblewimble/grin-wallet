@@ -22,8 +22,8 @@ use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateRec
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
-use crate::util::{Mutex, ZeroingString};
 use crate::util::secp::key::SecretKey;
+use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
@@ -254,7 +254,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
@@ -312,11 +312,11 @@ where
 				}
 				"self" => {
 					api.tx_lock_outputs(m, &slate, 0)?;
-					let km = match keychain_mask.as_ref(){
+					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
-					controller::foreign_single_use(wallet, km, |api|{
+					controller::foreign_single_use(wallet, km, |api| {
 						slate = api.receive_tx(&slate, Some(&args.dest), None)?;
 						Ok(())
 					})?;
@@ -368,11 +368,11 @@ where
 	K: keychain::Keychain + 'a,
 {
 	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
-	let km = match keychain_mask.as_ref(){
+	let km = match keychain_mask.as_ref() {
 		None => None,
 		Some(&m) => Some(m.to_owned()),
 	};
-	controller::foreign_single_use(wallet, km, |api|{
+	controller::foreign_single_use(wallet, km, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);
 			return Err(e);
@@ -425,11 +425,11 @@ where
 	};
 
 	if is_invoice {
-		let km = match keychain_mask.as_ref(){
+		let km = match keychain_mask.as_ref() {
 			None => None,
 			Some(&m) => Some(m.to_owned()),
 		};
-		controller::foreign_single_use(wallet.clone(), km, |api|{
+		controller::foreign_single_use(wallet.clone(), km, |api| {
 			if let Err(e) = api.verify_slate_messages(&slate) {
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
@@ -438,7 +438,7 @@ where
 			Ok(())
 		})?;
 	} else {
-		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 			if let Err(e) = api.verify_slate_messages(m, &slate) {
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
@@ -448,7 +448,7 @@ where
 		})?;
 	}
 
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let result = api.post_tx(m, &slate.tx, args.fluff);
 		match result {
 			Ok(_) => {
@@ -483,7 +483,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
 		let mut tx_file = File::create(args.dest.clone())?;
 		tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
@@ -518,7 +518,7 @@ where
 	K: keychain::Keychain + 'a,
 {
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
@@ -579,11 +579,11 @@ where
 				}
 				"self" => {
 					api.tx_lock_outputs(m, &slate, 0)?;
-					let km = match keychain_mask.as_ref(){
+					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
-					controller::foreign_single_use(wallet, km, |api|{
+					controller::foreign_single_use(wallet, km, |api| {
 						slate = api.finalize_invoice_tx(&slate)?;
 						Ok(())
 					})?;
@@ -616,7 +616,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let (validated, wallet_info) =
 			api.retrieve_summary_info(m, true, args.minimum_confirmations)?;
 		display::info(&g_args.account, &wallet_info, validated, dark_scheme);
@@ -636,7 +636,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, outputs) = api.retrieve_outputs(m, g_args.show_spent, true, None)?;
 		display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
@@ -663,7 +663,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
 		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
@@ -722,7 +722,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
 		let stored_tx = api.get_stored_tx(m, &txs[0])?;
 		if stored_tx.is_none() {
@@ -774,7 +774,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let result = api.cancel_tx(m, args.tx_id, args.tx_slate_id);
 		match result {
 			Ok(_) => {
@@ -799,7 +799,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let result = api.restore(m);
 		match result {
 			Ok(_) => {
@@ -831,7 +831,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m|{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		warn!("Starting wallet check...",);
 		warn!("Updating all wallet outputs, please wait ...",);
 		let result = api.check_repair(m, args.delete_unconfirmed);
