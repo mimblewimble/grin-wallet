@@ -108,7 +108,8 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// Do some mining
 	let bh = 20u64;
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Sanity check contents
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
@@ -227,7 +228,16 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// Create a new wallet test client, and set its queues to communicate with the
 	// proxy
-	create_wallet_and_add!(m_client, miner, miner_mask_i, test_dir, "miner", None, &mut wallet_proxy, false);
+	create_wallet_and_add!(
+		m_client,
+		miner,
+		miner_mask_i,
+		test_dir,
+		"miner",
+		None,
+		&mut wallet_proxy,
+		false
+	);
 	let miner_mask = (&miner_mask_i).as_ref();
 
 	// non-mining recipient wallets
@@ -361,12 +371,36 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	// Do some mining
 	let mut bh = 20u64;
 	let base_amount = consensus::GRIN_BASE;
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, bh as usize, false);
+	let _ = test_framework::award_blocks_to_wallet(
+		&chain,
+		miner.clone(),
+		miner_mask,
+		bh as usize,
+		false,
+	);
 
 	// send some funds to wallets 1
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet1", base_amount * 1)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet1", base_amount * 2)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet1", base_amount * 3)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet1",
+		base_amount * 1
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet1",
+		base_amount * 2
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet1",
+		base_amount * 3
+	)?;
 	bh += 3;
 
 	// 0) Check repair when all is okay should leave wallet contents alone
@@ -379,9 +413,27 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	})?;
 
 	// send some funds to wallet 2
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet2", base_amount * 4)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet2", base_amount * 5)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet2", base_amount * 6)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet2",
+		base_amount * 4
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet2",
+		base_amount * 5
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet2",
+		base_amount * 6
+	)?;
 	bh += 3;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, cm, false);
@@ -430,9 +482,27 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 3) If I recover from seed and start using the wallet without restoring,
 	// check_repair should restore the older outputs
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet4", base_amount * 7)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet4", base_amount * 8)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet4", base_amount * 9)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet4",
+		base_amount * 7
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet4",
+		base_amount * 8
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet4",
+		base_amount * 9
+	)?;
 	bh += 3;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, cm, false);
@@ -461,12 +531,36 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 4) If I recover from seed and start using the wallet without restoring,
 	// check_repair should restore the older outputs
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet6", base_amount * 10)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet6", base_amount * 11)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet6", base_amount * 12)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet6",
+		base_amount * 10
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet6",
+		base_amount * 11
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet6",
+		base_amount * 12
+	)?;
 	bh += 3;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, cm as usize, false);
+	let _ = test_framework::award_blocks_to_wallet(
+		&chain,
+		miner.clone(),
+		miner_mask,
+		cm as usize,
+		false,
+	);
 	bh += cm as u64;
 
 	wallet::controller::owner_single_use(wallet6.clone(), mask6, |api, m| {
@@ -493,9 +587,27 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	// 5) Start using same seed with a different account, amounts should
 	// be distinct and restore should return funds from other account
 
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet7", base_amount * 13)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet7", base_amount * 14)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet7", base_amount * 15)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet7",
+		base_amount * 13
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet7",
+		base_amount * 14
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet7",
+		base_amount * 15
+	)?;
 	bh += 3;
 
 	// mix it up a bit
@@ -505,9 +617,27 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		Ok(())
 	})?;
 
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet7", base_amount * 1)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet7", base_amount * 2)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet7", base_amount * 3)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet7",
+		base_amount * 1
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet7",
+		base_amount * 2
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet7",
+		base_amount * 3
+	)?;
 	bh += 3;
 
 	// check balances
@@ -551,9 +681,27 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		Ok(())
 	})?;
 
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet9", base_amount * 4)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet9", base_amount * 5)?;
-	send_to_dest!(miner.clone(), miner_mask, m_client.clone(), "wallet9", base_amount * 6)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet9",
+		base_amount * 4
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet9",
+		base_amount * 5
+	)?;
+	send_to_dest!(
+		miner.clone(),
+		miner_mask,
+		m_client.clone(),
+		"wallet9",
+		base_amount * 6
+	)?;
 	bh += 3;
 	let _bh = bh;
 
