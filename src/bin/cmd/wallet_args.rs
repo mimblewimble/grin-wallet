@@ -807,12 +807,17 @@ where
 
 	// don't open wallet for certain lifecycle commands
 	let keychain_mask = match wallet_args.subcommand() {
-		("init", Some(_)) => {None}
-		("recover", _) => {None}
+		("init", Some(_)) => None,
+		("recover", _) => None,
 		_ => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
-			let mask = lc.open_wallet(None, prompt_password(&global_wallet_args.password), true, false)?;
+			let mask = lc.open_wallet(
+				None,
+				prompt_password(&global_wallet_args.password),
+				true,
+				false,
+			)?;
 			if let Some(account) = wallet_args.value_of("account") {
 				let wallet_inst = lc.wallet_inst()?;
 				wallet_inst.set_parent_key_id_by_name(account)?;
@@ -851,7 +856,9 @@ where
 			g.tls_conf = None;
 			command::owner_api(wallet, keychain_mask, &wallet_config, &g)
 		}
-		("web", Some(_)) => command::owner_api(wallet, keychain_mask, &wallet_config, &global_wallet_args),
+		("web", Some(_)) => {
+			command::owner_api(wallet, keychain_mask, &wallet_config, &global_wallet_args)
+		}
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
 			command::account(wallet, km, a)

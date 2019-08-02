@@ -124,18 +124,21 @@ mod wallet_tests {
 		passphrase: &str,
 		account: &str,
 	) -> Result<
-		(Arc<
-			Mutex<
-				Box<
-					WalletInst<
-						'static,
-						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
-						LocalWalletClient,
-						ExtKeychain,
+		(
+			Arc<
+				Mutex<
+					Box<
+						WalletInst<
+							'static,
+							DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+							LocalWalletClient,
+							ExtKeychain,
+						>,
 					>,
 				>,
 			>,
-		>, Option<SecretKey>),
+			Option<SecretKey>,
+		),
 		grin_wallet_controller::Error,
 	> {
 		wallet_config.chain_type = None;
@@ -157,7 +160,8 @@ mod wallet_tests {
 			wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 		}
 		lc.set_wallet_directory(&wallet_config.data_file_dir);
-		let keychain_mask = lc.open_wallet(None, ZeroingString::from(passphrase), true, false)
+		let keychain_mask = lc
+			.open_wallet(None, ZeroingString::from(passphrase), true, false)
 			.unwrap();
 		let wallet_inst = lc.wallet_inst()?;
 		wallet_inst.set_parent_key_id_by_name(account)?;
@@ -207,17 +211,28 @@ mod wallet_tests {
 		// add wallet to proxy
 		//let wallet1 = test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone());
 		let config1 = initial_setup_wallet(test_dir, "wallet1");
-		let (wallet1, mask1_i) = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
-		wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone(), mask1_i.clone());
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		wallet_proxy.add_wallet(
+			"wallet1",
+			client1.get_send_instance(),
+			wallet1.clone(),
+			mask1_i.clone(),
+		);
 
 		// Create wallet 2
 		let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 		let config2 = initial_setup_wallet(test_dir, "wallet2");
-		let (wallet2, mask2_i) = instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
-		wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone(), mask2_i.clone());
-
+		let (wallet2, mask2_i) =
+			instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		wallet_proxy.add_wallet(
+			"wallet2",
+			client2.get_send_instance(),
+			wallet2.clone(),
+			mask2_i.clone(),
+		);
 
 		// Set the wallet proxy listener running
 		thread::spawn(move || {
@@ -273,7 +288,8 @@ mod wallet_tests {
 
 		// Mine a bit into wallet 1 so we have something to send
 		// (TODO: Be able to stop listeners so we can test this better)
-		let (wallet1, mask1_i) = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
 		let mask1 = (&mask1_i).as_ref();
 		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
 			api.set_active_account(m, "mining")?;
@@ -281,7 +297,13 @@ mod wallet_tests {
 		})?;
 
 		let mut bh = 10u64;
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+		let _ = test_framework::award_blocks_to_wallet(
+			&chain,
+			wallet1.clone(),
+			mask1,
+			bh as usize,
+			false,
+		);
 
 		let very_long_message = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
 		                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
@@ -345,7 +367,8 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 		bh += 1;
 
-		let (wallet1, mask1_i) = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
 		let mask1 = (&mask1_i).as_ref();
 
 		// Check our transaction log, should have 10 entries
@@ -368,7 +391,8 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet2", &client1, arg_vec)?;
 
 		// check results in wallet 2
-		let (wallet2, mask2_i) = instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		let (wallet2, mask2_i) =
+			instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
 		let mask2 = (&mask2_i).as_ref();
 
 		grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
@@ -425,7 +449,8 @@ mod wallet_tests {
 		bh += 1;
 
 		// Check our transaction log, should have bh entries + one for the self receive
-		let (wallet1, mask1_i) = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
 		let mask1 = (&mask1_i).as_ref();
 
 		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
@@ -460,7 +485,8 @@ mod wallet_tests {
 		bh += 1;
 
 		// Check our transaction log, should have bh entries + 2 for the self receives
-		let (wallet1, mask1_i) = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
 		let mask1 = (&mask1_i).as_ref();
 
 		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
