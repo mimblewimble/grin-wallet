@@ -111,6 +111,8 @@ where
 
 /// Listener version, providing same API but listening for requests on a
 /// port and wrapping the calls
+/// Note keychain mask is only provided here in case the foreign listener is also being used
+/// in the same wallet instance
 pub fn owner_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	keychain_mask: Option<SecretKey>,
