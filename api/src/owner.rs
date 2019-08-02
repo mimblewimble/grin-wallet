@@ -127,7 +127,7 @@ where
 	///
 	/// // Wallet must be opened with the password (TBD)
 	/// let pw = ZeroingString::from("wallet_password");
-	/// lc.open_wallet(None, pw);
+	/// lc.open_wallet(None, pw, false, false);
 	///
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
@@ -146,6 +146,9 @@ where
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
 	/// user-specified labels and BIP32 derivation paths.
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	///
 	/// # Returns
 	/// * Result Containing:
@@ -165,7 +168,7 @@ where
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
-	/// let result = api_owner.accounts();
+	/// let result = api_owner.accounts(None);
 	///
 	/// if let Ok(accts) = result {
 	///		//...
@@ -187,6 +190,9 @@ where
 	/// label to a BIP32 path
 	///
 	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `label` - A human readable label to which to map the new BIP32 Path
 	///
 	/// # Returns
@@ -213,7 +219,7 @@ where
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
-	/// let result = api_owner.create_account_path("account1");
+	/// let result = api_owner.create_account_path(None, "account1");
 	///
 	/// if let Ok(identifier) = result {
 	///		//...
@@ -234,6 +240,8 @@ where
 	/// BIP32 parent path used for most key-derivation operations.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `label` - The human readable label for the account. Accounts can be retrieved via
 	/// the [`account`](struct.Owner.html#method.accounts) method
 	///
@@ -258,11 +266,11 @@ where
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
-	/// let result = api_owner.create_account_path("account1");
+	/// let result = api_owner.create_account_path(None, "account1");
 	///
 	/// if let Ok(identifier) = result {
 	///		// set the account active
-	///		let result2 = api_owner.set_active_account("account1");
+	///		let result2 = api_owner.set_active_account(None, "account1");
 	/// }
 	/// ```
 
@@ -281,6 +289,8 @@ where
 	/// Returns a list of outputs from the active account in the wallet.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `include_spent` - If `true`, outputs that have been marked as 'spent'
 	/// in the wallet will be returned. If `false`, spent outputs will omitted
 	/// from the results.
@@ -313,7 +323,7 @@ where
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	///
-	/// let result = api_owner.retrieve_outputs(show_spent, update_from_node, tx_id);
+	/// let result = api_owner.retrieve_outputs(None, show_spent, update_from_node, tx_id);
 	///
 	/// if let Ok((was_updated, output_mappings)) = result {
 	///		//...
@@ -342,6 +352,8 @@ where
 	/// from the active account in the wallet.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
 	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
@@ -371,7 +383,7 @@ where
 	/// let tx_slate_id = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
 	///		//...
@@ -411,6 +423,8 @@ where
 	/// Returns summary information from the active account in the wallet.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
 	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
@@ -436,7 +450,7 @@ where
 	/// let minimum_confirmations=10;
 	///
 	/// // Return summary info for active account
-	/// let result = api_owner.retrieve_summary_info(update_from_node, minimum_confirmations);
+	/// let result = api_owner.retrieve_summary_info(None, update_from_node, minimum_confirmations);
 	///
 	/// if let Ok((was_updated, summary_info)) = result {
 	///		//...
@@ -483,6 +497,8 @@ where
 	/// the `finalize` field is set.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
 	/// transaction initialization arguments. See struct documentation for further detail.
 	///
@@ -521,6 +537,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -528,7 +545,7 @@ where
 	/// 	// Send slate somehow
 	/// 	// ...
 	/// 	// Lock our outputs if we're happy the slate was (or is being) sent
-	/// 	api_owner.tx_lock_outputs(&slate, 0);
+	/// 	api_owner.tx_lock_outputs(None, &slate, 0);
 	/// }
 	/// ```
 
@@ -582,6 +599,8 @@ where
 	/// via the [Foreign API's `finalize_invoice_tx`](struct.Foreign.html#method.finalize_invoice_tx) method.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `args` - [`IssueInvoiceTxArgs`](../grin_wallet_libwallet/types/struct.IssueInvoiceTxArgs.html),
 	/// invoice transaction initialization arguments. See struct documentation for further detail.
 	///
@@ -601,7 +620,7 @@ where
 	/// 	amount: 60_000_000_000,
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.issue_invoice_tx(args);
+	/// let result = api_owner.issue_invoice_tx(None, args);
 	///
 	/// if let Ok(slate) = result {
 	///		// if okay, send to the payer to add their inputs
@@ -633,6 +652,8 @@ where
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
 	/// payer should have filled in round 1 and 2.
 	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
@@ -663,7 +684,7 @@ where
 	///		..Default::default()
 	///	};
 	///
-	/// let result = api_owner.process_invoice_tx(&slate, args);
+	/// let result = api_owner.process_invoice_tx(None, &slate, args);
 	///
 	/// if let Ok(slate) = result {
 	///	// If result okay, send back to the invoicer
@@ -696,6 +717,8 @@ where
 	/// and return them to the `Unspent` state.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
 	/// * `participant_id` - The participant id, generally 0 for the party putting in funds, 1 for the
 	/// party receiving.
@@ -723,6 +746,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -730,7 +754,7 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate, 0);
+	///		api_owner.tx_lock_outputs(None, &slate, 0);
 	/// }
 	/// ```
 
@@ -758,6 +782,8 @@ where
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
 	/// participants must have filled in both rounds, and the sender should have locked their
 	/// outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
@@ -784,6 +810,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -791,11 +818,11 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		let res = api_owner.finalize_tx(&slate);
+	///		let res = api_owner.finalize_tx(None, &slate);
 	/// }
 	/// ```
 
@@ -813,9 +840,10 @@ where
 	/// for mining.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `tx` - A completed [`Transaction`](../grin_core/core/transaction/struct.Transaction.html),
 	/// typically the `tx` field in the transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
-	///
 	/// * `fluff` - Instruct the node whether to use the Dandelion protocol when posting the
 	/// transaction. If `true`, the node should skip the Dandelion phase and broadcast the
 	/// transaction to all peers immediately. If `false`, the node will follow dandelion logic and
@@ -842,6 +870,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -849,12 +878,12 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		let res = api_owner.finalize_tx(&slate);
-	///		let res = api_owner.post_tx(&slate.tx, true);
+	///		let res = api_owner.finalize_tx(None, &slate);
+	///		let res = api_owner.post_tx(None, &slate.tx, true);
 	/// }
 	/// ```
 
@@ -885,6 +914,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `tx_id` - If present, cancel by the [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html) id
 	/// for the transaction.
 	///
@@ -911,6 +942,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -918,11 +950,11 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// We didn't get the slate back, or something else went wrong
 	///		//
-	///		let res = api_owner.cancel_tx(None, Some(slate.id.clone()));
+	///		let res = api_owner.cancel_tx(None, None, Some(slate.id.clone()));
 	/// }
 	/// ```
 
@@ -942,6 +974,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `tx_log_entry` - A [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	///
 	/// # Returns
@@ -960,10 +994,10 @@ where
 	/// let tx_slate_id = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
-	///		let stored_tx = api_owner.get_stored_tx(&tx_log_entries[0]).unwrap();
+	///		let stored_tx = api_owner.get_stored_tx(None, &tx_log_entries[0]).unwrap();
 	///		//...
 	/// }
 	/// ```
@@ -991,6 +1025,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
 	///
 	/// # Returns
@@ -1014,6 +1050,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -1021,11 +1058,11 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		let res = api_owner.verify_slate_messages(&slate);
+	///		let res = api_owner.verify_slate_messages(None, &slate);
 	/// }
 	/// ```
 	pub fn verify_slate_messages(
@@ -1057,7 +1094,8 @@ where
 	///
 	/// # Arguments
 	///
-	/// * None
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	///
 	/// # Returns
 	/// * `Ok(())` if successful
@@ -1069,7 +1107,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let result = api_owner.restore();
+	/// let result = api_owner.restore(None);
 	///
 	/// if let Ok(_) = result {
 	///		// Wallet outputs should be consistent with what's on chain
@@ -1099,6 +1137,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `delete_unconfirmed` - if `false`, the check_repair process will be non-destructive, and
 	/// mostly limited to restoring missing outputs. It will leave unconfirmed transaction logs entries
 	/// and unconfirmed outputs intact. If `true`, the process will unlock all locked outputs,
@@ -1120,6 +1160,7 @@ where
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let result = api_owner.check_repair(
+	/// 	None,
 	/// 	false,
 	/// );
 	///
@@ -1151,7 +1192,8 @@ where
 	///
 	/// # Arguments
 	///
-	/// * None
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	///
 	/// # Returns
 	/// * Ok with a  [`NodeHeightResult`](../grin_wallet_libwallet/types/struct.NodeHeightResult.html)
@@ -1165,7 +1207,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
-	/// let result = api_owner.node_height();
+	/// let result = api_owner.node_height(None);
 	///
 	/// if let Ok(node_height_result) = result {
 	///		if node_height_result.updated_from_node {
@@ -1182,6 +1224,8 @@ where
 	) -> Result<NodeHeightResult, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
+		// Test keychain mask, to keep API consistent
+		let _ = w.keychain(keychain_mask)?;
 		owner::node_height(&mut **w, keychain_mask)
 	}
 }
@@ -1232,7 +1276,7 @@ macro_rules! doctest_helper_setup_doc_env {
 				>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_wallet_directory(&wallet_config.data_file_dir);
-		lc.open_wallet(None, pw);
+		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
 }
