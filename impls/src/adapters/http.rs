@@ -28,7 +28,7 @@ pub struct HttpSlateSender {
 impl HttpSlateSender {
 	/// Create, return Err if scheme is not "http"
 	pub fn new(base_url: Url) -> Result<HttpSlateSender, SchemeNotHttp> {
-		if base_url.scheme() != "http" {
+		if base_url.scheme() != "http" && base_url.scheme() != "https" {
 			Err(SchemeNotHttp)
 		} else {
 			Ok(HttpSlateSender { base_url })

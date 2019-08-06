@@ -20,6 +20,7 @@ use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,
 };
+use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
 use std::sync::Arc;
 
@@ -67,6 +68,8 @@ where
 	pub doctest_mode: bool,
 	/// foreign check middleware
 	middleware: Option<ForeignCheckMiddleware>,
+	/// Stored keychain mask (in case the stored wallet seed is tokenized)
+	keychain_mask: Option<SecretKey>,
 }
 
 impl<'a, L, C, K> Foreign<'a, L, C, K>
@@ -86,6 +89,9 @@ where
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
 	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	/// * `keychain_mask` - Mask value stored internally to use when calling a wallet
+	/// whose seed has been XORed with a token value (such as when running the foreign
+	/// and owner listeners in the same instance)
 	/// * middleware - Option middleware which containts the NodeVersionInfo and can call
 	/// a predefined function with the slate to check if the operation should continue
 	///
@@ -142,24 +148,26 @@ where
 	///
 	/// // Wallet must be opened with the password (TBD)
 	/// let pw = ZeroingString::from("wallet_password");
-	/// lc.open_wallet(None, pw);
+	/// lc.open_wallet(None, pw, false, false);
 	///
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_foreign = Foreign::new(wallet.clone(), None);
+	/// let api_foreign = Foreign::new(wallet.clone(), None, None);
 	/// // .. perform wallet operations
 	///
 	/// ```
 
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
 	) -> Self {
 		Foreign {
 			wallet_inst,
 			doctest_mode: false,
 			middleware,
+			keychain_mask,
 		}
 	}
 
@@ -173,7 +181,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	///
 	/// let version_info = api_foreign.check_version();
 	/// // check and proceed accordingly
@@ -225,7 +233,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	///
 	/// let block_fees = BlockFees {
 	///		fees: 800000,
@@ -252,7 +260,12 @@ where
 				None,
 			)?;
 		}
-		foreign::build_coinbase(&mut **w, block_fees, self.doctest_mode)
+		foreign::build_coinbase(
+			&mut **w,
+			(&self.keychain_mask).as_ref(),
+			block_fees,
+			self.doctest_mode,
+		)
 	}
 
 	/// Verifies all messages in the slate match their public keys.
@@ -276,7 +289,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	///
 	/// # let slate = Slate::blank(2);
 	/// // Receive a slate via some means
@@ -349,7 +362,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	/// # let slate = Slate::blank(2);
 	///
 	/// // . . .
@@ -377,7 +390,14 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::receive_tx(&mut **w, slate, dest_acct_name, message, self.doctest_mode)
+		foreign::receive_tx(
+			&mut **w,
+			(&self.keychain_mask).as_ref(),
+			slate,
+			dest_acct_name,
+			message,
+			self.doctest_mode,
+		)
 	}
 
 	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
@@ -408,7 +428,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	///
 	/// // . . .
 	/// // Issue the invoice tx via the owner API
@@ -416,7 +436,7 @@ where
 	///		amount: 10_000_000_000,
 	///		..Default::default()
 	/// };
-	/// let result = api_owner.issue_invoice_tx(args);
+	/// let result = api_owner.issue_invoice_tx(None, args);
 	///
 	///	// If result okay, send to payer, who will apply the transaction via their
 	///	// owner API, then send back the slate
@@ -437,7 +457,7 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::finalize_invoice_tx(&mut **w, slate)
+		foreign::finalize_invoice_tx(&mut **w, (&self.keychain_mask).as_ref(), slate)
 	}
 }
 
@@ -487,7 +507,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 				>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_wallet_directory(&wallet_config.data_file_dir);
-		lc.open_wallet(None, pw);
+		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
 }

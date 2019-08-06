@@ -24,7 +24,7 @@ use std::path::Path;
 use failure::ResultExt;
 use uuid::Uuid;
 
-use crate::blake2::blake2b::Blake2b;
+use crate::blake2::blake2b::{Blake2b, Blake2bResult};
 
 use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
 use crate::store::{self, option_to_not_found, to_key, to_key_u64};
@@ -36,8 +36,12 @@ use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
 	WalletOutputBatch,
 };
-use crate::util;
 use crate::util::secp::constants::SECRET_KEY_SIZE;
+use crate::util::secp::key::SecretKey;
+use crate::util::{self, secp};
+
+use rand::rngs::mock::StepRng;
+use rand::thread_rng;
 
 pub const DB_DIR: &'static str = "db";
 pub const TX_SAVE_DIR: &'static str = "saved_txs";
@@ -99,6 +103,8 @@ where
 	data_file_dir: String,
 	/// Keychain
 	pub keychain: Option<K>,
+	/// Check value for XORed keychain seed
+	pub master_checksum: Box<Option<Blake2bResult>>,
 	/// Parent path to use by default for output operations
 	parent_key_id: Identifier,
 	/// wallet to node client
@@ -144,6 +150,7 @@ where
 			db: store,
 			data_file_dir: data_file_dir.to_owned(),
 			keychain: None,
+			master_checksum: Box::new(None),
 			parent_key_id: LMDBBackend::<C, K>::default_path(),
 			w2n_client: n_client,
 			_phantom: &PhantomData,
@@ -172,23 +179,68 @@ where
 	K: Keychain + 'ck,
 {
 	/// Set the keychain, which should already have been opened
-	fn set_keychain(&mut self, k: Box<K>) {
+	fn set_keychain(
+		&mut self,
+		mut k: Box<K>,
+		mask: bool,
+		use_test_rng: bool,
+	) -> Result<Option<SecretKey>, Error> {
+		// store hash of master key, so it can be verified later after unmasking
+		let root_key = k.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
+		let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
+		hasher.update(&root_key.0[..]);
+		self.master_checksum = Box::new(Some(hasher.finalize()));
+
+		let mask_value = {
+			match mask {
+				true => {
+					// Random value that must be XORed against the stored wallet seed
+					// before it is used
+					let mask_value = match use_test_rng {
+						true => {
+							let mut test_rng = StepRng::new(1234567890u64, 1);
+							secp::key::SecretKey::new(&k.secp(), &mut test_rng)
+						}
+						false => secp::key::SecretKey::new(&k.secp(), &mut thread_rng()),
+					};
+					k.mask_master_key(&mask_value)?;
+					Some(mask_value)
+				}
+				false => None,
+			}
+		};
+
 		self.keychain = Some(*k);
+		Ok(mask_value)
 	}
 
 	/// Close wallet
 	fn close(&mut self) -> Result<(), Error> {
-		//TODO: Ensure this is zeroed?
 		self.keychain = None;
 		Ok(())
 	}
 
-	/// Return the keychain being used
-	fn keychain(&mut self) -> Result<&mut K, Error> {
-		if self.keychain.is_some() {
-			Ok(self.keychain.as_mut().unwrap())
-		} else {
-			Err(ErrorKind::KeychainDoesntExist.into())
+	/// Return the keychain being used, cloned with XORed token value
+	/// for temporary use
+	fn keychain(&self, mask: Option<&SecretKey>) -> Result<K, Error> {
+		match self.keychain.as_ref() {
+			Some(k) => {
+				let mut k_masked = k.clone();
+				if let Some(m) = mask {
+					k_masked.mask_master_key(m)?;
+				}
+				// Check if master seed is what is expected (especially if it's been xored)
+				let root_key =
+					k_masked.derive_key(0, &K::root_key_id(), &SwitchCommitmentType::Regular)?;
+				let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
+				hasher.update(&root_key.0[..]);
+				if *self.master_checksum != Some(hasher.finalize()) {
+					error!("Supplied keychain mask is invalid");
+					return Err(ErrorKind::InvalidKeychainMask.into());
+				}
+				Ok(k_masked)
+			}
+			None => Err(ErrorKind::KeychainDoesntExist.into()),
 		}
 	}
 
@@ -200,6 +252,7 @@ where
 	/// return the version of the commit for caching
 	fn calc_commit_for_cache(
 		&mut self,
+		keychain_mask: Option<&SecretKey>,
 		amount: u64,
 		id: &Identifier,
 	) -> Result<Option<String>, Error> {
@@ -209,7 +262,7 @@ where
 			Ok(None)
 		} else {*/
 		Ok(Some(util::to_hex(
-			self.keychain()?
+			self.keychain(keychain_mask)?
 				.commit(amount, &id, &SwitchCommitmentType::Regular)?
 				.0
 				.to_vec(), // TODO: proper support for different switch commitment schemes
@@ -261,6 +314,7 @@ where
 
 	fn get_private_context(
 		&mut self,
+		keychain_mask: Option<&SecretKey>,
 		slate_id: &[u8],
 		participant_id: usize,
 	) -> Result<Context, Error> {
@@ -269,7 +323,8 @@ where
 			&mut slate_id.to_vec(),
 			participant_id as u64,
 		);
-		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain()?, slate_id)?;
+		let (blind_xor_key, nonce_xor_key) =
+			private_ctx_xor_keys(&self.keychain(keychain_mask)?, slate_id)?;
 
 		let mut ctx: Context = option_to_not_found(
 			self.db.get_ser(&ctx_key),
@@ -305,7 +360,7 @@ where
 			.join(filename);
 		let path_buf = Path::new(&path).to_path_buf();
 		let mut stored_tx = File::create(path_buf)?;
-		let tx_hex = util::to_hex(ser::ser_vec(tx).unwrap());;
+		let tx_hex = util::to_hex(ser::ser_vec(tx, ser::ProtocolVersion::local()).unwrap());;
 		stored_tx.write_all(&tx_hex.as_bytes())?;
 		stored_tx.sync_all()?;
 		Ok(())
@@ -325,19 +380,23 @@ where
 		tx_f.read_to_string(&mut content)?;
 		let tx_bin = util::from_hex(content).unwrap();
 		Ok(Some(
-			ser::deserialize::<Transaction>(&mut &tx_bin[..]).unwrap(),
+			ser::deserialize::<Transaction>(&mut &tx_bin[..], ser::ProtocolVersion::local())
+				.unwrap(),
 		))
 	}
 
-	fn batch<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
+	fn batch<'a>(
+		&'a mut self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
 		Ok(Box::new(Batch {
 			_store: self,
 			db: RefCell::new(Some(self.db.batch()?)),
-			keychain: self.keychain.clone(),
+			keychain: Some(self.keychain(keychain_mask)?),
 		}))
 	}
 
-	fn next_child<'a>(&mut self) -> Result<Identifier, Error> {
+	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
 		let parent_key_id = self.parent_key_id.clone();
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
@@ -351,7 +410,7 @@ where
 		return_path.depth = return_path.depth + 1;
 		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
 		deriv_idx = deriv_idx + 1;
-		let mut batch = self.batch()?;
+		let mut batch = self.batch(keychain_mask)?;
 		batch.save_child_index(&parent_key_id, deriv_idx)?;
 		batch.commit()?;
 		Ok(Identifier::from_path(&return_path))
@@ -370,13 +429,17 @@ where
 		Ok(last_confirmed_height)
 	}
 
-	fn restore(&mut self) -> Result<(), Error> {
-		restore(self).context(ErrorKind::Restore)?;
+	fn restore(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
+		restore(self, keychain_mask).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 
-	fn check_repair(&mut self, delete_unconfirmed: bool) -> Result<(), Error> {
-		check_repair(self, delete_unconfirmed).context(ErrorKind::Restore)?;
+	fn check_repair(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		delete_unconfirmed: bool,
+	) -> Result<(), Error> {
+		check_repair(self, keychain_mask, delete_unconfirmed).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }

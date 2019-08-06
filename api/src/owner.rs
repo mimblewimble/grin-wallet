@@ -26,6 +26,7 @@ use crate::libwallet::{
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
+use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
 use std::sync::Arc;
 
@@ -126,7 +127,7 @@ where
 	///
 	/// // Wallet must be opened with the password (TBD)
 	/// let pw = ZeroingString::from("wallet_password");
-	/// lc.open_wallet(None, pw);
+	/// lc.open_wallet(None, pw, false, false);
 	///
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
@@ -145,6 +146,9 @@ where
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
 	/// user-specified labels and BIP32 derivation paths.
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	///
 	/// # Returns
 	/// * Result Containing:
@@ -164,16 +168,21 @@ where
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
-	/// let result = api_owner.accounts();
+	/// let result = api_owner.accounts(None);
 	///
 	/// if let Ok(accts) = result {
 	///		//...
 	/// }
 	/// ```
 
-	pub fn accounts(&self) -> Result<Vec<AcctPathMapping>, Error> {
+	pub fn accounts(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Vec<AcctPathMapping>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
+		// Test keychain mask, to keep API consistent
+		let _ = w.keychain(keychain_mask)?;
 		owner::accounts(&mut **w)
 	}
 
@@ -181,6 +190,9 @@ where
 	/// label to a BIP32 path
 	///
 	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `label` - A human readable label to which to map the new BIP32 Path
 	///
 	/// # Returns
@@ -207,23 +219,29 @@ where
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
-	/// let result = api_owner.create_account_path("account1");
+	/// let result = api_owner.create_account_path(None, "account1");
 	///
 	/// if let Ok(identifier) = result {
 	///		//...
 	/// }
 	/// ```
 
-	pub fn create_account_path(&self, label: &str) -> Result<Identifier, Error> {
+	pub fn create_account_path(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		label: &str,
+	) -> Result<Identifier, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_account_path(&mut **w, label)
+		owner::create_account_path(&mut **w, keychain_mask, label)
 	}
 
 	/// Sets the wallet's currently active account. This sets the
 	/// BIP32 parent path used for most key-derivation operations.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `label` - The human readable label for the account. Accounts can be retrieved via
 	/// the [`account`](struct.Owner.html#method.accounts) method
 	///
@@ -248,23 +266,31 @@ where
 	///
 	/// let api_owner = Owner::new(wallet.clone());
 	///
-	/// let result = api_owner.create_account_path("account1");
+	/// let result = api_owner.create_account_path(None, "account1");
 	///
 	/// if let Ok(identifier) = result {
 	///		// set the account active
-	///		let result2 = api_owner.set_active_account("account1");
+	///		let result2 = api_owner.set_active_account(None, "account1");
 	/// }
 	/// ```
 
-	pub fn set_active_account(&self, label: &str) -> Result<(), Error> {
+	pub fn set_active_account(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		label: &str,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
+		// Test keychain mask, to keep API consistent
+		let _ = w.keychain(keychain_mask)?;
 		owner::set_active_account(&mut **w, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `include_spent` - If `true`, outputs that have been marked as 'spent'
 	/// in the wallet will be returned. If `false`, spent outputs will omitted
 	/// from the results.
@@ -297,7 +323,7 @@ where
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	///
-	/// let result = api_owner.retrieve_outputs(show_spent, update_from_node, tx_id);
+	/// let result = api_owner.retrieve_outputs(None, show_spent, update_from_node, tx_id);
 	///
 	/// if let Ok((was_updated, output_mappings)) = result {
 	///		//...
@@ -306,19 +332,28 @@ where
 
 	pub fn retrieve_outputs(
 		&self,
+		keychain_mask: Option<&SecretKey>,
 		include_spent: bool,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::retrieve_outputs(&mut **w, include_spent, refresh_from_node, tx_id)
+		owner::retrieve_outputs(
+			&mut **w,
+			keychain_mask,
+			include_spent,
+			refresh_from_node,
+			tx_id,
+		)
 	}
 
 	/// Returns a list of [Transaction Log Entries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	/// from the active account in the wallet.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
 	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
@@ -348,7 +383,7 @@ where
 	/// let tx_slate_id = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
 	///		//...
@@ -357,13 +392,20 @@ where
 
 	pub fn retrieve_txs(
 		&self,
+		keychain_mask: Option<&SecretKey>,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		let mut res = owner::retrieve_txs(&mut **w, refresh_from_node, tx_id, tx_slate_id)?;
+		let mut res = owner::retrieve_txs(
+			&mut **w,
+			keychain_mask,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)?;
 		if self.doctest_mode {
 			res.1 = res
 				.1
@@ -381,6 +423,8 @@ where
 	/// Returns summary information from the active account in the wallet.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
 	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
@@ -406,7 +450,7 @@ where
 	/// let minimum_confirmations=10;
 	///
 	/// // Return summary info for active account
-	/// let result = api_owner.retrieve_summary_info(update_from_node, minimum_confirmations);
+	/// let result = api_owner.retrieve_summary_info(None, update_from_node, minimum_confirmations);
 	///
 	/// if let Ok((was_updated, summary_info)) = result {
 	///		//...
@@ -415,12 +459,18 @@ where
 
 	pub fn retrieve_summary_info(
 		&self,
+		keychain_mask: Option<&SecretKey>,
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::retrieve_summary_info(&mut **w, refresh_from_node, minimum_confirmations)
+		owner::retrieve_summary_info(
+			&mut **w,
+			keychain_mask,
+			refresh_from_node,
+			minimum_confirmations,
+		)
 	}
 
 	/// Initiates a new transaction as the sender, creating a new
@@ -447,6 +497,8 @@ where
 	/// the `finalize` field is set.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
 	/// transaction initialization arguments. See struct documentation for further detail.
 	///
@@ -485,6 +537,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -492,16 +545,20 @@ where
 	/// 	// Send slate somehow
 	/// 	// ...
 	/// 	// Lock our outputs if we're happy the slate was (or is being) sent
-	/// 	api_owner.tx_lock_outputs(&slate, 0);
+	/// 	api_owner.tx_lock_outputs(None, &slate, 0);
 	/// }
 	/// ```
 
-	pub fn init_send_tx(&self, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn init_send_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: InitTxArgs,
+	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let mut slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			owner::init_send_tx(&mut **w, args, self.doctest_mode)?
+			owner::init_send_tx(&mut **w, keychain_mask, args, self.doctest_mode)?
 		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
@@ -520,14 +577,14 @@ where
 				let comm_adapter = create_sender(&sa.method, &sa.dest)
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
-				self.tx_lock_outputs(&slate, 0)?;
+				self.tx_lock_outputs(keychain_mask, &slate, 0)?;
 				let slate = match sa.finalize {
-					true => self.finalize_tx(&slate)?,
+					true => self.finalize_tx(keychain_mask, &slate)?,
 					false => slate,
 				};
 
 				if sa.post_tx {
-					self.post_tx(&slate.tx, sa.fluff)?;
+					self.post_tx(keychain_mask, &slate.tx, sa.fluff)?;
 				}
 				Ok(slate)
 			}
@@ -542,6 +599,8 @@ where
 	/// via the [Foreign API's `finalize_invoice_tx`](struct.Foreign.html#method.finalize_invoice_tx) method.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `args` - [`IssueInvoiceTxArgs`](../grin_wallet_libwallet/types/struct.IssueInvoiceTxArgs.html),
 	/// invoice transaction initialization arguments. See struct documentation for further detail.
 	///
@@ -561,17 +620,21 @@ where
 	/// 	amount: 60_000_000_000,
 	/// 	..Default::default()
 	/// };
-	/// let result = api_owner.issue_invoice_tx(args);
+	/// let result = api_owner.issue_invoice_tx(None, args);
 	///
 	/// if let Ok(slate) = result {
 	///		// if okay, send to the payer to add their inputs
 	///		// . . .
 	/// }
 	/// ```
-	pub fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<Slate, Error> {
+	pub fn issue_invoice_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: IssueInvoiceTxArgs,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::issue_invoice_tx(&mut **w, args, self.doctest_mode)
+		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
 	}
 
 	/// Processes an invoice tranaction created by another party, essentially
@@ -589,6 +652,8 @@ where
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
 	/// payer should have filled in round 1 and 2.
 	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
@@ -619,7 +684,7 @@ where
 	///		..Default::default()
 	///	};
 	///
-	/// let result = api_owner.process_invoice_tx(&slate, args);
+	/// let result = api_owner.process_invoice_tx(None, &slate, args);
 	///
 	/// if let Ok(slate) = result {
 	///	// If result okay, send back to the invoicer
@@ -627,10 +692,15 @@ where
 	///	}
 	/// ```
 
-	pub fn process_invoice_tx(&self, slate: &Slate, args: InitTxArgs) -> Result<Slate, Error> {
+	pub fn process_invoice_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		args: InitTxArgs,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::process_invoice_tx(&mut **w, slate, args, self.doctest_mode)
+		owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given
@@ -647,6 +717,8 @@ where
 	/// and return them to the `Unspent` state.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
 	/// * `participant_id` - The participant id, generally 0 for the party putting in funds, 1 for the
 	/// party receiving.
@@ -674,6 +746,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -681,14 +754,19 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		api_owner.tx_lock_outputs(&slate, 0);
+	///		api_owner.tx_lock_outputs(None, &slate, 0);
 	/// }
 	/// ```
 
-	pub fn tx_lock_outputs(&self, slate: &Slate, participant_id: usize) -> Result<(), Error> {
+	pub fn tx_lock_outputs(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		participant_id: usize,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::tx_lock_outputs(&mut **w, slate, participant_id)
+		owner::tx_lock_outputs(&mut **w, keychain_mask, slate, participant_id)
 	}
 
 	/// Finalizes a transaction, after all parties
@@ -704,6 +782,8 @@ where
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
 	/// participants must have filled in both rounds, and the sender should have locked their
 	/// outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
@@ -730,6 +810,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -737,27 +818,32 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		let res = api_owner.finalize_tx(&slate);
+	///		let res = api_owner.finalize_tx(None, &slate);
 	/// }
 	/// ```
 
-	pub fn finalize_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+	pub fn finalize_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::finalize_tx(&mut **w, &slate)
+		owner::finalize_tx(&mut **w, keychain_mask, &slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
 	/// for mining.
 	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `tx` - A completed [`Transaction`](../grin_core/core/transaction/struct.Transaction.html),
 	/// typically the `tx` field in the transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
-	///
 	/// * `fluff` - Instruct the node whether to use the Dandelion protocol when posting the
 	/// transaction. If `true`, the node should skip the Dandelion phase and broadcast the
 	/// transaction to all peers immediately. If `false`, the node will follow dandelion logic and
@@ -784,6 +870,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -791,19 +878,26 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		let res = api_owner.finalize_tx(&slate);
-	///		let res = api_owner.post_tx(&slate.tx, true);
+	///		let res = api_owner.finalize_tx(None, &slate);
+	///		let res = api_owner.post_tx(None, &slate.tx, true);
 	/// }
 	/// ```
 
-	pub fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), Error> {
+	pub fn post_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		tx: &Transaction,
+		fluff: bool,
+	) -> Result<(), Error> {
 		let client = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
+			// Test keychain mask, to keep API consistent
+			let _ = w.keychain(keychain_mask)?;
 			w.w2n_client().clone()
 		};
 		owner::post_tx(&client, tx, fluff)
@@ -820,6 +914,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `tx_id` - If present, cancel by the [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html) id
 	/// for the transaction.
 	///
@@ -846,6 +942,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -853,18 +950,23 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// We didn't get the slate back, or something else went wrong
 	///		//
-	///		let res = api_owner.cancel_tx(None, Some(slate.id.clone()));
+	///		let res = api_owner.cancel_tx(None, None, Some(slate.id.clone()));
 	/// }
 	/// ```
 
-	pub fn cancel_tx(&self, tx_id: Option<u32>, tx_slate_id: Option<Uuid>) -> Result<(), Error> {
+	pub fn cancel_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::cancel_tx(&mut **w, tx_id, tx_slate_id)
+		owner::cancel_tx(&mut **w, keychain_mask, tx_id, tx_slate_id)
 	}
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
@@ -872,6 +974,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `tx_log_entry` - A [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	///
 	/// # Returns
@@ -890,18 +994,24 @@ where
 	/// let tx_slate_id = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
-	///		let stored_tx = api_owner.get_stored_tx(&tx_log_entries[0]).unwrap();
+	///		let stored_tx = api_owner.get_stored_tx(None, &tx_log_entries[0]).unwrap();
 	///		//...
 	/// }
 	/// ```
 
 	// TODO: Should be accepting an id, not an entire entry struct
-	pub fn get_stored_tx(&self, tx_log_entry: &TxLogEntry) -> Result<Option<Transaction>, Error> {
+	pub fn get_stored_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		tx_log_entry: &TxLogEntry,
+	) -> Result<Option<Transaction>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
+		// Test keychain mask, to keep API consistent
+		let _ = w.keychain(keychain_mask)?;
 		owner::get_stored_tx(&**w, tx_log_entry)
 	}
 
@@ -915,6 +1025,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
 	///
 	/// # Returns
@@ -938,6 +1050,7 @@ where
 	/// 	..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
+	/// 	None,
 	/// 	args,
 	/// );
 	///
@@ -945,14 +1058,24 @@ where
 	///		// Send slate somehow
 	///		// ...
 	///		// Lock our outputs if we're happy the slate was (or is being) sent
-	///		let res = api_owner.tx_lock_outputs(&slate, 0);
+	///		let res = api_owner.tx_lock_outputs(None, &slate, 0);
 	///		//
 	///		// Retrieve slate back from recipient
 	///		//
-	///		let res = api_owner.verify_slate_messages(&slate);
+	///		let res = api_owner.verify_slate_messages(None, &slate);
 	/// }
 	/// ```
-	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
+	pub fn verify_slate_messages(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<(), Error> {
+		{
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
+			// Test keychain mask, to keep API consistent
+			let _ = w.keychain(keychain_mask)?;
+		}
 		owner::verify_slate_messages(slate)
 	}
 
@@ -971,7 +1094,8 @@ where
 	///
 	/// # Arguments
 	///
-	/// * None
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	///
 	/// # Returns
 	/// * `Ok(())` if successful
@@ -983,17 +1107,17 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let result = api_owner.restore();
+	/// let result = api_owner.restore(None);
 	///
 	/// if let Ok(_) = result {
 	///		// Wallet outputs should be consistent with what's on chain
 	///		// ...
 	/// }
 	/// ```
-	pub fn restore(&self) -> Result<(), Error> {
+	pub fn restore(&self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		let res = owner::restore(&mut **w);
+		let res = owner::restore(&mut **w, keychain_mask);
 		res
 	}
 
@@ -1013,6 +1137,8 @@ where
 	///
 	/// # Arguments
 	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `delete_unconfirmed` - if `false`, the check_repair process will be non-destructive, and
 	/// mostly limited to restoring missing outputs. It will leave unconfirmed transaction logs entries
 	/// and unconfirmed outputs intact. If `true`, the process will unlock all locked outputs,
@@ -1034,6 +1160,7 @@ where
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let result = api_owner.check_repair(
+	/// 	None,
 	/// 	false,
 	/// );
 	///
@@ -1043,10 +1170,14 @@ where
 	/// }
 	/// ```
 
-	pub fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), Error> {
+	pub fn check_repair(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		delete_unconfirmed: bool,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::check_repair(&mut **w, delete_unconfirmed)
+		owner::check_repair(&mut **w, keychain_mask, delete_unconfirmed)
 	}
 
 	/// Retrieves the last known height known by the wallet. This is determined as follows:
@@ -1061,7 +1192,8 @@ where
 	///
 	/// # Arguments
 	///
-	/// * None
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	///
 	/// # Returns
 	/// * Ok with a  [`NodeHeightResult`](../grin_wallet_libwallet/types/struct.NodeHeightResult.html)
@@ -1075,7 +1207,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let api_owner = Owner::new(wallet.clone());
-	/// let result = api_owner.node_height();
+	/// let result = api_owner.node_height(None);
 	///
 	/// if let Ok(node_height_result) = result {
 	///		if node_height_result.updated_from_node {
@@ -1086,10 +1218,15 @@ where
 	/// }
 	/// ```
 
-	pub fn node_height(&self) -> Result<NodeHeightResult, Error> {
+	pub fn node_height(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<NodeHeightResult, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::node_height(&mut **w)
+		// Test keychain mask, to keep API consistent
+		let _ = w.keychain(keychain_mask)?;
+		owner::node_height(&mut **w, keychain_mask)
 	}
 }
 
@@ -1139,7 +1276,7 @@ macro_rules! doctest_helper_setup_doc_env {
 				>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_wallet_directory(&wallet_config.data_file_dir);
-		lc.open_wallet(None, pw);
+		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
 }

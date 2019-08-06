@@ -58,13 +58,13 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 0, false, false);
+	# ,false, 0, false, false);
 	```
 	*/
 	fn check_version(&self) -> Result<VersionInfo, ErrorKind>;
 
 	/**
-	Networked version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
+	Networked Legacy (non-secure token) version of [Foreign::build_coinbase](struct.Foreign.html#method.build_coinbase).
 
 	# Json rpc example
 
@@ -108,9 +108,10 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 4, false, false);
+	# ,false, 4, false, false);
 	```
 	*/
+
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, ErrorKind>;
 
 	/**
@@ -188,7 +189,7 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# ,1 ,false, false);
+	# ,false, 1 ,false, false);
 	```
 	*/
 	fn verify_slate_messages(&self, slate: &Slate) -> Result<(), ErrorKind>;
@@ -341,7 +342,7 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 5, true, false);
+	# ,false, 5, true, false);
 	```
 	*/
 	fn receive_tx(
@@ -509,7 +510,7 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# , 5, false, true);
+	# ,false, 5, false, true);
 	```
 	*/
 	fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, ErrorKind>;
@@ -571,6 +572,7 @@ fn test_check_middleware(
 pub fn run_doctest_foreign(
 	request: serde_json::Value,
 	test_dir: &str,
+	use_token: bool,
 	blocks_to_mine: u64,
 	init_tx: bool,
 	init_invoice_tx: bool,
@@ -622,10 +624,21 @@ pub fn run_doctest_foreign(
 	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone())
 		.unwrap();
-	lc.open_wallet(None, empty_string.clone()).unwrap();
+	let mask1 = lc
+		.open_wallet(None, empty_string.clone(), use_token, true)
+		.unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
 
-	wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
+	if mask1.is_some() {
+		println!("WALLET 1 MASK: {:?}", mask1.clone().unwrap());
+	}
+
+	wallet_proxy.add_wallet(
+		"wallet1",
+		client1.get_send_instance(),
+		wallet1.clone(),
+		mask1.clone(),
+	);
 
 	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
@@ -646,10 +659,17 @@ pub fn run_doctest_foreign(
 	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone())
 		.unwrap();
-	lc.open_wallet(None, empty_string.clone()).unwrap();
+	let mask2 = lc
+		.open_wallet(None, empty_string.clone(), use_token, true)
+		.unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
-	wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+	wallet_proxy.add_wallet(
+		"wallet2",
+		client2.get_send_instance(),
+		wallet2.clone(),
+		mask2.clone(),
+	);
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -660,12 +680,18 @@ pub fn run_doctest_foreign(
 
 	// Mine a few blocks to wallet 1 so there's something to send
 	for _ in 0..blocks_to_mine {
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 1 as usize, false);
+		let _ = test_framework::award_blocks_to_wallet(
+			&chain,
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			1 as usize,
+			false,
+		);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(&mut **w, true, 1).unwrap();
+			api_impl::owner::retrieve_summary_info(&mut **w, (&mask1).as_ref(), true, 1).unwrap();
 		assert!(wallet_refreshed);
 	}
 
@@ -678,7 +704,7 @@ pub fn run_doctest_foreign(
 				amount,
 				..Default::default()
 			};
-			api_impl::owner::issue_invoice_tx(&mut **w, args, true).unwrap()
+			api_impl::owner::issue_invoice_tx(&mut **w, (&mask2).as_ref(), args, true).unwrap()
 		};
 		slate = {
 			let mut w_lock = wallet1.lock();
@@ -692,7 +718,8 @@ pub fn run_doctest_foreign(
 				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			api_impl::owner::process_invoice_tx(&mut **w, &slate, args, true).unwrap()
+			api_impl::owner::process_invoice_tx(&mut **w, (&mask1).as_ref(), &slate, args, true)
+				.unwrap()
 		};
 		println!("INIT INVOICE SLATE");
 		// Spit out slate for input to finalize_invoice_tx
@@ -712,15 +739,15 @@ pub fn run_doctest_foreign(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api_impl::owner::init_send_tx(&mut **w, args, true).unwrap();
+		let slate = api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
 		println!("INIT SLATE");
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 	}
 
 	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1, Some(test_check_middleware)),
-		true => Foreign::new(wallet2, Some(test_check_middleware)),
+		false => Foreign::new(wallet1, mask1, Some(test_check_middleware)),
+		true => Foreign::new(wallet2, mask2, Some(test_check_middleware)),
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;
@@ -730,7 +757,7 @@ pub fn run_doctest_foreign(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_foreign_assert_response {
-	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $init_tx:expr, $init_invoice_tx:expr) => {
+	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $init_tx:expr, $init_invoice_tx:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -752,6 +779,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 		let response = run_doctest_foreign(
 			request_val,
 			dir,
+			$use_token,
 			$blocks_to_mine,
 			$init_tx,
 			$init_invoice_tx,

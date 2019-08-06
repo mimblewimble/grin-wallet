@@ -32,6 +32,7 @@ mod wallet_tests {
 	use grin_wallet_libwallet::WalletInst;
 	use grin_wallet_util::grin_core::global::{self, ChainTypes};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
+	use util::secp::key::SecretKey;
 
 	use super::super::wallet_args;
 
@@ -123,18 +124,21 @@ mod wallet_tests {
 		passphrase: &str,
 		account: &str,
 	) -> Result<
-		Arc<
-			Mutex<
-				Box<
-					WalletInst<
-						'static,
-						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
-						LocalWalletClient,
-						ExtKeychain,
+		(
+			Arc<
+				Mutex<
+					Box<
+						WalletInst<
+							'static,
+							DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+							LocalWalletClient,
+							ExtKeychain,
+						>,
 					>,
 				>,
 			>,
-		>,
+			Option<SecretKey>,
+		),
 		grin_wallet_controller::Error,
 	> {
 		wallet_config.chain_type = None;
@@ -156,11 +160,12 @@ mod wallet_tests {
 			wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 		}
 		lc.set_wallet_directory(&wallet_config.data_file_dir);
-		lc.open_wallet(None, ZeroingString::from(passphrase))
+		let keychain_mask = lc
+			.open_wallet(None, ZeroingString::from(passphrase), true, false)
 			.unwrap();
 		let wallet_inst = lc.wallet_inst()?;
 		wallet_inst.set_parent_key_id_by_name(account)?;
-		Ok(Arc::new(Mutex::new(wallet)))
+		Ok((Arc::new(Mutex::new(wallet)), keychain_mask))
 	}
 
 	fn execute_command(
@@ -206,16 +211,28 @@ mod wallet_tests {
 		// add wallet to proxy
 		//let wallet1 = test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone());
 		let config1 = initial_setup_wallet(test_dir, "wallet1");
-		let wallet1 = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
-		wallet_proxy.add_wallet("wallet1", client1.get_send_instance(), wallet1.clone());
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		wallet_proxy.add_wallet(
+			"wallet1",
+			client1.get_send_instance(),
+			wallet1.clone(),
+			mask1_i.clone(),
+		);
 
 		// Create wallet 2
 		let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 		let config2 = initial_setup_wallet(test_dir, "wallet2");
-		let wallet2 = instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
-		wallet_proxy.add_wallet("wallet2", client2.get_send_instance(), wallet2.clone());
+		let (wallet2, mask2_i) =
+			instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		wallet_proxy.add_wallet(
+			"wallet2",
+			client2.get_send_instance(),
+			wallet2.clone(),
+			mask2_i.clone(),
+		);
 
 		// Set the wallet proxy listener running
 		thread::spawn(move || {
@@ -271,14 +288,22 @@ mod wallet_tests {
 
 		// Mine a bit into wallet 1 so we have something to send
 		// (TODO: Be able to stop listeners so we can test this better)
-		let wallet1 = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
-		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
-			api.set_active_account("mining")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let mask1 = (&mask1_i).as_ref();
+		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+			api.set_active_account(m, "mining")?;
 			Ok(())
 		})?;
 
 		let mut bh = 10u64;
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), bh as usize, false);
+		let _ = test_framework::award_blocks_to_wallet(
+			&chain,
+			wallet1.clone(),
+			mask1,
+			bh as usize,
+			false,
+		);
 
 		let very_long_message = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
 		                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
@@ -342,18 +367,20 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 		bh += 1;
 
-		let wallet1 = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let mask1 = (&mask1_i).as_ref();
 
 		// Check our transaction log, should have 10 entries
-		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
-			api.set_active_account("mining")?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+			api.set_active_account(m, "mining")?;
+			let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len(), bh as usize);
 			Ok(())
 		})?;
 
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 10, false);
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false);
 		bh += 10;
 
 		// update info for each
@@ -364,10 +391,13 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet2", &client1, arg_vec)?;
 
 		// check results in wallet 2
-		let wallet2 = instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
-		grin_wallet_controller::controller::owner_single_use(wallet2.clone(), |api| {
-			api.set_active_account("account_1")?;
-			let (_, wallet1_info) = api.retrieve_summary_info(true, 1)?;
+		let (wallet2, mask2_i) =
+			instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		let mask2 = (&mask2_i).as_ref();
+
+		grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+			api.set_active_account(m, "account_1")?;
+			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 			assert_eq!(wallet1_info.last_confirmed_height, bh);
 			assert_eq!(wallet1_info.amount_currently_spendable, 10_000_000_000);
 			Ok(())
@@ -419,11 +449,13 @@ mod wallet_tests {
 		bh += 1;
 
 		// Check our transaction log, should have bh entries + one for the self receive
-		let wallet1 = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let mask1 = (&mask1_i).as_ref();
 
-		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
-			api.set_active_account("mining")?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+			api.set_active_account(m, "mining")?;
+			let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len(), bh as usize + 1);
 			Ok(())
@@ -453,11 +485,13 @@ mod wallet_tests {
 		bh += 1;
 
 		// Check our transaction log, should have bh entries + 2 for the self receives
-		let wallet1 = instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let (wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		let mask1 = (&mask1_i).as_ref();
 
-		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), |api| {
-			api.set_active_account("mining")?;
-			let (refreshed, txs) = api.retrieve_txs(true, None, None)?;
+		grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+			api.set_active_account(m, "mining")?;
+			let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
 			assert!(refreshed);
 			assert_eq!(txs.len(), bh as usize + 2);
 			Ok(())
@@ -559,7 +593,7 @@ mod wallet_tests {
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 		// bit more mining
-		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), 5, false);
+		let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 		//bh += 5;
 
 		// txs and outputs (mostly spit out for a visual in test logs)
@@ -591,9 +625,9 @@ mod wallet_tests {
 
 		// get tx output via -tx parameter
 		let mut tx_id = "".to_string();
-		grin_wallet_controller::controller::owner_single_use(wallet2.clone(), |api| {
-			api.set_active_account("default")?;
-			let (_, txs) = api.retrieve_txs(true, None, None)?;
+		grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+			api.set_active_account(m, "default")?;
+			let (_, txs) = api.retrieve_txs(m, true, None, None)?;
 			let some_tx_id = txs[0].tx_slate_id.clone();
 			assert!(some_tx_id.is_some());
 			tx_id = some_tx_id.unwrap().to_hyphenated().to_string().clone();

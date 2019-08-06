@@ -806,19 +806,27 @@ where
 	}
 
 	// don't open wallet for certain lifecycle commands
-	match wallet_args.subcommand() {
-		("init", Some(_)) => {}
-		("recover", _) => {}
+	let keychain_mask = match wallet_args.subcommand() {
+		("init", Some(_)) => None,
+		("recover", _) => None,
 		_ => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
-			lc.open_wallet(None, prompt_password(&global_wallet_args.password))?;
+			let mask = lc.open_wallet(
+				None,
+				prompt_password(&global_wallet_args.password),
+				true,
+				false,
+			)?;
 			if let Some(account) = wallet_args.value_of("account") {
 				let wallet_inst = lc.wallet_inst()?;
 				wallet_inst.set_parent_key_id_by_name(account)?;
 			}
+			mask
 		}
-	}
+	};
+
+	let km = (&keychain_mask).as_ref();
 
 	let res = match wallet_args.subcommand() {
 		("init", Some(args)) => {
@@ -841,42 +849,46 @@ where
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
 			let a = arg_parse!(parse_listen_args(&mut c, &args));
-			command::listen(wallet, &c, &a, &global_wallet_args.clone())
+			command::listen(wallet, keychain_mask, &c, &a, &global_wallet_args.clone())
 		}
 		("owner_api", Some(_)) => {
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
-			command::owner_api(wallet, &wallet_config, &g)
+			command::owner_api(wallet, keychain_mask, &wallet_config, &g)
 		}
-		("web", Some(_)) => command::owner_api(wallet, &wallet_config, &global_wallet_args),
+		("web", Some(_)) => {
+			command::owner_api(wallet, keychain_mask, &wallet_config, &global_wallet_args)
+		}
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
-			command::account(wallet, a)
+			command::account(wallet, km, a)
 		}
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(&args));
 			command::send(
 				wallet,
+				km,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(wallet, &global_wallet_args, a)
+			command::receive(wallet, km, &global_wallet_args, a)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
-			command::finalize(wallet, a)
+			command::finalize(wallet, km, a)
 		}
 		("invoice", Some(args)) => {
 			let a = arg_parse!(parse_issue_invoice_args(&args));
-			command::issue_invoice_tx(wallet, a)
+			command::issue_invoice_tx(wallet, km, a)
 		}
 		("pay", Some(args)) => {
 			let a = arg_parse!(parse_process_invoice_args(&args));
 			command::process_invoice(
 				wallet,
+				km,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -885,6 +897,7 @@ where
 			let a = arg_parse!(parse_info_args(&args));
 			command::info(
 				wallet,
+				km,
 				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
@@ -892,6 +905,7 @@ where
 		}
 		("outputs", Some(_)) => command::outputs(
 			wallet,
+			km,
 			&global_wallet_args,
 			wallet_config.dark_background_color_scheme.unwrap_or(true),
 		),
@@ -899,6 +913,7 @@ where
 			let a = arg_parse!(parse_txs_args(&args));
 			command::txs(
 				wallet,
+				km,
 				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
@@ -906,16 +921,16 @@ where
 		}
 		("repost", Some(args)) => {
 			let a = arg_parse!(parse_repost_args(&args));
-			command::repost(wallet, a)
+			command::repost(wallet, km, a)
 		}
 		("cancel", Some(args)) => {
 			let a = arg_parse!(parse_cancel_args(&args));
-			command::cancel(wallet, a)
+			command::cancel(wallet, km, a)
 		}
-		("restore", Some(_)) => command::restore(wallet),
+		("restore", Some(_)) => command::restore(wallet, km),
 		("check", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
-			command::check_repair(wallet, a)
+			command::check_repair(wallet, km, a)
 		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin help wallet' for details");

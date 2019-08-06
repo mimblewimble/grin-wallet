@@ -19,6 +19,7 @@ use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
 use crate::lifecycle::seed::WalletSeed;
+use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use crate::LMDBBackend;
 use failure::ResultExt;
@@ -131,7 +132,13 @@ where
 		Ok(())
 	}
 
-	fn open_wallet(&mut self, _name: Option<&str>, password: ZeroingString) -> Result<(), Error> {
+	fn open_wallet(
+		&mut self,
+		_name: Option<&str>,
+		password: ZeroingString,
+		create_mask: bool,
+		use_test_rng: bool,
+	) -> Result<Option<SecretKey>, Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
@@ -148,9 +155,10 @@ where
 		let keychain = wallet_seed
 			.derive_keychain(global::is_floonet())
 			.context(ErrorKind::Lifecycle("Error deriving keychain".into()))?;
-		wallet.set_keychain(Box::new(keychain));
+
+		let mask = wallet.set_keychain(Box::new(keychain), create_mask, use_test_rng)?;
 		self.backend = Some(Box::new(wallet));
-		Ok(())
+		Ok(mask)
 	}
 
 	fn close_wallet(&mut self, _name: Option<&str>) -> Result<(), Error> {

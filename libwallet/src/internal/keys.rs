@@ -15,16 +15,20 @@
 //! Wallet key management functions
 use crate::error::{Error, ErrorKind};
 use crate::grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
+use crate::grin_util::secp::key::SecretKey;
 use crate::types::{AcctPathMapping, NodeClient, WalletBackend};
 
 /// Get next available key in the wallet for a given parent
-pub fn next_available_key<'a, T: ?Sized, C, K>(wallet: &mut T) -> Result<Identifier, Error>
+pub fn next_available_key<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let child = wallet.next_child()?;
+	let child = wallet.next_child(keychain_mask)?;
 	Ok(child)
 }
 
@@ -56,7 +60,11 @@ where
 }
 
 /// Adds an new parent account path with a given label
-pub fn new_acct_path<'a, T: ?Sized, C, K>(wallet: &mut T, label: &str) -> Result<Identifier, Error>
+pub fn new_acct_path<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	label: &str,
+) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -90,7 +98,7 @@ where
 		path: return_id.clone(),
 	};
 
-	let mut batch = wallet.batch()?;
+	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_acct_path(save_path)?;
 	batch.commit()?;
 	Ok(return_id)
@@ -99,6 +107,7 @@ where
 /// Adds/sets a particular account path with a given label
 pub fn set_acct_path<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
 	label: &str,
 	path: &Identifier,
 ) -> Result<(), Error>
@@ -113,7 +122,7 @@ where
 		path: path.clone(),
 	};
 
-	let mut batch = wallet.batch()?;
+	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_acct_path(save_path)?;
 	batch.commit()?;
 	Ok(())

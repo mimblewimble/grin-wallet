@@ -20,6 +20,7 @@ use crate::libwallet::{
 	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
+use crate::util::secp::key::SecretKey;
 use crate::util::{to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
@@ -73,23 +74,25 @@ fn check_middleware(
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn owner_single_use<'a, L, F, C, K>(
-	lc_provider: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
 	f: F,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
-	F: FnOnce(&mut Owner<'a, L, C, K>) -> Result<(), Error>,
+	F: FnOnce(&mut Owner<'a, L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	f(&mut Owner::new(lc_provider))?;
+	f(&mut Owner::new(wallet), keychain_mask)?;
 	Ok(())
 }
 
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn foreign_single_use<'a, L, F, C, K>(
-	lc_provider: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<SecretKey>,
 	f: F,
 ) -> Result<(), Error>
 where
@@ -98,14 +101,21 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	f(&mut Foreign::new(lc_provider, Some(check_middleware)))?;
+	f(&mut Foreign::new(
+		wallet,
+		keychain_mask,
+		Some(check_middleware),
+	))?;
 	Ok(())
 }
 
 /// Listener version, providing same API but listening for requests on a
 /// port and wrapping the calls
+/// Note keychain mask is only provided here in case the foreign listener is also being used
+/// in the same wallet instance
 pub fn owner_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	keychain_mask: Option<SecretKey>,
 	addr: &str,
 	api_secret: Option<String>,
 	tls_config: Option<TLSConfig>,
@@ -136,7 +146,7 @@ where
 	// If so configured, add the foreign API to the same port
 	if owner_api_include_foreign.unwrap_or(false) {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet);
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
@@ -160,6 +170,7 @@ where
 /// port and wrapping the calls
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	keychain_mask: Option<SecretKey>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 ) -> Result<(), Error>
@@ -168,7 +179,7 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet);
+	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 
 	let mut router = Router::new();
 
@@ -275,6 +286,8 @@ where
 {
 	/// Wallet instance
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	/// Keychain mask
+	pub keychain_mask: Option<SecretKey>,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -286,8 +299,12 @@ where
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		keychain_mask: Option<SecretKey>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
-		ForeignAPIHandlerV2 { wallet }
+		ForeignAPIHandlerV2 {
+			wallet,
+			keychain_mask,
+		}
 	}
 
 	fn call_api(
@@ -309,7 +326,11 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Foreign::new(self.wallet.clone(), Some(check_middleware));
+		let api = Foreign::new(
+			self.wallet.clone(),
+			self.keychain_mask.clone(),
+			Some(check_middleware),
+		);
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),

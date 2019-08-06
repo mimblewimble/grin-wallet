@@ -24,6 +24,7 @@ use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::{
 	BlockFees, CbData, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
 };
+use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
 use crate::util::Mutex;
 use chrono::Duration;
@@ -105,6 +106,7 @@ pub fn award_block_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	txs: Vec<&Transaction>,
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), libwallet::Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -123,7 +125,7 @@ where
 	let coinbase_tx = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		let res = foreign::build_coinbase(&mut **w, &block_fees, false)?;
+		let res = foreign::build_coinbase(&mut **w, keychain_mask, &block_fees, false)?;
 		res
 	};
 	add_block_with_reward(chain, txs, coinbase_tx.clone());
@@ -134,6 +136,7 @@ where
 pub fn award_blocks_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+	keychain_mask: Option<&SecretKey>,
 	number: usize,
 	pause_between: bool,
 ) -> Result<(), libwallet::Error>
@@ -143,7 +146,7 @@ where
 	K: keychain::Keychain + 'a,
 {
 	for _ in 0..number {
-		award_block_to_wallet(chain, vec![], wallet.clone())?;
+		award_block_to_wallet(chain, vec![], wallet.clone(), keychain_mask)?;
 		if pause_between {
 			thread::sleep(std::time::Duration::from_millis(100));
 		}
@@ -154,6 +157,7 @@ where
 /// send an amount to a destination
 pub fn send_to_dest<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
 	client: LocalWalletClient,
 	dest: &str,
 	amount: u64,
@@ -176,10 +180,10 @@ where
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate_i = owner::init_send_tx(&mut **w, args, test_mode)?;
+		let slate_i = owner::init_send_tx(&mut **w, keychain_mask, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
-		owner::tx_lock_outputs(&mut **w, &slate, 0)?;
-		let slate = owner::finalize_tx(&mut **w, &slate)?;
+		owner::tx_lock_outputs(&mut **w, keychain_mask, &slate, 0)?;
+		let slate = owner::finalize_tx(&mut **w, keychain_mask, &slate)?;
 		slate
 	};
 	let client = {
@@ -194,6 +198,7 @@ where
 /// get wallet info totals
 pub fn wallet_info<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
 ) -> Result<WalletInfo, libwallet::Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -202,7 +207,8 @@ where
 {
 	let mut w_lock = wallet.lock();
 	let w = w_lock.lc_provider()?.wallet_inst()?;
-	let (wallet_refreshed, wallet_info) = owner::retrieve_summary_info(&mut **w, true, 1)?;
+	let (wallet_refreshed, wallet_info) =
+		owner::retrieve_summary_info(&mut **w, keychain_mask, true, 1)?;
 	assert!(wallet_refreshed);
 	Ok(wallet_info)
 }

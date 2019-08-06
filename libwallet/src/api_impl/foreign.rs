@@ -16,6 +16,7 @@
 use strum::IntoEnumIterator;
 
 use crate::grin_keychain::Keychain;
+use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
@@ -37,6 +38,7 @@ pub fn check_version() -> VersionInfo {
 /// Build a coinbase transaction
 pub fn build_coinbase<'a, T: ?Sized, C, K>(
 	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
@@ -45,7 +47,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	updater::build_coinbase(&mut *w, block_fees, test_mode)
+	updater::build_coinbase(&mut *w, keychain_mask, block_fees, test_mode)
 }
 
 /// verify slate messages
@@ -56,6 +58,7 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 /// Receive a tx as recipient
 pub fn receive_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
 	message: Option<String>,
@@ -101,6 +104,7 @@ where
 
 	tx::add_output_to_slate(
 		&mut *w,
+		keychain_mask,
 		&mut ret_slate,
 		&parent_key_id,
 		1,
@@ -108,24 +112,28 @@ where
 		false,
 		use_test_rng,
 	)?;
-	tx::update_message(&mut *w, &mut ret_slate)?;
+	tx::update_message(&mut *w, keychain_mask, &mut ret_slate)?;
 	Ok(ret_slate)
 }
 
 /// Receive an tx that this wallet has issued
-pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<Slate, Error>
+pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
-	let context = w.get_private_context(sl.id.as_bytes(), 1)?;
-	tx::complete_tx(&mut *w, &mut sl, 1, &context)?;
+	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
+	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
 	tx::update_stored_tx(&mut *w, &mut sl, true)?;
-	tx::update_message(&mut *w, &mut sl)?;
+	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
-		let mut batch = w.batch()?;
+		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes(), 1)?;
 		batch.commit()?;
 	}

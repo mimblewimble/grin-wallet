@@ -368,7 +368,7 @@ impl SlateReceiver for KeybaseAllChannels {
 			>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_wallet_directory(&config.data_file_dir);
-		lc.open_wallet(None, passphrase)?;
+		let mask = lc.open_wallet(None, passphrase, true, false)?;
 		let wallet_inst = lc.wallet_inst()?;
 		wallet_inst.set_parent_key_id_by_name(account)?;
 
@@ -411,8 +411,14 @@ impl SlateReceiver for KeybaseAllChannels {
 							return Err(e);
 						}
 						let res = {
-							let r =
-								foreign::receive_tx(&mut **wallet_inst, &slate, None, None, false);
+							let r = foreign::receive_tx(
+								&mut **wallet_inst,
+								Some(mask.as_ref().unwrap()),
+								&slate,
+								None,
+								None,
+								false,
+							);
 							r
 						};
 						match res {

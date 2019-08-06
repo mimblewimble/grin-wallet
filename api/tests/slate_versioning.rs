@@ -52,7 +52,7 @@ fn _receive_versioned_slate() {
 	let request_val: Value = serde_json::from_str(v1_req).unwrap();
 	let expected_response: Value = serde_json::from_str(v1_resp).unwrap();
 
-	let response = run_doctest_foreign(request_val, dir, 5, true, false)
+	let response = run_doctest_foreign(request_val, dir, false, 5, true, false)
 		.unwrap()
 		.unwrap();
 
