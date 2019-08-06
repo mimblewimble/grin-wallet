@@ -19,7 +19,8 @@ use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, WalletInfo, WalletLCProvider, VersionedSlate
+	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, VersionedSlate, WalletInfo,
+	WalletLCProvider,
 };
 use crate::{Owner, Token};
 use easy_jsonrpc;
@@ -506,7 +507,11 @@ pub trait OwnerRpcS {
 	```
 	*/
 
-	fn issue_invoice_tx(&self, token: Token, args: IssueInvoiceTxArgs) -> Result<VersionedSlate, ErrorKind>;
+	fn issue_invoice_tx(
+		&self,
+		token: Token,
+		args: IssueInvoiceTxArgs,
+	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
 		 Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
@@ -910,7 +915,8 @@ pub trait OwnerRpcS {
 	# , true, 5, true, true, false);
 	```
 	 */
-	fn finalize_tx(&self, token: Token, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
+	fn finalize_tx(&self, token: Token, slate: VersionedSlate)
+		-> Result<VersionedSlate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::post_tx](struct.Owner.html#method.post_tx).
@@ -1366,13 +1372,19 @@ where
 	}
 
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind> {
-		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args).map_err(|e| e.kind())?;
+		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
+			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V2;
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
-	fn issue_invoice_tx(&self, token: Token, args: IssueInvoiceTxArgs) -> Result<VersionedSlate, ErrorKind> {
-		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args).map_err(|e| e.kind())?;
+	fn issue_invoice_tx(
+		&self,
+		token: Token,
+		args: IssueInvoiceTxArgs,
+	) -> Result<VersionedSlate, ErrorKind> {
+		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)
+			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V2;
 		Ok(VersionedSlate::into_version(slate, version))
 	}
@@ -1384,15 +1396,21 @@ where
 		args: InitTxArgs,
 	) -> Result<VersionedSlate, ErrorKind> {
 		let in_slate = Slate::from(slate);
-		let out_slate = Owner::process_invoice_tx(self, (&token.keychain_mask).as_ref(), &in_slate, args)
-			.map_err(|e| e.kind())?;
+		let out_slate =
+			Owner::process_invoice_tx(self, (&token.keychain_mask).as_ref(), &in_slate, args)
+				.map_err(|e| e.kind())?;
 		let version = SlateVersion::V2;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}
 
-	fn finalize_tx(&self, token: Token, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
+	fn finalize_tx(
+		&self,
+		token: Token,
+		slate: VersionedSlate,
+	) -> Result<VersionedSlate, ErrorKind> {
 		let in_slate = Slate::from(slate);
-		let out_slate = Owner::finalize_tx(self, (&token.keychain_mask).as_ref(), &in_slate).map_err(|e| e.kind())?;
+		let out_slate = Owner::finalize_tx(self, (&token.keychain_mask).as_ref(), &in_slate)
+			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V2;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}

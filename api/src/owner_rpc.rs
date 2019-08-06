@@ -1308,7 +1308,8 @@ where
 		args: InitTxArgs,
 	) -> Result<VersionedSlate, ErrorKind> {
 		let in_slate = Slate::from(slate);
-		let out_slate = Owner::process_invoice_tx(self, None, &in_slate, args).map_err(|e| e.kind())?;
+		let out_slate =
+			Owner::process_invoice_tx(self, None, &in_slate, args).map_err(|e| e.kind())?;
 		let version = SlateVersion::V2;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}
