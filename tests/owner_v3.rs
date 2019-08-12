@@ -119,7 +119,12 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
 	assert!(res.is_ok());
 	let value = res.unwrap();
-	assert_eq!(value["Ok"][1]["amount_currently_spendable"].as_str().unwrap(), "420000000000");
+	assert_eq!(
+		value["Ok"][1]["amount_currently_spendable"]
+			.as_str()
+			.unwrap(),
+		"420000000000"
+	);
 	println!("Response: {:?}", value);
 	Ok(())
 }
