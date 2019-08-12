@@ -10,5 +10,4 @@ target
 grin.log
 wallet.seed
 test_output
-wallet*
 .idea/
