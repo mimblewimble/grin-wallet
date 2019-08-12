@@ -2,7 +2,7 @@
 	"jsonrpc": "2.0",
 	"method": "retrieve_summary_info",
 	"params": {
-		"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+		"token": null,
 		"refresh_from_node": true,
 		"minimum_confirmations": 1
 	},

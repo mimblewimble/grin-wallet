@@ -33,8 +33,11 @@ use util::secp::key::SecretKey;
 use grin_wallet::cmd::wallet_args;
 use grin_wallet_util::grin_api as api;
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
+use serde_json::{json, Value};
 use url::Url;
+use std::thread;
+use std::time::Duration;
 
 fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
@@ -191,4 +194,32 @@ where
 	let req = api::client::create_post_request(url.as_str(), api_secret, input)?;
 	let res = api::client::send_request(req)?;
 	Ok(res)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletAPIReturnError {
+	message: String,
+}
+
+pub fn send_request(id: u64, dest: &str, req: &str) -> Result<Result<Value, WalletAPIReturnError>, api::Error>
+{
+	let url = Url::parse(dest).unwrap();
+	let req: Value = serde_json::from_str(req).unwrap();
+	println!("Request in: {}", req);
+	let res: String = post(&url, None, &req).map_err(|e| {
+		let err_string = format!("{}", e);
+		println!("{}", err_string);
+		thread::sleep(Duration::from_millis(200));
+		e
+	})?;
+	let res = serde_json::from_str(&res).unwrap();
+	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
+	let res = res.outputs.get(&id).unwrap().clone().unwrap();
+	if res["Err"] != json!(null) {
+		Ok(Err(WalletAPIReturnError {
+			message: res["Err"].as_str().unwrap().to_owned()
+		}))
+	} else {
+		Ok(Ok(res))
+	}
 }

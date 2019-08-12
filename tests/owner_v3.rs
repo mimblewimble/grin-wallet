@@ -29,10 +29,7 @@ use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 
 mod common;
-use common::{execute_command, initial_setup_wallet, instantiate_wallet, post, setup};
-use url::Url;
-
-use serde_json::{json, Value};
+use common::{execute_command, initial_setup_wallet, instantiate_wallet, send_request, setup};
 
 #[test]
 fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
@@ -118,27 +115,11 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	thread::sleep(Duration::from_millis(200));
 
 	// Send simple retrieve_info request to owner listener
-	let owner_url = Url::parse("http://127.0.0.1:3420/v3/owner").unwrap();
-	//let req_raw = include_str!("data/retrieve_info.req.json");
-	//println!("Request Raw: {}", req_raw);
-	let req = json!({
-		"jsonrpc": "2.0",
-		"id": 1,
-		"method": "retrieve_summary_info",
-		"params": {
-			"token": null,
-			"refresh_from_node": true,
-			"minimum_confirmations": 1
-		},
-	});
-	println!("Request in: {}", req);
-	let res: String = post(&owner_url, None, &req).map_err(|e| {
-		let err_string = format!("{}", e);
-		println!("{}", err_string);
-		thread::sleep(Duration::from_millis(200));
-		grin_wallet_controller::ErrorKind::GenericError(err_string)
-	})?;
-	let res: Value = serde_json::from_str(&res).unwrap();
-	println!("Response: {}", res);
+	let req = include_str!("data/retrieve_info.req.json");
+	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
+	assert!(res.is_ok());
+	let value = res.unwrap();
+	assert_eq!(value["Ok"][1]["amount_currently_spendable"].as_str().unwrap(), "420000000000");
+	println!("Response: {:?}", value);
 	Ok(())
 }
