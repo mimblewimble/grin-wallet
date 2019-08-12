@@ -25,7 +25,7 @@ use util::{Mutex, ZeroingString};
 
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-use grin_wallet_libwallet::{WalletInst, WalletInfo};
+use grin_wallet_libwallet::{WalletInfo, WalletInst};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use util::secp::key::SecretKey;
@@ -33,8 +33,8 @@ use util::secp::key::SecretKey;
 use grin_wallet::cmd::wallet_args;
 use grin_wallet_util::grin_api as api;
 
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::thread;
 use std::time::Duration;
@@ -73,7 +73,7 @@ macro_rules! setup_proxy {
 			$client1.get_send_instance(),
 			$wallet1.clone(),
 			mask1_i.clone(),
-		);
+			);
 
 		// Create wallet 2, which will run a listener
 		let $client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
@@ -89,15 +89,14 @@ macro_rules! setup_proxy {
 			$client2.get_send_instance(),
 			$wallet2.clone(),
 			mask2_i.clone(),
-		);
+			);
 
 		// Set the wallet proxy listener running
 		thread::spawn(move || {
 			if let Err(e) = wallet_proxy.run() {
 				error!("Wallet Proxy error: {}", e);
-			}
-		});
-
+				}
+			});
 	};
 }
 
@@ -262,8 +261,8 @@ pub fn send_request<OUT>(
 	id: u64,
 	dest: &str,
 	req: &str,
-) -> Result<Result<OUT, WalletAPIReturnError>, api::Error> 
-	where 
+) -> Result<Result<OUT, WalletAPIReturnError>, api::Error>
+where
 	OUT: DeserializeOwned,
 {
 	let url = Url::parse(dest).unwrap();
@@ -296,4 +295,3 @@ pub struct WalletAPIReturnError {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RetrieveSummaryInfoResp(pub bool, pub WalletInfo);
-
