@@ -28,66 +28,25 @@ use std::time::Duration;
 use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 
+#[macro_use]
 mod common;
 use common::{execute_command, initial_setup_wallet, instantiate_wallet, send_request, setup};
+use common::RetrieveSummaryInfoResp;
 
 #[test]
 fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	let test_dir = "target/test_output/owner_v3";
 	setup(test_dir);
 
-	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy: WalletProxy<
-		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-		LocalWalletClient,
-		ExtKeychain,
-	> = WalletProxy::new(test_dir);
-	let chain = wallet_proxy.chain.clone();
-
-	// load app yaml. If it don't exist, just say so and exit
-	let yml = load_yaml!("../src/bin/grin-wallet.yml");
-	let app = App::from_yaml(yml);
-
-	// wallet init
-	let arg_vec = vec!["grin-wallet", "-p", "password", "init", "-h"];
-	// should create new wallet file
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone())?;
-
-	// add wallet to proxy
-	let config1 = initial_setup_wallet(test_dir, "wallet1");
-	//config1.owner_api_listen_port = Some(13420);
-	let (wallet1, mask1_i) =
-		instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
-	let mask1 = (&mask1_i).as_ref();
-	wallet_proxy.add_wallet(
-		"wallet1",
-		client1.get_send_instance(),
-		wallet1.clone(),
-		mask1_i.clone(),
+	setup_proxy!(test_dir,
+		chain,
+		wallet1,
+		client1,
+		mask1,
+		wallet2,
+		client2,
+		_mask2
 	);
-
-	// Create wallet 2, which will run a listener
-	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
-
-	let config2 = initial_setup_wallet(test_dir, "wallet2");
-	//config2.api_listen_port = 23415;
-	let (wallet2, mask2_i) =
-		instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
-	wallet_proxy.add_wallet(
-		"wallet2",
-		client2.get_send_instance(),
-		wallet2.clone(),
-		mask2_i.clone(),
-	);
-
-	// Set the wallet proxy listener running
-	thread::spawn(move || {
-		if let Err(e) = wallet_proxy.run() {
-			error!("Wallet Proxy error: {}", e);
-		}
-	});
 
 	// add some blocks manually
 	let bh = 10u64;
@@ -118,13 +77,8 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	let req = include_str!("data/retrieve_info.req.json");
 	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
 	assert!(res.is_ok());
-	let value = res.unwrap();
-	assert_eq!(
-		value["Ok"][1]["amount_currently_spendable"]
-			.as_str()
-			.unwrap(),
-		"420000000000"
-	);
+	let value: RetrieveSummaryInfoResp = res.unwrap();
+	assert_eq!(value.1.amount_currently_spendable, 420000000000);
 	println!("Response: {:?}", value);
 	Ok(())
 }

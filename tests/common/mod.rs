@@ -25,7 +25,7 @@ use util::{Mutex, ZeroingString};
 
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-use grin_wallet_libwallet::WalletInst;
+use grin_wallet_libwallet::{WalletInst, WalletInfo};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use util::secp::key::SecretKey;
@@ -34,10 +34,72 @@ use grin_wallet::cmd::wallet_args;
 use grin_wallet_util::grin_api as api;
 
 use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use std::thread;
 use std::time::Duration;
 use url::Url;
+
+// Set up 2 wallets and launch the test proxy behind them
+#[macro_export]
+macro_rules! setup_proxy {
+	($test_dir: expr, $chain: ident, $wallet1: ident, $client1: ident, $mask1: ident, $wallet2: ident, $client2: ident, $mask2: ident) => {
+		// Create a new proxy to simulate server and wallet responses
+		let mut wallet_proxy: WalletProxy<
+			DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+			LocalWalletClient,
+			ExtKeychain,
+		> = WalletProxy::new($test_dir);
+		let $chain = wallet_proxy.chain.clone();
+
+		// load app yaml. If it don't exist, just say so and exit
+		let yml = load_yaml!("../src/bin/grin-wallet.yml");
+		let app = App::from_yaml(yml);
+
+		// wallet init
+		let arg_vec = vec!["grin-wallet", "-p", "password", "init", "-h"];
+		// should create new wallet file
+		let $client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
+		execute_command(&app, $test_dir, "wallet1", &$client1, arg_vec.clone())?;
+
+		// add wallet to proxy
+		let config1 = initial_setup_wallet($test_dir, "wallet1");
+		//config1.owner_api_listen_port = Some(13420);
+		let ($wallet1, mask1_i) =
+			instantiate_wallet(config1.clone(), $client1.clone(), "password", "default")?;
+		let $mask1 = (&mask1_i).as_ref();
+		wallet_proxy.add_wallet(
+			"wallet1",
+			$client1.get_send_instance(),
+			$wallet1.clone(),
+			mask1_i.clone(),
+		);
+
+		// Create wallet 2, which will run a listener
+		let $client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
+		execute_command(&app, $test_dir, "wallet2", &$client2, arg_vec.clone())?;
+
+		let config2 = initial_setup_wallet($test_dir, "wallet2");
+		//config2.api_listen_port = 23415;
+		let ($wallet2, mask2_i) =
+			instantiate_wallet(config2.clone(), $client2.clone(), "password", "default")?;
+		let $mask2 = (&mask2_i).as_ref();
+		wallet_proxy.add_wallet(
+			"wallet2",
+			$client2.get_send_instance(),
+			$wallet2.clone(),
+			mask2_i.clone(),
+		);
+
+		// Set the wallet proxy listener running
+		thread::spawn(move || {
+			if let Err(e) = wallet_proxy.run() {
+				error!("Wallet Proxy error: {}", e);
+			}
+		});
+
+	};
+}
 
 fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
@@ -196,19 +258,16 @@ where
 	Ok(res)
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct WalletAPIReturnError {
-	message: String,
-}
-
-pub fn send_request(
+pub fn send_request<OUT>(
 	id: u64,
 	dest: &str,
 	req: &str,
-) -> Result<Result<Value, WalletAPIReturnError>, api::Error> {
+) -> Result<Result<OUT, WalletAPIReturnError>, api::Error> 
+	where 
+	OUT: DeserializeOwned,
+{
 	let url = Url::parse(dest).unwrap();
 	let req: Value = serde_json::from_str(req).unwrap();
-	println!("Request in: {}", req);
 	let res: String = post(&url, None, &req).map_err(|e| {
 		let err_string = format!("{}", e);
 		println!("{}", err_string);
@@ -223,6 +282,18 @@ pub fn send_request(
 			message: res["Err"].as_str().unwrap().to_owned(),
 		}))
 	} else {
-		Ok(Ok(res))
+		// deserialize result into expected type
+		let value: OUT = serde_json::from_value(res["Ok"].clone()).unwrap();
+		Ok(Ok(value))
 	}
 }
+
+// Types to make working with json responses easier
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletAPIReturnError {
+	message: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RetrieveSummaryInfoResp(pub bool, pub WalletInfo);
+
