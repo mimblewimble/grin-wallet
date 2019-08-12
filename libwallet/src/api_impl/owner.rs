@@ -84,7 +84,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false);
+		validated = update_outputs(w, keychain_mask, false)?;
 	}
 
 	Ok((
@@ -116,7 +116,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false);
+		validated = update_outputs(w, keychain_mask, false)?;
 	}
 
 	Ok((
@@ -141,7 +141,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false);
+		validated = update_outputs(w, keychain_mask, false)?;
 	}
 
 	let wallet_info = updater::retrieve_info(&mut *w, &parent_key_id, minimum_confirmations)?;
@@ -418,7 +418,7 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
-	if !update_outputs(w, keychain_mask, false) {
+	if !update_outputs(w, keychain_mask, false)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		))?;
@@ -489,7 +489,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	update_outputs(w, keychain_mask, true);
+	update_outputs(w, keychain_mask, true)?;
 	w.check_repair(keychain_mask, delete_unconfirmed)
 }
 
@@ -528,7 +528,7 @@ fn update_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
-) -> bool
+) -> Result<bool, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -536,7 +536,12 @@ where
 {
 	let parent_key_id = w.parent_key_id();
 	match updater::refresh_outputs(&mut *w, keychain_mask, &parent_key_id, update_all) {
-		Ok(_) => true,
-		Err(_) => false,
+		Ok(_) => Ok(true),
+		Err(e) => {
+			if let ErrorKind::InvalidKeychainMask = e.kind() {
+				return Err(e);
+			}
+			Ok(false)
+		}
 	}
 }

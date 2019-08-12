@@ -138,6 +138,7 @@ where
 	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
+
 	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone());
 
 	router
@@ -282,7 +283,7 @@ where
 	}
 }
 
-/// V2 API Handler/Wrapper for owner functions, which include a secure
+/// V3 API Handler/Wrapper for owner functions, which include a secure
 /// mode + lifecycle functions
 pub struct OwnerAPIHandlerV3<L, C, K>
 where
@@ -303,8 +304,8 @@ where
 	/// Create a new owner API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	) -> OwnerAPIHandlerV2<L, C, K> {
-		OwnerAPIHandlerV2 { wallet }
+	) -> OwnerAPIHandlerV3<L, C, K> {
+		OwnerAPIHandlerV3 { wallet }
 	}
 
 	fn call_api(
