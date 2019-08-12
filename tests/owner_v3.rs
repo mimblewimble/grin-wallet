@@ -66,7 +66,7 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	thread::sleep(Duration::from_millis(200));
 
 	// Send simple retrieve_info request to owner listener
-	let req = include_str!("data/retrieve_info.req.json");
+	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
 	assert!(res.is_ok());
 	let value: RetrieveSummaryInfoResp = res.unwrap();
