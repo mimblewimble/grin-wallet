@@ -302,23 +302,18 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	})?;
 
 	let mut bh = 10u64;
-	let _ = test_framework::award_blocks_to_wallet(
-		&chain,
-		wallet1.clone(),
-		mask1,
-		bh as usize,
-		false,
-	);
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let very_long_message = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-													 This part should all be truncated";
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
+	                         This part should all be truncated";
 
 	// Update info and check
 	let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "info"];

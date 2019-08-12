@@ -126,7 +126,6 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-
 	let mut router = Router::new();
 	if api_secret.is_some() {
 		let api_basic_auth =
