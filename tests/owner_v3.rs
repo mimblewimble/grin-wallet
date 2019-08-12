@@ -29,7 +29,7 @@ use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 
 mod common;
-use common::{setup, execute_command, initial_setup_wallet, instantiate_wallet, post};
+use common::{execute_command, initial_setup_wallet, instantiate_wallet, post, setup};
 use url::Url;
 
 use serde_json::{json, Value};

@@ -14,8 +14,8 @@
 //! Common functions for wallet integration tests
 extern crate grin_wallet;
 
-use grin_wallet_util::grin_util as util;
 use grin_wallet_impls::test_framework::LocalWalletClient;
+use grin_wallet_util::grin_util as util;
 
 use clap::{App, ArgMatches};
 use std::path::PathBuf;
@@ -192,4 +192,3 @@ where
 	let res = api::client::send_request(req)?;
 	Ok(res)
 }
-

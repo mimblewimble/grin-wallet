@@ -30,8 +30,7 @@ use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 
 mod common;
-use common::{setup, initial_setup_wallet, execute_command, instantiate_wallet};
-
+use common::{execute_command, initial_setup_wallet, instantiate_wallet, setup};
 
 /// command line tests
 fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::Error> {
