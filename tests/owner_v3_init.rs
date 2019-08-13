@@ -58,8 +58,8 @@ fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
 	});
 
 	// use in all tests
-	let _sec_key_str = "e00dcc4a009e3427c6b1e1a550c538179d46f3827a13ed74c759c860761caf1e";
-	let pub_key_str = "03b3c18c9a38783d105e238953b1638b021ba7456d87a5c085b3bdb75777b4c490";
+	let sec_key_str = "e00dcc4a009e3427c6b1e1a550c538179d46f3827a13ed74c759c860761caf1e";
+	let _pub_key_str = "03b3c18c9a38783d105e238953b1638b021ba7456d87a5c085b3bdb75777b4c490";
 
 	thread::sleep(Duration::from_millis(200));
 	let req = include_str!("data/v3_reqs/init_secure_api.req.json");
@@ -70,10 +70,13 @@ fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
 	let shared_key = {
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
-		let pub_key_bytes = from_hex(pub_key_str.to_owned()).unwrap();
-		let pub_key = PublicKey::from_slice(&secp, &pub_key_bytes).unwrap();
-		let shared_pubkey =
-			PublicKey::from_combination(&secp, vec![&pub_key, &value.ecdh_pubkey]).unwrap();
+
+		let sec_key_bytes = from_hex(sec_key_str.to_owned()).unwrap();
+		let sec_key = SecretKey::from_slice(&secp, &sec_key_bytes).unwrap();
+
+		let mut shared_pubkey = value.ecdh_pubkey.clone();
+		shared_pubkey.mul_assign(&secp, &sec_key).unwrap();
+
 		let x_coord = shared_pubkey.serialize_vec(&secp, true);
 		SecretKey::from_slice(&secp, &x_coord[1..]).unwrap()
 	};

@@ -1486,11 +1486,10 @@ where
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
 		let sec_key = SecretKey::new(&secp, &mut thread_rng());
-		let pub_key =
-			PublicKey::from_secret_key(&secp, &sec_key).map_err(|e| ErrorKind::Secp(e))?;
-		let shared_pubkey =
-			PublicKey::from_combination(&secp, vec![&ecdh_pubkey.ecdh_pubkey, &pub_key])
-				.map_err(|e| ErrorKind::Secp(e))?;
+
+		let mut shared_pubkey = ecdh_pubkey.ecdh_pubkey.clone();
+		shared_pubkey.mul_assign(&secp, &sec_key).map_err(|e| ErrorKind::Secp(e))?;
+
 		let x_coord = shared_pubkey.serialize_vec(&secp, true);
 		let shared_key =
 			SecretKey::from_slice(&secp, &x_coord[1..]).map_err(|e| ErrorKind::Secp(e))?;
@@ -1498,6 +1497,10 @@ where
 			let mut s = self.shared_key.lock();
 			*s = Some(shared_key);
 		}
+
+		let pub_key =
+			PublicKey::from_secret_key(&secp, &sec_key).map_err(|e| ErrorKind::Secp(e))?;
+
 		Ok(ECDHPubkey {
 			ecdh_pubkey: pub_key,
 		})

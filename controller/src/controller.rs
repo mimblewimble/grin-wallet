@@ -315,8 +315,12 @@ where
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let owner_api_s = &api as &dyn OwnerRpcS;
+			println!("VALUE: {:?}", val);
 			match owner_api_s.handle_request(val) {
-				MaybeReply::Reply(r) => ok(r),
+				MaybeReply::Reply(r) => {
+					println!("REPLY: {:?}", r);
+					ok(r)
+				},
 				MaybeReply::DontReply => {
 					// Since it's http, we need to return something. We return [] because jsonrpc
 					// clients will parse it as an empty batch response.
