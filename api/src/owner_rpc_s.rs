@@ -1488,7 +1488,9 @@ where
 		let sec_key = SecretKey::new(&secp, &mut thread_rng());
 
 		let mut shared_pubkey = ecdh_pubkey.ecdh_pubkey.clone();
-		shared_pubkey.mul_assign(&secp, &sec_key).map_err(|e| ErrorKind::Secp(e))?;
+		shared_pubkey
+			.mul_assign(&secp, &sec_key)
+			.map_err(|e| ErrorKind::Secp(e))?;
 
 		let x_coord = shared_pubkey.serialize_vec(&secp, true);
 		let shared_key =

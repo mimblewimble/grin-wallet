@@ -320,7 +320,7 @@ where
 				MaybeReply::Reply(r) => {
 					println!("REPLY: {:?}", r);
 					ok(r)
-				},
+				}
 				MaybeReply::DontReply => {
 					// Since it's http, we need to return something. We return [] because jsonrpc
 					// clients will parse it as an empty batch response.
