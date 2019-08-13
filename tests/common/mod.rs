@@ -16,6 +16,7 @@ extern crate grin_wallet;
 
 use grin_wallet_impls::test_framework::LocalWalletClient;
 use grin_wallet_util::grin_util as util;
+use grin_wallet_config as config;
 
 use clap::{App, ArgMatches};
 use std::path::PathBuf;
@@ -245,6 +246,24 @@ pub fn execute_command(
 	//unset chain type so it doesn't get reset
 	config.chain_type = None;
 	wallet_args::wallet_command(&args, config.clone(), client.clone(), true)
+}
+
+// as above, but without necessarily setting up the wallet
+pub fn execute_command_no_setup(
+	app: &App,
+	test_dir: &str,
+	wallet_name: &str,
+	client: &LocalWalletClient,
+	arg_vec: Vec<&str>,
+) -> Result<String, grin_wallet_controller::Error> {
+	let args = app.clone().get_matches_from(arg_vec);
+	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
+	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None).unwrap();
+	let mut wallet_config = config.members.unwrap().wallet.clone();
+	wallet_config.chain_type = None;
+	wallet_config.api_secret_path = None;
+	wallet_config.node_api_secret_path = None;
+	wallet_args::wallet_command(&args, wallet_config, client.clone(), true)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>

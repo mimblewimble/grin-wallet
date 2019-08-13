@@ -811,6 +811,8 @@ where
 	let keychain_mask = match wallet_args.subcommand() {
 		("init", Some(_)) => None,
 		("recover", _) => None,
+		// Owner API can be started without a wallet present
+		("owner_api", _) => None,
 		_ => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
@@ -856,7 +858,6 @@ where
 		("owner_api", Some(_)) => {
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
-			print!("mask: {:?}", keychain_mask);
 			command::owner_api(wallet, keychain_mask, &wallet_config, &g)
 		}
 		("web", Some(_)) => {

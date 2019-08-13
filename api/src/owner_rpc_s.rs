@@ -22,7 +22,10 @@ use crate::libwallet::{
 	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, VersionedSlate, WalletInfo,
 	WalletLCProvider,
 };
-use crate::{Owner, Token};
+use crate::util::static_secp_instance;
+use crate::util::secp::key::{SecretKey, PublicKey};
+use crate::{Owner, Token, ECDHPubkey};
+use rand::thread_rng;
 use easy_jsonrpc;
 
 /// Public definition used to generate Owner jsonrpc api.
@@ -1300,6 +1303,14 @@ pub trait OwnerRpcS {
 	```
 	 */
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
+
+	/**
+		Initializes the secure RPC-JSON API
+		(Documentation TBD)
+	 */
+
+	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind>;
+
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1470,5 +1481,28 @@ where
 
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind> {
 		Owner::node_height(self, (&token.keychain_mask).as_ref()).map_err(|e| e.kind())
+	}
+
+	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind> {
+		let secp_inst = static_secp_instance();
+		let secp = secp_inst.lock();
+		let sec_key = SecretKey::new(&secp, &mut thread_rng());
+		let pub_key = PublicKey::from_secret_key(&secp, &sec_key).map_err(|e| {
+			ErrorKind::Secp(e)
+		})?;
+		let shared_pubkey = PublicKey::from_combination(&secp, vec![&ecdh_pubkey.ecdh_pubkey, &pub_key]).map_err(|e| {
+			ErrorKind::Secp(e)
+		})?;
+		let x_coord = shared_pubkey.serialize_vec(&secp, true);
+		let shared_key = SecretKey::from_slice(&secp, &x_coord[1..]).map_err(|e| {
+			ErrorKind::Secp(e)
+		})?;
+		{
+			let mut s = self.shared_key.lock();
+			*s = Some(shared_key);
+		}
+		Ok(ECDHPubkey {
+			ecdh_pubkey: pub_key
+		})
 	}
 }

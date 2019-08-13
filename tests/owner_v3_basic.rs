@@ -34,8 +34,8 @@ use common::RetrieveSummaryInfoResp;
 use common::{execute_command, initial_setup_wallet, instantiate_wallet, send_request, setup};
 
 #[test]
-fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
-	let test_dir = "target/test_output/owner_v3";
+fn owner_v3_basic() -> Result<(), grin_wallet_controller::Error> {
+	let test_dir = "target/test_output/owner_v3_basic";
 	setup(test_dir);
 
 	setup_proxy!(test_dir, chain, wallet1, client1, mask1, wallet2, client2, _mask2);

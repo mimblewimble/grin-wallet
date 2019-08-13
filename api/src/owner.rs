@@ -54,6 +54,8 @@ where
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
+	/// Share ECDH key
+	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 }
 
 impl<'a, L, C, K> Owner<'a, L, C, K>
@@ -141,6 +143,7 @@ where
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
+			shared_key: Arc::new(Mutex::new(None)),
 		}
 	}
 
