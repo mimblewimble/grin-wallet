@@ -19,8 +19,8 @@ extern crate log;
 
 extern crate grin_wallet;
 
-use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use grin_wallet_api::ECDHPubkey;
+use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 use clap::App;
 use std::thread;
@@ -29,7 +29,7 @@ use std::time::Duration;
 use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::secp::key::{PublicKey, SecretKey};
-use grin_wallet_util::grin_util::{from_hex, to_hex, static_secp_instance};
+use grin_wallet_util::grin_util::{from_hex, static_secp_instance, to_hex};
 use rand::thread_rng;
 
 #[macro_use]
@@ -50,7 +50,7 @@ fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 
 	// run a wallet owner listener without setting up a wallet
-		let arg_vec = vec!["grin-wallet", "owner_api"];
+	let arg_vec = vec!["grin-wallet", "owner_api"];
 	thread::spawn(move || {
 		let yml = load_yaml!("../src/bin/grin-wallet.yml");
 		let app = App::from_yaml(yml);
@@ -72,7 +72,8 @@ fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
 		let secp = secp_inst.lock();
 		let pub_key_bytes = from_hex(pub_key_str.to_owned()).unwrap();
 		let pub_key = PublicKey::from_slice(&secp, &pub_key_bytes).unwrap();
-		let shared_pubkey = PublicKey::from_combination(&secp, vec![&pub_key, &value.ecdh_pubkey]).unwrap();
+		let shared_pubkey =
+			PublicKey::from_combination(&secp, vec![&pub_key, &value.ecdh_pubkey]).unwrap();
 		let x_coord = shared_pubkey.serialize_vec(&secp, true);
 		SecretKey::from_slice(&secp, &x_coord[1..]).unwrap()
 	};
@@ -80,5 +81,4 @@ fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
 	println!("SHARED KEY CLIENT: {:?}", shared_key);
 
 	Ok(())
-
 }

@@ -54,7 +54,7 @@ pub use crate::foreign_rpc::run_doctest_foreign;
 pub use crate::owner_rpc::run_doctest_owner;
 
 use grin_wallet_util::grin_core::libtx::secp_ser;
-use util::secp::key::{SecretKey, PublicKey};
+use util::secp::key::{PublicKey, SecretKey};
 
 /// Wrapper for API Tokens
 #[derive(Serialize, Deserialize, Debug, Clone)]
