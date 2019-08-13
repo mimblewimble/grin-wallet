@@ -582,6 +582,7 @@ pub fn parse_issue_invoice_args(
 
 pub fn parse_process_invoice_args(
 	args: &ArgMatches,
+	prompt: bool,
 ) -> Result<command::ProcessInvoiceArgs, ParseError> {
 	// TODO: display and prompt for confirmation of what we're doing
 	// message
@@ -636,7 +637,7 @@ pub fn parse_process_invoice_args(
 	// file input only
 	let tx_file = parse_required(args, "input")?;
 
-	if cfg!(not(test)) {
+	if prompt {
 		// Now we need to prompt the user whether they want to do this,
 		// which requires reading the slate
 
@@ -754,6 +755,7 @@ pub fn wallet_command<C>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
 	mut node_client: C,
+	test_mode: bool,
 ) -> Result<String, Error>
 where
 	C: NodeClient + 'static + Clone,
@@ -815,7 +817,7 @@ where
 			let mask = lc.open_wallet(
 				None,
 				prompt_password(&global_wallet_args.password),
-				true,
+				false,
 				false,
 			)?;
 			if let Some(account) = wallet_args.value_of("account") {
@@ -854,6 +856,7 @@ where
 		("owner_api", Some(_)) => {
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
+			print!("mask: {:?}", keychain_mask);
 			command::owner_api(wallet, keychain_mask, &wallet_config, &g)
 		}
 		("web", Some(_)) => {
@@ -885,7 +888,7 @@ where
 			command::issue_invoice_tx(wallet, km, a)
 		}
 		("pay", Some(args)) => {
-			let a = arg_parse!(parse_process_invoice_args(&args));
+			let a = arg_parse!(parse_process_invoice_args(&args, !test_mode));
 			command::process_invoice(
 				wallet,
 				km,

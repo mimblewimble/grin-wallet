@@ -51,7 +51,7 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 	}
 	// ... if node isn't available, allow offline functions
 
-	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client);
+	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client, false);
 
 	// we need to give log output a chance to catch up before exiting
 	thread::sleep(Duration::from_millis(100));

@@ -1,0 +1,10 @@
+{
+	"jsonrpc": "2.0",
+	"method": "retrieve_summary_info",
+	"params": {
+		"token": null,
+		"refresh_from_node": true,
+		"minimum_confirmations": 1
+	},
+	"id": 1
+}

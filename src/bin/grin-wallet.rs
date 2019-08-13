@@ -23,12 +23,11 @@ use crate::core::global;
 use crate::util::init_logger;
 use clap::App;
 use grin_wallet_config as config;
-use grin_wallet_util::grin_api as api;
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_util as util;
 use std::env;
 
-mod cmd;
+use grin_wallet::cmd;
 
 // include build information
 pub mod built_info {

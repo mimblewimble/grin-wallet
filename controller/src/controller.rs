@@ -32,7 +32,7 @@ use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc};
+use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS};
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
 
@@ -126,8 +126,6 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-
 	let mut router = Router::new();
 	if api_secret.is_some() {
 		let api_basic_auth =
@@ -139,8 +137,16 @@ where
 		router.add_middleware(basic_auth_middleware);
 	}
 
+	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
+
+	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone());
+
 	router
 		.add_route("/v2/owner", Arc::new(api_handler_v2))
+		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+
+	router
+		.add_route("/v3/owner", Arc::new(api_handler_v3))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	// If so configured, add the foreign API to the same port
@@ -277,6 +283,79 @@ where
 	}
 }
 
+/// V3 API Handler/Wrapper for owner functions, which include a secure
+/// mode + lifecycle functions
+pub struct OwnerAPIHandlerV3<L, C, K>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/// Wallet instance
+	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+}
+
+impl<L, C, K> OwnerAPIHandlerV3<L, C, K>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	/// Create a new owner API handler for GET methods
+	pub fn new(
+		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	) -> OwnerAPIHandlerV3<L, C, K> {
+		OwnerAPIHandlerV3 { wallet }
+	}
+
+	fn call_api(
+		&self,
+		req: Request<Body>,
+		api: Owner<'static, L, C, K>,
+	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
+		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
+			let owner_api_s = &api as &dyn OwnerRpcS;
+			match owner_api_s.handle_request(val) {
+				MaybeReply::Reply(r) => ok(r),
+				MaybeReply::DontReply => {
+					// Since it's http, we need to return something. We return [] because jsonrpc
+					// clients will parse it as an empty batch response.
+					ok(serde_json::json!([]))
+				}
+			}
+		}))
+	}
+
+	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
+		let api = Owner::new(self.wallet.clone());
+		Box::new(
+			self.call_api(req, api)
+				.and_then(|resp| ok(json_response_pretty(&resp))),
+		)
+	}
+}
+
+impl<L, C, K> api::Handler for OwnerAPIHandlerV3<L, C, K>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	fn post(&self, req: Request<Body>) -> ResponseFuture {
+		Box::new(
+			self.handle_post_request(req)
+				.and_then(|r| ok(r))
+				.or_else(|e| {
+					error!("Request Error: {:?}", e);
+					ok(create_error_response(e))
+				}),
+		)
+	}
+
+	fn options(&self, _req: Request<Body>) -> ResponseFuture {
+		Box::new(ok(create_ok_response("{}")))
+	}
+}
 /// V2 API Handler/Wrapper for foreign functions
 pub struct ForeignAPIHandlerV2<L, C, K>
 where
