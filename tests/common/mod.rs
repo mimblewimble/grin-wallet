@@ -285,13 +285,28 @@ where
 	OUT: DeserializeOwned,
 {
 	let url = Url::parse(dest).unwrap();
-	let req: Value = serde_json::from_str(req).unwrap();
-	let res: String = post(&url, None, &req).map_err(|e| {
-		let err_string = format!("{}", e);
-		println!("{}", err_string);
-		thread::sleep(Duration::from_millis(200));
-		e
-	})?;
+	let req_val:Result<Value, serde_json::Error>  = serde_json::from_str(req);
+
+	let res: String = match req_val {
+		Ok(r) => {
+			post(&url, None, &r).map_err(|e| {
+			let err_string = format!("{}", e);
+			println!("{}", err_string);
+			thread::sleep(Duration::from_millis(200));
+			e
+		})?
+		},
+		Err(_) => {
+			// Just try posting string instead
+			post(&url, None, &req).map_err(|e| {
+			let err_string = format!("{}", e);
+			println!("{}", err_string);
+			thread::sleep(Duration::from_millis(200));
+			e
+		})?
+		}
+	};
+
 	let res = serde_json::from_str(&res).unwrap();
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
 	let res = res.outputs.get(&id).unwrap().clone().unwrap();

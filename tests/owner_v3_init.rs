@@ -30,7 +30,9 @@ use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::secp::key::{PublicKey, SecretKey};
 use grin_wallet_util::grin_util::{from_hex, static_secp_instance, to_hex};
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
+use ring::aead;
+use serde_json::{self, Value};
 
 #[macro_use]
 mod common;
@@ -81,7 +83,26 @@ fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
 		SecretKey::from_slice(&secp, &x_coord[1..]).unwrap()
 	};
 
-	println!("SHARED KEY CLIENT: {:?}", shared_key);
-
+	println!("FIRST DONE");
+	// now call open_wallet
+	let req = include_str!("data/v3_reqs/open_wallet.req.json");
+	// just to remove the noise from the string
+	let req: Value = serde_json::from_str(req).unwrap();
+	let nonce = [0u8; 12];
+	let to_encode: String = serde_json::to_string(&req).unwrap();
+	let mut to_encode = to_encode.as_bytes().to_vec();
+	println!("To encode: {:?}", to_encode);
+	let suffix_len = aead::AES_256_GCM.tag_len();
+	println!("SEALING KEY: {:?}", shared_key);
+	let sealing_key = 
+	aead::SealingKey::new(&aead::AES_256_GCM, &shared_key.0).unwrap();
+	let _ = aead::seal_in_place(&sealing_key, &nonce, &[], &mut to_encode, suffix_len);
+	let req = to_hex(to_encode);
+	println!("Encoded req: {:?}", req);
+	println!("Encoded req bytes: {:?}", req.as_bytes());
+	let res = send_request::<String>(1, "http://127.0.0.1:3420/v3/owner", &req)?;
+	println!("Server res: {:?}", res);
+	
+	
 	Ok(())
 }

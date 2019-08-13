@@ -117,6 +117,10 @@ pub enum ErrorKind {
 	#[fail(display = "Signature error: {}", _0)]
 	Signature(String),
 
+	/// OwnerAPIEncryption
+	#[fail(display = "{}", _0)]
+	APIEncryption(String),
+
 	/// Attempt to use duplicate transaction id in separate transactions
 	#[fail(display = "Duplicate transaction ID error")]
 	DuplicateTransactionId,
