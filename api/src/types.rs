@@ -14,13 +14,13 @@
 use crate::core::libtx::secp_ser;
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::{to_hex, from_hex};
+use crate::util::{from_hex, to_hex};
 use failure::ResultExt;
 
 use base64;
+use rand::{thread_rng, Rng};
 use ring::aead;
 use serde_json::{self, Value};
-use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 
 /// Wrapper for API Tokens
@@ -78,44 +78,46 @@ impl EncryptedBody {
 
 	/// return serialize JSON self
 	pub fn as_json_value(&self) -> Result<Value, Error> {
-		let res = serde_json::to_value(self).context(
-			ErrorKind::APIEncryption("EncryptedBody: JSON serialization failed".to_owned()),
-		)?;
+		let res = serde_json::to_value(self).context(ErrorKind::APIEncryption(
+			"EncryptedBody: JSON serialization failed".to_owned(),
+		))?;
 		Ok(res)
 	}
 
 	/// return serialized JSON self as string
 	pub fn as_json_str(&self) -> Result<String, Error> {
 		let res = self.as_json_value()?;
-		let res = serde_json::to_string(&res).context(
-			ErrorKind::APIEncryption("EncryptedBody: JSON String serialization failed".to_owned()),
-		)?;
+		let res = serde_json::to_string(&res).context(ErrorKind::APIEncryption(
+			"EncryptedBody: JSON String serialization failed".to_owned(),
+		))?;
 		Ok(res)
 	}
 
 	/// Return original request
 	pub fn decrypt(&self, dec_key: &SecretKey) -> Result<Value, Error> {
-		let mut to_decrypt = base64::decode(&self.body_enc).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Encrypted request contains invalid Base64".to_string()),
-		)?;
+		let mut to_decrypt = base64::decode(&self.body_enc).context(ErrorKind::APIEncryption(
+			"EncryptedBody Dec: Encrypted request contains invalid Base64".to_string(),
+		))?;
 		let opening_key = aead::OpeningKey::new(&aead::AES_256_GCM, &dec_key.0).context(
 			ErrorKind::APIEncryption("EncryptedBody Dec: Unable to create key".to_owned()),
 		)?;
-		let nonce = from_hex(self.nonce.clone()).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Invalid Nonce".to_string()),
-		)?;
+		let nonce = from_hex(self.nonce.clone()).context(ErrorKind::APIEncryption(
+			"EncryptedBody Dec: Invalid Nonce".to_string(),
+		))?;
 		aead::open_in_place(&opening_key, &nonce, &[], 0, &mut to_decrypt).context(
 			ErrorKind::APIEncryption("EncryptedBody Dec: Decryption Failed".to_string()),
 		)?;
 		for _ in 0..aead::AES_256_GCM.tag_len() {
 			to_decrypt.pop();
 		}
-		let decrypted = String::from_utf8(to_decrypt).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Invalid UTF-8".to_string()),
-		)?;
-		Ok(serde_json::from_str(&decrypted).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Invalid JSON".to_string()),
-		)?)
+		let decrypted = String::from_utf8(to_decrypt).context(ErrorKind::APIEncryption(
+			"EncryptedBody Dec: Invalid UTF-8".to_string(),
+		))?;
+		Ok(
+			serde_json::from_str(&decrypted).context(ErrorKind::APIEncryption(
+				"EncryptedBody Dec: Invalid JSON".to_string(),
+			))?,
+		)
 	}
 }
 
@@ -145,22 +147,22 @@ impl EncryptedRequest {
 
 	/// return serialize JSON self
 	pub fn as_json_value(&self) -> Result<Value, Error> {
-		let res = serde_json::to_value(self).context(
-			ErrorKind::APIEncryption("EncryptedRequest: JSON serialization failed".to_owned()),
-		)?;
+		let res = serde_json::to_value(self).context(ErrorKind::APIEncryption(
+			"EncryptedRequest: JSON serialization failed".to_owned(),
+		))?;
 		Ok(res)
 	}
 
 	/// return serialized JSON self as string
 	pub fn as_json_str(&self) -> Result<String, Error> {
 		let res = self.as_json_value()?;
-		let res = serde_json::to_string(&res).context(
-			ErrorKind::APIEncryption("EncryptedRequest: JSON String serialization failed".to_owned()),
-		)?;
+		let res = serde_json::to_string(&res).context(ErrorKind::APIEncryption(
+			"EncryptedRequest: JSON String serialization failed".to_owned(),
+		))?;
 		Ok(res)
 	}
 
-	/// Return decrypted body 
+	/// Return decrypted body
 	pub fn decrypt(&self, dec_key: &SecretKey) -> Result<Value, Error> {
 		self.params.decrypt(dec_key)
 	}
@@ -181,7 +183,10 @@ impl EncryptedResponse {
 	/// from json
 	pub fn from_json(id: u32, json_in: &Value, enc_key: &SecretKey) -> Result<Self, Error> {
 		let mut result_set = HashMap::new();
-		result_set.insert("Ok".to_string(), EncryptedBody::from_json(json_in, enc_key)?);
+		result_set.insert(
+			"Ok".to_string(),
+			EncryptedBody::from_json(json_in, enc_key)?,
+		);
 		Ok(EncryptedResponse {
 			jsonrpc: "2.0".to_owned(),
 			id: id,
@@ -191,31 +196,29 @@ impl EncryptedResponse {
 
 	/// return serialize JSON self
 	pub fn as_json_value(&self) -> Result<Value, Error> {
-		let res = serde_json::to_value(self).context(
-			ErrorKind::APIEncryption("EncryptedResponse: JSON serialization failed".to_owned()),
-		)?;
+		let res = serde_json::to_value(self).context(ErrorKind::APIEncryption(
+			"EncryptedResponse: JSON serialization failed".to_owned(),
+		))?;
 		Ok(res)
 	}
 
 	/// return serialized JSON self as string
 	pub fn as_json_str(&self) -> Result<String, Error> {
 		let res = self.as_json_value()?;
-		let res = serde_json::to_string(&res).context(
-			ErrorKind::APIEncryption("EncryptedResponse: JSON String serialization failed".to_owned()),
-		)?;
+		let res = serde_json::to_string(&res).context(ErrorKind::APIEncryption(
+			"EncryptedResponse: JSON String serialization failed".to_owned(),
+		))?;
 		Ok(res)
 	}
 
-	/// Return decrypted body 
+	/// Return decrypted body
 	pub fn decrypt(&self, dec_key: &SecretKey) -> Result<Value, Error> {
 		self.result.get("Ok").unwrap().decrypt(dec_key)
 	}
 }
 
-
-
 #[test]
-fn encrypted_request () -> Result<(), Error> {
+fn encrypted_request() -> Result<(), Error> {
 	use crate::util::{from_hex, static_secp_instance};
 
 	let sec_key_str = "e00dcc4a009e3427c6b1e1a550c538179d46f3827a13ed74c759c860761caf1e";
@@ -247,4 +250,3 @@ fn encrypted_request () -> Result<(), Error> {
 	assert_eq!(req, dec_res);
 	Ok(())
 }
-

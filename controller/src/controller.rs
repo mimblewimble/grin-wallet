@@ -32,7 +32,10 @@ use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS, EncryptedRequest, EncryptedResponse};
+use crate::apiwallet::{
+	EncryptedRequest, EncryptedResponse, Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner,
+	OwnerRpc, OwnerRpcS,
+};
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
 
@@ -332,10 +335,9 @@ impl OwnerV3Helpers {
 	pub fn decrypt_request(req: &serde_json::Value) -> Result<serde_json::Value, Error> {
 		let share_key_ref = OWNER_API_SHARED_KEY.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
-		let enc_req: EncryptedRequest = serde_json::from_value(req.clone())
-			.context(ErrorKind::APIEncryption(
-				"Decrypting request: Unable to decode JSON".to_owned(),
-			))?;
+		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).context(
+			ErrorKind::APIEncryption("Decrypting request: Unable to decode JSON".to_owned()),
+		)?;
 		enc_req.decrypt(&shared_key)
 	}
 

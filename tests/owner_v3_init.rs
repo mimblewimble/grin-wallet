@@ -35,7 +35,10 @@ use std::collections::HashMap;
 
 #[macro_use]
 mod common;
-use common::{execute_command, execute_command_no_setup, instantiate_wallet, send_request, send_request_enc, setup};
+use common::{
+	execute_command, execute_command_no_setup, instantiate_wallet, send_request, send_request_enc,
+	setup,
+};
 
 #[test]
 fn owner_v3_init() -> Result<(), grin_wallet_controller::Error> {
