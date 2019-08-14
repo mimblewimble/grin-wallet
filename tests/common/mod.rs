@@ -24,6 +24,7 @@ use std::sync::Arc;
 use std::{env, fs};
 use util::{Mutex, ZeroingString};
 
+use grin_wallet_api::{EncryptedRequest, EncryptedResponse};
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{WalletInfo, WalletInst};
@@ -285,31 +286,52 @@ where
 	OUT: DeserializeOwned,
 {
 	let url = Url::parse(dest).unwrap();
-	let req_val:Result<Value, serde_json::Error>  = serde_json::from_str(req);
-
-	let res: String = match req_val {
-		Ok(r) => {
-			post(&url, None, &r).map_err(|e| {
-			let err_string = format!("{}", e);
-			println!("{}", err_string);
-			thread::sleep(Duration::from_millis(200));
-			e
-		})?
-		},
-		Err(_) => {
-			// Just try posting string instead
-			post(&url, None, &req).map_err(|e| {
-			let err_string = format!("{}", e);
-			println!("{}", err_string);
-			thread::sleep(Duration::from_millis(200));
-			e
-		})?
-		}
-	};
+	let req_val: Value = serde_json::from_str(req).unwrap();
+	let res = post(&url, None, &req_val).map_err(|e| {
+		let err_string = format!("{}", e);
+		println!("{}", err_string);
+		thread::sleep(Duration::from_millis(200));
+		e
+	})?;
 
 	let res = serde_json::from_str(&res).unwrap();
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
 	let res = res.outputs.get(&id).unwrap().clone().unwrap();
+	if res["Err"] != json!(null) {
+		Ok(Err(WalletAPIReturnError {
+			message: res["Err"].as_str().unwrap().to_owned(),
+		}))
+	} else {
+		// deserialize result into expected type
+		let value: OUT = serde_json::from_value(res["Ok"].clone()).unwrap();
+		Ok(Ok(value))
+	}
+}
+
+pub fn send_request_enc<OUT>(
+	id: u32,
+	dest: &str,
+	req: &str,
+	shared_key: &SecretKey,
+) -> Result<Result<OUT, WalletAPIReturnError>, api::Error>
+where
+	OUT: DeserializeOwned,
+{
+	let url = Url::parse(dest).unwrap();
+	let req_val: Value = serde_json::from_str(req).unwrap();
+	let req = EncryptedRequest::from_json(id, &req_val, &shared_key).unwrap();
+	let res = post(&url, None, &req).map_err(|e| {
+		let err_string = format!("{}", e);
+		println!("{}", err_string);
+		thread::sleep(Duration::from_millis(200));
+		e
+	})?;
+
+	let enc_resp: EncryptedResponse = serde_json::from_str(&res).unwrap();
+	let res = enc_resp.decrypt(shared_key).unwrap();
+	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
+	let res = res.outputs.get(&(id as u64)).unwrap().clone().unwrap();
+
 	if res["Err"] != json!(null) {
 		Ok(Err(WalletAPIReturnError {
 			message: res["Err"].as_str().unwrap().to_owned(),

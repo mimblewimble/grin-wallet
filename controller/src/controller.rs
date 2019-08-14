@@ -22,7 +22,6 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{to_base64, Mutex};
-use grin_wallet_util::grin_util::{from_hex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -33,10 +32,7 @@ use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use rand::{thread_rng, Rng};
-use ring::aead;
-
-use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS};
+use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS, EncryptedRequest, EncryptedResponse};
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
 
@@ -46,8 +42,7 @@ lazy_static! {
 }
 
 lazy_static! {
-	pub static ref OWNER_API_SHARED_KEY: Arc<Mutex<Option<SecretKey>>> =
-		Arc::new(Mutex::new(None));
+	pub static ref OWNER_API_SHARED_KEY: Arc<Mutex<Option<SecretKey>>> = Arc::new(Mutex::new(None));
 }
 
 fn check_middleware(
@@ -312,7 +307,7 @@ impl OwnerV3Helpers {
 		if let Some(m) = val["method"].as_str() {
 			match m {
 				"init_secure_api" => true,
-				_ => false
+				_ => false,
 			}
 		} else {
 			false
@@ -324,7 +319,7 @@ impl OwnerV3Helpers {
 		let share_key_ref = OWNER_API_SHARED_KEY.lock();
 		share_key_ref.is_some()
 	}
-	
+
 	/// Update the statically held owner API shared key
 	pub fn update_owner_api_shared_key(val: &serde_json::Value, new_key: Option<SecretKey>) {
 		if let Some(_) = val["result"]["Ok"].as_str() {
@@ -333,35 +328,23 @@ impl OwnerV3Helpers {
 		}
 	}
 
-	/// Decrypt a hex string into its JSON representation
-	// TODO: error handle, unwraps, this is just to test end-to-end for now
+	/// Decrypt an encrypted request
 	pub fn decrypt_request(req: &serde_json::Value) -> Result<serde_json::Value, Error> {
 		let share_key_ref = OWNER_API_SHARED_KEY.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
-		let nonce = [0u8; 12];
-		let opening_key =
-			aead::OpeningKey::new(&aead::AES_256_GCM, &shared_key.0)
+		let enc_req: EncryptedRequest = serde_json::from_value(req.clone())
 			.context(ErrorKind::APIEncryption(
-				"Could not open shared key".to_string(),
+				"Decrypting request: Unable to decode JSON".to_owned(),
 			))?;
-		println!("OPENING KEY: {:?}", shared_key);
-		let to_decrypt:String = serde_json::from_value(req.clone())
-			.context(ErrorKind::APIEncryption(
-				"Encrypted request is invalid".to_string(),
-			))?;
-		println!("to_decrypt: {}", to_decrypt);
-		let mut to_decrypt = from_hex(to_decrypt).unwrap();
-		println!("to_decrypt bytes: {:?}", to_decrypt);
-		aead::open_in_place(&opening_key, &nonce, &[], 0, &mut to_decrypt)
-			.context(ErrorKind::APIEncryption(
-				"Unable to decrypt request".to_string(),
-			))?;
+		enc_req.decrypt(&shared_key)
+	}
 
-		let result = String::from_utf8(to_decrypt)
-			.context(ErrorKind::APIEncryption(
-				"Decrypted request is invalid".to_string(),
-			))?;
-		Ok(serde_json::from_str(&result).unwrap())
+	/// Encrypt a response
+	pub fn encrypt_response(id: u32, res: &serde_json::Value) -> Result<serde_json::Value, Error> {
+		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+		let shared_key = share_key_ref.as_ref().unwrap();
+		let enc_res = EncryptedResponse::from_json(id, res, &shared_key)?;
+		enc_res.as_json_value()
 	}
 }
 
@@ -375,11 +358,10 @@ where
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		OwnerAPIHandlerV3 {
-			wallet,
-		}
+		OwnerAPIHandlerV3 { wallet }
 	}
 
+	//TODO: Unwraps
 	fn call_api(
 		&self,
 		req: Request<Body>,
@@ -389,16 +371,20 @@ where
 			let mut val = val;
 			let owner_api_s = &api as &dyn OwnerRpcS;
 			let is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
-			println!("SERVER encrypted val: {:?}", val);
-			if OwnerV3Helpers::encryption_enabled() {
+			if OwnerV3Helpers::encryption_enabled() && !is_init_secure_api {
 				val = OwnerV3Helpers::decrypt_request(&val).unwrap();
 			}
-			println!("SERVER decrypted val: {:?}", val);
 			match owner_api_s.handle_request(val) {
-				MaybeReply::Reply(r) => {
+				MaybeReply::Reply(mut r) => {
 					// intercept init_secure_api response
 					if is_init_secure_api {
-						OwnerV3Helpers::update_owner_api_shared_key(&r, api.shared_key.lock().clone());
+						OwnerV3Helpers::update_owner_api_shared_key(
+							&r,
+							api.shared_key.lock().clone(),
+						);
+					}
+					if OwnerV3Helpers::encryption_enabled() && !is_init_secure_api {
+						r = OwnerV3Helpers::encrypt_response(1, &r).unwrap();
 					}
 					ok(r)
 				}
