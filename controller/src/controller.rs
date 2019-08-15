@@ -145,7 +145,6 @@ where
 	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-
 	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone());
 
 	router
@@ -415,7 +414,6 @@ where
 		OwnerAPIHandlerV3 { wallet }
 	}
 
-	//TODO: Unwraps
 	fn call_api(
 		&self,
 		req: Request<Body>,

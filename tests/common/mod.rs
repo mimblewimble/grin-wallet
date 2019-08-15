@@ -103,7 +103,7 @@ macro_rules! setup_proxy {
 	};
 }
 
-fn clean_output_dir(test_dir: &str) {
+pub fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
 }
 

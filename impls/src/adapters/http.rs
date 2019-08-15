@@ -36,7 +36,7 @@ impl HttpSlateSender {
 	}
 
 	/// Check version of the listening wallet
-	fn check_other_version(&self) -> Result<(), Error> {
+	fn check_other_version(&self, url: &Url) -> Result<(), Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -44,7 +44,7 @@ impl HttpSlateSender {
 			"params": []
 		});
 
-		let res: String = post(&self.base_url, None, &req).map_err(|e| {
+		let res: String = post(url, None, &req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
@@ -101,7 +101,7 @@ impl SlateSender for HttpSlateSender {
 			.expect("/v2/foreign is an invalid url path");
 		debug!("Posting transaction slate to {}", url);
 
-		self.check_other_version()?;
+		self.check_other_version(&url)?;
 
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = json!({

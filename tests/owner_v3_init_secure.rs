@@ -35,7 +35,7 @@ use serde_json;
 #[macro_use]
 mod common;
 use common::{
-	derive_ecdh_key, execute_command, initial_setup_wallet, instantiate_wallet, send_request,
+	clean_output_dir, derive_ecdh_key, execute_command, initial_setup_wallet, instantiate_wallet, send_request,
 	send_request_enc, setup, RetrieveSummaryInfoResp,
 };
 
@@ -53,7 +53,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// run a wallet owner listener
-	let arg_vec = vec!["grin-wallet", "-p", "password", "owner_api"];
+	let arg_vec = vec!["grin-wallet", "-p", "password", "owner_api", "-l", "33420"];
 	thread::spawn(move || {
 		let yml = load_yaml!("../src/bin/grin-wallet.yml");
 		let app = App::from_yaml(yml);
@@ -74,20 +74,20 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 1) Attempt to send an encrypted request before calling `init_secure_api`
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request_enc::<String>(1, 1, "http://127.0.0.1:3420/v3/owner", &req, &sec_key)?;
+	let res = send_request_enc::<String>(1, 1, "http://127.0.0.1:33420/v3/owner", &req, &sec_key)?;
 	println!("RES 1: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32001);
 
 	// 2) Call any function on the V3 api without calling 'init_secure_api` first
-	let res = send_request::<String>(1, "http://127.0.0.1:3420/v3/owner", &req)?;
+	let res = send_request::<String>(1, "http://127.0.0.1:33420/v3/owner", &req)?;
 	println!("RES 2: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32001);
 
 	// 3) Call 'init_secure_api' and negotiate shared key
 	let req = include_str!("data/v3_reqs/init_secure_api.req.json");
-	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
+	let res = send_request(1, "http://127.0.0.1:33420/v3/owner", req)?;
 	println!("RES 3: {:?}", res);
 
 	assert!(res.is_ok());
@@ -99,7 +99,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
 		1,
 		1,
-		"http://127.0.0.1:3420/v3/owner",
+		"http://127.0.0.1:33420/v3/owner",
 		&req,
 		&shared_key,
 	)?;
@@ -113,7 +113,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
 		1,
 		1,
-		"http://127.0.0.1:3420/v3/owner",
+		"http://127.0.0.1:33420/v3/owner",
 		&req,
 		&bad_key,
 	)?;
@@ -130,7 +130,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 			"body_enc:": "thisiswrong",
 		}
 	});
-	let res = send_request::<String>(1, "http://127.0.0.1:3420/v3/owner", &req.to_string())?;
+	let res = send_request::<String>(1, "http://127.0.0.1:33420/v3/owner", &req.to_string())?;
 	println!("RES 6: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32002);
@@ -145,7 +145,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 			"body_enc": "thisiswrong",
 		}
 	});
-	let res = send_request::<String>(1, "http://127.0.0.1:3420/v3/owner", &req.to_string())?;
+	let res = send_request::<String>(1, "http://127.0.0.1:33420/v3/owner", &req.to_string())?;
 	println!("RES 7: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32002);
@@ -155,7 +155,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let res = send_request_enc(
 		1,
 		1,
-		"http://127.0.0.1:3420/v3/owner",
+		"http://127.0.0.1:33420/v3/owner",
 		&req.to_string(),
 		&shared_key,
 	)?;
@@ -169,7 +169,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
 		9,
 		1,
-		"http://127.0.0.1:3420/v3/owner",
+		"http://127.0.0.1:33420/v3/owner",
 		&req,
 		&shared_key,
 	)?;
@@ -178,7 +178,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 10) Call 'init_secure_api' unencrypted (which we can do) and negotiate new shared key
 	let req = include_str!("data/v3_reqs/init_secure_api.req.json");
-	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
+	let res = send_request(1, "http://127.0.0.1:33420/v3/owner", req)?;
 	println!("RES 10: {:?}", res);
 
 	assert!(res.is_ok());
@@ -190,7 +190,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
 		12,
 		1,
-		"http://127.0.0.1:3420/v3/owner",
+		"http://127.0.0.1:33420/v3/owner",
 		&req,
 		&shared_key,
 	)?;
@@ -208,10 +208,12 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	})
 	.to_string();
 	let res =
-		send_request_enc::<String>(12, 1, "http://127.0.0.1:3420/v3/owner", &req, &shared_key)?;
+		send_request_enc::<String>(12, 1, "http://127.0.0.1:33420/v3/owner", &req, &shared_key)?;
 	println!("RES 12: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32601);
+
+	clean_output_dir(test_dir);
 
 	Ok(())
 }

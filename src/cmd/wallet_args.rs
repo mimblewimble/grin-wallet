@@ -396,6 +396,16 @@ pub fn parse_listen_args(
 	})
 }
 
+pub fn parse_owner_api_args(
+	config: &mut WalletConfig,
+	args: &ArgMatches,
+) -> Result<(), ParseError> {
+	if let Some(port) = args.value_of("port") {
+		config.owner_api_listen_port = Some(port.parse().unwrap());
+	}
+	Ok(())
+}
+
 pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountArgs, ParseError> {
 	let create = match account_args.value_of("create") {
 		None => None,
@@ -856,10 +866,12 @@ where
 			let a = arg_parse!(parse_listen_args(&mut c, &args));
 			command::listen(wallet, keychain_mask, &c, &a, &global_wallet_args.clone())
 		}
-		("owner_api", Some(_)) => {
+		("owner_api", Some(args)) => {
+			let mut c = wallet_config.clone();
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
-			command::owner_api(wallet, keychain_mask, &wallet_config, &g)
+			arg_parse!(parse_owner_api_args(&mut c, &args));
+			command::owner_api(wallet, keychain_mask, &c, &g)
 		}
 		("web", Some(_)) => {
 			command::owner_api(wallet, keychain_mask, &wallet_config, &global_wallet_args)
