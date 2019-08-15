@@ -30,8 +30,8 @@ use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{WalletInfo, WalletInst};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 use grin_wallet_util::grin_keychain::ExtKeychain;
-use util::secp::key::{SecretKey, PublicKey};
-use grin_wallet_util::grin_util::{static_secp_instance, from_hex};
+use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
+use util::secp::key::{PublicKey, SecretKey};
 
 use grin_wallet::cmd::wallet_args;
 use grin_wallet_util::grin_api as api;
@@ -298,9 +298,9 @@ where
 	let res_val: Value = serde_json::from_str(&res).unwrap();
 	// encryption error, just return the string
 	if res_val["error"] != json!(null) {
-		return Ok(Err(WalletAPIReturnError{
-				message: res_val["error"]["message"].as_str().unwrap().to_owned(),
-				code: res_val["error"]["code"].as_i64().unwrap() as i32,
+		return Ok(Err(WalletAPIReturnError {
+			message: res_val["error"]["message"].as_str().unwrap().to_owned(),
+			code: res_val["error"]["code"].as_i64().unwrap() as i32,
 		}));
 	}
 
@@ -342,16 +342,21 @@ where
 	let res_val: Value = serde_json::from_str(&res).unwrap();
 	// encryption error, just return the string
 	if res_val["error"] != json!(null) {
-		return Ok(Err(WalletAPIReturnError{
-				message: res_val["error"]["message"].as_str().unwrap().to_owned(),
-				code: res_val["error"]["code"].as_i64().unwrap() as i32,
+		return Ok(Err(WalletAPIReturnError {
+			message: res_val["error"]["message"].as_str().unwrap().to_owned(),
+			code: res_val["error"]["code"].as_i64().unwrap() as i32,
 		}));
 	}
 
 	let enc_resp: EncryptedResponse = serde_json::from_str(&res).unwrap();
 	let res = enc_resp.decrypt(shared_key).unwrap();
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
-	let res = res.outputs.get(&(internal_request_id as u64)).unwrap().clone().unwrap();
+	let res = res
+		.outputs
+		.get(&(internal_request_id as u64))
+		.unwrap()
+		.clone()
+		.unwrap();
 
 	if res["Err"] != json!(null) {
 		Ok(Err(WalletAPIReturnError {
@@ -381,7 +386,6 @@ pub fn derive_ecdh_key(sec_key_str: &str, other_pubkey: &PublicKey) -> SecretKey
 
 	let x_coord = shared_pubkey.serialize_vec(&secp, true);
 	SecretKey::from_slice(&secp, &x_coord[1..]).unwrap()
-	
 }
 
 // Types to make working with json responses easier

@@ -35,8 +35,8 @@ use serde_json;
 #[macro_use]
 mod common;
 use common::{
-	execute_command, instantiate_wallet, send_request, send_request_enc,
-	setup, initial_setup_wallet, RetrieveSummaryInfoResp, derive_ecdh_key
+	derive_ecdh_key, execute_command, initial_setup_wallet, instantiate_wallet, send_request,
+	send_request_enc, setup, RetrieveSummaryInfoResp,
 };
 
 #[test]
@@ -61,7 +61,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	});
 	thread::sleep(Duration::from_millis(200));
 
-// use in all tests
+	// use in all tests
 	let sec_key_str = "e00dcc4a009e3427c6b1e1a550c538179d46f3827a13ed74c759c860761caf1e";
 	let _pub_key_str = "03b3c18c9a38783d105e238953b1638b021ba7456d87a5c085b3bdb75777b4c490";
 
@@ -96,15 +96,27 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 4) A normal request, correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request_enc::<RetrieveSummaryInfoResp>(1, 1, "http://127.0.0.1:3420/v3/owner", &req, &shared_key)?;
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:3420/v3/owner",
+		&req,
+		&shared_key,
+	)?;
 	println!("RES 4: {:?}", res);
 	assert!(res.is_ok());
 
 	// 5) A normal request, incorrect key
 	let mut bad_key = shared_key.clone();
-	bad_key.0[0]=0;
+	bad_key.0[0] = 0;
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request_enc::<RetrieveSummaryInfoResp>(1, 1, "http://127.0.0.1:3420/v3/owner", &req, &bad_key)?;
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:3420/v3/owner",
+		&req,
+		&bad_key,
+	)?;
 	println!("RES 5: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32002);
@@ -140,7 +152,13 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 8) Encrypted call to `init_secure_api`, followed by re-deriving key
 	let req = include_str!("data/v3_reqs/init_secure_api.req.json");
-	let res = send_request_enc(1, 1, "http://127.0.0.1:3420/v3/owner", &req.to_string(), &shared_key)?;
+	let res = send_request_enc(
+		1,
+		1,
+		"http://127.0.0.1:3420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
 	println!("RES 8: {:?}", res);
 	assert!(res.is_ok());
 	let value: ECDHPubkey = res.unwrap();
@@ -148,7 +166,13 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 9) A normal request, with new correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request_enc::<RetrieveSummaryInfoResp>(9, 1, "http://127.0.0.1:3420/v3/owner", &req, &shared_key)?;
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		9,
+		1,
+		"http://127.0.0.1:3420/v3/owner",
+		&req,
+		&shared_key,
+	)?;
 	println!("RES 9: {:?}", res);
 	assert!(res.is_ok());
 
@@ -163,7 +187,13 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 11) A normal request, correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request_enc::<RetrieveSummaryInfoResp>(12, 1, "http://127.0.0.1:3420/v3/owner", &req, &shared_key)?;
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		12,
+		1,
+		"http://127.0.0.1:3420/v3/owner",
+		&req,
+		&shared_key,
+	)?;
 	println!("RES 11: {:?}", res);
 	assert!(res.is_ok());
 

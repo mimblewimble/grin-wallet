@@ -33,8 +33,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::apiwallet::{
-	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner,
-	OwnerRpc, OwnerRpcS,
+	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
+	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS,
 };
 use easy_jsonrpc;
 use easy_jsonrpc::{Handler, MaybeReply};
@@ -340,13 +340,12 @@ impl OwnerV3Helpers {
 	pub fn check_encryption_started() -> Result<(), serde_json::Value> {
 		match OwnerV3Helpers::encryption_enabled() {
 			true => Ok(()),
-			false => {
-				Err(EncryptionErrorResponse::new(
-					1, 
-					-32001, 
-					"Encryption must be enabled. Please call 'init_secure_api` first",
-				).as_json_value())
-			}
+			false => Err(EncryptionErrorResponse::new(
+				1,
+				-32001,
+				"Encryption must be enabled. Please call 'init_secure_api` first",
+			)
+			.as_json_value()),
 		}
 	}
 
@@ -359,7 +358,9 @@ impl OwnerV3Helpers {
 	}
 
 	/// Decrypt an encrypted request
-	pub fn decrypt_request(req: &serde_json::Value) -> Result<(u32, serde_json::Value), serde_json::Value> {
+	pub fn decrypt_request(
+		req: &serde_json::Value,
+	) -> Result<(u32, serde_json::Value), serde_json::Value> {
 		let share_key_ref = OWNER_API_SHARED_KEY.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).map_err(|e| {
@@ -367,36 +368,35 @@ impl OwnerV3Helpers {
 				1,
 				-32002,
 				&format!("Encrypted request format error: {}", e),
-			).as_json_value()
+			)
+			.as_json_value()
 		})?;
 		let id = enc_req.id;
 		let res = enc_req.decrypt(&shared_key).map_err(|e| {
-			EncryptionErrorResponse::new(
-				1,
-				-32002,
-				&format!("Decryption error: {}", e.kind()),
-			).as_json_value()
+			EncryptionErrorResponse::new(1, -32002, &format!("Decryption error: {}", e.kind()))
+				.as_json_value()
 		})?;
 		Ok((id, res))
 	}
 
 	/// Encrypt a response
-	pub fn encrypt_response(id: u32, res: &serde_json::Value) -> Result<serde_json::Value, serde_json::Value> {
+	pub fn encrypt_response(
+		id: u32,
+		res: &serde_json::Value,
+	) -> Result<serde_json::Value, serde_json::Value> {
 		let share_key_ref = OWNER_API_SHARED_KEY.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_res = EncryptedResponse::from_json(id, res, &shared_key).map_err(|e| {
-			EncryptionErrorResponse::new(
-				1,
-				-32003,
-				&format!("EncryptionError: {}", e.kind()),
-			).as_json_value()
+			EncryptionErrorResponse::new(1, -32003, &format!("EncryptionError: {}", e.kind()))
+				.as_json_value()
 		})?;
 		let res = enc_res.as_json_value().map_err(|e| {
 			EncryptionErrorResponse::new(
 				1,
 				-32002,
 				&format!("Encrypted response format error: {}", e),
-			).as_json_value()
+			)
+			.as_json_value()
 		})?;
 		Ok(res)
 	}

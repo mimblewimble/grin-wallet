@@ -105,7 +105,9 @@ impl EncryptedBody {
 			"EncryptedBody Dec: Invalid Nonce".to_string(),
 		))?;
 		aead::open_in_place(&opening_key, &nonce, &[], 0, &mut to_decrypt).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Decryption Failed (is key correct?)".to_string()),
+			ErrorKind::APIEncryption(
+				"EncryptedBody Dec: Decryption Failed (is key correct?)".to_string(),
+			),
 		)?;
 		for _ in 0..aead::AES_256_GCM.tag_len() {
 			to_decrypt.pop();
@@ -238,7 +240,6 @@ pub struct EncryptionErrorResponse {
 }
 
 impl EncryptionErrorResponse {
-
 	pub fn new(id: u32, code: i32, message: &str) -> Self {
 		EncryptionErrorResponse {
 			jsonrpc: "2.0".to_owned(),
@@ -266,12 +267,10 @@ impl EncryptionErrorResponse {
 						"code": -32000
 					}
 				}
-			)
+			),
 		}
 	}
-
 }
-
 
 #[test]
 fn encrypted_request() -> Result<(), Error> {
