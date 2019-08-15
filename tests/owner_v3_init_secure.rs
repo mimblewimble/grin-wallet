@@ -205,14 +205,10 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		"params": {
 			"nope": "nope",
 		}
-	}).to_string();
-	let res = send_request_enc::<String>(
-		12,
-		1,
-		"http://127.0.0.1:3420/v3/owner",
-		&req,
-		&shared_key,
-	)?;
+	})
+	.to_string();
+	let res =
+		send_request_enc::<String>(12, 1, "http://127.0.0.1:3420/v3/owner", &req, &shared_key)?;
 	println!("RES 12: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32601);
