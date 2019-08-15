@@ -1547,13 +1547,15 @@ pub fn run_doctest_owner(
 
 	let mut api_owner = Owner::new(wallet1);
 	api_owner.doctest_mode = true;
-	if use_token {
+	let res = if use_token {
 		let owner_api = &api_owner as &dyn OwnerRpcS;
-		Ok(owner_api.handle_request(request).as_option())
+		owner_api.handle_request(request).as_option()
 	} else {
 		let owner_api = &api_owner as &dyn OwnerRpc;
-		Ok(owner_api.handle_request(request).as_option())
-	}
+		owner_api.handle_request(request).as_option()
+	};
+	let _ = fs::remove_dir_all(test_dir);
+	Ok(res)
 }
 
 #[doc(hidden)]

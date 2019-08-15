@@ -751,7 +751,9 @@ pub fn run_doctest_foreign(
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;
-	Ok(foreign_api.handle_request(request).as_option())
+	let res = foreign_api.handle_request(request).as_option();
+	let _ = fs::remove_dir_all(test_dir);
+	Ok(res)
 }
 
 #[doc(hidden)]
