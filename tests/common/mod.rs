@@ -350,6 +350,12 @@ where
 
 	let enc_resp: EncryptedResponse = serde_json::from_str(&res).unwrap();
 	let res = enc_resp.decrypt(shared_key).unwrap();
+	if res["error"] != json!(null) {
+		return Ok(Err(WalletAPIReturnError {
+			message: res["error"]["message"].as_str().unwrap().to_owned(),
+			code: res["error"]["code"].as_i64().unwrap() as i32,
+		}));
+	}
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
 	let res = res
 		.outputs

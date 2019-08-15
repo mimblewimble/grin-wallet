@@ -185,7 +185,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let value: ECDHPubkey = res.unwrap();
 	let shared_key = derive_ecdh_key(sec_key_str, &value.ecdh_pubkey);
 
-	// 11) A normal request, correct key
+	// 12) A normal request, correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
 		12,
@@ -196,6 +196,26 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	)?;
 	println!("RES 11: {:?}", res);
 	assert!(res.is_ok());
+
+	// 12) A request which triggers and API error (not an encryption error)
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "method_dun_exist",
+		"params": {
+			"nope": "nope",
+		}
+	}).to_string();
+	let res = send_request_enc::<String>(
+		12,
+		1,
+		"http://127.0.0.1:3420/v3/owner",
+		&req,
+		&shared_key,
+	)?;
+	println!("RES 12: {:?}", res);
+	assert!(res.is_err());
+	assert_eq!(res.unwrap_err().code, -32601);
 
 	Ok(())
 }
