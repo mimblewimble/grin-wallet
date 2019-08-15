@@ -34,8 +34,8 @@ use common::RetrieveSummaryInfoResp;
 use common::{execute_command, initial_setup_wallet, instantiate_wallet, send_request, setup};
 
 #[test]
-fn owner_v3_basic() -> Result<(), grin_wallet_controller::Error> {
-	let test_dir = "target/test_output/owner_v3_basic";
+fn owner_v2_sanity() -> Result<(), grin_wallet_controller::Error> {
+	let test_dir = "target/test_output/owner_v2_sanity";
 	setup(test_dir);
 
 	setup_proxy!(test_dir, chain, wallet1, client1, mask1, wallet2, client2, _mask2);
@@ -66,8 +66,8 @@ fn owner_v3_basic() -> Result<(), grin_wallet_controller::Error> {
 	thread::sleep(Duration::from_millis(200));
 
 	// Send simple retrieve_info request to owner listener
-	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
+	let req = include_str!("data/v2_reqs/retrieve_info.req.json");
+	let res = send_request(1, "http://127.0.0.1:3420/v2/owner", req)?;
 	assert!(res.is_ok());
 	let value: RetrieveSummaryInfoResp = res.unwrap();
 	assert_eq!(value.1.amount_currently_spendable, 420000000000);

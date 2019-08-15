@@ -105,7 +105,7 @@ impl EncryptedBody {
 			"EncryptedBody Dec: Invalid Nonce".to_string(),
 		))?;
 		aead::open_in_place(&opening_key, &nonce, &[], 0, &mut to_decrypt).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Decryption Failed".to_string()),
+			ErrorKind::APIEncryption("EncryptedBody Dec: Decryption Failed (is key correct?)".to_string()),
 		)?;
 		for _ in 0..aead::AES_256_GCM.tag_len() {
 			to_decrypt.pop();
@@ -216,6 +216,62 @@ impl EncryptedResponse {
 		self.result.get("Ok").unwrap().decrypt(dec_key)
 	}
 }
+
+/// Wrapper for encryption error responses
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EncryptionError {
+	/// code
+	pub code: i32,
+	/// message
+	pub message: String,
+}
+
+/// Wrapper for encryption error responses
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EncryptionErrorResponse {
+	/// JSON RPC response
+	pub jsonrpc: String,
+	/// id
+	pub id: u32,
+	/// error
+	pub error: EncryptionError,
+}
+
+impl EncryptionErrorResponse {
+
+	pub fn new(id: u32, code: i32, message: &str) -> Self {
+		EncryptionErrorResponse {
+			jsonrpc: "2.0".to_owned(),
+			id: id,
+			error: EncryptionError {
+				code: code,
+				message: message.to_owned(),
+			},
+		}
+	}
+
+	/// return serialized JSON self
+	pub fn as_json_value(&self) -> Value {
+		let res = serde_json::to_value(self).context(ErrorKind::APIEncryption(
+			"EncryptedResponse: JSON serialization failed".to_owned(),
+		));
+		match res {
+			Ok(r) => r,
+			// proverbial "should never happen"
+			Err(r) => serde_json::json!({
+					"json_rpc" : "2.0",
+					"id" : "1",
+					"error" : {
+						"message": format!("internal error serialising json error response {}", r),
+						"code": -32000
+					}
+				}
+			)
+		}
+	}
+
+}
+
 
 #[test]
 fn encrypted_request() -> Result<(), Error> {

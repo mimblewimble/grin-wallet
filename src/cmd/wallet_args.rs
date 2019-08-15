@@ -812,7 +812,8 @@ where
 		("init", Some(_)) => None,
 		("recover", _) => None,
 		// Owner API can be started without a wallet present
-		("owner_api", _) => None,
+		// TODO: Not quite yet, next PR will deal with this
+		//("owner_api", _) => None,
 		_ => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();

@@ -1,0 +1,9 @@
+{
+	"jsonrpc": "2.0",
+	"method": "retrieve_summary_info",
+	"params": [
+		true,
+		1
+	],
+	"id": 1
+}
