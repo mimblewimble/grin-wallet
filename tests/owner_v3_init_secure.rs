@@ -35,8 +35,8 @@ use serde_json;
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, derive_ecdh_key, execute_command, initial_setup_wallet, instantiate_wallet, send_request,
-	send_request_enc, setup, RetrieveSummaryInfoResp,
+	clean_output_dir, derive_ecdh_key, execute_command, initial_setup_wallet, instantiate_wallet,
+	send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
 };
 
 #[test]

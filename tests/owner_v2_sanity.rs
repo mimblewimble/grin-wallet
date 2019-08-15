@@ -31,7 +31,10 @@ use grin_wallet_util::grin_keychain::ExtKeychain;
 #[macro_use]
 mod common;
 use common::RetrieveSummaryInfoResp;
-use common::{clean_output_dir, execute_command, initial_setup_wallet, instantiate_wallet, send_request, setup};
+use common::{
+	clean_output_dir, execute_command, initial_setup_wallet, instantiate_wallet, send_request,
+	setup,
+};
 
 #[test]
 fn owner_v2_sanity() -> Result<(), grin_wallet_controller::Error> {
@@ -75,7 +78,15 @@ fn owner_v2_sanity() -> Result<(), grin_wallet_controller::Error> {
 	println!("Response 1: {:?}", value);
 
 	// 2) Send to wallet 2 foreign listener
-	let arg_vec = vec!["grin-wallet", "-p", "password", "send", "-d", "http://127.0.0.1:23415", "10"];
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password",
+		"send",
+		"-d",
+		"http://127.0.0.1:23415",
+		"10",
+	];
 	let yml = load_yaml!("../src/bin/grin-wallet.yml");
 	let app = App::from_yaml(yml);
 	let res = execute_command(&app, test_dir, "wallet1", &client1_2, arg_vec.clone());
