@@ -185,10 +185,10 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let value: ECDHPubkey = res.unwrap();
 	let shared_key = derive_ecdh_key(sec_key_str, &value.ecdh_pubkey);
 
-	// 12) A normal request, correct key
+	// 11) A normal request, correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
-		12,
+		11,
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,
