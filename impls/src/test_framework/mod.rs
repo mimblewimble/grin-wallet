@@ -16,7 +16,7 @@ use crate::api;
 use crate::chain;
 use crate::chain::Chain;
 use crate::core;
-use crate::core::core::{OutputFeatures, OutputIdentifier, Transaction, TxKernel};
+use crate::core::core::{OutputFeatures, OutputIdentifier, Transaction};
 use crate::core::{consensus, global, pow};
 use crate::keychain;
 use crate::libwallet;
