@@ -31,7 +31,6 @@ use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// self send impl
 fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
@@ -82,13 +81,8 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("mining")?;
 	}
 	let mut bh = 10u64;
-	let _ = test_framework::award_blocks_to_wallet(
-		&chain,
-		wallet1.clone(),
-		mask1,
-		bh as usize,
-		false,
-	);
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Sanity check wallet 1 contents
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {

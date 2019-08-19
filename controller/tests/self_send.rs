@@ -27,7 +27,7 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{create_wallet_proxy, setup, clean_output_dir};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// self send impl
 fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {

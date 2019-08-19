@@ -30,11 +30,10 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{create_wallet_proxy, clean_output_dir, setup};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// Various tests on accounts within the same wallet
 fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();

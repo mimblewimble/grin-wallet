@@ -30,7 +30,7 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{create_wallet_proxy, setup, clean_output_dir};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 fn restore_wallet(base_dir: &'static str, wallet_dir: &str) -> Result<(), libwallet::Error> {
 	let source_seed = format!("{}/{}/wallet_data/wallet.seed", base_dir, wallet_dir);
@@ -196,7 +196,6 @@ fn compare_wallet_restore(
 /// Build up 2 wallets, perform a few transactions on them
 /// Then attempt to restore them in separate directories and check contents are the same
 fn setup_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
-
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();

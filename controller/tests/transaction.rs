@@ -28,7 +28,7 @@ use std::thread;
 use std::time::Duration;
 
 mod common;
-use common::{create_wallet_proxy, setup, clean_output_dir};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// Exercises the Transaction API fully with a test NodeClient operating
 /// directly on a chain instance
