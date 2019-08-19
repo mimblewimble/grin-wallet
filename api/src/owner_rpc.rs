@@ -1570,7 +1570,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// disable for now on windows
 		// TODO: Fix properly
 		#[cfg(not(target_os = "windows"))]
-		{
+			{
 			use grin_wallet_api::run_doctest_owner;
 			use serde_json;
 			use serde_json::Value;
@@ -1603,8 +1603,8 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 					"(left != right) \nleft: {}\nright: {}",
 					serde_json::to_string_pretty(&response).unwrap(),
 					serde_json::to_string_pretty(&expected_response).unwrap()
-					);
+				);
 				}
-		}
+			}
 	};
 }
