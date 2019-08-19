@@ -14,11 +14,10 @@
 
 //! Types specific to the wallet api, mostly argument serialization
 
-use crate::grin_core::core::Output;
+use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::Identifier;
 use crate::grin_util::secp::pedersen;
-use crate::slate_versions::v2::TxKernelV2;
 use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 
@@ -186,7 +185,7 @@ pub struct CbData {
 	/// Output
 	pub output: Output,
 	/// Kernel
-	pub kernel: TxKernelV2,
+	pub kernel: TxKernel,
 	/// Key Id
 	pub key_id: Option<Identifier>,
 }

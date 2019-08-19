@@ -94,9 +94,7 @@ pub trait ForeignRpc {
 				"kernel": {
 					"excess": "08dfe86d732f2dd24bac36aa7502685221369514197c26d33fac03041d47e4b490",
 					"excess_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841be02fa098c54c9bf638e0ee1ad5eb896caa11565f632be7b9cd65643ba371044f",
-					"features": "Coinbase",
-					"fee": "0",
-					"lock_height": "0"
+					"features": "Coinbase"
 				},
 				"key_id": "0300000000000000000000000400000000",
 				"output": {

@@ -82,7 +82,7 @@ pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbDa
 		&prev,
 		txs.into_iter().cloned().collect(),
 		next_header_info.clone().difficulty,
-		(reward.output, TxKernel::from(&reward.kernel)),
+		(reward.output, reward.kernel),
 	)
 	.unwrap();
 	b.header.timestamp = prev.timestamp + Duration::seconds(60);
