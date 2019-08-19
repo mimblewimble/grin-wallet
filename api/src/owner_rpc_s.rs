@@ -1202,7 +1202,7 @@ pub trait OwnerRpcS {
 		}
 	}
 	# "#
-	# ,true, 5 ,true, false, false);
+	# ,true, 0 ,false, false, false);
 	```
 	*/
 	fn verify_slate_messages(&self, token: Token, slate: VersionedSlate) -> Result<(), ErrorKind>;
