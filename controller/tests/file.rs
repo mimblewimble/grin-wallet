@@ -31,12 +31,10 @@ use serde_json;
 
 #[macro_use]
 mod common;
-use common::{create_wallet_proxy, setup};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// self send impl
 fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	setup(test_dir);
-
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
@@ -224,7 +222,9 @@ fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 #[test]
 fn wallet_file_exchange() {
 	let test_dir = "test_output/file_exchange";
+	setup(test_dir);
 	if let Err(e) = file_exchange_test_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }

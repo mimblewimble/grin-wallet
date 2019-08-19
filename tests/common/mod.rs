@@ -14,6 +14,7 @@
 //! Common functions for wallet integration tests
 extern crate grin_wallet;
 
+use grin_wallet_config as config;
 use grin_wallet_impls::test_framework::LocalWalletClient;
 use grin_wallet_util::grin_util as util;
 
@@ -23,12 +24,14 @@ use std::sync::Arc;
 use std::{env, fs};
 use util::{Mutex, ZeroingString};
 
+use grin_wallet_api::{EncryptedRequest, EncryptedResponse};
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{WalletInfo, WalletInst};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 use grin_wallet_util::grin_keychain::ExtKeychain;
-use util::secp::key::SecretKey;
+use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
+use util::secp::key::{PublicKey, SecretKey};
 
 use grin_wallet::cmd::wallet_args;
 use grin_wallet_util::grin_api as api;
@@ -100,7 +103,7 @@ macro_rules! setup_proxy {
 	};
 }
 
-fn clean_output_dir(test_dir: &str) {
+pub fn clean_output_dir(test_dir: &str) {
 	let _ = fs::remove_dir_all(test_dir);
 }
 
@@ -192,7 +195,7 @@ pub fn instantiate_wallet(
 		Arc<
 			Mutex<
 				Box<
-					WalletInst<
+					dyn WalletInst<
 						'static,
 						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 						LocalWalletClient,
@@ -208,7 +211,7 @@ pub fn instantiate_wallet(
 	wallet_config.chain_type = None;
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(node_client).unwrap())
 		as Box<
-			WalletInst<
+			dyn WalletInst<
 				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
@@ -247,6 +250,25 @@ pub fn execute_command(
 	wallet_args::wallet_command(&args, config.clone(), client.clone(), true)
 }
 
+// as above, but without necessarily setting up the wallet
+#[allow(dead_code)]
+pub fn execute_command_no_setup(
+	app: &App,
+	test_dir: &str,
+	wallet_name: &str,
+	client: &LocalWalletClient,
+	arg_vec: Vec<&str>,
+) -> Result<String, grin_wallet_controller::Error> {
+	let args = app.clone().get_matches_from(arg_vec);
+	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
+	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None).unwrap();
+	let mut wallet_config = config.members.unwrap().wallet.clone();
+	wallet_config.chain_type = None;
+	wallet_config.api_secret_path = None;
+	wallet_config.node_api_secret_path = None;
+	wallet_args::wallet_command(&args, wallet_config, client.clone(), true)
+}
+
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
 where
 	IN: Serialize,
@@ -257,6 +279,7 @@ where
 	Ok(res)
 }
 
+#[allow(dead_code)]
 pub fn send_request<OUT>(
 	id: u64,
 	dest: &str,
@@ -266,19 +289,30 @@ where
 	OUT: DeserializeOwned,
 {
 	let url = Url::parse(dest).unwrap();
-	let req: Value = serde_json::from_str(req).unwrap();
-	let res: String = post(&url, None, &req).map_err(|e| {
+	let req_val: Value = serde_json::from_str(req).unwrap();
+	let res = post(&url, None, &req_val).map_err(|e| {
 		let err_string = format!("{}", e);
 		println!("{}", err_string);
 		thread::sleep(Duration::from_millis(200));
 		e
 	})?;
+
+	let res_val: Value = serde_json::from_str(&res).unwrap();
+	// encryption error, just return the string
+	if res_val["error"] != json!(null) {
+		return Ok(Err(WalletAPIReturnError {
+			message: res_val["error"]["message"].as_str().unwrap().to_owned(),
+			code: res_val["error"]["code"].as_i64().unwrap() as i32,
+		}));
+	}
+
 	let res = serde_json::from_str(&res).unwrap();
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
 	let res = res.outputs.get(&id).unwrap().clone().unwrap();
 	if res["Err"] != json!(null) {
 		Ok(Err(WalletAPIReturnError {
 			message: res["Err"].as_str().unwrap().to_owned(),
+			code: res["error"]["code"].as_i64().unwrap() as i32,
 		}))
 	} else {
 		// deserialize result into expected type
@@ -287,10 +321,88 @@ where
 	}
 }
 
+#[allow(dead_code)]
+pub fn send_request_enc<OUT>(
+	sec_req_id: u32,
+	internal_request_id: u32,
+	dest: &str,
+	req: &str,
+	shared_key: &SecretKey,
+) -> Result<Result<OUT, WalletAPIReturnError>, api::Error>
+where
+	OUT: DeserializeOwned,
+{
+	let url = Url::parse(dest).unwrap();
+	let req_val: Value = serde_json::from_str(req).unwrap();
+	let req = EncryptedRequest::from_json(sec_req_id, &req_val, &shared_key).unwrap();
+	let res = post(&url, None, &req).map_err(|e| {
+		let err_string = format!("{}", e);
+		println!("{}", err_string);
+		thread::sleep(Duration::from_millis(200));
+		e
+	})?;
+
+	let res_val: Value = serde_json::from_str(&res).unwrap();
+	// encryption error, just return the string
+	if res_val["error"] != json!(null) {
+		return Ok(Err(WalletAPIReturnError {
+			message: res_val["error"]["message"].as_str().unwrap().to_owned(),
+			code: res_val["error"]["code"].as_i64().unwrap() as i32,
+		}));
+	}
+
+	let enc_resp: EncryptedResponse = serde_json::from_str(&res).unwrap();
+	let res = enc_resp.decrypt(shared_key).unwrap();
+	if res["error"] != json!(null) {
+		return Ok(Err(WalletAPIReturnError {
+			message: res["error"]["message"].as_str().unwrap().to_owned(),
+			code: res["error"]["code"].as_i64().unwrap() as i32,
+		}));
+	}
+	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
+	let res = res
+		.outputs
+		.get(&(internal_request_id as u64))
+		.unwrap()
+		.clone()
+		.unwrap();
+
+	if res["Err"] != json!(null) {
+		Ok(Err(WalletAPIReturnError {
+			message: res["Err"].as_str().unwrap().to_owned(),
+			code: res_val["error"]["code"].as_i64().unwrap() as i32,
+		}))
+	} else {
+		// deserialize result into expected type
+		let value: OUT = serde_json::from_value(res["Ok"].clone()).unwrap();
+		Ok(Ok(value))
+	}
+}
+
+#[allow(dead_code)]
+pub fn derive_ecdh_key(sec_key_str: &str, other_pubkey: &PublicKey) -> SecretKey {
+	let sec_key_bytes = from_hex(sec_key_str.to_owned()).unwrap();
+	let sec_key = {
+		let secp_inst = static_secp_instance();
+		let secp = secp_inst.lock();
+		SecretKey::from_slice(&secp, &sec_key_bytes).unwrap()
+	};
+
+	let secp_inst = static_secp_instance();
+	let secp = secp_inst.lock();
+
+	let mut shared_pubkey = other_pubkey.clone();
+	shared_pubkey.mul_assign(&secp, &sec_key).unwrap();
+
+	let x_coord = shared_pubkey.serialize_vec(&secp, true);
+	SecretKey::from_slice(&secp, &x_coord[1..]).unwrap()
+}
+
 // Types to make working with json responses easier
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WalletAPIReturnError {
-	message: String,
+	pub message: String,
+	pub code: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

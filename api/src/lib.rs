@@ -43,6 +43,8 @@ mod owner;
 mod owner_rpc;
 mod owner_rpc_s;
 
+mod types;
+
 pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddlewareFn};
 pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
@@ -53,13 +55,4 @@ pub use crate::foreign_rpc::foreign_rpc as foreign_rpc_client;
 pub use crate::foreign_rpc::run_doctest_foreign;
 pub use crate::owner_rpc::run_doctest_owner;
 
-use grin_wallet_util::grin_core::libtx::secp_ser;
-use util::secp::key::SecretKey;
-
-/// Wrapper for API Tokens
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(transparent)]
-pub struct Token {
-	#[serde(with = "secp_ser::option_seckey_serde")]
-	keychain_mask: Option<SecretKey>,
-}
+pub use types::{ECDHPubkey, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Token};

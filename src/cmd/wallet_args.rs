@@ -218,7 +218,7 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 pub fn inst_wallet<L, C, K>(
 	config: WalletConfig,
 	node_client: C,
-) -> Result<Arc<Mutex<Box<WalletInst<'static, L, C, K>>>>, ParseError>
+) -> Result<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>, ParseError>
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
@@ -226,7 +226,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
-		as Box<WalletInst<'static, L, C, K>>;
+		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	lc.set_wallet_directory(&config.data_file_dir);
 	Ok(Arc::new(Mutex::new(wallet)))
@@ -394,6 +394,16 @@ pub fn parse_listen_args(
 	Ok(command::ListenArgs {
 		method: method.to_owned(),
 	})
+}
+
+pub fn parse_owner_api_args(
+	config: &mut WalletConfig,
+	args: &ArgMatches,
+) -> Result<(), ParseError> {
+	if let Some(port) = args.value_of("port") {
+		config.owner_api_listen_port = Some(port.parse().unwrap());
+	}
+	Ok(())
 }
 
 pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountArgs, ParseError> {
@@ -811,6 +821,9 @@ where
 	let keychain_mask = match wallet_args.subcommand() {
 		("init", Some(_)) => None,
 		("recover", _) => None,
+		// Owner API can be started without a wallet present
+		// TODO: Not quite yet, next PR will deal with this
+		//("owner_api", _) => None,
 		_ => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
@@ -853,11 +866,12 @@ where
 			let a = arg_parse!(parse_listen_args(&mut c, &args));
 			command::listen(wallet, keychain_mask, &c, &a, &global_wallet_args.clone())
 		}
-		("owner_api", Some(_)) => {
+		("owner_api", Some(args)) => {
+			let mut c = wallet_config.clone();
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
-			print!("mask: {:?}", keychain_mask);
-			command::owner_api(wallet, keychain_mask, &wallet_config, &g)
+			arg_parse!(parse_owner_api_args(&mut c, &args));
+			command::owner_api(wallet, keychain_mask, &c, &g)
 		}
 		("web", Some(_)) => {
 			command::owner_api(wallet, keychain_mask, &wallet_config, &global_wallet_args)

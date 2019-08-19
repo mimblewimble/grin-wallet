@@ -28,13 +28,12 @@ use std::thread;
 use std::time::Duration;
 
 mod common;
-use common::{create_wallet_proxy, setup};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 /// Exercises the Transaction API fully with a test NodeClient operating
 /// directly on a chain instance
 /// Callable with any type of wallet
 fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	setup(test_dir);
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
@@ -350,7 +349,6 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 /// Test rolling back transactions and outputs when a transaction is never
 /// posted to a chain
 fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	setup(test_dir);
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
@@ -528,15 +526,19 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 #[test]
 fn db_wallet_basic_transaction_api() {
 	let test_dir = "test_output/basic_transaction_api";
+	setup(test_dir);
 	if let Err(e) = basic_transaction_api(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }
 
 #[test]
 fn db_wallet_tx_rollback() {
 	let test_dir = "test_output/tx_rollback";
+	setup(test_dir);
 	if let Err(e) = tx_rollback(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }

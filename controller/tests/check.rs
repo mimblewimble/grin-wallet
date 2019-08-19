@@ -32,7 +32,7 @@ use util::ZeroingString;
 
 #[macro_use]
 mod common;
-use common::{create_wallet_proxy, setup};
+use common::{clean_output_dir, create_wallet_proxy, setup};
 
 macro_rules! send_to_dest {
 	($a:expr, $m: expr, $b:expr, $c:expr, $d:expr) => {
@@ -48,8 +48,6 @@ macro_rules! wallet_info {
 
 /// Various tests on checking functionality
 fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	setup(test_dir);
-
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
@@ -753,12 +751,15 @@ fn check_repair() {
 	if let Err(e) = check_repair_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }
 
 #[test]
 fn two_wallets_one_seed() {
 	let test_dir = "test_output/two_wallets_one_seed";
+	setup(test_dir);
 	if let Err(e) = two_wallets_one_seed_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }

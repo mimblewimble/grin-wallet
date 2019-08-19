@@ -101,7 +101,7 @@ pub fn create_local_wallet(
 	Arc<
 		Mutex<
 			Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -114,7 +114,7 @@ pub fn create_local_wallet(
 ) {
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client).unwrap())
 		as Box<
-			WalletInst<
+			dyn WalletInst<
 				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
@@ -130,6 +130,7 @@ pub fn create_local_wallet(
 	(Arc::new(Mutex::new(wallet)), mask)
 }
 
+#[allow(dead_code)]
 pub fn open_local_wallet(
 	test_dir: &str,
 	name: &str,
@@ -139,7 +140,7 @@ pub fn open_local_wallet(
 	Arc<
 		Mutex<
 			Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -152,7 +153,7 @@ pub fn open_local_wallet(
 ) {
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client).unwrap())
 		as Box<
-			WalletInst<
+			dyn WalletInst<
 				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,

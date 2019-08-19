@@ -20,13 +20,13 @@ use crate::libwallet::{
 	NodeVersionInfo, Slate, VersionInfo, VersionedSlate, WalletLCProvider,
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
-use easy_jsonrpc;
+use easy_jsonrpc_mw;
 
 /// Public definition used to generate Foreign jsonrpc api.
 /// * When running `grin-wallet listen` with defaults, the V2 api is available at
 /// `localhost:3415/v2/foreign`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
-#[easy_jsonrpc::rpc]
+#[easy_jsonrpc_mw::rpc]
 pub trait ForeignRpc {
 	/**
 	Networked version of [Foreign::check_version](struct.Foreign.html#method.check_version).
@@ -577,7 +577,7 @@ pub fn run_doctest_foreign(
 	init_tx: bool,
 	init_invoice_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
-	use easy_jsonrpc::Handler;
+	use easy_jsonrpc_mw::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 	use grin_wallet_libwallet::{api_impl, WalletInst};
@@ -613,7 +613,7 @@ pub fn run_doctest_foreign(
 	let mut wallet1 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -648,7 +648,7 @@ pub fn run_doctest_foreign(
 	let mut wallet2 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -751,7 +751,9 @@ pub fn run_doctest_foreign(
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;
-	Ok(foreign_api.handle_request(request).as_option())
+	let res = foreign_api.handle_request(request).as_option();
+	let _ = fs::remove_dir_all(test_dir);
+	Ok(res)
 }
 
 #[doc(hidden)]

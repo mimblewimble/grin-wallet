@@ -124,6 +124,7 @@ where
 			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
+					error!("{}", msg);
 					return Err(ErrorKind::Lifecycle(msg).into());
 				}
 				Ok(d) => d,

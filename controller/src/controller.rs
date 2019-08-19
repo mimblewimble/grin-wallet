@@ -32,13 +32,20 @@ use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::apiwallet::{Foreign, ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS};
-use easy_jsonrpc;
-use easy_jsonrpc::{Handler, MaybeReply};
+use crate::apiwallet::{
+	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
+	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS,
+};
+use easy_jsonrpc_mw;
+use easy_jsonrpc_mw::{Handler, MaybeReply};
 
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
 		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
+}
+
+lazy_static! {
+	pub static ref OWNER_API_SHARED_KEY: Arc<Mutex<Option<SecretKey>>> = Arc::new(Mutex::new(None));
 }
 
 fn check_middleware(
@@ -138,7 +145,6 @@ where
 	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-
 	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone());
 
 	router
@@ -295,6 +301,106 @@ where
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 }
 
+pub struct OwnerV3Helpers;
+
+impl OwnerV3Helpers {
+	/// Checks whether a request is to init the secure API
+	pub fn is_init_secure_api(val: &serde_json::Value) -> bool {
+		if let Some(m) = val["method"].as_str() {
+			match m {
+				"init_secure_api" => true,
+				_ => false,
+			}
+		} else {
+			false
+		}
+	}
+
+	/// Checks whether a request is an encrypted request
+	pub fn is_encrypted_request(val: &serde_json::Value) -> bool {
+		if let Some(m) = val["method"].as_str() {
+			match m {
+				"encrypted_request_v3" => true,
+				_ => false,
+			}
+		} else {
+			false
+		}
+	}
+
+	/// whether encryption is enabled
+	pub fn encryption_enabled() -> bool {
+		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+		share_key_ref.is_some()
+	}
+
+	/// If incoming is an encrypted request, check there is a shared key,
+	/// Otherwise return an error value
+	pub fn check_encryption_started() -> Result<(), serde_json::Value> {
+		match OwnerV3Helpers::encryption_enabled() {
+			true => Ok(()),
+			false => Err(EncryptionErrorResponse::new(
+				1,
+				-32001,
+				"Encryption must be enabled. Please call 'init_secure_api` first",
+			)
+			.as_json_value()),
+		}
+	}
+
+	/// Update the statically held owner API shared key
+	pub fn update_owner_api_shared_key(val: &serde_json::Value, new_key: Option<SecretKey>) {
+		if let Some(_) = val["result"]["Ok"].as_str() {
+			let mut share_key_ref = OWNER_API_SHARED_KEY.lock();
+			*share_key_ref = new_key;
+		}
+	}
+
+	/// Decrypt an encrypted request
+	pub fn decrypt_request(
+		req: &serde_json::Value,
+	) -> Result<(u32, serde_json::Value), serde_json::Value> {
+		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+		let shared_key = share_key_ref.as_ref().unwrap();
+		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).map_err(|e| {
+			EncryptionErrorResponse::new(
+				1,
+				-32002,
+				&format!("Encrypted request format error: {}", e),
+			)
+			.as_json_value()
+		})?;
+		let id = enc_req.id;
+		let res = enc_req.decrypt(&shared_key).map_err(|e| {
+			EncryptionErrorResponse::new(1, -32002, &format!("Decryption error: {}", e.kind()))
+				.as_json_value()
+		})?;
+		Ok((id, res))
+	}
+
+	/// Encrypt a response
+	pub fn encrypt_response(
+		id: u32,
+		res: &serde_json::Value,
+	) -> Result<serde_json::Value, serde_json::Value> {
+		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+		let shared_key = share_key_ref.as_ref().unwrap();
+		let enc_res = EncryptedResponse::from_json(id, res, &shared_key).map_err(|e| {
+			EncryptionErrorResponse::new(1, -32003, &format!("EncryptionError: {}", e.kind()))
+				.as_json_value()
+		})?;
+		let res = enc_res.as_json_value().map_err(|e| {
+			EncryptionErrorResponse::new(
+				1,
+				-32002,
+				&format!("Encrypted response format error: {}", e),
+			)
+			.as_json_value()
+		})?;
+		Ok(res)
+	}
+}
+
 impl<L, C, K> OwnerAPIHandlerV3<L, C, K>
 where
 	L: WalletLCProvider<'static, C, K>,
@@ -314,9 +420,47 @@ where
 		api: Owner<'static, L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
+			let mut val = val;
 			let owner_api_s = &api as &dyn OwnerRpcS;
+			let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
+			let mut was_encrypted = false;
+			let mut encrypted_req_id = 0;
+			if !is_init_secure_api {
+				if let Err(v) = OwnerV3Helpers::check_encryption_started() {
+					return ok(v);
+				}
+				let res = OwnerV3Helpers::decrypt_request(&val);
+				match res {
+					Err(e) => return ok(e),
+					Ok(v) => {
+						encrypted_req_id = v.0;
+						val = v.1;
+					}
+				}
+				was_encrypted = true;
+			}
+			// check again, in case it was an encrypted call to init_secure_api
+			is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			match owner_api_s.handle_request(val) {
-				MaybeReply::Reply(r) => ok(r),
+				MaybeReply::Reply(mut r) => {
+					let unencrypted_intercept = r.clone();
+					if was_encrypted {
+						let res = OwnerV3Helpers::encrypt_response(encrypted_req_id, &r);
+						r = match res {
+							Ok(v) => v,
+							Err(v) => return ok(v),
+						}
+					}
+					// intercept init_secure_api response (after encryption,
+					// in case it was an encrypted call to 'init_api_secure')
+					if is_init_secure_api {
+						OwnerV3Helpers::update_owner_api_shared_key(
+							&unencrypted_intercept,
+							api.shared_key.lock().clone(),
+						);
+					}
+					ok(r)
+				}
 				MaybeReply::DontReply => {
 					// Since it's http, we need to return something. We return [] because jsonrpc
 					// clients will parse it as an empty batch response.

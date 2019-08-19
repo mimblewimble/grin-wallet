@@ -70,6 +70,12 @@ subcommands:
             takes_value: true
   - owner_api:
       about: Runs the wallet's local web API
+      args:
+        - port:
+            help: Port on which to run the wallet owner listener
+            short: l
+            long: port
+            takes_value: true
   - send:
       about: Builds a transaction to send coins and sends to the specified listener directly
       args:

@@ -99,7 +99,7 @@ fn real_main() -> i32 {
 		panic!("Error loading wallet configuration: {}", e);
 	});
 
-	config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
+	//config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
 
 	// Load logging config
 	let l = config.members.as_mut().unwrap().logging.clone().unwrap();

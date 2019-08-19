@@ -22,12 +22,15 @@ use crate::libwallet::{
 	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, VersionedSlate, WalletInfo,
 	WalletLCProvider,
 };
-use crate::{Owner, Token};
-use easy_jsonrpc;
+use crate::util::secp::key::{PublicKey, SecretKey};
+use crate::util::static_secp_instance;
+use crate::{ECDHPubkey, Owner, Token};
+use easy_jsonrpc_mw;
+use rand::thread_rng;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version, that should be used when running the owner API in 'Secure' Mode
-#[easy_jsonrpc::rpc]
+#[easy_jsonrpc_mw::rpc]
 pub trait OwnerRpcS {
 	/**
 	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).
@@ -1199,7 +1202,7 @@ pub trait OwnerRpcS {
 		}
 	}
 	# "#
-	# ,true, 5 ,true, false, false);
+	# ,true, 0 ,false, false, false);
 	```
 	*/
 	fn verify_slate_messages(&self, token: Token, slate: VersionedSlate) -> Result<(), ErrorKind>;
@@ -1300,6 +1303,13 @@ pub trait OwnerRpcS {
 	```
 	 */
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
+
+	/**
+	   Initializes the secure RPC-JSON API
+	   (Documentation TBD)
+	*/
+
+	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1470,5 +1480,31 @@ where
 
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind> {
 		Owner::node_height(self, (&token.keychain_mask).as_ref()).map_err(|e| e.kind())
+	}
+
+	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind> {
+		let secp_inst = static_secp_instance();
+		let secp = secp_inst.lock();
+		let sec_key = SecretKey::new(&secp, &mut thread_rng());
+
+		let mut shared_pubkey = ecdh_pubkey.ecdh_pubkey.clone();
+		shared_pubkey
+			.mul_assign(&secp, &sec_key)
+			.map_err(|e| ErrorKind::Secp(e))?;
+
+		let x_coord = shared_pubkey.serialize_vec(&secp, true);
+		let shared_key =
+			SecretKey::from_slice(&secp, &x_coord[1..]).map_err(|e| ErrorKind::Secp(e))?;
+		{
+			let mut s = self.shared_key.lock();
+			*s = Some(shared_key);
+		}
+
+		let pub_key =
+			PublicKey::from_secret_key(&secp, &sec_key).map_err(|e| ErrorKind::Secp(e))?;
+
+		Ok(ECDHPubkey {
+			ecdh_pubkey: pub_key,
+		})
 	}
 }

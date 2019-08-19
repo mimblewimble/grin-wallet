@@ -24,15 +24,15 @@ use crate::libwallet::{
 };
 use crate::util::Mutex;
 use crate::{Owner, OwnerRpcS};
-use easy_jsonrpc;
+use easy_jsonrpc_mw;
 use std::sync::Arc;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// * When running `grin-wallet owner_api` with defaults, the V2 api is available at
 /// `localhost:3420/v2/owner`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
-#[easy_jsonrpc::rpc]
-pub trait OwnerRpc {
+#[easy_jsonrpc_mw::rpc]
+pub trait OwnerRpc: Sync + Send {
 	/**
 	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).
 
@@ -1148,7 +1148,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,false, 5 ,true, false, false);
+	# ,false, 0 ,false, false, false);
 	```
 	*/
 	fn verify_slate_messages(&self, slate: VersionedSlate) -> Result<(), ErrorKind>;
@@ -1370,7 +1370,7 @@ pub fn run_doctest_owner(
 	lock_tx: bool,
 	finalize_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
-	use easy_jsonrpc::Handler;
+	use easy_jsonrpc_mw::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 	use grin_wallet_libwallet::{api_impl, WalletInst};
@@ -1404,7 +1404,7 @@ pub fn run_doctest_owner(
 	let mut wallet1 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -1439,7 +1439,7 @@ pub fn run_doctest_owner(
 	let mut wallet2 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -1547,13 +1547,15 @@ pub fn run_doctest_owner(
 
 	let mut api_owner = Owner::new(wallet1);
 	api_owner.doctest_mode = true;
-	if use_token {
+	let res = if use_token {
 		let owner_api = &api_owner as &dyn OwnerRpcS;
-		Ok(owner_api.handle_request(request).as_option())
+		owner_api.handle_request(request).as_option()
 	} else {
 		let owner_api = &api_owner as &dyn OwnerRpc;
-		Ok(owner_api.handle_request(request).as_option())
-	}
+		owner_api.handle_request(request).as_option()
+	};
+	let _ = fs::remove_dir_all(test_dir);
+	Ok(res)
 }
 
 #[doc(hidden)]
@@ -1563,39 +1565,46 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
-		use grin_wallet_api::run_doctest_owner;
-		use serde_json;
-		use serde_json::Value;
-		use tempfile::tempdir;
 
-		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
-		let dir = dir
-			.path()
-			.to_str()
-			.ok_or("Failed to convert tmpdir path to string.".to_owned())
+		// These cause LMDB to run out of disk space on CircleCI
+		// disable for now on windows
+		// TODO: Fix properly
+		#[cfg(not(target_os = "windows"))]
+			{
+			use grin_wallet_api::run_doctest_owner;
+			use serde_json;
+			use serde_json::Value;
+			use tempfile::tempdir;
+
+			let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+			let dir = dir
+				.path()
+				.to_str()
+				.ok_or("Failed to convert tmpdir path to string.".to_owned())
+				.unwrap();
+
+			let request_val: Value = serde_json::from_str($request).unwrap();
+			let expected_response: Value = serde_json::from_str($expected_response).unwrap();
+
+			let response = run_doctest_owner(
+				request_val,
+				dir,
+				$use_token,
+				$blocks_to_mine,
+				$perform_tx,
+				$lock_tx,
+				$finalize_tx,
+				)
+			.unwrap()
 			.unwrap();
 
-		let request_val: Value = serde_json::from_str($request).unwrap();
-		let expected_response: Value = serde_json::from_str($expected_response).unwrap();
-
-		let response = run_doctest_owner(
-			request_val,
-			dir,
-			$use_token,
-			$blocks_to_mine,
-			$perform_tx,
-			$lock_tx,
-			$finalize_tx,
-			)
-		.unwrap()
-		.unwrap();
-
-		if response != expected_response {
-			panic!(
-				"(left != right) \nleft: {}\nright: {}",
-				serde_json::to_string_pretty(&response).unwrap(),
-				serde_json::to_string_pretty(&expected_response).unwrap()
+			if response != expected_response {
+				panic!(
+					"(left != right) \nleft: {}\nright: {}",
+					serde_json::to_string_pretty(&response).unwrap(),
+					serde_json::to_string_pretty(&expected_response).unwrap()
 				);
+				}
 			}
 	};
 }

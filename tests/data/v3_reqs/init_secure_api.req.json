@@ -1,0 +1,8 @@
+{
+	"jsonrpc": "2.0",
+	"method": "init_secure_api",
+	"params": {
+		"ecdh_pubkey": "03b3c18c9a38783d105e238953b1638b021ba7456d87a5c085b3bdb75777b4c490"
+	},
+	"id": 1
+}

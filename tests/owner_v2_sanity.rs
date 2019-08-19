@@ -31,11 +31,14 @@ use grin_wallet_util::grin_keychain::ExtKeychain;
 #[macro_use]
 mod common;
 use common::RetrieveSummaryInfoResp;
-use common::{execute_command, initial_setup_wallet, instantiate_wallet, send_request, setup};
+use common::{
+	clean_output_dir, execute_command, initial_setup_wallet, instantiate_wallet, send_request,
+	setup,
+};
 
 #[test]
-fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
-	let test_dir = "target/test_output/owner_v3";
+fn owner_v2_sanity() -> Result<(), grin_wallet_controller::Error> {
+	let test_dir = "target/test_output/owner_v2_sanity";
 	setup(test_dir);
 
 	setup_proxy!(test_dir, chain, wallet1, client1, mask1, wallet2, client2, _mask2);
@@ -44,6 +47,7 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	let bh = 10u64;
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+	let client1_2 = client1.clone();
 
 	// run the owner listener on wallet 1
 	let arg_vec = vec!["grin-wallet", "-p", "password", "owner_api"];
@@ -55,7 +59,7 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 	});
 
 	// run the foreign listener for wallet 2
-	let arg_vec = vec!["grin-wallet", "-p", "password", "listen"];
+	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-l", "23415"];
 	// Set owner listener running
 	thread::spawn(move || {
 		let yml = load_yaml!("../src/bin/grin-wallet.yml");
@@ -65,12 +69,30 @@ fn owner_v3() -> Result<(), grin_wallet_controller::Error> {
 
 	thread::sleep(Duration::from_millis(200));
 
-	// Send simple retrieve_info request to owner listener
-	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res = send_request(1, "http://127.0.0.1:3420/v3/owner", req)?;
+	// 1) Send simple retrieve_info request to owner listener
+	let req = include_str!("data/v2_reqs/retrieve_info.req.json");
+	let res = send_request(1, "http://127.0.0.1:3420/v2/owner", req)?;
 	assert!(res.is_ok());
 	let value: RetrieveSummaryInfoResp = res.unwrap();
 	assert_eq!(value.1.amount_currently_spendable, 420000000000);
-	println!("Response: {:?}", value);
+	println!("Response 1: {:?}", value);
+
+	// 2) Send to wallet 2 foreign listener
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password",
+		"send",
+		"-d",
+		"http://127.0.0.1:23415",
+		"10",
+	];
+	let yml = load_yaml!("../src/bin/grin-wallet.yml");
+	let app = App::from_yaml(yml);
+	let res = execute_command(&app, test_dir, "wallet1", &client1_2, arg_vec.clone());
+	println!("Response 2: {:?}", res);
+	assert!(res.is_ok());
+
+	clean_output_dir(test_dir);
 	Ok(())
 }
