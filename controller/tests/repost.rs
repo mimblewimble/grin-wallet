@@ -28,11 +28,10 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{create_wallet_proxy, setup};
+use common::{create_wallet_proxy, setup, clean_output_dir};
 
 /// self send impl
 fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	setup(test_dir);
 
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
@@ -257,7 +256,9 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 #[test]
 fn wallet_file_repost() {
 	let test_dir = "test_output/file_repost";
+	setup(test_dir);
 	if let Err(e) = file_repost_test_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }
