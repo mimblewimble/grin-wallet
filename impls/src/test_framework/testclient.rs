@@ -26,6 +26,7 @@ use crate::core::{pow, ser};
 use crate::keychain::Keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
+use crate::libwallet::slate_versions::v2::SlateV2;
 use crate::libwallet::{
 	NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider,
 };
@@ -214,23 +215,30 @@ where
 			Some(w) => w,
 		};
 
-		let mut slate = serde_json::from_str(&m.body).context(
+		let slate: SlateV2 = serde_json::from_str(&m.body).context(
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper".to_owned()),
 		)?;
-;
-		{
+
+		let slate: Slate = {
 			let mut w_lock = wallet.1.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			let mask = wallet.2.clone();
 			// receive tx
-			slate = foreign::receive_tx(&mut **w, (&mask).as_ref(), &slate, None, None, false)?;
-		}
+			foreign::receive_tx(
+				&mut **w,
+				(&mask).as_ref(),
+				&Slate::from(slate),
+				None,
+				None,
+				false,
+			)?
+		};
 
 		Ok(WalletProxyMessage {
 			sender_id: m.dest,
 			dest: m.sender_id,
 			method: m.method,
-			body: serde_json::to_string(&slate).unwrap(),
+			body: serde_json::to_string(&SlateV2::from(slate)).unwrap(),
 		})
 	}
 
@@ -332,7 +340,7 @@ impl LocalWalletClient {
 			sender_id: self.id.clone(),
 			dest: dest.to_owned(),
 			method: "send_tx_slate".to_owned(),
-			body: serde_json::to_string(slate).unwrap(),
+			body: serde_json::to_string(&SlateV2::from(slate)).unwrap(),
 		};
 		{
 			let p = self.proxy_tx.lock();
@@ -343,11 +351,10 @@ impl LocalWalletClient {
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
 		trace!("Received send_tx_slate response: {:?}", m.clone());
-		Ok(
-			serde_json::from_str(&m.body).context(libwallet::ErrorKind::ClientCallback(
-				"Parsing send_tx_slate response".to_owned(),
-			))?,
-		)
+		let slate: SlateV2 = serde_json::from_str(&m.body).context(
+			libwallet::ErrorKind::ClientCallback("Parsing send_tx_slate response".to_owned()),
+		)?;
+		Ok(Slate::from(slate))
 	}
 }
 

@@ -121,7 +121,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		assert_eq!(slate.tx.kernels().len(), 1);
 		assert_eq!(
 			slate.tx.kernels().first().map(|k| k.features).unwrap(),
-			transaction::KernelFeatures::Plain { fee: 0 }
+			transaction::KernelFeatures::Plain { fee: 2000000 }
 		);
 
 		Ok(())
