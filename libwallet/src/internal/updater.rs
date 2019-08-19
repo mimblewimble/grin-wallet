@@ -29,6 +29,7 @@ use crate::grin_util as util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
+use crate::slate_versions::v2::TxKernelV2;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
@@ -467,7 +468,7 @@ where
 
 	Ok(CbData {
 		output: out,
-		kernel: kern,
+		kernel: TxKernelV2::from(&kern),
 		key_id: block_fees.key_id,
 	})
 }
