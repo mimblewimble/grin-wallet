@@ -240,6 +240,7 @@ pub struct EncryptionErrorResponse {
 }
 
 impl EncryptionErrorResponse {
+	/// Create new response
 	pub fn new(id: u32, code: i32, message: &str) -> Self {
 		EncryptionErrorResponse {
 			jsonrpc: "2.0".to_owned(),

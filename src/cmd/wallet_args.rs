@@ -218,7 +218,7 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 pub fn inst_wallet<L, C, K>(
 	config: WalletConfig,
 	node_client: C,
-) -> Result<Arc<Mutex<Box<WalletInst<'static, L, C, K>>>>, ParseError>
+) -> Result<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>, ParseError>
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
@@ -226,7 +226,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
-		as Box<WalletInst<'static, L, C, K>>;
+		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	lc.set_wallet_directory(&config.data_file_dir);
 	Ok(Arc::new(Mutex::new(wallet)))

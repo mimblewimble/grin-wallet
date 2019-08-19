@@ -25,12 +25,12 @@ use crate::libwallet::{
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::static_secp_instance;
 use crate::{ECDHPubkey, Owner, Token};
-use easy_jsonrpc;
+use easy_jsonrpc_mw;
 use rand::thread_rng;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version, that should be used when running the owner API in 'Secure' Mode
-#[easy_jsonrpc::rpc]
+#[easy_jsonrpc_mw::rpc]
 pub trait OwnerRpcS {
 	/**
 	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).

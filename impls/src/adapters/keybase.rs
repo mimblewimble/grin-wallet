@@ -359,7 +359,7 @@ impl SlateReceiver for KeybaseAllChannels {
 			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
 		)
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
 					HTTPNodeClient,

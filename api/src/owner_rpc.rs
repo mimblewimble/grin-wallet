@@ -24,15 +24,15 @@ use crate::libwallet::{
 };
 use crate::util::Mutex;
 use crate::{Owner, OwnerRpcS};
-use easy_jsonrpc;
+use easy_jsonrpc_mw;
 use std::sync::Arc;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// * When running `grin-wallet owner_api` with defaults, the V2 api is available at
 /// `localhost:3420/v2/owner`
 /// * The endpoint only supports POST operations, with the json-rpc request as the body
-#[easy_jsonrpc::rpc]
-pub trait OwnerRpc {
+#[easy_jsonrpc_mw::rpc]
+pub trait OwnerRpc: Sync + Send {
 	/**
 	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).
 
@@ -1370,7 +1370,7 @@ pub fn run_doctest_owner(
 	lock_tx: bool,
 	finalize_tx: bool,
 ) -> Result<Option<serde_json::Value>, String> {
-	use easy_jsonrpc::Handler;
+	use easy_jsonrpc_mw::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 	use grin_wallet_libwallet::{api_impl, WalletInst};
@@ -1404,7 +1404,7 @@ pub fn run_doctest_owner(
 	let mut wallet1 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
@@ -1439,7 +1439,7 @@ pub fn run_doctest_owner(
 	let mut wallet2 =
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
 			as Box<
-				WalletInst<
+				dyn WalletInst<
 					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,

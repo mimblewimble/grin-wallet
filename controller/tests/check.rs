@@ -751,6 +751,7 @@ fn check_repair() {
 	if let Err(e) = check_repair_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
+	clean_output_dir(test_dir);
 }
 
 #[test]

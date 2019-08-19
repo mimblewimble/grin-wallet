@@ -36,8 +36,8 @@ use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
 	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS,
 };
-use easy_jsonrpc;
-use easy_jsonrpc::{Handler, MaybeReply};
+use easy_jsonrpc_mw;
+use easy_jsonrpc_mw::{Handler, MaybeReply};
 
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =

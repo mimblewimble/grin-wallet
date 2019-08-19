@@ -195,7 +195,7 @@ pub fn instantiate_wallet(
 		Arc<
 			Mutex<
 				Box<
-					WalletInst<
+					dyn WalletInst<
 						'static,
 						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 						LocalWalletClient,
@@ -211,7 +211,7 @@ pub fn instantiate_wallet(
 	wallet_config.chain_type = None;
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(node_client).unwrap())
 		as Box<
-			WalletInst<
+			dyn WalletInst<
 				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
@@ -251,6 +251,7 @@ pub fn execute_command(
 }
 
 // as above, but without necessarily setting up the wallet
+#[allow(dead_code)]
 pub fn execute_command_no_setup(
 	app: &App,
 	test_dir: &str,
@@ -278,6 +279,7 @@ where
 	Ok(res)
 }
 
+#[allow(dead_code)]
 pub fn send_request<OUT>(
 	id: u64,
 	dest: &str,
@@ -319,6 +321,7 @@ where
 	}
 }
 
+#[allow(dead_code)]
 pub fn send_request_enc<OUT>(
 	sec_req_id: u32,
 	internal_request_id: u32,
@@ -376,6 +379,7 @@ where
 	}
 }
 
+#[allow(dead_code)]
 pub fn derive_ecdh_key(sec_key_str: &str, other_pubkey: &PublicKey) -> SecretKey {
 	let sec_key_bytes = from_hex(sec_key_str.to_owned()).unwrap();
 	let sec_key = {
