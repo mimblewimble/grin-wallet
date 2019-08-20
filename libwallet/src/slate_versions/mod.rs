@@ -18,7 +18,8 @@
 //! remains for future needs
 
 use crate::slate::Slate;
-use crate::slate_versions::v2::SlateV2;
+use crate::slate_versions::v2::{CoinbaseV2, SlateV2};
+use crate::types::CbData;
 
 #[allow(missing_docs)]
 pub mod v2;
@@ -82,6 +83,24 @@ impl From<VersionedSlate> for Slate {
 				  let s = SlateV2::from(s);
 				  Slate::from(s)
 			  }*/
+		}
+	}
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+/// Versions are ordered newest to oldest so serde attempts to
+/// deserialize newer versions first, then falls back to older versions.
+pub enum VersionedCoinbase {
+	/// Current supported coinbase version.
+	V2(CoinbaseV2),
+}
+
+impl VersionedCoinbase {
+	/// convert this coinbase data to a specific versioned representation for the json api.
+	pub fn into_version(cb: CbData, version: SlateVersion) -> VersionedCoinbase {
+		match version {
+			SlateVersion::V2 => VersionedCoinbase::V2(cb.into()),
 		}
 	}
 }

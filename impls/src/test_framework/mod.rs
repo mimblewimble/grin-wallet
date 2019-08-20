@@ -16,13 +16,13 @@ use crate::api;
 use crate::chain;
 use crate::chain::Chain;
 use crate::core;
-use crate::core::core::{OutputFeatures, OutputIdentifier, Transaction};
+use crate::core::core::{Output, OutputFeatures, OutputIdentifier, Transaction, TxKernel};
 use crate::core::{consensus, global, pow};
 use crate::keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
 use crate::libwallet::{
-	BlockFees, CbData, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
+	BlockFees, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
@@ -75,14 +75,19 @@ fn get_outputs_by_pmmr_index_local(
 }
 
 /// Adds a block with a given reward to the chain and mines it
-pub fn add_block_with_reward(chain: &Chain, txs: Vec<&Transaction>, reward: CbData) {
+pub fn add_block_with_reward(
+	chain: &Chain,
+	txs: Vec<&Transaction>,
+	reward_output: Output,
+	reward_kernel: TxKernel,
+) {
 	let prev = chain.head_header().unwrap();
 	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter().unwrap());
 	let mut b = core::core::Block::new(
 		&prev,
 		txs.into_iter().cloned().collect(),
 		next_header_info.clone().difficulty,
-		(reward.output, reward.kernel),
+		(reward_output, reward_kernel),
 	)
 	.unwrap();
 	b.header.timestamp = prev.timestamp + Duration::seconds(60);
@@ -125,10 +130,9 @@ where
 	let coinbase_tx = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		let res = foreign::build_coinbase(&mut **w, keychain_mask, &block_fees, false)?;
-		res
+		foreign::build_coinbase(&mut **w, keychain_mask, &block_fees, false)?
 	};
-	add_block_with_reward(chain, txs, coinbase_tx.clone());
+	add_block_with_reward(chain, txs, coinbase_tx.output, coinbase_tx.kernel);
 	Ok(())
 }
 

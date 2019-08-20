@@ -17,7 +17,7 @@
 
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
-use crate::grin_core::core::Transaction;
+use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
@@ -808,4 +808,17 @@ impl ser::Readable for AcctPathMapping {
 pub struct TxWrapper {
 	/// hex representation of transaction
 	pub tx_hex: String,
+}
+
+/// Wrapper for reward output and kernel used when building a coinbase for a mining node.
+/// Note: Not serializable, must be converted to necesssary "versioned" representation
+/// before serializing to json to ensure compatibility with mining node.
+#[derive(Debug, Clone)]
+pub struct CbData {
+	/// Output
+	pub output: Output,
+	/// Kernel
+	pub kernel: TxKernel,
+	/// Key Id
+	pub key_id: Option<Identifier>,
 }
