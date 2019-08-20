@@ -120,12 +120,8 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		// Check we have a single kernel and that it is a Plain kernel (no lock_height).
 		assert_eq!(slate.tx.kernels().len(), 1);
 		assert_eq!(
-			slate.tx.kernels().first().map(|k| k.lock_height).unwrap(),
-			0
-		);
-		assert_eq!(
 			slate.tx.kernels().first().map(|k| k.features).unwrap(),
-			transaction::KernelFeatures::Plain
+			transaction::KernelFeatures::Plain { fee: 2000000 }
 		);
 
 		Ok(())
