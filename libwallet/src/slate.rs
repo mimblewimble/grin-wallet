@@ -39,10 +39,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v2::{
-	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2, TxKernelV2,
-	VersionCompatInfoV2,
+	CoinbaseV2, InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2,
+	TxKernelV2, VersionCompatInfoV2,
 };
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
+use crate::types::CbData;
 
 /// Public data for each participant in the slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -707,6 +708,17 @@ impl SlateVersionProbe {
 				Some(_) => 1,
 				None => 0,
 			},
+		}
+	}
+}
+
+// Coinbase data to versioned.
+impl From<CbData> for CoinbaseV2 {
+	fn from(cb: CbData) -> CoinbaseV2 {
+		CoinbaseV2 {
+			output: OutputV2::from(&cb.output),
+			kernel: TxKernelV2::from(&cb.kernel),
+			key_id: cb.key_id,
 		}
 	}
 }

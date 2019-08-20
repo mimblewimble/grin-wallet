@@ -37,7 +37,7 @@
 
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::BlindingFactor;
+use crate::grin_keychain::{BlindingFactor, Identifier};
 use crate::grin_util::secp;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
@@ -183,4 +183,15 @@ pub struct TxKernelV2 {
 	/// the transaction fee.
 	#[serde(with = "secp_ser::sig_serde")]
 	pub excess_sig: secp::Signature,
+}
+
+/// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CoinbaseV2 {
+	/// Output
+	pub output: OutputV2,
+	/// Kernel
+	pub kernel: TxKernelV2,
+	/// Key Id
+	pub key_id: Option<Identifier>,
 }

@@ -14,7 +14,6 @@
 
 //! Types specific to the wallet api, mostly argument serialization
 
-use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::Identifier;
 use crate::grin_util::secp::pedersen;
@@ -177,17 +176,6 @@ impl BlockFees {
 	pub fn key_id(&self) -> Option<Identifier> {
 		self.key_id.clone()
 	}
-}
-
-/// Response to build a coinbase output.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CbData {
-	/// Output
-	pub output: Output,
-	/// Kernel
-	pub kernel: TxKernel,
-	/// Key Id
-	pub key_id: Option<Identifier>,
 }
 
 /// Map Outputdata to commits

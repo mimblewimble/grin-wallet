@@ -53,15 +53,16 @@ mod types;
 pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::{ParticipantData, ParticipantMessageData, Slate};
 pub use crate::slate_versions::{
-	SlateVersion, VersionedSlate, CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
+	SlateVersion, VersionedCoinbase, VersionedSlate, CURRENT_SLATE_VERSION,
+	GRIN_BLOCK_HEADER_VERSION,
 };
 pub use api_impl::types::{
-	BlockFees, CbData, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	BlockFees, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, SendTXArgs, VersionInfo,
 };
 pub use internal::restore::{check_repair, restore};
 pub use types::{
-	AcctPathMapping, BlockIdentifier, Context, NodeClient, NodeVersionInfo, OutputData,
+	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
 	OutputStatus, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend, WalletInfo, WalletInst,
 	WalletLCProvider, WalletOutputBatch,
 };
