@@ -1532,19 +1532,15 @@ where
 		})
 	}
 
-	fn get_top_level_directory(&self) -> Result<String, ErrorKind>{
-		Owner::get_top_level_directory(self)
-			.map_err(|e| e.kind())
+	fn get_top_level_directory(&self) -> Result<String, ErrorKind> {
+		Owner::get_top_level_directory(self).map_err(|e| e.kind())
 	}
 
-	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>{
-		Owner::set_top_level_directory(self, &dir)
-			.map_err(|e| e.kind())
+	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind> {
+		Owner::set_top_level_directory(self, &dir).map_err(|e| e.kind())
 	}
 
 	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind> {
-		Owner::create_config(self, &chain_type)
-			.map_err(|e| e.kind())
+		Owner::create_config(self, &chain_type).map_err(|e| e.kind())
 	}
 }
-

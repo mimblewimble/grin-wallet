@@ -32,14 +32,14 @@ use grin_wallet_util::grin_util::secp::key::SecretKey;
 use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
 use serde_json;
 
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, derive_ecdh_key, execute_command_no_setup, initial_setup_wallet, instantiate_wallet,
-	send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
+	clean_output_dir, derive_ecdh_key, execute_command_no_setup, initial_setup_wallet,
+	instantiate_wallet, send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
 };
 
 #[test]
@@ -82,13 +82,8 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 
 	// 2) get the top level directory, should default to ~/.grin/auto
 	let req = include_str!("data/v3_reqs/get_top_level.req.json");
-	let res = send_request_enc::<String>(
-		1,
-		1,
-		"http://127.0.0.1:43420/v3/owner",
-		&req,
-		&shared_key,
-	)?;
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
 	println!("RES 2: {:?}", res);
 	assert!(res.is_ok());
 	assert!(res.unwrap().contains(".grin/auto"));
@@ -114,13 +109,8 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 
 	// 4) create a configuration file in top level directory
 	let req = include_str!("data/v3_reqs/create_config.req.json");
-	let res = send_request_enc::<String>(
-		1,
-		1,
-		"http://127.0.0.1:43420/v3/owner",
-		&req,
-		&shared_key,
-	)?;
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
 	println!("RES 4: {:?}", res);
 	assert!(res.is_ok());
 	let pb = PathBuf::from(format!("{}/wallet1/grin-wallet.toml", test_dir));

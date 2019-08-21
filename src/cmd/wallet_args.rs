@@ -827,7 +827,7 @@ where
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
 			open_wallet = lc.wallet_exists(None)?;
-		},
+		}
 		_ => {}
 	}
 
@@ -846,8 +846,8 @@ where
 				wallet_inst.set_parent_key_id_by_name(account)?;
 			}
 			mask
-		},
-		false => None
+		}
+		false => None,
 	};
 
 	let km = (&keychain_mask).as_ref();

@@ -23,8 +23,8 @@ use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use crate::LMDBBackend;
 use failure::ResultExt;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 pub struct DefaultLCProvider<'a, C, K>
 where

@@ -1232,12 +1232,12 @@ where
 		let _ = w.keychain(keychain_mask)?;
 		owner::node_height(&mut **w, keychain_mask)
 	}
-	
+
 	// LIFECYCLE FUNCTIONS
 
 	/// Retrieve the current wallet top-level directory
 	/// TODO: DOCS TBD
-	
+
 	pub fn get_top_level_directory(&self) -> Result<String, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
@@ -1246,7 +1246,7 @@ where
 
 	/// Set the current wallet top-level directory
 	/// TODO: DOCS TBD
-	
+
 	pub fn set_top_level_directory(&self, dir: &str) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
@@ -1261,7 +1261,6 @@ where
 		let lc = w_lock.lc_provider()?;
 		lc.create_config(chain_type, "grin-wallet.toml")
 	}
-
 }
 
 #[doc(hidden)]
