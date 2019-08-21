@@ -18,6 +18,7 @@ use chrono::prelude::*;
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
+use crate::core::global;
 use crate::impls::create_sender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
@@ -1231,6 +1232,36 @@ where
 		let _ = w.keychain(keychain_mask)?;
 		owner::node_height(&mut **w, keychain_mask)
 	}
+	
+	// LIFECYCLE FUNCTIONS
+
+	/// Retrieve the current wallet top-level directory
+	/// TODO: DOCS TBD
+	
+	pub fn get_top_level_directory(&self) -> Result<String, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.get_top_level_directory()
+	}
+
+	/// Set the current wallet top-level directory
+	/// TODO: DOCS TBD
+	
+	pub fn set_top_level_directory(&self, dir: &str) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.set_top_level_directory(dir)
+	}
+
+	/// Create a 'grin-wallet.toml' file in the top level directory
+	/// TODO: DOCS TBD
+
+	pub fn create_config(&self, chain_type: &global::ChainTypes) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.create_config(chain_type, "grin-wallet.toml")
+	}
+
 }
 
 #[doc(hidden)]

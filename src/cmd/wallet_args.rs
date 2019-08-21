@@ -228,7 +228,7 @@ where
 	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
 		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
-	lc.set_wallet_directory(&config.data_file_dir);
+	let _ = lc.set_top_level_directory(&config.data_file_dir);
 	Ok(Arc::new(Mutex::new(wallet)))
 }
 
@@ -814,17 +814,25 @@ where
 	{
 		let mut wallet_lock = wallet.lock();
 		let lc = wallet_lock.lc_provider().unwrap();
-		lc.set_wallet_directory(&wallet_config.data_file_dir);
+		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	}
 
 	// don't open wallet for certain lifecycle commands
-	let keychain_mask = match wallet_args.subcommand() {
-		("init", Some(_)) => None,
-		("recover", _) => None,
-		// Owner API can be started without a wallet present
-		// TODO: Not quite yet, next PR will deal with this
-		//("owner_api", _) => None,
-		_ => {
+	let mut open_wallet = true;
+	match wallet_args.subcommand() {
+		("init", Some(_)) => open_wallet = false,
+		("recover", _) => open_wallet = false,
+		("owner_api", _) => {
+			// If wallet exists, open it. Otherwise, that's fine too.
+			let mut wallet_lock = wallet.lock();
+			let lc = wallet_lock.lc_provider().unwrap();
+			open_wallet = lc.wallet_exists(None)?;
+		},
+		_ => {}
+	}
+
+	let keychain_mask = match open_wallet {
+		true => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
 			let mask = lc.open_wallet(
@@ -838,7 +846,8 @@ where
 				wallet_inst.set_parent_key_id_by_name(account)?;
 			}
 			mask
-		}
+		},
+		false => None
 	};
 
 	let km = (&keychain_mask).as_ref();

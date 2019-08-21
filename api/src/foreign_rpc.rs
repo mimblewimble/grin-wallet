@@ -624,7 +624,7 @@ pub fn run_doctest_foreign(
 				>,
 			>;
 	let lc = wallet1.lc_provider().unwrap();
-	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
+	let _ = lc.set_top_level_directory(&format!("{}/wallet1", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone())
 		.unwrap();
 	let mask1 = lc
@@ -659,7 +659,7 @@ pub fn run_doctest_foreign(
 				>,
 			>;
 	let lc = wallet2.lc_provider().unwrap();
-	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
+	let _ = lc.set_top_level_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone())
 		.unwrap();
 	let mask2 = lc

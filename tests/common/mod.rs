@@ -149,6 +149,7 @@ pub fn config_command_wallet(
 }
 
 /// Handles setup and detection of paths for wallet
+#[allow(dead_code)]
 pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> WalletConfig {
 	let mut current_dir;
 	current_dir = env::current_dir().unwrap_or_else(|e| {
@@ -185,6 +186,7 @@ fn get_wallet_subcommand<'a>(
 }
 //
 // Helper to create an instance of the LMDB wallet
+#[allow(dead_code)]
 pub fn instantiate_wallet(
 	mut wallet_config: WalletConfig,
 	node_client: LocalWalletClient,
@@ -226,7 +228,7 @@ pub fn instantiate_wallet(
 		top_level_wallet_dir.pop();
 		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 	}
-	lc.set_wallet_directory(&wallet_config.data_file_dir);
+	let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	let keychain_mask = lc
 		.open_wallet(None, ZeroingString::from(passphrase), true, false)
 		.unwrap();
@@ -235,6 +237,7 @@ pub fn instantiate_wallet(
 	Ok((Arc::new(Mutex::new(wallet)), keychain_mask))
 }
 
+#[allow(dead_code)]
 pub fn execute_command(
 	app: &App,
 	test_dir: &str,
@@ -359,6 +362,7 @@ where
 			code: res["error"]["code"].as_i64().unwrap() as i32,
 		}));
 	}
+	println!("RES: {:?}", res);
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
 	let res = res
 		.outputs
@@ -368,14 +372,21 @@ where
 		.unwrap();
 
 	if res["Err"] != json!(null) {
+		println!("RES[ERR]: {:?}", res);
 		Ok(Err(WalletAPIReturnError {
 			message: res["Err"].as_str().unwrap().to_owned(),
 			code: res_val["error"]["code"].as_i64().unwrap() as i32,
 		}))
 	} else {
 		// deserialize result into expected type
-		let value: OUT = serde_json::from_value(res["Ok"].clone()).unwrap();
-		Ok(Ok(value))
+		let ok_val = serde_json::from_value(res["Ok"].clone());
+		if let Ok(v) = ok_val {
+			let value: OUT = v;
+			Ok(Ok(value))
+		} else {
+			let value: OUT = serde_json::from_value(json!("Null")).unwrap();
+			Ok(Ok(value))
+		}
 	}
 }
 

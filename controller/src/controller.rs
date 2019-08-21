@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
@@ -399,6 +400,37 @@ impl OwnerV3Helpers {
 		})?;
 		Ok(res)
 	}
+
+	/// convert an internal error (if exists) as proper JSON-RPC
+	pub fn check_error_response(val: &serde_json::Value) -> serde_json::Value {
+		if val["result"]["Err"].is_object() {
+			let hashed: Result<HashMap<String, String>, serde_json::Error>
+				= serde_json::from_value(val["result"]["Err"].clone());
+			let message = match hashed {
+				Err(_) => {
+					return val.clone();
+				},
+				Ok(h) => {
+					let mut retval = "".to_owned();
+					for (k, v) in h.iter() {
+						retval = format!("{}: {}", k, v);
+					}
+					retval
+				}
+			};
+			return serde_json::json!({
+				"jsonrpc": "2.0",
+				"id": val["id"],
+				"error": {
+					"message": message,
+					"code": -32099
+				}
+			});
+		} else {
+			val.clone()
+		}
+		
+	}
 }
 
 impl<L, C, K> OwnerAPIHandlerV3<L, C, K>
@@ -443,9 +475,10 @@ where
 			is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			match owner_api_s.handle_request(val) {
 				MaybeReply::Reply(mut r) => {
-					let unencrypted_intercept = r.clone();
+					let mut unencrypted_intercept = r.clone();
+					unencrypted_intercept = OwnerV3Helpers::check_error_response(&unencrypted_intercept);
 					if was_encrypted {
-						let res = OwnerV3Helpers::encrypt_response(encrypted_req_id, &r);
+						let res = OwnerV3Helpers::encrypt_response(encrypted_req_id, &unencrypted_intercept);
 						r = match res {
 							Ok(v) => v,
 							Err(v) => return ok(v),

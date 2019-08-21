@@ -16,6 +16,7 @@
 use uuid::Uuid;
 
 use crate::core::core::Transaction;
+use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate_versions::v2::TransactionV2;
 use crate::libwallet::{
@@ -1311,6 +1312,16 @@ pub trait OwnerRpcS {
 	*/
 
 	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind>;
+
+	// LIFECYCLE FUNCTIONS
+	/// TODO: DOCS + TESTS TBD
+	fn get_top_level_directory(&self) -> Result<String, ErrorKind>;
+
+	/// TODO: DOCS + TESTS TBD
+	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>;
+
+	/// TODO: DOCS + TESTS TBD
+	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1520,4 +1531,20 @@ where
 			ecdh_pubkey: pub_key,
 		})
 	}
+
+	fn get_top_level_directory(&self) -> Result<String, ErrorKind>{
+		Owner::get_top_level_directory(self)
+			.map_err(|e| e.kind())
+	}
+
+	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>{
+		Owner::set_top_level_directory(self, &dir)
+			.map_err(|e| e.kind())
+	}
+
+	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind> {
+		Owner::create_config(self, &chain_type)
+			.map_err(|e| e.kind())
+	}
 }
+

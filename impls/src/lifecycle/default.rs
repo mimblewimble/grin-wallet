@@ -24,6 +24,7 @@ use crate::util::ZeroingString;
 use crate::LMDBBackend;
 use failure::ResultExt;
 use std::path::PathBuf;
+use std::fs;
 
 pub struct DefaultLCProvider<'a, C, K>
 where
@@ -55,14 +56,26 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	fn set_wallet_directory(&mut self, dir: &str) {
+	fn set_top_level_directory(&mut self, dir: &str) -> Result<(), Error> {
 		self.data_dir = dir.to_owned();
+		Ok(())
+	}
+
+	fn get_top_level_directory(&self) -> Result<String, Error> {
+		Ok(self.data_dir.to_owned())
 	}
 
 	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str) -> Result<(), Error> {
 		let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());
 		config_file_name.push(file_name);
+
+		// create top level dir if it doesn't exist
+		let dd = PathBuf::from(self.data_dir.clone());
+		if !dd.exists() {
+			// try create
+			fs::create_dir_all(dd)?;
+		}
 
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
