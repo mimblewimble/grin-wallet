@@ -959,7 +959,7 @@ where
 			command::check_repair(wallet, km, a)
 		}
 		_ => {
-			let msg = format!("Unknown wallet command, use 'grin help wallet' for details");
+			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
 			return Err(ErrorKind::ArgumentError(msg).into());
 		}
 	};
