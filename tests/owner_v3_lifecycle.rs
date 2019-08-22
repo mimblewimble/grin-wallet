@@ -117,7 +117,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
 	println!("RES 2: {:?}", res);
 	assert!(res.is_ok());
-	assert!(res.unwrap().contains(".grin/auto"));
+	assert!(res.unwrap().contains("auto"));
 
 	// 3) now set the top level directory to our test wallet dir
 	let req = serde_json::json!({
