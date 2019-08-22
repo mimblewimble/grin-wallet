@@ -766,11 +766,24 @@ pub fn wallet_command<C, F>(
 	mut wallet_config: WalletConfig,
 	mut node_client: C,
 	test_mode: bool,
-	wallet_inst_cb: F
+	wallet_inst_cb: F,
 ) -> Result<String, Error>
 where
 	C: NodeClient + 'static + Clone,
-	F: FnOnce(Arc<Mutex<Box<dyn WalletInst<'static, DefaultLCProvider<'static, C, keychain::ExtKeychain>, C, keychain::ExtKeychain>>>>),
+	F: FnOnce(
+		Arc<
+			Mutex<
+				Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<'static, C, keychain::ExtKeychain>,
+						C,
+						keychain::ExtKeychain,
+					>,
+				>,
+			>,
+		>,
+	),
 {
 	if let Some(t) = wallet_config.chain_type.clone() {
 		core::global::set_mining_mode(t);
@@ -819,7 +832,7 @@ where
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	}
 
-	// provide wallet instance back to the caller (handy for testing with 
+	// provide wallet instance back to the caller (handy for testing with
 	// local wallet proxy, etc)
 	wallet_inst_cb(wallet.clone());
 

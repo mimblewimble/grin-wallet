@@ -27,7 +27,7 @@ use util::{Mutex, ZeroingString};
 use grin_wallet_api::{EncryptedRequest, EncryptedResponse};
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-use grin_wallet_libwallet::{WalletInfo, WalletInst, NodeClient};
+use grin_wallet_libwallet::{NodeClient, WalletInfo, WalletInst};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
@@ -250,7 +250,7 @@ pub fn execute_command(
 	let mut config = initial_setup_wallet(test_dir, wallet_name);
 	//unset chain type so it doesn't get reset
 	config.chain_type = None;
-	wallet_args::wallet_command(&args, config.clone(), client.clone(), true, |_|{})
+	wallet_args::wallet_command(&args, config.clone(), client.clone(), true, |_| {})
 }
 
 // as above, but without necessarily setting up the wallet
@@ -261,11 +261,24 @@ pub fn execute_command_no_setup<C, F>(
 	wallet_name: &str,
 	client: &C,
 	arg_vec: Vec<&str>,
-  f: F
-) -> Result<String, grin_wallet_controller::Error> 
+	f: F,
+) -> Result<String, grin_wallet_controller::Error>
 where
 	C: NodeClient + 'static + Clone,
-	F: FnOnce(Arc<Mutex<Box<dyn WalletInst<'static, DefaultLCProvider<'static, C, ExtKeychain>, C, ExtKeychain>>>>),
+	F: FnOnce(
+		Arc<
+			Mutex<
+				Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<'static, C, ExtKeychain>,
+						C,
+						ExtKeychain,
+					>,
+				>,
+			>,
+		>,
+	),
 {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());

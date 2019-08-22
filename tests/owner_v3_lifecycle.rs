@@ -30,15 +30,15 @@ use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use serde_json;
 
+use grin_wallet_util::grin_util::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
-use grin_wallet_util::grin_util::Mutex;
 
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, derive_ecdh_key, execute_command_no_setup,
-	send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
+	clean_output_dir, derive_ecdh_key, execute_command_no_setup, send_request, send_request_enc,
+	setup, RetrieveSummaryInfoResp,
 };
 
 #[test]
@@ -47,11 +47,15 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	setup(test_dir);
 
 	// Create a new proxy to simulate server and wallet responses
-	let wallet_proxy_a: Arc<Mutex<WalletProxy<
-		DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
-		LocalWalletClient,
-		ExtKeychain,
-	>>> = Arc::new(Mutex::new(WalletProxy::new(test_dir)));
+	let wallet_proxy_a: Arc<
+		Mutex<
+			WalletProxy<
+				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+				LocalWalletClient,
+				ExtKeychain,
+			>,
+		>,
+	> = Arc::new(Mutex::new(WalletProxy::new(test_dir)));
 	{
 		let wallet_proxy = wallet_proxy_a.lock();
 		let _chain = wallet_proxy.chain.clone();
@@ -66,16 +70,23 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		thread::spawn(move || {
 			let yml = load_yaml!("../src/bin/grin-wallet.yml");
 			let app = App::from_yaml(yml);
-			execute_command_no_setup(&app, test_dir, "wallet1", &client1, arg_vec.clone(), |wallet_inst|{
-				let mut wallet_proxy = p.lock();
-				wallet_proxy.add_wallet(
+			execute_command_no_setup(
+				&app,
+				test_dir,
 				"wallet1",
-				client1.get_send_instance(),
-				wallet_inst,
-				None,
-			);
-		
-			}).unwrap();
+				&client1,
+				arg_vec.clone(),
+				|wallet_inst| {
+					let mut wallet_proxy = p.lock();
+					wallet_proxy.add_wallet(
+						"wallet1",
+						client1.get_send_instance(),
+						wallet_inst,
+						None,
+					);
+				},
+			)
+			.unwrap();
 		});
 	}
 	// give a bit for wallet to init and populate proxy with wallet via callback in thread above

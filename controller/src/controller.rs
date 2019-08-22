@@ -447,7 +447,7 @@ impl OwnerV3Helpers {
 						Some(r)
 					}
 				}
-			} 
+			}
 			retval
 		} else if val["result"]["Err"].is_string() {
 			let parsed = serde_json::from_value::<String>(val["result"]["Err"].clone());
@@ -460,17 +460,19 @@ impl OwnerV3Helpers {
 		};
 		match err_string {
 			Some(s) => {
-				return (true,
+				return (
+					true,
 					serde_json::json!({
-					"jsonrpc": "2.0",
-					"id": val["id"],
-					"error": {
-						"message": s,
-						"code": -32099
-					}
-				}))
-			},
-			None => (false, val.clone()) 
+						"jsonrpc": "2.0",
+						"id": val["id"],
+						"error": {
+							"message": s,
+							"code": -32099
+						}
+					}),
+				)
+			}
+			None => (false, val.clone()),
 		}
 	}
 }
