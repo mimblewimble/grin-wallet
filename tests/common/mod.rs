@@ -362,7 +362,6 @@ where
 			code: res["error"]["code"].as_i64().unwrap() as i32,
 		}));
 	}
-	println!("RES: {:?}", res);
 	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
 	let res = res
 		.outputs
@@ -372,7 +371,6 @@ where
 		.unwrap();
 
 	if res["Err"] != json!(null) {
-		println!("RES[ERR]: {:?}", res);
 		Ok(Err(WalletAPIReturnError {
 			message: res["Err"].as_str().unwrap().to_owned(),
 			code: res_val["error"]["code"].as_i64().unwrap() as i32,

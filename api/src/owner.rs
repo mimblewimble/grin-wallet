@@ -28,7 +28,7 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::Mutex;
+use crate::util::{Mutex, ZeroingString};
 use std::sync::Arc;
 
 /// Main interface into all wallet API functions.
@@ -1260,6 +1260,23 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.create_config(chain_type, "grin-wallet.toml")
+	}
+
+	/// Create a new wallet
+	/// TODO: DOCS TBD
+
+	pub fn create_wallet(&self, name: Option<&str>, mnemonic: Option<ZeroingString>,
+		mnemonic_length: u32, password: ZeroingString) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.create_wallet(name, mnemonic, mnemonic_length as usize, password)
+	}
+
+	/// Open a wallet, returning the token
+	pub fn open_wallet(&self, name: Option<&str>, password: ZeroingString, use_mask: bool) -> Result<Option<SecretKey>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.open_wallet(name, password, use_mask, self.doctest_mode)
 	}
 }
 

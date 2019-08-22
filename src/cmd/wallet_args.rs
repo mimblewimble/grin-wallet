@@ -761,14 +761,16 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 	})
 }
 
-pub fn wallet_command<C>(
+pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
 	mut node_client: C,
 	test_mode: bool,
+	//wallet_inst_cb: F
 ) -> Result<String, Error>
 where
 	C: NodeClient + 'static + Clone,
+	//F: FnOnce(&mut Arc<Mutex<Box<dyn WalletInst<'a, L, C, L
 {
 	if let Some(t) = wallet_config.chain_type.clone() {
 		core::global::set_mining_mode(t);

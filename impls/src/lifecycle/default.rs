@@ -93,8 +93,11 @@ where
 		if config_file_name.exists() {
 			return Ok(());
 		}
+		
+		let mut abs_path = std::env::current_dir()?;
+		abs_path.push(self.data_dir.clone());
 
-		default_config.update_paths(&PathBuf::from(self.data_dir.clone()));
+		default_config.update_paths(&PathBuf::from(abs_path));
 		let res = default_config.write_to_file(config_file_name.to_str().unwrap());
 		if let Err(e) = res {
 			let msg = format!(
@@ -131,6 +134,11 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
+		let exists = WalletSeed::seed_file_exists(&data_dir_name);
+		if let Ok(true) = exists {
+			let msg = format!("Wallet seed already exists at: {}", data_dir_name);
+			return Err(ErrorKind::WalletSeedExists(msg))?;
+		}
 		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic, password);
 		info!("Wallet seed file created");
 		let _wallet: LMDBBackend<'a, C, K> =

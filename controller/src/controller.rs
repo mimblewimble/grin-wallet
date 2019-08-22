@@ -45,10 +45,6 @@ lazy_static! {
 		HeaderValue::from_str("Basic realm=GrinOwnerAPI").unwrap();
 }
 
-lazy_static! {
-	pub static ref OWNER_API_SHARED_KEY: Arc<Mutex<Option<SecretKey>>> = Arc::new(Mutex::new(None));
-}
-
 fn check_middleware(
 	name: ForeignCheckMiddlewareFn,
 	node_version_info: Option<NodeVersionInfo>,
@@ -300,6 +296,9 @@ where
 {
 	/// Wallet instance
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+
+	/// ECDH shared key
+	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 }
 
 pub struct OwnerV3Helpers;
@@ -330,15 +329,15 @@ impl OwnerV3Helpers {
 	}
 
 	/// whether encryption is enabled
-	pub fn encryption_enabled() -> bool {
-		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+	pub fn encryption_enabled(key: Arc<Mutex<Option<SecretKey>>>) -> bool {
+		let share_key_ref = key.lock();
 		share_key_ref.is_some()
 	}
 
 	/// If incoming is an encrypted request, check there is a shared key,
 	/// Otherwise return an error value
-	pub fn check_encryption_started() -> Result<(), serde_json::Value> {
-		match OwnerV3Helpers::encryption_enabled() {
+	pub fn check_encryption_started(key: Arc<Mutex<Option<SecretKey>>>) -> Result<(), serde_json::Value> {
+		match OwnerV3Helpers::encryption_enabled(key) {
 			true => Ok(()),
 			false => Err(EncryptionErrorResponse::new(
 				1,
@@ -350,18 +349,19 @@ impl OwnerV3Helpers {
 	}
 
 	/// Update the statically held owner API shared key
-	pub fn update_owner_api_shared_key(val: &serde_json::Value, new_key: Option<SecretKey>) {
+	pub fn update_owner_api_shared_key(key: Arc<Mutex<Option<SecretKey>>>, val: &serde_json::Value, new_key: Option<SecretKey>) {
 		if let Some(_) = val["result"]["Ok"].as_str() {
-			let mut share_key_ref = OWNER_API_SHARED_KEY.lock();
+			let mut share_key_ref = key.lock();
 			*share_key_ref = new_key;
 		}
 	}
 
 	/// Decrypt an encrypted request
 	pub fn decrypt_request(
+		key: Arc<Mutex<Option<SecretKey>>>,
 		req: &serde_json::Value,
 	) -> Result<(u32, serde_json::Value), serde_json::Value> {
-		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).map_err(|e| {
 			EncryptionErrorResponse::new(
@@ -381,10 +381,11 @@ impl OwnerV3Helpers {
 
 	/// Encrypt a response
 	pub fn encrypt_response(
+		key: Arc<Mutex<Option<SecretKey>>>,
 		id: u32,
 		res: &serde_json::Value,
 	) -> Result<serde_json::Value, serde_json::Value> {
-		let share_key_ref = OWNER_API_SHARED_KEY.lock();
+		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_res = EncryptedResponse::from_json(id, res, &shared_key).map_err(|e| {
 			EncryptionErrorResponse::new(1, -32003, &format!("EncryptionError: {}", e.kind()))
@@ -402,32 +403,56 @@ impl OwnerV3Helpers {
 	}
 
 	/// convert an internal error (if exists) as proper JSON-RPC
-	pub fn check_error_response(val: &serde_json::Value) -> serde_json::Value {
+	pub fn check_error_response(val: &serde_json::Value) -> (bool, serde_json::Value) {
+		// check for string first. This ensures that error messages
+		// that are just strings aren't given weird formatting
 		if val["result"]["Err"].is_object() {
-			let hashed: Result<HashMap<String, String>, serde_json::Error> =
-				serde_json::from_value(val["result"]["Err"].clone());
-			let message = match hashed {
-				Err(_) => {
-					return val.clone();
+			let hashed: Result<HashMap<String, String>, serde_json::Error> = serde_json::from_value(val["result"]["Err"].clone());
+			match hashed {
+				Err(e) => {
+					debug!("Can't cast value to Hashmap<String> {}", e);
 				}
 				Ok(h) => {
 					let mut retval = "".to_owned();
 					for (k, v) in h.iter() {
 						retval = format!("{}: {}", k, v);
 					}
-					retval
+					return (true, serde_json::json!({
+						"jsonrpc": "2.0",
+						"id": val["id"],
+						"error": {
+							"message": retval,
+							"code": -32099
+						}
+					}));
 				}
-			};
-			return serde_json::json!({
-				"jsonrpc": "2.0",
-				"id": val["id"],
-				"error": {
-					"message": message,
-					"code": -32099
+			}
+			// Otherwise, see if error message is a map that needs
+			// to be stringified (and accept weird formatting)
+			let hashed: Result<HashMap<String, serde_json::Value>, serde_json::Error> =
+				serde_json::from_value(val["result"]["Err"].clone());
+			match hashed {
+				Err(e) => {
+					debug!("Can't cast value to Hashmap<Value> {}", e);
+					return (true, val.clone());
 				}
-			});
+				Ok(h) => {
+					let mut retval = "".to_owned();
+					for (k, v) in h.iter() {
+						retval = format!("{}: {}", k, v);
+					}
+					return (true, serde_json::json!({
+						"jsonrpc": "2.0",
+						"id": val["id"],
+						"error": {
+							"message": retval,
+							"code": -32099
+						}
+					}));
+				}
+			} 
 		} else {
-			val.clone()
+			(false, val.clone())
 		}
 	}
 }
@@ -442,7 +467,10 @@ where
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		OwnerAPIHandlerV3 { wallet }
+		OwnerAPIHandlerV3 {
+			wallet,
+			shared_key: Arc::new(Mutex::new(None)),
+		}
 	}
 
 	fn call_api(
@@ -450,6 +478,7 @@ where
 		req: Request<Body>,
 		api: Owner<'static, L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
+		let key = self.shared_key.clone();
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let mut val = val;
 			let owner_api_s = &api as &dyn OwnerRpcS;
@@ -457,10 +486,10 @@ where
 			let mut was_encrypted = false;
 			let mut encrypted_req_id = 0;
 			if !is_init_secure_api {
-				if let Err(v) = OwnerV3Helpers::check_encryption_started() {
+				if let Err(v) = OwnerV3Helpers::check_encryption_started(key.clone()) {
 					return ok(v);
 				}
-				let res = OwnerV3Helpers::decrypt_request(&val);
+				let res = OwnerV3Helpers::decrypt_request(key.clone(), &val);
 				match res {
 					Err(e) => return ok(e),
 					Ok(v) => {
@@ -472,13 +501,14 @@ where
 			}
 			// check again, in case it was an encrypted call to init_secure_api
 			is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
+			// also need to intercept open/close wallet requests
 			match owner_api_s.handle_request(val) {
 				MaybeReply::Reply(mut r) => {
-					let mut unencrypted_intercept = r.clone();
-					unencrypted_intercept =
-						OwnerV3Helpers::check_error_response(&unencrypted_intercept);
+					let (_was_error, unencrypted_intercept) =
+						OwnerV3Helpers::check_error_response(&r.clone());
 					if was_encrypted {
 						let res = OwnerV3Helpers::encrypt_response(
+							key.clone(),
 							encrypted_req_id,
 							&unencrypted_intercept,
 						);
@@ -491,6 +521,7 @@ where
 					// in case it was an encrypted call to 'init_api_secure')
 					if is_init_secure_api {
 						OwnerV3Helpers::update_owner_api_shared_key(
+							key.clone(),
 							&unencrypted_intercept,
 							api.shared_key.lock().clone(),
 						);

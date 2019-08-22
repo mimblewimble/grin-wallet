@@ -25,7 +25,7 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::static_secp_instance;
+use crate::util::{static_secp_instance, ZeroingString};
 use crate::{ECDHPubkey, Owner, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
@@ -1322,6 +1322,13 @@ pub trait OwnerRpcS {
 
 	/// TODO: DOCS + TESTS TBD
 	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind>;
+
+	/// TODO: DOCS + TESTS TBD
+	fn create_wallet(&self, name: Option<String>, mnemonic: Option<String>,
+		mnemonic_length: u32, password: String) -> Result<(), ErrorKind>;
+
+	/// TODO: DOCS + TESTS TBD
+	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1542,5 +1549,24 @@ where
 
 	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind> {
 		Owner::create_config(self, &chain_type).map_err(|e| e.kind())
+	}
+
+	fn create_wallet(&self, name: Option<String>, mnemonic: Option<String>,
+		mnemonic_length: u32, password: String) -> Result<(), ErrorKind>{
+		let n = name.as_ref().map(|s| s.as_str());
+		let m = match mnemonic {
+			Some(s) => Some(ZeroingString::from(s)),
+			None => None,
+		};
+		Owner::create_wallet(self, n, m, mnemonic_length, ZeroingString::from(password))
+			.map_err(|e| e.kind())
+	}
+
+	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		let sec_key = Owner::open_wallet(self, n, ZeroingString::from(password), true).map_err(|e| e.kind())?;
+		Ok(Token {
+			keychain_mask: sec_key,
+		})
 	}
 }
