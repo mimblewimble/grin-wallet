@@ -27,10 +27,10 @@ use std::thread;
 use std::time::Duration;
 
 use grin_wallet_impls::DefaultLCProvider;
+use grin_wallet_libwallet::WalletInfo;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::secp::key::SecretKey;
 use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
-use grin_wallet_libwallet::WalletInfo;
 use serde_json;
 
 use std::fs;
@@ -75,7 +75,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {
 			error!("Wallet Proxy error: {}", e);
-			}
+		}
 	});
 
 	// We have an owner API with no wallet initialized. Init the secure API
@@ -165,8 +165,13 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		}
 	});
 
-	let res =
-		send_request_enc::<RetrieveSummaryInfoResp>(1, 1, "http://127.0.0.1:43420/v3/owner", &req.to_string(), &shared_key)?;
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
 	println!("RES 9: {:?}", res);
 	assert!(res.is_ok());
 

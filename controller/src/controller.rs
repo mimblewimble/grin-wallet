@@ -336,7 +336,9 @@ impl OwnerV3Helpers {
 
 	/// If incoming is an encrypted request, check there is a shared key,
 	/// Otherwise return an error value
-	pub fn check_encryption_started(key: Arc<Mutex<Option<SecretKey>>>) -> Result<(), serde_json::Value> {
+	pub fn check_encryption_started(
+		key: Arc<Mutex<Option<SecretKey>>>,
+	) -> Result<(), serde_json::Value> {
 		match OwnerV3Helpers::encryption_enabled(key) {
 			true => Ok(()),
 			false => Err(EncryptionErrorResponse::new(
@@ -349,7 +351,11 @@ impl OwnerV3Helpers {
 	}
 
 	/// Update the statically held owner API shared key
-	pub fn update_owner_api_shared_key(key: Arc<Mutex<Option<SecretKey>>>, val: &serde_json::Value, new_key: Option<SecretKey>) {
+	pub fn update_owner_api_shared_key(
+		key: Arc<Mutex<Option<SecretKey>>>,
+		val: &serde_json::Value,
+		new_key: Option<SecretKey>,
+	) {
 		if let Some(_) = val["result"]["Ok"].as_str() {
 			let mut share_key_ref = key.lock();
 			*share_key_ref = new_key;
@@ -407,7 +413,8 @@ impl OwnerV3Helpers {
 		// check for string first. This ensures that error messages
 		// that are just strings aren't given weird formatting
 		if val["result"]["Err"].is_object() {
-			let hashed: Result<HashMap<String, String>, serde_json::Error> = serde_json::from_value(val["result"]["Err"].clone());
+			let hashed: Result<HashMap<String, String>, serde_json::Error> =
+				serde_json::from_value(val["result"]["Err"].clone());
 			match hashed {
 				Err(e) => {
 					debug!("Can't cast value to Hashmap<String> {}", e);
@@ -417,14 +424,17 @@ impl OwnerV3Helpers {
 					for (k, v) in h.iter() {
 						retval = format!("{}: {}", k, v);
 					}
-					return (true, serde_json::json!({
-						"jsonrpc": "2.0",
-						"id": val["id"],
-						"error": {
-							"message": retval,
-							"code": -32099
-						}
-					}));
+					return (
+						true,
+						serde_json::json!({
+							"jsonrpc": "2.0",
+							"id": val["id"],
+							"error": {
+								"message": retval,
+								"code": -32099
+							}
+						}),
+					);
 				}
 			}
 			// Otherwise, see if error message is a map that needs
@@ -441,16 +451,19 @@ impl OwnerV3Helpers {
 					for (k, v) in h.iter() {
 						retval = format!("{}: {}", k, v);
 					}
-					return (true, serde_json::json!({
-						"jsonrpc": "2.0",
-						"id": val["id"],
-						"error": {
-							"message": retval,
-							"code": -32099
-						}
-					}));
+					return (
+						true,
+						serde_json::json!({
+							"jsonrpc": "2.0",
+							"id": val["id"],
+							"error": {
+								"message": retval,
+								"code": -32099
+							}
+						}),
+					);
 				}
-			} 
+			}
 		} else {
 			(false, val.clone())
 		}

@@ -93,7 +93,7 @@ where
 		if config_file_name.exists() {
 			return Ok(());
 		}
-		
+
 		let mut abs_path = std::env::current_dir()?;
 		abs_path.push(self.data_dir.clone());
 

@@ -1324,8 +1324,13 @@ pub trait OwnerRpcS {
 	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind>;
 
 	/// TODO: DOCS + TESTS TBD
-	fn create_wallet(&self, name: Option<String>, mnemonic: Option<String>,
-		mnemonic_length: u32, password: String) -> Result<(), ErrorKind>;
+	fn create_wallet(
+		&self,
+		name: Option<String>,
+		mnemonic: Option<String>,
+		mnemonic_length: u32,
+		password: String,
+	) -> Result<(), ErrorKind>;
 
 	/// TODO: DOCS + TESTS TBD
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind>;
@@ -1551,8 +1556,13 @@ where
 		Owner::create_config(self, &chain_type).map_err(|e| e.kind())
 	}
 
-	fn create_wallet(&self, name: Option<String>, mnemonic: Option<String>,
-		mnemonic_length: u32, password: String) -> Result<(), ErrorKind>{
+	fn create_wallet(
+		&self,
+		name: Option<String>,
+		mnemonic: Option<String>,
+		mnemonic_length: u32,
+		password: String,
+	) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
 		let m = match mnemonic {
 			Some(s) => Some(ZeroingString::from(s)),
@@ -1564,7 +1574,8 @@ where
 
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
-		let sec_key = Owner::open_wallet(self, n, ZeroingString::from(password), true).map_err(|e| e.kind())?;
+		let sec_key = Owner::open_wallet(self, n, ZeroingString::from(password), true)
+			.map_err(|e| e.kind())?;
 		Ok(Token {
 			keychain_mask: sec_key,
 		})

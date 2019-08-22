@@ -22,8 +22,12 @@ use std::time::Duration;
 
 const MIN_COMPAT_NODE_VERSION: &str = "2.0.0-beta.1";
 
-pub fn wallet_command<C>(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig, mut node_client: C) -> i32 
-where 
+pub fn wallet_command<C>(
+	wallet_args: &ArgMatches<'_>,
+	config: GlobalWalletConfig,
+	mut node_client: C,
+) -> i32
+where
 	C: NodeClient + 'static,
 {
 	// just get defaults from the global config
