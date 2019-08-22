@@ -20,27 +20,25 @@ extern crate log;
 extern crate grin_wallet;
 
 use grin_wallet_api::ECDHPubkey;
-use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use grin_wallet_impls::test_framework::{LocalWalletClient, WalletProxy};
 
 use clap::App;
 use std::thread;
 use std::time::Duration;
 
 use grin_wallet_impls::DefaultLCProvider;
-use grin_wallet_libwallet::WalletInfo;
 use grin_wallet_util::grin_keychain::ExtKeychain;
-use grin_wallet_util::grin_util::secp::key::SecretKey;
-use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
 use serde_json;
 
-use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use grin_wallet_util::grin_util::Mutex;
 
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, derive_ecdh_key, execute_command_no_setup, initial_setup_wallet,
-	instantiate_wallet, send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
+	clean_output_dir, derive_ecdh_key, execute_command_no_setup,
+	send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
 };
 
 #[test]
@@ -49,31 +47,45 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	setup(test_dir);
 
 	// Create a new proxy to simulate server and wallet responses
-	let mut wallet_proxy: WalletProxy<
-		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+	let wallet_proxy_a: Arc<Mutex<WalletProxy<
+		DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
 		LocalWalletClient,
 		ExtKeychain,
-	> = WalletProxy::new(test_dir);
-	let chain = wallet_proxy.chain.clone();
+	>>> = Arc::new(Mutex::new(WalletProxy::new(test_dir)));
+	{
+		let wallet_proxy = wallet_proxy_a.lock();
+		let _chain = wallet_proxy.chain.clone();
 
-	// load app yaml. If it don't exist, just say so and exit
-	let yml = load_yaml!("../src/bin/grin-wallet.yml");
-	let app = App::from_yaml(yml);
+		// start up the owner api with wallet created
+		let arg_vec = vec!["grin-wallet", "owner_api", "-l", "43420"];
+		// should create new wallet file
+		let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 
-	// start up the owner api with wallet created
-	let arg_vec = vec!["grin-wallet", "owner_api", "-l", "43420"];
-	// should create new wallet file
-	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-	thread::spawn(move || {
-		let yml = load_yaml!("../src/bin/grin-wallet.yml");
-		let app = App::from_yaml(yml);
-		execute_command_no_setup(&app, test_dir, "wallet1", &client1, arg_vec.clone()).unwrap();
-	});
-	thread::sleep(Duration::from_millis(200));
+		let p = wallet_proxy_a.clone();
+
+		thread::spawn(move || {
+			let yml = load_yaml!("../src/bin/grin-wallet.yml");
+			let app = App::from_yaml(yml);
+			execute_command_no_setup(&app, test_dir, "wallet1", &client1, arg_vec.clone(), |wallet_inst|{
+				let mut wallet_proxy = p.lock();
+				wallet_proxy.add_wallet(
+				"wallet1",
+				client1.get_send_instance(),
+				wallet_inst,
+				None,
+			);
+		
+			}).unwrap();
+		});
+	}
+	// give a bit for wallet to init and populate proxy with wallet via callback in thread above
+	thread::sleep(Duration::from_millis(500));
+	let wallet_proxy = wallet_proxy_a.clone();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
-		if let Err(e) = wallet_proxy.run() {
+		let mut p = wallet_proxy.lock();
+		if let Err(e) = p.run() {
 			error!("Wallet Proxy error: {}", e);
 		}
 	});
@@ -175,8 +187,30 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	println!("RES 9: {:?}", res);
 	assert!(res.is_ok());
 
+	// 10) Send same request with no token (even though one is expected)
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "retrieve_summary_info",
+		"params": {
+			"token": null,
+			"refresh_from_node": true,
+			"minimum_confirmations": 1
+		}
+	});
+
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	println!("RES 10: {:?}", res);
+	assert!(res.is_err());
+
 	thread::sleep(Duration::from_millis(200));
-	//clean_output_dir(test_dir);
+	clean_output_dir(test_dir);
 
 	Ok(())
 }

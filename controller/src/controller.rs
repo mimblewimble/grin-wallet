@@ -412,60 +412,65 @@ impl OwnerV3Helpers {
 	pub fn check_error_response(val: &serde_json::Value) -> (bool, serde_json::Value) {
 		// check for string first. This ensures that error messages
 		// that are just strings aren't given weird formatting
-		if val["result"]["Err"].is_object() {
+		let err_string = if val["result"]["Err"].is_object() {
+			let mut retval;
 			let hashed: Result<HashMap<String, String>, serde_json::Error> =
 				serde_json::from_value(val["result"]["Err"].clone());
-			match hashed {
+			retval = match hashed {
 				Err(e) => {
 					debug!("Can't cast value to Hashmap<String> {}", e);
+					None
 				}
 				Ok(h) => {
-					let mut retval = "".to_owned();
+					let mut r = "".to_owned();
 					for (k, v) in h.iter() {
-						retval = format!("{}: {}", k, v);
+						r = format!("{}: {}", k, v);
 					}
-					return (
-						true,
-						serde_json::json!({
-							"jsonrpc": "2.0",
-							"id": val["id"],
-							"error": {
-								"message": retval,
-								"code": -32099
-							}
-						}),
-					);
+					Some(r)
 				}
-			}
+			};
 			// Otherwise, see if error message is a map that needs
 			// to be stringified (and accept weird formatting)
-			let hashed: Result<HashMap<String, serde_json::Value>, serde_json::Error> =
-				serde_json::from_value(val["result"]["Err"].clone());
-			match hashed {
-				Err(e) => {
-					debug!("Can't cast value to Hashmap<Value> {}", e);
-					return (true, val.clone());
-				}
-				Ok(h) => {
-					let mut retval = "".to_owned();
-					for (k, v) in h.iter() {
-						retval = format!("{}: {}", k, v);
+			if retval.is_none() {
+				let hashed: Result<HashMap<String, serde_json::Value>, serde_json::Error> =
+					serde_json::from_value(val["result"]["Err"].clone());
+				retval = match hashed {
+					Err(e) => {
+						debug!("Can't cast value to Hashmap<Value> {}", e);
+						None
 					}
-					return (
-						true,
-						serde_json::json!({
-							"jsonrpc": "2.0",
-							"id": val["id"],
-							"error": {
-								"message": retval,
-								"code": -32099
-							}
-						}),
-					);
+					Ok(h) => {
+						let mut r = "".to_owned();
+						for (k, v) in h.iter() {
+							r = format!("{}: {}", k, v);
+						}
+						Some(r)
+					}
 				}
+			} 
+			retval
+		} else if val["result"]["Err"].is_string() {
+			let parsed = serde_json::from_value::<String>(val["result"]["Err"].clone());
+			match parsed {
+				Ok(p) => Some(p),
+				Err(_) => None,
 			}
 		} else {
-			(false, val.clone())
+			None
+		};
+		match err_string {
+			Some(s) => {
+				return (true,
+					serde_json::json!({
+					"jsonrpc": "2.0",
+					"id": val["id"],
+					"error": {
+						"message": s,
+						"code": -32099
+					}
+				}))
+			},
+			None => (false, val.clone()) 
 		}
 	}
 }

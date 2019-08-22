@@ -27,7 +27,7 @@ use util::{Mutex, ZeroingString};
 use grin_wallet_api::{EncryptedRequest, EncryptedResponse};
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-use grin_wallet_libwallet::{WalletInfo, WalletInst};
+use grin_wallet_libwallet::{WalletInfo, WalletInst, NodeClient};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
@@ -250,18 +250,23 @@ pub fn execute_command(
 	let mut config = initial_setup_wallet(test_dir, wallet_name);
 	//unset chain type so it doesn't get reset
 	config.chain_type = None;
-	wallet_args::wallet_command(&args, config.clone(), client.clone(), true)
+	wallet_args::wallet_command(&args, config.clone(), client.clone(), true, |_|{})
 }
 
 // as above, but without necessarily setting up the wallet
 #[allow(dead_code)]
-pub fn execute_command_no_setup(
+pub fn execute_command_no_setup<C, F>(
 	app: &App,
 	test_dir: &str,
 	wallet_name: &str,
-	client: &LocalWalletClient,
+	client: &C,
 	arg_vec: Vec<&str>,
-) -> Result<String, grin_wallet_controller::Error> {
+  f: F
+) -> Result<String, grin_wallet_controller::Error> 
+where
+	C: NodeClient + 'static + Clone,
+	F: FnOnce(Arc<Mutex<Box<dyn WalletInst<'static, DefaultLCProvider<'static, C, ExtKeychain>, C, ExtKeychain>>>>),
+{
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
 	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None).unwrap();
@@ -269,7 +274,7 @@ pub fn execute_command_no_setup(
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;
 	wallet_config.node_api_secret_path = None;
-	wallet_args::wallet_command(&args, wallet_config, client.clone(), true)
+	wallet_args::wallet_command(&args, wallet_config, client.clone(), true, f)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
@@ -370,6 +375,7 @@ where
 		.clone()
 		.unwrap();
 
+	println!("RES: {}", res_val);
 	if res["Err"] != json!(null) {
 		Ok(Err(WalletAPIReturnError {
 			message: res["Err"].as_str().unwrap().to_owned(),
