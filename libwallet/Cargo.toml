@@ -26,6 +26,4 @@ strum = "0.15"
 strum_macros = "0.15"
 
 grin_wallet_util = { path = "../util", version = "2.1.0-beta.1" }
-
-[dev-dependencies]
 grin_wallet_config = { path = "../config", version = "2.1.0-beta.1" }

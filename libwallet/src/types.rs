@@ -23,7 +23,8 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
-use crate::grin_util::ZeroingString;
+use crate::grin_util::{ZeroingString, LoggingConfig};
+use crate::config::WalletConfig;
 use crate::slate::ParticipantMessages;
 use chrono::prelude::*;
 use failure::ResultExt;
@@ -59,7 +60,7 @@ where
 	fn get_top_level_directory(&self) -> Result<String, Error>;
 
 	/// Output a grin-wallet.toml file into the current top-level system wallet directory
-	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str) -> Result<(), Error>;
+	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), Error>;
 
 	///
 	fn create_wallet(

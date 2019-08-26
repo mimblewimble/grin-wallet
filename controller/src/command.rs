@@ -74,7 +74,7 @@ where
 {
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
-	p.create_config(&g_args.chain_type, WALLET_CONFIG_FILE_NAME)?;
+	p.create_config(&g_args.chain_type, WALLET_CONFIG_FILE_NAME, None, None)?;
 	p.create_wallet(
 		None,
 		args.recovery_phrase,

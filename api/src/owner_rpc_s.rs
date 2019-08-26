@@ -25,7 +25,8 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::{static_secp_instance, ZeroingString};
+use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
+use crate::config::WalletConfig;
 use crate::{ECDHPubkey, Owner, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
@@ -1314,14 +1315,68 @@ pub trait OwnerRpcS {
 	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind>;
 
 	// LIFECYCLE FUNCTIONS
-	/// TODO: DOCS + TESTS TBD
+	/**
+	Networked version of [Owner::get_top_level_directory](struct.Owner.html#method.get_top_level_directory).
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_top_level_directory",
+		"params": {
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "/doctest/dir"
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
+
 	fn get_top_level_directory(&self) -> Result<String, ErrorKind>;
 
-	/// TODO: DOCS + TESTS TBD
+	/**
+	Networked version of [Owner::set_top_level_directory](struct.Owner.html#method.set_top_level_directory).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "set_top_level_directory",
+		"params": {
+			"dir": "/home/wallet_user/my_wallet_dir"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
+
 	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>;
 
 	/// TODO: DOCS + TESTS TBD
-	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind>;
+	fn create_config(&self, chain_type: global::ChainTypes, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), ErrorKind>;
 
 	/// TODO: DOCS + TESTS TBD
 	fn create_wallet(
@@ -1552,8 +1607,8 @@ where
 		Owner::set_top_level_directory(self, &dir).map_err(|e| e.kind())
 	}
 
-	fn create_config(&self, chain_type: global::ChainTypes) -> Result<(), ErrorKind> {
-		Owner::create_config(self, &chain_type).map_err(|e| e.kind())
+	fn create_config(&self, chain_type: global::ChainTypes, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), ErrorKind> {
+		Owner::create_config(self, &chain_type, wallet_config, logging_config).map_err(|e| e.kind())
 	}
 
 	fn create_wallet(
