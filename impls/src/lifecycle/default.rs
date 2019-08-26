@@ -14,16 +14,18 @@
 
 //! Default wallet lifecycle provider
 
-use crate::config::{config, WalletConfig, GlobalWalletConfig, GlobalWalletConfigMembers, GRIN_WALLET_DIR};
+use crate::config::{
+	config, GlobalWalletConfig, GlobalWalletConfigMembers, WalletConfig, GRIN_WALLET_DIR,
+};
 use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
-use grin_wallet_util::grin_util::LoggingConfig;
 use crate::LMDBBackend;
 use failure::ResultExt;
+use grin_wallet_util::grin_util::LoggingConfig;
 use std::fs;
 use std::path::PathBuf;
 
@@ -66,31 +68,30 @@ where
 		Ok(self.data_dir.to_owned())
 	}
 
-	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), Error> {
+	fn create_config(
+		&self,
+		chain_type: &global::ChainTypes,
+		file_name: &str,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), Error> {
 		let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 		let logging = match logging_config {
 			Some(l) => Some(l),
-			None => {
-				match default_config.members.as_ref() {
-					Some(m) => m.clone().logging.clone(),
-					None => None,
-				}
-			}
+			None => match default_config.members.as_ref() {
+				Some(m) => m.clone().logging.clone(),
+				None => None,
+			},
 		};
 		let wallet = match wallet_config {
 			Some(w) => w,
-			None => {
-				match default_config.members {
-					Some(m) => m.wallet,
-					None => WalletConfig::default(),
-				}
-			}
+			None => match default_config.members {
+				Some(m) => m.wallet,
+				None => WalletConfig::default(),
+			},
 		};
-		default_config = GlobalWalletConfig  {
-			members: Some(GlobalWalletConfigMembers {
-				wallet,
-				logging,
-			}),
+		default_config = GlobalWalletConfig {
+			members: Some(GlobalWalletConfigMembers { wallet, logging }),
 			..default_config
 		};
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());

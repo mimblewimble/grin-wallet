@@ -15,6 +15,7 @@
 //! Types and traits that should be provided by a wallet
 //! implementation
 
+use crate::config::WalletConfig;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
@@ -23,8 +24,7 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
-use crate::grin_util::{ZeroingString, LoggingConfig};
-use crate::config::WalletConfig;
+use crate::grin_util::{LoggingConfig, ZeroingString};
 use crate::slate::ParticipantMessages;
 use chrono::prelude::*;
 use failure::ResultExt;
@@ -60,7 +60,13 @@ where
 	fn get_top_level_directory(&self) -> Result<String, Error>;
 
 	/// Output a grin-wallet.toml file into the current top-level system wallet directory
-	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), Error>;
+	fn create_config(
+		&self,
+		chain_type: &global::ChainTypes,
+		file_name: &str,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), Error>;
 
 	///
 	fn create_wallet(

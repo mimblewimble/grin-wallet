@@ -17,6 +17,7 @@
 use chrono::prelude::*;
 use uuid::Uuid;
 
+use crate::config::WalletConfig;
 use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::create_sender;
@@ -27,7 +28,6 @@ use crate::libwallet::{
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
-use crate::config::WalletConfig;
 use crate::util::secp::key::SecretKey;
 use crate::util::{LoggingConfig, Mutex, ZeroingString};
 use std::sync::Arc;
@@ -1261,10 +1261,20 @@ where
 	/// Create a 'grin-wallet.toml' file in the top level directory
 	/// TODO: DOCS TBD
 
-	pub fn create_config(&self, chain_type: &global::ChainTypes, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), Error> {
+	pub fn create_config(
+		&self,
+		chain_type: &global::ChainTypes,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		lc.create_config(chain_type, "grin-wallet.toml", wallet_config, logging_config)
+		lc.create_config(
+			chain_type,
+			"grin-wallet.toml",
+			wallet_config,
+			logging_config,
+		)
 	}
 
 	/// Create a new wallet

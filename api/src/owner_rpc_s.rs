@@ -15,6 +15,7 @@
 //! JSON-RPC Stub generation for the Owner API
 use uuid::Uuid;
 
+use crate::config::WalletConfig;
 use crate::core::core::Transaction;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
@@ -26,7 +27,6 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
-use crate::config::WalletConfig;
 use crate::{ECDHPubkey, Owner, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
@@ -1376,7 +1376,12 @@ pub trait OwnerRpcS {
 	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>;
 
 	/// TODO: DOCS + TESTS TBD
-	fn create_config(&self, chain_type: global::ChainTypes, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), ErrorKind>;
+	fn create_config(
+		&self,
+		chain_type: global::ChainTypes,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), ErrorKind>;
 
 	/// TODO: DOCS + TESTS TBD
 	fn create_wallet(
@@ -1607,7 +1612,12 @@ where
 		Owner::set_top_level_directory(self, &dir).map_err(|e| e.kind())
 	}
 
-	fn create_config(&self, chain_type: global::ChainTypes, wallet_config: Option<WalletConfig>, logging_config: Option<LoggingConfig>) -> Result<(), ErrorKind> {
+	fn create_config(
+		&self,
+		chain_type: global::ChainTypes,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), ErrorKind> {
 		Owner::create_config(self, &chain_type, wallet_config, logging_config).map_err(|e| e.kind())
 	}
 
