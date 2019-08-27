@@ -80,6 +80,7 @@ where
 		args.recovery_phrase,
 		args.list_length,
 		args.password.clone(),
+		false,
 	)?;
 
 	let m = p.get_mnemonic(None, args.password)?;

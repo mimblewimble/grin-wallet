@@ -1375,7 +1375,64 @@ pub trait OwnerRpcS {
 
 	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>;
 
-	/// TODO: DOCS + TESTS TBD
+	/**
+	Networked version of [Owner::create_config](struct.Owner.html#method.create_config).
+
+	Both the `wallet_config` and `logging_config` parameters can be `null`, the examples
+	below are for illustration. Note that the values provided for `log_file_path` and `data_file_dir`
+	will be ignored and replaced with the actual values based on the value of `get_top_level_directory`
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "create_config",
+		"params": {
+			"chain_type": "Mainnet",
+			"wallet_config": {
+				"chain_type": null,
+				"api_listen_interface": "127.0.0.1",
+				"api_listen_port": 3415,
+				"owner_api_listen_port": 3420,
+				"api_secret_path": null,
+				"node_api_secret_path": null,
+				"check_node_api_http_addr": "http://127.0.0.1:3413",
+				"owner_api_include_foreign": false,
+				"data_file_dir": "/path/to/data/file/dir",
+				"no_commit_cache": null,
+				"tls_certificate_file": null,
+				"tls_certificate_key": null,
+				"dark_background_color_scheme": null,
+				"keybase_notify_ttl": null
+			},
+			"logging_config": {
+				"log_to_stdout": false,
+				"stdout_log_level": "Info",
+				"log_to_file": true,
+				"file_log_level": "Debug",
+				"log_file_path": "/path/to/log/file",
+				"log_file_append": true,
+				"log_max_size": null,
+				"log_max_files": null,
+				"tui_running": null
+			}
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
 	fn create_config(
 		&self,
 		chain_type: global::ChainTypes,
@@ -1383,7 +1440,37 @@ pub trait OwnerRpcS {
 		logging_config: Option<LoggingConfig>,
 	) -> Result<(), ErrorKind>;
 
-	/// TODO: DOCS + TESTS TBD
+	/**
+	Networked version of [Owner::create_wallet](struct.Owner.html#method.create_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "create_wallet",
+		"params": {
+			"name": null,
+			"mnemonic": null,
+			"mnemonic_length": 0,
+			"password": "my_secret_password"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
 	fn create_wallet(
 		&self,
 		name: Option<String>,
@@ -1392,7 +1479,35 @@ pub trait OwnerRpcS {
 		password: String,
 	) -> Result<(), ErrorKind>;
 
-	/// TODO: DOCS + TESTS TBD
+	/**
+	Networked version of [Owner::open_wallet](struct.Owner.html#method.open_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "open_wallet",
+		"params": {
+			"name": null,
+			"password": "my_secret_password"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868"
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
+
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind>;
 }
 

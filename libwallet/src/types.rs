@@ -75,6 +75,7 @@ where
 		mnemonic: Option<ZeroingString>,
 		mnemonic_length: usize,
 		password: ZeroingString,
+		test_mode: bool,
 	) -> Result<(), Error>;
 
 	///

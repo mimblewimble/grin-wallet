@@ -29,7 +29,7 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{LoggingConfig, Mutex, ZeroingString};
+use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, ZeroingString};
 use std::sync::Arc;
 
 /// Main interface into all wallet API functions.
@@ -1289,7 +1289,7 @@ where
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		lc.create_wallet(name, mnemonic, mnemonic_length as usize, password)
+		lc.create_wallet(name, mnemonic, mnemonic_length as usize, password, self.doctest_mode)
 	}
 
 	/// Open a wallet, returning the token
@@ -1299,6 +1299,18 @@ where
 		password: ZeroingString,
 		use_mask: bool,
 	) -> Result<Option<SecretKey>, Error> {
+		// just return a representative string for doctest mode
+		if self.doctest_mode {
+			let secp_inst = static_secp_instance();
+			let secp = secp_inst.lock();
+			return Ok(Some(SecretKey::from_slice(
+				&secp,
+				&from_hex(
+					"d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868".to_owned(),
+				)
+				.unwrap(),
+			)?));
+		}
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.open_wallet(name, password, use_mask, self.doctest_mode)

@@ -157,14 +157,17 @@ where
 		mnemonic: Option<ZeroingString>,
 		mnemonic_length: usize,
 		password: ZeroingString,
+		test_mode: bool,
 	) -> Result<(), Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		let exists = WalletSeed::seed_file_exists(&data_dir_name);
-		if let Ok(true) = exists {
-			let msg = format!("Wallet seed already exists at: {}", data_dir_name);
-			return Err(ErrorKind::WalletSeedExists(msg))?;
+		if !test_mode {
+			if let Ok(true) = exists {
+				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
+				return Err(ErrorKind::WalletSeedExists(msg))?;
+			}
 		}
 		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic, password);
 		info!("Wallet seed file created");
