@@ -1289,7 +1289,13 @@ where
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		lc.create_wallet(name, mnemonic, mnemonic_length as usize, password, self.doctest_mode)
+		lc.create_wallet(
+			name,
+			mnemonic,
+			mnemonic_length as usize,
+			password,
+			self.doctest_mode,
+		)
 	}
 
 	/// Open a wallet, returning the token
