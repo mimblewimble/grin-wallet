@@ -1325,10 +1325,7 @@ where
 
 	/// Close the wallet, removing seed+token
 	/// TODO: DOCS TBD
-	pub fn close_wallet(
-		&self,
-		name: Option<&str>,
-	) -> Result<(), Error> {
+	pub fn close_wallet(&self, name: Option<&str>) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.close_wallet(name)

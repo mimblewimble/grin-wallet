@@ -1791,7 +1791,7 @@ where
 		})
 	}
 
-	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>{
+	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
 		Owner::close_wallet(self, n).map_err(|e| e.kind())
 	}

@@ -26,8 +26,8 @@ use clap::App;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
 use grin_wallet_impls::DefaultLCProvider;
+use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use serde_json;
 
@@ -38,7 +38,9 @@ use std::sync::Arc;
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, instantiate_wallet, initial_setup_wallet, derive_ecdh_key, execute_command, execute_command_no_setup, send_request, send_request_enc, setup, RetrieveSummaryInfoResp
+	clean_output_dir, derive_ecdh_key, execute_command, execute_command_no_setup,
+	initial_setup_wallet, instantiate_wallet, send_request, send_request_enc, setup,
+	RetrieveSummaryInfoResp,
 };
 
 #[test]
@@ -329,7 +331,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	)?;
 	println!("RES 15: {:?}", res);
 	assert!(res.is_ok());
-	let mut slate:Slate = res.unwrap().into();
+	let mut slate: Slate = res.unwrap().into();
 
 	// give this slate over to wallet 2 manually
 	grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
@@ -360,11 +362,8 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			"slate": VersionedSlate::into_version(slate, SlateVersion::V2),
 		}
 	});
-	let res = send_request::<VersionedSlate>(
-		1,
-		"http://127.0.0.1:43420/v2/foreign",
-		&req.to_string(),
-	)?;
+	let res =
+		send_request::<VersionedSlate>(1, "http://127.0.0.1:43420/v2/foreign", &req.to_string())?;
 	println!("RES 16: {:?}", res);
 	assert!(res.is_ok());
 

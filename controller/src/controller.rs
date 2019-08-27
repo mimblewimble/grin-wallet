@@ -21,7 +21,7 @@ use crate::libwallet::{
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{to_base64, from_hex, Mutex, static_secp_instance};
+use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -146,7 +146,8 @@ where
 	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), running_foreign);
+	let api_handler_v3 =
+		OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), running_foreign);
 
 	router
 		.add_route("/v2/owner", Arc::new(api_handler_v2))
@@ -386,11 +387,7 @@ impl OwnerV3Helpers {
 	}
 
 	/// Update the shared mask, in case of foreign API being run
-	pub fn update_mask(
-		mask: Arc<Mutex<Option<SecretKey>>>,
-		val: &serde_json::Value,
-	) {
-
+	pub fn update_mask(mask: Arc<Mutex<Option<SecretKey>>>, val: &serde_json::Value) {
 		if let Some(key) = val["result"]["Ok"].as_str() {
 			let key_bytes = match from_hex(key.to_owned()) {
 				Ok(k) => k,
@@ -398,7 +395,7 @@ impl OwnerV3Helpers {
 			};
 			let secp_inst = static_secp_instance();
 			let secp = secp_inst.lock();
-			let sk = match SecretKey::from_slice(&secp, &key_bytes){
+			let sk = match SecretKey::from_slice(&secp, &key_bytes) {
 				Ok(s) => s,
 				Err(_) => return,
 			};
@@ -693,11 +690,7 @@ where
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
 		let mask = self.keychain_mask.lock();
-		let api = Foreign::new(
-			self.wallet.clone(),
-			mask.clone(),
-			Some(check_middleware),
-		);
+		let api = Foreign::new(self.wallet.clone(), mask.clone(), Some(check_middleware));
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),

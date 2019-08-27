@@ -404,7 +404,7 @@ where
 			Ok(v) => {
 				let value: OUT = v;
 				Ok(Ok(value))
-			},
+			}
 			Err(e) => {
 				println!("Error deserializing: {:?}", e);
 				let value: OUT = serde_json::from_value(json!("Null")).unwrap();
