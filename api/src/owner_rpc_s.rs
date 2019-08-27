@@ -1504,11 +1504,41 @@ pub trait OwnerRpcS {
 		}
 	}
 	# "#
-	# , true, 5, false, false, false);
+	# , true, 0, false, false, false);
 	```
 	*/
 
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind>;
+
+	/**
+	Networked version of [Owner::close_wallet](struct.Owner.html#method.close_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "close_wallet",
+		"params": {
+			"name": null
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1759,5 +1789,10 @@ where
 		Ok(Token {
 			keychain_mask: sec_key,
 		})
+	}
+
+	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>{
+		let n = name.as_ref().map(|s| s.as_str());
+		Owner::close_wallet(self, n).map_err(|e| e.kind())
 	}
 }

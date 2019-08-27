@@ -21,7 +21,7 @@ use crate::libwallet::{
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{to_base64, Mutex};
+use crate::util::{to_base64, from_hex, Mutex, static_secp_instance};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -119,7 +119,7 @@ where
 /// in the same wallet instance
 pub fn owner_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	keychain_mask: Option<SecretKey>,
+	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	api_secret: Option<String>,
 	tls_config: Option<TLSConfig>,
@@ -140,9 +140,13 @@ where
 		));
 		router.add_middleware(basic_auth_middleware);
 	}
+	let mut running_foreign = false;
+	if owner_api_include_foreign.unwrap_or(false) {
+		running_foreign = true;
+	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone());
+	let api_handler_v3 = OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), running_foreign);
 
 	router
 		.add_route("/v2/owner", Arc::new(api_handler_v2))
@@ -153,7 +157,7 @@ where
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	// If so configured, add the foreign API to the same port
-	if owner_api_include_foreign.unwrap_or(false) {
+	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
 		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 		router
@@ -179,7 +183,7 @@ where
 /// port and wrapping the calls
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	keychain_mask: Option<SecretKey>,
+	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 ) -> Result<(), Error>
@@ -299,6 +303,13 @@ where
 
 	/// ECDH shared key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
+
+	/// Keychain mask (to change if also running the foreign API)
+	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+
+	/// Whether we're running the foreign API on the same port, and therefore
+	/// have to store the mask in-process
+	pub running_foreign: bool,
 }
 
 pub struct OwnerV3Helpers;
@@ -309,6 +320,18 @@ impl OwnerV3Helpers {
 		if let Some(m) = val["method"].as_str() {
 			match m {
 				"init_secure_api" => true,
+				_ => false,
+			}
+		} else {
+			false
+		}
+	}
+
+	/// Checks whether a request is to open the wallet
+	pub fn is_open_wallet(val: &serde_json::Value) -> bool {
+		if let Some(m) = val["method"].as_str() {
+			match m {
+				"open_wallet" => true,
 				_ => false,
 			}
 		} else {
@@ -359,6 +382,29 @@ impl OwnerV3Helpers {
 		if let Some(_) = val["result"]["Ok"].as_str() {
 			let mut share_key_ref = key.lock();
 			*share_key_ref = new_key;
+		}
+	}
+
+	/// Update the shared mask, in case of foreign API being run
+	pub fn update_mask(
+		mask: Arc<Mutex<Option<SecretKey>>>,
+		val: &serde_json::Value,
+	) {
+
+		if let Some(key) = val["result"]["Ok"].as_str() {
+			let key_bytes = match from_hex(key.to_owned()) {
+				Ok(k) => k,
+				Err(_) => return,
+			};
+			let secp_inst = static_secp_instance();
+			let secp = secp_inst.lock();
+			let sk = match SecretKey::from_slice(&secp, &key_bytes){
+				Ok(s) => s,
+				Err(_) => return,
+			};
+
+			let mut shared_mask_ref = mask.lock();
+			*shared_mask_ref = Some(sk);
 		}
 	}
 
@@ -486,10 +532,14 @@ where
 	/// Create a new owner API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
 		OwnerAPIHandlerV3 {
 			wallet,
 			shared_key: Arc::new(Mutex::new(None)),
+			keychain_mask: keychain_mask,
+			running_foreign,
 		}
 	}
 
@@ -499,6 +549,8 @@ where
 		api: Owner<'static, L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		let key = self.shared_key.clone();
+		let mask = self.keychain_mask.clone();
+		let running_foreign = self.running_foreign;
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let mut val = val;
 			let owner_api_s = &api as &dyn OwnerRpcS;
@@ -522,10 +574,14 @@ where
 			// check again, in case it was an encrypted call to init_secure_api
 			is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			// also need to intercept open/close wallet requests
+			let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
 			match owner_api_s.handle_request(val) {
 				MaybeReply::Reply(mut r) => {
 					let (_was_error, unencrypted_intercept) =
 						OwnerV3Helpers::check_error_response(&r.clone());
+					if is_open_wallet && running_foreign {
+						OwnerV3Helpers::update_mask(mask, &r.clone());
+					}
 					if was_encrypted {
 						let res = OwnerV3Helpers::encrypt_response(
 							key.clone(),
@@ -597,7 +653,7 @@ where
 	/// Wallet instance
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	/// Keychain mask
-	pub keychain_mask: Option<SecretKey>,
+	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -609,7 +665,7 @@ where
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-		keychain_mask: Option<SecretKey>,
+		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
@@ -636,9 +692,10 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
+		let mask = self.keychain_mask.lock();
 		let api = Foreign::new(
 			self.wallet.clone(),
-			self.keychain_mask.clone(),
+			mask.clone(),
 			Some(check_middleware),
 		);
 		Box::new(

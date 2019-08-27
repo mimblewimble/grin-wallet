@@ -122,7 +122,7 @@ pub struct ListenArgs {
 
 pub fn listen<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-	keychain_mask: Option<SecretKey>,
+	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
 	args: &ListenArgs,
 	g_args: &GlobalArgs,
@@ -171,9 +171,12 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	// keychain mask needs to be a sinlge instance, in case the foreign API is
+	// also being run at the same time
+	let km = Arc::new(Mutex::new(keychain_mask));
 	let res = controller::owner_listener(
 		wallet,
-		keychain_mask,
+		km,
 		config.owner_api_listen_addr().as_str(),
 		g_args.node_api_secret.clone(),
 		g_args.tls_conf.clone(),

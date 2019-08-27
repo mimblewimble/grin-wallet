@@ -388,7 +388,7 @@ where
 		.clone()
 		.unwrap();
 
-	println!("RES: {}", res_val);
+	//println!("RES: {}", res);
 	if res["Err"] != json!(null) {
 		Ok(Err(WalletAPIReturnError {
 			message: res["Err"].as_str().unwrap().to_owned(),
@@ -396,13 +396,20 @@ where
 		}))
 	} else {
 		// deserialize result into expected type
-		let ok_val = serde_json::from_value(res["Ok"].clone());
-		if let Ok(v) = ok_val {
-			let value: OUT = v;
-			Ok(Ok(value))
-		} else {
-			let value: OUT = serde_json::from_value(json!("Null")).unwrap();
-			Ok(Ok(value))
+		let raw_value = res["Ok"].clone();
+		let raw_value_str = serde_json::to_string_pretty(&raw_value).unwrap();
+		//println!("Raw value: {}", raw_value_str);
+		let ok_val = serde_json::from_str(&raw_value_str);
+		match ok_val {
+			Ok(v) => {
+				let value: OUT = v;
+				Ok(Ok(value))
+			},
+			Err(e) => {
+				println!("Error deserializing: {:?}", e);
+				let value: OUT = serde_json::from_value(json!("Null")).unwrap();
+				Ok(Ok(value))
+			}
 		}
 	}
 }

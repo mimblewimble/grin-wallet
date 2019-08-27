@@ -37,7 +37,7 @@ pub enum SlateVersion {
 	V2,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 /// Versions are ordered newest to oldest so serde attempts to
 /// deserialize newer versions first, then falls back to older versions.

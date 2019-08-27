@@ -403,6 +403,9 @@ pub fn parse_owner_api_args(
 	if let Some(port) = args.value_of("port") {
 		config.owner_api_listen_port = Some(port.parse().unwrap());
 	}
+	if args.is_present("run_foreign") {
+		config.owner_api_include_foreign = Some(true);
+	}
 	Ok(())
 }
 
@@ -892,7 +895,7 @@ where
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
 			let a = arg_parse!(parse_listen_args(&mut c, &args));
-			command::listen(wallet, keychain_mask, &c, &a, &global_wallet_args.clone())
+			command::listen(wallet, Arc::new(Mutex::new(keychain_mask)), &c, &a, &global_wallet_args.clone())
 		}
 		("owner_api", Some(args)) => {
 			let mut c = wallet_config.clone();

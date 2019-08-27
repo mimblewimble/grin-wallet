@@ -20,12 +20,13 @@ extern crate log;
 extern crate grin_wallet;
 
 use grin_wallet_api::ECDHPubkey;
-use grin_wallet_impls::test_framework::{LocalWalletClient, WalletProxy};
+use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 use clap::App;
 use std::thread;
 use std::time::Duration;
 
+use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
 use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use serde_json;
@@ -37,14 +38,16 @@ use std::sync::Arc;
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, derive_ecdh_key, execute_command_no_setup, send_request, send_request_enc,
-	setup, RetrieveSummaryInfoResp,
+	clean_output_dir, instantiate_wallet, initial_setup_wallet, derive_ecdh_key, execute_command, execute_command_no_setup, send_request, send_request_enc, setup, RetrieveSummaryInfoResp
 };
 
 #[test]
 fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let test_dir = "target/test_output/owner_v3_lifecycle";
 	setup(test_dir);
+
+	let yml = load_yaml!("../src/bin/grin-wallet.yml");
+	let app = App::from_yaml(yml);
 
 	// Create a new proxy to simulate server and wallet responses
 	let wallet_proxy_a: Arc<
@@ -56,12 +59,29 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			>,
 		>,
 	> = Arc::new(Mutex::new(WalletProxy::new(test_dir)));
-	{
-		let wallet_proxy = wallet_proxy_a.lock();
-		let _chain = wallet_proxy.chain.clone();
+	let (chain, wallet2, mask2_i) = {
+		let mut wallet_proxy = wallet_proxy_a.lock();
+		let chain = wallet_proxy.chain.clone();
+
+		// Create wallet 2 manually, which will mine a bit and insert some
+		// grins into the equation
+		let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
+		let arg_vec = vec!["grin-wallet", "-p", "password", "init", "-h"];
+		execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
+
+		let config2 = initial_setup_wallet(test_dir, "wallet2");
+		//config2.api_listen_port = 23415;
+		let (wallet2, mask2_i) =
+			instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		wallet_proxy.add_wallet(
+			"wallet2",
+			client2.get_send_instance(),
+			wallet2.clone(),
+			mask2_i.clone(),
+		);
 
 		// start up the owner api with wallet created
-		let arg_vec = vec!["grin-wallet", "owner_api", "-l", "43420"];
+		let arg_vec = vec!["grin-wallet", "owner_api", "-l", "43420", "--run_foreign"];
 		// should create new wallet file
 		let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 
@@ -88,9 +108,11 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			)
 			.unwrap();
 		});
-	}
+		(chain, wallet2, mask2_i)
+	};
 	// give a bit for wallet to init and populate proxy with wallet via callback in thread above
 	thread::sleep(Duration::from_millis(500));
+	let mask2 = (&mask2_i).as_ref();
 	let wallet_proxy = wallet_proxy_a.clone();
 
 	// Set the wallet proxy listener running
@@ -100,6 +122,11 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			error!("Wallet Proxy error: {}", e);
 		}
 	});
+
+	// mine into wallet 2 a bit
+	let bh = 10u64;
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet2.clone(), mask2, bh as usize, false);
 
 	// We have an owner API with no wallet initialized. Init the secure API
 	let sec_key_str = "e00dcc4a009e3427c6b1e1a550c538179d46f3827a13ed74c759c860761caf1e";
@@ -219,6 +246,127 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	)?;
 	println!("RES 10: {:?}", res);
 	assert!(res.is_err());
+
+	// 11) Close the wallet
+	let req = include_str!("data/v3_reqs/close_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 11: {:?}", res);
+	assert!(res.is_ok());
+
+	// 12) Wallet is closed
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "retrieve_summary_info",
+		"params": {
+			"token": token,
+			"refresh_from_node": true,
+			"minimum_confirmations": 1
+		}
+	});
+
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	println!("RES 12: {:?}", res);
+	assert!(res.is_err());
+
+	// 13) Open the wallet again
+	let req = include_str!("data/v3_reqs/open_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 13: {:?}", res);
+	assert!(res.is_ok());
+	let token = res.unwrap();
+
+	// 14) Send a request with our new token
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "retrieve_summary_info",
+		"params": {
+			"token": token,
+			"refresh_from_node": true,
+			"minimum_confirmations": 1
+		}
+	});
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	println!("RES 14: {:?}", res);
+	assert!(res.is_ok());
+
+	//15) Ask wallet 2 for some grins
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "issue_invoice_tx",
+		"params": {
+			"token": token,
+			"args": {
+				"amount": "6000000000",
+				"message": "geez a block of grins",
+				"dest_acct_name": null,
+				"target_slate_version": null
+			}
+		}
+	});
+	let res = send_request_enc::<VersionedSlate>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	println!("RES 15: {:?}", res);
+	assert!(res.is_ok());
+	let mut slate:Slate = res.unwrap().into();
+
+	// give this slate over to wallet 2 manually
+	grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: slate.amount,
+			minimum_confirmations: 1,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: false,
+			..Default::default()
+		};
+		let res = api.process_invoice_tx(m, &slate, args);
+		assert!(res.is_ok());
+		slate = res.unwrap();
+		api.tx_lock_outputs(m, &slate, 0)?;
+
+		Ok(())
+	})?;
+
+	//16) Finalize the invoice tx (to foreign api)
+	// (Tests that foreign API on same port also has its stored mask updated)
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "finalize_invoice_tx",
+		"params": {
+			"slate": VersionedSlate::into_version(slate, SlateVersion::V2),
+		}
+	});
+	let res = send_request::<VersionedSlate>(
+		1,
+		"http://127.0.0.1:43420/v2/foreign",
+		&req.to_string(),
+	)?;
+	println!("RES 16: {:?}", res);
+	assert!(res.is_ok());
 
 	thread::sleep(Duration::from_millis(200));
 	clean_output_dir(test_dir);

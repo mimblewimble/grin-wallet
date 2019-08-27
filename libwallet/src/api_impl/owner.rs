@@ -274,6 +274,7 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
+		println!("Saving private context: {:?}", slate.id.as_bytes());
 		batch.save_private_context(slate.id.as_bytes(), 1, &context)?;
 		batch.commit()?;
 	}

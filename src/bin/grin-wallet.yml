@@ -76,6 +76,10 @@ subcommands:
             short: l
             long: port
             takes_value: true
+        - run_foreign:
+            help: Also run the Foreign API
+            long: run_foreign
+            takes_value: false
   - send:
       about: Builds a transaction to send coins and sends to the specified listener directly
       args:

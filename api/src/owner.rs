@@ -1299,6 +1299,7 @@ where
 	}
 
 	/// Open a wallet, returning the token
+	/// TODO: DOCS TBD
 	pub fn open_wallet(
 		&self,
 		name: Option<&str>,
@@ -1320,6 +1321,17 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.open_wallet(name, password, use_mask, self.doctest_mode)
+	}
+
+	/// Close the wallet, removing seed+token
+	/// TODO: DOCS TBD
+	pub fn close_wallet(
+		&self,
+		name: Option<&str>,
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.close_wallet(name)
 	}
 }
 
