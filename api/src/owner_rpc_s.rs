@@ -32,7 +32,10 @@ use easy_jsonrpc_mw;
 use rand::thread_rng;
 
 /// Public definition used to generate Owner jsonrpc api.
-/// Secure version, that should be used when running the owner API in 'Secure' Mode
+/// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
+/// See [`init_secure_api`](#tymethod.init_secure_api) for details of secret derivation
+/// and encryption.
+
 #[easy_jsonrpc_mw::rpc]
 pub trait OwnerRpcS {
 	/**
@@ -1276,7 +1279,6 @@ pub trait OwnerRpcS {
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
 
-
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -1308,13 +1310,59 @@ pub trait OwnerRpcS {
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
 
 	/**
-	   Initializes the secure RPC-JSON API
-	   (Documentation TBD)
+	   Initializes the secure JSON-RPC API. This function must be called and a shared key
+		 established before any other OwnerAPI JSON-RPC function can be called.
+
+		The shared key will be derived using ECDH with the provided public key on the secp256k1 curve. This
+		function will return its public key used in the derivation, which the caller should multiply by its
+		private key to derive the shared key.
+
+		Once the key is established, all further requests and responses are encrypted and decrypted with the
+		following parameters:
+
+    * AES-256 in GCM mode with 128-bit tags and 96 bit nonces
+    * 12 byte nonce which must be included in each request/response to use on the decrypting side
+    * Empty vector for additional data
+    * Suffix length = AES-256 GCM mode tag length = 16 bytes
+
+		Fully-formed JSON-RPC requests (as documented) should be encrypted using these parameters, encoded
+		into base64 and included with the one-time nonce in a request for the `encrypted_request_v3` method
+		as follows:
+
+		```
+		# let s = r#"
+		{
+			 "jsonrpc": "2.0",
+			 "method": "encrypted_request_v3",
+			 "id": "1",
+			 "params": {
+					"nonce": "ef32...",
+					"body_enc": "e0bcd..."
+			 }
+		}
+		# "#;
+		```
+
+		With a typical response being:
+
+		```
+		# let s = r#"{
+		{
+			 "jsonrpc": "2.0",
+			 "method": "encrypted_response_v3",
+			 "id": "1",
+			 "Ok": {
+					"nonce": "340b...",
+					"body_enc": "3f09c..."
+			 }
+		}
+		# }"#;
+		```
+
 	*/
 
 	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind>;
 
-	// LIFECYCLE FUNCTIONS
 	/**
 	Networked version of [Owner::get_top_level_directory](struct.Owner.html#method.get_top_level_directory).
 

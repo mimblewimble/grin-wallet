@@ -1236,8 +1236,38 @@ where
 
 	// LIFECYCLE FUNCTIONS
 
-	/// Retrieve the current wallet top-level directory
-	/// TODO: DOCS TBD
+	/// Retrieve the top-level directory for the wallet. This directory should contain the
+	/// `grin-wallet.toml` file and the `wallet_data` directory that contains the wallet
+	/// seed + data files. Future versions of the wallet API will support multiple wallets
+	/// within the top level directory.
+	///
+	/// The top level directory defaults to (in order of precedence):
+	///
+	/// 1) The current directory, from which `grin-wallet` or the main process was run, if it
+	/// contains a `grin-wallet.toml` file.
+	/// 2) ~/.grin/<chaintype>/ otherwise
+	///
+	/// # Arguments
+	///
+	/// * None
+	///
+	/// # Returns
+	/// * Ok with a String value representing the full path to the top level wallet dierctory
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.get_top_level_directory();
+	///
+	/// if let Ok(dir) = result {
+	///		println!("Top level directory is: {}", dir);
+	///		//...
+	/// }
+	/// ```
 
 	pub fn get_top_level_directory(&self) -> Result<String, Error> {
 		let mut w_lock = self.wallet_inst.lock();
@@ -1249,8 +1279,42 @@ where
 		}
 	}
 
-	/// Set the current wallet top-level directory
-	/// TODO: DOCS TBD
+	/// Set the top-level directory for the wallet. This directory can be empty, and will be created
+	/// during a subsequent calls to [`create_config`](struct.Owner.html#method.create_config)
+	///
+	/// Set [`get_top_level_directory`](struct.Owner.html#method.get_top_level_directory) for a
+	/// description of the top level directory and default paths.
+	///
+	/// # Arguments
+	///
+	/// * `dir`: The new top-level directory path (either relative to current directory or
+	/// absolute.
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let dir = "path/to/wallet/dir";
+	///
+	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+	/// # let dir = dir
+	/// # 	.path()
+	/// # 	.to_str()
+	/// # 	.ok_or("Failed to convert tmpdir path to string.".to_owned())
+	/// # 	.unwrap();
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let result = api_owner.set_top_level_directory(dir);
+	///
+	/// if let Ok(dir) = result {
+	///		//...
+	/// }
+	/// ```
 
 	pub fn set_top_level_directory(&self, dir: &str) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
@@ -1258,8 +1322,51 @@ where
 		lc.set_top_level_directory(dir)
 	}
 
-	/// Create a 'grin-wallet.toml' file in the top level directory
-	/// TODO: DOCS TBD
+	/// Create a `grin-wallet.toml` configuration file in the top-level directory for the
+	/// specified chain type.
+	/// A custom [`WalletConfig`](../grin_wallet_config/types/struct.WalletConfig.html)
+	/// and/or grin `LoggingConfig` may optionally be provided, otherwise defaults will be used.
+	///
+	/// Paths in the configuration file will be updated to reflect the top level directory, so
+	/// path-related values in the optional configuration structs will be ignored.
+	///
+	/// # Arguments
+	///
+	/// * `chain_type`: The chain type to use in creation of the configuration file. This can be
+	///     * `AutomatedTesting`
+	///     * `UserTesting`
+	///     * `Floonet`
+	///     * `Mainnet`
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// let dir = "path/to/wallet/dir";
+	///
+	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+	/// # let dir = dir
+	/// # 	.path()
+	/// # 	.to_str()
+	/// # 	.ok_or("Failed to convert tmpdir path to string.".to_owned())
+	/// # 	.unwrap();
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let _ = api_owner.set_top_level_directory(dir);
+	///
+	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None);
+	///
+	/// if let Ok(_) = result {
+	///		//...
+	/// }
+	/// ```
 
 	pub fn create_config(
 		&self,
@@ -1277,8 +1384,61 @@ where
 		)
 	}
 
-	/// Create a new wallet
-	/// TODO: DOCS TBD
+	/// Creates a new wallet seed and empty wallet database in the `wallet_data` directory of
+	/// the top level directory.
+	///
+	/// Paths in the configuration file will be updated to reflect the top level directory, so
+	/// path-related values in the optional configuration structs will be ignored.
+	///
+	/// The wallet files must not already exist, and ~The `grin-wallet.toml` file must exist 
+	/// in the top level directory (can be created via a call to
+	/// [`create_config`](struct.Owner.html#method.create_config))
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	/// * `mnemonic`: If present, restore the wallet seed from the given mnemonic instead of creating
+	/// a new random seed.
+	/// * `mnemonic_length`: Desired length of mnemonic in bytes (16 or 32, either 12 or 24 words).
+	/// Use 0 if mnemonic isn't being used.
+	/// * `password`: The password used to encrypt/decrypt the `wallet.seed` file
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// note that the WalletInst struct does not necessarily need to contain an
+	///	// instantiated wallet
+	///
+	/// let dir = "path/to/wallet/dir";
+	///
+	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+	/// # let dir = dir
+	/// # 	.path()
+	/// # 	.to_str()
+	/// # 	.ok_or("Failed to convert tmpdir path to string.".to_owned())
+	/// # 	.unwrap();
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let _ = api_owner.set_top_level_directory(dir);
+	///
+	/// // Create configuration
+	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None);
+	///
+	///	// create new wallet wirh random seed
+	///	let pw = ZeroingString::from("my_password");
+	/// let result = api_owner.create_wallet(None, None, 0, pw);
+	///
+	/// if let Ok(r) = result {
+	///		//...
+	/// }
+	/// ```
 
 	pub fn create_wallet(
 		&self,
@@ -1298,8 +1458,58 @@ where
 		)
 	}
 
-	/// Open a wallet, returning the token
-	/// TODO: DOCS TBD
+	/// `Opens` a wallet, populating the internal keychain with the encrypted seed, and optionally
+	/// returning a `keychain_mask` token to the caller to provide in all future calls.
+	/// If using a mask, the seed will be stored in-memory XORed against the `keychain_mask`, and
+	/// will not be useable if the mask is not provided.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	/// * `password`: The password to use to open the wallet
+	/// a new random seed.
+	/// * `use_mask`: Whether to create and return a mask which much be provided in all future
+	/// API calls.
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// note that the WalletInst struct does not necessarily need to contain an
+	///	// instantiated wallet
+	/// let dir = "path/to/wallet/dir";
+	///
+	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+	/// # let dir = dir
+	/// # 	.path()
+	/// # 	.to_str()
+	/// # 	.ok_or("Failed to convert tmpdir path to string.".to_owned())
+	/// # 	.unwrap();
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let _ = api_owner.set_top_level_directory(dir);
+	///
+	/// // Create configuration
+	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None);
+	///
+	///	// create new wallet wirh random seed
+	///	let pw = ZeroingString::from("my_password");
+	/// let _ = api_owner.create_wallet(None, None, 0, pw.clone());
+	///
+	/// let result = api_owner.open_wallet(None, pw, true);
+	///
+	/// if let Ok(m) = result {
+	///		// use this mask in all subsequent calls
+	///		let mask = m;
+	/// }
+	/// ```
+
 	pub fn open_wallet(
 		&self,
 		name: Option<&str>,
@@ -1323,8 +1533,33 @@ where
 		lc.open_wallet(name, password, use_mask, self.doctest_mode)
 	}
 
-	/// Close the wallet, removing seed+token
-	/// TODO: DOCS TBD
+	/// `Close` a wallet, removing the master seed from memory.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.close_wallet(None);
+	///
+	/// if let Ok(_) = res {
+	///		// ...
+	/// }
+	/// ```
+
 	pub fn close_wallet(&self, name: Option<&str>) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
@@ -1342,6 +1577,7 @@ macro_rules! doctest_helper_setup_doc_env {
 		use grin_wallet_libwallet as libwallet;
 		use grin_wallet_util::grin_keychain as keychain;
 		use grin_wallet_util::grin_util as util;
+		use grin_wallet_util::grin_core as grin_core;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
