@@ -1390,7 +1390,7 @@ where
 	/// Paths in the configuration file will be updated to reflect the top level directory, so
 	/// path-related values in the optional configuration structs will be ignored.
 	///
-	/// The wallet files must not already exist, and ~The `grin-wallet.toml` file must exist 
+	/// The wallet files must not already exist, and ~The `grin-wallet.toml` file must exist
 	/// in the top level directory (can be created via a call to
 	/// [`create_config`](struct.Owner.html#method.create_config))
 	///
@@ -1575,9 +1575,9 @@ macro_rules! doctest_helper_setup_doc_env {
 		use grin_wallet_config as config;
 		use grin_wallet_impls as impls;
 		use grin_wallet_libwallet as libwallet;
+		use grin_wallet_util::grin_core;
 		use grin_wallet_util::grin_keychain as keychain;
 		use grin_wallet_util::grin_util as util;
-		use grin_wallet_util::grin_core as grin_core;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;

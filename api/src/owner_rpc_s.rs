@@ -1320,10 +1320,10 @@ pub trait OwnerRpcS {
 		Once the key is established, all further requests and responses are encrypted and decrypted with the
 		following parameters:
 
-    * AES-256 in GCM mode with 128-bit tags and 96 bit nonces
-    * 12 byte nonce which must be included in each request/response to use on the decrypting side
-    * Empty vector for additional data
-    * Suffix length = AES-256 GCM mode tag length = 16 bytes
+	* AES-256 in GCM mode with 128-bit tags and 96 bit nonces
+	* 12 byte nonce which must be included in each request/response to use on the decrypting side
+	* Empty vector for additional data
+	* Suffix length = AES-256 GCM mode tag length = 16 bytes
 
 		Fully-formed JSON-RPC requests (as documented) should be encrypted using these parameters, encoded
 		into base64 and included with the one-time nonce in a request for the `encrypted_request_v3` method
