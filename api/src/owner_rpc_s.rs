@@ -1310,8 +1310,8 @@ pub trait OwnerRpcS {
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
 
 	/**
-	   Initializes the secure JSON-RPC API. This function must be called and a shared key
-		 established before any other OwnerAPI JSON-RPC function can be called.
+		Initializes the secure JSON-RPC API. This function must be called and a shared key
+		established before any other OwnerAPI JSON-RPC function can be called.
 
 		The shared key will be derived using ECDH with the provided public key on the secp256k1 curve. This
 		function will return its public key used in the derivation, which the caller should multiply by its
@@ -1319,11 +1319,11 @@ pub trait OwnerRpcS {
 
 		Once the key is established, all further requests and responses are encrypted and decrypted with the
 		following parameters:
-
-	* AES-256 in GCM mode with 128-bit tags and 96 bit nonces
-	* 12 byte nonce which must be included in each request/response to use on the decrypting side
-	* Empty vector for additional data
-	* Suffix length = AES-256 GCM mode tag length = 16 bytes
+		* AES-256 in GCM mode with 128-bit tags and 96 bit nonces
+		* 12 byte nonce which must be included in each request/response to use on the decrypting side
+		* Empty vector for additional data
+		* Suffix length = AES-256 GCM mode tag length = 16 bytes
+		*
 
 		Fully-formed JSON-RPC requests (as documented) should be encrypted using these parameters, encoded
 		into base64 and included with the one-time nonce in a request for the `encrypted_request_v3` method
