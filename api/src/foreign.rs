@@ -144,7 +144,7 @@ where
 	///
 	/// // The top level wallet directory should be set manually (in the reference implementation,
 	/// // this is provided in the WalletConfig)
-	/// lc.set_wallet_directory(&wallet_config.data_file_dir);
+	/// let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	///
 	/// // Wallet must be opened with the password (TBD)
 	/// let pw = ZeroingString::from("wallet_password");
@@ -506,7 +506,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 				>,
 				>;
 		let lc = wallet.lc_provider().unwrap();
-		lc.set_wallet_directory(&wallet_config.data_file_dir);
+		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};

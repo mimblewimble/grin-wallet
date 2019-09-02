@@ -367,7 +367,7 @@ impl SlateReceiver for KeybaseAllChannels {
 				>,
 			>;
 		let lc = wallet.lc_provider().unwrap();
-		lc.set_wallet_directory(&config.data_file_dir);
+		lc.set_top_level_directory(&config.data_file_dir)?;
 		let mask = lc.open_wallet(None, passphrase, true, false)?;
 		let wallet_inst = lc.wallet_inst()?;
 		wallet_inst.set_parent_key_id_by_name(account)?;

@@ -23,6 +23,7 @@ use crate::core::global;
 use crate::util::init_logger;
 use clap::App;
 use grin_wallet_config as config;
+use grin_wallet_impls::HTTPNodeClient;
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_util as util;
 use std::env;
@@ -123,5 +124,8 @@ fn real_main() -> i32 {
 			.clone(),
 	);
 
-	cmd::wallet_command(&args, config)
+	let wallet_config = config.clone().members.unwrap().wallet;
+	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+
+	cmd::wallet_command(&args, config, node_client)
 }

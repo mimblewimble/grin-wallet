@@ -1413,8 +1413,8 @@ pub fn run_doctest_owner(
 				>,
 			>;
 	let lc = wallet1.lc_provider().unwrap();
-	lc.set_wallet_directory(&format!("{}/wallet1", test_dir));
-	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone())
+	let _ = lc.set_top_level_directory(&format!("{}/wallet1", test_dir));
+	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone(), false)
 		.unwrap();
 	let mask1 = lc
 		.open_wallet(None, empty_string.clone(), use_token, true)
@@ -1448,8 +1448,8 @@ pub fn run_doctest_owner(
 				>,
 			>;
 	let lc = wallet2.lc_provider().unwrap();
-	lc.set_wallet_directory(&format!("{}/wallet2", test_dir));
-	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone())
+	let _ = lc.set_top_level_directory(&format!("{}/wallet2", test_dir));
+	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone(), false)
 		.unwrap();
 	let mask2 = lc
 		.open_wallet(None, empty_string.clone(), use_token, true)

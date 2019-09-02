@@ -228,7 +228,7 @@ where
 	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
 		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
-	lc.set_wallet_directory(&config.data_file_dir);
+	let _ = lc.set_top_level_directory(&config.data_file_dir);
 	Ok(Arc::new(Mutex::new(wallet)))
 }
 
@@ -402,6 +402,9 @@ pub fn parse_owner_api_args(
 ) -> Result<(), ParseError> {
 	if let Some(port) = args.value_of("port") {
 		config.owner_api_listen_port = Some(port.parse().unwrap());
+	}
+	if args.is_present("run_foreign") {
+		config.owner_api_include_foreign = Some(true);
 	}
 	Ok(())
 }
@@ -761,14 +764,29 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 	})
 }
 
-pub fn wallet_command<C>(
+pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
 	mut node_client: C,
 	test_mode: bool,
+	wallet_inst_cb: F,
 ) -> Result<String, Error>
 where
 	C: NodeClient + 'static + Clone,
+	F: FnOnce(
+		Arc<
+			Mutex<
+				Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<'static, C, keychain::ExtKeychain>,
+						C,
+						keychain::ExtKeychain,
+					>,
+				>,
+			>,
+		>,
+	),
 {
 	if let Some(t) = wallet_config.chain_type.clone() {
 		core::global::set_mining_mode(t);
@@ -814,17 +832,29 @@ where
 	{
 		let mut wallet_lock = wallet.lock();
 		let lc = wallet_lock.lc_provider().unwrap();
-		lc.set_wallet_directory(&wallet_config.data_file_dir);
+		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	}
 
+	// provide wallet instance back to the caller (handy for testing with
+	// local wallet proxy, etc)
+	wallet_inst_cb(wallet.clone());
+
 	// don't open wallet for certain lifecycle commands
-	let keychain_mask = match wallet_args.subcommand() {
-		("init", Some(_)) => None,
-		("recover", _) => None,
-		// Owner API can be started without a wallet present
-		// TODO: Not quite yet, next PR will deal with this
-		//("owner_api", _) => None,
-		_ => {
+	let mut open_wallet = true;
+	match wallet_args.subcommand() {
+		("init", Some(_)) => open_wallet = false,
+		("recover", _) => open_wallet = false,
+		("owner_api", _) => {
+			// If wallet exists, open it. Otherwise, that's fine too.
+			let mut wallet_lock = wallet.lock();
+			let lc = wallet_lock.lc_provider().unwrap();
+			open_wallet = lc.wallet_exists(None)?;
+		}
+		_ => {}
+	}
+
+	let keychain_mask = match open_wallet {
+		true => {
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
 			let mask = lc.open_wallet(
@@ -839,6 +869,7 @@ where
 			}
 			mask
 		}
+		false => None,
 	};
 
 	let km = (&keychain_mask).as_ref();
@@ -864,7 +895,13 @@ where
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
 			let a = arg_parse!(parse_listen_args(&mut c, &args));
-			command::listen(wallet, keychain_mask, &c, &a, &global_wallet_args.clone())
+			command::listen(
+				wallet,
+				Arc::new(Mutex::new(keychain_mask)),
+				&c,
+				&a,
+				&global_wallet_args.clone(),
+			)
 		}
 		("owner_api", Some(args)) => {
 			let mut c = wallet_config.clone();
@@ -950,7 +987,7 @@ where
 			command::check_repair(wallet, km, a)
 		}
 		_ => {
-			let msg = format!("Unknown wallet command, use 'grin help wallet' for details");
+			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
 			return Err(ErrorKind::ArgumentError(msg).into());
 		}
 	};

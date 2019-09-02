@@ -76,6 +76,10 @@ subcommands:
             short: l
             long: port
             takes_value: true
+        - run_foreign:
+            help: Also run the Foreign API
+            long: run_foreign
+            takes_value: false
   - send:
       about: Builds a transaction to send coins and sends to the specified listener directly
       args:
@@ -168,7 +172,7 @@ subcommands:
             short: f
             long: fluff
   - invoice:
-      about: Initialize an invoice transction.
+      about: Initialize an invoice transaction.
       args:
         - amount:
             help: Number of coins to invoice  with optional fraction, e.g. 12.423
@@ -268,7 +272,7 @@ subcommands:
             short: f
             long: fluff
   - cancel:
-      about: Cancels an previously created transaction, freeing previously locked outputs for use again
+      about: Cancels a previously created transaction, freeing previously locked outputs for use again
       args:
         - id:
             help: The ID of the transaction to cancel

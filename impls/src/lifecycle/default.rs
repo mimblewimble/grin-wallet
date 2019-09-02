@@ -14,7 +14,9 @@
 
 //! Default wallet lifecycle provider
 
-use crate::config::{config, GlobalWalletConfig, GRIN_WALLET_DIR};
+use crate::config::{
+	config, GlobalWalletConfig, GlobalWalletConfigMembers, WalletConfig, GRIN_WALLET_DIR,
+};
 use crate::core::global;
 use crate::keychain::Keychain;
 use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
@@ -23,6 +25,8 @@ use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use crate::LMDBBackend;
 use failure::ResultExt;
+use grin_wallet_util::grin_util::LoggingConfig;
+use std::fs;
 use std::path::PathBuf;
 
 pub struct DefaultLCProvider<'a, C, K>
@@ -55,14 +59,50 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	fn set_wallet_directory(&mut self, dir: &str) {
+	fn set_top_level_directory(&mut self, dir: &str) -> Result<(), Error> {
 		self.data_dir = dir.to_owned();
+		Ok(())
 	}
 
-	fn create_config(&self, chain_type: &global::ChainTypes, file_name: &str) -> Result<(), Error> {
+	fn get_top_level_directory(&self) -> Result<String, Error> {
+		Ok(self.data_dir.to_owned())
+	}
+
+	fn create_config(
+		&self,
+		chain_type: &global::ChainTypes,
+		file_name: &str,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), Error> {
 		let mut default_config = GlobalWalletConfig::for_chain(chain_type);
+		let logging = match logging_config {
+			Some(l) => Some(l),
+			None => match default_config.members.as_ref() {
+				Some(m) => m.clone().logging.clone(),
+				None => None,
+			},
+		};
+		let wallet = match wallet_config {
+			Some(w) => w,
+			None => match default_config.members {
+				Some(m) => m.wallet,
+				None => WalletConfig::default(),
+			},
+		};
+		default_config = GlobalWalletConfig {
+			members: Some(GlobalWalletConfigMembers { wallet, logging }),
+			..default_config
+		};
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());
 		config_file_name.push(file_name);
+
+		// create top level dir if it doesn't exist
+		let dd = PathBuf::from(self.data_dir.clone());
+		if !dd.exists() {
+			// try create
+			fs::create_dir_all(dd)?;
+		}
 
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
@@ -81,7 +121,10 @@ where
 			return Ok(());
 		}
 
-		default_config.update_paths(&PathBuf::from(self.data_dir.clone()));
+		let mut abs_path = std::env::current_dir()?;
+		abs_path.push(self.data_dir.clone());
+
+		default_config.update_paths(&PathBuf::from(abs_path));
 		let res = default_config.write_to_file(config_file_name.to_str().unwrap());
 		if let Err(e) = res {
 			let msg = format!(
@@ -114,10 +157,18 @@ where
 		mnemonic: Option<ZeroingString>,
 		mnemonic_length: usize,
 		password: ZeroingString,
+		test_mode: bool,
 	) -> Result<(), Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
+		let exists = WalletSeed::seed_file_exists(&data_dir_name);
+		if !test_mode {
+			if let Ok(true) = exists {
+				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
+				return Err(ErrorKind::WalletSeedExists(msg))?;
+			}
+		}
 		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic, password);
 		info!("Wallet seed file created");
 		let _wallet: LMDBBackend<'a, C, K> =
