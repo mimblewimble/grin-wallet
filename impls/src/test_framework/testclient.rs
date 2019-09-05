@@ -20,7 +20,7 @@ use crate::api;
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
 use crate::core::core::verifier_cache::LruVerifierCache;
-use crate::core::core::Transaction;
+use crate::core::core::{Transaction, TxKernel};
 use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
@@ -498,6 +498,15 @@ impl NodeClient for LocalWalletClient {
 			));
 		}
 		Ok((o.highest_index, o.last_retrieved_index, api_outputs))
+	}
+
+	fn get_kernel(
+		&mut self,
+		_excess: &pedersen::Commitment,
+		_min_height: Option<u64>,
+		_max_height: Option<u64>,
+	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
+		unimplemented!()
 	}
 }
 unsafe impl<'a, L, C, K> Send for WalletProxy<'a, L, C, K>

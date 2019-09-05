@@ -285,7 +285,7 @@ where
 
 /// Encapsulate all wallet-node communication functions. No functions within libwallet
 /// should care about communication details
-pub trait NodeClient: Send + Sync + Clone {
+pub trait NodeClient: Send + Sync + Clone + 'static {
 	/// Return the URL of the check node
 	fn node_url(&self) -> &str;
 
@@ -332,6 +332,15 @@ pub trait NodeClient: Send + Sync + Clone {
 		),
 		Error,
 	>;
+
+	/// Get a kernel and the height of the block it is included in. Returns
+	/// (tx_kernel, height, mmr_index)
+	fn get_kernel(
+		&mut self,
+		excess: &pedersen::Commitment,
+		min_height: Option<u64>,
+		max_height: Option<u64>,
+	) -> Result<Option<(TxKernel, u64, u64)>, Error>;
 }
 
 /// Node version info
