@@ -15,7 +15,9 @@
 //! JSON-RPC Stub generation for the Owner API
 use uuid::Uuid;
 
+use crate::config::WalletConfig;
 use crate::core::core::Transaction;
+use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate_versions::v2::TransactionV2;
 use crate::libwallet::{
@@ -24,13 +26,16 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::static_secp_instance;
+use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
 use crate::{ECDHPubkey, Owner, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
 
 /// Public definition used to generate Owner jsonrpc api.
-/// Secure version, that should be used when running the owner API in 'Secure' Mode
+/// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
+/// See [`init_secure_api`](#tymethod.init_secure_api) for details of secret derivation
+/// and encryption.
+
 #[easy_jsonrpc_mw::rpc]
 pub trait OwnerRpcS {
 	/**
@@ -1274,7 +1279,6 @@ pub trait OwnerRpcS {
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
 
-
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -1306,11 +1310,283 @@ pub trait OwnerRpcS {
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
 
 	/**
-	   Initializes the secure RPC-JSON API
-	   (Documentation TBD)
+		Initializes the secure JSON-RPC API. This function must be called and a shared key
+		established before any other OwnerAPI JSON-RPC function can be called.
+
+		The shared key will be derived using ECDH with the provided public key on the secp256k1 curve. This
+		function will return its public key used in the derivation, which the caller should multiply by its
+		private key to derive the shared key.
+
+		Once the key is established, all further requests and responses are encrypted and decrypted with the
+		following parameters:
+		* AES-256 in GCM mode with 128-bit tags and 96 bit nonces
+		* 12 byte nonce which must be included in each request/response to use on the decrypting side
+		* Empty vector for additional data
+		* Suffix length = AES-256 GCM mode tag length = 16 bytes
+		*
+
+		Fully-formed JSON-RPC requests (as documented) should be encrypted using these parameters, encoded
+		into base64 and included with the one-time nonce in a request for the `encrypted_request_v3` method
+		as follows:
+
+		```
+		# let s = r#"
+		{
+			 "jsonrpc": "2.0",
+			 "method": "encrypted_request_v3",
+			 "id": "1",
+			 "params": {
+					"nonce": "ef32...",
+					"body_enc": "e0bcd..."
+			 }
+		}
+		# "#;
+		```
+
+		With a typical response being:
+
+		```
+		# let s = r#"{
+		{
+			 "jsonrpc": "2.0",
+			 "method": "encrypted_response_v3",
+			 "id": "1",
+			 "Ok": {
+					"nonce": "340b...",
+					"body_enc": "3f09c..."
+			 }
+		}
+		# }"#;
+		```
+
 	*/
 
 	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, ErrorKind>;
+
+	/**
+	Networked version of [Owner::get_top_level_directory](struct.Owner.html#method.get_top_level_directory).
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_top_level_directory",
+		"params": {
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "/doctest/dir"
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
+
+	fn get_top_level_directory(&self) -> Result<String, ErrorKind>;
+
+	/**
+	Networked version of [Owner::set_top_level_directory](struct.Owner.html#method.set_top_level_directory).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "set_top_level_directory",
+		"params": {
+			"dir": "/home/wallet_user/my_wallet_dir"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
+
+	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::create_config](struct.Owner.html#method.create_config).
+
+	Both the `wallet_config` and `logging_config` parameters can be `null`, the examples
+	below are for illustration. Note that the values provided for `log_file_path` and `data_file_dir`
+	will be ignored and replaced with the actual values based on the value of `get_top_level_directory`
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "create_config",
+		"params": {
+			"chain_type": "Mainnet",
+			"wallet_config": {
+				"chain_type": null,
+				"api_listen_interface": "127.0.0.1",
+				"api_listen_port": 3415,
+				"owner_api_listen_port": 3420,
+				"api_secret_path": null,
+				"node_api_secret_path": null,
+				"check_node_api_http_addr": "http://127.0.0.1:3413",
+				"owner_api_include_foreign": false,
+				"data_file_dir": "/path/to/data/file/dir",
+				"no_commit_cache": null,
+				"tls_certificate_file": null,
+				"tls_certificate_key": null,
+				"dark_background_color_scheme": null,
+				"keybase_notify_ttl": null
+			},
+			"logging_config": {
+				"log_to_stdout": false,
+				"stdout_log_level": "Info",
+				"log_to_file": true,
+				"file_log_level": "Debug",
+				"log_file_path": "/path/to/log/file",
+				"log_file_append": true,
+				"log_max_size": null,
+				"log_max_files": null,
+				"tui_running": null
+			}
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 5, false, false, false);
+	```
+	*/
+	fn create_config(
+		&self,
+		chain_type: global::ChainTypes,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::create_wallet](struct.Owner.html#method.create_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "create_wallet",
+		"params": {
+			"name": null,
+			"mnemonic": null,
+			"mnemonic_length": 0,
+			"password": "my_secret_password"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn create_wallet(
+		&self,
+		name: Option<String>,
+		mnemonic: Option<String>,
+		mnemonic_length: u32,
+		password: String,
+	) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::open_wallet](struct.Owner.html#method.open_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "open_wallet",
+		"params": {
+			"name": null,
+			"password": "my_secret_password"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868"
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind>;
+
+	/**
+	Networked version of [Owner::close_wallet](struct.Owner.html#method.close_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "close_wallet",
+		"params": {
+			"name": null
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1519,5 +1795,52 @@ where
 		Ok(ECDHPubkey {
 			ecdh_pubkey: pub_key,
 		})
+	}
+
+	fn get_top_level_directory(&self) -> Result<String, ErrorKind> {
+		Owner::get_top_level_directory(self).map_err(|e| e.kind())
+	}
+
+	fn set_top_level_directory(&self, dir: String) -> Result<(), ErrorKind> {
+		Owner::set_top_level_directory(self, &dir).map_err(|e| e.kind())
+	}
+
+	fn create_config(
+		&self,
+		chain_type: global::ChainTypes,
+		wallet_config: Option<WalletConfig>,
+		logging_config: Option<LoggingConfig>,
+	) -> Result<(), ErrorKind> {
+		Owner::create_config(self, &chain_type, wallet_config, logging_config).map_err(|e| e.kind())
+	}
+
+	fn create_wallet(
+		&self,
+		name: Option<String>,
+		mnemonic: Option<String>,
+		mnemonic_length: u32,
+		password: String,
+	) -> Result<(), ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		let m = match mnemonic {
+			Some(s) => Some(ZeroingString::from(s)),
+			None => None,
+		};
+		Owner::create_wallet(self, n, m, mnemonic_length, ZeroingString::from(password))
+			.map_err(|e| e.kind())
+	}
+
+	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		let sec_key = Owner::open_wallet(self, n, ZeroingString::from(password), true)
+			.map_err(|e| e.kind())?;
+		Ok(Token {
+			keychain_mask: sec_key,
+		})
+	}
+
+	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		Owner::close_wallet(self, n).map_err(|e| e.kind())
 	}
 }

@@ -15,7 +15,6 @@
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
 use clap::ArgMatches;
-use grin_wallet_impls::HTTPNodeClient;
 use grin_wallet_libwallet::NodeClient;
 use semver::Version;
 use std::thread;
@@ -23,12 +22,19 @@ use std::time::Duration;
 
 const MIN_COMPAT_NODE_VERSION: &str = "2.0.0-beta.1";
 
-pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) -> i32 {
+pub fn wallet_command<C>(
+	wallet_args: &ArgMatches<'_>,
+	config: GlobalWalletConfig,
+	mut node_client: C,
+) -> i32
+where
+	C: NodeClient + 'static,
+{
 	// just get defaults from the global config
 	let wallet_config = config.members.unwrap().wallet;
 
 	// Check the node version info, and exit with report if we're not compatible
-	let mut node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+	//let mut node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
 	let global_wallet_args = wallet_args::parse_global_args(&wallet_config, &wallet_args)
 		.expect("Can't read configuration file");
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
@@ -51,7 +57,7 @@ pub fn wallet_command(wallet_args: &ArgMatches<'_>, config: GlobalWalletConfig) 
 	}
 	// ... if node isn't available, allow offline functions
 
-	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client, false);
+	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client, false, |_| {});
 
 	// we need to give log output a chance to catch up before exiting
 	thread::sleep(Duration::from_millis(100));

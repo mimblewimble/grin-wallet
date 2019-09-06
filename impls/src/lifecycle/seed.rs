@@ -86,7 +86,7 @@ impl WalletSeed {
 
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
-		println!("Seed file path: {}", seed_file_path);
+		debug!("Seed file path: {}", seed_file_path);
 		if Path::new(seed_file_path).exists() {
 			Ok(true)
 		} else {
@@ -123,9 +123,9 @@ impl WalletSeed {
 		password: util::ZeroingString,
 	) -> Result<(), Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
-		println!("data file dir: {}", data_file_dir);
+		debug!("data file dir: {}", data_file_dir);
 		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir) {
-			println!("seed file exists");
+			debug!("seed file exists");
 			WalletSeed::backup_seed(data_file_dir)?;
 		}
 		if !Path::new(&data_file_dir).exists() {
@@ -157,7 +157,11 @@ impl WalletSeed {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		warn!("Generating wallet seed file at: {}", seed_file_path);
-		let _ = WalletSeed::seed_file_exists(data_file_dir)?;
+		let exists = WalletSeed::seed_file_exists(data_file_dir)?;
+		if exists {
+			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
+			return Err(ErrorKind::WalletSeedExists(msg))?;
+		}
 
 		let seed = match recovery_phrase {
 			Some(p) => WalletSeed::from_mnemonic(p)?,

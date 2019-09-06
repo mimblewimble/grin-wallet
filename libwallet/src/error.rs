@@ -126,8 +126,8 @@ pub enum ErrorKind {
 	DuplicateTransactionId,
 
 	/// Wallet seed already exists
-	#[fail(display = "Wallet seed exists error")]
-	WalletSeedExists,
+	#[fail(display = "Wallet seed exists error: {}", _0)]
+	WalletSeedExists(String),
 
 	/// Wallet seed doesn't exist
 	#[fail(display = "Wallet seed doesn't exist error")]

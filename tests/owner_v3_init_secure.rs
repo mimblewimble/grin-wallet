@@ -197,7 +197,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	println!("RES 11: {:?}", res);
 	assert!(res.is_ok());
 
-	// 12) A request which triggers and API error (not an encryption error)
+	// 12) A request which triggers an API error (not an encryption error)
 	let req = serde_json::json!({
 		"jsonrpc": "2.0",
 		"id": 1,
@@ -212,6 +212,14 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	println!("RES 12: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32601);
+
+	// 13) A request which triggers an internal API error (not enough funds)
+	let req = include_str!("data/v3_reqs/init_send_tx.req.json");
+	let res =
+		send_request_enc::<String>(13, 1, "http://127.0.0.1:33420/v3/owner", &req, &shared_key)?;
+	println!("RES 13: {:?}", res);
+	assert!(res.is_err());
+	assert_eq!(res.unwrap_err().code, -32099);
 
 	clean_output_dir(test_dir);
 
