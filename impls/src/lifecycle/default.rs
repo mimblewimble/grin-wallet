@@ -202,8 +202,9 @@ where
 				}
 				Ok(d) => d,
 			};
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password)
-			.context(ErrorKind::Lifecycle("Error opening wallet (is password correct?)".into()))?;
+		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).context(
+			ErrorKind::Lifecycle("Error opening wallet (is password correct?)".into()),
+		)?;
 		let keychain = wallet_seed
 			.derive_keychain(global::is_floonet())
 			.context(ErrorKind::Lifecycle("Error deriving keychain".into()))?;
@@ -270,7 +271,12 @@ where
 		Ok(())
 	}
 
-	fn change_password(&self, _name: Option<&str>, old: ZeroingString, new: ZeroingString) -> Result<(), Error> {
+	fn change_password(
+		&self,
+		_name: Option<&str>,
+		old: ZeroingString,
+		new: ZeroingString,
+	) -> Result<(), Error> {
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
@@ -279,23 +285,28 @@ where
 		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old).context(
 			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
 		)?;
-		let orig_mnemonic = orig_wallet_seed.to_mnemonic().context(
-			ErrorKind::Lifecycle("Error recovering mnemonic".into()),
-		)?;
+		let orig_mnemonic = orig_wallet_seed
+			.to_mnemonic()
+			.context(ErrorKind::Lifecycle("Error recovering mnemonic".into()))?;
 
 		// Back up existing seed, and keep track of filename as we're deleting it
 		// once the password change is confirmed
-		let backup_name = WalletSeed::backup_seed(data_dir_name).context(
-			ErrorKind::Lifecycle("Error temporarily backing up existing seed".into()),
-		)?;
+		let backup_name = WalletSeed::backup_seed(data_dir_name).context(ErrorKind::Lifecycle(
+			"Error temporarily backing up existing seed".into(),
+		))?;
 
 		// Delete seed file
-		WalletSeed::delete_seed_file(data_dir_name).context(
-			ErrorKind::Lifecycle("Unable to delete seed file for password change".into()),
-		)?;
+		WalletSeed::delete_seed_file(data_dir_name).context(ErrorKind::Lifecycle(
+			"Unable to delete seed file for password change".into(),
+		))?;
 
 		// Init a new file
-		let _ = WalletSeed::init_file(data_dir_name, 0, Some(ZeroingString::from(orig_mnemonic)), new.clone());
+		let _ = WalletSeed::init_file(
+			data_dir_name,
+			0,
+			Some(ZeroingString::from(orig_mnemonic)),
+			new.clone(),
+		);
 		info!("Wallet seed file created");
 
 		let new_wallet_seed = WalletSeed::from_file(&data_dir_name, new).context(
@@ -313,7 +324,6 @@ where
 		fs::remove_file(backup_name).context(ErrorKind::IO)?;
 
 		Ok(())
-
 	}
 
 	fn delete_wallet(&self, _name: Option<&str>, _password: ZeroingString) -> Result<(), Error> {

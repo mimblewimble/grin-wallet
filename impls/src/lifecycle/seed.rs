@@ -205,9 +205,7 @@ impl WalletSeed {
 		}
 	}
 
-	pub fn delete_seed_file(
-		data_file_dir: &str,
-	) -> Result<(), Error> {
+	pub fn delete_seed_file(data_file_dir: &str) -> Result<(), Error> {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if Path::new(seed_file_path).exists() {
 			debug!("Deleting wallet seed file at: {}", seed_file_path);

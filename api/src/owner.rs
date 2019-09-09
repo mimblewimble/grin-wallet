@@ -1642,7 +1642,12 @@ where
 	///		// ...
 	/// }
 	/// ```
-	pub fn change_password(&self, name: Option<&str>, old: ZeroingString, new: ZeroingString) -> Result<(), Error> {
+	pub fn change_password(
+		&self,
+		name: Option<&str>,
+		old: ZeroingString,
+		new: ZeroingString,
+	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.change_password(name, old, new)

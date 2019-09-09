@@ -112,7 +112,12 @@ where
 	) -> Result<(), Error>;
 
 	/// changes password
-	fn change_password(&self, name: Option<&str>, old: ZeroingString, new: ZeroingString) -> Result<(), Error>;
+	fn change_password(
+		&self,
+		name: Option<&str>,
+		old: ZeroingString,
+		new: ZeroingString,
+	) -> Result<(), Error>;
 
 	/// deletes wallet
 	fn delete_wallet(&self, name: Option<&str>, password: ZeroingString) -> Result<(), Error>;

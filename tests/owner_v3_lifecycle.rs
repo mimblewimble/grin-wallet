@@ -397,8 +397,13 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			"password": "password"
 		}
 	});
-	let res =
-		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req.to_string(), &shared_key)?;
+	let res = send_request_enc::<String>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
 	println!("RES 19: {:?}", res);
 	assert!(res.is_ok());
 	let token = res.unwrap();

@@ -1648,7 +1648,12 @@ pub trait OwnerRpcS {
 	# , true, 0, false, false, false);
 	```
 	*/
-	fn change_password(&self, name: Option<String>, old: String, new: String) -> Result<(), ErrorKind>;
+	fn change_password(
+		&self,
+		name: Option<String>,
+		old: String,
+		new: String,
+	) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1913,8 +1918,14 @@ where
 		Ok(format!("{}", &*res))
 	}
 
-	fn change_password(&self, name: Option<String>, old: String, new: String) -> Result<(), ErrorKind> {
+	fn change_password(
+		&self,
+		name: Option<String>,
+		old: String,
+		new: String,
+	) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
-		Owner::change_password(self, n, ZeroingString::from(old), ZeroingString::from(new)).map_err(|e| e.kind())
+		Owner::change_password(self, n, ZeroingString::from(old), ZeroingString::from(new))
+			.map_err(|e| e.kind())
 	}
 }
