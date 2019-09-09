@@ -1609,7 +1609,7 @@ pub trait OwnerRpcS {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": "fat twenty mean degree forget shell check candy immense awful flame next during february bulb bike sun wink theory day kiwi embrace peace lunch" 
+			"Ok": "fat twenty mean degree forget shell check candy immense awful flame next during february bulb bike sun wink theory day kiwi embrace peace lunch"
 		}
 	}
 	# "#
@@ -1877,7 +1877,8 @@ where
 
 	fn get_mnemonic(&self, name: Option<String>, password: String) -> Result<String, ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
-		let res = Owner::get_mnemonic(self, n, ZeroingString::from(password)).map_err(|e| e.kind())?;
+		let res =
+			Owner::get_mnemonic(self, n, ZeroingString::from(password)).map_err(|e| e.kind())?;
 		Ok(format!("{}", &*res))
 	}
 }

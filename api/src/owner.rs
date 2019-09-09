@@ -1567,7 +1567,7 @@ where
 	}
 
 	/// Return the BIP39 mnemonic for the given wallet. This function will decrypt
-	/// the wallet's seed file with the given password, and thus does not need the 
+	/// the wallet's seed file with the given password, and thus does not need the
 	/// wallet to be open.
 	///
 	/// # Arguments
@@ -1596,9 +1596,11 @@ where
 	///		// ...
 	/// }
 	/// ```
-	pub fn get_mnemonic(&self,
-		name: Option<&str>, 
-		password: ZeroingString) -> Result<ZeroingString, Error> {
+	pub fn get_mnemonic(
+		&self,
+		name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<ZeroingString, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.get_mnemonic(name, password)
