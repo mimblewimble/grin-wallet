@@ -326,8 +326,12 @@ where
 		Ok(())
 	}
 
-	fn delete_wallet(&self, _name: Option<&str>, _password: ZeroingString) -> Result<(), Error> {
-		unimplemented!()
+	fn delete_wallet(&self, _name: Option<&str>) -> Result<(), Error> {
+		let data_dir_name = PathBuf::from(self.data_dir.clone());
+		warn!("Removing all wallet data from: {}", data_dir_name.to_str().unwrap());
+		fs::remove_dir_all(data_dir_name).context(ErrorKind::IO)?;
+		Ok(())
+
 	}
 
 	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error> {

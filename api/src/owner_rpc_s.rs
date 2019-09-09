@@ -1654,6 +1654,38 @@ pub trait OwnerRpcS {
 		old: String,
 		new: String,
 	) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::delete_wallet](struct.Owner.html#method.delete_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "delete_wallet",
+		"params": {
+			"name": null
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+	fn delete_wallet(
+		&self,
+		name: Option<String>,
+	) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1926,6 +1958,15 @@ where
 	) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
 		Owner::change_password(self, n, ZeroingString::from(old), ZeroingString::from(new))
+			.map_err(|e| e.kind())
+	}
+
+	fn delete_wallet(
+		&self,
+		name: Option<String>,
+	) -> Result<(), ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		Owner::delete_wallet(self, n)
 			.map_err(|e| e.kind())
 	}
 }

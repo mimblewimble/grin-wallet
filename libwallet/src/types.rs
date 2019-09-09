@@ -120,7 +120,7 @@ where
 	) -> Result<(), Error>;
 
 	/// deletes wallet
-	fn delete_wallet(&self, name: Option<&str>, password: ZeroingString) -> Result<(), Error>;
+	fn delete_wallet(&self, name: Option<&str>) -> Result<(), Error>;
 
 	/// return wallet instance
 	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error>;

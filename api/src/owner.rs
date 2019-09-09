@@ -1652,6 +1652,46 @@ where
 		let lc = w_lock.lc_provider()?;
 		lc.change_password(name, old, new)
 	}
+
+	/// Deletes a wallet, removing the config file, seed file and all data files. 
+	/// Obviously, use with extreme caution and plenty of user warning
+	///
+	/// Highly recommended that the wallet be explicitly closed first via the `close_wallet`
+	/// function.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.delete_wallet(None);
+	///
+	/// if let Ok(_) = res {
+	///		// ...
+	/// }
+	/// ```
+
+	pub fn delete_wallet(
+		&self,
+		name: Option<&str>
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.delete_wallet(name)
+	}
 }
 
 #[doc(hidden)]

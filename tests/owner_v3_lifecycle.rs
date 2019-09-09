@@ -432,6 +432,26 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 
 	thread::sleep(Duration::from_millis(200));
 	assert_eq!(res.unwrap().1.amount_awaiting_finalization, 6000000000);
+
+	// 21) Delete the wallet (close first)
+	let req = include_str!("data/v3_reqs/close_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	assert!(res.is_ok());
+
+	let req = include_str!("data/v3_reqs/delete_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 21: {:?}", res);
+	assert!(res.is_ok());
+
+	// 22) Wallet should be gone
+	let req = include_str!("data/v3_reqs/open_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 22: {:?}", res);
+	assert!(res.is_err());
+
 	clean_output_dir(test_dir);
 
 	Ok(())
