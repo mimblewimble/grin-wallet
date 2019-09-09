@@ -4,7 +4,7 @@
 	"params": {
 		"name": null,
 		"mnemonic": null,
-		"mnemonic_length": 0,
+		"mnemonic_length": 32,
 		"password": "passwoid"
 	},
 	"id": 1
