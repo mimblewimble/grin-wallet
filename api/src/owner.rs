@@ -1653,7 +1653,7 @@ where
 		lc.change_password(name, old, new)
 	}
 
-	/// Deletes a wallet, removing the config file, seed file and all data files. 
+	/// Deletes a wallet, removing the config file, seed file and all data files.
 	/// Obviously, use with extreme caution and plenty of user warning
 	///
 	/// Highly recommended that the wallet be explicitly closed first via the `close_wallet`
@@ -1684,10 +1684,7 @@ where
 	/// }
 	/// ```
 
-	pub fn delete_wallet(
-		&self,
-		name: Option<&str>
-	) -> Result<(), Error> {
+	pub fn delete_wallet(&self, name: Option<&str>) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.delete_wallet(name)

@@ -1682,10 +1682,7 @@ pub trait OwnerRpcS {
 	# , true, 0, false, false, false);
 	```
 	*/
-	fn delete_wallet(
-		&self,
-		name: Option<String>,
-	) -> Result<(), ErrorKind>;
+	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1961,12 +1958,8 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn delete_wallet(
-		&self,
-		name: Option<String>,
-	) -> Result<(), ErrorKind> {
+	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
-		Owner::delete_wallet(self, n)
-			.map_err(|e| e.kind())
+		Owner::delete_wallet(self, n).map_err(|e| e.kind())
 	}
 }
