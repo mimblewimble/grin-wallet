@@ -1565,6 +1565,44 @@ where
 		let lc = w_lock.lc_provider()?;
 		lc.close_wallet(name)
 	}
+
+	/// Return the BIP39 mnemonic for the given wallet. This function will decrypt
+	/// the wallet's seed file with the given password, and thus does not need the 
+	/// wallet to be open.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	/// * `password`: The password used to encrypt the seed file.
+	///
+	/// # Returns
+	/// * Ok(BIP-39 mneminc) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	///	let pw = ZeroingString::from("my_password");
+	/// let res = api_owner.get_mnemonic(None, pw);
+	///
+	/// if let Ok(mne) = res {
+	///		// ...
+	/// }
+	/// ```
+	pub fn get_mnemonic(&self,
+		name: Option<&str>, 
+		password: ZeroingString) -> Result<ZeroingString, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.get_mnemonic(name, password)
+	}
 }
 
 #[doc(hidden)]
