@@ -202,8 +202,9 @@ where
 				}
 				Ok(d) => d,
 			};
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password)
-			.context(ErrorKind::Lifecycle("Error opening wallet".into()))?;
+		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).context(
+			ErrorKind::Lifecycle("Error opening wallet (is password correct?)".into()),
+		)?;
 		let keychain = wallet_seed
 			.derive_keychain(global::is_floonet())
 			.context(ErrorKind::Lifecycle("Error deriving keychain".into()))?;
@@ -270,12 +271,69 @@ where
 		Ok(())
 	}
 
-	fn change_password(&self, _old: String, _new: String) -> Result<(), Error> {
-		unimplemented!()
+	fn change_password(
+		&self,
+		_name: Option<&str>,
+		old: ZeroingString,
+		new: ZeroingString,
+	) -> Result<(), Error> {
+		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		data_dir_name.push(GRIN_WALLET_DIR);
+		let data_dir_name = data_dir_name.to_str().unwrap();
+		// get seed for later check
+
+		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old).context(
+			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
+		)?;
+		let orig_mnemonic = orig_wallet_seed
+			.to_mnemonic()
+			.context(ErrorKind::Lifecycle("Error recovering mnemonic".into()))?;
+
+		// Back up existing seed, and keep track of filename as we're deleting it
+		// once the password change is confirmed
+		let backup_name = WalletSeed::backup_seed(data_dir_name).context(ErrorKind::Lifecycle(
+			"Error temporarily backing up existing seed".into(),
+		))?;
+
+		// Delete seed file
+		WalletSeed::delete_seed_file(data_dir_name).context(ErrorKind::Lifecycle(
+			"Unable to delete seed file for password change".into(),
+		))?;
+
+		// Init a new file
+		let _ = WalletSeed::init_file(
+			data_dir_name,
+			0,
+			Some(ZeroingString::from(orig_mnemonic)),
+			new.clone(),
+		);
+		info!("Wallet seed file created");
+
+		let new_wallet_seed = WalletSeed::from_file(&data_dir_name, new).context(
+			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
+		)?;
+
+		if orig_wallet_seed != new_wallet_seed {
+			let msg = format!(
+				"New and Old wallet seeds are not equal on password change, not removing backups."
+			);
+			return Err(ErrorKind::Lifecycle(msg).into());
+		}
+		// Removin
+		info!("Password change confirmed, removing old seed file.");
+		fs::remove_file(backup_name).context(ErrorKind::IO)?;
+
+		Ok(())
 	}
 
-	fn delete_wallet(&self, _name: Option<String>, _password: String) -> Result<(), Error> {
-		unimplemented!()
+	fn delete_wallet(&self, _name: Option<&str>) -> Result<(), Error> {
+		let data_dir_name = PathBuf::from(self.data_dir.clone());
+		warn!(
+			"Removing all wallet data from: {}",
+			data_dir_name.to_str().unwrap()
+		);
+		fs::remove_dir_all(data_dir_name).context(ErrorKind::IO)?;
+		Ok(())
 	}
 
 	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error> {

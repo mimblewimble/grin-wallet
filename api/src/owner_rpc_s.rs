@@ -1587,6 +1587,102 @@ pub trait OwnerRpcS {
 	*/
 
 	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::get_mnemonic](struct.Owner.html#method.get_mnemonic).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_mnemonic",
+		"params": {
+			"name": null,
+			"password": ""
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "fat twenty mean degree forget shell check candy immense awful flame next during february bulb bike sun wink theory day kiwi embrace peace lunch"
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn get_mnemonic(&self, name: Option<String>, password: String) -> Result<String, ErrorKind>;
+
+	/**
+	Networked version of [Owner::change_password](struct.Owner.html#method.change_password).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "change_password",
+		"params": {
+			"name": null,
+			"old": "",
+			"new": "new_password"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+	fn change_password(
+		&self,
+		name: Option<String>,
+		old: String,
+		new: String,
+	) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::delete_wallet](struct.Owner.html#method.delete_wallet).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "delete_wallet",
+		"params": {
+			"name": null
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
 }
 
 impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
@@ -1842,5 +1938,28 @@ where
 	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
 		Owner::close_wallet(self, n).map_err(|e| e.kind())
+	}
+
+	fn get_mnemonic(&self, name: Option<String>, password: String) -> Result<String, ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		let res =
+			Owner::get_mnemonic(self, n, ZeroingString::from(password)).map_err(|e| e.kind())?;
+		Ok(format!("{}", &*res))
+	}
+
+	fn change_password(
+		&self,
+		name: Option<String>,
+		old: String,
+		new: String,
+	) -> Result<(), ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		Owner::change_password(self, n, ZeroingString::from(old), ZeroingString::from(new))
+			.map_err(|e| e.kind())
+	}
+
+	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
+		let n = name.as_ref().map(|s| s.as_str());
+		Owner::delete_wallet(self, n).map_err(|e| e.kind())
 	}
 }

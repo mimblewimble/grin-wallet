@@ -112,10 +112,15 @@ where
 	) -> Result<(), Error>;
 
 	/// changes password
-	fn change_password(&self, old: String, new: String) -> Result<(), Error>;
+	fn change_password(
+		&self,
+		name: Option<&str>,
+		old: ZeroingString,
+		new: ZeroingString,
+	) -> Result<(), Error>;
 
 	/// deletes wallet
-	fn delete_wallet(&self, name: Option<String>, password: String) -> Result<(), Error>;
+	fn delete_wallet(&self, name: Option<&str>) -> Result<(), Error>;
 
 	/// return wallet instance
 	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error>;

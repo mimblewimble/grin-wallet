@@ -94,7 +94,7 @@ impl WalletSeed {
 		}
 	}
 
-	pub fn backup_seed(data_file_dir: &str) -> Result<(), Error> {
+	pub fn backup_seed(data_file_dir: &str) -> Result<String, Error> {
 		let seed_file_name = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		let mut path = Path::new(seed_file_name).to_path_buf();
@@ -114,7 +114,7 @@ impl WalletSeed {
 			))?;
 		}
 		warn!("{} backed up as {}", seed_file_name, backup_seed_file_name);
-		Ok(())
+		Ok(backup_seed_file_name)
 	}
 
 	pub fn recover_from_phrase(
@@ -180,7 +180,6 @@ impl WalletSeed {
 		data_file_dir: &str,
 		password: util::ZeroingString,
 	) -> Result<WalletSeed, Error> {
-		// TODO: Is this desirable any more?
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
 
@@ -204,6 +203,15 @@ impl WalletSeed {
 			);
 			Err(ErrorKind::WalletSeedDoesntExist)?
 		}
+	}
+
+	pub fn delete_seed_file(data_file_dir: &str) -> Result<(), Error> {
+		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		if Path::new(seed_file_path).exists() {
+			debug!("Deleting wallet seed file at: {}", seed_file_path);
+			fs::remove_file(seed_file_path).context(ErrorKind::IO)?;
+		}
+		Ok(())
 	}
 }
 

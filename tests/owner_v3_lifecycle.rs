@@ -367,7 +367,91 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	println!("RES 16: {:?}", res);
 	assert!(res.is_ok());
 
+	//17) Change the password
+	let req = include_str!("data/v3_reqs/close_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 17: {:?}", res);
+	assert!(res.is_ok());
+
+	let req = include_str!("data/v3_reqs/change_password.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 17a: {:?}", res);
+	assert!(res.is_ok());
+
+	// 18) trying to open with old password should fail
+	let req = include_str!("data/v3_reqs/open_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 18: {:?}", res);
+	assert!(res.is_err());
+
+	// 19) Open with new password
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "open_wallet",
+		"params": {
+			"name": null,
+			"password": "password"
+		}
+	});
+	let res = send_request_enc::<String>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	println!("RES 19: {:?}", res);
+	assert!(res.is_ok());
+	let token = res.unwrap();
+
+	// 20) Send a request with new token with changed password, ensure balances are still there and
+	// therefore seed is the same
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "retrieve_summary_info",
+		"params": {
+			"token": token,
+			"refresh_from_node": true,
+			"minimum_confirmations": 1
+		}
+	});
+
+	let res = send_request_enc::<RetrieveSummaryInfoResp>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	println!("RES 20: {:?}", res);
+
 	thread::sleep(Duration::from_millis(200));
+	assert_eq!(res.unwrap().1.amount_awaiting_finalization, 6000000000);
+
+	// 21) Delete the wallet (close first)
+	let req = include_str!("data/v3_reqs/close_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	assert!(res.is_ok());
+
+	let req = include_str!("data/v3_reqs/delete_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 21: {:?}", res);
+	assert!(res.is_ok());
+
+	// 22) Wallet should be gone
+	let req = include_str!("data/v3_reqs/open_wallet.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 22: {:?}", res);
+	assert!(res.is_err());
+
 	clean_output_dir(test_dir);
 
 	Ok(())

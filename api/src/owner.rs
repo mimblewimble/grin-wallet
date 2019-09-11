@@ -1565,6 +1565,130 @@ where
 		let lc = w_lock.lc_provider()?;
 		lc.close_wallet(name)
 	}
+
+	/// Return the BIP39 mnemonic for the given wallet. This function will decrypt
+	/// the wallet's seed file with the given password, and thus does not need the
+	/// wallet to be open.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	/// * `password`: The password used to encrypt the seed file.
+	///
+	/// # Returns
+	/// * Ok(BIP-39 mneminc) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	///	let pw = ZeroingString::from("my_password");
+	/// let res = api_owner.get_mnemonic(None, pw);
+	///
+	/// if let Ok(mne) = res {
+	///		// ...
+	/// }
+	/// ```
+	pub fn get_mnemonic(
+		&self,
+		name: Option<&str>,
+		password: ZeroingString,
+	) -> Result<ZeroingString, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.get_mnemonic(name, password)
+	}
+
+	/// Changes a wallet's password, meaning the old seed file is decrypted with the old password,
+	/// and a new seed file is created with the same mnemonic and encrypted with the new password.
+	///
+	/// This function temporarily backs up the old seed file until a test-decryption of the new
+	/// file is confirmed to contain the same seed as the original seed file, at which point the
+	/// backup is deleted. If this operation fails for an unknown reason, the backup file will still
+	/// exist in the wallet's data directory encrypted with the old password.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	/// * `old`: The password used to encrypt the existing seed file (i.e. old password)
+	/// * `new`: The password to be used to encrypt the new seed file
+	///
+	/// # Returns
+	/// * Ok(()) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	///	let old = ZeroingString::from("my_password");
+	///	let new = ZeroingString::from("new_password");
+	/// let res = api_owner.change_password(None, old, new);
+	///
+	/// if let Ok(mne) = res {
+	///		// ...
+	/// }
+	/// ```
+	pub fn change_password(
+		&self,
+		name: Option<&str>,
+		old: ZeroingString,
+		new: ZeroingString,
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.change_password(name, old, new)
+	}
+
+	/// Deletes a wallet, removing the config file, seed file and all data files.
+	/// Obviously, use with extreme caution and plenty of user warning
+	///
+	/// Highly recommended that the wallet be explicitly closed first via the `close_wallet`
+	/// function.
+	///
+	/// # Arguments
+	///
+	/// * `name`: Reserved for future use, use `None` for the time being.
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	///	// Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.delete_wallet(None);
+	///
+	/// if let Ok(_) = res {
+	///		// ...
+	/// }
+	/// ```
+
+	pub fn delete_wallet(&self, name: Option<&str>) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let lc = w_lock.lc_provider()?;
+		lc.delete_wallet(name)
+	}
 }
 
 #[doc(hidden)]
