@@ -45,6 +45,7 @@ fn show_recovery_phrase(phrase: ZeroingString) {
 #[derive(Clone)]
 pub struct GlobalArgs {
 	pub account: String,
+	pub api_secret: Option<String>,
 	pub node_api_secret: Option<String>,
 	pub show_spent: bool,
 	pub chain_type: global::ChainTypes,
@@ -178,7 +179,7 @@ where
 		wallet,
 		km,
 		config.owner_api_listen_addr().as_str(),
-		g_args.node_api_secret.clone(),
+		g_args.api_secret.clone(),
 		g_args.tls_conf.clone(),
 		config.owner_api_include_foreign.clone(),
 	);

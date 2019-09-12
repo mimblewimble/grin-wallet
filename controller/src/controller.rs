@@ -137,6 +137,7 @@ where
 		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(
 			api_basic_auth,
 			&GRIN_OWNER_BASIC_REALM,
+			Some("/v2/foreign".into()),
 		));
 		router.add_middleware(basic_auth_middleware);
 	}

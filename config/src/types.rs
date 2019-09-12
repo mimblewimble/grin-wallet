@@ -65,7 +65,7 @@ impl Default for WalletConfig {
 			api_listen_interface: "127.0.0.1".to_string(),
 			api_listen_port: 3415,
 			owner_api_listen_port: Some(WalletConfig::default_owner_api_listen_port()),
-			api_secret_path: Some(".api_secret".to_string()),
+			api_secret_path: Some(".owner_api_secret".to_string()),
 			node_api_secret_path: Some(".api_secret".to_string()),
 			check_node_api_http_addr: "http://127.0.0.1:3413".to_string(),
 			owner_api_include_foreign: Some(false),

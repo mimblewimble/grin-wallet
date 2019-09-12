@@ -296,7 +296,8 @@ where
 			Some(i) => to_key_u64(OUTPUT_PREFIX, &mut id.to_bytes().to_vec(), *i),
 			None => to_key(OUTPUT_PREFIX, &mut id.to_bytes().to_vec()),
 		};
-		option_to_not_found(self.db.get_ser(&key), &format!("Key Id: {}", id)).map_err(|e| e.into())
+		option_to_not_found(self.db.get_ser(&key), || format!("Key Id: {}", id))
+			.map_err(|e| e.into())
 	}
 
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a> {
@@ -326,10 +327,9 @@ where
 		let (blind_xor_key, nonce_xor_key) =
 			private_ctx_xor_keys(&self.keychain(keychain_mask)?, slate_id)?;
 
-		let mut ctx: Context = option_to_not_found(
-			self.db.get_ser(&ctx_key),
-			&format!("Slate id: {:x?}", slate_id.to_vec()),
-		)?;
+		let mut ctx: Context = option_to_not_found(self.db.get_ser(&ctx_key), || {
+			format!("Slate id: {:x?}", slate_id.to_vec())
+		})?;
 
 		for i in 0..SECRET_KEY_SIZE {
 			ctx.sec_key.0[i] = ctx.sec_key.0[i] ^ blind_xor_key[i];
@@ -485,10 +485,9 @@ where
 			Some(i) => to_key_u64(OUTPUT_PREFIX, &mut id.to_bytes().to_vec(), *i),
 			None => to_key(OUTPUT_PREFIX, &mut id.to_bytes().to_vec()),
 		};
-		option_to_not_found(
-			self.db.borrow().as_ref().unwrap().get_ser(&key),
-			&format!("Key ID: {}", id),
-		)
+		option_to_not_found(self.db.borrow().as_ref().unwrap().get_ser(&key), || {
+			format!("Key ID: {}", id)
+		})
 		.map_err(|e| e.into())
 	}
 
