@@ -119,9 +119,13 @@ where
 		validated = update_outputs(w, keychain_mask, false)?;
 	}
 
+	let mut txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
+
+	update_txs_via_kernel(w, keychain_mask, &mut txs)?;
+
 	Ok((
 		validated,
-		updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?,
+		txs,
 	))
 }
 
@@ -396,7 +400,7 @@ where
 	let mut sl = slate.clone();
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
-	tx::update_stored_tx(&mut *w, &mut sl, false)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &mut sl, false)?;
 	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
@@ -545,4 +549,34 @@ where
 			Ok(false)
 		}
 	}
+}
+
+/// Update transactions that need to be validated via kernel lookup
+fn update_txs_via_kernel<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	txs: &mut Vec<TxLogEntry>,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let parent_key_id = w.parent_key_id();
+	let height = w.w2n_client().get_chain_height()?;
+	for tx in txs.iter_mut() {
+		if let Some(e) = tx.kernel_excess {
+			let res = w.w2n_client().get_kernel(&e, tx.kernel_lookup_min_height, Some(height))?;
+			if let Some(k) = res {
+				debug!("Kernel Retrieved: {:?}", k);
+				let mut batch = w.batch(keychain_mask)?;
+				tx.confirmed = true;
+				tx.update_confirmation_ts();
+				batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+				batch.commit()?;
+			}
+		}
+	}
+	Ok(())
+
 }

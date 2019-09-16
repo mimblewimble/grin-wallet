@@ -18,13 +18,10 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
 use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
 
-use self::core::global;
-use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, OutputStatus, Slate};
+use libwallet::{InitTxArgs, Slate};
 use std::thread;
 use std::time::Duration;
 
@@ -71,14 +68,10 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
-	let mut cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
 
 	// Mine into wallet 1
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 4, false);
-	cm += 4;
 	let fee = core::libtx::tx_fee(1, 1, 1, None);
-
-	println!("Fee: {}", fee);
 
 	// send a single block's worth of transactions with minimal strategy
 	let mut slate = Slate::blank(2);

@@ -111,6 +111,7 @@ where
 {
 	let mut output_commits: HashMap<Identifier, (Option<String>, u64)> = HashMap::new();
 	// Store cached commits before locking wallet
+	let mut total_change = 0;
 	for (id, _, change_amount) in &context.get_outputs() {
 		output_commits.insert(
 			id.clone(),
@@ -119,7 +120,10 @@ where
 				*change_amount,
 			),
 		);
+		total_change += change_amount;
 	}
+
+	debug!("Change amount is: {}", total_change);
 
 	let tx_entry = {
 		let lock_inputs = context.get_inputs().clone();
@@ -134,6 +138,11 @@ where
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = Some(slate.fee);
+		// TODO: Future multi-kernel considerations
+		if total_change == 0 {
+			t.kernel_excess = Some(slate.tx.body.kernels[0].excess);
+			t.kernel_lookup_min_height = Some(slate.height);
+		}
 		let mut amount_debited = 0;
 		t.num_inputs = lock_inputs.len();
 		for id in lock_inputs {

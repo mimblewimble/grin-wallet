@@ -130,7 +130,7 @@ where
 	let mut sl = slate.clone();
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
-	tx::update_stored_tx(&mut *w, &mut sl, true)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &mut sl, true)?;
 	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
