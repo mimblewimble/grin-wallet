@@ -53,7 +53,12 @@ fn get_output_local(chain: &chain::Chain, commit: &pedersen::Commitment) -> Opti
 }
 
 /// Get a kernel from the chain locally
-fn get_kernel_local(chain: Arc<chain::Chain>, excess: &pedersen::Commitment, min_height: Option<u64>, max_height: Option<u64>) -> Option<api::LocatedTxKernel> {
+fn get_kernel_local(
+	chain: Arc<chain::Chain>,
+	excess: &pedersen::Commitment,
+	min_height: Option<u64>,
+	max_height: Option<u64>,
+) -> Option<api::LocatedTxKernel> {
 	chain
 		.get_kernel_height(&excess, min_height, max_height)
 		.unwrap()

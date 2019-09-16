@@ -475,7 +475,7 @@ impl NodeClient for LocalWalletClient {
 		&mut self,
 		excess: &pedersen::Commitment,
 		min_height: Option<u64>,
-		max_height: Option<u64>
+		max_height: Option<u64>,
 	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
 		let mut query = format!("{},", util::to_hex(excess.0.to_vec()));
 		if let Some(h) = min_height {
@@ -503,13 +503,12 @@ impl NodeClient for LocalWalletClient {
 		}
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
-		let res: Option<LocatedTxKernel> = serde_json::from_str(&m.body)
-			.context(libwallet::ErrorKind::ClientCallback(
-				"Get transaction kernels send".to_owned(),
-		))?;
+		let res: Option<LocatedTxKernel> = serde_json::from_str(&m.body).context(
+			libwallet::ErrorKind::ClientCallback("Get transaction kernels send".to_owned()),
+		)?;
 		match res {
 			Some(k) => Ok(Some((k.tx_kernel, k.height, k.mmr_index))),
-			None => Ok(None)
+			None => Ok(None),
 		}
 	}
 

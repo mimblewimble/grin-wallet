@@ -123,10 +123,7 @@ where
 
 	update_txs_via_kernel(w, keychain_mask, &mut txs)?;
 
-	Ok((
-		validated,
-		txs,
-	))
+	Ok((validated, txs))
 }
 
 /// Retrieve summary info
@@ -566,7 +563,9 @@ where
 	let height = w.w2n_client().get_chain_height()?;
 	for tx in txs.iter_mut() {
 		if let Some(e) = tx.kernel_excess {
-			let res = w.w2n_client().get_kernel(&e, tx.kernel_lookup_min_height, Some(height))?;
+			let res = w
+				.w2n_client()
+				.get_kernel(&e, tx.kernel_lookup_min_height, Some(height))?;
 			if let Some(k) = res {
 				debug!("Kernel Retrieved: {:?}", k);
 				let mut batch = w.batch(keychain_mask)?;
@@ -578,5 +577,4 @@ where
 		}
 	}
 	Ok(())
-
 }

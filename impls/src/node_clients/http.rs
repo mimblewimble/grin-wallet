@@ -17,17 +17,17 @@
 
 use futures::{stream, Stream};
 
-use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use crate::api::LocatedTxKernel;
 use crate::core::core::TxKernel;
-use std::collections::HashMap;
+use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use semver::Version;
+use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
 use crate::api;
 use crate::libwallet;
-use crate::util::{self, to_hex};
 use crate::util::secp::pedersen;
+use crate::util::{self, to_hex};
 
 #[derive(Clone)]
 pub struct HTTPNodeClient {

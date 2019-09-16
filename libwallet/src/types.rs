@@ -331,7 +331,7 @@ pub trait NodeClient: Send + Sync + Clone {
 		&mut self,
 		excess: &pedersen::Commitment,
 		min_height: Option<u64>,
-		max_height: Option<u64>
+		max_height: Option<u64>,
 	) -> Result<Option<(TxKernel, u64, u64)>, Error>;
 
 	/// retrieve a list of outputs from the specified grin node
