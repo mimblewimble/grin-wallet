@@ -27,8 +27,8 @@ use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::Signature;
 use crate::grin_util::secp::pedersen::Commitment;
+use crate::grin_util::secp::Signature;
 use crate::grin_util::{self, secp, RwLock};
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
@@ -625,8 +625,8 @@ impl Slate {
 
 	/// return the final excess
 	pub fn calc_excess<K>(&self, keychain: &K) -> Result<Commitment, Error>
-		where
-			K: Keychain,
+	where
+		K: Keychain,
 	{
 		let kernel_offset = &self.tx.offset;
 		let tx = self.tx.clone();

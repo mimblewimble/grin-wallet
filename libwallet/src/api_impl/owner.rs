@@ -563,9 +563,7 @@ where
 	let parent_key_id = w.parent_key_id();
 	let height = match w.w2n_client().get_chain_height() {
 		Ok(h) => h,
-		Err(_) => {
-			return Ok(false)
-		}
+		Err(_) => return Ok(false),
 	};
 	for tx in txs.iter_mut() {
 		if tx.confirmed {
@@ -577,9 +575,7 @@ where
 				.get_kernel(&e, tx.kernel_lookup_min_height, Some(height));
 			let kernel = match res {
 				Ok(k) => k,
-				Err(_) => {
-					return Ok(false)
-				}
+				Err(_) => return Ok(false),
 			};
 			if let Some(k) = kernel {
 				debug!("Kernel Retrieved: {:?}", k);
