@@ -125,6 +125,8 @@ where
 
 	debug!("Change amount is: {}", total_change);
 
+	let keychain = wallet.keychain(keychain_mask)?;
+
 	let tx_entry = {
 		let lock_inputs = context.get_inputs().clone();
 		let messages = Some(slate.participant_messages());
@@ -140,7 +142,7 @@ where
 		t.fee = Some(slate.fee);
 		// TODO: Future multi-kernel considerations
 		if total_change == 0 {
-			t.kernel_excess = Some(slate.tx.body.kernels[0].excess);
+			t.kernel_excess = Some(slate.calc_excess(&keychain)?);
 			t.kernel_lookup_min_height = Some(slate.height);
 		}
 		let mut amount_debited = 0;

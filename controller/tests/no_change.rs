@@ -21,7 +21,7 @@ use grin_wallet_util::grin_core as core;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, Slate};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
 use std::thread;
 use std::time::Duration;
 
@@ -100,6 +100,55 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let tx = txs[0].clone();
 		println!("{:?}", tx);
 		assert!(tx.confirmed);
+		Ok(())
+	})?;
+
+	// ensure invoice TX works as well with no change
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+		// Wallet 2 inititates an invoice transaction, requesting payment
+		let args = IssueInvoiceTxArgs {
+			amount: reward - fee,
+			..Default::default()
+		};
+		slate = api.issue_invoice_tx(m, args)?;
+		Ok(())
+	})?;
+
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+		// Wallet 1 receives the invoice transaction
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: slate.amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: false,
+			..Default::default()
+		};
+		slate = api.process_invoice_tx(m, &slate, args)?;
+		api.tx_lock_outputs(m, &slate, 0)?;
+		Ok(())
+	})?;
+
+	// wallet 2 finalizes and posts
+	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
+		// Wallet 2 receives the invoice transaction
+		slate = api.finalize_invoice_tx(&slate)?;
+		Ok(())
+	})?;
+	wallet::controller::owner_single_use(wallet2.clone(), mask1, |api, m| {
+		api.post_tx(m, &slate.tx, false)?;
+		Ok(())
+	})?;
+
+	// Refresh and check transaction log for wallet 1
+	wallet::controller::owner_single_use(wallet1.clone(), mask2, |api, m| {
+		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
+		assert!(refreshed);
+		for tx in txs {
+			println!("{:?}", tx);
+			assert!(tx.confirmed);
+		}
 		Ok(())
 	})?;
 
