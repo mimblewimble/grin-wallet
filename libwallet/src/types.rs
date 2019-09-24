@@ -325,6 +325,15 @@ pub trait NodeClient: Send + Sync + Clone {
 	/// retrieves the current tip from the specified grin node
 	fn get_chain_height(&self) -> Result<u64, Error>;
 
+	/// Get a kernel and the height of the block it's included in. Returns
+	/// (tx_kernel, height, mmr_index)
+	fn get_kernel(
+		&mut self,
+		excess: &pedersen::Commitment,
+		min_height: Option<u64>,
+		max_height: Option<u64>,
+	) -> Result<Option<(TxKernel, u64, u64)>, Error>;
+
 	/// retrieve a list of outputs from the specified grin node
 	/// need "by_height" and "by_id" variants
 	fn get_outputs_from_node(
@@ -748,6 +757,11 @@ pub struct TxLogEntry {
 	pub messages: Option<ParticipantMessages>,
 	/// Location of the store transaction, (reference or resending)
 	pub stored_tx: Option<String>,
+	/// Associated kernel excess, for later lookup if necessary
+	pub kernel_excess: Option<pedersen::Commitment>,
+	/// Height reported when transaction was created, if lookup
+	/// of kernel is necessary
+	pub kernel_lookup_min_height: Option<u64>,
 }
 
 impl ser::Writeable for TxLogEntry {
@@ -781,6 +795,8 @@ impl TxLogEntry {
 			fee: None,
 			messages: None,
 			stored_tx: None,
+			kernel_excess: None,
+			kernel_lookup_min_height: None,
 		}
 	}
 

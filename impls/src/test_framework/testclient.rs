@@ -16,11 +16,11 @@
 //! so that wallet API can be fully exercised
 //! Operates directly on a chain instance
 
-use crate::api;
+use crate::api::{self, LocatedTxKernel};
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
 use crate::core::core::verifier_cache::LruVerifierCache;
-use crate::core::core::Transaction;
+use crate::core::core::{Transaction, TxKernel};
 use crate::core::global::{set_mining_mode, ChainTypes};
 use crate::core::{pow, ser};
 use crate::keychain::Keychain;
@@ -151,6 +151,7 @@ where
 				"get_outputs_by_pmmr_index" => self.get_outputs_by_pmmr_index(m)?,
 				"send_tx_slate" => self.send_tx_slate(m)?,
 				"post_tx" => self.post_tx(m)?,
+				"get_kernel" => self.get_kernel(m)?,
 				_ => panic!("Unknown Wallet Proxy Message"),
 			};
 
@@ -297,6 +298,26 @@ where
 			dest: m.sender_id,
 			method: m.method,
 			body: serde_json::to_string(&ol).unwrap(),
+		})
+	}
+
+	/// get kernel
+	fn get_kernel(
+		&mut self,
+		m: WalletProxyMessage,
+	) -> Result<WalletProxyMessage, libwallet::Error> {
+		let split = m.body.split(",").collect::<Vec<&str>>();
+		let excess = split[0].parse::<String>().unwrap();
+		let min = split[1].parse::<u64>().unwrap();
+		let max = split[2].parse::<u64>().unwrap();
+		let commit_bytes = util::from_hex(excess).unwrap();
+		let commit = pedersen::Commitment::from_vec(commit_bytes);
+		let k = super::get_kernel_local(self.chain.clone(), &commit, Some(min), Some(max));
+		Ok(WalletProxyMessage {
+			sender_id: "node".to_owned(),
+			dest: m.sender_id,
+			method: m.method,
+			body: serde_json::to_string(&k).unwrap(),
 		})
 	}
 }
@@ -448,6 +469,47 @@ impl NodeClient for LocalWalletClient {
 			);
 		}
 		Ok(api_outputs)
+	}
+
+	fn get_kernel(
+		&mut self,
+		excess: &pedersen::Commitment,
+		min_height: Option<u64>,
+		max_height: Option<u64>,
+	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
+		let mut query = format!("{},", util::to_hex(excess.0.to_vec()));
+		if let Some(h) = min_height {
+			query += &format!("{},", h);
+		} else {
+			query += "0,"
+		}
+		if let Some(h) = max_height {
+			query += &format!("{}", h);
+		} else {
+			query += "0"
+		}
+
+		let m = WalletProxyMessage {
+			sender_id: self.id.clone(),
+			dest: self.node_url().to_owned(),
+			method: "get_kernel".to_owned(),
+			body: query,
+		};
+		{
+			let p = self.proxy_tx.lock();
+			p.send(m).context(libwallet::ErrorKind::ClientCallback(
+				"Get outputs from node by PMMR index send".to_owned(),
+			))?;
+		}
+		let r = self.rx.lock();
+		let m = r.recv().unwrap();
+		let res: Option<LocatedTxKernel> = serde_json::from_str(&m.body).context(
+			libwallet::ErrorKind::ClientCallback("Get transaction kernels send".to_owned()),
+		)?;
+		match res {
+			Some(k) => Ok(Some((k.tx_kernel, k.height, k.mmr_index))),
+			None => Ok(None),
+		}
 	}
 
 	fn get_outputs_by_pmmr_index(

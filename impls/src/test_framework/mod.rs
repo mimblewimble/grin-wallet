@@ -52,6 +52,23 @@ fn get_output_local(chain: &chain::Chain, commit: &pedersen::Commitment) -> Opti
 	None
 }
 
+/// Get a kernel from the chain locally
+fn get_kernel_local(
+	chain: Arc<chain::Chain>,
+	excess: &pedersen::Commitment,
+	min_height: Option<u64>,
+	max_height: Option<u64>,
+) -> Option<api::LocatedTxKernel> {
+	chain
+		.get_kernel_height(&excess, min_height, max_height)
+		.unwrap()
+		.map(|(tx_kernel, height, mmr_index)| api::LocatedTxKernel {
+			tx_kernel,
+			height,
+			mmr_index,
+		})
+}
+
 /// get output listing traversing pmmr from local
 fn get_outputs_by_pmmr_index_local(
 	chain: Arc<chain::Chain>,

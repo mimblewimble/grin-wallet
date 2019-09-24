@@ -119,10 +119,13 @@ where
 		validated = update_outputs(w, keychain_mask, false)?;
 	}
 
-	Ok((
-		validated,
-		updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?,
-	))
+	let mut txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
+
+	if refresh_from_node {
+		validated = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
+	}
+
+	Ok((validated, txs))
 }
 
 /// Retrieve summary info
@@ -274,7 +277,6 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		println!("Saving private context: {:?}", slate.id.as_bytes());
 		batch.save_private_context(slate.id.as_bytes(), 1, &context)?;
 		batch.commit()?;
 	}
@@ -396,7 +398,7 @@ where
 	let mut sl = slate.clone();
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
-	tx::update_stored_tx(&mut *w, &mut sl, false)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &mut sl, false)?;
 	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
@@ -545,4 +547,45 @@ where
 			Ok(false)
 		}
 	}
+}
+
+/// Update transactions that need to be validated via kernel lookup
+fn update_txs_via_kernel<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	txs: &mut Vec<TxLogEntry>,
+) -> Result<bool, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let parent_key_id = w.parent_key_id();
+	let height = match w.w2n_client().get_chain_height() {
+		Ok(h) => h,
+		Err(_) => return Ok(false),
+	};
+	for tx in txs.iter_mut() {
+		if tx.confirmed {
+			continue;
+		}
+		if let Some(e) = tx.kernel_excess {
+			let res = w
+				.w2n_client()
+				.get_kernel(&e, tx.kernel_lookup_min_height, Some(height));
+			let kernel = match res {
+				Ok(k) => k,
+				Err(_) => return Ok(false),
+			};
+			if let Some(k) = kernel {
+				debug!("Kernel Retrieved: {:?}", k);
+				let mut batch = w.batch(keychain_mask)?;
+				tx.confirmed = true;
+				tx.update_confirmation_ts();
+				batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+				batch.commit()?;
+			}
+		}
+	}
+	Ok(true)
 }

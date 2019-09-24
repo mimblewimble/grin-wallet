@@ -27,6 +27,7 @@ use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{self, secp, RwLock};
 use failure::ResultExt;
@@ -622,6 +623,25 @@ impl Slate {
 		Ok(final_sig)
 	}
 
+	/// return the final excess
+	pub fn calc_excess<K>(&self, keychain: &K) -> Result<Commitment, Error>
+	where
+		K: Keychain,
+	{
+		let kernel_offset = &self.tx.offset;
+		let tx = self.tx.clone();
+		let overage = tx.fee() as i64;
+		let tx_excess = tx.sum_commitments(overage)?;
+
+		// subtract the kernel_excess (built from kernel_offset)
+		let offset_excess = keychain
+			.secp()
+			.commit(0, kernel_offset.secret_key(&keychain.secp())?)?;
+		Ok(keychain
+			.secp()
+			.commit_sum(vec![tx_excess], vec![offset_excess])?)
+	}
+
 	/// builds a final transaction after the aggregated sig exchange
 	fn finalize_transaction<K>(
 		&mut self,
@@ -631,26 +651,13 @@ impl Slate {
 	where
 		K: Keychain,
 	{
-		let kernel_offset = &self.tx.offset;
-
 		self.check_fees()?;
+		// build the final excess based on final tx and offset
+		let final_excess = self.calc_excess(keychain)?;
+
+		debug!("Final Tx excess: {:?}", final_excess);
 
 		let mut final_tx = self.tx.clone();
-
-		// build the final excess based on final tx and offset
-		let final_excess = {
-			// sum the input/output commitments on the final tx
-			let overage = final_tx.fee() as i64;
-			let tx_excess = final_tx.sum_commitments(overage)?;
-
-			// subtract the kernel_excess (built from kernel_offset)
-			let offset_excess = keychain
-				.secp()
-				.commit(0, kernel_offset.secret_key(&keychain.secp())?)?;
-			keychain
-				.secp()
-				.commit_sum(vec![tx_excess], vec![offset_excess])?
-		};
 
 		// update the tx kernel to reflect the offset excess and sig
 		assert_eq!(final_tx.kernels().len(), 1);

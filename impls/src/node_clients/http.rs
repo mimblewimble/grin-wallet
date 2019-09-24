@@ -17,14 +17,17 @@
 
 use futures::{stream, Stream};
 
+use crate::api::LocatedTxKernel;
+use crate::core::core::TxKernel;
 use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
+use semver::Version;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
 use crate::api;
 use crate::libwallet;
-use crate::util;
 use crate::util::secp::pedersen;
+use crate::util::{self, to_hex};
 
 #[derive(Clone)]
 pub struct HTTPNodeClient {
@@ -125,6 +128,55 @@ impl NodeClient for HTTPNodeClient {
 			}
 			Ok(r) => Ok(r.height),
 		}
+	}
+
+	/// Get kernel implementation
+	fn get_kernel(
+		&mut self,
+		excess: &pedersen::Commitment,
+		min_height: Option<u64>,
+		max_height: Option<u64>,
+	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
+		let version = self
+			.get_version_info()
+			.ok_or(libwallet::ErrorKind::ClientCallback(
+				"Unable to get version".into(),
+			))?;
+		let version = Version::parse(&version.node_version)
+			.map_err(|_| libwallet::ErrorKind::ClientCallback("Unable to parse version".into()))?;
+		if version <= Version::new(2, 0, 0) {
+			return Err(libwallet::ErrorKind::ClientCallback(
+				"Kernel lookup not supported by node, please upgrade it".into(),
+			)
+			.into());
+		}
+
+		let mut query = String::new();
+		if let Some(h) = min_height {
+			query += &format!("min_height={}", h);
+		}
+		if let Some(h) = max_height {
+			if query.len() > 0 {
+				query += "&";
+			}
+			query += &format!("max_height={}", h);
+		}
+		if query.len() > 0 {
+			query.insert_str(0, "?");
+		}
+
+		let url = format!(
+			"{}/v1/chain/kernels/{}{}",
+			self.node_url(),
+			to_hex(excess.0.to_vec()),
+			query
+		);
+		let res: Option<LocatedTxKernel> = api::client::get(url.as_str(), self.node_api_secret())
+			.map_err(|e| {
+			libwallet::ErrorKind::ClientCallback(format!("Kernel lookup: {}", e))
+		})?;
+
+		Ok(res.map(|k| (k.tx_kernel, k.height, k.mmr_index)))
 	}
 
 	/// Retrieve outputs from node
