@@ -185,10 +185,9 @@ where
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx_bin".to_owned()),
 		)?;
 
-		let tx: Transaction = ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion::local())
-			.context(libwallet::ErrorKind::ClientCallback(
-				"Error parsing TxWrapper: tx".to_owned(),
-			))?;
+		let tx: Transaction = ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion(1)).context(
+			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx".to_owned()),
+		)?;
 
 		super::award_block_to_wallet(
 			&self.chain,
