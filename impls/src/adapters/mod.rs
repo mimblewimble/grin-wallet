@@ -14,14 +14,13 @@
 
 mod file;
 pub mod http;
-pub mod socks;
 mod keybase;
-
+pub mod socks;
 
 pub use self::file::PathToSlate;
 pub use self::http::{HttpSlateSender, SchemeNotHttp};
-pub use self::socks::SocksSlateSender;
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
+pub use self::socks::SocksSlateSender;
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
@@ -62,7 +61,6 @@ pub trait SlateGetter {
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs
 pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, Error> {
-
 	let invalid = || {
 		ErrorKind::WalletComms(format!(
 			"Invalid wallet comm type and destination. method: {}, dest: {}",
@@ -74,9 +72,7 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 			let url: Url = dest.parse().map_err(|_| invalid())?;
 			Box::new(HttpSlateSender::new(url).map_err(|_| invalid())?)
 		}
-		"tor" => {
-			Box::new(SocksSlateSender::new(dest))
-		}
+		"tor" => Box::new(SocksSlateSender::new(dest)),
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
 			return Err(ErrorKind::WalletComms(

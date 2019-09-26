@@ -44,14 +44,13 @@ use common::{
 	RetrieveSummaryInfoResp,
 };
 
-// Development testing helper for tor/socks investigation. 
+// Development testing helper for tor/socks investigation.
 // Not (yet) to be run as part of automated testing
 
-fn setup_no_clean(){
+fn setup_no_clean() {
 	util::init_test_logger();
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 }
-
 
 #[test]
 fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
@@ -72,7 +71,7 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	//
 	// tor -f torrc
 
-	let onion_address="tuyadexmtd5houbmysg5qqctor43npeqmeibwmrml55spidwudi4egid.onion";
+	let onion_address = "tuyadexmtd5houbmysg5qqctor43npeqmeibwmrml55spidwudi4egid.onion";
 
 	// run the foreign listener for wallet 2
 	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-l", "53415"];
@@ -107,6 +106,5 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-	
 	Ok(())
 }

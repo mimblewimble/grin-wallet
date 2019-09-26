@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::config::WalletConfig;
 use crate::core::core::Transaction;
 use crate::core::global;
-use crate::impls::{create_sender};
+use crate::impls::create_sender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner;
 use crate::libwallet::{

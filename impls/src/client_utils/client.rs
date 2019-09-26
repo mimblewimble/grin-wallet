@@ -14,23 +14,23 @@
 
 //! High level JSON/HTTP client API
 
+use crate::client_utils::Socksv5Connector;
 use crate::util::to_base64;
 use failure::{Backtrace, Context, Fail, ResultExt};
 use futures::future::{err, ok, Either};
 use futures::stream::Stream;
-use std::fmt::{self, Display};
 use http::uri::{InvalidUri, Uri};
 use hyper::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
-use hyper::rt::{Future};
+use hyper::rt::Future;
 use hyper::{self, Body, Request};
 use hyper_rustls;
 use hyper_timeout::TimeoutConnector;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::fmt::{self, Display};
+use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::runtime::Runtime;
-use std::net::SocketAddr;
-use crate::client_utils::Socksv5Connector;
 
 /// Errors that can be returned by an ApiEndpoint implementation.
 #[derive(Debug)]
@@ -98,7 +98,6 @@ pub struct Client {
 }
 
 impl Client {
-
 	/// New client
 	pub fn new() -> Self {
 		Client {
@@ -120,7 +119,11 @@ impl Client {
 	/// Helper function to easily issue an async HTTP GET request against a given
 	/// URL that returns a future. Handles request building, JSON deserialization
 	/// and response code checking.
-	pub fn get_async<'a, T>(&self, url: &'a str, api_secret: Option<String>) -> ClientResponseFuture<T>
+	pub fn get_async<'a, T>(
+		&self,
+		url: &'a str,
+		api_secret: Option<String>,
+	) -> ClientResponseFuture<T>
 	where
 		for<'de> T: Deserialize<'de> + Send + 'static,
 	{
@@ -143,7 +146,12 @@ impl Client {
 	/// object as body on a given URL that returns a JSON object. Handles request
 	/// building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn post<IN, OUT>(&self, url: &str, api_secret: Option<String>, input: &IN) -> Result<OUT, Error>
+	pub fn post<IN, OUT>(
+		&self,
+		url: &str,
+		api_secret: Option<String>,
+		input: &IN,
+	) -> Result<OUT, Error>
 	where
 		IN: Serialize,
 		for<'de> OUT: Deserialize<'de>,
@@ -177,7 +185,12 @@ impl Client {
 	/// object as body on a given URL that returns nothing. Handles request
 	/// building, JSON serialization, and response code
 	/// checking.
-	pub fn post_no_ret<IN>(&self, url: &str, api_secret: Option<String>, input: &IN) -> Result<(), Error>
+	pub fn post_no_ret<IN>(
+		&self,
+		url: &str,
+		api_secret: Option<String>,
+		input: &IN,
+	) -> Result<(), Error>
 	where
 		IN: Serialize,
 	{
@@ -275,9 +288,12 @@ impl Client {
 		}))
 	}
 
-	fn send_request_async(&self, req: Request<Body>) -> Box<dyn Future<Item = String, Error = Error> + Send> {
-		 //TODO: redundant code, enjoy figuring out type params for dynamic dispatch of client
-		 match self.use_socks {
+	fn send_request_async(
+		&self,
+		req: Request<Body>,
+	) -> Box<dyn Future<Item = String, Error = Error> + Send> {
+		//TODO: redundant code, enjoy figuring out type params for dynamic dispatch of client
+		match self.use_socks {
 			false => {
 				let https = hyper_rustls::HttpsConnector::new(1);
 				let mut connector = TimeoutConnector::new(https);
@@ -288,7 +304,9 @@ impl Client {
 				Box::new(
 					client
 						.request(req)
-						.map_err(|e| ErrorKind::RequestError(format!("Cannot make request: {}", e)).into())
+						.map_err(|e| {
+							ErrorKind::RequestError(format!("Cannot make request: {}", e)).into()
+						})
 						.and_then(|resp| {
 							if !resp.status().is_success() {
 								Either::A(err(ErrorKind::RequestError(format!(
@@ -301,16 +319,21 @@ impl Client {
 								Either::B(
 									resp.into_body()
 										.map_err(|e| {
-											ErrorKind::RequestError(format!("Cannot read response body: {}", e))
-												.into()
+											ErrorKind::RequestError(format!(
+												"Cannot read response body: {}",
+												e
+											))
+											.into()
 										})
 										.concat2()
-										.and_then(|ch| ok(String::from_utf8_lossy(&ch.to_vec()).to_string())),
+										.and_then(|ch| {
+											ok(String::from_utf8_lossy(&ch.to_vec()).to_string())
+										}),
 								)
 							}
 						}),
 				)
-			},
+			}
 			true => {
 				//TODO: unwrap
 				let client = hyper::Client::builder()
@@ -318,7 +341,9 @@ impl Client {
 				Box::new(
 					client
 						.request(req)
-						.map_err(|e| ErrorKind::RequestError(format!("Cannot make request: {}", e)).into())
+						.map_err(|e| {
+							ErrorKind::RequestError(format!("Cannot make request: {}", e)).into()
+						})
 						.and_then(|resp| {
 							if !resp.status().is_success() {
 								Either::A(err(ErrorKind::RequestError(format!(
@@ -331,18 +356,22 @@ impl Client {
 								Either::B(
 									resp.into_body()
 										.map_err(|e| {
-											ErrorKind::RequestError(format!("Cannot read response body: {}", e))
-												.into()
+											ErrorKind::RequestError(format!(
+												"Cannot read response body: {}",
+												e
+											))
+											.into()
 										})
 										.concat2()
-										.and_then(|ch| ok(String::from_utf8_lossy(&ch.to_vec()).to_string())),
+										.and_then(|ch| {
+											ok(String::from_utf8_lossy(&ch.to_vec()).to_string())
+										}),
 								)
 							}
 						}),
 				)
 			}
 		}
-
 	}
 
 	pub fn send_request(&self, req: Request<Body>) -> Result<String, Error> {

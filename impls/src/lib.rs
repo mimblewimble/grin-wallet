@@ -34,15 +34,15 @@ use grin_wallet_config as config;
 
 mod adapters;
 mod backends;
+mod client_utils;
 mod error;
 mod lifecycle;
 mod node_clients;
-mod client_utils;
 pub mod test_framework;
 
 pub use crate::adapters::{
-	create_sender, HttpSlateSender, SocksSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,
-	SlatePutter, SlateReceiver, SlateSender,
+	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,
+	SlatePutter, SlateReceiver, SlateSender, SocksSlateSender,
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};

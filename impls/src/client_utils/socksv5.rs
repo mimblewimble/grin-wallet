@@ -40,41 +40,41 @@ use futures::{Future, IntoFuture};
 //use native_tls::TlsConnector;
 use std::io::{self, Error, ErrorKind, Write};
 use std::net::SocketAddr;
-use tokio_tcp::TcpStream;
 use tokio_core::reactor::Handle;
 use tokio_io::io::{read_exact, write_all};
+use tokio_tcp::TcpStream;
 //use tokio_tls::TlsConnectorExt;
 use hyper::client::connect::{Connect, Connected, Destination};
 
 pub struct Socksv5Connector {
-		proxy_addr: SocketAddr,
-		creds: Option<(Vec<u8>, Vec<u8>)>,
+	proxy_addr: SocketAddr,
+	creds: Option<(Vec<u8>, Vec<u8>)>,
 }
 
 impl Socksv5Connector {
-		pub fn new(proxy_addr: SocketAddr) -> Socksv5Connector {
-				Socksv5Connector {
-						proxy_addr,
-						creds: None,
-				}
+	pub fn new(proxy_addr: SocketAddr) -> Socksv5Connector {
+		Socksv5Connector {
+			proxy_addr,
+			creds: None,
 		}
+	}
 
-		pub fn new_with_creds<T: Into<Vec<u8>>>(
-				handle: &Handle,
-				proxy_addr: SocketAddr,
-				creds: (T, T),
-		) -> io::Result<Socksv5Connector> {
-				let username = creds.0.into();
-				let password = creds.1.into();
-				if username.len() > 255 || password.len() > 255 {
-						Err(Error::new(ErrorKind::Other, "invalid credentials"))
-				} else {
-						Ok(Socksv5Connector {
-								proxy_addr,
-								creds: Some((username, password)),
-						})
-				}
+	pub fn new_with_creds<T: Into<Vec<u8>>>(
+		handle: &Handle,
+		proxy_addr: SocketAddr,
+		creds: (T, T),
+	) -> io::Result<Socksv5Connector> {
+		let username = creds.0.into();
+		let password = creds.1.into();
+		if username.len() > 255 || password.len() > 255 {
+			Err(Error::new(ErrorKind::Other, "invalid credentials"))
+		} else {
+			Ok(Socksv5Connector {
+				proxy_addr,
+				creds: Some((username, password)),
+			})
 		}
+	}
 }
 
 impl Connect for Socksv5Connector {
@@ -110,178 +110,179 @@ type HandshakeFutureConnected<T> = Box<dyn Future<Item = (T, Connected), Error =
 type HandshakeFuture<T> = Box<dyn Future<Item = T, Error = Error> + Send>;
 
 fn auth_negotiation(
-		socket: TcpStream,
-		creds: Option<(Vec<u8>, Vec<u8>)>,
+	socket: TcpStream,
+	creds: Option<(Vec<u8>, Vec<u8>)>,
 ) -> HandshakeFuture<TcpStream> {
-		let (username, password) = creds.unwrap();
-		let mut creds_msg: Vec<u8> = Vec::with_capacity(username.len() + password.len() + 3);
-		creds_msg.push(1);
-		creds_msg.push(username.len() as u8);
-		creds_msg.extend_from_slice(&username);
-		creds_msg.push(password.len() as u8);
-		creds_msg.extend_from_slice(&password);
-		Box::new(
-			write_all(socket, creds_msg)
-				.and_then(|(socket, _)| read_exact(socket, [0; 2]))
-				.and_then(|(socket, resp)| {
-					if resp[0] == 1 && resp[1] == 0 {
-						Ok(socket)
-					} else {
-						Err(Error::new(ErrorKind::InvalidData, "unauthorized"))
-					}
-				}),
-		)
+	let (username, password) = creds.unwrap();
+	let mut creds_msg: Vec<u8> = Vec::with_capacity(username.len() + password.len() + 3);
+	creds_msg.push(1);
+	creds_msg.push(username.len() as u8);
+	creds_msg.extend_from_slice(&username);
+	creds_msg.push(password.len() as u8);
+	creds_msg.extend_from_slice(&password);
+	Box::new(
+		write_all(socket, creds_msg)
+			.and_then(|(socket, _)| read_exact(socket, [0; 2]))
+			.and_then(|(socket, resp)| {
+				if resp[0] == 1 && resp[1] == 0 {
+					Ok(socket)
+				} else {
+					Err(Error::new(ErrorKind::InvalidData, "unauthorized"))
+				}
+			}),
+	)
 }
 
 fn answer_hello(
-		socket: TcpStream,
-		response: [u8; 2],
-		creds: Option<(Vec<u8>, Vec<u8>)>,
+	socket: TcpStream,
+	response: [u8; 2],
+	creds: Option<(Vec<u8>, Vec<u8>)>,
 ) -> HandshakeFuture<TcpStream> {
-		if response[0] == 5 && response[1] == 0 {
-				error!("ANSWERING HELLO");
-				Box::new(write_all(socket, [5, 1, 0]).map(|(socket, _)| socket))
-		} else if response[0] == 5 && response[1] == 2 && creds.is_some() {
-			Box::new(
-					auth_negotiation(socket, creds)
-							.and_then(|socket| write_all(socket, [5, 1, 0]).map(|(socket, _)| socket)))
-		} else {
-				Box::new(
-						Err(Error::new(
-								ErrorKind::InvalidData,
-								"wrong response from socks server",
-						))
-						.into_future(),
-				)
-		}
+	if response[0] == 5 && response[1] == 0 {
+		error!("ANSWERING HELLO");
+		Box::new(write_all(socket, [5, 1, 0]).map(|(socket, _)| socket))
+	} else if response[0] == 5 && response[1] == 2 && creds.is_some() {
+		Box::new(
+			auth_negotiation(socket, creds)
+				.and_then(|socket| write_all(socket, [5, 1, 0]).map(|(socket, _)| socket)),
+		)
+	} else {
+		Box::new(
+			Err(Error::new(
+				ErrorKind::InvalidData,
+				"wrong response from socks server",
+			))
+			.into_future(),
+		)
+	}
 }
 
 fn write_addr(socket: TcpStream, req: Destination) -> HandshakeFuture<TcpStream> {
-		error!("WRITE ADDR");
-		let host = req.host();
-		if host.len() > u8::max_value() as usize {
-				return Box::new(Err(Error::new(ErrorKind::InvalidInput, "Host too long")).into_future());
+	error!("WRITE ADDR");
+	let host = req.host();
+	if host.len() > u8::max_value() as usize {
+		return Box::new(Err(Error::new(ErrorKind::InvalidInput, "Host too long")).into_future());
+	}
+
+	let port = match req.port() {
+		Some(port) => port,
+		_ if req.scheme() == "https" => 443,
+		_ if req.scheme() == "http" => 80,
+		_ => {
+			return Box::new(
+				Err(Error::new(
+					ErrorKind::InvalidInput,
+					"Supports only http/https",
+				))
+				.into_future(),
+			)
 		}
+	};
 
-		let port = match req.port() {
-				Some(port) => port,
-				_ if req.scheme() == "https" => 443,
-				_ if req.scheme() == "http" => 80,
-				_ => {
-						return Box::new(
-								Err(Error::new(
-										ErrorKind::InvalidInput,
-										"Supports only http/https",
-								))
-								.into_future(),
-						)
-				}
-		};
+	let mut packet = Vec::new();
+	packet.write_u8(5).unwrap();
+	packet.write_u8(1).unwrap();
+	packet.write_u8(0).unwrap();
 
-		let mut packet = Vec::new();
-		packet.write_u8(5).unwrap();
-		packet.write_u8(1).unwrap();
-		packet.write_u8(0).unwrap();
+	packet.write_u8(3).unwrap();
+	error!("Writing host: {}, len: {}", host, host.as_bytes().len());
+	packet.write_u8(host.as_bytes().len() as u8).unwrap();
+	packet.write_all(host.as_bytes()).unwrap();
+	error!("Writing port: {}", port);
+	packet.write_u16::<BigEndian>(port).unwrap();
+	error!("Packet Length: {}", packet.len());
 
-		packet.write_u8(3).unwrap();
-		error!("Writing host: {}, len: {}", host, host.as_bytes().len());
-		packet.write_u8(host.as_bytes().len() as u8).unwrap();
-		packet.write_all(host.as_bytes()).unwrap();
-		error!("Writing port: {}", port);
-		packet.write_u16::<BigEndian>(port).unwrap();
-		error!("Packet Length: {}", packet.len());
-
-		Box::new(write_all(socket, packet).map(|(socket, p)| {
-			error!("Packet was: {:?}, len: {}", p, p.len());
-			socket
-		}))
+	Box::new(write_all(socket, packet).map(|(socket, p)| {
+		error!("Packet was: {:?}, len: {}", p, p.len());
+		socket
+	}))
 }
 
 fn read_response(socket: TcpStream, response: [u8; 3]) -> HandshakeFuture<TcpStream> {
-		error!("Response: {:?}", response);
-		if response[0] != 5 {
-				return Box::new(Err(Error::new(ErrorKind::Other, "invalid version")).into_future());
+	error!("Response: {:?}", response);
+	if response[0] != 5 {
+		return Box::new(Err(Error::new(ErrorKind::Other, "invalid version")).into_future());
+	}
+	match response[1] {
+		0 => {}
+		1 => {
+			return Box::new(
+				Err(Error::new(ErrorKind::Other, "general SOCKS server failure")).into_future(),
+			)
 		}
-		match response[1] {
-				0 => {}
-				1 => {
-						return Box::new(
-								Err(Error::new(ErrorKind::Other, "general SOCKS server failure")).into_future(),
-						)
-				}
-				2 => {
-						return Box::new(
-								Err(Error::new(
-										ErrorKind::Other,
-										"connection not allowed by ruleset",
-								))
-								.into_future(),
-						)
-				}
-				3 => {
-						return Box::new(Err(Error::new(ErrorKind::Other, "network unreachable")).into_future())
-				}
-				4 => return Box::new(Err(Error::new(ErrorKind::Other, "host unreachable")).into_future()),
-				5 => {
-						return Box::new(Err(Error::new(ErrorKind::Other, "connection refused")).into_future())
-				}
-				6 => return Box::new(Err(Error::new(ErrorKind::Other, "TTL expired")).into_future()),
-				7 => {
-						return Box::new(
-								Err(Error::new(ErrorKind::Other, "command not supported")).into_future(),
-						)
-				}
-				8 => {
-						return Box::new(
-								Err(Error::new(ErrorKind::Other, "address kind not supported")).into_future(),
-						)
-				}
-				_ => return Box::new(Err(Error::new(ErrorKind::Other, "unknown error")).into_future()),
-		};
-
-		if response[2] != 0 {
-				return Box::new(
-						Err(Error::new(ErrorKind::InvalidData, "invalid reserved byt")).into_future(),
-				);
+		2 => {
+			return Box::new(
+				Err(Error::new(
+					ErrorKind::Other,
+					"connection not allowed by ruleset",
+				))
+				.into_future(),
+			)
 		}
+		3 => {
+			return Box::new(Err(Error::new(ErrorKind::Other, "network unreachable")).into_future())
+		}
+		4 => return Box::new(Err(Error::new(ErrorKind::Other, "host unreachable")).into_future()),
+		5 => {
+			return Box::new(Err(Error::new(ErrorKind::Other, "connection refused")).into_future())
+		}
+		6 => return Box::new(Err(Error::new(ErrorKind::Other, "TTL expired")).into_future()),
+		7 => {
+			return Box::new(
+				Err(Error::new(ErrorKind::Other, "command not supported")).into_future(),
+			)
+		}
+		8 => {
+			return Box::new(
+				Err(Error::new(ErrorKind::Other, "address kind not supported")).into_future(),
+			)
+		}
+		_ => return Box::new(Err(Error::new(ErrorKind::Other, "unknown error")).into_future()),
+	};
 
-		Box::new(
-				read_exact(socket, [0; 1])
-						.and_then(|(socket, response)| match response[0] {
-								1 => read_exact(socket, [0; 6]),
-								_ => unimplemented!(),
-						})
-						.map(|(socket, _)| socket),
-		)
+	if response[2] != 0 {
+		return Box::new(
+			Err(Error::new(ErrorKind::InvalidData, "invalid reserved byt")).into_future(),
+		);
+	}
+
+	Box::new(
+		read_exact(socket, [0; 1])
+			.and_then(|(socket, response)| match response[0] {
+				1 => read_exact(socket, [0; 6]),
+				_ => unimplemented!(),
+			})
+			.map(|(socket, _)| socket),
+	)
 }
 
 fn do_handshake(
-		socket: TcpStream,
-		req: Destination,
-		creds: Option<(Vec<u8>, Vec<u8>)>,
+	socket: TcpStream,
+	req: Destination,
+	creds: Option<(Vec<u8>, Vec<u8>)>,
 ) -> HandshakeFutureConnected<TcpStream> {
-		error!("DOING HANDSHAKE");
-		let is_https = req.scheme() == "https";
-		let host = req.host();
-		let method: u8 = creds.clone().map(|_| 2).unwrap_or(0);
-		let established = write_all(socket, [5, 1, method])
-				.and_then(|(socket, _)| read_exact(socket, [0; 2]))
-				//.and_then(|(socket, response)| answer_hello(socket, response, creds))
-				.and_then(move |(socket, response)| write_addr(socket, req))
-				.and_then(|socket| read_exact(socket, [0; 3]))
-				.and_then(|(socket, response)| read_response(socket, response));
-		/*if is_https {
-				Box::new(established.and_then(move |socket| {
-						let tls = TlsConnector::builder().unwrap().build().unwrap();
-						tls.connect_async(&host, socket)
-								.map_err(|err| Error::new(ErrorKind::Other, err))
-								.map(|socket| MaybeHttpsStream::Https(socket))
-				}))
-		} else {*/
-				//Box::new(established.map(|socket| TcpStream::Http(socket)))
-				Box::new(established.map(|socket| {
-					println!("Returning socket {:?}", socket);
-					(socket, Connected::new())
-				}))
-		/*}*/
+	error!("DOING HANDSHAKE");
+	let is_https = req.scheme() == "https";
+	let host = req.host();
+	let method: u8 = creds.clone().map(|_| 2).unwrap_or(0);
+	let established = write_all(socket, [5, 1, method])
+		.and_then(|(socket, _)| read_exact(socket, [0; 2]))
+		//.and_then(|(socket, response)| answer_hello(socket, response, creds))
+		.and_then(move |(socket, response)| write_addr(socket, req))
+		.and_then(|socket| read_exact(socket, [0; 3]))
+		.and_then(|(socket, response)| read_response(socket, response));
+	/*if is_https {
+			Box::new(established.and_then(move |socket| {
+					let tls = TlsConnector::builder().unwrap().build().unwrap();
+					tls.connect_async(&host, socket)
+							.map_err(|err| Error::new(ErrorKind::Other, err))
+							.map(|socket| MaybeHttpsStream::Https(socket))
+			}))
+	} else {*/
+	//Box::new(established.map(|socket| TcpStream::Http(socket)))
+	Box::new(established.map(|socket| {
+		println!("Returning socket {:?}", socket);
+		(socket, Connected::new())
+	}))
+	/*}*/
 }

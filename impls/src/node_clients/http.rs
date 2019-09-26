@@ -74,25 +74,24 @@ impl NodeClient for HTTPNodeClient {
 		}
 		let url = format!("{}/v1/version", self.node_url());
 		let client = Client::new();
-		let mut retval =
-			match client.get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()) {
-				Ok(n) => n,
-				Err(e) => {
-					// If node isn't available, allow offline functions
-					// unfortunately have to parse string due to error structure
-					let err_string = format!("{}", e);
-					if err_string.contains("404") {
-						return Some(NodeVersionInfo {
-							node_version: "1.0.0".into(),
-							block_header_version: 1,
-							verified: Some(false),
-						});
-					} else {
-						error!("Unable to contact Node to get version info: {}", e);
-						return None;
-					}
+		let mut retval = match client.get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()) {
+			Ok(n) => n,
+			Err(e) => {
+				// If node isn't available, allow offline functions
+				// unfortunately have to parse string due to error structure
+				let err_string = format!("{}", e);
+				if err_string.contains("404") {
+					return Some(NodeVersionInfo {
+						node_version: "1.0.0".into(),
+						block_header_version: 1,
+						verified: Some(false),
+					});
+				} else {
+					error!("Unable to contact Node to get version info: {}", e);
+					return None;
 				}
-			};
+			}
+		};
 		retval.verified = Some(true);
 		self.node_version_info = Some(retval.clone());
 		Some(retval)
@@ -175,10 +174,9 @@ impl NodeClient for HTTPNodeClient {
 			query
 		);
 		let client = Client::new();
-		let res: Option<LocatedTxKernel> = client.get(url.as_str(), self.node_api_secret())
-			.map_err(|e| {
-			libwallet::ErrorKind::ClientCallback(format!("Kernel lookup: {}", e))
-		})?;
+		let res: Option<LocatedTxKernel> = client
+			.get(url.as_str(), self.node_api_secret())
+			.map_err(|e| libwallet::ErrorKind::ClientCallback(format!("Kernel lookup: {}", e)))?;
 
 		Ok(res.map(|k| (k.tx_kernel, k.height, k.mmr_index)))
 	}
@@ -204,10 +202,7 @@ impl NodeClient for HTTPNodeClient {
 
 		for query_chunk in query_params.chunks(200) {
 			let url = format!("{}/v1/chain/outputs/byids?{}", addr, query_chunk.join("&"),);
-			tasks.push(client.get_async::<Vec<api::Output>>(
-				url.as_str(),
-				self.node_api_secret(),
-			));
+			tasks.push(client.get_async::<Vec<api::Output>>(url.as_str(), self.node_api_secret()));
 		}
 
 		let task = stream::futures_unordered(tasks).collect();

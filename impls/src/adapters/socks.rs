@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::client_utils::{Client, ClientError};
 /// SOCKS Wallet 'plugin' implementation
 use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::client_utils::{Client, ClientError};
 use crate::SlateSender;
-use std::net::SocketAddr;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
 
 #[derive(Clone)]
 pub struct SocksSlateSender {
@@ -137,16 +137,15 @@ impl SlateSender for SocksSlateSender {
 	}
 }
 
-pub fn post(dest: &str, api_secret: Option<String>, input: String) -> Result<String, ClientError>
-{
+pub fn post(dest: &str, api_secret: Option<String>, input: String) -> Result<String, ClientError> {
 	let mut client = Client::new();
 	client.use_socks = true;
 	//Todo: Unwrap
 
 	client.socks_proxy_addr = Some(SocketAddr::V4("127.0.0.1:9050".parse().unwrap()));
-  debug!("Onion hidden service request details:");
-  debug!("Socks proxy addr: {:?}", client.socks_proxy_addr);
-  debug!("Destination Onion Service URL: {}", dest);
+	debug!("Onion hidden service request details:");
+	debug!("Socks proxy addr: {:?}", client.socks_proxy_addr);
+	debug!("Destination Onion Service URL: {}", dest);
 	let req = client.create_post_request(dest, api_secret, &input)?;
 	let res = client.send_request(req)?;
 	Ok(res)

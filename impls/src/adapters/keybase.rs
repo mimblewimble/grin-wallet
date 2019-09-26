@@ -453,7 +453,6 @@ impl SlateReceiver for KeybaseAllChannels {
 		}
 		Ok(())
 	}
-
 }
 
 /// Notify in keybase on receiving a transaction

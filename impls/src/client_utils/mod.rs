@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod socksv5;
 mod client;
+mod socksv5;
 
 pub use self::socksv5::Socksv5Connector;
 pub use client::{Client, Error as ClientError};

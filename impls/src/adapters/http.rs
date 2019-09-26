@@ -141,14 +141,13 @@ impl SlateSender for HttpSlateSender {
 	}
 }
 
-fn post(url: &Url, api_secret: Option<String>, input: String) -> Result<String, ClientError>
-	{
-		// TODO: change create_post_request to accept a url instead of a &str
-		let client = Client::new();
-		let req = client.create_post_request(url.as_str(), api_secret, &input)?;
-		let res = client.send_request(req)?;
-		Ok(res)
-	}
+fn post(url: &Url, api_secret: Option<String>, input: String) -> Result<String, ClientError> {
+	// TODO: change create_post_request to accept a url instead of a &str
+	let client = Client::new();
+	let req = client.create_post_request(url.as_str(), api_secret, &input)?;
+	let res = client.send_request(req)?;
+	Ok(res)
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SchemeNotHttp;
@@ -159,5 +158,3 @@ impl Into<Error> for SchemeNotHttp {
 		ErrorKind::GenericError(err_str).into()
 	}
 }
-
-
