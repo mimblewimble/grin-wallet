@@ -13,16 +13,20 @@
 // limitations under the License.
 
 mod file;
-mod http;
+pub mod http;
+pub mod socks;
 mod keybase;
 
+
 pub use self::file::PathToSlate;
-pub use self::http::HttpSlateSender;
+pub use self::http::{HttpSlateSender, SchemeNotHttp};
+pub use self::socks::SocksSlateSender;
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::util::ZeroingString;
+use url::Url;
 
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
@@ -58,7 +62,6 @@ pub trait SlateGetter {
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs
 pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, Error> {
-	use url::Url;
 
 	let invalid = || {
 		ErrorKind::WalletComms(format!(
@@ -70,6 +73,9 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 		"http" => {
 			let url: Url = dest.parse().map_err(|_| invalid())?;
 			Box::new(HttpSlateSender::new(url).map_err(|_| invalid())?)
+		}
+		"tor" => {
+			Box::new(SocksSlateSender::new(dest))
 		}
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {

@@ -37,10 +37,11 @@ mod backends;
 mod error;
 mod lifecycle;
 mod node_clients;
+mod client_utils;
 pub mod test_framework;
 
 pub use crate::adapters::{
-	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,
+	create_sender, HttpSlateSender, SocksSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,
 	SlatePutter, SlateReceiver, SlateSender,
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};

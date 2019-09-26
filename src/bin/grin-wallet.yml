@@ -117,6 +117,7 @@ subcommands:
             long: method
             possible_values:
               - http
+              - tor
               - file
               - self
               - keybase

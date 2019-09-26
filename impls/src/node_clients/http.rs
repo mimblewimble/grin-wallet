@@ -17,14 +17,14 @@
 
 use futures::{stream, Stream};
 
-use crate::api::LocatedTxKernel;
+use crate::api::{self, LocatedTxKernel};
 use crate::core::core::TxKernel;
 use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use semver::Version;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
-use crate::api;
+use crate::client_utils::Client;
 use crate::libwallet;
 use crate::util::secp::pedersen;
 use crate::util::{self, to_hex};
@@ -73,8 +73,9 @@ impl NodeClient for HTTPNodeClient {
 			return Some(v.clone());
 		}
 		let url = format!("{}/v1/version", self.node_url());
+		let client = Client::new();
 		let mut retval =
-			match api::client::get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()) {
+			match client.get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()) {
 				Ok(n) => n,
 				Err(e) => {
 					// If node isn't available, allow offline functions
@@ -106,7 +107,8 @@ impl NodeClient for HTTPNodeClient {
 		} else {
 			url = format!("{}/v1/pool/push_tx", dest);
 		}
-		let res = api::client::post_no_ret(url.as_str(), self.node_api_secret(), tx);
+		let client = Client::new();
+		let res = client.post_no_ret(url.as_str(), self.node_api_secret(), tx);
 		if let Err(e) = res {
 			let report = format!("Posting transaction to node: {}", e);
 			error!("Post TX Error: {}", e);
@@ -119,7 +121,8 @@ impl NodeClient for HTTPNodeClient {
 	fn get_chain_height(&self) -> Result<u64, libwallet::Error> {
 		let addr = self.node_url();
 		let url = format!("{}/v1/chain", addr);
-		let res = api::client::get::<api::Tip>(url.as_str(), self.node_api_secret());
+		let client = Client::new();
+		let res = client.get::<api::Tip>(url.as_str(), self.node_api_secret());
 		match res {
 			Err(e) => {
 				let report = format!("Getting chain height from node: {}", e);
@@ -171,7 +174,8 @@ impl NodeClient for HTTPNodeClient {
 			to_hex(excess.0.to_vec()),
 			query
 		);
-		let res: Option<LocatedTxKernel> = api::client::get(url.as_str(), self.node_api_secret())
+		let client = Client::new();
+		let res: Option<LocatedTxKernel> = client.get(url.as_str(), self.node_api_secret())
 			.map_err(|e| {
 			libwallet::ErrorKind::ClientCallback(format!("Kernel lookup: {}", e))
 		})?;
@@ -196,9 +200,11 @@ impl NodeClient for HTTPNodeClient {
 		let mut api_outputs: HashMap<pedersen::Commitment, (String, u64, u64)> = HashMap::new();
 		let mut tasks = Vec::new();
 
+		let client = Client::new();
+
 		for query_chunk in query_params.chunks(200) {
 			let url = format!("{}/v1/chain/outputs/byids?{}", addr, query_chunk.join("&"),);
-			tasks.push(api::client::get_async::<Vec<api::Output>>(
+			tasks.push(client.get_async::<Vec<api::Output>>(
 				url.as_str(),
 				self.node_api_secret(),
 			));
@@ -247,7 +253,9 @@ impl NodeClient for HTTPNodeClient {
 		let mut api_outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)> =
 			Vec::new();
 
-		match api::client::get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
+		let client = Client::new();
+
+		match client.get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
 			Ok(o) => {
 				for out in o.outputs {
 					let is_coinbase = match out.output_type {
@@ -299,7 +307,7 @@ pub fn create_coinbase(dest: &str, block_fees: &BlockFees) -> Result<CbData, Err
 
 /// Makes a single request to the wallet API to create a new coinbase output.
 fn single_create_coinbase(url: &str, block_fees: &BlockFees) -> Result<CbData, Error> {
-	let res = api::client::post(url, None, block_fees).context(ErrorKind::GenericError(
+	let res = Client::post(url, None, block_fees).context(ErrorKind::GenericError(
 		"Posting create coinbase".to_string(),
 	))?;
 	Ok(res)

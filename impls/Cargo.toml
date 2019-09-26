@@ -28,6 +28,20 @@ uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
 url = "1.7.2"
 
+#http client (copied from grin)
+http = "0.1.5"
+hyper-rustls = "0.14"
+hyper-timeout = "0.2"
+
+#Socks/Tor
+byteorder = "1"
+hyper = "0.12"
+#hyper-tls = "0.1"
+tokio-tcp = "0.1"
+tokio-io = "0.1"
+#native-tls = "0.1"
+#tokio-tls = "0.1"
+
 grin_wallet_util = { path = "../util", version = "2.1.0-beta.1" }
 grin_wallet_config = { path = "../config", version = "2.1.0-beta.1" }
 grin_wallet_libwallet = { path = "../libwallet", version = "2.1.0-beta.1" }
