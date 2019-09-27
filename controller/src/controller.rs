@@ -677,9 +677,13 @@ where
 		api: Foreign<'static, L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
+			error!("VAL IN CALL API: {}", val);
 			let foreign_api = &api as &dyn ForeignRpc;
 			match foreign_api.handle_request(val) {
-				MaybeReply::Reply(r) => ok(r),
+				MaybeReply::Reply(r) => ok({
+					error!("VAL AFTER CALL API: {}", r);
+					r
+				}),
 				MaybeReply::DontReply => {
 					// Since it's http, we need to return something. We return [] because jsonrpc
 					// clients will parse it as an empty batch response.

@@ -71,7 +71,8 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	//
 	// tor -f torrc
 
-	let onion_address = "tuyadexmtd5houbmysg5qqctor43npeqmeibwmrml55spidwudi4egid.onion";
+	// Substitute whatever onion address has been created
+	let onion_address = "http://tuyadexmtd5houbmysg5qqctor43npeqmeibwmrml55spidwudi4egid.onion";
 
 	// run the foreign listener for wallet 2
 	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-l", "53415"];
@@ -90,7 +91,7 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	// now, test send from wallet 1 over tor, (substitute whatever onion address was created)
+	// now, test send from wallet 1 over tor
 	let arg_vec = vec![
 		"grin-wallet",
 		"-p",

@@ -15,12 +15,10 @@
 mod file;
 pub mod http;
 mod keybase;
-pub mod socks;
 
 pub use self::file::PathToSlate;
 pub use self::http::{HttpSlateSender, SchemeNotHttp};
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
-pub use self::socks::SocksSlateSender;
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, ErrorKind, Slate};
@@ -72,7 +70,10 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 			let url: Url = dest.parse().map_err(|_| invalid())?;
 			Box::new(HttpSlateSender::new(url).map_err(|_| invalid())?)
 		}
-		"tor" => Box::new(SocksSlateSender::new(dest)),
+		"tor" => {
+			let url: Url = dest.parse().map_err(|_| invalid())?;
+			Box::new(HttpSlateSender::with_socks_proxy(url, "127.0.0.1:9050").map_err(|_| invalid())?)
+		}
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
 			return Err(ErrorKind::WalletComms(

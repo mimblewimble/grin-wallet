@@ -42,7 +42,7 @@ pub mod test_framework;
 
 pub use crate::adapters::{
 	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,
-	SlatePutter, SlateReceiver, SlateSender, SocksSlateSender,
+	SlatePutter, SlateReceiver, SlateSender
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};

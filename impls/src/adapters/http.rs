@@ -16,12 +16,16 @@
 use crate::client_utils::{Client, ClientError};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
+use serde::Serialize;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
 use url::Url;
 
 #[derive(Clone)]
 pub struct HttpSlateSender {
 	base_url: Url,
+	use_socks: bool,
+	socks_proxy_addr: Option<SocketAddr>,
 }
 
 impl HttpSlateSender {
@@ -30,8 +34,21 @@ impl HttpSlateSender {
 		if base_url.scheme() != "http" && base_url.scheme() != "https" {
 			Err(SchemeNotHttp)
 		} else {
-			Ok(HttpSlateSender { base_url })
+			Ok(HttpSlateSender {
+				base_url,
+				use_socks: false,
+				socks_proxy_addr: None,
+			})
 		}
+	}
+
+	/// Switch to using socks proxy
+	pub fn with_socks_proxy(base_url: Url, proxy_addr: &str) -> Result<HttpSlateSender, SchemeNotHttp> {
+		let mut ret = Self::new(base_url)?;
+		ret.use_socks = true;
+		//TODO: Unwrap
+		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
+		Ok(ret)
 	}
 
 	/// Check version of the listening wallet
@@ -43,7 +60,7 @@ impl HttpSlateSender {
 			"params": []
 		});
 
-		let res: String = post(url, None, req.to_string()).map_err(|e| {
+		let res: String = self.post(url, None, req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
@@ -90,6 +107,20 @@ impl HttpSlateSender {
 
 		Ok(())
 	}
+
+	fn post<IN>(&self, url: &Url, api_secret: Option<String>, input: IN) -> Result<String, ClientError> 
+	where
+		IN: Serialize,
+	{
+		let mut client = Client::new();
+		if self.use_socks {
+			client.use_socks = true;
+			client.socks_proxy_addr = self.socks_proxy_addr.clone()
+		}
+		let req = client.create_post_request(url.as_str(), api_secret, &input)?;
+		let res = client.send_request(req)?;
+		Ok(res)
+	}
 }
 
 impl SlateSender for HttpSlateSender {
@@ -115,7 +146,7 @@ impl SlateSender for HttpSlateSender {
 		});
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = post(&url, None, req.to_string()).map_err(|e| {
+		let res: String = self.post(&url, None, req).map_err(|e| {
 			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
@@ -141,13 +172,6 @@ impl SlateSender for HttpSlateSender {
 	}
 }
 
-fn post(url: &Url, api_secret: Option<String>, input: String) -> Result<String, ClientError> {
-	// TODO: change create_post_request to accept a url instead of a &str
-	let client = Client::new();
-	let req = client.create_post_request(url.as_str(), api_secret, &input)?;
-	let res = client.send_request(req)?;
-	Ok(res)
-}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SchemeNotHttp;
