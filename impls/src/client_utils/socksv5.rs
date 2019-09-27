@@ -35,8 +35,8 @@
 // limitations under the License.
 
 use byteorder::{BigEndian, WriteBytesExt};
-use futures::{Future, IntoFuture};
 use futures::future::ok;
+use futures::{Future, IntoFuture};
 //use hyper_tls::MaybeHttpsStream;
 //use native_tls::TlsConnector;
 use std::io::{self, Error, ErrorKind, Write};
@@ -122,14 +122,10 @@ fn answer_hello(
 	response: [u8; 2],
 	creds: Option<(Vec<u8>, Vec<u8>)>,
 ) -> HandshakeFuture<TcpStream> {
-
 	if response[0] == 5 && response[1] == 0 {
 		Box::new(ok(socket))
 	} else if response[0] == 5 && response[1] == 2 && creds.is_some() {
-		Box::new(
-			auth_negotiation(socket, creds)
-				.and_then(|socket| ok(socket)),
-		)
+		Box::new(auth_negotiation(socket, creds).and_then(|socket| ok(socket)))
 	} else {
 		Box::new(
 			Err(Error::new(
@@ -170,9 +166,7 @@ fn write_addr(socket: TcpStream, req: Destination) -> HandshakeFuture<TcpStream>
 	packet.write_all(host.as_bytes()).unwrap();
 	packet.write_u16::<BigEndian>(port).unwrap();
 
-	Box::new(write_all(socket, packet).map(|(socket, p)| {
-		socket
-	}))
+	Box::new(write_all(socket, packet).map(|(socket, p)| socket))
 }
 
 fn read_response(socket: TcpStream, response: [u8; 3]) -> HandshakeFuture<TcpStream> {

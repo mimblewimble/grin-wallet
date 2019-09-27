@@ -72,7 +72,9 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 		}
 		"tor" => {
 			let url: Url = dest.parse().map_err(|_| invalid())?;
-			Box::new(HttpSlateSender::with_socks_proxy(url, "127.0.0.1:9050").map_err(|_| invalid())?)
+			Box::new(
+				HttpSlateSender::with_socks_proxy(url, "127.0.0.1:9050").map_err(|_| invalid())?,
+			)
 		}
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {

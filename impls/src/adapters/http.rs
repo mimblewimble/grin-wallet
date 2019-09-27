@@ -43,7 +43,10 @@ impl HttpSlateSender {
 	}
 
 	/// Switch to using socks proxy
-	pub fn with_socks_proxy(base_url: Url, proxy_addr: &str) -> Result<HttpSlateSender, SchemeNotHttp> {
+	pub fn with_socks_proxy(
+		base_url: Url,
+		proxy_addr: &str,
+	) -> Result<HttpSlateSender, SchemeNotHttp> {
 		let mut ret = Self::new(base_url)?;
 		ret.use_socks = true;
 		//TODO: Unwrap
@@ -108,7 +111,12 @@ impl HttpSlateSender {
 		Ok(())
 	}
 
-	fn post<IN>(&self, url: &Url, api_secret: Option<String>, input: IN) -> Result<String, ClientError> 
+	fn post<IN>(
+		&self,
+		url: &Url,
+		api_secret: Option<String>,
+		input: IN,
+	) -> Result<String, ClientError>
 	where
 		IN: Serialize,
 	{
@@ -171,7 +179,6 @@ impl SlateSender for HttpSlateSender {
 		Ok(slate)
 	}
 }
-
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SchemeNotHttp;
