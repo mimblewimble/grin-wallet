@@ -17,7 +17,7 @@
 use chrono::prelude::*;
 use uuid::Uuid;
 
-use crate::config::{WalletConfig, TorConfig};
+use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::create_sender;

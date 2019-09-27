@@ -15,7 +15,7 @@
 //! Types and traits that should be provided by a wallet
 //! implementation
 
-use crate::config::{WalletConfig, TorConfig};
+use crate::config::{TorConfig, WalletConfig};
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::{Output, Transaction, TxKernel};

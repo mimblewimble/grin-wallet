@@ -74,8 +74,12 @@ macro_rules! setup_proxy {
 		let config1 = initial_setup_wallet($test_dir, "wallet1");
 		let wallet_config1 = config1.clone().members.unwrap().wallet;
 		//config1.owner_api_listen_port = Some(13420);
-		let ($wallet1, mask1_i) =
-			instantiate_wallet(wallet_config1.clone(), $client1.clone(), "password", "default")?;
+		let ($wallet1, mask1_i) = instantiate_wallet(
+			wallet_config1.clone(),
+			$client1.clone(),
+			"password",
+			"default",
+			)?;
 		let $mask1 = (&mask1_i).as_ref();
 		wallet_proxy.add_wallet(
 			"wallet1",
@@ -95,8 +99,12 @@ macro_rules! setup_proxy {
 		let config2 = initial_setup_wallet($test_dir, "wallet2");
 		let wallet_config2 = config2.clone().members.unwrap().wallet;
 		//config2.api_listen_port = 23415;
-		let ($wallet2, mask2_i) =
-			instantiate_wallet(wallet_config2.clone(), $client2.clone(), "password", "default")?;
+		let ($wallet2, mask2_i) = instantiate_wallet(
+			wallet_config2.clone(),
+			$client2.clone(),
+			"password",
+			"default",
+			)?;
 		let $mask2 = (&mask2_i).as_ref();
 		wallet_proxy.add_wallet(
 			"wallet2",
@@ -259,7 +267,14 @@ pub fn execute_command(
 	let tor_config = config.clone().members.unwrap().tor;
 	//unset chain type so it doesn't get reset
 	wallet_config.chain_type = None;
-	wallet_args::wallet_command(&args, wallet_config.clone(), tor_config, client.clone(), true, |_| {})
+	wallet_args::wallet_command(
+		&args,
+		wallet_config.clone(),
+		tor_config,
+		client.clone(),
+		true,
+		|_| {},
+	)
 }
 
 // as above, but without necessarily setting up the wallet

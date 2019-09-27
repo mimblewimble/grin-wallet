@@ -19,7 +19,7 @@ use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
-use grin_wallet_config::{WalletConfig, TorConfig};
+use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};

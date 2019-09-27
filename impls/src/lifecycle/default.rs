@@ -15,7 +15,7 @@
 //! Default wallet lifecycle provider
 
 use crate::config::{
-	config, GlobalWalletConfig, GlobalWalletConfigMembers, WalletConfig, TorConfig, GRIN_WALLET_DIR,
+	config, GlobalWalletConfig, GlobalWalletConfigMembers, TorConfig, WalletConfig, GRIN_WALLET_DIR,
 };
 use crate::core::global;
 use crate::keychain::Keychain;
@@ -99,7 +99,11 @@ where
 			},
 		};
 		default_config = GlobalWalletConfig {
-			members: Some(GlobalWalletConfigMembers { wallet, tor, logging }),
+			members: Some(GlobalWalletConfigMembers {
+				wallet,
+				tor,
+				logging,
+			}),
 			..default_config
 		};
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());

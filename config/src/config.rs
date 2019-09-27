@@ -27,8 +27,8 @@ use toml;
 
 use crate::comments::insert_comments;
 use crate::core::global;
-use crate::types::{WalletConfig, TorConfig};
 use crate::types::{ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers};
+use crate::types::{TorConfig, WalletConfig};
 use crate::util::LoggingConfig;
 
 /// Wallet configuration file name

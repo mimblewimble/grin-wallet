@@ -74,8 +74,12 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		let config2 = initial_setup_wallet(test_dir, "wallet2");
 		let wallet_config2 = config2.clone().members.unwrap().wallet;
 		//config2.api_listen_port = 23415;
-		let (wallet2, mask2_i) =
-			instantiate_wallet(wallet_config2.clone(), client2.clone(), "password", "default")?;
+		let (wallet2, mask2_i) = instantiate_wallet(
+			wallet_config2.clone(),
+			client2.clone(),
+			"password",
+			"default",
+		)?;
 		wallet_proxy.add_wallet(
 			"wallet2",
 			client2.get_send_instance(),

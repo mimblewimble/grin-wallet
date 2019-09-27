@@ -15,7 +15,7 @@
 //! JSON-RPC Stub generation for the Owner API
 use uuid::Uuid;
 
-use crate::config::{WalletConfig, TorConfig};
+use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
@@ -1917,7 +1917,8 @@ where
 		logging_config: Option<LoggingConfig>,
 		tor_config: Option<TorConfig>,
 	) -> Result<(), ErrorKind> {
-		Owner::create_config(self, &chain_type, wallet_config, logging_config, tor_config).map_err(|e| e.kind())
+		Owner::create_config(self, &chain_type, wallet_config, logging_config, tor_config)
+			.map_err(|e| e.kind())
 	}
 
 	fn create_wallet(
