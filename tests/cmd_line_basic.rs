@@ -60,8 +60,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// add wallet to proxy
 	//let wallet1 = test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone());
 	let config1 = initial_setup_wallet(test_dir, "wallet1");
+	let wallet_config1 = config1.clone().members.unwrap().wallet;
 	let (wallet1, mask1_i) =
-		instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config1.clone(), client1.clone(), "password", "default")?;
 	wallet_proxy.add_wallet(
 		"wallet1",
 		client1.get_send_instance(),
@@ -74,8 +75,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 	let config2 = initial_setup_wallet(test_dir, "wallet2");
+	let wallet_config2 = config2.clone().members.unwrap().wallet;
 	let (wallet2, mask2_i) =
-		instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config2.clone(), client2.clone(), "password", "default")?;
 	wallet_proxy.add_wallet(
 		"wallet2",
 		client2.get_send_instance(),
@@ -137,8 +139,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	// Mine a bit into wallet 1 so we have something to send
 	// (TODO: Be able to stop listeners so we can test this better)
+	let wallet_config1 = config1.clone().members.unwrap().wallet;
 	let (wallet1, mask1_i) =
-		instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config1, client1.clone(), "password", "default")?;
 	let mask1 = (&mask1_i).as_ref();
 	grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
 		api.set_active_account(m, "mining")?;
@@ -211,8 +214,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 	bh += 1;
 
+	let wallet_config1 = config1.clone().members.unwrap().wallet;
 	let (wallet1, mask1_i) =
-		instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config1.clone(), client1.clone(), "password", "default")?;
 	let mask1 = (&mask1_i).as_ref();
 
 	// Check our transaction log, should have 10 entries
@@ -235,8 +239,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet2", &client1, arg_vec)?;
 
 	// check results in wallet 2
+	let wallet_config2 = config2.clone().members.unwrap().wallet;
 	let (wallet2, mask2_i) =
-		instantiate_wallet(config2.clone(), client2.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config2.clone(), client2.clone(), "password", "default")?;
 	let mask2 = (&mask2_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
@@ -293,8 +298,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	bh += 1;
 
 	// Check our transaction log, should have bh entries + one for the self receive
+	let wallet_config1 = config1.clone().members.unwrap().wallet;
 	let (wallet1, mask1_i) =
-		instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config1.clone(), client1.clone(), "password", "default")?;
 	let mask1 = (&mask1_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
@@ -329,8 +335,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	bh += 1;
 
 	// Check our transaction log, should have bh entries + 2 for the self receives
+	let wallet_config1 = config1.clone().members.unwrap().wallet;
 	let (wallet1, mask1_i) =
-		instantiate_wallet(config1.clone(), client1.clone(), "password", "default")?;
+		instantiate_wallet(wallet_config1.clone(), client1.clone(), "password", "default")?;
 	let mask1 = (&mask1_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {

@@ -26,6 +26,8 @@ pub struct HttpSlateSender {
 	base_url: Url,
 	use_socks: bool,
 	socks_proxy_addr: Option<SocketAddr>,
+	socks_proxy_username: Option<String>,
+	socks_proxy_password: Option<String>,
 }
 
 impl HttpSlateSender {
@@ -38,6 +40,8 @@ impl HttpSlateSender {
 				base_url,
 				use_socks: false,
 				socks_proxy_addr: None,
+				socks_proxy_username: None,
+				socks_proxy_password: None,
 			})
 		}
 	}
@@ -123,7 +127,7 @@ impl HttpSlateSender {
 		let mut client = Client::new();
 		if self.use_socks {
 			client.use_socks = true;
-			client.socks_proxy_addr = self.socks_proxy_addr.clone()
+			client.socks_proxy_addr = self.socks_proxy_addr.clone();
 		}
 		let req = client.create_post_request(url.as_str(), api_secret, &input)?;
 		let res = client.send_request(req)?;

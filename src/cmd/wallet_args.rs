@@ -19,7 +19,7 @@ use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
-use grin_wallet_config::WalletConfig;
+use grin_wallet_config::{WalletConfig, TorConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
@@ -769,6 +769,7 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
+	tor_config: Option<TorConfig>,
 	mut node_client: C,
 	test_mode: bool,
 	wallet_inst_cb: F,
@@ -924,6 +925,7 @@ where
 			command::send(
 				wallet,
 				km,
+				tor_config,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -945,6 +947,7 @@ where
 			command::process_invoice(
 				wallet,
 				km,
+				tor_config,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)

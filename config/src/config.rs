@@ -27,7 +27,7 @@ use toml;
 
 use crate::comments::insert_comments;
 use crate::core::global;
-use crate::types::WalletConfig;
+use crate::types::{WalletConfig, TorConfig};
 use crate::types::{ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers};
 use crate::util::LoggingConfig;
 
@@ -153,6 +153,7 @@ impl Default for GlobalWalletConfigMembers {
 	fn default() -> GlobalWalletConfigMembers {
 		GlobalWalletConfigMembers {
 			logging: Some(LoggingConfig::default()),
+			tor: Some(TorConfig::default()),
 			wallet: WalletConfig::default(),
 		}
 	}
