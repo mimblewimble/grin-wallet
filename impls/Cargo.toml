@@ -41,6 +41,9 @@ tokio-tcp = "0.1"
 tokio-io = "0.1"
 #native-tls = "0.1"
 #tokio-tls = "0.1"
+ed25519-dalek = "1.0.0-pre.1"
+data-encoding = "2"
+sha3 = "0.8"
 
 grin_wallet_util = { path = "../util", version = "2.1.0-beta.1" }
 grin_wallet_config = { path = "../config", version = "2.1.0-beta.1" }
