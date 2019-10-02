@@ -226,26 +226,14 @@ where
 			.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
 	}
 
-	let mut kill_tor = || -> Result<(), Error> {
-		if !use_tor {
-			return Ok(());
-		}
-		tor.kill()
-			.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)).into())
-	};
-
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 
 	let mut router = Router::new();
 
-	let res = router
+	router
 		.add_route("/v2/foreign", Arc::new(api_handler_v2))
-		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()));
+		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
-	if let Err(e) = res {
-		let _ = kill_tor;
-		return Err(e.into());
-	}
 
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Foreign listener API server at {}.", addr);
@@ -254,27 +242,14 @@ where
 		.start(socket_addr, router, tls_config)
 		.context(ErrorKind::GenericError(
 			"API thread failed to start".to_string(),
-		));
-
-	let api_thread = match api_thread {
-		Ok(t) => t,
-		Err(e) => {
-			let _ = kill_tor;
-			return Err(e.into());
-		}
-	};
+		))?;
 
 	warn!("HTTP Foreign listener started.");
 
-	let res = api_thread
+	api_thread
 		.join()
-		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into());
+		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
 
-	if use_tor {
-		let _ = kill_tor();
-	}
-
-	res
 }
 
 type WalletResponseFuture = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
