@@ -69,10 +69,6 @@ pub enum ErrorKind {
 	#[fail(display = "BIP39 Mnemonic (word list) Error")]
 	Mnemonic,
 
-	/// Generating ED25519 Public Key
-	#[fail(display = "Error generating ed25519 secret key: {}", _0)]
-	ED25519Key(String),
-
 	/// Command line argument error
 	#[fail(display = "{}", _0)]
 	ArgumentError(String),

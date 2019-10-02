@@ -15,13 +15,14 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
-use crate::keychain::Keychain;
+use crate::keychain::{Keychain, ExtKeychain, SwitchCommitmentType};
 use crate::libwallet::{
 	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
+use crate::config::TorConfig;
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -32,6 +33,8 @@ use serde_json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+
+use crate::tor_config;
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
@@ -188,12 +191,27 @@ pub fn foreign_listener<L, C, K>(
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
+	use_tor: bool,
+	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
+	if use_tor {
+		let mask = keychain_mask.lock();
+		// eventually want to read a list of service config keys
+		let mut w_lock = wallet.lock();
+		let lc = w_lock.lc_provider()?;
+		let k = lc.wallet_inst()?.keychain((&mask).as_ref())?;
+		// TODO: Decide what the derivation path should be
+		let key_id = ExtKeychain::derive_key_id(3, 1, 0, 0, 0);
+		let sec_key = k.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
+		tor_config::output_tor_config(&format!("{}/tor", lc.get_top_level_directory()?), &vec![sec_key])
+			.map_err(|_| ErrorKind::GenericError("Router failed to set up tor configuration".to_string()))?;
+	}
+
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 
 	let mut router = Router::new();

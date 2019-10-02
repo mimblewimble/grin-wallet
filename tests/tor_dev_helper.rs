@@ -52,7 +52,7 @@ fn setup_no_clean() {
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	let test_dir = "target/test_output/socks_tor";
@@ -73,10 +73,10 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	// tor -f torrc
 
 	// Substitute whatever onion address has been created
-	let onion_address = "http://tuyadexmtd5houbmysg5qqctor43npeqmeibwmrml55spidwudi4egid.onion";
+	let onion_address = "http://ixrqxh4l3afp2snjmmen26urpyr2ita45efvfrtuixfx2622w7zmghad.onion";
 
 	// run the foreign listener for wallet 2
-	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-l", "53415"];
+	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-m", "tor"];
 	// Set owner listener running
 	thread::spawn(move || {
 		let yml = load_yaml!("../src/bin/grin-wallet.yml");

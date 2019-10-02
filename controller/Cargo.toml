@@ -32,6 +32,11 @@ chrono = { version = "0.4.4", features = ["serde"] }
 easy-jsonrpc-mw = "0.5.3"
 lazy_static = "1"
 
+#Socks/Tor
+ed25519-dalek = "1.0.0-pre.1"
+data-encoding = "2"
+sha3 = "0.8"
+
 grin_wallet_util = { path = "../util", version = "2.1.0-beta.1" }
 
 grin_wallet_api = { path = "../api", version = "2.1.0-beta.1" }

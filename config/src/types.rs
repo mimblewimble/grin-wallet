@@ -152,7 +152,7 @@ impl Default for TorConfig {
 	fn default() -> TorConfig {
 		TorConfig {
 			default_send_via_tor: false,
-			socks_proxy_addr: "127.0.0.1:9050".to_owned(),
+			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 		}
 	}
 }

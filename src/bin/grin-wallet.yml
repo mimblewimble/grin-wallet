@@ -64,6 +64,7 @@ subcommands:
             short: m
             long: method
             possible_values:
+              - tor
               - http
               - keybase
             default_value: http

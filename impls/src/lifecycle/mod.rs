@@ -14,6 +14,5 @@
 
 mod default;
 mod seed;
-mod tor;
 
 pub use self::default::DefaultLCProvider;

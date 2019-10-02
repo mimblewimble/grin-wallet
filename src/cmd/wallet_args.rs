@@ -897,11 +897,13 @@ where
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
+			let t = tor_config.clone();
 			let a = arg_parse!(parse_listen_args(&mut c, &args));
 			command::listen(
 				wallet,
 				Arc::new(Mutex::new(keychain_mask)),
 				&c,
+				t,
 				&a,
 				&global_wallet_args.clone(),
 			)
