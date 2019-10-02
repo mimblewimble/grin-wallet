@@ -15,14 +15,14 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
-use crate::keychain::{Keychain, ExtKeychain, SwitchCommitmentType};
+use crate::config::TorConfig;
+use crate::keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
 use crate::libwallet::{
 	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
-use crate::config::TorConfig;
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -208,8 +208,13 @@ where
 		// TODO: Decide what the derivation path should be
 		let key_id = ExtKeychain::derive_key_id(3, 1, 0, 0, 0);
 		let sec_key = k.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
-		tor_config::output_tor_config(&format!("{}/tor", lc.get_top_level_directory()?), &vec![sec_key])
-			.map_err(|_| ErrorKind::GenericError("Router failed to set up tor configuration".to_string()))?;
+		tor_config::output_tor_config(
+			&format!("{}/tor", lc.get_top_level_directory()?),
+			&vec![sec_key],
+		)
+		.map_err(|_| {
+			ErrorKind::GenericError("Router failed to set up tor configuration".to_string())
+		})?;
 	}
 
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);

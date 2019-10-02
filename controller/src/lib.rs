@@ -34,7 +34,7 @@ use grin_wallet_util::grin_util as util;
 pub mod command;
 pub mod controller;
 pub mod display;
-mod tor_config;
 mod error;
+mod tor_config;
 
 pub use crate::error::{Error, ErrorKind};
