@@ -15,7 +15,6 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
-use crate::config::TorConfig;
 use crate::keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
 use crate::libwallet::{
 	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
@@ -34,7 +33,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::tor_config;
+use crate::impls::tor::config as tor_config;
+use crate::impls::tor::process as tor_process;
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
@@ -192,13 +192,13 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	use_tor: bool,
-	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
+	let mut tor = tor_process::TorProcess::new();
 	if use_tor {
 		let mask = keychain_mask.lock();
 		// eventually want to read a list of service config keys
@@ -207,37 +207,83 @@ where
 		let k = lc.wallet_inst()?.keychain((&mask).as_ref())?;
 		// TODO: Decide what the derivation path should be
 		let key_id = ExtKeychain::derive_key_id(3, 1, 0, 0, 0);
+		let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 		let sec_key = k.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
-		tor_config::output_tor_config(
-			&format!("{}/tor", lc.get_top_level_directory()?),
+		let onion_address = tor_config::onion_address_from_seckey(&sec_key)
+			.map_err(|e| {
+				ErrorKind::TorConfig(format!("{:?}", e).into())
+			})?;
+		warn!("Starting TOR Hidden Service for API listener at address {}, binding to {}", onion_address, addr);
+		tor_config::output_tor_listener_config(
+			&tor_dir,
+			addr,
 			&vec![sec_key],
 		)
-		.map_err(|_| {
-			ErrorKind::GenericError("Router failed to set up tor configuration".to_string())
+		.map_err(|e| {
+			ErrorKind::TorConfig(format!("{:?}", e).into())
 		})?;
+		// Start TOR process
+		tor.torrc_path(&format!("{}/torrc", tor_dir))
+			.working_dir(&tor_dir)
+			.timeout(20)
+			.completion_percent(100)
+			.launch()
+			.map_err(|e| {
+				ErrorKind::TorProcess(format!("{:?}", e).into())
+			})?;
 	}
+	
+	let mut kill_tor = || -> Result<(), Error> {
+		if !use_tor {
+			return Ok(());
+		}
+		tor.kill()
+			.map_err(|e| {
+				ErrorKind::TorProcess(format!("{:?}", e)).into()
+			})
+	};
 
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 
 	let mut router = Router::new();
 
-	router
+	let res = router
 		.add_route("/v2/foreign", Arc::new(api_handler_v2))
-		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()));
+
+	if let Err(e) = res {
+		let _ = kill_tor;
+		return Err(e.into());
+	}
 
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Foreign listener API server at {}.", addr);
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
 	let api_thread =
 		apis.start(socket_addr, router, tls_config)
-			.context(ErrorKind::GenericError(
-				"API thread failed to start".to_string(),
-			))?;
+			.context(ErrorKind::GenericError( "API thread failed to start".to_string()));
+
+	let api_thread = match api_thread {
+		Ok(t) => t,
+		Err(e) => {
+			let _ = kill_tor;
+			return Err(e.into());
+		}
+	};
+
 	warn!("HTTP Foreign listener started.");
 
-	api_thread
+	let res = api_thread
 		.join()
-		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
+		.map_err(|e| {
+			ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into()
+		});
+
+	if use_tor {
+		let _ = kill_tor();
+	}
+
+	res
 }
 
 type WalletResponseFuture = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
@@ -700,11 +746,9 @@ where
 		api: Foreign<'static, L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
-			error!("VAL IN CALL API: {}", val);
 			let foreign_api = &api as &dyn ForeignRpc;
 			match foreign_api.handle_request(val) {
 				MaybeReply::Reply(r) => ok({
-					error!("VAL AFTER CALL API: {}", r);
 					r
 				}),
 				MaybeReply::DontReply => {

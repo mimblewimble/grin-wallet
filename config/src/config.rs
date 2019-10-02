@@ -258,6 +258,16 @@ impl GlobalWalletConfig {
 			.as_mut()
 			.unwrap()
 			.log_file_path = log_path.to_str().unwrap().to_owned();
+		let mut tor_path = wallet_home.clone();
+		tor_path.push("tor");
+		tor_path.push("sender");
+		self.members
+			.as_mut()
+			.unwrap()
+			.tor
+			.as_mut()
+			.unwrap()
+			.send_config_dir = tor_path.to_str().unwrap().to_owned();
 	}
 
 	/// Serialize config

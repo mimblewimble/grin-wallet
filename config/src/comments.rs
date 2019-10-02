@@ -225,6 +225,14 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 
+	retval.insert(
+		"send_config_dir".to_string(),
+		"
+#Directory to output TOR configuration to when sending
+"
+		.to_string(),
+	);
+
 	retval
 }
 

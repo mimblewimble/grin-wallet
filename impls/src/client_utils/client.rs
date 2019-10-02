@@ -45,7 +45,7 @@ pub enum ErrorKind {
 	#[fail(display = "Bad arguments: {}", _0)]
 	Argument(String),
 	#[fail(display = "Not found.")]
-	NotFound,
+	_NotFound,
 	#[fail(display = "Request error: {}", _0)]
 	RequestError(String),
 	#[fail(display = "ResponseError error: {}", _0)]
@@ -69,7 +69,7 @@ impl Display for Error {
 }
 
 impl Error {
-	pub fn kind(&self) -> &ErrorKind {
+	pub fn _kind(&self) -> &ErrorKind {
 		self.inner.get_context()
 	}
 }
@@ -136,7 +136,7 @@ impl Client {
 	/// Helper function to easily issue a HTTP GET request
 	/// on a given URL that returns nothing. Handles request
 	/// building and response code checking.
-	pub fn get_no_ret(&self, url: &str, api_secret: Option<String>) -> Result<(), Error> {
+	pub fn _get_no_ret(&self, url: &str, api_secret: Option<String>) -> Result<(), Error> {
 		let req = self.build_request(url, "GET", api_secret, None)?;
 		self.send_request(req)?;
 		Ok(())
@@ -146,7 +146,7 @@ impl Client {
 	/// object as body on a given URL that returns a JSON object. Handles request
 	/// building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn post<IN, OUT>(
+	pub fn _post<IN, OUT>(
 		&self,
 		url: &str,
 		api_secret: Option<String>,
@@ -164,7 +164,7 @@ impl Client {
 	/// provided JSON object as body on a given URL that returns a future. Handles
 	/// request building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn post_async<IN, OUT>(
+	pub fn _post_async<IN, OUT>(
 		&self,
 		url: &str,
 		input: &IN,
@@ -203,7 +203,7 @@ impl Client {
 	/// provided JSON object as body on a given URL that returns a future. Handles
 	/// request building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn post_no_ret_async<IN>(
+	pub fn _post_no_ret_async<IN>(
 		&self,
 		url: &str,
 		api_secret: Option<String>,

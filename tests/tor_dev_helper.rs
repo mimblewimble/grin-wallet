@@ -19,7 +19,6 @@ extern crate log;
 
 extern crate grin_wallet;
 
-use grin_wallet_api::ECDHPubkey;
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use grin_wallet_util::grin_core::global::{self, ChainTypes};
 
@@ -28,20 +27,15 @@ use std::thread;
 use std::time::Duration;
 
 use grin_wallet_impls::DefaultLCProvider;
-use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
 use grin_wallet_util::grin_keychain::ExtKeychain;
-use serde_json;
 
 use grin_wallet_util::grin_util as util;
-use std::path::PathBuf;
-use std::sync::Arc;
 
 #[macro_use]
 mod common;
 use common::{
-	clean_output_dir, derive_ecdh_key, execute_command, execute_command_no_setup,
-	initial_setup_wallet, instantiate_wallet, send_request, send_request_enc,
-	RetrieveSummaryInfoResp,
+	execute_command,
+	initial_setup_wallet, instantiate_wallet,
 };
 
 // Development testing helper for tor/socks investigation.
@@ -52,7 +46,7 @@ fn setup_no_clean() {
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 }
 
-//#[ignore]
+#[ignore]
 #[test]
 fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	let test_dir = "target/test_output/socks_tor";
@@ -73,7 +67,7 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	// tor -f torrc
 
 	// Substitute whatever onion address has been created
-	let onion_address = "http://ixrqxh4l3afp2snjmmen26urpyr2ita45efvfrtuixfx2622w7zmghad.onion";
+	let onion_address = "http://t3tjns7hxqnyldfjfhrn2ydfjmpn2xuerj5y4mvg6h3lnumfz22gvhyd.onion";
 
 	// run the foreign listener for wallet 2
 	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-m", "tor"];

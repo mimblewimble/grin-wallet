@@ -131,7 +131,6 @@ pub fn listen<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
-	tor_config: Option<TorConfig>,
 	args: &ListenArgs,
 	g_args: &GlobalArgs,
 ) -> Result<(), Error>
@@ -147,7 +146,6 @@ where
 			&config.api_listen_addr(),
 			g_args.tls_conf.clone(),
 			false,
-			None,
 		),
 		"tor" => controller::foreign_listener(
 			wallet.clone(),
@@ -155,7 +153,6 @@ where
 			&config.api_listen_addr(),
 			g_args.tls_conf.clone(),
 			true,
-			tor_config,
 		),
 		"keybase" => KeybaseAllChannels::new()?.listen(
 			config.clone(),

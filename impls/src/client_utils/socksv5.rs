@@ -59,7 +59,7 @@ impl Socksv5Connector {
 		}
 	}
 
-	pub fn new_with_creds<T: Into<Vec<u8>>>(
+	pub fn _new_with_creds<T: Into<Vec<u8>>>(
 		proxy_addr: SocketAddr,
 		creds: (T, T),
 	) -> io::Result<Socksv5Connector> {
@@ -166,7 +166,7 @@ fn write_addr(socket: TcpStream, req: Destination) -> HandshakeFuture<TcpStream>
 	packet.write_all(host.as_bytes()).unwrap();
 	packet.write_u16::<BigEndian>(port).unwrap();
 
-	Box::new(write_all(socket, packet).map(|(socket, p)| socket))
+	Box::new(write_all(socket, packet).map(|(socket, _)| socket))
 }
 
 fn read_response(socket: TcpStream, response: [u8; 3]) -> HandshakeFuture<TcpStream> {
@@ -250,7 +250,6 @@ fn do_handshake(
 	} else {*/
 	//Box::new(established.map(|socket| TcpStream::Http(socket)))
 	Box::new(established.map(|socket| {
-		println!("Returning socket {:?}", socket);
 		(socket, Connected::new())
 	}))
 	/*}*/

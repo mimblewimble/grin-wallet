@@ -83,7 +83,7 @@ pub fn create_sender(
 					);
 				}
 				Some(tc) => Box::new(
-					HttpSlateSender::with_socks_proxy(url, &tc.socks_proxy_addr)
+					HttpSlateSender::with_socks_proxy(url, &tc.socks_proxy_addr, &tc.send_config_dir)
 						.map_err(|_| invalid())?,
 				),
 			}

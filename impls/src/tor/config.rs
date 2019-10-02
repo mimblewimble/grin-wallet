@@ -14,7 +14,6 @@
 
 //! Tor Configuration + Onion (Hidden) Service operations
 use crate::util::secp::key::SecretKey;
-use crate::util::{self, secp, static_secp_instance};
 use crate::{Error, ErrorKind};
 
 use data_encoding::BASE32;
@@ -24,10 +23,8 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use sha3::{Digest, Sha3_256};
 
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, MAIN_SEPARATOR};
-
-use rand::thread_rng;
 
 use failure::ResultExt;
 
@@ -99,6 +96,12 @@ pub fn ed25519_keypair(sec_key: &SecretKey) -> Result<(DalekSecretKey, DalekPubl
 	Ok((d_skey, d_pub_key))
 }
 
+/// helper to get address
+pub fn onion_address_from_seckey(sec_key: &SecretKey) -> Result<String, Error> {
+	let (_, d_pub_key) = ed25519_keypair(sec_key)?;
+	onion_address(&d_pub_key)
+}
+
 /// Generate an onion address from an ed25519_dalek public key
 pub fn onion_address(pub_key: &DalekPublicKey) -> Result<String, Error> {
 	// calculate checksum
@@ -163,7 +166,7 @@ pub fn output_onion_service_config(
 	tor_config_directory: &str,
 	sec_key: &SecretKey,
 ) -> Result<String, Error> {
-	let (d_sec_key, d_pub_key) = ed25519_keypair(&sec_key)?;
+	let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
 	let address = onion_address(&d_pub_key)?;
 	let hs_dir_file_path = format!(
 		"{}{}{}{}{}",
@@ -192,24 +195,19 @@ pub fn output_onion_service_config(
 }
 
 /// output torrc file given a list of hidden service directories
-pub fn output_torrc(tor_config_directory: &str, service_dirs: &Vec<String>) -> Result<(), Error> {
+pub fn output_torrc(tor_config_directory: &str, wallet_listener_addr: &str, socks_port: &str, service_dirs: &Vec<String>) -> Result<(), Error> {
 	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
-
-	// Don't replace torrc for now if exists
-	if Path::new(&torrc_file_path).exists() {
-		return Ok(());
-	}
 
 	let tor_data_dir = format!("./{}", TOR_DATA_DIR);
 
 	let mut props = TorRcConfig::new();
-	props.add_item("SocksPort", "59050");
+	props.add_item("SocksPort", socks_port);
 	props.add_item("DataDirectory", &tor_data_dir);
 
 	for dir in service_dirs {
 		let service_file_name = format!("./{}{}{}", HIDDEN_SERVICES_DIR, MAIN_SEPARATOR, dir);
 		props.add_item("HiddenServiceDir", &service_file_name);
-		props.add_item("HiddenServicePort", "80 127.0.0.1:3415");
+		props.add_item("HiddenServicePort", &format!("80 {}", wallet_listener_addr));
 	}
 
 	props.write_to_file(&torrc_file_path)?;
@@ -218,12 +216,11 @@ pub fn output_torrc(tor_config_directory: &str, service_dirs: &Vec<String>) -> R
 }
 
 /// output entire tor config for a list of secret keys
-pub fn output_tor_config(
+pub fn output_tor_listener_config(
 	tor_config_directory: &str,
+	wallet_listener_addr: &str,
 	listener_keys: &Vec<SecretKey>,
 ) -> Result<(), Error> {
-	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
-
 	let tor_data_dir = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TOR_DATA_DIR);
 
 	// create data directory if it doesn't exist
@@ -236,17 +233,33 @@ pub fn output_tor_config(
 		service_dirs.push(service_dir);
 	}
 
-	output_torrc(tor_config_directory, &service_dirs)?;
+	// hidden service listener doesn't need a socks port
+	output_torrc(tor_config_directory, wallet_listener_addr, "0", &service_dirs)?;
 
 	Ok(())
 }
 
+/// output tor config for a send
+pub fn output_tor_sender_config(
+	tor_config_dir: &str,
+	socks_listener_addr: &str,
+) -> Result<(), Error> {
+
+	// create data directory if it doesn't exist
+	fs::create_dir_all(&tor_config_dir).context(ErrorKind::IO)?;
+
+	output_torrc(tor_config_dir, "", socks_listener_addr, &vec![])?;
+
+	Ok(())
+}
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	use rand::rngs::mock::StepRng;
 	use rand::thread_rng;
+
+	use crate::util::{self, static_secp_instance, secp};
 
 	pub fn clean_output_dir(test_dir: &str) {
 		let _ = fs::remove_dir_all(test_dir);
@@ -312,8 +325,8 @@ mod tests {
 		let secp = secp_inst.lock();
 		let mut test_rng = StepRng::new(1234567890u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
-		output_tor_config(test_dir, &vec![sec_key])?;
-		//clean_output_dir(test_dir);
+		output_tor_listener_config(test_dir, "127.0.0.1:3415", &vec![sec_key])?;
+		clean_output_dir(test_dir);
 		Ok(())
 	}
 }

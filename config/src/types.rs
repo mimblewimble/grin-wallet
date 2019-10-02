@@ -146,6 +146,8 @@ pub struct TorConfig {
 	pub default_send_via_tor: bool,
 	/// Just the address of the socks proxy for now
 	pub socks_proxy_addr: String,
+	/// Send configuration directory
+	pub send_config_dir: String,
 }
 
 impl Default for TorConfig {
@@ -153,6 +155,7 @@ impl Default for TorConfig {
 		TorConfig {
 			default_send_via_tor: false,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
+			send_config_dir: ".".into(),
 		}
 	}
 }

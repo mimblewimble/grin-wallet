@@ -35,6 +35,5 @@ pub mod command;
 pub mod controller;
 pub mod display;
 mod error;
-mod tor_config;
 
 pub use crate::error::{Error, ErrorKind};

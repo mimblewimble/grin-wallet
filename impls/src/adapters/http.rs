@@ -21,13 +21,15 @@ use serde_json::{json, Value};
 use std::net::SocketAddr;
 use url::Url;
 
+use crate::tor::config as tor_config;
+use crate::tor::process as tor_process;
+
 #[derive(Clone)]
 pub struct HttpSlateSender {
 	base_url: Url,
 	use_socks: bool,
 	socks_proxy_addr: Option<SocketAddr>,
-	socks_proxy_username: Option<String>,
-	socks_proxy_password: Option<String>,
+	tor_config_dir: String,
 }
 
 impl HttpSlateSender {
@@ -40,8 +42,7 @@ impl HttpSlateSender {
 				base_url,
 				use_socks: false,
 				socks_proxy_addr: None,
-				socks_proxy_username: None,
-				socks_proxy_password: None,
+				tor_config_dir: String::from(""),
 			})
 		}
 	}
@@ -50,11 +51,14 @@ impl HttpSlateSender {
 	pub fn with_socks_proxy(
 		base_url: Url,
 		proxy_addr: &str,
+		tor_config_dir: &str,
+		
 	) -> Result<HttpSlateSender, SchemeNotHttp> {
 		let mut ret = Self::new(base_url)?;
 		ret.use_socks = true;
 		//TODO: Unwrap
 		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
+		ret.tor_config_dir = tor_config_dir.into();
 		Ok(ret)
 	}
 
@@ -142,6 +146,29 @@ impl SlateSender for HttpSlateSender {
 			.join("/v2/foreign")
 			.expect("/v2/foreign is an invalid url path");
 		debug!("Posting transaction slate to {}", url);
+
+		// set up tor send process if needed
+		let mut tor = tor_process::TorProcess::new();
+		if self.use_socks {
+			//let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
+			warn!("Starting TOR Process for send at {:?}", self.socks_proxy_addr);
+			tor_config::output_tor_sender_config(
+				&self.tor_config_dir,
+				&self.socks_proxy_addr.unwrap().to_string(),
+			)
+			.map_err(|e| {
+				ErrorKind::TorConfig(format!("{:?}", e).into())
+			})?;
+			// Start TOR process
+			tor.torrc_path(&format!("{}/torrc", self.tor_config_dir))
+				.working_dir(&self.tor_config_dir)
+				.timeout(20)
+				.completion_percent(100)
+				.launch()
+				.map_err(|e| {
+					ErrorKind::TorProcess(format!("{:?}", e).into())
+				})?;
+		}
 
 		self.check_other_version(&url)?;
 

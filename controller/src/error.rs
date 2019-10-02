@@ -104,10 +104,6 @@ pub enum ErrorKind {
 	#[fail(display = "{}", _0)]
 	ArgumentError(String),
 
-	/// Generating ED25519 Public Key
-	#[fail(display = "Error generating ed25519 secret key: {}", _0)]
-	ED25519Key(String),
-
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),
