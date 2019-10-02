@@ -140,11 +140,11 @@ where
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = Some(slate.fee);
+
 		// TODO: Future multi-kernel considerations
-		if total_change == 0 {
-			t.kernel_excess = Some(slate.calc_excess(&keychain)?);
-			t.kernel_lookup_min_height = Some(slate.height);
-		}
+		t.kernel_excess = Some(slate.calc_excess(&keychain)?);
+		t.kernel_lookup_min_height = Some(slate.height);
+
 		let mut amount_debited = 0;
 		t.num_inputs = lock_inputs.len();
 		for id in lock_inputs {
