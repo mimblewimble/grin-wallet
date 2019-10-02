@@ -195,7 +195,12 @@ pub fn output_onion_service_config(
 }
 
 /// output torrc file given a list of hidden service directories
-pub fn output_torrc(tor_config_directory: &str, wallet_listener_addr: &str, socks_port: &str, service_dirs: &Vec<String>) -> Result<(), Error> {
+pub fn output_torrc(
+	tor_config_directory: &str,
+	wallet_listener_addr: &str,
+	socks_port: &str,
+	service_dirs: &Vec<String>,
+) -> Result<(), Error> {
 	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
 
 	let tor_data_dir = format!("./{}", TOR_DATA_DIR);
@@ -234,7 +239,12 @@ pub fn output_tor_listener_config(
 	}
 
 	// hidden service listener doesn't need a socks port
-	output_torrc(tor_config_directory, wallet_listener_addr, "0", &service_dirs)?;
+	output_torrc(
+		tor_config_directory,
+		wallet_listener_addr,
+		"0",
+		&service_dirs,
+	)?;
 
 	Ok(())
 }
@@ -244,7 +254,6 @@ pub fn output_tor_sender_config(
 	tor_config_dir: &str,
 	socks_listener_addr: &str,
 ) -> Result<(), Error> {
-
 	// create data directory if it doesn't exist
 	fs::create_dir_all(&tor_config_dir).context(ErrorKind::IO)?;
 
@@ -259,7 +268,7 @@ mod tests {
 	use rand::rngs::mock::StepRng;
 	use rand::thread_rng;
 
-	use crate::util::{self, static_secp_instance, secp};
+	use crate::util::{self, secp, static_secp_instance};
 
 	pub fn clean_output_dir(test_dir: &str) {
 		let _ = fs::remove_dir_all(test_dir);

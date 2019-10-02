@@ -33,10 +33,7 @@ use grin_wallet_util::grin_util as util;
 
 #[macro_use]
 mod common;
-use common::{
-	execute_command,
-	initial_setup_wallet, instantiate_wallet,
-};
+use common::{execute_command, initial_setup_wallet, instantiate_wallet};
 
 // Development testing helper for tor/socks investigation.
 // Not (yet) to be run as part of automated testing

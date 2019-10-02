@@ -38,8 +38,8 @@ mod client_utils;
 mod error;
 mod lifecycle;
 mod node_clients;
-pub mod tor;
 pub mod test_framework;
+pub mod tor;
 
 pub use crate::adapters::{
 	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate, SlateGetter,

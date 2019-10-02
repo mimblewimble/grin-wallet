@@ -52,7 +52,6 @@ impl HttpSlateSender {
 		base_url: Url,
 		proxy_addr: &str,
 		tor_config_dir: &str,
-		
 	) -> Result<HttpSlateSender, SchemeNotHttp> {
 		let mut ret = Self::new(base_url)?;
 		ret.use_socks = true;
@@ -151,23 +150,22 @@ impl SlateSender for HttpSlateSender {
 		let mut tor = tor_process::TorProcess::new();
 		if self.use_socks {
 			//let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
-			warn!("Starting TOR Process for send at {:?}", self.socks_proxy_addr);
+			warn!(
+				"Starting TOR Process for send at {:?}",
+				self.socks_proxy_addr
+			);
 			tor_config::output_tor_sender_config(
 				&self.tor_config_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
 			)
-			.map_err(|e| {
-				ErrorKind::TorConfig(format!("{:?}", e).into())
-			})?;
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 			// Start TOR process
 			tor.torrc_path(&format!("{}/torrc", self.tor_config_dir))
 				.working_dir(&self.tor_config_dir)
 				.timeout(20)
 				.completion_percent(100)
 				.launch()
-				.map_err(|e| {
-					ErrorKind::TorProcess(format!("{:?}", e).into())
-				})?;
+				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
 		}
 
 		self.check_other_version(&url)?;

@@ -249,8 +249,6 @@ fn do_handshake(
 			}))
 	} else {*/
 	//Box::new(established.map(|socket| TcpStream::Http(socket)))
-	Box::new(established.map(|socket| {
-		(socket, Connected::new())
-	}))
+	Box::new(established.map(|socket| (socket, Connected::new())))
 	/*}*/
 }

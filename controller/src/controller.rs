@@ -210,37 +210,28 @@ where
 		let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 		let sec_key = k.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
 		let onion_address = tor_config::onion_address_from_seckey(&sec_key)
-			.map_err(|e| {
-				ErrorKind::TorConfig(format!("{:?}", e).into())
-			})?;
-		warn!("Starting TOR Hidden Service for API listener at address {}, binding to {}", onion_address, addr);
-		tor_config::output_tor_listener_config(
-			&tor_dir,
-			addr,
-			&vec![sec_key],
-		)
-		.map_err(|e| {
-			ErrorKind::TorConfig(format!("{:?}", e).into())
-		})?;
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+		warn!(
+			"Starting TOR Hidden Service for API listener at address {}, binding to {}",
+			onion_address, addr
+		);
+		tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 		// Start TOR process
 		tor.torrc_path(&format!("{}/torrc", tor_dir))
 			.working_dir(&tor_dir)
 			.timeout(20)
 			.completion_percent(100)
 			.launch()
-			.map_err(|e| {
-				ErrorKind::TorProcess(format!("{:?}", e).into())
-			})?;
+			.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
 	}
-	
+
 	let mut kill_tor = || -> Result<(), Error> {
 		if !use_tor {
 			return Ok(());
 		}
 		tor.kill()
-			.map_err(|e| {
-				ErrorKind::TorProcess(format!("{:?}", e)).into()
-			})
+			.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)).into())
 	};
 
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
@@ -259,9 +250,11 @@ where
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Foreign listener API server at {}.", addr);
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread =
-		apis.start(socket_addr, router, tls_config)
-			.context(ErrorKind::GenericError( "API thread failed to start".to_string()));
+	let api_thread = apis
+		.start(socket_addr, router, tls_config)
+		.context(ErrorKind::GenericError(
+			"API thread failed to start".to_string(),
+		));
 
 	let api_thread = match api_thread {
 		Ok(t) => t,
@@ -275,9 +268,7 @@ where
 
 	let res = api_thread
 		.join()
-		.map_err(|e| {
-			ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into()
-		});
+		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into());
 
 	if use_tor {
 		let _ = kill_tor();
@@ -748,9 +739,7 @@ where
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let foreign_api = &api as &dyn ForeignRpc;
 			match foreign_api.handle_request(val) {
-				MaybeReply::Reply(r) => ok({
-					r
-				}),
+				MaybeReply::Reply(r) => ok({ r }),
 				MaybeReply::DontReply => {
 					// Since it's http, we need to return something. We return [] because jsonrpc
 					// clients will parse it as an empty batch response.

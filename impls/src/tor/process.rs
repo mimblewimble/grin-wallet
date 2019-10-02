@@ -30,7 +30,7 @@
 // * Neither the name of the copyright holder nor the names of its
 //   contributors may be used to endorse or promote products derived from
 //   this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 // AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -50,15 +50,15 @@ extern crate regex;
 extern crate timer;
 
 use regex::Regex;
+use std::fs::{self, File};
 use std::io;
+use std::io::Write;
 use std::io::{BufRead, BufReader};
+use std::path::{Path, MAIN_SEPARATOR};
 use std::process::{Child, ChildStdout, Command, Stdio};
-use sysinfo::{ProcessExt, Process, Signal};
 use std::sync::mpsc::channel;
 use std::thread;
-use std::fs::{self, File};
-use std::io::{Write};
-use std::path::{Path, MAIN_SEPARATOR};
+use sysinfo::{Process, ProcessExt, Signal};
 
 #[derive(Debug)]
 pub enum Error {
@@ -142,16 +142,14 @@ impl TorProcess {
 
 		if let Some(ref d) = self.working_dir {
 			tor.current_dir(&d);
-			let pid_file_name = format!("{}{}pid", 
-				d, 
-				MAIN_SEPARATOR);
+			let pid_file_name = format!("{}{}pid", d, MAIN_SEPARATOR);
 			// kill off PID if its already running
 			if Path::new(&pid_file_name).exists() {
-				let pid = fs::read_to_string(&pid_file_name)
-					.map_err(|err| Error::IO(err))?;
-				let pid = pid.parse::<i32>()
+				let pid = fs::read_to_string(&pid_file_name).map_err(|err| Error::IO(err))?;
+				let pid = pid
+					.parse::<i32>()
 					.map_err(|err| Error::PID(format!("{:?}", err)))?;
-				let process =  Process::new(pid, None, 0);
+				let process = Process::new(pid, None, 0);
 				let _ = process.kill(Signal::Kill);
 			}
 		}
@@ -171,16 +169,12 @@ impl TorProcess {
 			})?;
 
 		if let Some(ref d) = self.working_dir {
-			// split out the process id, so if we don't exit cleanly 
+			// split out the process id, so if we don't exit cleanly
 			// we can take it down on the next run
-			let pid_file_name = format!("{}{}pid", 
-				d, 
-				MAIN_SEPARATOR);
-			let mut file = File::create(pid_file_name)
-				.map_err(|err| Error::IO(err))?;
+			let pid_file_name = format!("{}{}pid", d, MAIN_SEPARATOR);
+			let mut file = File::create(pid_file_name).map_err(|err| Error::IO(err))?;
 			file.write_all(format!("{}", tor_process.id()).as_bytes())
 				.map_err(|err| Error::IO(err))?;
-			
 		}
 
 		let stdout = BufReader::new(tor_process.stdout.take().unwrap());
@@ -264,7 +258,9 @@ impl TorProcess {
 
 	pub fn kill(&mut self) -> Result<(), Error> {
 		if let Some(ref mut process) = self.process {
-			Ok(process.kill().map_err(|err| Error::Process(format!("{}", err)))?)
+			Ok(process
+				.kill()
+				.map_err(|err| Error::Process(format!("{}", err)))?)
 		} else {
 			Err(Error::ProcessNotStarted)
 		}
