@@ -234,22 +234,20 @@ where
 		.add_route("/v2/foreign", Arc::new(api_handler_v2))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
-
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Foreign listener API server at {}.", addr);
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread = apis
-		.start(socket_addr, router, tls_config)
-		.context(ErrorKind::GenericError(
-			"API thread failed to start".to_string(),
-		))?;
+	let api_thread =
+		apis.start(socket_addr, router, tls_config)
+			.context(ErrorKind::GenericError(
+				"API thread failed to start".to_string(),
+			))?;
 
 	warn!("HTTP Foreign listener started.");
 
 	api_thread
 		.join()
 		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
-
 }
 
 type WalletResponseFuture = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
