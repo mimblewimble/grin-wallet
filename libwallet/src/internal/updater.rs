@@ -28,6 +28,7 @@ use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util as util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
+use crate::grin_util::static_secp_instance;
 use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
@@ -285,6 +286,16 @@ where
 							t.amount_credited = output.value;
 							t.amount_debited = 0;
 							t.num_outputs = 1;
+							// calculate kernel excess for coinbase
+							{
+								let secp = static_secp_instance();
+								let secp = secp.lock();
+								let over_commit = secp.commit_value(output.value)?;
+								let excess =
+									secp.commit_sum(vec![commit.clone()], vec![over_commit])?;
+								t.kernel_excess = Some(excess);
+								t.kernel_lookup_min_height = Some(height);
+							}
 							t.update_confirmation_ts();
 							output.tx_log_entry = Some(log_id);
 							batch.save_tx_log_entry(t, &parent_key_id)?;

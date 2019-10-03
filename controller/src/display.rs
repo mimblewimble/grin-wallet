@@ -160,6 +160,7 @@ pub fn txs(
 		bMG->"Amount \nDebited",
 		bMG->"Fee",
 		bMG->"Net \nDifference",
+		bMG->"Kernel",
 		bMG->"Tx \nData",
 	]);
 
@@ -196,6 +197,10 @@ pub fn txs(
 			Some(_) => "Yes".to_owned(),
 			None => "None".to_owned(),
 		};
+		let kernel_excess = match t.kernel_excess {
+			Some(e) => util::to_hex(e.0.to_vec()),
+			None => "None".to_owned(),
+		};
 		if dark_background_color_scheme {
 			table.add_row(row![
 				bFC->id,
@@ -210,6 +215,7 @@ pub fn txs(
 				bFR->amount_debited_str,
 				bFR->fee,
 				bFY->net_diff,
+				bFB->kernel_excess,
 				bFb->tx_data,
 			]);
 		} else {
@@ -227,6 +233,7 @@ pub fn txs(
 					bFD->amount_debited_str,
 					bFD->fee,
 					bFG->net_diff,
+					bFB->kernel_excess,
 					bFB->tx_data,
 				]);
 			} else {
@@ -243,6 +250,7 @@ pub fn txs(
 					bFD->amount_debited_str,
 					bFD->fee,
 					bFG->net_diff,
+					bFB->kernel_excess,
 					bFB->tx_data,
 				]);
 			}

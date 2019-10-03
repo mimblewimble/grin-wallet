@@ -25,12 +25,12 @@ dirs = "1.0.3"
 # grin_store = "2.0.0"
 
 # For beta release
-grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.2" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.2" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.2" }
-grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.2" }
-grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.2" }
-grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.2" }
+grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3"}
+grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }
+grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }
+grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }
+grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }
+grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }
 
 # For bleeding edge
 # grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
@@ -41,12 +41,12 @@ grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.
 # grin_store = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
-#grin_core = { path = "../../grin/core"}
-#grin_keychain = { path = "../../grin/keychain"}
-#grin_chain = { path = "../../grin/chain"}
-#grin_util = { path = "../../grin/util"}
-#grin_api = { path = "../../grin/api"}
-#grin_store = { path = "../../grin/store"}
+# grin_core = { path = "../../grin/core"}
+# grin_keychain = { path = "../../grin/keychain"}
+# grin_chain = { path = "../../grin/chain"}
+# grin_util = { path = "../../grin/util"}
+# grin_api = { path = "../../grin/api"}
+# grin_store = { path = "../../grin/store"}
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"

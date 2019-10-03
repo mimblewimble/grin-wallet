@@ -255,8 +255,8 @@ pub trait OwnerRpcS {
 			  "creation_ts": "2019-01-15T16:01:26Z",
 			  "fee": null,
 			  "id": 0,
-			  "kernel_excess": null,
-			  "kernel_lookup_min_height": null,
+			  "kernel_excess": "0838e19c490038b10f051c9c190a9b1f96d59bbd242f5d3143f50630deb74342ed",
+			  "kernel_lookup_min_height": 1,
 			  "messages": null,
 			  "num_inputs": 0,
 			  "num_outputs": 1,
@@ -273,8 +273,8 @@ pub trait OwnerRpcS {
 			  "creation_ts": "2019-01-15T16:01:26Z",
 			  "fee": null,
 			  "id": 1,
-			  "kernel_excess": null,
-			  "kernel_lookup_min_height": null,
+			  "kernel_excess": "08cd9d890c0b6a004f700aa5939a1ce0488fe2a11fa33cf096b50732ceab0be1df",
+			  "kernel_lookup_min_height": 2,
 			  "messages": null,
 			  "num_inputs": 0,
 			  "num_outputs": 1,
@@ -1078,7 +1078,9 @@ pub trait OwnerRpcS {
 				"parent_key_id": "0200000000000000000000000000000000",
 				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.grintx",
 				"tx_slate_id": "0436430c-2b02-624c-2032-570501212b00",
-				"tx_type": "TxSent"
+				"tx_type": "TxSent",
+				"kernel_excess": null,
+				"kernel_lookup_min_height": null
 			}
 		}
 	}

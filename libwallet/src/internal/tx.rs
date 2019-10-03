@@ -330,15 +330,11 @@ where
 		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()))?,
 	};
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), &slate.tx)?;
-	// If kernel excess is needed in the case of a no change transaction, update
-	// tx log info with final excess
-	if let Some(_) = tx.kernel_excess {
-		tx.kernel_excess = Some(slate.tx.body.kernels[0].excess);
-		let parent_key = wallet.parent_key_id();
-		let mut batch = wallet.batch(keychain_mask)?;
-		batch.save_tx_log_entry(tx, &parent_key)?;
-		batch.commit()?;
-	}
+	let parent_key = tx.parent_key_id.clone();
+	tx.kernel_excess = Some(slate.tx.body.kernels[0].excess);
+	let mut batch = wallet.batch(keychain_mask)?;
+	batch.save_tx_log_entry(tx, &parent_key)?;
+	batch.commit()?;
 	Ok(())
 }
 

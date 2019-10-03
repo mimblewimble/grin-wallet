@@ -140,11 +140,13 @@ where
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = Some(slate.fee);
-		// TODO: Future multi-kernel considerations
-		if total_change == 0 {
-			t.kernel_excess = Some(slate.calc_excess(&keychain)?);
-			t.kernel_lookup_min_height = Some(slate.height);
+
+		match slate.calc_excess(&keychain) {
+			Ok(e) => t.kernel_excess = Some(e),
+			Err(_) => {}
 		}
+		t.kernel_lookup_min_height = Some(slate.height);
+
 		let mut amount_debited = 0;
 		t.num_inputs = lock_inputs.len();
 		for id in lock_inputs {
@@ -234,6 +236,12 @@ where
 	t.amount_credited = amount;
 	t.num_outputs = 1;
 	t.messages = messages;
+	// when invoicing, this will be invalid
+	match slate.calc_excess(&keychain) {
+		Ok(e) => t.kernel_excess = Some(e),
+		Err(_) => {}
+	}
+	t.kernel_lookup_min_height = Some(slate.height);
 	batch.save(OutputData {
 		root_key_id: parent_key_id.clone(),
 		key_id: key_id_inner.clone(),
