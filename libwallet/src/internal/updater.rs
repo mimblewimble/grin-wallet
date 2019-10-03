@@ -291,9 +291,8 @@ where
 								let secp = static_secp_instance();
 								let secp = secp.lock();
 								let over_commit = secp.commit_value(output.value)?;
-								let out_commit = commit.clone();
 								let excess =
-									secp.commit_sum(vec![out_commit], vec![over_commit])?;
+									secp.commit_sum(vec![commit.clone()], vec![over_commit])?;
 								t.kernel_excess = Some(excess);
 								t.kernel_lookup_min_height = Some(height);
 							}
