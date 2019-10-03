@@ -143,7 +143,7 @@ where
 
 		match slate.calc_excess(&keychain) {
 			Ok(e) => t.kernel_excess = Some(e),
-			Err(_) => {},
+			Err(_) => {}
 		}
 		t.kernel_lookup_min_height = Some(slate.height);
 
@@ -239,7 +239,7 @@ where
 	// when invoicing, this will be invalid
 	match slate.calc_excess(&keychain) {
 		Ok(e) => t.kernel_excess = Some(e),
-		Err(_) => {},
+		Err(_) => {}
 	}
 	t.kernel_lookup_min_height = Some(slate.height);
 	batch.save(OutputData {
