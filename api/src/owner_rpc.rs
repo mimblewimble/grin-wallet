@@ -1025,7 +1025,9 @@ pub trait OwnerRpc: Sync + Send {
 				"parent_key_id": "0200000000000000000000000000000000",
 				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.grintx",
 				"tx_slate_id": "0436430c-2b02-624c-2032-570501212b00",
-				"tx_type": "TxSent"
+				"tx_type": "TxSent",
+				"kernel_excess": null,
+				"kernel_lookup_min_height": null
 			}
 		]
 	}
