@@ -141,8 +141,10 @@ where
 		t.stored_tx = Some(filename);
 		t.fee = Some(slate.fee);
 
-		// TODO: Future multi-kernel considerations
-		t.kernel_excess = Some(slate.calc_excess(&keychain)?);
+		match slate.calc_excess(&keychain) {
+			Ok(e) => t.kernel_excess = Some(e),
+			Err(_) => {},
+		}
 		t.kernel_lookup_min_height = Some(slate.height);
 
 		let mut amount_debited = 0;
@@ -234,7 +236,11 @@ where
 	t.amount_credited = amount;
 	t.num_outputs = 1;
 	t.messages = messages;
-	t.kernel_excess = Some(slate.calc_excess(&keychain)?);
+	// when invoicing, this will be invalid
+	match slate.calc_excess(&keychain) {
+		Ok(e) => t.kernel_excess = Some(e),
+		Err(_) => {},
+	}
 	t.kernel_lookup_min_height = Some(slate.height);
 	batch.save(OutputData {
 		root_key_id: parent_key_id.clone(),
