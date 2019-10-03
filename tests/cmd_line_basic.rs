@@ -221,6 +221,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
 		assert!(refreshed);
 		assert_eq!(txs.len(), bh as usize);
+		for t in txs {
+			assert!(t.kernel_excess.is_some());
+		}
 		Ok(())
 	})?;
 

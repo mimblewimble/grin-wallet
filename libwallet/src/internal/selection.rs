@@ -234,6 +234,8 @@ where
 	t.amount_credited = amount;
 	t.num_outputs = 1;
 	t.messages = messages;
+	t.kernel_excess = Some(slate.calc_excess(&keychain)?);
+	t.kernel_lookup_min_height = Some(slate.height);
 	batch.save(OutputData {
 		root_key_id: parent_key_id.clone(),
 		key_id: key_id_inner.clone(),

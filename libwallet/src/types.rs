@@ -758,6 +758,7 @@ pub struct TxLogEntry {
 	/// Location of the store transaction, (reference or resending)
 	pub stored_tx: Option<String>,
 	/// Associated kernel excess, for later lookup if necessary
+	#[serde(with = "secp_ser::option_commitment_serde")]
 	pub kernel_excess: Option<pedersen::Commitment>,
 	/// Height reported when transaction was created, if lookup
 	/// of kernel is necessary
