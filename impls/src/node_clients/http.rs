@@ -198,7 +198,7 @@ impl NodeClient for HTTPNodeClient {
 
 		for query_chunk in query_params.chunks(200) {
 			let url = format!("{}/v1/chain/outputs/byids?{}", addr, query_chunk.join("&"),);
-			tasks.push(api::client::get_async::<Vec<api::Output>>(
+			tasks.push(api::client::get_async::<Vec<api::OutputPrintable>>(
 				url.as_str(),
 				self.node_api_secret(),
 			));
@@ -219,8 +219,12 @@ impl NodeClient for HTTPNodeClient {
 		for res in results {
 			for out in res {
 				api_outputs.insert(
-					out.commit.commit(),
-					(util::to_hex(out.commit.to_vec()), out.height, out.mmr_index),
+					out.commit,
+					(
+						util::to_hex(out.commit.0.to_vec()),
+						out.block_height,
+						out.mmr_index,
+					),
 				);
 			}
 		}
@@ -258,7 +262,7 @@ impl NodeClient for HTTPNodeClient {
 						out.commit,
 						out.range_proof().unwrap(),
 						is_coinbase,
-						out.block_height.unwrap(),
+						out.block_height,
 						out.mmr_index,
 					));
 				}

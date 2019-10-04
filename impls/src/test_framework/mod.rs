@@ -36,7 +36,10 @@ mod testclient;
 pub use self::{testclient::LocalWalletClient, testclient::WalletProxy};
 
 /// Get an output from the chain locally and present it back as an API output
-fn get_output_local(chain: &chain::Chain, commit: &pedersen::Commitment) -> Option<api::Output> {
+fn get_output_local(
+	chain: Arc<chain::Chain>,
+	commit: &pedersen::Commitment,
+) -> Option<api::OutputPrintable> {
 	let outputs = [
 		OutputIdentifier::new(OutputFeatures::Plain, commit),
 		OutputIdentifier::new(OutputFeatures::Coinbase, commit),
@@ -44,9 +47,18 @@ fn get_output_local(chain: &chain::Chain, commit: &pedersen::Commitment) -> Opti
 
 	for x in outputs.iter() {
 		if let Ok(_) = chain.is_unspent(&x) {
-			let block_height = chain.get_header_for_output(&x).unwrap().height;
+			let block_header = chain.get_header_for_output(&x).unwrap();
 			let output_pos = chain.get_output_pos(&x.commit).unwrap_or(0);
-			return Some(api::Output::new(&commit, block_height, output_pos));
+			let output = chain.get_unspent_output_at(output_pos).unwrap();
+			let output_printable = api::OutputPrintable::from_output(
+				&output,
+				chain.clone(),
+				Some(&block_header),
+				true,
+				true,
+			)
+			.unwrap();
+			return Some(output_printable);
 		}
 	}
 	None

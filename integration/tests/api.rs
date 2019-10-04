@@ -303,21 +303,21 @@ fn get_outputs_by_ids1(
 	base_addr: &String,
 	api_server_port: u16,
 	ids: Vec<String>,
-) -> Result<Vec<api::Output>, Error> {
+) -> Result<Vec<api::OutputPrintable>, Error> {
 	let url = format!(
 		"http://{}:{}/v1/chain/outputs/byids?id={}",
 		base_addr,
 		api_server_port,
 		ids.join(",")
 	);
-	api::client::get::<Vec<api::Output>>(url.as_str(), None).map_err(|e| Error::API(e))
+	api::client::get::<Vec<api::OutputPrintable>>(url.as_str(), None).map_err(|e| Error::API(e))
 }
 
 fn get_outputs_by_ids2(
 	base_addr: &String,
 	api_server_port: u16,
 	ids: Vec<String>,
-) -> Result<Vec<api::Output>, Error> {
+) -> Result<Vec<api::OutputPrintable>, Error> {
 	let mut ids_string: String = String::from("");
 	for id in ids {
 		ids_string = ids_string + "?id=" + &id;
@@ -327,7 +327,7 @@ fn get_outputs_by_ids2(
 		"http://{}:{}/v1/chain/outputs/byids?{}",
 		base_addr, api_server_port, ids_string
 	);
-	api::client::get::<Vec<api::Output>>(url.as_str(), None).map_err(|e| Error::API(e))
+	api::client::get::<Vec<api::OutputPrintable>>(url.as_str(), None).map_err(|e| Error::API(e))
 }
 
 fn get_outputs_by_height(
