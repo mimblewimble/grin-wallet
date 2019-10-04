@@ -152,10 +152,10 @@ impl SlateSender for HttpSlateSender {
 		// set up tor send process if needed
 		let mut tor = tor_process::TorProcess::new();
 		if self.use_socks {
-			let tor_dir = format!("{}{}{}", 
-				&self.tor_config_dir,
-				MAIN_SEPARATOR,
-				TOR_CONFIG_PATH);
+			let tor_dir = format!(
+				"{}{}{}",
+				&self.tor_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
+			);
 			warn!(
 				"Starting TOR Process for send at {:?}",
 				self.socks_proxy_addr
