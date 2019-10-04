@@ -821,6 +821,17 @@ where
 		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 	}
 
+	// for backwards compatibility: If tor config doesn't exist in the file, assume
+	// the top level directory for data
+	let tor_config = match tor_config {
+		Some(tc) => Some(tc),
+		None => {
+			let mut tc = TorConfig::default();
+			tc.send_config_dir = wallet_config.data_file_dir.clone();
+			Some(tc)
+		}
+	};
+
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet =
 		inst_wallet::<DefaultLCProvider<C, keychain::ExtKeychain>, C, keychain::ExtKeychain>(
@@ -922,6 +933,7 @@ where
 		}
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(&args));
+			println!("TOR CONFIG WALLET ARGS SEND: {:?}", tor_config);
 			command::send(
 				wallet,
 				km,

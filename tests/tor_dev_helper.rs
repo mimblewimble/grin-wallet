@@ -43,7 +43,7 @@ fn setup_no_clean() {
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	let test_dir = "target/test_output/socks_tor";

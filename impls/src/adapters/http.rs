@@ -19,10 +19,13 @@ use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
+use std::path::MAIN_SEPARATOR;
 use url::Url;
 
 use crate::tor::config as tor_config;
 use crate::tor::process as tor_process;
+
+const TOR_CONFIG_PATH: &'static str = "tor/sender";
 
 #[derive(Clone)]
 pub struct HttpSlateSender {
@@ -149,19 +152,22 @@ impl SlateSender for HttpSlateSender {
 		// set up tor send process if needed
 		let mut tor = tor_process::TorProcess::new();
 		if self.use_socks {
-			//let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
+			let tor_dir = format!("{}{}{}", 
+				&self.tor_config_dir,
+				MAIN_SEPARATOR,
+				TOR_CONFIG_PATH);
 			warn!(
 				"Starting TOR Process for send at {:?}",
 				self.socks_proxy_addr
 			);
 			tor_config::output_tor_sender_config(
-				&self.tor_config_dir,
+				&tor_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
 			)
 			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 			// Start TOR process
-			tor.torrc_path(&format!("{}/torrc", self.tor_config_dir))
-				.working_dir(&self.tor_config_dir)
+			tor.torrc_path(&format!("{}/torrc", &tor_dir))
+				.working_dir(&tor_dir)
 				.timeout(20)
 				.completion_percent(100)
 				.launch()
