@@ -1,4 +1,4 @@
-// Copyright 2018 The Grin Developers
+// Copyright 2019 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -569,6 +569,9 @@ where
 		if tx.confirmed {
 			continue;
 		}
+		if tx.amount_debited != 0 && tx.amount_credited != 0 {
+			continue;
+		}
 		if let Some(e) = tx.kernel_excess {
 			let res = w
 				.w2n_client()
@@ -585,6 +588,8 @@ where
 				batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 				batch.commit()?;
 			}
+		} else {
+			warn!("Attempted to update via kernel excess for transaction {:?}, but kernel excess was not stored", tx.tx_slate_id);
 		}
 	}
 	Ok(true)
