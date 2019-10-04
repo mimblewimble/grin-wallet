@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_impls"
-version = "2.1.0-beta.3"
+version = "3.0.0-alpha.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Concrete types derived from libwallet traits"
 license = "Apache-2.0"
@@ -28,6 +28,6 @@ uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
 url = "1.7.2"
 
-grin_wallet_util = { path = "../util", version = "2.1.0-beta.3" }
-grin_wallet_config = { path = "../config", version = "2.1.0-beta.3" }
-grin_wallet_libwallet = { path = "../libwallet", version = "2.1.0-beta.3" }
+grin_wallet_util = { path = "../util", version = "3.0.0-alpha.1" }
+grin_wallet_config = { path = "../config", version = "3.0.0-alpha.1" }
+grin_wallet_libwallet = { path = "../libwallet", version = "3.0.0-alpha.1" }
