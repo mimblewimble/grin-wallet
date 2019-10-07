@@ -39,8 +39,7 @@ const HIDDEN_SERVICES_DIR: &'static str = "onion_service_addresses";
 #[cfg(unix)]
 fn set_permissions(file_path: &str) -> Result<(), Error> {
 	use std::os::unix::prelude::*;
-	fs::set_permissions(file_path, fs::Permissions::from_mode(0o700))
-		.context(ErrorKind::IO)?;
+	fs::set_permissions(file_path, fs::Permissions::from_mode(0o700)).context(ErrorKind::IO)?;
 }
 
 #[cfg(windows)]
@@ -50,8 +49,8 @@ fn set_permissions(_file_path: &str) -> Result<(), Error> {
 
 struct TorRcConfigItem {
 	pub name: String,
-	pub value: String, 
- }
+	pub value: String,
+}
 
 impl TorRcConfigItem {
 	/// Create new

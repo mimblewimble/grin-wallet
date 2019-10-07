@@ -43,7 +43,7 @@ fn setup_no_clean() {
 	global::set_mining_mode(ChainTypes::AutomatedTesting);
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	let test_dir = "target/test_output/socks_tor";
@@ -64,7 +64,7 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 	// tor -f torrc
 
 	// Substitute whatever onion address has been created
-	let onion_address = "http://t3tjns7hxqnyldfjfhrn2ydfjmpn2xuerj5y4mvg6h3lnumfz22gvhyd.onion";
+	let onion_address = "http://f72qp7umk3dqysnzo72wgoekly2lsfu4v3b7pag7llry43qpusubptid.onion";
 
 	// run the foreign listener for wallet 2
 	let arg_vec = vec!["grin-wallet", "-p", "password", "listen", "-m", "tor"];
