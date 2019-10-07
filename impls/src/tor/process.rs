@@ -190,7 +190,6 @@ impl TorProcess {
 			file.write_all(format!("{}", tor_process.id()).as_bytes())
 				.map_err(|err| Error::IO(err))?;
 		}
-		println!("YO 4!");
 
 		let stdout = BufReader::new(tor_process.stdout.take().unwrap());
 

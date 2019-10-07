@@ -17,6 +17,7 @@
 use crate::client_utils::Socksv5Connector;
 use crate::util::to_base64;
 use failure::{Backtrace, Context, Fail, ResultExt};
+use futures::future::result;
 use futures::future::{err, ok, Either};
 use futures::stream::Stream;
 use http::uri::{InvalidUri, Uri};
@@ -335,9 +336,21 @@ impl Client {
 				)
 			}
 			true => {
-				//TODO: unwrap
-				let client = hyper::Client::builder()
-					.build::<_, hyper::Body>(Socksv5Connector::new(self.socks_proxy_addr.unwrap()));
+				let addr = match self.socks_proxy_addr {
+					Some(a) => a,
+					None => {
+						return Box::new(result(Err(ErrorKind::RequestError(format!(
+							"Can't parse Socks proxy address"
+						))
+						.into())))
+					}
+				};
+				let socks_connector = Socksv5Connector::new(addr);
+				let mut connector = TimeoutConnector::new(socks_connector);
+				connector.set_connect_timeout(Some(Duration::from_secs(20)));
+				connector.set_read_timeout(Some(Duration::from_secs(20)));
+				connector.set_write_timeout(Some(Duration::from_secs(20)));
+				let client = hyper::Client::builder().build::<_, hyper::Body>(connector);
 				Box::new(
 					client
 						.request(req)
