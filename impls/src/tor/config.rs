@@ -40,6 +40,7 @@ const HIDDEN_SERVICES_DIR: &'static str = "onion_service_addresses";
 fn set_permissions(file_path: &str) -> Result<(), Error> {
 	use std::os::unix::prelude::*;
 	fs::set_permissions(file_path, fs::Permissions::from_mode(0o700)).context(ErrorKind::IO)?;
+	Ok(())
 }
 
 #[cfg(windows)]
