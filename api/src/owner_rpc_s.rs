@@ -1472,7 +1472,8 @@ pub trait OwnerRpcS {
 			},
 			"tor_config" : {
 				"default_send_via_tor": false,
-				"socks_proxy_addr": "127.0.0.1:9050"
+				"socks_proxy_addr": "127.0.0.1:9050",
+				"send_config_dir": "."
 			}
 		},
 		"id": 1
