@@ -258,9 +258,7 @@ impl GlobalWalletConfig {
 			.as_mut()
 			.unwrap()
 			.log_file_path = log_path.to_str().unwrap().to_owned();
-		let mut tor_path = wallet_home.clone();
-		tor_path.push("tor");
-		tor_path.push("sender");
+		let tor_path = wallet_home.clone();
 		self.members
 			.as_mut()
 			.unwrap()

@@ -933,7 +933,6 @@ where
 		}
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(&args));
-			println!("TOR CONFIG WALLET ARGS SEND: {:?}", tor_config);
 			command::send(
 				wallet,
 				km,

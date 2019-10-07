@@ -28,9 +28,6 @@ use std::path::{Path, MAIN_SEPARATOR};
 
 use failure::ResultExt;
 
-//TODO: Windows?
-use std::os::unix::prelude::*;
-
 const SEC_KEY_FILE: &'static str = "hs_ed25519_secret_key";
 const PUB_KEY_FILE: &'static str = "hs_ed25519_public_key";
 const HOSTNAME_FILE: &'static str = "hostname";
@@ -39,10 +36,22 @@ const TOR_DATA_DIR: &'static str = "data";
 const AUTH_CLIENTS_DIR: &'static str = "authorized_clients";
 const HIDDEN_SERVICES_DIR: &'static str = "onion_service_addresses";
 
+#[cfg(unix)]
+fn set_permissions(file_path: &str) -> Result<(), Error> {
+	use std::os::unix::prelude::*;
+	fs::set_permissions(file_path, fs::Permissions::from_mode(0o700))
+		.context(ErrorKind::IO)?;
+}
+
+#[cfg(windows)]
+fn set_permissions(_file_path: &str) -> Result<(), Error> {
+	Ok(())
+}
+
 struct TorRcConfigItem {
 	pub name: String,
-	pub value: String,
-}
+	pub value: String, 
+ }
 
 impl TorRcConfigItem {
 	/// Create new
@@ -187,9 +196,7 @@ pub fn output_onion_service_config(
 	create_onion_service_hostname_file(&hs_dir_file_path, &address)?;
 	create_onion_auth_clients_dir(&hs_dir_file_path)?;
 
-	//TODO: Windows
-	fs::set_permissions(&hs_dir_file_path, fs::Permissions::from_mode(0o700))
-		.context(ErrorKind::IO)?;
+	set_permissions(&hs_dir_file_path)?;
 
 	Ok(address)
 }

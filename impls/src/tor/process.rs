@@ -60,6 +60,11 @@ use std::sync::mpsc::channel;
 use std::thread;
 use sysinfo::{Process, ProcessExt, Signal};
 
+#[cfg(windows)]
+const TOR_EXE_NAME: &'static str = "tor.exe";
+#[cfg(not(windows))]
+const TOR_EXE_NAME: &'static str = "tor";
+
 #[derive(Debug)]
 pub enum Error {
 	Process(String),
@@ -71,6 +76,16 @@ pub enum Error {
 	Regex(regex::Error),
 	ProcessNotStarted,
 	Timeout,
+}
+
+#[cfg(windows)]
+fn get_process(pid: i32) -> Process {
+	Process::new(pid as usize, None, 0)
+}
+
+#[cfg(not(windows))]
+fn get_process(pid: i32) -> Process {
+	Process::new(pid, None, 0)
 }
 
 pub struct TorProcess {
@@ -87,7 +102,7 @@ pub struct TorProcess {
 impl TorProcess {
 	pub fn new() -> Self {
 		TorProcess {
-			tor_cmd: "tor".to_string(),
+			tor_cmd: TOR_EXE_NAME.to_string(),
 			args: vec![],
 			torrc_path: None,
 			completion_percent: 100 as u8,
@@ -149,11 +164,10 @@ impl TorProcess {
 				let pid = pid
 					.parse::<i32>()
 					.map_err(|err| Error::PID(format!("{:?}", err)))?;
-				let process = Process::new(pid, None, 0);
+				let process = get_process(pid);
 				let _ = process.kill(Signal::Kill);
 			}
 		}
-
 		if let Some(ref torrc_path) = self.torrc_path {
 			tor.args(&vec!["-f", torrc_path]);
 		}
@@ -164,8 +178,8 @@ impl TorProcess {
 			.stderr(Stdio::piped())
 			.spawn()
 			.map_err(|err| {
-				error!("TOR executable (tor OR tor.exe) not found. Please ensure TOR is installed and on the path: {}", err);
-				Error::Process(format!("{}", err))
+				let msg = format!("TOR executable (`{}`) not found. Please ensure TOR is installed and on the path: {:?}", TOR_EXE_NAME, err);
+				Error::Process(msg)
 			})?;
 
 		if let Some(ref d) = self.working_dir {
@@ -176,6 +190,7 @@ impl TorProcess {
 			file.write_all(format!("{}", tor_process.id()).as_bytes())
 				.map_err(|err| Error::IO(err))?;
 		}
+		println!("YO 4!");
 
 		let stdout = BufReader::new(tor_process.stdout.take().unwrap());
 
