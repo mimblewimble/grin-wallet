@@ -18,25 +18,26 @@ use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
-use url::Url;
 
 #[derive(Clone)]
 pub struct HttpSlateSender {
-	base_url: Url,
+	base_url: String,
 }
 
 impl HttpSlateSender {
 	/// Create, return Err if scheme is not "http"
-	pub fn new(base_url: Url) -> Result<HttpSlateSender, SchemeNotHttp> {
-		if base_url.scheme() != "http" && base_url.scheme() != "https" {
+	pub fn new(base_url: &str) -> Result<HttpSlateSender, SchemeNotHttp> {
+		if !base_url.starts_with("http") && !base_url.starts_with("https") {
 			Err(SchemeNotHttp)
 		} else {
-			Ok(HttpSlateSender { base_url })
+			Ok(HttpSlateSender {
+				base_url: base_url.to_owned(),
+			})
 		}
 	}
 
 	/// Check version of the listening wallet
-	fn check_other_version(&self, url: &Url) -> Result<(), Error> {
+	fn check_other_version(&self, url: &str) -> Result<(), Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -95,13 +96,15 @@ impl HttpSlateSender {
 
 impl SlateSender for HttpSlateSender {
 	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let url: Url = self
-			.base_url
-			.join("/v2/foreign")
-			.expect("/v2/foreign is an invalid url path");
-		debug!("Posting transaction slate to {}", url);
+		let trailing = match self.base_url.ends_with('/') {
+			true => "",
+			false => "/",
+		};
+		let url_str = format!("{}{}v2/foreign", self.base_url, trailing);
 
-		self.check_other_version(&url)?;
+		debug!("Posting transaction slate to {}", url_str);
+
+		self.check_other_version(&url_str)?;
 
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = json!({
@@ -116,7 +119,7 @@ impl SlateSender for HttpSlateSender {
 		});
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = post(&url, None, &req).map_err(|e| {
+		let res: String = post(&url_str, None, &req).map_err(|e| {
 			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
@@ -152,12 +155,12 @@ impl Into<Error> for SchemeNotHttp {
 	}
 }
 
-pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
+pub fn post<IN>(url: &str, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
 where
 	IN: Serialize,
 {
 	// TODO: change create_post_request to accept a url instead of a &str
-	let req = api::client::create_post_request(url.as_str(), api_secret, input)?;
+	let req = api::client::create_post_request(url, api_secret, input)?;
 	let res = api::client::send_request(req)?;
 	Ok(res)
 }
