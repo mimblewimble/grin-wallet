@@ -95,9 +95,10 @@ impl HttpSlateSender {
 
 impl SlateSender for HttpSlateSender {
 	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
-		let url: Url = self
-			.base_url
-			.join("/v2/foreign")
+		let mut path_str = self.base_url.path().to_owned();
+		path_str = format!("{}v2/foreign", path_str);
+		let url: Url = self.base_url
+			.join(&path_str)
 			.expect("/v2/foreign is an invalid url path");
 		debug!("Posting transaction slate to {}", url);
 
