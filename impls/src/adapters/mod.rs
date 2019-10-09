@@ -58,7 +58,6 @@ pub trait SlateGetter {
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs
 pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, Error> {
-
 	let invalid = || {
 		ErrorKind::WalletComms(format!(
 			"Invalid wallet comm type and destination. method: {}, dest: {}",
@@ -66,9 +65,7 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 		))
 	};
 	Ok(match method {
-		"http" => {
-			Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?)
-		}
+		"http" => Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?),
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
 			return Err(ErrorKind::WalletComms(

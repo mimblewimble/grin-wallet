@@ -31,7 +31,7 @@ impl HttpSlateSender {
 			Err(SchemeNotHttp)
 		} else {
 			Ok(HttpSlateSender {
-				base_url: base_url.to_owned()
+				base_url: base_url.to_owned(),
 			})
 		}
 	}
