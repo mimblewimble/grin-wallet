@@ -26,7 +26,6 @@ tokio-core = "0.1"
 tokio-retry = "0.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
-url = "1.7.2"
 
 grin_wallet_util = { path = "../util", version = "3.0.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "3.0.0-alpha.1" }

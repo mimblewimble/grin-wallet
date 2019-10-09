@@ -58,7 +58,6 @@ pub trait SlateGetter {
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs
 pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, Error> {
-	use url::Url;
 
 	let invalid = || {
 		ErrorKind::WalletComms(format!(
@@ -68,8 +67,7 @@ pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, E
 	};
 	Ok(match method {
 		"http" => {
-			let url: Url = dest.parse().map_err(|_| invalid())?;
-			Box::new(HttpSlateSender::new(url).map_err(|_| invalid())?)
+			Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?)
 		}
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
