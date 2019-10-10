@@ -78,6 +78,46 @@ fn check_middleware(
 	}
 }
 
+/// initiate the tor listener
+fn init_tor_listener<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+	addr: &str,
+) -> Result<tor_process::TorProcess, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	let mut process = tor_process::TorProcess::new();
+	let mask = keychain_mask.lock();
+	// eventually want to read a list of service config keys
+	let mut w_lock = wallet.lock();
+	let lc = w_lock.lc_provider()?;
+	let w_inst = lc.wallet_inst()?;
+	let k = w_inst.keychain((&mask).as_ref())?;
+	let parent_key_id = w_inst.parent_key_id();
+	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
+	let sec_key = tor_config::address_derivation_path(&k, &parent_key_id, 0)
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	let onion_address = tor_config::onion_address_from_seckey(&sec_key)
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	warn!(
+		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
+		onion_address, addr
+	);
+	tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	// Start TOR process
+	process.torrc_path(&format!("{}/torrc", tor_dir))
+		.working_dir(&tor_dir)
+		.timeout(20)
+		.completion_percent(100)
+		.launch()
+		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
+	Ok(process)
+}
+
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn owner_single_use<'a, L, F, C, K>(
@@ -198,37 +238,13 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let mut tor = tor_process::TorProcess::new();
-	if use_tor {
-		let mask = keychain_mask.lock();
-		// eventually want to read a list of service config keys
-		let mut w_lock = wallet.lock();
-		let lc = w_lock.lc_provider()?;
-		let w_inst = lc.wallet_inst()?;
-		let k = w_inst.keychain((&mask).as_ref())?;
-		let parent_key_id = w_inst.parent_key_id();
-		let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
-		let sec_key = tor_config::address_derivation_path(&k, &parent_key_id, 0)
-			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
-		let onion_address = tor_config::onion_address_from_seckey(&sec_key)
-			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
-		warn!(
-			"Starting TOR Hidden Service for API listener at address {}, binding to {}",
-			onion_address, addr
-		);
-		tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
-			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
-		// Start TOR process
-		tor.torrc_path(&format!("{}/torrc", tor_dir))
-			.working_dir(&tor_dir)
-			.timeout(20)
-			.completion_percent(100)
-			.launch()
-			.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
-	}
+	// need to keep in scope while the main listener is running
+	let _tor_process = match use_tor {
+		true => Some(init_tor_listener(wallet.clone(), keychain_mask.clone(), addr)?),
+		false => None,
+	};
 
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
-
 	let mut router = Router::new();
 
 	router
