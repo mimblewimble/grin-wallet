@@ -70,22 +70,16 @@ pub fn create_sender(
 	};
 	Ok(match method {
 		"http" => Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?),
-		"tor" => {
-			match tor_config {
-				None => {
-					return Err(
-						ErrorKind::WalletComms("Tor Configuration required".to_string()).into(),
-					);
-				}
-				Some(tc) => Box::new(
-					HttpSlateSender::with_socks_proxy(
-						dest,
-						&tc.socks_proxy_addr,
-						&tc.send_config_dir,
-					)
-					.map_err(|_| invalid())?,
-				),
+		"tor" => match tor_config {
+			None => {
+				return Err(
+					ErrorKind::WalletComms("Tor Configuration required".to_string()).into(),
+				);
 			}
+			Some(tc) => Box::new(
+				HttpSlateSender::with_socks_proxy(dest, &tc.socks_proxy_addr, &tc.send_config_dir)
+					.map_err(|_| invalid())?,
+			),
 		},
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
