@@ -15,7 +15,7 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
-use crate::keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+use crate::keychain::Keychain;
 use crate::libwallet::{
 	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
@@ -204,11 +204,12 @@ where
 		// eventually want to read a list of service config keys
 		let mut w_lock = wallet.lock();
 		let lc = w_lock.lc_provider()?;
-		let k = lc.wallet_inst()?.keychain((&mask).as_ref())?;
-		// TODO: Decide what the derivation path should be
-		let key_id = ExtKeychain::derive_key_id(3, 1, 0, 0, 0);
+		let w_inst = lc.wallet_inst()?;
+		let k = w_inst.keychain((&mask).as_ref())?;
+		let parent_key_id = w_inst.parent_key_id();
 		let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
-		let sec_key = k.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
+		let sec_key = tor_config::address_derivation_path(&k, &parent_key_id, 0)
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 		let onion_address = tor_config::onion_address_from_seckey(&sec_key)
 			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 		warn!(

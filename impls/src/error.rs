@@ -16,6 +16,7 @@
 use crate::core::libtx;
 use crate::keychain;
 use crate::libwallet;
+use crate::util::secp;
 use failure::{Backtrace, Context, Fail};
 use std::env;
 use std::fmt::{self, Display};
@@ -44,6 +45,10 @@ pub enum ErrorKind {
 	/// Error when formatting json
 	#[fail(display = "IO error")]
 	IO,
+
+	/// Secp Error
+	#[fail(display = "Secp error")]
+	Secp(secp::Error),
 
 	/// Error when formatting json
 	#[fail(display = "Serde JSON error")]
@@ -151,6 +156,14 @@ impl From<keychain::Error> for Error {
 	fn from(error: keychain::Error) -> Error {
 		Error {
 			inner: Context::new(ErrorKind::Keychain(error)),
+		}
+	}
+}
+
+impl From<secp::Error> for Error {
+	fn from(error: secp::Error) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Secp(error)),
 		}
 	}
 }
