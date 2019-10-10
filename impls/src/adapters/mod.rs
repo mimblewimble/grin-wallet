@@ -23,7 +23,6 @@ pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 use crate::config::{TorConfig, WalletConfig};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::util::ZeroingString;
-use url::Url;
 
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
@@ -70,12 +69,8 @@ pub fn create_sender(
 		))
 	};
 	Ok(match method {
-		"http" => {
-			let url: Url = dest.parse().map_err(|_| invalid())?;
-			Box::new(HttpSlateSender::new(url).map_err(|_| invalid())?)
-		}
+		"http" => Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?),
 		"tor" => {
-			let url: Url = dest.parse().map_err(|_| invalid())?;
 			match tor_config {
 				None => {
 					return Err(
@@ -84,14 +79,14 @@ pub fn create_sender(
 				}
 				Some(tc) => Box::new(
 					HttpSlateSender::with_socks_proxy(
-						url,
+						dest,
 						&tc.socks_proxy_addr,
 						&tc.send_config_dir,
 					)
 					.map_err(|_| invalid())?,
 				),
 			}
-		}
+		},
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
 			return Err(ErrorKind::WalletComms(
