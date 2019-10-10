@@ -14,8 +14,8 @@
 
 //! Tor Configuration + Onion (Hidden) Service operations
 use crate::util::secp::key::SecretKey;
-use grin_wallet_util::grin_keychain::{Keychain, Identifier, ChildNumber, SwitchCommitmentType};
 use crate::{Error, ErrorKind};
+use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
 use data_encoding::BASE32;
 use ed25519_dalek::ExpandedSecretKey;
@@ -273,14 +273,18 @@ pub fn output_tor_sender_config(
 }
 
 /// Derive a secret key given a derivation path and index
-pub fn address_derivation_path<K>(keychain: &K, parent_key_id: &Identifier, index: u32) -> Result<SecretKey, Error> 
+pub fn address_derivation_path<K>(
+	keychain: &K,
+	parent_key_id: &Identifier,
+	index: u32,
+) -> Result<SecretKey, Error>
 where
 	K: Keychain,
 {
 	let mut key_path = parent_key_id.to_path();
 	// An output derivation for acct m/0
 	// is m/0/0/0, m/0/0/1 (for instance), m/1 is m/1/0/0, m/1/0/1
-	// Address generation path should be 
+	// Address generation path should be
 	// for m/0: m/0/1/0, m/0/1/1
 	// for m/1: m/1/1/0, m/1/1/1
 	key_path.path[1] = ChildNumber::from(1);
@@ -290,9 +294,11 @@ where
 	debug!("Onion Address derivation path is: {}", key_id);
 	let sec_key = keychain.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
 	let hashed = blake2b(32, &[], &sec_key.0[..]);
-	Ok(SecretKey::from_slice(&keychain.secp(), &hashed.as_bytes()[..])?)
+	Ok(SecretKey::from_slice(
+		&keychain.secp(),
+		&hashed.as_bytes()[..],
+	)?)
 }
-
 
 #[cfg(test)]
 mod tests {
