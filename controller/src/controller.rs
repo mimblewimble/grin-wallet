@@ -109,7 +109,8 @@ where
 	tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process
-	process.torrc_path(&format!("{}/torrc", tor_dir))
+	process
+		.torrc_path(&format!("{}/torrc", tor_dir))
 		.working_dir(&tor_dir)
 		.timeout(20)
 		.completion_percent(100)
@@ -240,7 +241,11 @@ where
 {
 	// need to keep in scope while the main listener is running
 	let _tor_process = match use_tor {
-		true => Some(init_tor_listener(wallet.clone(), keychain_mask.clone(), addr)?),
+		true => Some(init_tor_listener(
+			wallet.clone(),
+			keychain_mask.clone(),
+			addr,
+		)?),
 		false => None,
 	};
 
