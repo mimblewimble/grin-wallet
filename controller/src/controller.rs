@@ -241,10 +241,7 @@ where
 {
 	// need to keep in scope while the main listener is running
 	let _tor_process = match use_tor {
-		true => match init_tor_listener(
-			wallet.clone(),
-			keychain_mask.clone(),
-			addr) {
+		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {
 			Ok(tp) => Some(tp),
 			Err(e) => {
 				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
