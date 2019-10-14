@@ -23,6 +23,7 @@ pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 use crate::config::{TorConfig, WalletConfig};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::util::ZeroingString;
+use crate::tor::config::complete_tor_address;
 
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
@@ -68,8 +69,21 @@ pub fn create_sender(
 			method, dest
 		))
 	};
+
+	let mut method = method.into();
+
+	// will test if this is a tor address and fill out
+	// the http://[].onion if missing
+	let dest = match complete_tor_address(dest) {
+		Ok(d) => {
+			method = "tor";
+			d
+		},
+		Err(_) => dest.into(),
+	};
+
 	Ok(match method {
-		"http" => Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?),
+		"http" => Box::new(HttpSlateSender::new(&dest).map_err(|_| invalid())?),
 		"tor" => match tor_config {
 			None => {
 				return Err(
@@ -77,7 +91,7 @@ pub fn create_sender(
 				);
 			}
 			Some(tc) => Box::new(
-				HttpSlateSender::with_socks_proxy(dest, &tc.socks_proxy_addr, &tc.send_config_dir)
+				HttpSlateSender::with_socks_proxy(&dest, &tc.socks_proxy_addr, &tc.send_config_dir)
 					.map_err(|_| invalid())?,
 			),
 		},

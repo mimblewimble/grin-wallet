@@ -24,6 +24,7 @@ use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
+use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_libwallet::Slate;
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
@@ -472,22 +473,12 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			}
 		}
 	};
-	let mut dest = dest.to_owned();
-
-	// If tor sending, allow addresses without "http://[].onion"
-	if method == "tor" {
-		if !dest.starts_with("http://") {
-			dest = format!("http://{}", dest);
-		}
-		if !dest.ends_with(".onion") {
-			dest = format!("{}.onion", dest);
-		}
-	}
 
 	if !estimate_selection_strategies
 		&& method == "http"
 		&& !dest.starts_with("http://")
 		&& !dest.starts_with("https://")
+		&& is_tor_address(&dest).is_err()
 	{
 		let msg = format!(
 			"HTTP Destination should start with http://: or https://: {}",

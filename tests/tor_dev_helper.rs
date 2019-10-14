@@ -89,8 +89,6 @@ fn socks_tor() -> Result<(), grin_wallet_controller::Error> {
 		"-p",
 		"password",
 		"send",
-		"-m",
-		"tor",
 		"-c",
 		"2",
 		"-d",

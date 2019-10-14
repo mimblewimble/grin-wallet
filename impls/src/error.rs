@@ -82,6 +82,10 @@ pub enum ErrorKind {
 	#[fail(display = "Error generating ed25519 secret key: {}", _0)]
 	ED25519Key(String),
 
+	/// Checking for onion address
+	#[fail(display = "Address is not an Onion v3 Address")]
+	NotOnion,
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

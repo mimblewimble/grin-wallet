@@ -300,6 +300,36 @@ where
 	)?)
 }
 
+pub fn is_tor_address(input: &str) -> Result<(), Error> {
+	let mut input = input.to_uppercase();
+	if input.starts_with("HTTP://") || input.starts_with("HTTPS://") {
+		input = input.replace("HTTP://", "");
+		input = input.replace("HTTPS://", "");
+	}
+	if input.ends_with(".ONION") {
+		input = input.replace(".ONION", "");
+	}
+	// for now, just check input is the right length and is base32
+	if input.len() != 56 {
+		return Err(ErrorKind::NotOnion.to_owned())?;
+	}
+	let _ = BASE32.decode(input.as_bytes())
+		.context(ErrorKind::NotOnion)?;
+	Ok(())
+}
+
+pub fn complete_tor_address(input: &str) -> Result<String, Error> {
+	let _ = is_tor_address(input)?;
+	let mut input = input.to_uppercase();
+	if !input.starts_with("HTTP://") && !input.starts_with("HTTPS://") {
+		input = format!("HTTP://{}", input);
+	}
+	if !input.ends_with(".ONION") {
+		input = format!("{}.ONION", input);
+	}
+	Ok(input.to_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -375,6 +405,34 @@ mod tests {
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		output_tor_listener_config(test_dir, "127.0.0.1:3415", &vec![sec_key])?;
 		clean_output_dir(test_dir);
+		Ok(())
+	}
+
+	#[test]
+	fn test_is_tor_address() -> Result<(), Error> {
+		assert!(is_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").is_ok());
+		assert!(is_tor_address("http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_ok());
+		assert!(is_tor_address("https://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_ok());
+		assert!(is_tor_address("http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid").is_ok());
+		assert!(is_tor_address("kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_ok());
+		// address too short
+		assert!(is_tor_address("http://kcgiy5g6m76nzlz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_err());
+		assert!(is_tor_address("kcgiy5g6m76nzlz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid").is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn test_complete_tor_address() -> Result<(), Error> {
+		assert_eq!(
+			"http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion",
+			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").unwrap());
+		assert_eq!(
+			"http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion",
+			complete_tor_address("http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").unwrap());
+		assert_eq!(
+			"http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion",
+			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion").unwrap());
+		assert!(complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyi").is_err());
 		Ok(())
 	}
 }
