@@ -68,6 +68,11 @@ subcommands:
               - keybase
             default_value: http
             takes_value: true
+        - no_tor:
+            help: Don't start TOR listener when starting HTTP listener
+            short: n
+            long: no_tor
+            takes_value: false
   - owner_api:
       about: Runs the wallet's local web API
       args:

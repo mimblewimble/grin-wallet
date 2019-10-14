@@ -15,7 +15,7 @@
 //! Default wallet lifecycle provider
 
 use crate::config::{
-	config, GlobalWalletConfig, GlobalWalletConfigMembers, WalletConfig, GRIN_WALLET_DIR,
+	config, GlobalWalletConfig, GlobalWalletConfigMembers, TorConfig, WalletConfig, GRIN_WALLET_DIR,
 };
 use crate::core::global;
 use crate::keychain::Keychain;
@@ -74,6 +74,7 @@ where
 		file_name: &str,
 		wallet_config: Option<WalletConfig>,
 		logging_config: Option<LoggingConfig>,
+		tor_config: Option<TorConfig>,
 	) -> Result<(), Error> {
 		let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 		let logging = match logging_config {
@@ -85,13 +86,24 @@ where
 		};
 		let wallet = match wallet_config {
 			Some(w) => w,
-			None => match default_config.members {
-				Some(m) => m.wallet,
+			None => match default_config.members.as_ref() {
+				Some(m) => m.clone().wallet.clone(),
 				None => WalletConfig::default(),
 			},
 		};
+		let tor = match tor_config {
+			Some(t) => Some(t),
+			None => match default_config.members.as_ref() {
+				Some(m) => m.clone().tor.clone(),
+				None => Some(TorConfig::default()),
+			},
+		};
 		default_config = GlobalWalletConfig {
-			members: Some(GlobalWalletConfigMembers { wallet, logging }),
+			members: Some(GlobalWalletConfigMembers {
+				wallet,
+				tor,
+				logging,
+			}),
 			..default_config
 		};
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());

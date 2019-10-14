@@ -138,6 +138,26 @@ impl fmt::Display for ConfigError {
 	}
 }
 
+/// Tor configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TorConfig {
+	/// Whether to start tor listener on listener startup (default true)
+	pub use_tor_listener: bool,
+	/// Just the address of the socks proxy for now
+	pub socks_proxy_addr: String,
+	/// Send configuration directory
+	pub send_config_dir: String,
+}
+
+impl Default for TorConfig {
+	fn default() -> TorConfig {
+		TorConfig {
+			use_tor_listener: true,
+			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
+			send_config_dir: ".".into(),
+		}
+	}
+}
 impl From<io::Error> for ConfigError {
 	fn from(error: io::Error) -> ConfigError {
 		ConfigError::FileIOError(
@@ -162,6 +182,8 @@ pub struct GlobalWalletConfigMembers {
 	/// Wallet configuration
 	#[serde(default)]
 	pub wallet: WalletConfig,
+	/// Tor config
+	pub tor: Option<TorConfig>,
 	/// Logging config
 	pub logging: Option<LoggingConfig>,
 }

@@ -13,15 +13,25 @@
 // limitations under the License.
 
 /// HTTP Wallet 'plugin' implementation
-use crate::api;
+use crate::client_utils::{Client, ClientError};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
+use std::path::MAIN_SEPARATOR;
+
+use crate::tor::config as tor_config;
+use crate::tor::process as tor_process;
+
+const TOR_CONFIG_PATH: &'static str = "tor/sender";
 
 #[derive(Clone)]
 pub struct HttpSlateSender {
 	base_url: String,
+	use_socks: bool,
+	socks_proxy_addr: Option<SocketAddr>,
+	tor_config_dir: String,
 }
 
 impl HttpSlateSender {
@@ -32,8 +42,25 @@ impl HttpSlateSender {
 		} else {
 			Ok(HttpSlateSender {
 				base_url: base_url.to_owned(),
+				use_socks: false,
+				socks_proxy_addr: None,
+				tor_config_dir: String::from(""),
 			})
 		}
+	}
+
+	/// Switch to using socks proxy
+	pub fn with_socks_proxy(
+		base_url: &str,
+		proxy_addr: &str,
+		tor_config_dir: &str,
+	) -> Result<HttpSlateSender, SchemeNotHttp> {
+		let mut ret = Self::new(base_url)?;
+		ret.use_socks = true;
+		//TODO: Unwrap
+		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
+		ret.tor_config_dir = tor_config_dir.into();
+		Ok(ret)
 	}
 
 	/// Check version of the listening wallet
@@ -45,7 +72,7 @@ impl HttpSlateSender {
 			"params": []
 		});
 
-		let res: String = post(url, None, &req).map_err(|e| {
+		let res: String = self.post(url, None, req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
@@ -92,6 +119,25 @@ impl HttpSlateSender {
 
 		Ok(())
 	}
+
+	fn post<IN>(
+		&self,
+		url: &str,
+		api_secret: Option<String>,
+		input: IN,
+	) -> Result<String, ClientError>
+	where
+		IN: Serialize,
+	{
+		let mut client = Client::new();
+		if self.use_socks {
+			client.use_socks = true;
+			client.socks_proxy_addr = self.socks_proxy_addr.clone();
+		}
+		let req = client.create_post_request(url, api_secret, &input)?;
+		let res = client.send_request(req)?;
+		Ok(res)
+	}
 }
 
 impl SlateSender for HttpSlateSender {
@@ -102,7 +148,30 @@ impl SlateSender for HttpSlateSender {
 		};
 		let url_str = format!("{}{}v2/foreign", self.base_url, trailing);
 
-		debug!("Posting transaction slate to {}", url_str);
+		// set up tor send process if needed
+		let mut tor = tor_process::TorProcess::new();
+		if self.use_socks {
+			let tor_dir = format!(
+				"{}{}{}",
+				&self.tor_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
+			);
+			warn!(
+				"Starting TOR Process for send at {:?}",
+				self.socks_proxy_addr
+			);
+			tor_config::output_tor_sender_config(
+				&tor_dir,
+				&self.socks_proxy_addr.unwrap().to_string(),
+			)
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+			// Start TOR process
+			tor.torrc_path(&format!("{}/torrc", &tor_dir))
+				.working_dir(&tor_dir)
+				.timeout(20)
+				.completion_percent(100)
+				.launch()
+				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
+		}
 
 		self.check_other_version(&url_str)?;
 
@@ -119,7 +188,7 @@ impl SlateSender for HttpSlateSender {
 		});
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = post(&url_str, None, &req).map_err(|e| {
+		let res: String = self.post(&url_str, None, req).map_err(|e| {
 			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
@@ -153,14 +222,4 @@ impl Into<Error> for SchemeNotHttp {
 		let err_str = format!("url scheme must be http",);
 		ErrorKind::GenericError(err_str).into()
 	}
-}
-
-pub fn post<IN>(url: &str, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>
-where
-	IN: Serialize,
-{
-	// TODO: change create_post_request to accept a url instead of a &str
-	let req = api::client::create_post_request(url, api_secret, input)?;
-	let res = api::client::send_request(req)?;
-	Ok(res)
 }

@@ -17,7 +17,7 @@
 use chrono::prelude::*;
 use uuid::Uuid;
 
-use crate::config::WalletConfig;
+use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::create_sender;
@@ -579,7 +579,8 @@ where
 						.into());
 					}
 				};
-				let comm_adapter = create_sender(&sa.method, &sa.dest)
+				//TODO: no TOR just now via this method, to keep compatibility for now
+				let comm_adapter = create_sender(&sa.method, &sa.dest, None)
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
 				self.tx_lock_outputs(keychain_mask, &slate, 0)?;
@@ -1361,7 +1362,7 @@ where
 	/// let api_owner = Owner::new(wallet.clone());
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
-	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None);
+	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
 	///
 	/// if let Ok(_) = result {
 	///		//...
@@ -1373,6 +1374,7 @@ where
 		chain_type: &global::ChainTypes,
 		wallet_config: Option<WalletConfig>,
 		logging_config: Option<LoggingConfig>,
+		tor_config: Option<TorConfig>,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
@@ -1381,6 +1383,7 @@ where
 			"grin-wallet.toml",
 			wallet_config,
 			logging_config,
+			tor_config,
 		)
 	}
 
@@ -1429,7 +1432,7 @@ where
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
-	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None);
+	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
 	///
 	///	// create new wallet wirh random seed
 	///	let pw = ZeroingString::from("my_password");
@@ -1496,7 +1499,7 @@ where
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
-	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None);
+	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
 	///
 	///	// create new wallet wirh random seed
 	///	let pw = ZeroingString::from("my_password");

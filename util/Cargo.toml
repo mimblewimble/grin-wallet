@@ -25,6 +25,7 @@ dirs = "1.0.3"
 # grin_store = "2.0.0"
 
 # For beta release
+
 # grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3"}
 # grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }
 # grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v2.1.0-beta.3" }

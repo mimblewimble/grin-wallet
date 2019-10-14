@@ -13,15 +13,16 @@
 // limitations under the License.
 
 mod file;
-mod http;
+pub mod http;
 mod keybase;
 
 pub use self::file::PathToSlate;
-pub use self::http::HttpSlateSender;
+pub use self::http::{HttpSlateSender, SchemeNotHttp};
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 
-use crate::config::WalletConfig;
+use crate::config::{TorConfig, WalletConfig};
 use crate::libwallet::{Error, ErrorKind, Slate};
+use crate::tor::config::complete_tor_address;
 use crate::util::ZeroingString;
 
 /// Sends transactions to a corresponding SlateReceiver
@@ -57,15 +58,43 @@ pub trait SlateGetter {
 }
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs
-pub fn create_sender(method: &str, dest: &str) -> Result<Box<dyn SlateSender>, Error> {
+pub fn create_sender(
+	method: &str,
+	dest: &str,
+	tor_config: Option<TorConfig>,
+) -> Result<Box<dyn SlateSender>, Error> {
 	let invalid = || {
 		ErrorKind::WalletComms(format!(
 			"Invalid wallet comm type and destination. method: {}, dest: {}",
 			method, dest
 		))
 	};
+
+	let mut method = method.into();
+
+	// will test if this is a tor address and fill out
+	// the http://[].onion if missing
+	let dest = match complete_tor_address(dest) {
+		Ok(d) => {
+			method = "tor";
+			d
+		}
+		Err(_) => dest.into(),
+	};
+
 	Ok(match method {
-		"http" => Box::new(HttpSlateSender::new(dest).map_err(|_| invalid())?),
+		"http" => Box::new(HttpSlateSender::new(&dest).map_err(|_| invalid())?),
+		"tor" => match tor_config {
+			None => {
+				return Err(
+					ErrorKind::WalletComms("Tor Configuration required".to_string()).into(),
+				);
+			}
+			Some(tc) => Box::new(
+				HttpSlateSender::with_socks_proxy(&dest, &tc.socks_proxy_addr, &tc.send_config_dir)
+					.map_err(|_| invalid())?,
+			),
+		},
 		"keybase" => Box::new(KeybaseChannel::new(dest.to_owned())?),
 		"self" => {
 			return Err(ErrorKind::WalletComms(

@@ -33,6 +33,9 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use crate::impls::tor::config as tor_config;
+use crate::impls::tor::process as tor_process;
+
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
 	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS,
@@ -73,6 +76,47 @@ fn check_middleware(
 			Ok(())
 		}
 	}
+}
+
+/// initiate the tor listener
+fn init_tor_listener<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+	addr: &str,
+) -> Result<tor_process::TorProcess, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	let mut process = tor_process::TorProcess::new();
+	let mask = keychain_mask.lock();
+	// eventually want to read a list of service config keys
+	let mut w_lock = wallet.lock();
+	let lc = w_lock.lc_provider()?;
+	let w_inst = lc.wallet_inst()?;
+	let k = w_inst.keychain((&mask).as_ref())?;
+	let parent_key_id = w_inst.parent_key_id();
+	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
+	let sec_key = tor_config::address_derivation_path(&k, &parent_key_id, 0)
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	let onion_address = tor_config::onion_address_from_seckey(&sec_key)
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	warn!(
+		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
+		onion_address, addr
+	);
+	tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	// Start TOR process
+	process
+		.torrc_path(&format!("{}/torrc", tor_dir))
+		.working_dir(&tor_dir)
+		.timeout(20)
+		.completion_percent(100)
+		.launch()
+		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
+	Ok(process)
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
@@ -188,14 +232,28 @@ pub fn foreign_listener<L, C, K>(
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
+	use_tor: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
+	// need to keep in scope while the main listener is running
+	let _tor_process = match use_tor {
+		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {
+			Ok(tp) => Some(tp),
+			Err(e) => {
+				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
+				warn!("Tor Error: {}", e);
+				warn!("Listener will be available via HTTP only");
+				None
+			}
+		},
+		false => None,
+	};
 
+	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
 	let mut router = Router::new();
 
 	router
@@ -210,6 +268,7 @@ where
 			.context(ErrorKind::GenericError(
 				"API thread failed to start".to_string(),
 			))?;
+
 	warn!("HTTP Foreign listener started.");
 
 	api_thread
@@ -679,7 +738,7 @@ where
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let foreign_api = &api as &dyn ForeignRpc;
 			match foreign_api.handle_request(val) {
-				MaybeReply::Reply(r) => ok(r),
+				MaybeReply::Reply(r) => ok({ r }),
 				MaybeReply::DontReply => {
 					// Since it's http, we need to return something. We return [] because jsonrpc
 					// clients will parse it as an empty batch response.

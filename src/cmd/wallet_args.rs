@@ -19,9 +19,10 @@ use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
-use grin_wallet_config::WalletConfig;
+use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
+use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::Slate;
@@ -387,12 +388,16 @@ where
 
 pub fn parse_listen_args(
 	config: &mut WalletConfig,
+	tor_config: &mut TorConfig,
 	args: &ArgMatches,
 ) -> Result<command::ListenArgs, ParseError> {
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
 	let method = parse_required(args, "method")?;
+	if args.is_present("no_tor") {
+		tor_config.use_tor_listener = false;
+	}
 	Ok(command::ListenArgs {
 		method: method.to_owned(),
 	})
@@ -468,10 +473,12 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			}
 		}
 	};
+
 	if !estimate_selection_strategies
 		&& method == "http"
 		&& !dest.starts_with("http://")
 		&& !dest.starts_with("https://")
+		&& is_tor_address(&dest).is_err()
 	{
 		let msg = format!(
 			"HTTP Destination should start with http://: or https://: {}",
@@ -769,6 +776,7 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
+	tor_config: Option<TorConfig>,
 	mut node_client: C,
 	test_mode: bool,
 	wallet_inst_cb: F,
@@ -819,6 +827,17 @@ where
 		top_level_wallet_dir.pop();
 		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 	}
+
+	// for backwards compatibility: If tor config doesn't exist in the file, assume
+	// the top level directory for data
+	let tor_config = match tor_config {
+		Some(tc) => tc,
+		None => {
+			let mut tc = TorConfig::default();
+			tc.send_config_dir = wallet_config.data_file_dir.clone();
+			tc
+		}
+	};
 
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet =
@@ -896,11 +915,13 @@ where
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
-			let a = arg_parse!(parse_listen_args(&mut c, &args));
+			let mut t = tor_config.clone();
+			let a = arg_parse!(parse_listen_args(&mut c, &mut t, &args));
 			command::listen(
 				wallet,
 				Arc::new(Mutex::new(keychain_mask)),
 				&c,
+				&t,
 				&a,
 				&global_wallet_args.clone(),
 			)
@@ -924,6 +945,7 @@ where
 			command::send(
 				wallet,
 				km,
+				Some(tor_config),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -945,6 +967,7 @@ where
 			command::process_invoice(
 				wallet,
 				km,
+				Some(tor_config),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)

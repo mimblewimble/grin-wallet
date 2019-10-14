@@ -213,6 +213,14 @@ pub enum ErrorKind {
 	#[fail(display = "Supplied Keychain Mask Token is incorrect")]
 	InvalidKeychainMask,
 
+	/// Tor Process error
+	#[fail(display = "Tor Process Error: {}", _0)]
+	TorProcess(String),
+
+	/// Tor Configuration Error
+	#[fail(display = "Tor Config Error: {}", _0)]
+	TorConfig(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

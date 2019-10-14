@@ -190,6 +190,48 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 
+	retval.insert(
+		"[tor]".to_string(),
+		"
+#########################################
+### TOR CONFIGURATION (Experimental)  ###
+#########################################
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"use_tor_listener".to_string(),
+		"
+#Whether to start tor listener on listener startup (default true)
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"socks_proxy_addr".to_string(),
+		"
+#Address of the running TOR (SOCKS) server
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"socks_proxy_addr".to_string(),
+		"
+# TOR (SOCKS) proxy server address
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"send_config_dir".to_string(),
+		"
+#Directory to output TOR configuration to when sending
+"
+		.to_string(),
+	);
+
 	retval
 }
 

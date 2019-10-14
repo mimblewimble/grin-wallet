@@ -63,13 +63,23 @@ macro_rules! setup_proxy {
 		let arg_vec = vec!["grin-wallet", "-p", "password", "init", "-h"];
 		// should create new wallet file
 		let $client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
-		execute_command(&app, $test_dir, "wallet1", &$client1, arg_vec.clone())?;
+
+		let target = std::path::PathBuf::from(format!("{}/wallet1/grin-wallet.toml", $test_dir));
+		println!("{:?}", target);
+		if !target.exists() {
+			execute_command(&app, $test_dir, "wallet1", &$client1, arg_vec.clone())?;
+			}
 
 		// add wallet to proxy
 		let config1 = initial_setup_wallet($test_dir, "wallet1");
+		let wallet_config1 = config1.clone().members.unwrap().wallet;
 		//config1.owner_api_listen_port = Some(13420);
-		let ($wallet1, mask1_i) =
-			instantiate_wallet(config1.clone(), $client1.clone(), "password", "default")?;
+		let ($wallet1, mask1_i) = instantiate_wallet(
+			wallet_config1.clone(),
+			$client1.clone(),
+			"password",
+			"default",
+			)?;
 		let $mask1 = (&mask1_i).as_ref();
 		wallet_proxy.add_wallet(
 			"wallet1",
@@ -80,12 +90,21 @@ macro_rules! setup_proxy {
 
 		// Create wallet 2, which will run a listener
 		let $client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
-		execute_command(&app, $test_dir, "wallet2", &$client2, arg_vec.clone())?;
+
+		let target = std::path::PathBuf::from(format!("{}/wallet2/grin-wallet.toml", $test_dir));
+		if !target.exists() {
+			execute_command(&app, $test_dir, "wallet2", &$client2, arg_vec.clone())?;
+			}
 
 		let config2 = initial_setup_wallet($test_dir, "wallet2");
+		let wallet_config2 = config2.clone().members.unwrap().wallet;
 		//config2.api_listen_port = 23415;
-		let ($wallet2, mask2_i) =
-			instantiate_wallet(config2.clone(), $client2.clone(), "password", "default")?;
+		let ($wallet2, mask2_i) = instantiate_wallet(
+			wallet_config2.clone(),
+			$client2.clone(),
+			"password",
+			"default",
+			)?;
 		let $mask2 = (&mask2_i).as_ref();
 		wallet_proxy.add_wallet(
 			"wallet2",
@@ -150,7 +169,7 @@ pub fn config_command_wallet(
 
 /// Handles setup and detection of paths for wallet
 #[allow(dead_code)]
-pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> WalletConfig {
+pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> GlobalWalletConfig {
 	let mut current_dir;
 	current_dir = env::current_dir().unwrap_or_else(|e| {
 		panic!("Error creating config file: {}", e);
@@ -160,11 +179,7 @@ pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> WalletConfig {
 	let _ = fs::create_dir_all(current_dir.clone());
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
-	GlobalWalletConfig::new(config_file_name.to_str().unwrap())
-		.unwrap()
-		.members
-		.unwrap()
-		.wallet
+	GlobalWalletConfig::new(config_file_name.to_str().unwrap()).unwrap()
 }
 
 fn get_wallet_subcommand<'a>(
@@ -247,10 +262,19 @@ pub fn execute_command(
 ) -> Result<String, grin_wallet_controller::Error> {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
-	let mut config = initial_setup_wallet(test_dir, wallet_name);
+	let config = initial_setup_wallet(test_dir, wallet_name);
+	let mut wallet_config = config.clone().members.unwrap().wallet;
+	let tor_config = config.clone().members.unwrap().tor;
 	//unset chain type so it doesn't get reset
-	config.chain_type = None;
-	wallet_args::wallet_command(&args, config.clone(), client.clone(), true, |_| {})
+	wallet_config.chain_type = None;
+	wallet_args::wallet_command(
+		&args,
+		wallet_config.clone(),
+		tor_config,
+		client.clone(),
+		true,
+		|_| {},
+	)
 }
 
 // as above, but without necessarily setting up the wallet
@@ -283,11 +307,12 @@ where
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
 	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None).unwrap();
-	let mut wallet_config = config.members.unwrap().wallet.clone();
+	let mut wallet_config = config.clone().members.unwrap().wallet;
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;
 	wallet_config.node_api_secret_path = None;
-	wallet_args::wallet_command(&args, wallet_config, client.clone(), true, f)
+	let tor_config = config.members.unwrap().tor.clone();
+	wallet_args::wallet_command(&args, wallet_config, tor_config, client.clone(), true, f)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>

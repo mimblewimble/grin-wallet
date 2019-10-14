@@ -15,7 +15,7 @@
 //! Grin wallet command-line function implementations
 
 use crate::api::TLSConfig;
-use crate::config::{WalletConfig, WALLET_CONFIG_FILE_NAME};
+use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _};
@@ -75,7 +75,13 @@ where
 {
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
-	p.create_config(&g_args.chain_type, WALLET_CONFIG_FILE_NAME, None, None)?;
+	p.create_config(
+		&g_args.chain_type,
+		WALLET_CONFIG_FILE_NAME,
+		None,
+		None,
+		None,
+	)?;
 	p.create_wallet(
 		None,
 		args.recovery_phrase,
@@ -125,6 +131,7 @@ pub fn listen<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
+	tor_config: &TorConfig,
 	args: &ListenArgs,
 	g_args: &GlobalArgs,
 ) -> Result<(), Error>
@@ -139,6 +146,7 @@ where
 			keychain_mask,
 			&config.api_listen_addr(),
 			g_args.tls_conf.clone(),
+			tor_config.use_tor_listener,
 		),
 		"keybase" => KeybaseAllChannels::new()?.listen(
 			config.clone(),
@@ -251,6 +259,7 @@ pub struct SendArgs {
 pub fn send<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	tor_config: Option<TorConfig>,
 	args: SendArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
@@ -327,7 +336,7 @@ where
 					})?;
 				}
 				method => {
-					let sender = create_sender(method, &args.dest)?;
+					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
 					api.tx_lock_outputs(m, &slate, 0)?;
 				}
@@ -514,6 +523,7 @@ pub struct ProcessInvoiceArgs {
 pub fn process_invoice<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	tor_config: Option<TorConfig>,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
@@ -594,7 +604,7 @@ where
 					})?;
 				}
 				method => {
-					let sender = create_sender(method, &args.dest)?;
+					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
 					api.tx_lock_outputs(m, &slate, 0)?;
 				}

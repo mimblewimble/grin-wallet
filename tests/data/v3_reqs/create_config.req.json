@@ -4,7 +4,8 @@
 	"params": {
 		"chain_type": "AutomatedTesting",
 		"wallet_config": null,
-		"logging_config": null
+		"logging_config": null,
+		"tor_config": null
 	},
 	"id": 1
 }

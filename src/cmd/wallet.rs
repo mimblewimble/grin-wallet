@@ -31,7 +31,9 @@ where
 	C: NodeClient + 'static,
 {
 	// just get defaults from the global config
-	let wallet_config = config.members.unwrap().wallet;
+	let wallet_config = config.members.clone().unwrap().wallet;
+
+	let tor_config = config.members.unwrap().tor;
 
 	// Check the node version info, and exit with report if we're not compatible
 	//let mut node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
@@ -57,7 +59,14 @@ where
 	}
 	// ... if node isn't available, allow offline functions
 
-	let res = wallet_args::wallet_command(wallet_args, wallet_config, node_client, false, |_| {});
+	let res = wallet_args::wallet_command(
+		wallet_args,
+		wallet_config,
+		tor_config,
+		node_client,
+		false,
+		|_| {},
+	);
 
 	// we need to give log output a chance to catch up before exiting
 	thread::sleep(Duration::from_millis(100));

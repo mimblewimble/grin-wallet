@@ -27,8 +27,8 @@ use toml;
 
 use crate::comments::insert_comments;
 use crate::core::global;
-use crate::types::WalletConfig;
 use crate::types::{ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers};
+use crate::types::{TorConfig, WalletConfig};
 use crate::util::LoggingConfig;
 
 /// Wallet configuration file name
@@ -153,6 +153,7 @@ impl Default for GlobalWalletConfigMembers {
 	fn default() -> GlobalWalletConfigMembers {
 		GlobalWalletConfigMembers {
 			logging: Some(LoggingConfig::default()),
+			tor: Some(TorConfig::default()),
 			wallet: WalletConfig::default(),
 		}
 	}
@@ -257,6 +258,14 @@ impl GlobalWalletConfig {
 			.as_mut()
 			.unwrap()
 			.log_file_path = log_path.to_str().unwrap().to_owned();
+		let tor_path = wallet_home.clone();
+		self.members
+			.as_mut()
+			.unwrap()
+			.tor
+			.as_mut()
+			.unwrap()
+			.send_config_dir = tor_path.to_str().unwrap().to_owned();
 	}
 
 	/// Serialize config
