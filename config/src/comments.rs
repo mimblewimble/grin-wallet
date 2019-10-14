@@ -201,10 +201,9 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"default_send_via_tor".to_string(),
+		"use_tor_listener".to_string(),
 		"
-#Whether to default all http sends via the configured TOR proxy
-#(Not currently used, reserved for future use)
+#Whether to start tor listener on listener startup (default true)
 "
 		.to_string(),
 	);

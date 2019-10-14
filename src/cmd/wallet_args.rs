@@ -387,12 +387,16 @@ where
 
 pub fn parse_listen_args(
 	config: &mut WalletConfig,
+	tor_config: &mut TorConfig,
 	args: &ArgMatches,
 ) -> Result<command::ListenArgs, ParseError> {
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
 	let method = parse_required(args, "method")?;
+	if args.is_present("no_tor") {
+		tor_config.use_tor_listener = false;
+	}
 	Ok(command::ListenArgs {
 		method: method.to_owned(),
 	})
@@ -836,11 +840,11 @@ where
 	// for backwards compatibility: If tor config doesn't exist in the file, assume
 	// the top level directory for data
 	let tor_config = match tor_config {
-		Some(tc) => Some(tc),
+		Some(tc) => tc,
 		None => {
 			let mut tc = TorConfig::default();
 			tc.send_config_dir = wallet_config.data_file_dir.clone();
-			Some(tc)
+			tc
 		}
 	};
 
@@ -920,11 +924,13 @@ where
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
-			let a = arg_parse!(parse_listen_args(&mut c, &args));
+			let mut t = tor_config.clone();
+			let a = arg_parse!(parse_listen_args(&mut c, &mut t, &args));
 			command::listen(
 				wallet,
 				Arc::new(Mutex::new(keychain_mask)),
 				&c,
+				&t,
 				&a,
 				&global_wallet_args.clone(),
 			)
@@ -948,7 +954,7 @@ where
 			command::send(
 				wallet,
 				km,
-				tor_config,
+				Some(tor_config),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -970,7 +976,7 @@ where
 			command::process_invoice(
 				wallet,
 				km,
-				tor_config,
+				Some(tor_config),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)

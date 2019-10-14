@@ -241,11 +241,18 @@ where
 {
 	// need to keep in scope while the main listener is running
 	let _tor_process = match use_tor {
-		true => Some(init_tor_listener(
+		true => match init_tor_listener(
 			wallet.clone(),
 			keychain_mask.clone(),
-			addr,
-		)?),
+			addr) {
+			Ok(tp) => Some(tp),
+			Err(e) => {
+				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
+				warn!("Tor Error: {}", e);
+				warn!("Listener will be available via HTTP only");
+				None
+			}
+		},
 		false => None,
 	};
 
