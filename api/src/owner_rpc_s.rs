@@ -1471,7 +1471,7 @@ pub trait OwnerRpcS {
 				"tui_running": null
 			},
 			"tor_config" : {
-				"default_send_via_tor": false,
+				"use_tor_listener": true,
 				"socks_proxy_addr": "127.0.0.1:9050",
 				"send_config_dir": "."
 			}
