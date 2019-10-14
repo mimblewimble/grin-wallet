@@ -22,8 +22,8 @@ pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
 
 use crate::config::{TorConfig, WalletConfig};
 use crate::libwallet::{Error, ErrorKind, Slate};
-use crate::util::ZeroingString;
 use crate::tor::config::complete_tor_address;
+use crate::util::ZeroingString;
 
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
@@ -78,7 +78,7 @@ pub fn create_sender(
 		Ok(d) => {
 			method = "tor";
 			d
-		},
+		}
 		Err(_) => dest.into(),
 	};
 

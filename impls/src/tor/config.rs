@@ -313,7 +313,8 @@ pub fn is_tor_address(input: &str) -> Result<(), Error> {
 	if input.len() != 56 {
 		return Err(ErrorKind::NotOnion.to_owned())?;
 	}
-	let _ = BASE32.decode(input.as_bytes())
+	let _ = BASE32
+		.decode(input.as_bytes())
 		.context(ErrorKind::NotOnion)?;
 	Ok(())
 }
@@ -411,12 +412,27 @@ mod tests {
 	#[test]
 	fn test_is_tor_address() -> Result<(), Error> {
 		assert!(is_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").is_ok());
-		assert!(is_tor_address("http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_ok());
-		assert!(is_tor_address("https://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_ok());
-		assert!(is_tor_address("http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid").is_ok());
-		assert!(is_tor_address("kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_ok());
+		assert!(is_tor_address(
+			"http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion"
+		)
+		.is_ok());
+		assert!(is_tor_address(
+			"https://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion"
+		)
+		.is_ok());
+		assert!(
+			is_tor_address("http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid")
+				.is_ok()
+		);
+		assert!(
+			is_tor_address("kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion")
+				.is_ok()
+		);
 		// address too short
-		assert!(is_tor_address("http://kcgiy5g6m76nzlz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion").is_err());
+		assert!(is_tor_address(
+			"http://kcgiy5g6m76nzlz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion"
+		)
+		.is_err());
 		assert!(is_tor_address("kcgiy5g6m76nzlz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid").is_err());
 		Ok(())
 	}
@@ -425,14 +441,23 @@ mod tests {
 	fn test_complete_tor_address() -> Result<(), Error> {
 		assert_eq!(
 			"http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion",
-			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").unwrap());
+			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid")
+				.unwrap()
+		);
 		assert_eq!(
 			"http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion",
-			complete_tor_address("http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").unwrap());
+			complete_tor_address("http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid")
+				.unwrap()
+		);
 		assert_eq!(
 			"http://2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion",
-			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion").unwrap());
-		assert!(complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyi").is_err());
+			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid.onion")
+				.unwrap()
+		);
+		assert!(
+			complete_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyi")
+				.is_err()
+		);
 		Ok(())
 	}
 }
