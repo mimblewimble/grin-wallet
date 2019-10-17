@@ -760,9 +760,11 @@ pub struct TxLogEntry {
 	pub stored_tx: Option<String>,
 	/// Associated kernel excess, for later lookup if necessary
 	#[serde(with = "secp_ser::option_commitment_serde")]
+	#[serde(default)]
 	pub kernel_excess: Option<pedersen::Commitment>,
 	/// Height reported when transaction was created, if lookup
 	/// of kernel is necessary
+	#[serde(default)]
 	pub kernel_lookup_min_height: Option<u64>,
 }
 
