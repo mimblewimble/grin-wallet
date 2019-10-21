@@ -53,6 +53,8 @@ const PRIVATE_TX_CONTEXT_PREFIX: u8 = 'p' as u8;
 const TX_LOG_ENTRY_PREFIX: u8 = 't' as u8;
 const TX_LOG_ID_PREFIX: u8 = 'i' as u8;
 const ACCOUNT_PATH_MAPPING_PREFIX: u8 = 'a' as u8;
+const LAST_SCANNED_PMMR_INDEX: u8 = 'l' as u8;
+const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations
@@ -428,6 +430,19 @@ where
 		Ok(last_confirmed_height)
 	}
 
+	fn last_scanned_pmmr_index<'a>(&mut self) -> Result<u64, Error> {
+		let batch = self.db.batch()?;
+		let pmmr_index_key = to_key(
+			LAST_SCANNED_PMMR_INDEX,
+			&mut LAST_SCANNED_KEY.as_bytes().to_vec(),
+		);
+		let last_scanned_pmmr_index = match batch.get_ser(&pmmr_index_key)? {
+			Some(i) => i,
+			None => 0,
+		};
+		Ok(last_scanned_pmmr_index)
+	}
+
 	fn restore(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
 		restore(self, keychain_mask).context(ErrorKind::Restore)?;
 		Ok(())
@@ -555,6 +570,22 @@ where
 			.as_ref()
 			.unwrap()
 			.put_ser(&height_key, &height)?;
+		Ok(())
+	}
+
+	fn save_last_scanned_pmmr_index(
+		&mut self,
+		pmmr_index: u64,
+	) -> Result<(), Error> {
+		let pmmr_index_key = to_key(
+			LAST_SCANNED_PMMR_INDEX,
+			&mut LAST_SCANNED_KEY.as_bytes().to_vec(),
+		);
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&pmmr_index_key, &pmmr_index)?;
 		Ok(())
 	}
 

@@ -141,7 +141,7 @@ where
 fn collect_chain_outputs<'a, T, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-) -> Result<Vec<OutputResult>, Error>
+) -> Result<(Vec<OutputResult>, u64), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -150,6 +150,7 @@ where
 	let batch_size = 1000;
 	let mut start_index = 1;
 	let mut result_vec: Vec<OutputResult> = vec![];
+	let last_retrieved_return_index;
 	loop {
 		let (highest_index, last_retrieved_index, outputs) = wallet
 			.w2n_client()
@@ -168,11 +169,12 @@ where
 		)?);
 
 		if highest_index == last_retrieved_index {
+			last_retrieved_return_index = last_retrieved_index;
 			break;
 		}
 		start_index = last_retrieved_index + 1;
 	}
-	Ok(result_vec)
+	Ok((result_vec, last_retrieved_return_index))
 }
 
 ///
@@ -316,7 +318,7 @@ where
 {
 	// First, get a definitive list of outputs we own from the chain
 	warn!("Starting wallet check.");
-	let chain_outs = collect_chain_outputs(wallet, keychain_mask)?;
+	let (chain_outs, last_index) = collect_chain_outputs(wallet, keychain_mask)?;
 	warn!(
 		"Identified {} wallet_outputs as belonging to this wallet",
 		chain_outs.len(),
@@ -426,6 +428,14 @@ where
 		batch.save_child_index(path, max_child_index + 1)?;
 		batch.commit()?;
 	}
+
+	{
+		// save highest scanned PMMR index
+		let mut batch = wallet.batch(keychain_mask)?;
+		batch.save_last_scanned_pmmr_index(last_index)?;
+		batch.commit()?;
+	}
+
 	Ok(())
 }
 
@@ -446,7 +456,7 @@ where
 	let now = Instant::now();
 	warn!("Starting restore.");
 
-	let result_vec = collect_chain_outputs(wallet, keychain_mask)?;
+	let (result_vec, last_index) = collect_chain_outputs(wallet, keychain_mask)?;
 
 	warn!(
 		"Identified {} wallet_outputs as belonging to this wallet",
@@ -491,6 +501,13 @@ where
 		let mut batch = wallet.batch(keychain_mask)?;
 		batch.save_child_index(path, max_child_index + 1)?;
 		debug!("Next child for account {} is {}", path, max_child_index + 1);
+		batch.commit()?;
+	}
+
+	{
+		// save highest scanned PMMR index
+		let mut batch = wallet.batch(keychain_mask)?;
+		batch.save_last_scanned_pmmr_index(last_index)?;
 		batch.commit()?;
 	}
 

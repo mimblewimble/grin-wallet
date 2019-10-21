@@ -219,6 +219,9 @@ where
 	/// last verified height of outputs directly descending from the given parent key
 	fn last_confirmed_height<'a>(&mut self) -> Result<u64, Error>;
 
+	/// last index scanned during check_repair or restore
+	fn last_scanned_pmmr_index<'a>(&mut self) -> Result<u64, Error>;
+
 	/// Attempt to restore the contents of a wallet from seed
 	fn restore(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error>;
 
@@ -262,6 +265,12 @@ where
 		&mut self,
 		parent_key_id: &Identifier,
 		height: u64,
+	) -> Result<(), Error>;
+
+	/// Save the last PMMR index that was scanned via a check_repair operation
+	fn save_last_scanned_pmmr_index(
+		&mut self,
+		pmmr_index: u64,
 	) -> Result<(), Error>;
 
 	/// get next tx log entry for the parent
