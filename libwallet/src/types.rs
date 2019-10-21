@@ -268,10 +268,7 @@ where
 	) -> Result<(), Error>;
 
 	/// Save the last PMMR index that was scanned via a check_repair operation
-	fn save_last_scanned_pmmr_index(
-		&mut self,
-		pmmr_index: u64,
-	) -> Result<(), Error>;
+	fn save_last_scanned_pmmr_index(&mut self, pmmr_index: u64) -> Result<(), Error>;
 
 	/// get next tx log entry for the parent
 	fn next_tx_log_id(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;

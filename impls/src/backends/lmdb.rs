@@ -573,10 +573,7 @@ where
 		Ok(())
 	}
 
-	fn save_last_scanned_pmmr_index(
-		&mut self,
-		pmmr_index: u64,
-	) -> Result<(), Error> {
+	fn save_last_scanned_pmmr_index(&mut self, pmmr_index: u64) -> Result<(), Error> {
 		let pmmr_index_key = to_key(
 			LAST_SCANNED_PMMR_INDEX,
 			&mut LAST_SCANNED_KEY.as_bytes().to_vec(),
