@@ -415,9 +415,7 @@ where
 
 	// restore labels, account paths and child derivation indices
 	let label_base = "account";
-	let accounts:Vec<Identifier> = wallet.acct_path_iter()
-		.map(|m| m.path)
-		.collect();
+	let accounts: Vec<Identifier> = wallet.acct_path_iter().map(|m| m.path).collect();
 	let mut acct_index = accounts.len();
 	for (path, max_child_index) in found_parents.iter() {
 		// Only restore paths that don't exist
