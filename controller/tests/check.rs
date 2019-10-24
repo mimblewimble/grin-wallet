@@ -175,7 +175,7 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// perform a transaction, but don't let it finish
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-	// send to send
+		// send to send
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount: reward * 2,

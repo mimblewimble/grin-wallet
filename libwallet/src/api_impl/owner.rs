@@ -489,9 +489,7 @@ where
 	K: Keychain + 'a,
 {
 	update_outputs(w, keychain_mask, true)?;
-	let status_fn: fn(&str) = |m|{
-		warn!("{}", m)
-	};
+	let status_fn: fn(&str) = |m| warn!("{}", m);
 	// just dumbly go back 2000 indices from last index scanned for now
 	let start_index = w.last_scanned_pmmr_index()?.saturating_sub(2000);
 	w.check_repair(keychain_mask, delete_unconfirmed, start_index, status_fn)
@@ -555,15 +553,11 @@ where
 	// just dumbly go back 2000 indices from last index scanned for now
 	let last_scanned_index = w.last_scanned_pmmr_index()?;
 	let start_index = last_scanned_index.saturating_sub(2000);
-	let mut status_fn: fn(&str) = |m|{
-		debug!("{}", m)
-	};
+	let mut status_fn: fn(&str) = |m| debug!("{}", m);
 	if last_scanned_index == 0 {
 		warn!("This wallet's contents has not been verified with a full chain scan, performing scan now.");
 		warn!("This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
-		status_fn = |m|{
-			warn!("{}", m)
-		};
+		status_fn = |m| warn!("{}", m);
 	}
 	w.check_repair(keychain_mask, false, start_index, status_fn)?;
 

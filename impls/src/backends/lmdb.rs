@@ -467,7 +467,14 @@ where
 		start_index: u64,
 		status_fn: fn(&str),
 	) -> Result<(), Error> {
-		check_repair(self, keychain_mask, delete_unconfirmed, start_index, status_fn).context(ErrorKind::Restore)?;
+		check_repair(
+			self,
+			keychain_mask,
+			delete_unconfirmed,
+			start_index,
+			status_fn,
+		)
+		.context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }
