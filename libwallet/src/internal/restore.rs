@@ -415,10 +415,13 @@ where
 
 	// restore labels, account paths and child derivation indices
 	let label_base = "account";
-	let mut acct_index = 1;
+	let accounts:Vec<Identifier> = wallet.acct_path_iter()
+		.map(|m| m.path)
+		.collect();
+	let mut acct_index = accounts.len();
 	for (path, max_child_index) in found_parents.iter() {
-		// default path already exists
-		if *path != ExtKeychain::derive_key_id(2, 0, 0, 0, 0) {
+		// Only restore paths that don't exist
+		if !accounts.contains(path) {
 			let label = format!("{}_{}", label_base, acct_index);
 			keys::set_acct_path(wallet, keychain_mask, &label, path)?;
 			acct_index += 1;

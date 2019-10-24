@@ -90,10 +90,10 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// add some accounts
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		api.create_account_path(m, "account_1")?;
+		api.create_account_path(m, "named_account_1")?;
 		api.create_account_path(m, "account_2")?;
 		api.create_account_path(m, "account_3")?;
-		api.set_active_account(m, "account_1")?;
+		api.set_active_account(m, "named_account_1")?;
 		Ok(())
 	})?;
 
@@ -165,6 +165,12 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.total, bh * reward);
+		// And check account names haven't been splatted
+		let accounts = api.accounts(m)?;
+		println!("ACCOUNTS: {:?}", accounts);
+		assert_eq!(accounts.len(), 4);
+		assert!(api.set_active_account(m, "account_1").is_err());
+		assert!(api.set_active_account(m, "named_account_1").is_ok());
 		Ok(())
 	})?;
 
@@ -748,6 +754,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 #[test]
 fn check_repair() {
 	let test_dir = "test_output/check_repair";
+	setup(test_dir);
 	if let Err(e) = check_repair_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
