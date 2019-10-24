@@ -213,6 +213,9 @@ where
 		keychain_mask: Option<&SecretKey>,
 	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
 
+	/// Return the current child Index
+	fn current_child_index<'a>(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;
+
 	/// Next child ID when we want to create a new output, based on current parent
 	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
 
@@ -230,6 +233,8 @@ where
 		&mut self,
 		keychain_mask: Option<&SecretKey>,
 		delete_unconfirmed: bool,
+		start_index: u64,
+		status_cb: fn(&str),
 	) -> Result<(), Error>;
 }
 

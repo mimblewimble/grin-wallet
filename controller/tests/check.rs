@@ -175,7 +175,7 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// perform a transaction, but don't let it finish
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		// send to send
+	// send to send
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount: reward * 2,
@@ -195,7 +195,8 @@ fn check_repair_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// check we're all locked
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+		assert!(wallet1_refreshed);
 		assert!(wallet1_info.amount_currently_spendable == 0);
 		Ok(())
 	})?;
@@ -443,13 +444,15 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	bh += cm as u64;
 
 	// confirm balances
+	// since info is now performing a partial check_repair, these should confirm
+	// as containing all outputs
 	let info = wallet_info!(wallet1.clone(), mask1)?;
-	assert_eq!(info.amount_currently_spendable, base_amount * 6);
-	assert_eq!(info.total, base_amount * 6);
+	assert_eq!(info.amount_currently_spendable, base_amount * 21);
+	assert_eq!(info.total, base_amount * 21);
 
 	let info = wallet_info!(wallet2.clone(), mask2)?;
-	assert_eq!(info.amount_currently_spendable, base_amount * 15);
-	assert_eq!(info.total, base_amount * 15);
+	assert_eq!(info.amount_currently_spendable, base_amount * 21);
+	assert_eq!(info.total, base_amount * 21);
 
 	// Now there should be outputs on the chain using the same
 	// seed + BIP32 path.
@@ -485,6 +488,8 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 3) If I recover from seed and start using the wallet without restoring,
 	// check_repair should restore the older outputs
+	// update, again, since check_repair is run automatically, balances on both
+	// wallets should turn out the same
 	send_to_dest!(
 		miner.clone(),
 		miner_mask,
@@ -514,8 +519,8 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	wallet::controller::owner_single_use(wallet4.clone(), mask4, |api, m| {
 		let info = wallet_info!(wallet4.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 3);
-		assert_eq!(info.amount_currently_spendable, base_amount * 24);
+		assert_eq!(outputs.len(), 9);
+		assert_eq!(info.amount_currently_spendable, base_amount * 45);
 		Ok(())
 	})?;
 
@@ -569,8 +574,8 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	wallet::controller::owner_single_use(wallet6.clone(), mask6, |api, m| {
 		let info = wallet_info!(wallet6.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 3);
-		assert_eq!(info.amount_currently_spendable, base_amount * 33);
+		assert_eq!(outputs.len(), 12);
+		assert_eq!(info.amount_currently_spendable, base_amount * 78);
 		Ok(())
 	})?;
 
@@ -655,8 +660,8 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		api.set_active_account(m, "default")?;
 		let info = wallet_info!(wallet7.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 3);
-		assert_eq!(info.amount_currently_spendable, base_amount * 42);
+		assert_eq!(outputs.len(), 15);
+		assert_eq!(info.amount_currently_spendable, base_amount * 120);
 		Ok(())
 	})?;
 
@@ -711,8 +716,8 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	wallet::controller::owner_single_use(wallet9.clone(), mask9, |api, m| {
 		let info = wallet_info!(wallet9.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 3);
-		assert_eq!(info.amount_currently_spendable, base_amount * 15);
+		assert_eq!(outputs.len(), 6);
+		assert_eq!(info.amount_currently_spendable, base_amount * 21);
 		api.check_repair(m, true)?;
 		let info = wallet_info!(wallet9.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;

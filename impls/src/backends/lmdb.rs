@@ -397,6 +397,18 @@ where
 		}))
 	}
 
+	fn current_child_index<'a>(&mut self, parent_key_id: &Identifier) -> Result<u32, Error> {
+		let index = {
+			let batch = self.db.batch()?;
+			let deriv_key = to_key(DERIV_PREFIX, &mut parent_key_id.to_bytes().to_vec());
+			match batch.get_ser(&deriv_key)? {
+				Some(idx) => idx,
+				None => 0,
+			}
+		};
+		Ok(index)
+	}
+
 	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
 		let parent_key_id = self.parent_key_id.clone();
 		let mut deriv_idx = {
@@ -452,8 +464,10 @@ where
 		&mut self,
 		keychain_mask: Option<&SecretKey>,
 		delete_unconfirmed: bool,
+		start_index: u64,
+		status_fn: fn(&str),
 	) -> Result<(), Error> {
-		check_repair(self, keychain_mask, delete_unconfirmed).context(ErrorKind::Restore)?;
+		check_repair(self, keychain_mask, delete_unconfirmed, start_index, status_fn).context(ErrorKind::Restore)?;
 		Ok(())
 	}
 }

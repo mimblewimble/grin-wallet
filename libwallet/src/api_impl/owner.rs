@@ -84,7 +84,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false)?;
+		validated = update_wallet_state(w, keychain_mask, false)?;
 	}
 
 	Ok((
@@ -116,14 +116,10 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false)?;
+		validated = update_wallet_state(w, keychain_mask, false)?;
 	}
 
-	let mut txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
-
-	if refresh_from_node {
-		validated = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
-	}
+	let txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
 
 	Ok((validated, txs))
 }
@@ -144,7 +140,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false)?;
+		validated = update_wallet_state(w, keychain_mask, false)?;
 	}
 
 	let wallet_info = updater::retrieve_info(&mut *w, &parent_key_id, minimum_confirmations)?;
@@ -421,7 +417,7 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
-	if !update_outputs(w, keychain_mask, false)? {
+	if !update_wallet_state(w, keychain_mask, false)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		))?;
@@ -493,7 +489,12 @@ where
 	K: Keychain + 'a,
 {
 	update_outputs(w, keychain_mask, true)?;
-	w.check_repair(keychain_mask, delete_unconfirmed)
+	let status_fn: fn(&str) = |m|{
+		warn!("{}", m)
+	};
+	// just dumbly go back 2000 indices from last index scanned for now
+	let start_index = w.last_scanned_pmmr_index()?.saturating_sub(2000);
+	w.check_repair(keychain_mask, delete_unconfirmed, start_index, status_fn)
 }
 
 /// node height
@@ -524,6 +525,49 @@ where
 			})
 		}
 	}
+}
+/// Experimental, wrap the entire definition of how a wallet's state is updated
+fn update_wallet_state<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	update_all: bool,
+) -> Result<bool, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut result;
+	// Step 1: Update outputs and transactions purely based on UTXO state
+	result = update_outputs(w, keychain_mask, update_all)?;
+	if !result {
+		return Ok(result);
+	}
+
+	// Step 2: Update outstanding transactions with no change outputs by kernel
+	let mut txs = updater::retrieve_txs(&mut *w, None, None, None, true)?;
+	result = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
+	if !result {
+		return Ok(result);
+	}
+
+	// Step 3: Scan back a bit on the chain
+	// just dumbly go back 2000 indices from last index scanned for now
+	let last_scanned_index = w.last_scanned_pmmr_index()?;
+	let start_index = last_scanned_index.saturating_sub(2000);
+	let mut status_fn: fn(&str) = |m|{
+		debug!("{}", m)
+	};
+	if last_scanned_index == 0 {
+		warn!("This wallet's contents has not been verified with a full chain scan, performing scan now.");
+		warn!("This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
+		status_fn = |m|{
+			warn!("{}", m)
+		};
+	}
+	w.check_repair(keychain_mask, false, start_index, status_fn)?;
+
+	Ok(result)
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful
