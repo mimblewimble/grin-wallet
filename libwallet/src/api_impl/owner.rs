@@ -535,6 +535,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let parent_key_id = w.parent_key_id().clone();
 	let mut result;
 	// Step 1: Update outputs and transactions purely based on UTXO state
 	result = update_outputs(w, keychain_mask, update_all)?;
@@ -543,7 +544,7 @@ where
 	}
 
 	// Step 2: Update outstanding transactions with no change outputs by kernel
-	let mut txs = updater::retrieve_txs(&mut *w, None, None, None, true)?;
+	let mut txs = updater::retrieve_txs(&mut *w, None, None, Some(&parent_key_id), true)?;
 	result = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
 	if !result {
 		return Ok(result);

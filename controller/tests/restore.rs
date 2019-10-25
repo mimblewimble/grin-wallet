@@ -164,16 +164,6 @@ fn compare_wallet_restore(
 	// Info should all be the same
 	assert_eq!(src_info, dest_info);
 
-	println!("Src: {:?}", src_accts.clone().unwrap());
-	println!("dest: {:?}", dest_accts.clone().unwrap());
-
-	/*for t in src_txs.clone().unwrap().iter() {
-		println!("SRC: {:?}", t);
-	}
-	for t in dest_accts.clone().unwrap().iter() {
-		println!("DEST: {:?}", t);
-	}*/
-
 	// Net differences in TX logs should be the same
 	let src_sum: i64 = src_txs
 		.clone()
@@ -392,33 +382,28 @@ fn setup_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 fn perform_restore(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	restore_wallet(test_dir, "wallet1")?;
-	println!("WALLET 1");
 	compare_wallet_restore(
 		test_dir,
 		"wallet1",
 		&ExtKeychain::derive_key_id(2, 0, 0, 0, 0),
 	)?;
 	restore_wallet(test_dir, "wallet2")?;
-	println!("WALLET 2");
 	compare_wallet_restore(
 		test_dir,
 		"wallet2",
 		&ExtKeychain::derive_key_id(2, 0, 0, 0, 0),
 	)?;
-	println!("WALLET 3");
 	compare_wallet_restore(
 		test_dir,
 		"wallet2",
 		&ExtKeychain::derive_key_id(2, 1, 0, 0, 0),
 	)?;
-	println!("WALLET 4");
 	compare_wallet_restore(
 		test_dir,
 		"wallet2",
 		&ExtKeychain::derive_key_id(2, 2, 0, 0, 0),
 	)?;
 	restore_wallet(test_dir, "wallet3")?;
-	println!("WALLET 5");
 	compare_wallet_restore(
 		test_dir,
 		"wallet3",
