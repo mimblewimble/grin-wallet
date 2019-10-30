@@ -297,7 +297,8 @@ where
 			0 => None,
 			e => Some(e),
 		};
-		let ol = super::get_outputs_by_pmmr_index_local(self.chain.clone(), start_index, end_index, max);
+		let ol =
+			super::get_outputs_by_pmmr_index_local(self.chain.clone(), start_index, end_index, max);
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
@@ -318,7 +319,8 @@ where
 			0 => None,
 			e => Some(e),
 		};
-		let ol = super::height_range_to_pmmr_indices_local(self.chain.clone(), start_index, end_index);
+		let ol =
+			super::height_range_to_pmmr_indices_local(self.chain.clone(), start_index, end_index);
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
@@ -597,13 +599,7 @@ impl NodeClient for LocalWalletClient {
 		&self,
 		start_height: u64,
 		end_height: Option<u64>,
-	) -> Result<
-		(
-			u64,
-			u64,
-		),
-		libwallet::Error,
-	> {
+	) -> Result<(u64, u64), libwallet::Error> {
 		// start index, max
 		let mut query_str = format!("{}", start_height);
 		match end_height {

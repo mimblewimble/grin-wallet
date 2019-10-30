@@ -379,14 +379,7 @@ pub trait NodeClient: Send + Sync + Clone {
 		&self,
 		start_height: u64,
 		end_height: Option<u64>,
-	) -> Result<
-		(
-			u64,
-			u64,
-		),
-		Error,
-	>;
-
+	) -> Result<(u64, u64), Error>;
 }
 
 /// Node version info

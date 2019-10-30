@@ -289,13 +289,7 @@ impl NodeClient for HTTPNodeClient {
 		&self,
 		start_height: u64,
 		end_height: Option<u64>,
-	) -> Result<
-		(
-			u64,
-			u64,
-		),
-		libwallet::Error,
-	> {
+	) -> Result<(u64, u64), libwallet::Error> {
 		let addr = self.node_url();
 		let mut query_param = format!("start_height={}", start_height);
 		if let Some(e) = end_height {
@@ -307,15 +301,10 @@ impl NodeClient for HTTPNodeClient {
 		let client = Client::new();
 
 		match client.get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
-			Ok(o) => {
-				Ok((o.highest_index, o.last_retrieved_index))
-			}
+			Ok(o) => Ok((o.highest_index, o.last_retrieved_index)),
 			Err(e) => {
 				// if we got anything other than 200 back from server, bye
-				error!(
-					"heightstopmmr: error contacting {}. Error: {}",
-					addr, e
-				);
+				error!("heightstopmmr: error contacting {}. Error: {}", addr, e);
 				let report = format!(": {}", e);
 				Err(libwallet::ErrorKind::ClientCallback(report))?
 			}

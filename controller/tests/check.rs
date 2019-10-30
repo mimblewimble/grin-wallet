@@ -758,7 +758,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 // Testing output scanning functionality, easier here as the testing framework
 // is all here
-fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error>{
+fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 	// Create a new wallet test client, and set its queues to communicate with the
@@ -797,14 +797,24 @@ fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error>{
 		let ranges = client1.height_range_to_pmmr_indices(1, Some(14))?;
 		assert_eq!(ranges, (1, 25));
 		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
-		println!("Last Index: {}, Max: {}, Outputs.len: {}", outputs.0, outputs.1, outputs.2.len());
+		println!(
+			"Last Index: {}, Max: {}, Outputs.len: {}",
+			outputs.0,
+			outputs.1,
+			outputs.2.len()
+		);
 		assert_eq!(outputs.2.len(), 14);
 
 		// mid range
 		let ranges = client1.height_range_to_pmmr_indices(5, Some(14))?;
 		assert_eq!(ranges, (8, 25));
 		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
-		println!("Last Index: {}, Max: {}, Outputs.len: {}", outputs.0, outputs.1, outputs.2.len());
+		println!(
+			"Last Index: {}, Max: {}, Outputs.len: {}",
+			outputs.0,
+			outputs.1,
+			outputs.2.len()
+		);
 		for o in outputs.2.clone() {
 			println!("height: {}, mmr_index: {}", o.3, o.4);
 		}
@@ -814,16 +824,19 @@ fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error>{
 		let ranges = client1.height_range_to_pmmr_indices(5, None)?;
 		assert_eq!(ranges, (8, 38));
 		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
-		println!("Last Index: {}, Max: {}, Outputs.len: {}", outputs.0, outputs.1, outputs.2.len());
+		println!(
+			"Last Index: {}, Max: {}, Outputs.len: {}",
+			outputs.0,
+			outputs.1,
+			outputs.2.len()
+		);
 		for o in outputs.2.clone() {
 			println!("height: {}, mmr_index: {}", o.3, o.4);
 		}
 		assert_eq!(outputs.2.len(), 16);
-
 	}
 
 	Ok(())
-
 }
 
 #[test]
