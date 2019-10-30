@@ -361,6 +361,7 @@ pub trait NodeClient: Send + Sync + Clone {
 	fn get_outputs_by_pmmr_index(
 		&self,
 		start_height: u64,
+		end_height: Option<u64>,
 		max_outputs: u64,
 	) -> Result<
 		(
@@ -370,6 +371,22 @@ pub trait NodeClient: Send + Sync + Clone {
 		),
 		Error,
 	>;
+
+	/// Return the pmmr indices representing the outputs between a given
+	/// set of block heights
+	/// (start pmmr index, end pmmr index)
+	fn height_range_to_pmmr_indices(
+		&self,
+		start_height: u64,
+		end_height: Option<u64>,
+	) -> Result<
+		(
+			u64,
+			u64,
+		),
+		Error,
+	>;
+
 }
 
 /// Node version info

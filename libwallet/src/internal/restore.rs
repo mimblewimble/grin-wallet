@@ -158,7 +158,7 @@ where
 	loop {
 		let (highest_index, last_retrieved_index, outputs) = wallet
 			.w2n_client()
-			.get_outputs_by_pmmr_index(start_index, batch_size)?;
+			.get_outputs_by_pmmr_index(start_index, None, batch_size)?;
 		status_cb(&format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
 			outputs.len(),
@@ -173,7 +173,7 @@ where
 			status_cb,
 		)?);
 
-		if highest_index == last_retrieved_index {
+		if highest_index <= last_retrieved_index {
 			last_retrieved_return_index = last_retrieved_index;
 			break;
 		}

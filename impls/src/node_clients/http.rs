@@ -230,7 +230,8 @@ impl NodeClient for HTTPNodeClient {
 
 	fn get_outputs_by_pmmr_index(
 		&self,
-		start_height: u64,
+		start_index: u64,
+		end_index: Option<u64>,
 		max_outputs: u64,
 	) -> Result<
 		(
@@ -241,7 +242,11 @@ impl NodeClient for HTTPNodeClient {
 		libwallet::Error,
 	> {
 		let addr = self.node_url();
-		let query_param = format!("start_index={}&max={}", start_height, max_outputs);
+		let mut query_param = format!("start_index={}&max={}", start_index, max_outputs);
+
+		if let Some(e) = end_index {
+			query_param = format!("{}&end_index={}", query_param, e);
+		};
 
 		let url = format!("{}/v1/txhashset/outputs?{}", addr, query_param,);
 
@@ -275,6 +280,43 @@ impl NodeClient for HTTPNodeClient {
 					addr, e
 				);
 				let report = format!("outputs by pmmr index: {}", e);
+				Err(libwallet::ErrorKind::ClientCallback(report))?
+			}
+		}
+	}
+
+	fn height_range_to_pmmr_indices(
+		&self,
+		start_height: u64,
+		end_height: Option<u64>,
+	) -> Result<
+		(
+			u64,
+			u64,
+		),
+		libwallet::Error,
+	> {
+		let addr = self.node_url();
+		let mut query_param = format!("start_height={}", start_height);
+		if let Some(e) = end_height {
+			query_param = format!("{}&end_height={}", query_param, e);
+		};
+
+		let url = format!("{}/v1/txhashset/heightstopmmr?{}", addr, query_param,);
+
+		let client = Client::new();
+
+		match client.get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
+			Ok(o) => {
+				Ok((o.highest_index, o.last_retrieved_index))
+			}
+			Err(e) => {
+				// if we got anything other than 200 back from server, bye
+				error!(
+					"heightstopmmr: error contacting {}. Error: {}",
+					addr, e
+				);
+				let report = format!(": {}", e);
 				Err(libwallet::ErrorKind::ClientCallback(report))?
 			}
 		}

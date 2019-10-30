@@ -25,7 +25,7 @@ use self::core::global;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlatePutter as _};
-use libwallet::InitTxArgs;
+use libwallet::{InitTxArgs, NodeClient};
 use std::thread;
 use std::time::Duration;
 use util::ZeroingString;
@@ -755,6 +755,77 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	thread::sleep(Duration::from_millis(200));
 	Ok(())
 }
+
+// Testing output scanning functionality, easier here as the testing framework
+// is all here
+fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error>{
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	// Create a new wallet test client, and set its queues to communicate with the
+	// proxy
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let mask1 = (&mask1_i).as_ref();
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	// Do some mining
+	let bh = 20u64;
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+
+	// Now some chain scanning
+	{
+		// Entire range should be correct
+		let ranges = client1.height_range_to_pmmr_indices(1, None)?;
+		assert_eq!(ranges, (1, 38));
+		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
+		assert_eq!(outputs.2.len(), 20);
+
+		// Basic range should be correct
+		let ranges = client1.height_range_to_pmmr_indices(1, Some(14))?;
+		assert_eq!(ranges, (1, 25));
+		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
+		println!("Last Index: {}, Max: {}, Outputs.len: {}", outputs.0, outputs.1, outputs.2.len());
+		assert_eq!(outputs.2.len(), 14);
+
+		// mid range
+		let ranges = client1.height_range_to_pmmr_indices(5, Some(14))?;
+		assert_eq!(ranges, (8, 25));
+		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
+		println!("Last Index: {}, Max: {}, Outputs.len: {}", outputs.0, outputs.1, outputs.2.len());
+		for o in outputs.2.clone() {
+			println!("height: {}, mmr_index: {}", o.3, o.4);
+		}
+		assert_eq!(outputs.2.len(), 10);
+
+		// end
+		let ranges = client1.height_range_to_pmmr_indices(5, None)?;
+		assert_eq!(ranges, (8, 38));
+		let outputs = client1.get_outputs_by_pmmr_index(ranges.0, Some(ranges.1), 1000)?;
+		println!("Last Index: {}, Max: {}, Outputs.len: {}", outputs.0, outputs.1, outputs.2.len());
+		for o in outputs.2.clone() {
+			println!("height: {}, mmr_index: {}", o.3, o.4);
+		}
+		assert_eq!(outputs.2.len(), 16);
+
+	}
+
+	Ok(())
+
+}
+
 #[test]
 fn check_repair() {
 	let test_dir = "test_output/check_repair";
@@ -770,6 +841,16 @@ fn two_wallets_one_seed() {
 	let test_dir = "test_output/two_wallets_one_seed";
 	setup(test_dir);
 	if let Err(e) = two_wallets_one_seed_impl(test_dir) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn output_scanning() {
+	let test_dir = "test_output/output_scanning";
+	setup(test_dir);
+	if let Err(e) = output_scanning_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	clean_output_dir(test_dir);
