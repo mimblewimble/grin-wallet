@@ -15,7 +15,7 @@
 //! Selection of inputs for building transactions
 
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::core::amount_to_hr_string;
+use crate::grin_core::core::{amount_to_hr_string, KernelFeatures, TxKernel};
 use crate::grin_core::libtx::{
 	build,
 	proof::{ProofBuild, ProofBuilder},
@@ -56,15 +56,23 @@ where
 		slate.amount,
 		slate.height,
 		minimum_confirmations,
-		slate.lock_height,
 		max_outputs,
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
-	slate.fee = fee;
+	// Update the fee on both the slate *and* the underlying tx.
+	// Need to think through how we would support lock_height here.
+	{
+		slate.fee = fee;
+		slate.tx = slate
+			.tx
+			.clone()
+			.replace_kernel(TxKernel::with_features(KernelFeatures::Plain { fee }));
+	}
+
+	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	// Create our own private context
 	let mut context = Context::new(
@@ -270,7 +278,6 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	amount: u64,
 	current_height: u64,
 	minimum_confirmations: u64,
-	lock_height: u64,
 	max_outputs: usize,
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
@@ -302,13 +309,8 @@ where
 	)?;
 
 	// build transaction skeleton with inputs and change
-	let (mut parts, change_amounts_derivations) =
+	let (parts, change_amounts_derivations) =
 		inputs_and_change(&coins, wallet, keychain_mask, amount, fee, change_outputs)?;
-
-	// Build a "Plain" kernel unless lock_height>0 explicitly specified.
-	if lock_height > 0 {
-		parts.push(build::with_lock_height(lock_height));
-	}
 
 	Ok((parts, coins, change_amounts_derivations, fee))
 }
@@ -443,8 +445,6 @@ where
 
 	// calculate the total across all inputs, and how much is left
 	let total: u64 = coins.iter().map(|c| c.value).sum();
-
-	parts.push(build::with_fee(fee));
 
 	// if we are spending 10,000 coins to send 1,000 then our change will be 9,000
 	// if the fee is 80 then the recipient will receive 1000 and our change will be
