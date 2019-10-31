@@ -474,7 +474,15 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	w.restore(keychain_mask)
+	let tip = w.w2n_client().get_chain_tip()?;
+	let info_res = w.restore(keychain_mask, tip.0)?;
+	if let Some(mut i) = info_res {
+		let mut batch = w.batch(keychain_mask)?;
+		i.hash = tip.1;
+		batch.save_last_scanned_block(i)?;
+		batch.commit()?;
+	}
+	Ok(())
 }
 
 /// check repair
@@ -490,9 +498,20 @@ where
 {
 	update_outputs(w, keychain_mask, true)?;
 	let status_fn: fn(&str) = |m| warn!("{}", m);
-	// just dumbly go back 2000 indices from last index scanned for now
-	let start_index = w.last_scanned_pmmr_index()?.saturating_sub(2000);
-	w.check_repair(keychain_mask, delete_unconfirmed, start_index, status_fn)
+	let tip = w.w2n_client().get_chain_tip()?;
+
+	// for now, just go back 100 blocks from last scanned block
+	// TODO: only do this if hashes of last stored block don't match chain
+	// TODO: Provide parameter to manually override on command line
+	let start_index = w.last_scanned_block()?.height.saturating_sub(100);
+	let mut info = w.check_repair(keychain_mask, delete_unconfirmed, start_index, tip.0, status_fn)?;
+	info.hash = tip.1;
+
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_last_scanned_block(info)?;
+	batch.commit()?;
+
+	Ok(())
 }
 
 /// node height
@@ -553,16 +572,26 @@ where
 	}
 
 	// Step 3: Scan back a bit on the chain
-	// just dumbly go back 2000 indices from last index scanned for now
-	let last_scanned_index = w.last_scanned_pmmr_index()?;
-	let start_index = last_scanned_index.saturating_sub(2000);
+	let tip = w.w2n_client().get_chain_tip()?;
+
+	// for now, just go back 100 blocks from last scanned block
+	// TODO: only do this if hashes of last stored block don't match chain
+	let last_scanned_block = w.last_scanned_block()?;
+	let start_index = last_scanned_block.height.saturating_sub(100);
+
 	let mut status_fn: fn(&str) = |m| debug!("{}", m);
-	if last_scanned_index == 0 {
+	if last_scanned_block.height == 0 {
 		warn!("This wallet's contents has not been verified with a full chain scan, performing scan now.");
 		warn!("This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
 		status_fn = |m| warn!("{}", m);
 	}
-	w.check_repair(keychain_mask, false, start_index, status_fn)?;
+
+	let mut info = w.check_repair(keychain_mask, false, start_index, tip.0, status_fn)?;
+	info.hash = tip.1;
+
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_last_scanned_block(info)?;
+	batch.commit()?;
 
 	Ok(result)
 }

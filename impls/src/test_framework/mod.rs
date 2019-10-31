@@ -98,11 +98,9 @@ fn height_range_to_pmmr_indices_local(
 	start_index: u64,
 	end_index: Option<u64>,
 ) -> api::OutputListing {
-	println!("input is: {:?}", (start_index, end_index));
 	let indices = chain
 		.block_height_range_to_pmmr_indices(start_index, end_index)
 		.unwrap();
-	println!("Returned indices are: {:?}", indices);
 	api::OutputListing {
 		last_retrieved_index: indices.0,
 		highest_index: indices.1,

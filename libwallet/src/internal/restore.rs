@@ -143,6 +143,7 @@ fn collect_chain_outputs<'a, T, C, K, F>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	start_index: u64,
+	end_index: Option<u64>,
 	status_cb: &F,
 ) -> Result<(Vec<OutputResult>, u64), Error>
 where
@@ -158,7 +159,7 @@ where
 	loop {
 		let (highest_index, last_retrieved_index, outputs) = wallet
 			.w2n_client()
-			.get_outputs_by_pmmr_index(start_index, None, batch_size)?;
+			.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
 		status_cb(&format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
 			outputs.len(),
@@ -317,9 +318,10 @@ pub fn check_repair<'a, T, C, K, F>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
-	start_index: u64,
+	start_height: u64,
+	end_height: u64,
 	status_cb: F,
-) -> Result<(), Error>
+) -> Result<ScannedBlockInfo, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -329,8 +331,12 @@ where
 	// First, get a definitive list of outputs we own from the chain
 	status_cb("Starting UTXO scan");
 
+	// Retrieve the actual PMMR index range we're looking for
+	let pmmr_range = wallet.w2n_client()
+		.height_range_to_pmmr_indices(start_height, Some(end_height))?;
+
 	let (chain_outs, last_index) =
-		collect_chain_outputs(wallet, keychain_mask, start_index, &status_cb)?;
+		collect_chain_outputs(wallet, keychain_mask, pmmr_range.0, Some(pmmr_range.1), &status_cb)?;
 	status_cb(&format!(
 		"Identified {} wallet_outputs as belonging to this wallet",
 		chain_outs.len(),
@@ -446,18 +452,16 @@ where
 		}
 	}
 
-	{
-		// save highest scanned PMMR index
-		let mut batch = wallet.batch(keychain_mask)?;
-		batch.save_last_scanned_pmmr_index(last_index)?;
-		batch.commit()?;
-	}
-
-	Ok(())
+	Ok(ScannedBlockInfo {
+		height: end_height,
+		hash: "".to_owned(),
+		start_pmmr_index: pmmr_range.0,
+		last_pmmr_index: last_index,
+	})
 }
 
 /// Restore a wallet
-pub fn restore<'a, T, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>) -> Result<(), Error>
+pub fn restore<'a, T, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, end_height: u64) -> Result<Option<ScannedBlockInfo>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -467,14 +471,18 @@ where
 	let is_empty = wallet.iter().next().is_none();
 	if !is_empty {
 		error!("Not restoring. Please back up and remove existing db directory first.");
-		return Ok(());
+		return Ok(None);
 	}
 
 	let now = Instant::now();
 	warn!("Starting restore.");
 
+	// Retrieve the actual PMMR index range we're looking for
+	let pmmr_range = wallet.w2n_client()
+		.height_range_to_pmmr_indices(1, Some(end_height))?;
+
 	let (result_vec, last_index) =
-		collect_chain_outputs(wallet, keychain_mask, 0, &|m| warn!("{}", m))?;
+		collect_chain_outputs(wallet, keychain_mask, pmmr_range.0, Some(pmmr_range.1), &|m| warn!("{}", m))?;
 
 	warn!(
 		"Identified {} wallet_outputs as belonging to this wallet",
@@ -523,17 +531,15 @@ where
 		batch.commit()?;
 	}
 
-	{
-		// save highest scanned PMMR index
-		let mut batch = wallet.batch(keychain_mask)?;
-		batch.save_last_scanned_pmmr_index(last_index)?;
-		batch.commit()?;
-	}
-
 	let mut sec = now.elapsed().as_secs();
 	let min = sec / 60;
 	sec %= 60;
 	info!("Restored wallet in {}m{}s", min, sec);
 
-	Ok(())
+	Ok(Some(ScannedBlockInfo {
+		height: end_height,
+		hash: "".to_owned(),
+		start_pmmr_index: pmmr_range.0,
+		last_pmmr_index: last_index,
+	}))
 }
