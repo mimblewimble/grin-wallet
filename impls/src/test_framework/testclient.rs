@@ -255,7 +255,7 @@ where
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
 			method: m.method,
-			body: format!("{},{}", height, hash)
+			body: format!("{},{}", height, hash),
 		})
 	}
 
@@ -460,11 +460,13 @@ impl NodeClient for LocalWalletClient {
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
 		trace!("Received get_chain_tip response: {:?}", m.clone());
-		let res = m.body.parse::<String>()
+		let res = m
+			.body
+			.parse::<String>()
 			.context(libwallet::ErrorKind::ClientCallback(
 				"Parsing get_height response".to_owned(),
 			))?;
-		let split:Vec<&str> = res.split(",").collect();
+		let split: Vec<&str> = res.split(",").collect();
 		Ok((split[0].parse::<u64>().unwrap(), split[1].to_owned()))
 	}
 
