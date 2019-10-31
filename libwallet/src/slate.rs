@@ -245,17 +245,26 @@ impl Slate {
 		&mut self,
 		keychain: &K,
 		builder: &B,
-		mut elems: Vec<Box<build::Append<K, B>>>,
+		elems: Vec<Box<build::Append<K, B>>>,
 	) -> Result<BlindingFactor, Error>
 	where
 		K: Keychain,
 		B: ProofBuild,
 	{
-		elems.insert(0, build::initial_tx(self.tx.clone()));
-		let (tx, blind) =
-			build::partial_transaction(self.kernel_features(), elems, keychain, builder)?;
+		self.update_kernel();
+		let (tx, blind) = build::partial_transaction(self.tx.clone(), elems, keychain, builder)?;
 		self.tx = tx;
 		Ok(blind)
+	}
+
+	// Update the tx kernel based on kernel features derived from the current slate.
+	// The fee may change as we build a transaction and we need to
+	// update the tx kernel to reflect this during the tx building process.
+	pub fn update_kernel(&mut self) {
+		self.tx = self
+			.tx
+			.clone()
+			.replace_kernel(TxKernel::with_features(self.kernel_features()));
 	}
 
 	/// Completes callers part of round 1, adding public key info

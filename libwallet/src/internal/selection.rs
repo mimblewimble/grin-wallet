@@ -15,7 +15,7 @@
 //! Selection of inputs for building transactions
 
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::core::{amount_to_hr_string, KernelFeatures, TxKernel};
+use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::libtx::{
 	build,
 	proof::{ProofBuild, ProofBuilder},
@@ -62,15 +62,8 @@ where
 		&parent_key_id,
 	)?;
 
-	// Update the fee on both the slate *and* the underlying tx.
-	// Need to think through how we would support lock_height here.
-	{
-		slate.fee = fee;
-		slate.tx = slate
-			.tx
-			.clone()
-			.replace_kernel(TxKernel::with_features(KernelFeatures::Plain { fee }));
-	}
+	// Update the fee on the slate so we account for this when building the tx.
+	slate.fee = fee;
 
 	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
