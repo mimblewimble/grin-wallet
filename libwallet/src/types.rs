@@ -334,8 +334,8 @@ pub trait NodeClient: Send + Sync + Clone {
 	/// by the node. Result can be cached for later use
 	fn get_version_info(&mut self) -> Option<NodeVersionInfo>;
 
-	/// retrieves the current tip from the specified grin node
-	fn get_chain_height(&self) -> Result<u64, Error>;
+	/// retrieves the current tip (height, hash) from the specified grin node
+	fn get_chain_tip(&self) -> Result<(u64, String), Error>;
 
 	/// Get a kernel and the height of the block it's included in. Returns
 	/// (tx_kernel, height, mmr_index)

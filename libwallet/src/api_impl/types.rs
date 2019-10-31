@@ -197,6 +197,8 @@ pub struct NodeHeightResult {
 	/// Last known height
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
+	/// Hash
+	pub header_hash: String,
 	/// Whether this height was updated from the node
 	pub updated_from_node: bool,
 }

@@ -332,7 +332,7 @@ where
 	};
 
 	// update slate current height
-	ret_slate.height = w.w2n_client().get_chain_height()?;
+	ret_slate.height = w.w2n_client().get_chain_tip()?.0;
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
@@ -505,10 +505,11 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let res = w.w2n_client().get_chain_height();
+	let res = w.w2n_client().get_chain_tip();
 	match res {
-		Ok(height) => Ok(NodeHeightResult {
-			height,
+		Ok(r) => Ok(NodeHeightResult {
+			height: r.0,
+			header_hash: r.1,
 			updated_from_node: true,
 		}),
 		Err(_) => {
@@ -519,6 +520,7 @@ where
 			};
 			Ok(NodeHeightResult {
 				height,
+				header_hash: "".to_owned(),
 				updated_from_node: false,
 			})
 		}
@@ -600,8 +602,8 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
-	let height = match w.w2n_client().get_chain_height() {
-		Ok(h) => h,
+	let height = match w.w2n_client().get_chain_tip() {
+		Ok(h) => h.0,
 		Err(_) => return Ok(false),
 	};
 	for tx in txs.iter_mut() {

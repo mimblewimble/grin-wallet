@@ -146,7 +146,7 @@ where
 			let m = self.rx.recv().unwrap();
 			trace!("Wallet Client Proxy Received: {:?}", m);
 			let resp = match m.method.as_ref() {
-				"get_chain_height" => self.get_chain_height(m)?,
+				"get_chain_tip" => self.get_chain_tip(m)?,
 				"get_outputs_from_node" => self.get_outputs_from_node(m)?,
 				"get_outputs_by_pmmr_index" => self.get_outputs_by_pmmr_index(m)?,
 				"height_range_to_pmmr_indices" => self.height_range_to_pmmr_indices(m)?,
@@ -244,15 +244,18 @@ where
 	}
 
 	/// get chain height
-	fn get_chain_height(
+	fn get_chain_tip(
 		&mut self,
 		m: WalletProxyMessage,
 	) -> Result<WalletProxyMessage, libwallet::Error> {
+		let height = self.chain.head().unwrap().height;
+		let hash = util::to_hex(self.chain.head().unwrap().last_block_h.to_vec());
+
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
 			method: m.method,
-			body: format!("{}", self.chain.head().unwrap().height).to_owned(),
+			body: format!("{},{}", height, hash)
 		})
 	}
 
@@ -441,11 +444,11 @@ impl NodeClient for LocalWalletClient {
 	}
 
 	/// Return the chain tip from a given node
-	fn get_chain_height(&self) -> Result<u64, libwallet::Error> {
+	fn get_chain_tip(&self) -> Result<(u64, String), libwallet::Error> {
 		let m = WalletProxyMessage {
 			sender_id: self.id.clone(),
 			dest: self.node_url().to_owned(),
-			method: "get_chain_height".to_owned(),
+			method: "get_chain_tip".to_owned(),
 			body: "".to_owned(),
 		};
 		{
@@ -456,12 +459,13 @@ impl NodeClient for LocalWalletClient {
 		}
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
-		trace!("Received get_chain_height response: {:?}", m.clone());
-		Ok(m.body
-			.parse::<u64>()
+		trace!("Received get_chain_tip response: {:?}", m.clone());
+		let res = m.body.parse::<String>()
 			.context(libwallet::ErrorKind::ClientCallback(
 				"Parsing get_height response".to_owned(),
-			))?)
+			))?;
+		let split:Vec<&str> = res.split(",").collect();
+		Ok((split[0].parse::<u64>().unwrap(), split[1].to_owned()))
 	}
 
 	/// Retrieve outputs from node

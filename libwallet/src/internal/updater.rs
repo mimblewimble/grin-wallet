@@ -145,7 +145,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let height = wallet.w2n_client().get_chain_height()?;
+	let height = wallet.w2n_client().get_chain_tip()?.0;
 	refresh_output_state(wallet, keychain_mask, height, parent_key_id, update_all)?;
 	Ok(())
 }

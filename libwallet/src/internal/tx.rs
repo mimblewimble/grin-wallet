@@ -44,7 +44,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let current_height = wallet.w2n_client().get_chain_height()?;
+	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	let mut slate = Slate::blank(num_participants);
 	if use_test_rng {
 		{
@@ -91,7 +91,7 @@ where
 	K: Keychain + 'a,
 {
 	// Get lock height
-	let current_height = wallet.w2n_client().get_chain_height()?;
+	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	// ensure outputs we're selecting are up to date
 	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
 

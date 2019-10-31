@@ -47,8 +47,8 @@ impl HTTPNodeClient {
 	}
 
 	/// Allow returning the chain height without needing a wallet instantiated
-	pub fn chain_height(&self) -> Result<u64, libwallet::Error> {
-		self.get_chain_height()
+	pub fn chain_height(&self) -> Result<(u64, String), libwallet::Error> {
+		self.get_chain_tip()
 	}
 }
 
@@ -117,7 +117,7 @@ impl NodeClient for HTTPNodeClient {
 	}
 
 	/// Return the chain tip from a given node
-	fn get_chain_height(&self) -> Result<u64, libwallet::Error> {
+	fn get_chain_tip(&self) -> Result<(u64, String), libwallet::Error> {
 		let addr = self.node_url();
 		let url = format!("{}/v1/chain", addr);
 		let client = Client::new();
@@ -128,7 +128,7 @@ impl NodeClient for HTTPNodeClient {
 				error!("Get chain height error: {}", e);
 				Err(libwallet::ErrorKind::ClientCallback(report).into())
 			}
-			Ok(r) => Ok(r.height),
+			Ok(r) => Ok((r.height, r.last_block_pushed)),
 		}
 	}
 
