@@ -226,7 +226,11 @@ where
 	fn last_scanned_block<'a>(&mut self) -> Result<ScannedBlockInfo, Error>;
 
 	/// Attempt to restore the contents of a wallet from seed
-	fn restore(&mut self, keychain_mask: Option<&SecretKey>, end_height: u64) -> Result<Option<ScannedBlockInfo>, Error>;
+	fn restore(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		end_height: u64,
+	) -> Result<Option<ScannedBlockInfo>, Error>;
 
 	/// Attempt to check and fix wallet state
 	fn check_repair(

@@ -332,11 +332,17 @@ where
 	status_cb("Starting UTXO scan");
 
 	// Retrieve the actual PMMR index range we're looking for
-	let pmmr_range = wallet.w2n_client()
+	let pmmr_range = wallet
+		.w2n_client()
 		.height_range_to_pmmr_indices(start_height, Some(end_height))?;
 
-	let (chain_outs, last_index) =
-		collect_chain_outputs(wallet, keychain_mask, pmmr_range.0, Some(pmmr_range.1), &status_cb)?;
+	let (chain_outs, last_index) = collect_chain_outputs(
+		wallet,
+		keychain_mask,
+		pmmr_range.0,
+		Some(pmmr_range.1),
+		&status_cb,
+	)?;
 	status_cb(&format!(
 		"Identified {} wallet_outputs as belonging to this wallet",
 		chain_outs.len(),
@@ -461,7 +467,11 @@ where
 }
 
 /// Restore a wallet
-pub fn restore<'a, T, C, K>(wallet: &mut T, keychain_mask: Option<&SecretKey>, end_height: u64) -> Result<Option<ScannedBlockInfo>, Error>
+pub fn restore<'a, T, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	end_height: u64,
+) -> Result<Option<ScannedBlockInfo>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -478,11 +488,17 @@ where
 	warn!("Starting restore.");
 
 	// Retrieve the actual PMMR index range we're looking for
-	let pmmr_range = wallet.w2n_client()
+	let pmmr_range = wallet
+		.w2n_client()
 		.height_range_to_pmmr_indices(1, Some(end_height))?;
 
-	let (result_vec, last_index) =
-		collect_chain_outputs(wallet, keychain_mask, pmmr_range.0, Some(pmmr_range.1), &|m| warn!("{}", m))?;
+	let (result_vec, last_index) = collect_chain_outputs(
+		wallet,
+		keychain_mask,
+		pmmr_range.0,
+		Some(pmmr_range.1),
+		&|m| warn!("{}", m),
+	)?;
 
 	warn!(
 		"Identified {} wallet_outputs as belonging to this wallet",
