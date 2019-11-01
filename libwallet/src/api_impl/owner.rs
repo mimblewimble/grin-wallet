@@ -503,13 +503,7 @@ where
 	// for now, just start from 1
 	// TODO: only do this if hashes of last stored block don't match chain
 	// TODO: Provide parameter to manually override on command line
-	let mut info = w.check_repair(
-		keychain_mask,
-		delete_unconfirmed,
-		1,
-		tip.0,
-		status_fn,
-	)?;
+	let mut info = w.check_repair(keychain_mask, delete_unconfirmed, 1, tip.0, status_fn)?;
 	info.hash = tip.1;
 
 	let mut batch = w.batch(keychain_mask)?;

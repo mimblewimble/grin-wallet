@@ -302,9 +302,7 @@ impl NodeClient for HTTPNodeClient {
 		let client = Client::new();
 
 		match client.get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
-			Ok(o) => {
-				Ok((o.last_retrieved_index, o.highest_index))
-			},
+			Ok(o) => Ok((o.last_retrieved_index, o.highest_index)),
 			Err(e) => {
 				// if we got anything other than 200 back from server, bye
 				error!("heightstopmmr: error contacting {}. Error: {}", addr, e);
