@@ -355,6 +355,7 @@ where
 	let api_outputs = wallet
 		.w2n_client()
 		.get_outputs_from_node(wallet_output_keys)?;
+
 	apply_api_outputs(
 		wallet,
 		keychain_mask,
