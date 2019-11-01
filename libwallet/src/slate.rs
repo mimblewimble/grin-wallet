@@ -257,9 +257,9 @@ impl Slate {
 		Ok(blind)
 	}
 
-	// Update the tx kernel based on kernel features derived from the current slate.
-	// The fee may change as we build a transaction and we need to
-	// update the tx kernel to reflect this during the tx building process.
+	/// Update the tx kernel based on kernel features derived from the current slate.
+	/// The fee may change as we build a transaction and we need to
+	/// update the tx kernel to reflect this during the tx building process.
 	pub fn update_kernel(&mut self) {
 		self.tx = self
 			.tx
