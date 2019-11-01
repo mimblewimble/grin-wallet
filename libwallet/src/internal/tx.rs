@@ -365,6 +365,7 @@ where
 
 #[cfg(test)]
 mod test {
+	use crate::grin_core::core::KernelFeatures;
 	use crate::grin_core::libtx::{build, ProofBuilder};
 	use crate::grin_keychain::{ExtKeychain, ExtKeychainPath, Keychain};
 
@@ -377,12 +378,14 @@ mod test {
 		let key_id1 = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 
 		let tx1 = build::transaction(
+			KernelFeatures::Plain { fee: 0 },
 			vec![build::output(105, key_id1.clone())],
 			&keychain,
 			&builder,
 		)
 		.unwrap();
 		let tx2 = build::transaction(
+			KernelFeatures::Plain { fee: 0 },
 			vec![build::input(105, key_id1.clone())],
 			&keychain,
 			&builder,
