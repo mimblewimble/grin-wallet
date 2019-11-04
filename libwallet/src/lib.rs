@@ -61,7 +61,7 @@ pub use api_impl::types::{
 	BlockFees, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, SendTXArgs, VersionInfo,
 };
-pub use internal::restore::{check_repair, restore};
+pub use internal::scan::scan;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
 	OutputStatus, ScannedBlockInfo, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend,

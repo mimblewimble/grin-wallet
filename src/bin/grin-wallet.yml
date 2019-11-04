@@ -324,9 +324,7 @@ subcommands:
             short: d
             long: display
             takes_value: false
-  - restore:
-      about: Restores a wallet contents from a seed file
-  - check:
+  - scan:
       about: Checks a wallet's outputs against a live node, repairing and restoring missing outputs if required
       args:
         - delete_unconfirmed:

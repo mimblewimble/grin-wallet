@@ -31,7 +31,6 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 
 use crate::core::core::Transaction;
 use crate::core::ser;
-use crate::libwallet::{check_repair, restore};
 use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, ScannedBlockInfo,
 	TxLogEntry, WalletBackend, WalletOutputBatch,
@@ -460,34 +459,6 @@ where
 		Ok(last_scanned_block)
 	}
 
-	fn restore(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		to_height: u64,
-	) -> Result<Option<ScannedBlockInfo>, Error> {
-		let res = restore(self, keychain_mask, to_height).context(ErrorKind::Restore)?;
-		Ok(res)
-	}
-
-	fn check_repair(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		delete_unconfirmed: bool,
-		start_height: u64,
-		end_height: u64,
-		status_fn: fn(&str),
-	) -> Result<ScannedBlockInfo, Error> {
-		let res = check_repair(
-			self,
-			keychain_mask,
-			delete_unconfirmed,
-			start_height,
-			end_height,
-			status_fn,
-		)
-		.context(ErrorKind::Restore)?;
-		Ok(res)
-	}
 }
 
 /// An atomic batch in which all changes can be committed all at once or

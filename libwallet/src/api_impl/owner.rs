@@ -21,15 +21,18 @@ use crate::grin_core::core::Transaction;
 use crate::grin_core::ser;
 use crate::grin_util;
 use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::Mutex;
 
 use crate::grin_keychain::{Identifier, Keychain};
-use crate::internal::{keys, selection, tx, updater};
+use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{Error, ErrorKind};
 use crate::{
-	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType,
+	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType, WalletInst,
+	WalletLCProvider
 };
+use std::sync::Arc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
@@ -464,48 +467,36 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 	slate.verify_messages()
 }
 
-/// Attempt to restore contents of wallet
-pub fn restore<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let tip = w.w2n_client().get_chain_tip()?;
-	let info_res = w.restore(keychain_mask, tip.0)?;
-	if let Some(mut i) = info_res {
-		let mut batch = w.batch(keychain_mask)?;
-		i.hash = tip.1;
-		batch.save_last_scanned_block(i)?;
-		batch.commit()?;
-	}
-	Ok(())
-}
-
 /// check repair
-pub fn check_repair<'a, T: ?Sized, C, K>(
-	w: &mut T,
+/// Accepts a wallet inst instead of a raw wallet so it can
+/// lock as little as possible
+pub fn scan<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	update_outputs(w, keychain_mask, true)?;
+	update_outputs(wallet_inst.clone(), keychain_mask, true)?;
+	let tip = {
+		let mut w_lock = wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		w.w2n_client().get_chain_tip()?
+	};
+
 	let status_fn: fn(&str) = |m| warn!("{}", m);
-	let tip = w.w2n_client().get_chain_tip()?;
 
 	// for now, just start from 1
 	// TODO: only do this if hashes of last stored block don't match chain
 	// TODO: Provide parameter to manually override on command line
-	let mut info = w.check_repair(keychain_mask, delete_unconfirmed, 1, tip.0, status_fn)?;
+	let mut info = scan::scan(wallet_inst.clone(), keychain_mask, delete_unconfirmed, 1, tip.0, status_fn)?;
 	info.hash = tip.1;
 
+	let mut w_lock = wallet_inst.lock();
+	let w = w_lock.lc_provider()?.wallet_inst()?;
 	let mut batch = w.batch(keychain_mask)?;
 	batch.save_last_scanned_block(info)?;
 	batch.commit()?;
@@ -545,26 +536,34 @@ where
 	}
 }
 /// Experimental, wrap the entire definition of how a wallet's state is updated
-fn update_wallet_state<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn update_wallet_state<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
 ) -> Result<bool, Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = w.parent_key_id().clone();
-	let mut result;
+	let parent_key_id = {
+		let mut w_lock = wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		w.parent_key_id().clone();
+	};
 	// Step 1: Update outputs and transactions purely based on UTXO state
-	result = update_outputs(w, keychain_mask, update_all)?;
+	let mut result = update_outputs(wallet_inst.clone(), keychain_mask, update_all)?;
+
 	if !result {
 		return Ok(result);
 	}
 
 	// Step 2: Update outstanding transactions with no change outputs by kernel
-	let mut txs = updater::retrieve_txs(&mut *w, None, None, Some(&parent_key_id), true)?;
+	let mut txs = {
+		let mut w_lock = wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		updater::retrieve_txs(&mut **w, None, None, Some(&parent_key_id), true)?
+	};
 	result = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
 	if !result {
 		return Ok(result);
@@ -585,24 +584,26 @@ where
 		status_fn = |m| warn!("{}", m);
 	}
 
-	let mut info = w.check_repair(keychain_mask, false, start_index, tip.0, status_fn)?;
+	let mut info = scan::scan(wallet_inst.clone(), keychain_mask, false, start_index, tip.0, status_fn)?;
+
+	/*let mut info = w.scan(keychain_mask, false, start_index, tip.0, status_fn)?;
 	info.hash = tip.1;
 
 	let mut batch = w.batch(keychain_mask)?;
 	batch.save_last_scanned_block(info)?;
-	batch.commit()?;
+	batch.commit()?;*/
 
 	Ok(result)
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful
-fn update_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn update_outputs<'a, T: ?Sized, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
 ) -> Result<bool, Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {

@@ -1085,48 +1085,6 @@ where
 		owner::verify_slate_messages(slate)
 	}
 
-	/// Scans the entire UTXO set from the node, creating outputs for each scanned
-	/// output that matches the wallet's master seed. This function is intended to be called as part
-	/// of a recovery process (either from BIP32 phrase or backup seed files,) and will error if the
-	/// wallet is non-empty, i.e. contains any outputs at all.
-	///
-	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
-	/// that no other processes should be trying to use the wallet at the same time this function is
-	/// running.
-	///
-	/// A single [TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html) is created for
-	/// all non-coinbase outputs discovered and restored during this process. A separate entry
-	/// is created for each coinbase output.
-	///
-	/// # Arguments
-	///
-	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// being used.
-	///
-	/// # Returns
-	/// * `Ok(())` if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
-
-	/// # Example
-	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
-	///
-	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let result = api_owner.restore(None);
-	///
-	/// if let Ok(_) = result {
-	///		// Wallet outputs should be consistent with what's on chain
-	///		// ...
-	/// }
-	/// ```
-	pub fn restore(&self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		let res = owner::restore(&mut **w, keychain_mask);
-		res
-	}
-
 	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet
 	/// update the wallet state to be consistent with what's currently in the UTXO set.
 	///
@@ -1145,7 +1103,7 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
-	/// * `delete_unconfirmed` - if `false`, the check_repair process will be non-destructive, and
+	/// * `delete_unconfirmed` - if `false`, the scan process will be non-destructive, and
 	/// mostly limited to restoring missing outputs. It will leave unconfirmed transaction logs entries
 	/// and unconfirmed outputs intact. If `true`, the process will unlock all locked outputs,
 	/// restore all missing outputs, and mark any outputs that have been marked 'Spent' but are still
@@ -1165,7 +1123,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone());
-	/// let result = api_owner.check_repair(
+	/// let result = api_owner.scan(
 	/// 	None,
 	/// 	false,
 	/// );
@@ -1176,14 +1134,12 @@ where
 	/// }
 	/// ```
 
-	pub fn check_repair(
+	pub fn scan(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		delete_unconfirmed: bool,
 	) -> Result<(), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::check_repair(&mut **w, keychain_mask, delete_unconfirmed)
+		owner::scan(self.wallet_inst.clone(), keychain_mask, delete_unconfirmed)
 	}
 
 	/// Retrieves the last known height known by the wallet. This is determined as follows:

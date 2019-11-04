@@ -1006,10 +1006,9 @@ where
 			let a = arg_parse!(parse_cancel_args(&args));
 			command::cancel(wallet, km, a)
 		}
-		("restore", Some(_)) => command::restore(wallet, km),
-		("check", Some(args)) => {
+		("scan", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
-			command::check_repair(wallet, km, a)
+			command::scan(wallet, km, a)
 		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
