@@ -458,7 +458,6 @@ where
 		};
 		Ok(last_scanned_block)
 	}
-
 }
 
 /// An atomic batch in which all changes can be committed all at once or

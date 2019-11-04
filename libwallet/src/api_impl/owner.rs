@@ -29,8 +29,8 @@ use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{Error, ErrorKind};
 use crate::{
-	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType, WalletInst,
-	WalletLCProvider
+	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType,
+	WalletInst, WalletLCProvider,
 };
 use std::sync::Arc;
 
@@ -492,7 +492,14 @@ where
 	// for now, just start from 1
 	// TODO: only do this if hashes of last stored block don't match chain
 	// TODO: Provide parameter to manually override on command line
-	let mut info = scan::scan(wallet_inst.clone(), keychain_mask, delete_unconfirmed, 1, tip.0, status_fn)?;
+	let mut info = scan::scan(
+		wallet_inst.clone(),
+		keychain_mask,
+		delete_unconfirmed,
+		1,
+		tip.0,
+		status_fn,
+	)?;
 	info.hash = tip.1;
 
 	let mut w_lock = wallet_inst.lock();
@@ -584,7 +591,14 @@ where
 		status_fn = |m| warn!("{}", m);
 	}
 
-	let mut info = scan::scan(wallet_inst.clone(), keychain_mask, false, start_index, tip.0, status_fn)?;
+	let mut info = scan::scan(
+		wallet_inst.clone(),
+		keychain_mask,
+		false,
+		start_index,
+		tip.0,
+		status_fn,
+	)?;
 
 	/*let mut info = w.scan(keychain_mask, false, start_index, tip.0, status_fn)?;
 	info.hash = tip.1;

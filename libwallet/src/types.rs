@@ -224,7 +224,6 @@ where
 
 	/// last block scanned during scan or restore
 	fn last_scanned_block<'a>(&mut self) -> Result<ScannedBlockInfo, Error>;
-
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a

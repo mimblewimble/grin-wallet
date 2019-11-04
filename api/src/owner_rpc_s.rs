@@ -1837,8 +1837,7 @@ where
 	}
 
 	fn scan(&self, token: Token, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
-		Owner::scan(self, (&token.keychain_mask).as_ref(), delete_unconfirmed)
-			.map_err(|e| e.kind())
+		Owner::scan(self, (&token.keychain_mask).as_ref(), delete_unconfirmed).map_err(|e| e.kind())
 	}
 
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind> {

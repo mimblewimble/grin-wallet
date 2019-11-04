@@ -19,7 +19,9 @@ use crate::config::{
 };
 use crate::core::global;
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, ScannedBlockInfo, WalletBackend, WalletLCProvider, scan};
+use crate::libwallet::{
+	scan, Error, ErrorKind, NodeClient, ScannedBlockInfo, WalletBackend, WalletLCProvider,
+};
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
@@ -357,5 +359,4 @@ where
 			Some(_) => Ok(&mut *self.backend.as_mut().unwrap()),
 		}
 	}
-
 }

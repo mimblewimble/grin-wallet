@@ -1160,7 +1160,6 @@ pub trait OwnerRpc: Sync + Send {
 	*/
 	fn verify_slate_messages(&self, slate: VersionedSlate) -> Result<(), ErrorKind>;
 
-
 	/**
 	Networked version of [Owner::scan](struct.Owner.html#method.scan).
 

@@ -153,8 +153,8 @@ where
 	let mut result_vec: Vec<OutputResult> = vec![];
 	let last_retrieved_return_index;
 	loop {
-		let (highest_index, last_retrieved_index, outputs) = client
-			.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
+		let (highest_index, last_retrieved_index, outputs) =
+			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
 		status_cb(&format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
 			outputs.len(),
@@ -336,8 +336,7 @@ where
 	};
 
 	// Retrieve the actual PMMR index range we're looking for
-	let pmmr_range = client
-			.height_range_to_pmmr_indices(start_height, Some(end_height))?;
+	let pmmr_range = client.height_range_to_pmmr_indices(start_height, Some(end_height))?;
 
 	let (chain_outs, last_index) = collect_chain_outputs(
 		&keychain,
@@ -405,7 +404,13 @@ where
 				 Restoring.",
 				m.value, m.key_id, m.commit, m.mmr_index
 			));
-		restore_missing_output(wallet_inst.clone(), keychain_mask, m, &mut found_parents, &mut None)?;
+		restore_missing_output(
+			wallet_inst.clone(),
+			keychain_mask,
+			m,
+			&mut found_parents,
+			&mut None,
+		)?;
 	}
 
 	if delete_unconfirmed {
