@@ -1232,7 +1232,13 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::node_height(&mut **w, keychain_mask)
+		let mut res = owner::node_height(&mut **w, keychain_mask)?;
+		if self.doctest_mode {
+			// return a consistent hash for doctest
+			res.header_hash =
+				"d4b3d3c40695afd8c7760f8fc423565f7d41310b7a4e1c4a4a7950a66f16240d".to_owned();
+		}
+		Ok(res)
 	}
 
 	// LIFECYCLE FUNCTIONS

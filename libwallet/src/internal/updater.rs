@@ -145,7 +145,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let height = wallet.w2n_client().get_chain_height()?;
+	let height = wallet.w2n_client().get_chain_tip()?.0;
 	refresh_output_state(wallet, keychain_mask, height, parent_key_id, update_all)?;
 	Ok(())
 }
@@ -355,6 +355,7 @@ where
 	let api_outputs = wallet
 		.w2n_client()
 		.get_outputs_from_node(wallet_output_keys)?;
+
 	apply_api_outputs(
 		wallet,
 		keychain_mask,

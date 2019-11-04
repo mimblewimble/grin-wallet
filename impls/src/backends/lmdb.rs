@@ -33,8 +33,8 @@ use crate::core::core::Transaction;
 use crate::core::ser;
 use crate::libwallet::{check_repair, restore};
 use crate::libwallet::{
-	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, TxLogEntry, WalletBackend,
-	WalletOutputBatch,
+	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, ScannedBlockInfo,
+	TxLogEntry, WalletBackend, WalletOutputBatch,
 };
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::secp::key::SecretKey;
@@ -53,6 +53,8 @@ const PRIVATE_TX_CONTEXT_PREFIX: u8 = 'p' as u8;
 const TX_LOG_ENTRY_PREFIX: u8 = 't' as u8;
 const TX_LOG_ID_PREFIX: u8 = 'i' as u8;
 const ACCOUNT_PATH_MAPPING_PREFIX: u8 = 'a' as u8;
+const LAST_SCANNED_BLOCK: u8 = 'l' as u8;
+const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations
@@ -395,6 +397,18 @@ where
 		}))
 	}
 
+	fn current_child_index<'a>(&mut self, parent_key_id: &Identifier) -> Result<u32, Error> {
+		let index = {
+			let batch = self.db.batch()?;
+			let deriv_key = to_key(DERIV_PREFIX, &mut parent_key_id.to_bytes().to_vec());
+			match batch.get_ser(&deriv_key)? {
+				Some(idx) => idx,
+				None => 0,
+			}
+		};
+		Ok(index)
+	}
+
 	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
 		let parent_key_id = self.parent_key_id.clone();
 		let mut deriv_idx = {
@@ -428,18 +442,51 @@ where
 		Ok(last_confirmed_height)
 	}
 
-	fn restore(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
-		restore(self, keychain_mask).context(ErrorKind::Restore)?;
-		Ok(())
+	fn last_scanned_block<'a>(&mut self) -> Result<ScannedBlockInfo, Error> {
+		let batch = self.db.batch()?;
+		let scanned_block_key = to_key(
+			LAST_SCANNED_BLOCK,
+			&mut LAST_SCANNED_KEY.as_bytes().to_vec(),
+		);
+		let last_scanned_block = match batch.get_ser(&scanned_block_key)? {
+			Some(b) => b,
+			None => ScannedBlockInfo {
+				height: 0,
+				hash: "".to_owned(),
+				start_pmmr_index: 0,
+				last_pmmr_index: 0,
+			},
+		};
+		Ok(last_scanned_block)
+	}
+
+	fn restore(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		to_height: u64,
+	) -> Result<Option<ScannedBlockInfo>, Error> {
+		let res = restore(self, keychain_mask, to_height).context(ErrorKind::Restore)?;
+		Ok(res)
 	}
 
 	fn check_repair(
 		&mut self,
 		keychain_mask: Option<&SecretKey>,
 		delete_unconfirmed: bool,
-	) -> Result<(), Error> {
-		check_repair(self, keychain_mask, delete_unconfirmed).context(ErrorKind::Restore)?;
-		Ok(())
+		start_height: u64,
+		end_height: u64,
+		status_fn: fn(&str),
+	) -> Result<ScannedBlockInfo, Error> {
+		let res = check_repair(
+			self,
+			keychain_mask,
+			delete_unconfirmed,
+			start_height,
+			end_height,
+			status_fn,
+		)
+		.context(ErrorKind::Restore)?;
+		Ok(res)
 	}
 }
 
@@ -555,6 +602,19 @@ where
 			.as_ref()
 			.unwrap()
 			.put_ser(&height_key, &height)?;
+		Ok(())
+	}
+
+	fn save_last_scanned_block(&mut self, block_info: ScannedBlockInfo) -> Result<(), Error> {
+		let pmmr_index_key = to_key(
+			LAST_SCANNED_BLOCK,
+			&mut LAST_SCANNED_KEY.as_bytes().to_vec(),
+		);
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&pmmr_index_key, &block_info)?;
 		Ok(())
 	}
 

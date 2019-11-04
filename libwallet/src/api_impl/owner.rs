@@ -84,7 +84,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false)?;
+		validated = update_wallet_state(w, keychain_mask, false)?;
 	}
 
 	Ok((
@@ -116,14 +116,10 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false)?;
+		validated = update_wallet_state(w, keychain_mask, false)?;
 	}
 
-	let mut txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
-
-	if refresh_from_node {
-		validated = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
-	}
+	let txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
 
 	Ok((validated, txs))
 }
@@ -144,7 +140,7 @@ where
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_outputs(w, keychain_mask, false)?;
+		validated = update_wallet_state(w, keychain_mask, false)?;
 	}
 
 	let wallet_info = updater::retrieve_info(&mut *w, &parent_key_id, minimum_confirmations)?;
@@ -336,7 +332,7 @@ where
 	};
 
 	// update slate current height
-	ret_slate.height = w.w2n_client().get_chain_height()?;
+	ret_slate.height = w.w2n_client().get_chain_tip()?.0;
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
@@ -421,7 +417,7 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
-	if !update_outputs(w, keychain_mask, false)? {
+	if !update_wallet_state(w, keychain_mask, false)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		))?;
@@ -478,7 +474,15 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	w.restore(keychain_mask)
+	let tip = w.w2n_client().get_chain_tip()?;
+	let info_res = w.restore(keychain_mask, tip.0)?;
+	if let Some(mut i) = info_res {
+		let mut batch = w.batch(keychain_mask)?;
+		i.hash = tip.1;
+		batch.save_last_scanned_block(i)?;
+		batch.commit()?;
+	}
+	Ok(())
 }
 
 /// check repair
@@ -493,7 +497,20 @@ where
 	K: Keychain + 'a,
 {
 	update_outputs(w, keychain_mask, true)?;
-	w.check_repair(keychain_mask, delete_unconfirmed)
+	let status_fn: fn(&str) = |m| warn!("{}", m);
+	let tip = w.w2n_client().get_chain_tip()?;
+
+	// for now, just start from 1
+	// TODO: only do this if hashes of last stored block don't match chain
+	// TODO: Provide parameter to manually override on command line
+	let mut info = w.check_repair(keychain_mask, delete_unconfirmed, 1, tip.0, status_fn)?;
+	info.hash = tip.1;
+
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_last_scanned_block(info)?;
+	batch.commit()?;
+
+	Ok(())
 }
 
 /// node height
@@ -506,10 +523,11 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let res = w.w2n_client().get_chain_height();
+	let res = w.w2n_client().get_chain_tip();
 	match res {
-		Ok(height) => Ok(NodeHeightResult {
-			height,
+		Ok(r) => Ok(NodeHeightResult {
+			height: r.0,
+			header_hash: r.1,
 			updated_from_node: true,
 		}),
 		Err(_) => {
@@ -520,10 +538,61 @@ where
 			};
 			Ok(NodeHeightResult {
 				height,
+				header_hash: "".to_owned(),
 				updated_from_node: false,
 			})
 		}
 	}
+}
+/// Experimental, wrap the entire definition of how a wallet's state is updated
+fn update_wallet_state<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	update_all: bool,
+) -> Result<bool, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let parent_key_id = w.parent_key_id().clone();
+	let mut result;
+	// Step 1: Update outputs and transactions purely based on UTXO state
+	result = update_outputs(w, keychain_mask, update_all)?;
+	if !result {
+		return Ok(result);
+	}
+
+	// Step 2: Update outstanding transactions with no change outputs by kernel
+	let mut txs = updater::retrieve_txs(&mut *w, None, None, Some(&parent_key_id), true)?;
+	result = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
+	if !result {
+		return Ok(result);
+	}
+
+	// Step 3: Scan back a bit on the chain
+	let tip = w.w2n_client().get_chain_tip()?;
+
+	// for now, just go back 100 blocks from last scanned block
+	// TODO: only do this if hashes of last stored block don't match chain
+	let last_scanned_block = w.last_scanned_block()?;
+	let start_index = last_scanned_block.height.saturating_sub(100);
+
+	let mut status_fn: fn(&str) = |m| debug!("{}", m);
+	if last_scanned_block.height == 0 {
+		warn!("This wallet's contents has not been verified with a full chain scan, performing scan now.");
+		warn!("This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
+		status_fn = |m| warn!("{}", m);
+	}
+
+	let mut info = w.check_repair(keychain_mask, false, start_index, tip.0, status_fn)?;
+	info.hash = tip.1;
+
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_last_scanned_block(info)?;
+	batch.commit()?;
+
+	Ok(result)
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful
@@ -561,8 +630,8 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = w.parent_key_id();
-	let height = match w.w2n_client().get_chain_height() {
-		Ok(h) => h,
+	let height = match w.w2n_client().get_chain_tip() {
+		Ok(h) => h.0,
 		Err(_) => return Ok(false),
 	};
 	for tx in txs.iter_mut() {

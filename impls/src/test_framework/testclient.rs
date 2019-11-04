@@ -146,9 +146,10 @@ where
 			let m = self.rx.recv().unwrap();
 			trace!("Wallet Client Proxy Received: {:?}", m);
 			let resp = match m.method.as_ref() {
-				"get_chain_height" => self.get_chain_height(m)?,
+				"get_chain_tip" => self.get_chain_tip(m)?,
 				"get_outputs_from_node" => self.get_outputs_from_node(m)?,
 				"get_outputs_by_pmmr_index" => self.get_outputs_by_pmmr_index(m)?,
+				"height_range_to_pmmr_indices" => self.height_range_to_pmmr_indices(m)?,
 				"send_tx_slate" => self.send_tx_slate(m)?,
 				"post_tx" => self.post_tx(m)?,
 				"get_kernel" => self.get_kernel(m)?,
@@ -243,15 +244,18 @@ where
 	}
 
 	/// get chain height
-	fn get_chain_height(
+	fn get_chain_tip(
 		&mut self,
 		m: WalletProxyMessage,
 	) -> Result<WalletProxyMessage, libwallet::Error> {
+		let height = self.chain.head().unwrap().height;
+		let hash = util::to_hex(self.chain.head().unwrap().last_block_h.to_vec());
+
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
 			method: m.method,
-			body: format!("{}", self.chain.head().unwrap().height).to_owned(),
+			body: format!("{},{}", height, hash),
 		})
 	}
 
@@ -291,7 +295,35 @@ where
 		let split = m.body.split(",").collect::<Vec<&str>>();
 		let start_index = split[0].parse::<u64>().unwrap();
 		let max = split[1].parse::<u64>().unwrap();
-		let ol = super::get_outputs_by_pmmr_index_local(self.chain.clone(), start_index, max);
+		let end_index = split[2].parse::<u64>().unwrap();
+		let end_index = match end_index {
+			0 => None,
+			e => Some(e),
+		};
+		let ol =
+			super::get_outputs_by_pmmr_index_local(self.chain.clone(), start_index, end_index, max);
+		Ok(WalletProxyMessage {
+			sender_id: "node".to_owned(),
+			dest: m.sender_id,
+			method: m.method,
+			body: serde_json::to_string(&ol).unwrap(),
+		})
+	}
+
+	/// get api outputs by height
+	fn height_range_to_pmmr_indices(
+		&mut self,
+		m: WalletProxyMessage,
+	) -> Result<WalletProxyMessage, libwallet::Error> {
+		let split = m.body.split(",").collect::<Vec<&str>>();
+		let start_index = split[0].parse::<u64>().unwrap();
+		let end_index = split[1].parse::<u64>().unwrap();
+		let end_index = match end_index {
+			0 => None,
+			e => Some(e),
+		};
+		let ol =
+			super::height_range_to_pmmr_indices_local(self.chain.clone(), start_index, end_index);
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
@@ -412,11 +444,11 @@ impl NodeClient for LocalWalletClient {
 	}
 
 	/// Return the chain tip from a given node
-	fn get_chain_height(&self) -> Result<u64, libwallet::Error> {
+	fn get_chain_tip(&self) -> Result<(u64, String), libwallet::Error> {
 		let m = WalletProxyMessage {
 			sender_id: self.id.clone(),
 			dest: self.node_url().to_owned(),
-			method: "get_chain_height".to_owned(),
+			method: "get_chain_tip".to_owned(),
 			body: "".to_owned(),
 		};
 		{
@@ -427,12 +459,15 @@ impl NodeClient for LocalWalletClient {
 		}
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
-		trace!("Received get_chain_height response: {:?}", m.clone());
-		Ok(m.body
-			.parse::<u64>()
+		trace!("Received get_chain_tip response: {:?}", m.clone());
+		let res = m
+			.body
+			.parse::<String>()
 			.context(libwallet::ErrorKind::ClientCallback(
 				"Parsing get_height response".to_owned(),
-			))?)
+			))?;
+		let split: Vec<&str> = res.split(",").collect();
+		Ok((split[0].parse::<u64>().unwrap(), split[1].to_owned()))
 	}
 
 	/// Retrieve outputs from node
@@ -513,7 +548,8 @@ impl NodeClient for LocalWalletClient {
 
 	fn get_outputs_by_pmmr_index(
 		&self,
-		start_height: u64,
+		start_index: u64,
+		end_index: Option<u64>,
 		max_outputs: u64,
 	) -> Result<
 		(
@@ -524,7 +560,11 @@ impl NodeClient for LocalWalletClient {
 		libwallet::Error,
 	> {
 		// start index, max
-		let query_str = format!("{},{}", start_height, max_outputs);
+		let mut query_str = format!("{},{}", start_index, max_outputs);
+		match end_index {
+			Some(e) => query_str = format!("{},{}", query_str, e),
+			None => query_str = format!("{},0", query_str),
+		};
 		let m = WalletProxyMessage {
 			sender_id: self.id.clone(),
 			dest: self.node_url().to_owned(),
@@ -559,6 +599,36 @@ impl NodeClient for LocalWalletClient {
 			));
 		}
 		Ok((o.highest_index, o.last_retrieved_index, api_outputs))
+	}
+
+	fn height_range_to_pmmr_indices(
+		&self,
+		start_height: u64,
+		end_height: Option<u64>,
+	) -> Result<(u64, u64), libwallet::Error> {
+		// start index, max
+		let mut query_str = format!("{}", start_height);
+		match end_height {
+			Some(e) => query_str = format!("{},{}", query_str, e),
+			None => query_str = format!("{},0", query_str),
+		};
+		let m = WalletProxyMessage {
+			sender_id: self.id.clone(),
+			dest: self.node_url().to_owned(),
+			method: "height_range_to_pmmr_indices".to_owned(),
+			body: query_str,
+		};
+		{
+			let p = self.proxy_tx.lock();
+			p.send(m).context(libwallet::ErrorKind::ClientCallback(
+				"Get outputs within height range send".to_owned(),
+			))?;
+		}
+
+		let r = self.rx.lock();
+		let m = r.recv().unwrap();
+		let o: api::OutputListing = serde_json::from_str(&m.body).unwrap();
+		Ok((o.last_retrieved_index, o.highest_index))
 	}
 }
 unsafe impl<'a, L, C, K> Send for WalletProxy<'a, L, C, K>
