@@ -1239,6 +1239,7 @@ pub trait OwnerRpc: Sync + Send {
 		"jsonrpc": "2.0",
 		"result": {
 			"Ok": {
+				"header_hash": "d4b3d3c40695afd8c7760f8fc423565f7d41310b7a4e1c4a4a7950a66f16240d",
 				"height": "5",
 				"updated_from_node": true
 			}
