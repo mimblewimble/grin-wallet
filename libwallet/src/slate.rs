@@ -245,19 +245,26 @@ impl Slate {
 		&mut self,
 		keychain: &K,
 		builder: &B,
-		mut elems: Vec<Box<build::Append<K, B>>>,
+		elems: Vec<Box<build::Append<K, B>>>,
 	) -> Result<BlindingFactor, Error>
 	where
 		K: Keychain,
 		B: ProofBuild,
 	{
-		// Append to the exiting transaction
-		if self.tx.kernels().len() != 0 {
-			elems.insert(0, build::initial_tx(self.tx.clone()));
-		}
-		let (tx, blind) = build::partial_transaction(elems, keychain, builder)?;
+		self.update_kernel();
+		let (tx, blind) = build::partial_transaction(self.tx.clone(), elems, keychain, builder)?;
 		self.tx = tx;
 		Ok(blind)
+	}
+
+	/// Update the tx kernel based on kernel features derived from the current slate.
+	/// The fee may change as we build a transaction and we need to
+	/// update the tx kernel to reflect this during the tx building process.
+	pub fn update_kernel(&mut self) {
+		self.tx = self
+			.tx
+			.clone()
+			.replace_kernel(TxKernel::with_features(self.kernel_features()));
 	}
 
 	/// Completes callers part of round 1, adding public key info
@@ -290,17 +297,22 @@ impl Slate {
 		Ok(())
 	}
 
-	// This is the msg that we will sign as part of the tx kernel.
-	// If lock_height is 0 then build a plain kernel, otherwise build a height locked kernel.
-	fn msg_to_sign(&self) -> Result<secp::Message, Error> {
-		let features = match self.lock_height {
+	// Construct the appropriate kernel features based on our fee and lock_height.
+	// If lock_height is 0 then its a plain kernel, otherwise its a height locked kernel.
+	fn kernel_features(&self) -> KernelFeatures {
+		match self.lock_height {
 			0 => KernelFeatures::Plain { fee: self.fee },
 			_ => KernelFeatures::HeightLocked {
 				fee: self.fee,
 				lock_height: self.lock_height,
 			},
-		};
-		let msg = features.kernel_sig_msg()?;
+		}
+	}
+
+	// This is the msg that we will sign as part of the tx kernel.
+	// If lock_height is 0 then build a plain kernel, otherwise build a height locked kernel.
+	fn msg_to_sign(&self) -> Result<secp::Message, Error> {
+		let msg = self.kernel_features().kernel_sig_msg()?;
 		Ok(msg)
 	}
 
@@ -501,6 +513,7 @@ impl Slate {
 			self.tx.kernels().len(),
 			None,
 		);
+
 		if fee > self.tx.fee() {
 			return Err(ErrorKind::Fee(
 				format!("Fee Dispute Error: {}, {}", self.tx.fee(), fee,).to_string(),
