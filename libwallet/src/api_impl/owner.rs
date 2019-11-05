@@ -27,11 +27,11 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
-use crate::{Error, ErrorKind};
 use crate::{
-	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType,
-	WalletInst, WalletLCProvider, wallet_lock
+	wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
+	TxLogEntryType, WalletInst, WalletLCProvider,
 };
+use crate::{Error, ErrorKind};
 use std::sync::Arc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
@@ -116,7 +116,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-
 	let mut validated = false;
 	if refresh_from_node {
 		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
@@ -141,7 +140,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-
 	let mut validated = false;
 	if refresh_from_node {
 		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
@@ -656,7 +654,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-
 	let parent_key_id = {
 		wallet_lock!(wallet_inst, w);
 		w.parent_key_id().clone()
@@ -680,8 +677,7 @@ where
 			continue;
 		}
 		if let Some(e) = tx.kernel_excess {
-			let res = client
-				.get_kernel(&e, tx.kernel_lookup_min_height, Some(height));
+			let res = client.get_kernel(&e, tx.kernel_lookup_min_height, Some(height));
 			let kernel = match res {
 				Ok(k) => k,
 				Err(_) => return Ok(false),

@@ -23,7 +23,7 @@ use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{keys, updater};
 use crate::types::*;
-use crate::{Error, OutputCommitMapping, wallet_lock};
+use crate::{wallet_lock, Error, OutputCommitMapping};
 use std::collections::HashMap;
 use std::sync::Arc;
 

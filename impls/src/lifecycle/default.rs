@@ -19,9 +19,7 @@ use crate::config::{
 };
 use crate::core::global;
 use crate::keychain::Keychain;
-use crate::libwallet::{
-	Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider,
-};
+use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
