@@ -397,9 +397,7 @@ where
 		}))
 	}
 
-	fn batch_no_mask<'a>(
-		&'a mut self,
-	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
+	fn batch_no_mask<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
 		Ok(Box::new(Batch {
 			_store: self,
 			db: RefCell::new(Some(self.db.batch()?)),
@@ -478,9 +476,7 @@ where
 		);
 		let status = match batch.get_ser(&init_status_key)? {
 			Some(s) => s,
-			None => {
-				WalletInitStatus::InitComplete
-			},
+			None => WalletInitStatus::InitComplete,
 		};
 		Ok(status)
 	}

@@ -214,9 +214,7 @@ where
 	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
 
 	/// Batch for use when keychain isn't available or required
-	fn batch_no_mask<'a>(
-		&'a mut self,
-	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
+	fn batch_no_mask<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
 
 	/// Return the current child Index
 	fn current_child_index<'a>(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;
@@ -914,7 +912,7 @@ pub enum WalletInitStatus {
 	/// Wallet is new but doesn't need scanning
 	InitNoScanning,
 	/// Wallet scan checks have been completed
-	InitComplete
+	InitComplete,
 }
 
 impl ser::Writeable for WalletInitStatus {

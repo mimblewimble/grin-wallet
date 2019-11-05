@@ -29,7 +29,7 @@ use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
 	wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	ScannedBlockInfo, TxLogEntryType, WalletInst, WalletLCProvider, WalletInitStatus,
+	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use std::sync::Arc;
@@ -594,25 +594,19 @@ where
 	let last_scanned_block = {
 		wallet_lock!(wallet_inst, w);
 		match w.init_status()? {
-			WalletInitStatus::InitNeedsScanning => {
-				ScannedBlockInfo {
-					height: 0,
-					hash: "".to_owned(),
-					start_pmmr_index: 0,
-					last_pmmr_index: 0,
-				}
-			}
-			WalletInitStatus::InitNoScanning => {
-				ScannedBlockInfo {
-					height: tip.clone().0,
-					hash: tip.clone().1,
-					start_pmmr_index: 0,
-					last_pmmr_index: 0,
-				}
-			}
-			WalletInitStatus::InitComplete => {
-				w.last_scanned_block()?
-			}
+			WalletInitStatus::InitNeedsScanning => ScannedBlockInfo {
+				height: 0,
+				hash: "".to_owned(),
+				start_pmmr_index: 0,
+				last_pmmr_index: 0,
+			},
+			WalletInitStatus::InitNoScanning => ScannedBlockInfo {
+				height: tip.clone().0,
+				hash: tip.clone().1,
+				start_pmmr_index: 0,
+				last_pmmr_index: 0,
+			},
+			WalletInitStatus::InitComplete => w.last_scanned_block()?,
 		}
 	};
 
