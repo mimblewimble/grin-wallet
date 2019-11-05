@@ -1250,7 +1250,12 @@ pub trait OwnerRpcS {
 	# , true, 1, false, false, false);
 	```
 	 */
-	fn scan(&self, token: Token, start_height: Option<u64>, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
+	fn scan(
+		&self,
+		token: Token,
+		start_height: Option<u64>,
+		delete_unconfirmed: bool,
+	) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
@@ -1837,8 +1842,19 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn scan(&self, token: Token, start_height: Option<u64>, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
-		Owner::scan(self, (&token.keychain_mask).as_ref(), start_height, delete_unconfirmed).map_err(|e| e.kind())
+	fn scan(
+		&self,
+		token: Token,
+		start_height: Option<u64>,
+		delete_unconfirmed: bool,
+	) -> Result<(), ErrorKind> {
+		Owner::scan(
+			self,
+			(&token.keychain_mask).as_ref(),
+			start_height,
+			delete_unconfirmed,
+		)
+		.map_err(|e| e.kind())
 	}
 
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind> {

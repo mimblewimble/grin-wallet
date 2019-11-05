@@ -1135,7 +1135,12 @@ where
 		start_height: Option<u64>,
 		delete_unconfirmed: bool,
 	) -> Result<(), Error> {
-		owner::scan(self.wallet_inst.clone(), keychain_mask, start_height, delete_unconfirmed)
+		owner::scan(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			start_height,
+			delete_unconfirmed,
+		)
 	}
 
 	/// Retrieves the last known height known by the wallet. This is determined as follows:
