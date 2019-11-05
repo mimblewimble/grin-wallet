@@ -200,6 +200,7 @@ where
 			Some(_) => batch.save_init_status(WalletInitStatus::InitNeedsScanning)?,
 			None => batch.save_init_status(WalletInitStatus::InitNoScanning)?,
 		};
+		batch.commit()?;
 		info!("Wallet database backend created at {}", data_dir_name);
 		Ok(())
 	}

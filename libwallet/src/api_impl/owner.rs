@@ -614,7 +614,7 @@ where
 
 	let mut status_fn: fn(&str) = |m| debug!("{}", m);
 	if last_scanned_block.height == 0 {
-		warn!("This wallet's contents has not been verified with a full chain scan, performing scan now.");
+		warn!("This wallet's contents has not been initialized with a full chain scan, performing scan now.");
 		warn!("This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
 		status_fn = |m| warn!("{}", m);
 	}
