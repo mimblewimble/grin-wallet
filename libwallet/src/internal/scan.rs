@@ -23,7 +23,7 @@ use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{keys, updater};
 use crate::types::*;
-use crate::{Error, OutputCommitMapping};
+use crate::{Error, OutputCommitMapping, wallet_lock};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -190,8 +190,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut w_lock = wallet_inst.lock();
-	let w = w_lock.lc_provider()?.wallet_inst()?;
+	wallet_lock!(wallet_inst, w);
 
 	let commit = w.calc_commit_for_cache(keychain_mask, output.value, &output.key_id)?;
 	let mut batch = w.batch(keychain_mask)?;
@@ -278,8 +277,7 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = output.key_id.parent_path();
-	let mut w_lock = wallet_inst.lock();
-	let w = w_lock.lc_provider()?.wallet_inst()?;
+	wallet_lock!(wallet_inst, w);
 	let updated_tx_entry = if output.tx_log_entry.is_some() {
 		let entries = updater::retrieve_txs(
 			&mut **w,
@@ -330,8 +328,7 @@ where
 	// First, get a definitive list of outputs we own from the chain
 	status_cb("Starting UTXO scan");
 	let (client, keychain) = {
-		let mut w_lock = wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(wallet_inst, w);
 		(w.w2n_client().clone(), w.keychain(keychain_mask)?.clone())
 	};
 
@@ -352,8 +349,7 @@ where
 
 	// Now, get all outputs owned by this wallet (regardless of account)
 	let wallet_outputs = {
-		let mut w_lock = wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(wallet_inst, w);
 		updater::retrieve_outputs(&mut **w, keychain_mask, true, None, None)?
 	};
 
@@ -388,8 +384,7 @@ where
 		o.status = OutputStatus::Unspent;
 		// any transactions associated with this should be cancelled
 		cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
-		let mut w_lock = wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(wallet_inst, w);
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save(o)?;
 		batch.commit()?;
@@ -424,8 +419,7 @@ where
 			));
 			o.status = OutputStatus::Unspent;
 			cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
-			let mut w_lock = wallet_inst.lock();
-			let w = w_lock.lc_provider()?.wallet_inst()?;
+			wallet_lock!(wallet_inst, w);
 			let mut batch = w.batch(keychain_mask)?;
 			batch.save(o)?;
 			batch.commit()?;
@@ -444,8 +438,7 @@ where
 				o.value, o.key_id, m.commit,
 			));
 			cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
-			let mut w_lock = wallet_inst.lock();
-			let w = w_lock.lc_provider()?.wallet_inst()?;
+			wallet_lock!(wallet_inst, w);
 			let mut batch = w.batch(keychain_mask)?;
 			batch.delete(&o.key_id, &o.mmr_index)?;
 			batch.commit()?;
@@ -453,8 +446,7 @@ where
 	}
 
 	// restore labels, account paths and child derivation indices
-	let mut w_lock = wallet_inst.lock();
-	let w = w_lock.lc_provider()?.wallet_inst()?;
+	wallet_lock!(wallet_inst, w);
 	let label_base = "account";
 	let accounts: Vec<Identifier> = w.acct_path_iter().map(|m| m.path).collect();
 	let mut acct_index = accounts.len();

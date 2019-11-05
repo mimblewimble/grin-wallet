@@ -342,10 +342,8 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::retrieve_outputs(
-			&mut **w,
+			self.wallet_inst.clone(),
 			keychain_mask,
 			include_spent,
 			refresh_from_node,
@@ -402,10 +400,8 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let mut res = owner::retrieve_txs(
-			&mut **w,
+			self.wallet_inst.clone(),
 			keychain_mask,
 			refresh_from_node,
 			tx_id,
@@ -468,10 +464,8 @@ where
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::retrieve_summary_info(
-			&mut **w,
+			self.wallet_inst.clone(),
 			keychain_mask,
 			refresh_from_node,
 			minimum_confirmations,
@@ -970,9 +964,7 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::cancel_tx(&mut **w, keychain_mask, tx_id, tx_slate_id)
+		owner::cancel_tx(self.wallet_inst.clone(), keychain_mask, tx_id, tx_slate_id)
 	}
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
@@ -1184,11 +1176,13 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 	) -> Result<NodeHeightResult, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		// Test keychain mask, to keep API consistent
-		let _ = w.keychain(keychain_mask)?;
-		let mut res = owner::node_height(&mut **w, keychain_mask)?;
+		{
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
+			// Test keychain mask, to keep API consistent
+			let _ = w.keychain(keychain_mask)?;
+		}
+		let mut res = owner::node_height(self.wallet_inst.clone(), keychain_mask)?;
 		if self.doctest_mode {
 			// return a consistent hash for doctest
 			res.header_hash =

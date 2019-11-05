@@ -65,5 +65,16 @@ pub use internal::scan::scan;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
 	OutputStatus, ScannedBlockInfo, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend,
-	WalletInfo, WalletInst, WalletLCProvider, WalletOutputBatch,
+	WalletInfo, WalletInst, WalletLCProvider, WalletOutputBatch
 };
+
+/// Helper for taking a lock on the wallet instance
+#[macro_export]
+macro_rules! wallet_lock {
+	($wallet_inst: expr, $wallet: ident) => {
+		let inst = $wallet_inst.clone();
+		let mut w_lock = inst.lock();
+		let w_provider = w_lock.lc_provider()?;
+		let $wallet = w_provider.wallet_inst()?;
+	}
+}

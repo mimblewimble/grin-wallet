@@ -30,7 +30,7 @@ use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBac
 use crate::{Error, ErrorKind};
 use crate::{
 	InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, TxLogEntryType,
-	WalletInst, WalletLCProvider,
+	WalletInst, WalletLCProvider, wallet_lock
 };
 use std::sync::Arc;
 
@@ -71,29 +71,30 @@ where
 }
 
 /// retrieve outputs
-pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn retrieve_outputs<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	include_spent: bool,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 ) -> Result<(bool, Vec<OutputCommitMapping>), Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = w.parent_key_id();
-
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(w, keychain_mask, false)?;
+		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
 	}
+
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
 
 	Ok((
 		validated,
 		updater::retrieve_outputs(
-			&mut *w,
+			&mut **w,
 			keychain_mask,
 			include_spent,
 			tx_id,
@@ -103,50 +104,52 @@ where
 }
 
 /// Retrieve txs
-pub fn retrieve_txs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn retrieve_txs<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(bool, Vec<TxLogEntry>), Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = w.parent_key_id();
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(w, keychain_mask, false)?;
+		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
 	}
 
-	let txs = updater::retrieve_txs(&mut *w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
+	let txs = updater::retrieve_txs(&mut **w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
 
 	Ok((validated, txs))
 }
 
 /// Retrieve summary info
-pub fn retrieve_summary_info<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn retrieve_summary_info<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	refresh_from_node: bool,
 	minimum_confirmations: u64,
 ) -> Result<(bool, WalletInfo), Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = w.parent_key_id();
 
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(w, keychain_mask, false)?;
+		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
 	}
 
-	let wallet_info = updater::retrieve_info(&mut *w, &parent_key_id, minimum_confirmations)?;
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
+	let wallet_info = updater::retrieve_info(&mut **w, &parent_key_id, minimum_confirmations)?;
 	Ok((validated, wallet_info))
 }
 
@@ -408,24 +411,25 @@ where
 }
 
 /// cancel tx
-pub fn cancel_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn cancel_tx<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = w.parent_key_id();
-	if !update_wallet_state(w, keychain_mask, false)? {
+	if !update_wallet_state(wallet_inst.clone(), keychain_mask, false)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		))?;
 	}
-	tx::cancel_tx(&mut *w, keychain_mask, &parent_key_id, tx_id, tx_slate_id)
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
+	tx::cancel_tx(&mut **w, keychain_mask, &parent_key_id, tx_id, tx_slate_id)
 }
 
 /// get stored tx
@@ -482,8 +486,7 @@ where
 {
 	update_outputs(wallet_inst.clone(), keychain_mask, true)?;
 	let tip = {
-		let mut w_lock = wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(wallet_inst, w);
 		w.w2n_client().get_chain_tip()?
 	};
 
@@ -502,8 +505,7 @@ where
 	)?;
 	info.hash = tip.1;
 
-	let mut w_lock = wallet_inst.lock();
-	let w = w_lock.lc_provider()?.wallet_inst()?;
+	wallet_lock!(wallet_inst, w);
 	let mut batch = w.batch(keychain_mask)?;
 	batch.save_last_scanned_block(info)?;
 	batch.commit()?;
@@ -512,16 +514,19 @@ where
 }
 
 /// node height
-pub fn node_height<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn node_height<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<NodeHeightResult, Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let res = w.w2n_client().get_chain_tip();
+	let res = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().get_chain_tip()
+	};
 	match res {
 		Ok(r) => Ok(NodeHeightResult {
 			height: r.0,
@@ -529,7 +534,7 @@ where
 			updated_from_node: true,
 		}),
 		Err(_) => {
-			let outputs = retrieve_outputs(w, keychain_mask, true, false, None)?;
+			let outputs = retrieve_outputs(wallet_inst, keychain_mask, true, false, None)?;
 			let height = match outputs.1.iter().map(|m| m.output.height).max() {
 				Some(height) => height,
 				None => 0,
@@ -554,10 +559,14 @@ where
 	K: Keychain + 'a,
 {
 	let parent_key_id = {
-		let mut w_lock = wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		w.parent_key_id().clone();
+		wallet_lock!(wallet_inst, w);
+		w.parent_key_id().clone()
 	};
+	let client = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().clone()
+	};
+
 	// Step 1: Update outputs and transactions purely based on UTXO state
 	let mut result = update_outputs(wallet_inst.clone(), keychain_mask, update_all)?;
 
@@ -567,21 +576,23 @@ where
 
 	// Step 2: Update outstanding transactions with no change outputs by kernel
 	let mut txs = {
-		let mut w_lock = wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(wallet_inst, w);
 		updater::retrieve_txs(&mut **w, None, None, Some(&parent_key_id), true)?
 	};
-	result = update_txs_via_kernel(w, keychain_mask, &mut txs)?;
+	result = update_txs_via_kernel(wallet_inst.clone(), keychain_mask, &mut txs)?;
 	if !result {
 		return Ok(result);
 	}
 
 	// Step 3: Scan back a bit on the chain
-	let tip = w.w2n_client().get_chain_tip()?;
+	let tip = client.get_chain_tip()?;
 
 	// for now, just go back 100 blocks from last scanned block
 	// TODO: only do this if hashes of last stored block don't match chain
-	let last_scanned_block = w.last_scanned_block()?;
+	let last_scanned_block = {
+		wallet_lock!(wallet_inst, w);
+		w.last_scanned_block()?
+	};
 	let start_index = last_scanned_block.height.saturating_sub(100);
 
 	let mut status_fn: fn(&str) = |m| debug!("{}", m);
@@ -600,18 +611,18 @@ where
 		status_fn,
 	)?;
 
-	/*let mut info = w.scan(keychain_mask, false, start_index, tip.0, status_fn)?;
 	info.hash = tip.1;
 
+	wallet_lock!(wallet_inst, w);
 	let mut batch = w.batch(keychain_mask)?;
 	batch.save_last_scanned_block(info)?;
-	batch.commit()?;*/
+	batch.commit()?;
 
 	Ok(result)
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful
-fn update_outputs<'a, T: ?Sized, L, C, K>(
+fn update_outputs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
@@ -621,8 +632,9 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
-	match updater::refresh_outputs(&mut *w, keychain_mask, &parent_key_id, update_all) {
+	match updater::refresh_outputs(&mut **w, keychain_mask, &parent_key_id, update_all) {
 		Ok(_) => Ok(true),
 		Err(e) => {
 			if let ErrorKind::InvalidKeychainMask = e.kind() {
@@ -634,21 +646,32 @@ where
 }
 
 /// Update transactions that need to be validated via kernel lookup
-fn update_txs_via_kernel<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn update_txs_via_kernel<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	txs: &mut Vec<TxLogEntry>,
 ) -> Result<bool, Error>
 where
-	T: WalletBackend<'a, C, K>,
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = w.parent_key_id();
-	let height = match w.w2n_client().get_chain_tip() {
+
+	let parent_key_id = {
+		wallet_lock!(wallet_inst, w);
+		w.parent_key_id().clone()
+	};
+
+	let mut client = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().clone()
+	};
+
+	let height = match client.get_chain_tip() {
 		Ok(h) => h.0,
 		Err(_) => return Ok(false),
 	};
+
 	for tx in txs.iter_mut() {
 		if tx.confirmed {
 			continue;
@@ -657,8 +680,7 @@ where
 			continue;
 		}
 		if let Some(e) = tx.kernel_excess {
-			let res = w
-				.w2n_client()
+			let res = client
 				.get_kernel(&e, tx.kernel_lookup_min_height, Some(height));
 			let kernel = match res {
 				Ok(k) => k,
@@ -666,6 +688,7 @@ where
 			};
 			if let Some(k) = kernel {
 				debug!("Kernel Retrieved: {:?}", k);
+				wallet_lock!(wallet_inst, w);
 				let mut batch = w.batch(keychain_mask)?;
 				tx.confirmed = true;
 				tx.update_confirmation_ts();
