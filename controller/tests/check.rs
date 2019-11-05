@@ -156,7 +156,7 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// this should restore our missing outputs
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		Ok(())
 	})?;
 
@@ -203,7 +203,7 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// unlock/restore
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		Ok(())
 	})?;
 
@@ -409,7 +409,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 0) Check repair when all is okay should leave wallet contents alone
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		let info = wallet_info!(wallet1.clone(), m)?;
 		assert_eq!(info.amount_currently_spendable, base_amount * 6);
 		assert_eq!(info.total, base_amount * 6);
@@ -459,7 +459,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 1) a full restore should recover all of them:
 	wallet::controller::owner_single_use(wallet3.clone(), mask3, |api, m| {
-		api.scan(m, false)?;
+		api.scan(m, None, false)?;
 		Ok(())
 	})?;
 
@@ -474,7 +474,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 2) scan should recover them into a single wallet
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		Ok(())
 	})?;
 
@@ -525,7 +525,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	})?;
 
 	wallet::controller::owner_single_use(wallet5.clone(), mask5, |api, m| {
-		api.scan(m, false)?;
+		api.scan(m, None, false)?;
 		Ok(())
 	})?;
 
@@ -580,7 +580,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	})?;
 
 	wallet::controller::owner_single_use(wallet6.clone(), mask6, |api, m| {
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		Ok(())
 	})?;
 
@@ -666,7 +666,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	})?;
 
 	wallet::controller::owner_single_use(wallet8.clone(), mask8, |api, m| {
-		api.scan(m, false)?;
+		api.scan(m, None, false)?;
 		let info = wallet_info!(wallet8.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
 		assert_eq!(outputs.len(), 15);
@@ -718,7 +718,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
 		assert_eq!(outputs.len(), 6);
 		assert_eq!(info.amount_currently_spendable, base_amount * 21);
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		let info = wallet_info!(wallet9.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
 		assert_eq!(outputs.len(), 6);
@@ -736,7 +736,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 
 	// 7) Ensure scan creates missing accounts
 	wallet::controller::owner_single_use(wallet10.clone(), mask10, |api, m| {
-		api.scan(m, true)?;
+		api.scan(m, None, true)?;
 		api.set_active_account(m, "account_1")?;
 		let info = wallet_info!(wallet10.clone(), m)?;
 		let outputs = api.retrieve_outputs(m, true, false, None)?.1;

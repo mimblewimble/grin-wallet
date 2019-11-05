@@ -257,6 +257,18 @@ fn parse_u64(arg: &str, name: &str) -> Result<u64, ParseError> {
 	}
 }
 
+// As above, but optional
+fn parse_u64_or_none(arg: Option<&str>) -> Option<u64> {
+	let val = match arg {
+		Some(a) => a.parse::<u64>(),
+		None => return None,
+	};
+	match val {
+		Ok(v) => Some(v),
+		Err(_) => None,
+	}
+}
+
 pub fn parse_global_args(
 	config: &WalletConfig,
 	args: &ArgMatches,
@@ -694,7 +706,9 @@ pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseErro
 
 pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseError> {
 	let delete_unconfirmed = args.is_present("delete_unconfirmed");
+	let start_height = parse_u64_or_none(args.value_of("start_height"));
 	Ok(command::CheckArgs {
+		start_height: start_height,
 		delete_unconfirmed: delete_unconfirmed,
 	})
 }

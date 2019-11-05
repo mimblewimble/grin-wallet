@@ -1170,7 +1170,7 @@ pub trait OwnerRpc: Sync + Send {
 	{
 		"jsonrpc": "2.0",
 		"method": "scan",
-		"params": [false],
+		"params": [null, false],
 		"id": 1
 	}
 	# "#
@@ -1187,7 +1187,7 @@ pub trait OwnerRpc: Sync + Send {
 	# , false, 1, false, false, false);
 	```
 	 */
-	fn scan(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
+	fn scan(&self, start_height: Option<u64>, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
@@ -1326,8 +1326,8 @@ where
 		Owner::verify_slate_messages(self, None, &Slate::from(slate)).map_err(|e| e.kind())
 	}
 
-	fn scan(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
-		Owner::scan(self, None, delete_unconfirmed).map_err(|e| e.kind())
+	fn scan(&self, start_height: Option<u64>, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
+		Owner::scan(self, None, start_height, delete_unconfirmed).map_err(|e| e.kind())
 	}
 
 	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind> {

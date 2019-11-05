@@ -475,6 +475,7 @@ pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
 pub fn scan<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	start_height: Option<u64>,
 	delete_unconfirmed: bool,
 ) -> Result<(), Error>
 where
@@ -490,14 +491,16 @@ where
 
 	let status_fn: fn(&str) = |m| warn!("{}", m);
 
-	// for now, just start from 1
-	// TODO: only do this if hashes of last stored block don't match chain
-	// TODO: Provide parameter to manually override on command line
+	let start_height = match start_height {
+		Some(h) => h,
+		None => 1,
+	};
+
 	let mut info = scan::scan(
 		wallet_inst.clone(),
 		keychain_mask,
 		delete_unconfirmed,
-		1,
+		start_height,
 		tip.0,
 		status_fn,
 	)?;

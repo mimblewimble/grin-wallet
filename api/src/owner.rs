@@ -1095,6 +1095,8 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
+	/// * `start_height` - If provided, the height of the first block from which to start scanning.
+	/// The scan will start from block 1 if this is not provided.
 	/// * `delete_unconfirmed` - if `false`, the scan process will be non-destructive, and
 	/// mostly limited to restoring missing outputs. It will leave unconfirmed transaction logs entries
 	/// and unconfirmed outputs intact. If `true`, the process will unlock all locked outputs,
@@ -1117,6 +1119,7 @@ where
 	/// let mut api_owner = Owner::new(wallet.clone());
 	/// let result = api_owner.scan(
 	/// 	None,
+	/// 	Some(20000),
 	/// 	false,
 	/// );
 	///
@@ -1129,9 +1132,10 @@ where
 	pub fn scan(
 		&self,
 		keychain_mask: Option<&SecretKey>,
+		start_height: Option<u64>,
 		delete_unconfirmed: bool,
 	) -> Result<(), Error> {
-		owner::scan(self.wallet_inst.clone(), keychain_mask, delete_unconfirmed)
+		owner::scan(self.wallet_inst.clone(), keychain_mask, start_height, delete_unconfirmed)
 	}
 
 	/// Retrieves the last known height known by the wallet. This is determined as follows:

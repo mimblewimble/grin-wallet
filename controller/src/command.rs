@@ -808,6 +808,7 @@ where
 /// wallet check
 pub struct CheckArgs {
 	pub delete_unconfirmed: bool,
+	pub start_height: Option<u64>,
 }
 
 pub fn scan<'a, L, C, K>(
@@ -821,9 +822,8 @@ where
 	K: keychain::Keychain + 'a,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
-		warn!("Starting wallet check...",);
-		warn!("Updating all wallet outputs, please wait ...",);
-		let result = api.scan(m, args.delete_unconfirmed);
+		warn!("Starting output scan ...",);
+		let result = api.scan(m, args.start_height, args.delete_unconfirmed);
 		match result {
 			Ok(_) => {
 				warn!("Wallet check complete",);
