@@ -29,7 +29,7 @@ use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
 	wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	TxLogEntryType, WalletInst, WalletLCProvider,
+	ScannedBlockInfo, TxLogEntryType, WalletInst, WalletLCProvider, WalletInitStatus,
 };
 use crate::{Error, ErrorKind};
 use std::sync::Arc;
@@ -583,14 +583,39 @@ where
 	}
 
 	// Step 3: Scan back a bit on the chain
-	let tip = client.get_chain_tip()?;
+	let res = client.get_chain_tip();
+	// if we can't get the tip, don't continue
+	let tip = match res {
+		Ok(t) => t,
+		Err(_) => return Ok(false),
+	};
 
-	// for now, just go back 100 blocks from last scanned block
-	// TODO: only do this if hashes of last stored block don't match chain
+	// Check if this is a restored wallet that needs a full scan
 	let last_scanned_block = {
 		wallet_lock!(wallet_inst, w);
-		w.last_scanned_block()?
+		match w.init_status()? {
+			WalletInitStatus::InitNeedsScanning => {
+				ScannedBlockInfo {
+					height: 0,
+					hash: "".to_owned(),
+					start_pmmr_index: 0,
+					last_pmmr_index: 0,
+				}
+			}
+			WalletInitStatus::InitNoScanning => {
+				ScannedBlockInfo {
+					height: tip.clone().0,
+					hash: tip.clone().1,
+					start_pmmr_index: 0,
+					last_pmmr_index: 0,
+				}
+			}
+			WalletInitStatus::InitComplete => {
+				w.last_scanned_block()?
+			}
+		}
 	};
+
 	let start_index = last_scanned_block.height.saturating_sub(100);
 
 	let mut status_fn: fn(&str) = |m| debug!("{}", m);
@@ -614,6 +639,8 @@ where
 	wallet_lock!(wallet_inst, w);
 	let mut batch = w.batch(keychain_mask)?;
 	batch.save_last_scanned_block(info)?;
+	// init considered complete after first successful update
+	batch.save_init_status(WalletInitStatus::InitComplete)?;
 	batch.commit()?;
 
 	Ok(result)
