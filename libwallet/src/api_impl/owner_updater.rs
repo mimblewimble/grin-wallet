@@ -17,12 +17,12 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::grin_keychain::{Keychain};
-use crate::grin_util::{StopState, Mutex};
+use crate::grin_keychain::Keychain;
+use crate::grin_util::{Mutex, StopState};
 
-use crate::{WalletLCProvider, WalletInst};
-use crate::types::{NodeClient};
+use crate::types::NodeClient;
 use crate::{Error, ErrorKind};
+use crate::{WalletInst, WalletLCProvider};
 
 pub struct Updater<'a, L, C, K>
 where
@@ -34,7 +34,7 @@ where
 	stop_state: Arc<StopState>,
 }
 
-impl <'a, L, C, K>Updater<'a, L, C, K>
+impl<'a, L, C, K> Updater<'a, L, C, K>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -68,4 +68,3 @@ where
 		Ok(())
 	}
 }
-

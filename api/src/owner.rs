@@ -22,15 +22,17 @@ use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::create_sender;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::api_impl::owner;
+use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, ZeroingString};
+use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, StopState, ZeroingString};
 use std::sync::Arc;
+use std::time::Duration;
+use std::thread;
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -58,6 +60,10 @@ where
 	pub doctest_mode: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
+	/// Update thread
+	updater: Arc<owner_updater::Updater<'a, L, C, K>>,
+	/// Stop state for update thread
+	pub updater_stop_state: Arc<StopState>,
 }
 
 impl<'a, L, C, K> Owner<'a, L, C, K>
@@ -142,10 +148,17 @@ where
 	/// ```
 
 	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>) -> Self {
+		let updater_stop_state = Arc::new(StopState::new());
+		let updater = Arc::new(owner_updater::Updater::new(
+			wallet_inst.clone(),
+			updater_stop_state.clone(),
+			));
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
 			shared_key: Arc::new(Mutex::new(None)),
+			updater,
+			updater_stop_state,
 		}
 	}
 
@@ -1656,6 +1669,18 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.delete_wallet(name)
+	}
+
+	pub fn start_updater(&self) -> Result<(), Error> {
+		let updater_inner = self.updater.clone();
+		let _ = thread::Builder::new()
+			.name("wallet-updater".to_string())
+			.spawn(move || {
+				if let Err(e) = updater_inner.run(Duration::from_secs(60)) {
+					error!("Wallet state updater failed with error: {:?}", e);
+				}
+			})?;
+		Ok(())
 	}
 }
 

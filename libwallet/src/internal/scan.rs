@@ -195,8 +195,6 @@ where
 	let commit = w.calc_commit_for_cache(keychain_mask, output.value, &output.key_id)?;
 	let mut batch = w.batch(keychain_mask)?;
 
-	error!("RESTORING OUTPUT: {:?}", output);
-
 	let parent_key_id = output.key_id.parent_path();
 	if !found_parents.contains_key(&parent_key_id) {
 		found_parents.insert(parent_key_id.clone(), 0);
