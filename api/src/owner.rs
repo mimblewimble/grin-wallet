@@ -31,8 +31,8 @@ use crate::libwallet::{
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, StopState, ZeroingString};
 use std::sync::Arc;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -152,7 +152,7 @@ where
 		let updater = Arc::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
 			updater_stop_state.clone(),
-			));
+		));
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
