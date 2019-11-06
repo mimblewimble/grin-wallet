@@ -121,16 +121,16 @@ where
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
-pub fn owner_single_use<'a, L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn owner_single_use<L, F, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	f: F,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	F: FnOnce(&mut Owner<'a, L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	F: FnOnce(&mut Owner<L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	f(&mut Owner::new(wallet), keychain_mask)?;
 	Ok(())
@@ -305,7 +305,7 @@ where
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Owner<'static, L, C, K>,
+		api: Owner<L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let owner_api = &api as &dyn OwnerRpc;
@@ -603,7 +603,7 @@ where
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Owner<'static, L, C, K>,
+		api: Owner<L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		let key = self.shared_key.clone();
 		let mask = self.keychain_mask.clone();

@@ -48,27 +48,27 @@ use std::time::Duration;
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Owner<'a, L, C, K>
+pub struct Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	/// contain all methods to manage the wallet
-	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 	/// Update thread
-	updater: Arc<owner_updater::Updater<'a, L, C, K>>,
+	updater: Arc<owner_updater::Updater<'static, L, C, K>>,
 	/// Stop state for update thread
 	pub updater_stop_state: Arc<StopState>,
 }
 
-impl<'a, L, C, K> Owner<'a, L, C, K>
+impl<L, C, K> Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
+	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -147,7 +147,7 @@ where
 	///
 	/// ```
 
-	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>) -> Self {
+	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>) -> Self {
 		let updater_stop_state = Arc::new(StopState::new());
 		let updater = Arc::new(owner_updater::Updater::new(
 			wallet_inst.clone(),

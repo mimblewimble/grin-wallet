@@ -1673,11 +1673,11 @@ pub trait OwnerRpcS {
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
 }
 
-impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
+impl<L, C, K> OwnerRpcS for Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, ErrorKind> {
 		Owner::accounts(self, (&token.keychain_mask).as_ref()).map_err(|e| e.kind())

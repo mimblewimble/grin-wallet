@@ -63,15 +63,15 @@ pub struct InitArgs {
 	pub restore: bool,
 }
 
-pub fn init<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn init<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	g_args: &GlobalArgs,
 	args: InitArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
@@ -101,14 +101,14 @@ pub struct RecoverArgs {
 	pub passphrase: ZeroingString,
 }
 
-pub fn recover<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn recover<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	args: RecoverArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
@@ -127,7 +127,7 @@ pub struct ListenArgs {
 	pub method: String,
 }
 
-pub fn listen<'a, L, C, K>(
+pub fn listen<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
@@ -202,15 +202,15 @@ pub struct AccountArgs {
 	pub create: Option<String>,
 }
 
-pub fn account<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn account<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: AccountArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	if args.create.is_none() {
 		let res = controller::owner_single_use(wallet, keychain_mask, |api, m| {
@@ -256,17 +256,17 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 }
 
-pub fn send<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn send<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	tor_config: Option<TorConfig>,
 	args: SendArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		if args.estimate_selection_strategies {
@@ -370,16 +370,16 @@ pub struct ReceiveArgs {
 	pub message: Option<String>,
 }
 
-pub fn receive<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn receive<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
 	let km = match keychain_mask.as_ref() {
@@ -408,15 +408,15 @@ pub struct FinalizeArgs {
 	pub fluff: bool,
 }
 
-pub fn finalize<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn finalize<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: FinalizeArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
 
@@ -487,15 +487,15 @@ pub struct IssueInvoiceArgs {
 	pub issue_args: IssueInvoiceTxArgs,
 }
 
-pub fn issue_invoice_tx<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn issue_invoice_tx<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: IssueInvoiceArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
@@ -520,17 +520,17 @@ pub struct ProcessInvoiceArgs {
 }
 
 /// Process invoice
-pub fn process_invoice<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn process_invoice<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	tor_config: Option<TorConfig>,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
@@ -619,17 +619,17 @@ pub struct InfoArgs {
 	pub minimum_confirmations: u64,
 }
 
-pub fn info<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn info<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: InfoArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let (validated, wallet_info) =
@@ -640,16 +640,16 @@ where
 	Ok(())
 }
 
-pub fn outputs<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn outputs<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let res = api.node_height(m)?;
@@ -666,17 +666,17 @@ pub struct TxsArgs {
 	pub tx_slate_id: Option<Uuid>,
 }
 
-pub fn txs<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn txs<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: TxsArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let res = api.node_height(m)?;
@@ -727,15 +727,15 @@ pub struct RepostArgs {
 	pub fluff: bool,
 }
 
-pub fn repost<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn repost<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: RepostArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
@@ -779,15 +779,15 @@ pub struct CancelArgs {
 	pub tx_id_string: String,
 }
 
-pub fn cancel<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn cancel<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: CancelArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let result = api.cancel_tx(m, args.tx_id, args.tx_slate_id);
@@ -811,15 +811,15 @@ pub struct CheckArgs {
 	pub start_height: Option<u64>,
 }
 
-pub fn scan<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn scan<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: CheckArgs,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		warn!("Starting output scan ...",);
