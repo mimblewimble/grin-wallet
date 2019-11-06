@@ -1671,7 +1671,11 @@ where
 		lc.delete_wallet(name)
 	}
 
-	pub fn start_updater(&self, keychain_mask: Option<SecretKey>, frequency: Duration) -> Result<(), Error> {
+	pub fn start_updater(
+		&self,
+		keychain_mask: Option<SecretKey>,
+		frequency: Duration,
+	) -> Result<(), Error> {
 		let updater_inner = self.updater.clone();
 		let _ = thread::Builder::new()
 			.name("wallet-updater".to_string())

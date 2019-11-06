@@ -14,10 +14,10 @@
 //! Test a wallet repost command
 #[macro_use]
 extern crate log;
+extern crate grin_wallet_api as api;
 extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
-extern crate grin_wallet_api as api;
 
 use grin_wallet_util::grin_core as core;
 
@@ -97,7 +97,6 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 
 	let owner_api = api::Owner::new(wallet1);
 	owner_api.start_updater(mask1_i, Duration::from_secs(10))?;
-
 
 	// let logging finish
 	thread::sleep(Duration::from_secs(60));

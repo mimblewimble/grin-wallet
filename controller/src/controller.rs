@@ -374,7 +374,6 @@ where
 	/// Whether we're running the foreign API on the same port, and therefore
 	/// have to store the mask in-process
 	pub running_foreign: bool,
-
 }
 
 pub struct OwnerV3Helpers;

@@ -18,13 +18,13 @@ use std::thread;
 use std::time::Duration;
 
 use crate::grin_keychain::Keychain;
-use crate::grin_util::{Mutex, StopState};
 use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::{Mutex, StopState};
 
+use crate::api_impl::owner;
 use crate::types::NodeClient;
 use crate::{Error, ErrorKind};
 use crate::{WalletInst, WalletLCProvider};
-use crate::api_impl::owner;
 
 pub struct Updater<'a, L, C, K>
 where
@@ -54,9 +54,7 @@ where
 	}
 
 	/// Start the updater at the given frequency
-	pub fn run(&self, frequency: Duration, 
-			keychain_mask: Option<SecretKey>,
-		) -> Result<(), Error> {
+	pub fn run(&self, frequency: Duration, keychain_mask: Option<SecretKey>) -> Result<(), Error> {
 		loop {
 			if self.stop_state.is_paused() {
 				thread::sleep(Duration::from_secs(1));
