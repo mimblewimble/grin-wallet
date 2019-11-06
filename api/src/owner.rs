@@ -1671,12 +1671,12 @@ where
 		lc.delete_wallet(name)
 	}
 
-	pub fn start_updater(&self) -> Result<(), Error> {
+	pub fn start_updater(&self, keychain_mask: Option<SecretKey>, frequency: Duration) -> Result<(), Error> {
 		let updater_inner = self.updater.clone();
 		let _ = thread::Builder::new()
 			.name("wallet-updater".to_string())
 			.spawn(move || {
-				if let Err(e) = updater_inner.run(Duration::from_secs(60)) {
+				if let Err(e) = updater_inner.run(frequency, keychain_mask) {
 					error!("Wallet state updater failed with error: {:?}", e);
 				}
 			})?;

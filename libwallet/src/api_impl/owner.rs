@@ -549,7 +549,7 @@ where
 	}
 }
 /// Experimental, wrap the entire definition of how a wallet's state is updated
-fn update_wallet_state<'a, L, C, K>(
+pub fn update_wallet_state<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,

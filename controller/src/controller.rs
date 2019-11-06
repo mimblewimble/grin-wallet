@@ -362,6 +362,9 @@ where
 	/// Wallet instance
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 
+	/// Handle to Owner API
+	owner_api: Arc<Owner<L, C, K>>,
+
 	/// ECDH shared key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 
@@ -371,6 +374,7 @@ where
 	/// Whether we're running the foreign API on the same port, and therefore
 	/// have to store the mask in-process
 	pub running_foreign: bool,
+
 }
 
 pub struct OwnerV3Helpers;
@@ -592,8 +596,10 @@ where
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
+		let owner_api = Arc::new(Owner::new(wallet.clone()));
 		OwnerAPIHandlerV3 {
 			wallet,
+			owner_api,
 			shared_key: Arc::new(Mutex::new(None)),
 			keychain_mask: keychain_mask,
 			running_foreign,
@@ -603,14 +609,14 @@ where
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Owner<L, C, K>,
+		api: Arc<Owner<L, C, K>>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		let key = self.shared_key.clone();
 		let mask = self.keychain_mask.clone();
 		let running_foreign = self.running_foreign;
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let mut val = val;
-			let owner_api_s = &api as &dyn OwnerRpcS;
+			let owner_api_s = &*api as &dyn OwnerRpcS;
 			let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			let mut was_encrypted = false;
 			let mut encrypted_req_id = 0;
@@ -671,9 +677,8 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Owner::new(self.wallet.clone());
 		Box::new(
-			self.call_api(req, api)
+			self.call_api(req, self.owner_api.clone())
 				.and_then(|resp| ok(json_response_pretty(&resp))),
 		)
 	}
