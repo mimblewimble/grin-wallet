@@ -21,7 +21,6 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 
-use failure::ResultExt;
 use uuid::Uuid;
 
 use crate::blake2::blake2b::{Blake2b, Blake2bResult};
@@ -31,10 +30,9 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 
 use crate::core::core::Transaction;
 use crate::core::ser;
-use crate::libwallet::{check_repair, restore};
 use crate::libwallet::{
 	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, ScannedBlockInfo,
-	TxLogEntry, WalletBackend, WalletOutputBatch,
+	TxLogEntry, WalletBackend, WalletInitStatus, WalletOutputBatch,
 };
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::secp::key::SecretKey;
@@ -55,6 +53,8 @@ const TX_LOG_ID_PREFIX: u8 = 'i' as u8;
 const ACCOUNT_PATH_MAPPING_PREFIX: u8 = 'a' as u8;
 const LAST_SCANNED_BLOCK: u8 = 'l' as u8;
 const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
+const WALLET_INIT_STATUS: u8 = 'w' as u8;
+const WALLET_INIT_STATUS_KEY: &str = "WALLET_INIT_STATUS";
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations
@@ -397,6 +397,14 @@ where
 		}))
 	}
 
+	fn batch_no_mask<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error> {
+		Ok(Box::new(Batch {
+			_store: self,
+			db: RefCell::new(Some(self.db.batch()?)),
+			keychain: None,
+		}))
+	}
+
 	fn current_child_index<'a>(&mut self, parent_key_id: &Identifier) -> Result<u32, Error> {
 		let index = {
 			let batch = self.db.batch()?;
@@ -460,33 +468,17 @@ where
 		Ok(last_scanned_block)
 	}
 
-	fn restore(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		to_height: u64,
-	) -> Result<Option<ScannedBlockInfo>, Error> {
-		let res = restore(self, keychain_mask, to_height).context(ErrorKind::Restore)?;
-		Ok(res)
-	}
-
-	fn check_repair(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		delete_unconfirmed: bool,
-		start_height: u64,
-		end_height: u64,
-		status_fn: fn(&str),
-	) -> Result<ScannedBlockInfo, Error> {
-		let res = check_repair(
-			self,
-			keychain_mask,
-			delete_unconfirmed,
-			start_height,
-			end_height,
-			status_fn,
-		)
-		.context(ErrorKind::Restore)?;
-		Ok(res)
+	fn init_status<'a>(&mut self) -> Result<WalletInitStatus, Error> {
+		let batch = self.db.batch()?;
+		let init_status_key = to_key(
+			WALLET_INIT_STATUS,
+			&mut WALLET_INIT_STATUS_KEY.as_bytes().to_vec(),
+		);
+		let status = match batch.get_ser(&init_status_key)? {
+			Some(s) => s,
+			None => WalletInitStatus::InitComplete,
+		};
+		Ok(status)
 	}
 }
 
@@ -615,6 +607,19 @@ where
 			.as_ref()
 			.unwrap()
 			.put_ser(&pmmr_index_key, &block_info)?;
+		Ok(())
+	}
+
+	fn save_init_status(&mut self, value: WalletInitStatus) -> Result<(), Error> {
+		let init_status_key = to_key(
+			WALLET_INIT_STATUS,
+			&mut WALLET_INIT_STATUS_KEY.as_bytes().to_vec(),
+		);
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&init_status_key, &value)?;
 		Ok(())
 	}
 

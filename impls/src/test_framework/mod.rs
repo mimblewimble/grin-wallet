@@ -243,10 +243,8 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	let mut w_lock = wallet.lock();
-	let w = w_lock.lc_provider()?.wallet_inst()?;
 	let (wallet_refreshed, wallet_info) =
-		owner::retrieve_summary_info(&mut **w, keychain_mask, true, 1)?;
+		owner::retrieve_summary_info(wallet, keychain_mask, true, 1)?;
 	assert!(wallet_refreshed);
 	Ok(wallet_info)
 }

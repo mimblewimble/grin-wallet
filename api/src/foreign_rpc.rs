@@ -691,10 +691,9 @@ pub fn run_doctest_foreign(
 			false,
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
-		let mut w_lock = wallet1.lock();
-		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(&mut **w, (&mask1).as_ref(), true, 1).unwrap();
+			api_impl::owner::retrieve_summary_info(wallet1.clone(), (&mask1).as_ref(), true, 1)
+				.unwrap();
 		assert!(wallet_refreshed);
 	}
 

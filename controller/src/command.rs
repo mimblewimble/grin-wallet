@@ -805,38 +805,13 @@ where
 	Ok(())
 }
 
-pub fn restore<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	keychain_mask: Option<&SecretKey>,
-) -> Result<(), Error>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: keychain::Keychain + 'a,
-{
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
-		let result = api.restore(m);
-		match result {
-			Ok(_) => {
-				warn!("Wallet restore complete",);
-				Ok(())
-			}
-			Err(e) => {
-				error!("Wallet restore failed: {}", e);
-				error!("Backtrace: {}", e.backtrace().unwrap());
-				Err(e)
-			}
-		}
-	})?;
-	Ok(())
-}
-
 /// wallet check
 pub struct CheckArgs {
 	pub delete_unconfirmed: bool,
+	pub start_height: Option<u64>,
 }
 
-pub fn check_repair<'a, L, C, K>(
+pub fn scan<'a, L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	args: CheckArgs,
@@ -847,9 +822,8 @@ where
 	K: keychain::Keychain + 'a,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
-		warn!("Starting wallet check...",);
-		warn!("Updating all wallet outputs, please wait ...",);
-		let result = api.check_repair(m, args.delete_unconfirmed);
+		warn!("Starting output scan ...",);
+		let result = api.scan(m, args.start_height, args.delete_unconfirmed);
 		match result {
 			Ok(_) => {
 				warn!("Wallet check complete",);

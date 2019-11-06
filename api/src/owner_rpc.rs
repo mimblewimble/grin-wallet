@@ -1161,7 +1161,7 @@ pub trait OwnerRpc: Sync + Send {
 	fn verify_slate_messages(&self, slate: VersionedSlate) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [Owner::restore](struct.Owner.html#method.restore).
+	Networked version of [Owner::scan](struct.Owner.html#method.scan).
 
 
 	```
@@ -1169,8 +1169,8 @@ pub trait OwnerRpc: Sync + Send {
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "restore",
-		"params": [],
+		"method": "scan",
+		"params": [null, false],
 		"id": 1
 	}
 	# "#
@@ -1187,36 +1187,7 @@ pub trait OwnerRpc: Sync + Send {
 	# , false, 1, false, false, false);
 	```
 	 */
-	fn restore(&self) -> Result<(), ErrorKind>;
-
-	/**
-	Networked version of [Owner::check_repair](struct.Owner.html#method.check_repair).
-
-
-	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	# r#"
-	{
-		"jsonrpc": "2.0",
-		"method": "check_repair",
-		"params": [false],
-		"id": 1
-	}
-	# "#
-	# ,
-	# r#"
-	{
-		"id": 1,
-		"jsonrpc": "2.0",
-		"result": {
-			"Ok": null
-		}
-	}
-	# "#
-	# , false, 1, false, false, false);
-	```
-	 */
-	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
+	fn scan(&self, start_height: Option<u64>, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
@@ -1355,12 +1326,8 @@ where
 		Owner::verify_slate_messages(self, None, &Slate::from(slate)).map_err(|e| e.kind())
 	}
 
-	fn restore(&self) -> Result<(), ErrorKind> {
-		Owner::restore(self, None).map_err(|e| e.kind())
-	}
-
-	fn check_repair(&self, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
-		Owner::check_repair(self, None, delete_unconfirmed).map_err(|e| e.kind())
+	fn scan(&self, start_height: Option<u64>, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
+		Owner::scan(self, None, start_height, delete_unconfirmed).map_err(|e| e.kind())
 	}
 
 	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind> {
@@ -1491,10 +1458,9 @@ pub fn run_doctest_owner(
 			false,
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
-		let mut w_lock = wallet1.lock();
-		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(&mut **w, (&mask1).as_ref(), true, 1).unwrap();
+			api_impl::owner::retrieve_summary_info(wallet1.clone(), (&mask1).as_ref(), true, 1)
+				.unwrap();
 		assert!(wallet_refreshed);
 	}
 

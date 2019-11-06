@@ -19,7 +19,9 @@ use crate::config::{
 };
 use crate::core::global;
 use crate::keychain::Keychain;
-use crate::libwallet::{Error, ErrorKind, NodeClient, WalletBackend, WalletLCProvider};
+use crate::libwallet::{
+	Error, ErrorKind, NodeClient, WalletBackend, WalletInitStatus, WalletLCProvider,
+};
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
@@ -181,9 +183,9 @@ where
 				return Err(ErrorKind::WalletSeedExists(msg))?;
 			}
 		}
-		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic, password);
+		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic.clone(), password);
 		info!("Wallet seed file created");
-		let _wallet: LMDBBackend<'a, C, K> =
+		let mut wallet: LMDBBackend<'a, C, K> =
 			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
@@ -192,6 +194,13 @@ where
 				}
 				Ok(d) => d,
 			};
+		// Save init status of this wallet, to determine whether it needs a full UTXO scan
+		let mut batch = wallet.batch_no_mask()?;
+		match mnemonic {
+			Some(_) => batch.save_init_status(WalletInitStatus::InitNeedsScanning)?,
+			None => batch.save_init_status(WalletInitStatus::InitNoScanning)?,
+		};
+		batch.commit()?;
 		info!("Wallet database backend created at {}", data_dir_name);
 		Ok(())
 	}

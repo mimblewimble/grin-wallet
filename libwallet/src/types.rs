@@ -213,6 +213,9 @@ where
 		keychain_mask: Option<&SecretKey>,
 	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
 
+	/// Batch for use when keychain isn't available or required
+	fn batch_no_mask<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
+
 	/// Return the current child Index
 	fn current_child_index<'a>(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;
 
@@ -222,25 +225,11 @@ where
 	/// last verified height of outputs directly descending from the given parent key
 	fn last_confirmed_height<'a>(&mut self) -> Result<u64, Error>;
 
-	/// last block scanned during check_repair or restore
+	/// last block scanned during scan or restore
 	fn last_scanned_block<'a>(&mut self) -> Result<ScannedBlockInfo, Error>;
 
-	/// Attempt to restore the contents of a wallet from seed
-	fn restore(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		end_height: u64,
-	) -> Result<Option<ScannedBlockInfo>, Error>;
-
-	/// Attempt to check and fix wallet state
-	fn check_repair(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		delete_unconfirmed: bool,
-		start_height: u64,
-		end_height: u64,
-		status_cb: fn(&str),
-	) -> Result<ScannedBlockInfo, Error>;
+	/// Flag whether the wallet needs a full UTXO scan on next update attempt
+	fn init_status<'a>(&mut self) -> Result<WalletInitStatus, Error>;
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a
@@ -277,8 +266,11 @@ where
 		height: u64,
 	) -> Result<(), Error>;
 
-	/// Save the last PMMR index that was scanned via a check_repair operation
+	/// Save the last PMMR index that was scanned via a scan operation
 	fn save_last_scanned_block(&mut self, block: ScannedBlockInfo) -> Result<(), Error>;
+
+	/// Save flag indicating whether wallet needs a full UTXO scan
+	fn save_init_status<'a>(&mut self, value: WalletInitStatus) -> Result<(), Error>;
 
 	/// get next tx log entry for the parent
 	fn next_tx_log_id(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;
@@ -898,6 +890,7 @@ impl ser::Readable for ScannedBlockInfo {
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
 }
+
 /// Wrapper for reward output and kernel used when building a coinbase for a mining node.
 /// Note: Not serializable, must be converted to necesssary "versioned" representation
 /// before serializing to json to ensure compatibility with mining node.
@@ -909,4 +902,28 @@ pub struct CbData {
 	pub kernel: TxKernel,
 	/// Key Id
 	pub key_id: Option<Identifier>,
+}
+
+/// Enum to determine what amount of scanning is required for a new wallet
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WalletInitStatus {
+	/// Wallet is newly created and needs scanning
+	InitNeedsScanning,
+	/// Wallet is new but doesn't need scanning
+	InitNoScanning,
+	/// Wallet scan checks have been completed
+	InitComplete,
+}
+
+impl ser::Writeable for WalletInitStatus {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for WalletInitStatus {
+	fn read(reader: &mut dyn ser::Reader) -> Result<WalletInitStatus, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+	}
 }

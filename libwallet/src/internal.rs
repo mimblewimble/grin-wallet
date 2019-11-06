@@ -22,7 +22,7 @@
 #![warn(missing_docs)]
 
 pub mod keys;
-pub mod restore;
+pub mod scan;
 pub mod selection;
 pub mod tx;
 pub mod updater;

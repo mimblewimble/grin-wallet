@@ -1220,7 +1220,7 @@ pub trait OwnerRpcS {
 	fn verify_slate_messages(&self, token: Token, slate: VersionedSlate) -> Result<(), ErrorKind>;
 
 	/**
-	Networked version of [Owner::restore](struct.Owner.html#method.restore).
+	Networked version of [Owner::scan](struct.Owner.html#method.scan).
 
 
 	```
@@ -1228,40 +1228,10 @@ pub trait OwnerRpcS {
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "restore",
-		"params": {
-			"token": "d202964900000000d302964900000000d402964900000000d502964900000000"
-		},
-		"id": 1
-	}
-	# "#
-	# ,
-	# r#"
-	{
-		"id": 1,
-		"jsonrpc": "2.0",
-		"result": {
-			"Ok": null
-		}
-	}
-	# "#
-	# , true, 1, false, false, false);
-	```
-	 */
-	fn restore(&self, token: Token) -> Result<(), ErrorKind>;
-
-	/**
-	Networked version of [Owner::check_repair](struct.Owner.html#method.check_repair).
-
-
-	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	# r#"
-	{
-		"jsonrpc": "2.0",
-		"method": "check_repair",
+		"method": "scan",
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"start_height": 1,
 			"delete_unconfirmed": false
 		},
 		"id": 1
@@ -1280,7 +1250,12 @@ pub trait OwnerRpcS {
 	# , true, 1, false, false, false);
 	```
 	 */
-	fn check_repair(&self, token: Token, delete_unconfirmed: bool) -> Result<(), ErrorKind>;
+	fn scan(
+		&self,
+		token: Token,
+		start_height: Option<u64>,
+		delete_unconfirmed: bool,
+	) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::node_height](struct.Owner.html#method.node_height).
@@ -1867,13 +1842,19 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn restore(&self, token: Token) -> Result<(), ErrorKind> {
-		Owner::restore(self, (&token.keychain_mask).as_ref()).map_err(|e| e.kind())
-	}
-
-	fn check_repair(&self, token: Token, delete_unconfirmed: bool) -> Result<(), ErrorKind> {
-		Owner::check_repair(self, (&token.keychain_mask).as_ref(), delete_unconfirmed)
-			.map_err(|e| e.kind())
+	fn scan(
+		&self,
+		token: Token,
+		start_height: Option<u64>,
+		delete_unconfirmed: bool,
+	) -> Result<(), ErrorKind> {
+		Owner::scan(
+			self,
+			(&token.keychain_mask).as_ref(),
+			start_height,
+			delete_unconfirmed,
+		)
+		.map_err(|e| e.kind())
 	}
 
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind> {
