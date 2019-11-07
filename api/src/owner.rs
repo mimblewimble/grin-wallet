@@ -33,6 +33,8 @@ use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, StopStat
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use std::sync::mpsc::{Sender, Receiver};
+use crate::libwallet::api_impl::owner_updater::{StatusMessage, start_updater_log_thread};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -61,9 +63,11 @@ where
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 	/// Update thread
-	updater: Arc<owner_updater::Updater<'static, L, C, K>>,
+	updater: Arc<Mutex<owner_updater::Updater<'static, L, C, K>>>,
 	/// Stop state for update thread
 	pub updater_stop_state: Arc<StopState>,
+	/// Sender for update messages
+	status_tx: Mutex<Option<Sender<StatusMessage>>>,
 }
 
 impl<L, C, K> Owner<L, C, K>
@@ -147,18 +151,27 @@ where
 	///
 	/// ```
 
-	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>) -> Self {
+	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+			status_tx: Option<Sender<StatusMessage>>,
+			status_log_rx: Option<Receiver<StatusMessage>>, // if provided, just set up a simple logger with the rx queue
+		) -> Self {
 		let updater_stop_state = Arc::new(StopState::new());
-		let updater = Arc::new(owner_updater::Updater::new(
+		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
 			updater_stop_state.clone(),
-		));
+		)));
+
+		if let Some(s) = status_log_rx {
+			let _ = start_updater_log_thread(s);
+		}
+
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
 			shared_key: Arc::new(Mutex::new(None)),
 			updater,
 			updater_stop_state,
+			status_tx: Mutex::new(status_tx),
 		}
 	}
 
@@ -355,9 +368,14 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
 		owner::retrieve_outputs(
 			self.wallet_inst.clone(),
 			keychain_mask,
+			&tx,
 			include_spent,
 			refresh_from_node,
 			tx_id,
@@ -413,9 +431,14 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
 		let mut res = owner::retrieve_txs(
 			self.wallet_inst.clone(),
 			keychain_mask,
+			&tx,
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
@@ -477,9 +500,14 @@ where
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
 		owner::retrieve_summary_info(
 			self.wallet_inst.clone(),
 			keychain_mask,
+			&tx,
 			refresh_from_node,
 			minimum_confirmations,
 		)
@@ -977,7 +1005,11 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(), Error> {
-		owner::cancel_tx(self.wallet_inst.clone(), keychain_mask, tx_id, tx_slate_id)
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		owner::cancel_tx(self.wallet_inst.clone(), keychain_mask, &tx, tx_id, tx_slate_id)
 	}
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
@@ -1153,6 +1185,7 @@ where
 			keychain_mask,
 			start_height,
 			delete_unconfirmed,
+			&None,
 		)
 	}
 
@@ -1677,10 +1710,15 @@ where
 		frequency: Duration,
 	) -> Result<(), Error> {
 		let updater_inner = self.updater.clone();
+		let tx_inner = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
 		let _ = thread::Builder::new()
 			.name("wallet-updater".to_string())
 			.spawn(move || {
-				if let Err(e) = updater_inner.run(frequency, keychain_mask) {
+				let u = updater_inner.lock();
+				if let Err(e) = u.run(frequency, keychain_mask, &tx_inner) {
 					error!("Wallet state updater failed with error: {:?}", e);
 				}
 			})?;

@@ -20,12 +20,14 @@ extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
 use grin_wallet_util::grin_core as core;
+use crate::libwallet::api_impl::owner_updater::{StatusMessage, start_updater_log_thread};
 
 use self::libwallet::{InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
 use std::thread;
 use std::time::Duration;
+use std::sync::mpsc::channel;
 
 #[macro_use]
 mod common;
@@ -95,7 +97,8 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let owner_api = api::Owner::new(wallet1);
+	let (tx, rx) = channel();
+	let owner_api = api::Owner::new(wallet1, Some(tx), Some(rx));
 	owner_api.start_updater(mask1_i, Duration::from_secs(10))?;
 
 	// let logging finish

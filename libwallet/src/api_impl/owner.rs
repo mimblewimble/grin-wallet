@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2019 The Grin Develope;
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ use crate::grin_util::Mutex;
 
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
+use crate::api_impl::owner_updater::StatusMessage;
 use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
@@ -33,6 +34,7 @@ use crate::{
 };
 use crate::{Error, ErrorKind};
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
@@ -74,6 +76,7 @@ where
 pub fn retrieve_outputs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 	include_spent: bool,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
@@ -85,7 +88,7 @@ where
 {
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
+		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)?;
 	}
 
 	wallet_lock!(wallet_inst, w);
@@ -107,6 +110,7 @@ where
 pub fn retrieve_txs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
@@ -118,7 +122,7 @@ where
 {
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
+		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)?;
 	}
 
 	wallet_lock!(wallet_inst, w);
@@ -132,6 +136,7 @@ where
 pub fn retrieve_summary_info<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
 	minimum_confirmations: u64,
 ) -> Result<(bool, WalletInfo), Error>
@@ -142,7 +147,7 @@ where
 {
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, false)?;
+		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)?;
 	}
 
 	wallet_lock!(wallet_inst, w);
@@ -412,6 +417,7 @@ where
 pub fn cancel_tx<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(), Error>
@@ -420,7 +426,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if !update_wallet_state(wallet_inst.clone(), keychain_mask, false)? {
+	if !update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		))?;
@@ -477,6 +483,7 @@ pub fn scan<'a, L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	start_height: Option<u64>,
 	delete_unconfirmed: bool,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -489,8 +496,6 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
-	let status_fn: fn(&str) = |m| warn!("{}", m);
-
 	let start_height = match start_height {
 		Some(h) => h,
 		None => 1,
@@ -502,7 +507,7 @@ where
 		delete_unconfirmed,
 		start_height,
 		tip.0,
-		status_fn,
+		status_send_channel,
 	)?;
 	info.hash = tip.1;
 
@@ -535,7 +540,7 @@ where
 			updated_from_node: true,
 		}),
 		Err(_) => {
-			let outputs = retrieve_outputs(wallet_inst, keychain_mask, true, false, None)?;
+			let outputs = retrieve_outputs(wallet_inst, keychain_mask, &None, true, false, None)?;
 			let height = match outputs.1.iter().map(|m| m.output.height).max() {
 				Some(height) => height,
 				None => 0,
@@ -552,6 +557,7 @@ where
 pub fn update_wallet_state<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 	update_all: bool,
 ) -> Result<bool, Error>
 where
@@ -569,10 +575,17 @@ where
 	};
 
 	// Step 1: Update outputs and transactions purely based on UTXO state
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::UpdatingOutputs("Updating outputs from node".to_owned()));
+	}
 	let mut result = update_outputs(wallet_inst.clone(), keychain_mask, update_all)?;
 
 	if !result {
 		return Ok(result);
+	}
+
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::UpdatingTransactions("Updating transactions".to_owned()));
 	}
 
 	// Step 2: Update outstanding transactions with no change outputs by kernel
@@ -615,12 +628,15 @@ where
 
 	let start_index = last_scanned_block.height.saturating_sub(100);
 
-	let mut status_fn: fn(&str) = |m| debug!("{}", m);
 	if last_scanned_block.height == 0 {
-		warn!("This wallet's contents has not been initialized with a full chain scan, performing scan now.");
-		warn!("This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
-		status_fn = |m| warn!("{}", m);
-	}
+
+		let msg = format!("This wallet's contents has not been initialized with a full chain scan, performing scan now.
+		This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
+		warn!("{}", msg);
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::FullScanWarn(msg));
+		}
+}
 
 	let mut info = scan::scan(
 		wallet_inst.clone(),
@@ -628,7 +644,7 @@ where
 		false,
 		start_index,
 		tip.0,
-		status_fn,
+		status_send_channel,
 	)?;
 
 	info.hash = tip.1;

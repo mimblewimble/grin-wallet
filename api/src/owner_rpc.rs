@@ -1357,6 +1357,7 @@ pub fn run_doctest_owner(
 
 	use std::fs;
 	use std::thread;
+	use std::sync::mpsc::channel;
 
 	util::init_test_logger();
 	let _ = fs::remove_dir_all(test_dir);
@@ -1459,7 +1460,7 @@ pub fn run_doctest_owner(
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
 		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(wallet1.clone(), (&mask1).as_ref(), true, 1)
+			api_impl::owner::retrieve_summary_info(wallet1.clone(), (&mask1).as_ref(), &None, true, 1)
 				.unwrap();
 		assert!(wallet_refreshed);
 	}
@@ -1519,7 +1520,8 @@ pub fn run_doctest_owner(
 		);
 	}
 
-	let mut api_owner = Owner::new(wallet1);
+	let (tx, rx) = channel();
+	let mut api_owner = Owner::new(wallet1, Some(tx), Some(rx));
 	api_owner.doctest_mode = true;
 	let res = if use_token {
 		let owner_api = &api_owner as &dyn OwnerRpcS;

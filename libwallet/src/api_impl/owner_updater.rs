@@ -16,6 +16,7 @@
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use std::sync::mpsc::{Sender, Receiver};
 
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -25,6 +26,40 @@ use crate::api_impl::owner;
 use crate::types::NodeClient;
 use crate::{Error, ErrorKind};
 use crate::{WalletInst, WalletLCProvider};
+
+#[derive(Debug)]
+pub enum StatusMessage {
+	UpdatingOutputs(String),
+	UpdatingTransactions(String),
+	FullScanWarn(String),
+	Scanning(String, u8),
+	ScanningComplete(String),
+}
+
+/// Helper function that starts a simple log thread for updater messages
+pub fn start_updater_log_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
+	let _ = thread::Builder::new()
+		.name("wallet-updater-status".to_string())
+		.spawn(move || {
+			loop {
+				while let Ok(m) = rx.try_recv() {
+					match m {
+						StatusMessage::UpdatingOutputs(s) => debug!("{}", s),
+						StatusMessage::UpdatingTransactions(s) => debug!("{}", s),
+						StatusMessage::FullScanWarn(s) => warn!("{}", s),
+						StatusMessage::Scanning(s, m) => {
+							debug!("{}", s);
+							warn!("Scanning - {}% complete", m);
+						},
+						StatusMessage::ScanningComplete(s) => warn!("{}", s)
+					}
+				}
+				thread::sleep(Duration::from_millis(500));
+			}
+		})?;
+
+	Ok(())
+}
 
 pub struct Updater<'a, L, C, K>
 where
@@ -54,14 +89,18 @@ where
 	}
 
 	/// Start the updater at the given frequency
-	pub fn run(&self, frequency: Duration, keychain_mask: Option<SecretKey>) -> Result<(), Error> {
+	pub fn run(&self, 
+		frequency: Duration, 
+		keychain_mask: Option<SecretKey>,
+		status_send_channel: &Option<Sender<StatusMessage>>,
+		) -> Result<(), Error> {
 		loop {
 			if self.stop_state.is_paused() {
 				thread::sleep(Duration::from_secs(1));
 				continue;
 			}
 			// Business goes here
-			owner::update_wallet_state(self.wallet_inst.clone(), (&keychain_mask).as_ref(), false)?;
+			owner::update_wallet_state(self.wallet_inst.clone(), (&keychain_mask).as_ref(), status_send_channel, false)?;
 			if self.stop_state.is_stopped() {
 				break;
 			}
