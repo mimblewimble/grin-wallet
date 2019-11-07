@@ -13,10 +13,10 @@
 // limitations under the License.
 
 //! A threaded persistent Updater that can be controlled by a grin wallet
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::sync::mpsc::{Sender, Receiver};
 
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -40,22 +40,20 @@ pub enum StatusMessage {
 pub fn start_updater_log_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
 	let _ = thread::Builder::new()
 		.name("wallet-updater-status".to_string())
-		.spawn(move || {
-			loop {
-				while let Ok(m) = rx.try_recv() {
-					match m {
-						StatusMessage::UpdatingOutputs(s) => debug!("{}", s),
-						StatusMessage::UpdatingTransactions(s) => debug!("{}", s),
-						StatusMessage::FullScanWarn(s) => warn!("{}", s),
-						StatusMessage::Scanning(s, m) => {
-							debug!("{}", s);
-							warn!("Scanning - {}% complete", m);
-						},
-						StatusMessage::ScanningComplete(s) => warn!("{}", s)
+		.spawn(move || loop {
+			while let Ok(m) = rx.try_recv() {
+				match m {
+					StatusMessage::UpdatingOutputs(s) => debug!("{}", s),
+					StatusMessage::UpdatingTransactions(s) => debug!("{}", s),
+					StatusMessage::FullScanWarn(s) => warn!("{}", s),
+					StatusMessage::Scanning(s, m) => {
+						debug!("{}", s);
+						warn!("Scanning - {}% complete", m);
 					}
+					StatusMessage::ScanningComplete(s) => warn!("{}", s),
 				}
-				thread::sleep(Duration::from_millis(500));
 			}
+			thread::sleep(Duration::from_millis(500));
 		})?;
 
 	Ok(())
@@ -89,18 +87,24 @@ where
 	}
 
 	/// Start the updater at the given frequency
-	pub fn run(&self, 
-		frequency: Duration, 
+	pub fn run(
+		&self,
+		frequency: Duration,
 		keychain_mask: Option<SecretKey>,
 		status_send_channel: &Option<Sender<StatusMessage>>,
-		) -> Result<(), Error> {
+	) -> Result<(), Error> {
 		loop {
 			if self.stop_state.is_paused() {
 				thread::sleep(Duration::from_secs(1));
 				continue;
 			}
 			// Business goes here
-			owner::update_wallet_state(self.wallet_inst.clone(), (&keychain_mask).as_ref(), status_send_channel, false)?;
+			owner::update_wallet_state(
+				self.wallet_inst.clone(),
+				(&keychain_mask).as_ref(),
+				status_send_channel,
+				false,
+			)?;
 			if self.stop_state.is_stopped() {
 				break;
 			}

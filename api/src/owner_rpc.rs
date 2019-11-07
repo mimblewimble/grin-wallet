@@ -1356,8 +1356,8 @@ pub fn run_doctest_owner(
 	use grin_wallet_util::grin_util as util;
 
 	use std::fs;
-	use std::thread;
 	use std::sync::mpsc::channel;
+	use std::thread;
 
 	util::init_test_logger();
 	let _ = fs::remove_dir_all(test_dir);
@@ -1459,9 +1459,14 @@ pub fn run_doctest_owner(
 			false,
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
-		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(wallet1.clone(), (&mask1).as_ref(), &None, true, 1)
-				.unwrap();
+		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			&None,
+			true,
+			1,
+		)
+		.unwrap();
 		assert!(wallet_refreshed);
 	}
 

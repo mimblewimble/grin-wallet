@@ -13,6 +13,7 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
+use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
@@ -24,11 +25,10 @@ use crate::grin_util::Mutex;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{wallet_lock, Error, OutputCommitMapping};
-use crate::api_impl::owner_updater::StatusMessage;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::mpsc::Sender;
 use std::cmp;
+use std::collections::HashMap;
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 /// Utility struct for return values from below
 #[derive(Debug, Clone)]
@@ -158,7 +158,7 @@ fn collect_chain_outputs<'a, C, K>(
 ) -> Result<(Vec<OutputResult>, u64), Error>
 where
 	C: NodeClient + 'a,
-	K: Keychain + 'a
+	K: Keychain + 'a,
 {
 	let batch_size = 1000;
 	let mut start_index = start_index;
@@ -167,24 +167,24 @@ where
 	loop {
 		let (highest_index, last_retrieved_index, outputs) =
 			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
-			let perc_complete = cmp::min((last_retrieved_index / highest_index) as u8 * 100, 99);
+		let perc_complete = cmp::min((last_retrieved_index / highest_index) as u8 * 100, 99);
 
-			let msg = format!(
-				"Checking {} outputs, up to index {}. (Highest index: {})",
-				outputs.len(),
-				highest_index,
-				last_retrieved_index,
-			);
-			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
-			}
+		let msg = format!(
+			"Checking {} outputs, up to index {}. (Highest index: {})",
+			outputs.len(),
+			highest_index,
+			last_retrieved_index,
+		);
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
+		}
 
-			result_vec.append(&mut identify_utxo_outputs(
-				keychain,
-				outputs.clone(),
-				status_send_channel,
-				perc_complete as u8,
-			)?);
+		result_vec.append(&mut identify_utxo_outputs(
+			keychain,
+			outputs.clone(),
+			status_send_channel,
+			perc_complete as u8,
+		)?);
 
 		if highest_index <= last_retrieved_index {
 			last_retrieved_return_index = last_retrieved_index;
@@ -504,7 +504,9 @@ where
 	}
 
 	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::ScanningComplete("Scanning Complete".to_owned()));
+		let _ = s.send(StatusMessage::ScanningComplete(
+			"Scanning Complete".to_owned(),
+		));
 	}
 
 	Ok(ScannedBlockInfo {

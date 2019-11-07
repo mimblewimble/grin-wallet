@@ -23,9 +23,9 @@ use crate::grin_util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::Mutex;
 
+use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::api_impl::owner_updater::StatusMessage;
 use crate::slate::Slate;
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
@@ -33,8 +33,8 @@ use crate::{
 	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
-use std::sync::Arc;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 const USER_MESSAGE_MAX_LEN: usize = 256;
 
@@ -88,7 +88,12 @@ where
 {
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)?;
+		validated = update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?;
 	}
 
 	wallet_lock!(wallet_inst, w);
@@ -122,7 +127,12 @@ where
 {
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)?;
+		validated = update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?;
 	}
 
 	wallet_lock!(wallet_inst, w);
@@ -147,7 +157,12 @@ where
 {
 	let mut validated = false;
 	if refresh_from_node {
-		validated = update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)?;
+		validated = update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?;
 	}
 
 	wallet_lock!(wallet_inst, w);
@@ -426,7 +441,12 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if !update_wallet_state(wallet_inst.clone(), keychain_mask, status_send_channel, false)? {
+	if !update_wallet_state(
+		wallet_inst.clone(),
+		keychain_mask,
+		status_send_channel,
+		false,
+	)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		))?;
@@ -576,7 +596,9 @@ where
 
 	// Step 1: Update outputs and transactions purely based on UTXO state
 	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::UpdatingOutputs("Updating outputs from node".to_owned()));
+		let _ = s.send(StatusMessage::UpdatingOutputs(
+			"Updating outputs from node".to_owned(),
+		));
 	}
 	let mut result = update_outputs(wallet_inst.clone(), keychain_mask, update_all)?;
 
@@ -585,7 +607,9 @@ where
 	}
 
 	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::UpdatingTransactions("Updating transactions".to_owned()));
+		let _ = s.send(StatusMessage::UpdatingTransactions(
+			"Updating transactions".to_owned(),
+		));
 	}
 
 	// Step 2: Update outstanding transactions with no change outputs by kernel
@@ -629,14 +653,13 @@ where
 	let start_index = last_scanned_block.height.saturating_sub(100);
 
 	if last_scanned_block.height == 0 {
-
 		let msg = format!("This wallet's contents has not been initialized with a full chain scan, performing scan now.
 		This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
 		warn!("{}", msg);
 		if let Some(ref s) = status_send_channel {
 			let _ = s.send(StatusMessage::FullScanWarn(msg));
 		}
-}
+	}
 
 	let mut info = scan::scan(
 		wallet_inst.clone(),

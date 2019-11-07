@@ -31,8 +31,8 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::sync::mpsc::channel;
+use std::sync::Arc;
 
 use crate::impls::tor::config as tor_config;
 use crate::impls::tor::process as tor_process;

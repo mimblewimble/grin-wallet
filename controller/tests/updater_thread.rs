@@ -19,15 +19,15 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
+use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use grin_wallet_util::grin_core as core;
-use crate::libwallet::api_impl::owner_updater::{StatusMessage, start_updater_log_thread};
 
 use self::libwallet::{InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
+use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
-use std::sync::mpsc::channel;
 
 #[macro_use]
 mod common;

@@ -22,6 +22,7 @@ use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::create_sender;
 use crate::keychain::{Identifier, Keychain};
+use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
@@ -30,11 +31,10 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, StopState, ZeroingString};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::sync::mpsc::{Sender, Receiver};
-use crate::libwallet::api_impl::owner_updater::{StatusMessage, start_updater_log_thread};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -151,10 +151,11 @@ where
 	///
 	/// ```
 
-	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-			status_tx: Option<Sender<StatusMessage>>,
-			status_log_rx: Option<Receiver<StatusMessage>>, // if provided, just set up a simple logger with the rx queue
-		) -> Self {
+	pub fn new(
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+		status_tx: Option<Sender<StatusMessage>>,
+		status_log_rx: Option<Receiver<StatusMessage>>, // if provided, just set up a simple logger with the rx queue
+	) -> Self {
 		let updater_stop_state = Arc::new(StopState::new());
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
@@ -1009,7 +1010,13 @@ where
 			let t = self.status_tx.lock();
 			t.clone()
 		};
-		owner::cancel_tx(self.wallet_inst.clone(), keychain_mask, &tx, tx_id, tx_slate_id)
+		owner::cancel_tx(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			tx_id,
+			tx_slate_id,
+		)
 	}
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
