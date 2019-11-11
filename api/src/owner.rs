@@ -31,11 +31,11 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, StopState, ZeroingString};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -374,7 +374,7 @@ where
 			let t = self.status_tx.lock();
 			t.clone()
 		};
-		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed){
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
 			true => false,
 			false => refresh_from_node,
 		};
@@ -441,7 +441,7 @@ where
 			let t = self.status_tx.lock();
 			t.clone()
 		};
-		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed){
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
 			true => false,
 			false => refresh_from_node,
 		};
@@ -514,7 +514,7 @@ where
 			let t = self.status_tx.lock();
 			t.clone()
 		};
-		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed){
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
 			true => false,
 			false => refresh_from_node,
 		};
@@ -1745,13 +1745,10 @@ where
 		Ok(())
 	}
 
-	pub fn stop_updater(
-		&self,
-	) -> Result<(), Error> {
+	pub fn stop_updater(&self) -> Result<(), Error> {
 		self.updater_running.store(false, Ordering::Relaxed);
 		Ok(())
 	}
-
 }
 
 #[doc(hidden)]

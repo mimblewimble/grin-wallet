@@ -643,7 +643,7 @@ where
 					"Updater Thread unable to contact node".to_owned(),
 				));
 			}
-			return Ok(false)
+			return Ok(false);
 		}
 	};
 

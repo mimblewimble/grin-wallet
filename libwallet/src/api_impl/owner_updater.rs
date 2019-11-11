@@ -13,9 +13,9 @@
 // limitations under the License.
 
 //! A threaded persistent Updater that can be controlled by a grin wallet
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
