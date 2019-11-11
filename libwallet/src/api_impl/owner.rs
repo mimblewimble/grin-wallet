@@ -603,6 +603,11 @@ where
 	let mut result = update_outputs(wallet_inst.clone(), keychain_mask, update_all)?;
 
 	if !result {
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::UpdateWarning(
+				"Updater Thread unable to contact node".to_owned(),
+			));
+		}
 		return Ok(result);
 	}
 
@@ -619,6 +624,11 @@ where
 	};
 	result = update_txs_via_kernel(wallet_inst.clone(), keychain_mask, &mut txs)?;
 	if !result {
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::UpdateWarning(
+				"Updater Thread unable to contact node".to_owned(),
+			));
+		}
 		return Ok(result);
 	}
 
@@ -627,7 +637,14 @@ where
 	// if we can't get the tip, don't continue
 	let tip = match res {
 		Ok(t) => t,
-		Err(_) => return Ok(false),
+		Err(_) => {
+			if let Some(ref s) = status_send_channel {
+				let _ = s.send(StatusMessage::UpdateWarning(
+					"Updater Thread unable to contact node".to_owned(),
+				));
+			}
+			return Ok(false)
+		}
 	};
 
 	// Check if this is a restored wallet that needs a full scan

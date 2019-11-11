@@ -15,6 +15,7 @@
 //! A threaded persistent Updater that can be controlled by a grin wallet
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -34,6 +35,7 @@ pub enum StatusMessage {
 	FullScanWarn(String),
 	Scanning(String, u8),
 	ScanningComplete(String),
+	UpdateWarning(String),
 }
 
 /// Helper function that starts a simple log thread for updater messages
@@ -51,6 +53,7 @@ pub fn start_updater_log_thread(rx: Receiver<StatusMessage>) -> Result<(), Error
 						warn!("Scanning - {}% complete", m);
 					}
 					StatusMessage::ScanningComplete(s) => warn!("{}", s),
+					StatusMessage::UpdateWarning(s) => warn!("{}", s),
 				}
 			}
 			thread::sleep(Duration::from_millis(500));
@@ -66,7 +69,7 @@ where
 	K: Keychain + 'a,
 {
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	stop_state: Arc<StopState>,
+	is_running: Arc<AtomicBool>,
 }
 
 impl<'a, L, C, K> Updater<'a, L, C, K>
@@ -78,11 +81,12 @@ where
 	/// create a new updater
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-		stop_state: Arc<StopState>,
+		is_running: Arc<AtomicBool>,
 	) -> Self {
+		is_running.store(false, Ordering::Relaxed);
 		Updater {
 			wallet_inst,
-			stop_state,
+			is_running,
 		}
 	}
 
@@ -93,11 +97,8 @@ where
 		keychain_mask: Option<SecretKey>,
 		status_send_channel: &Option<Sender<StatusMessage>>,
 	) -> Result<(), Error> {
+		self.is_running.store(true, Ordering::Relaxed);
 		loop {
-			if self.stop_state.is_paused() {
-				thread::sleep(Duration::from_secs(1));
-				continue;
-			}
 			// Business goes here
 			owner::update_wallet_state(
 				self.wallet_inst.clone(),
@@ -105,7 +106,7 @@ where
 				status_send_channel,
 				false,
 			)?;
-			if self.stop_state.is_stopped() {
+			if !self.is_running.load(Ordering::Relaxed) {
 				break;
 			}
 			thread::sleep(frequency);

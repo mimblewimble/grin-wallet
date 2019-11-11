@@ -35,6 +35,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -65,7 +66,7 @@ where
 	/// Update thread
 	updater: Arc<Mutex<owner_updater::Updater<'static, L, C, K>>>,
 	/// Stop state for update thread
-	pub updater_stop_state: Arc<StopState>,
+	pub updater_running: Arc<AtomicBool>,
 	/// Sender for update messages
 	status_tx: Mutex<Option<Sender<StatusMessage>>>,
 }
@@ -156,10 +157,10 @@ where
 		status_tx: Option<Sender<StatusMessage>>,
 		status_log_rx: Option<Receiver<StatusMessage>>, // if provided, just set up a simple logger with the rx queue
 	) -> Self {
-		let updater_stop_state = Arc::new(StopState::new());
+		let updater_running = Arc::new(AtomicBool::new(false));
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
-			updater_stop_state.clone(),
+			updater_running.clone(),
 		)));
 
 		if let Some(s) = status_log_rx {
@@ -171,7 +172,7 @@ where
 			doctest_mode: false,
 			shared_key: Arc::new(Mutex::new(None)),
 			updater,
-			updater_stop_state,
+			updater_running,
 			status_tx: Mutex::new(status_tx),
 		}
 	}
@@ -373,6 +374,10 @@ where
 			let t = self.status_tx.lock();
 			t.clone()
 		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed){
+			true => false,
+			false => refresh_from_node,
+		};
 		owner::retrieve_outputs(
 			self.wallet_inst.clone(),
 			keychain_mask,
@@ -435,6 +440,10 @@ where
 		let tx = {
 			let t = self.status_tx.lock();
 			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed){
+			true => false,
+			false => refresh_from_node,
 		};
 		let mut res = owner::retrieve_txs(
 			self.wallet_inst.clone(),
@@ -504,6 +513,10 @@ where
 		let tx = {
 			let t = self.status_tx.lock();
 			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed){
+			true => false,
+			false => refresh_from_node,
 		};
 		owner::retrieve_summary_info(
 			self.wallet_inst.clone(),
@@ -1731,6 +1744,14 @@ where
 			})?;
 		Ok(())
 	}
+
+	pub fn stop_updater(
+		&self,
+	) -> Result<(), Error> {
+		self.updater_running.store(false, Ordering::Relaxed);
+		Ok(())
+	}
+
 }
 
 #[doc(hidden)]
