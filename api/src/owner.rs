@@ -1757,7 +1757,8 @@ where
 
 	pub fn get_updater_messages(&self, count: usize) -> Result<Vec<StatusMessage>, Error> {
 		let mut q = self.updater_messages.lock();
-		Ok(q.split_off(count))
+		let index = q.len().saturating_sub(count);
+		Ok(q.split_off(index))
 	}
 }
 

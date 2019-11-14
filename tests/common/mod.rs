@@ -391,6 +391,7 @@ where
 	})?;
 
 	let res_val: Value = serde_json::from_str(&res).unwrap();
+	//println!("RES_VAL: {}", res_val);
 	// encryption error, just return the string
 	if res_val["error"] != json!(null) {
 		return Ok(Err(WalletAPIReturnError {

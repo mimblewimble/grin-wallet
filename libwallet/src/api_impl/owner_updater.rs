@@ -21,11 +21,11 @@ use std::time::Duration;
 
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::{Mutex, StopState};
+use crate::grin_util::Mutex;
 
 use crate::api_impl::owner;
 use crate::types::NodeClient;
-use crate::{Error, ErrorKind};
+use crate::Error;
 use crate::{WalletInst, WalletLCProvider};
 
 const MESSAGE_QUEUE_MAX_LEN: usize = 10_000;
