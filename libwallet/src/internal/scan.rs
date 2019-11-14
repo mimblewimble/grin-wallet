@@ -131,7 +131,7 @@ where
 		if switch != SwitchCommitmentType::Regular {
 			let msg = format!("Unexpected switch commitment type {:?}", switch);
 			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::Scanning(msg, percentage_complete));
+				let _ = s.send(StatusMessage::UpdateWarning(msg));
 			}
 		}
 
