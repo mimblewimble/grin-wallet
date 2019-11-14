@@ -22,15 +22,15 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate_versions::v2::TransactionV2;
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, SlateVersion, StatusMessage, TxLogEntry, VersionedSlate, WalletInfo,
-	WalletLCProvider,
+	OutputCommitMapping, Slate, SlateVersion, StatusMessage, TxLogEntry, VersionedSlate,
+	WalletInfo, WalletLCProvider,
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
 use crate::{ECDHPubkey, Owner, Token};
-use std::time::Duration;
 use easy_jsonrpc_mw;
 use rand::thread_rng;
+use std::time::Duration;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
@@ -1966,18 +1966,20 @@ where
 		Owner::delete_wallet(self, n).map_err(|e| e.kind())
 	}
 
-	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), ErrorKind>{
-		Owner::start_updater(self, (&token.keychain_mask).as_ref(), Duration::from_millis(frequency as u64))
-			.map_err(|e| e.kind())
+	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), ErrorKind> {
+		Owner::start_updater(
+			self,
+			(&token.keychain_mask).as_ref(),
+			Duration::from_millis(frequency as u64),
+		)
+		.map_err(|e| e.kind())
 	}
 
 	fn stop_updater(&self) -> Result<(), ErrorKind> {
-		Owner::stop_updater(self)
-			.map_err(|e| e.kind())
+		Owner::stop_updater(self).map_err(|e| e.kind())
 	}
 
-	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind>{
-		Owner::get_updater_messages(self, count as usize)
-			.map_err(|e| e.kind())
+	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind> {
+		Owner::get_updater_messages(self, count as usize).map_err(|e| e.kind())
 	}
 }

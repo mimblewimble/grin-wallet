@@ -28,7 +28,7 @@ use crate::types::NodeClient;
 use crate::{Error, ErrorKind};
 use crate::{WalletInst, WalletLCProvider};
 
-const MESSAGE_QUEUE_MAX_LEN:usize = 10_000;
+const MESSAGE_QUEUE_MAX_LEN: usize = 10_000;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum StatusMessage {
@@ -41,7 +41,10 @@ pub enum StatusMessage {
 }
 
 /// Helper function that starts a simple log thread for updater messages
-pub fn start_updater_log_thread(rx: Receiver<StatusMessage>, queue: Arc<Mutex<Vec<StatusMessage>>>) -> Result<(), Error> {
+pub fn start_updater_log_thread(
+	rx: Receiver<StatusMessage>,
+	queue: Arc<Mutex<Vec<StatusMessage>>>,
+) -> Result<(), Error> {
 	let _ = thread::Builder::new()
 		.name("wallet-updater-status".to_string())
 		.spawn(move || loop {

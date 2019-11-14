@@ -69,7 +69,7 @@ where
 	pub updater_running: Arc<AtomicBool>,
 	/// Sender for update messages
 	status_tx: Mutex<Option<Sender<StatusMessage>>>,
-	/// Holds all update and status messages returned by the 
+	/// Holds all update and status messages returned by the
 	/// updater process
 	updater_messages: Arc<Mutex<Vec<StatusMessage>>>,
 }
@@ -155,9 +155,7 @@ where
 	///
 	/// ```
 
-	pub fn new(
-		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-	) -> Self {
+	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>) -> Self {
 		let (tx, rx) = channel();
 
 		let updater_running = Arc::new(AtomicBool::new(false));
@@ -177,7 +175,6 @@ where
 			updater_running,
 			status_tx: Mutex::new(Some(tx)),
 			updater_messages,
-
 		}
 	}
 
