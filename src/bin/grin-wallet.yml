@@ -176,6 +176,15 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
+        - nopost:
+            help: Do not post the transaction.
+            short: n
+            long: nopost
+        - dest:
+            help: Specify file to save the finalized slate.
+            short: d
+            long: dest
+            takes_value: true
   - invoice:
       about: Initialize an invoice transaction.
       args:

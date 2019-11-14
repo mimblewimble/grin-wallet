@@ -406,6 +406,8 @@ where
 pub struct FinalizeArgs {
 	pub input: String,
 	pub fluff: bool,
+	pub nopost: bool,
+	pub dest: Option<String>,
 }
 
 pub fn finalize<'a, L, C, K>(
@@ -462,19 +464,27 @@ where
 		})?;
 	}
 
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
-		let result = api.post_tx(m, &slate.tx, args.fluff);
-		match result {
-			Ok(_) => {
-				info!("Transaction sent successfully, check the wallet again for confirmation.");
-				Ok(())
+	if !args.nopost {
+		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+			let result = api.post_tx(m, &slate.tx, args.fluff);
+			match result {
+				Ok(_) => {
+					info!(
+						"Transaction sent successfully, check the wallet again for confirmation."
+					);
+					Ok(())
+				}
+				Err(e) => {
+					error!("Tx not sent: {}", e);
+					Err(e)
+				}
 			}
-			Err(e) => {
-				error!("Tx not sent: {}", e);
-				Err(e)
-			}
-		}
-	})?;
+		})?;
+	}
+
+	if args.dest.is_some() {
+		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate)?;
+	}
 
 	Ok(())
 }
