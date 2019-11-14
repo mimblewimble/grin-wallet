@@ -1356,7 +1356,6 @@ pub fn run_doctest_owner(
 	use grin_wallet_util::grin_util as util;
 
 	use std::fs;
-	use std::sync::mpsc::channel;
 	use std::thread;
 
 	util::init_test_logger();
@@ -1525,8 +1524,7 @@ pub fn run_doctest_owner(
 		);
 	}
 
-	let (tx, rx) = channel();
-	let mut api_owner = Owner::new(wallet1, Some(tx), Some(rx));
+	let mut api_owner = Owner::new(wallet1);
 	api_owner.doctest_mode = true;
 	let res = if use_token {
 		let owner_api = &api_owner as &dyn OwnerRpcS;

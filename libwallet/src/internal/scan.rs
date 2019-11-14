@@ -167,7 +167,7 @@ where
 	loop {
 		let (highest_index, last_retrieved_index, outputs) =
 			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
-		let perc_complete = cmp::min((last_retrieved_index / highest_index) as u8 * 100, 99);
+		let perc_complete = cmp::min(((last_retrieved_index as f64 / highest_index as f64) * 100.0) as u8, 99);
 
 		let msg = format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",

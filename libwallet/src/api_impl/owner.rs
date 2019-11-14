@@ -672,7 +672,6 @@ where
 	if last_scanned_block.height == 0 {
 		let msg = format!("This wallet's contents has not been initialized with a full chain scan, performing scan now.
 		This operation may take a while for the first scan, but should be much quicker once the initial scan is done.");
-		warn!("{}", msg);
 		if let Some(ref s) = status_send_channel {
 			let _ = s.send(StatusMessage::FullScanWarn(msg));
 		}

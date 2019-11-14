@@ -97,9 +97,8 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let (tx, rx) = channel();
-	let owner_api = api::Owner::new(wallet1, Some(tx), Some(rx));
-	owner_api.start_updater(mask1_i, Duration::from_secs(10))?;
+	let owner_api = api::Owner::new(wallet1);
+	owner_api.start_updater(mask1, Duration::from_secs(10))?;
 
 	// let logging finish
 	thread::sleep(Duration::from_secs(60));

@@ -30,9 +30,9 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, StopState, ZeroingString};
+use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, ZeroingString};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -69,6 +69,9 @@ where
 	pub updater_running: Arc<AtomicBool>,
 	/// Sender for update messages
 	status_tx: Mutex<Option<Sender<StatusMessage>>>,
+	/// Holds all update and status messages returned by the 
+	/// updater process
+	updater_messages: Arc<Mutex<Vec<StatusMessage>>>,
 }
 
 impl<L, C, K> Owner<L, C, K>
@@ -154,18 +157,17 @@ where
 
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-		status_tx: Option<Sender<StatusMessage>>,
-		status_log_rx: Option<Receiver<StatusMessage>>, // if provided, just set up a simple logger with the rx queue
 	) -> Self {
+		let (tx, rx) = channel();
+
 		let updater_running = Arc::new(AtomicBool::new(false));
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
 			updater_running.clone(),
 		)));
 
-		if let Some(s) = status_log_rx {
-			let _ = start_updater_log_thread(s);
-		}
+		let updater_messages = Arc::new(Mutex::new(vec![]));
+		let _ = start_updater_log_thread(rx, updater_messages.clone());
 
 		Owner {
 			wallet_inst,
@@ -173,7 +175,9 @@ where
 			shared_key: Arc::new(Mutex::new(None)),
 			updater,
 			updater_running,
-			status_tx: Mutex::new(status_tx),
+			status_tx: Mutex::new(Some(tx)),
+			updater_messages,
+
 		}
 	}
 
@@ -1726,13 +1730,17 @@ where
 
 	pub fn start_updater(
 		&self,
-		keychain_mask: Option<SecretKey>,
+		keychain_mask: Option<&SecretKey>,
 		frequency: Duration,
 	) -> Result<(), Error> {
 		let updater_inner = self.updater.clone();
 		let tx_inner = {
 			let t = self.status_tx.lock();
 			t.clone()
+		};
+		let keychain_mask = match keychain_mask {
+			Some(m) => Some(m.clone()),
+			None => None,
 		};
 		let _ = thread::Builder::new()
 			.name("wallet-updater".to_string())
@@ -1748,6 +1756,11 @@ where
 	pub fn stop_updater(&self) -> Result<(), Error> {
 		self.updater_running.store(false, Ordering::Relaxed);
 		Ok(())
+	}
+
+	pub fn get_updater_messages(&self, count: usize) -> Result<Vec<StatusMessage>, Error> {
+		let mut q = self.updater_messages.lock();
+		Ok(q.split_off(count))
 	}
 }
 

@@ -31,7 +31,6 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::mpsc::channel;
 use std::sync::Arc;
 
 use crate::impls::tor::config as tor_config;
@@ -133,8 +132,7 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let (tx, rx) = channel();
-	f(&mut Owner::new(wallet, Some(tx), Some(rx)), keychain_mask)?;
+	f(&mut Owner::new(wallet), keychain_mask)?;
 	Ok(())
 }
 
@@ -323,8 +321,7 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let (tx, rx) = channel();
-		let api = Owner::new(self.wallet.clone(), Some(tx), Some(rx));
+		let api = Owner::new(self.wallet.clone());
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),
@@ -598,8 +595,7 @@ where
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		let (tx, rx) = channel();
-		let owner_api = Arc::new(Owner::new(wallet.clone(), Some(tx), Some(rx)));
+		let owner_api = Arc::new(Owner::new(wallet.clone()));
 		OwnerAPIHandlerV3 {
 			wallet,
 			owner_api,
