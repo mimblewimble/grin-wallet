@@ -730,6 +730,32 @@ where
 	Ok(())
 }
 
+/// Post
+pub struct PostArgs {
+	pub input: String,
+	pub fluff: bool,
+}
+
+pub fn post<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	args: PostArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
+	let slate = PathToSlate((&args.input).into()).get_tx()?;
+
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		api.post_tx(m, &slate.tx, args.fluff)?;
+		info!("Posted transaction");
+		return Ok(());
+	})?;
+	Ok(())
+}
+
 /// Repost
 pub struct RepostArgs {
 	pub id: u32,
