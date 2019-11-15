@@ -30,13 +30,23 @@ use crate::{WalletInst, WalletLCProvider};
 
 const MESSAGE_QUEUE_MAX_LEN: usize = 10_000;
 
+/// Update status messages which can be returned to listening clients
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum StatusMessage {
+	/// Wallet is performing a regular update, matching the UTXO set against
+	/// current wallet outputs
 	UpdatingOutputs(String),
+	/// Wallet is updating transactions, potentially retrieving transactions
+	/// by kernel if needed
 	UpdatingTransactions(String),
+	/// Warning that the wallet is about to perform a full UTXO scan
 	FullScanWarn(String),
+	/// Status and percentage complete messages returned during the
+	/// scanning process
 	Scanning(String, u8),
+	/// UTXO scanning is complete
 	ScanningComplete(String),
+	/// Warning of issues that may have occured during an update
 	UpdateWarning(String),
 }
 
@@ -75,6 +85,7 @@ pub fn start_updater_log_thread(
 	Ok(())
 }
 
+/// Handles and launches a background update thread
 pub struct Updater<'a, L, C, K>
 where
 	L: WalletLCProvider<'a, C, K>,

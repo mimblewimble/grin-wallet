@@ -1673,9 +1673,91 @@ pub trait OwnerRpcS {
 	*/
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
 
+	/**
+	Networked version of [Owner::start_updated](struct.Owner.html#method.start_updater).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "start_updater",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"frequency": 30000
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
 	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), ErrorKind>;
 
+	/**
+	Networked version of [Owner::stop_updater](struct.Owner.html#method.stop_updater).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "stop_updater",
+		"params": null,
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
 	fn stop_updater(&self) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::get_updater_messages](struct.Owner.html#method.get_updater_messages).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_updater_messages",
+		"params": {
+			"count": 1
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": []
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
 
 	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind>;
 }
