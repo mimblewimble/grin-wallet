@@ -332,8 +332,8 @@ where
 	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain output information that may be out-of-date (from the last time
-	/// the wallet's output set was refreshed against the node). 
-	/// Note this setting is ignored if the updater process is running via a call to 
+	/// the wallet's output set was refreshed against the node).
+	/// Note this setting is ignored if the updater process is running via a call to
 	/// [`start_updater`](struct.Owner.html#method.start_updater)
 	/// * `tx_id` - If `Some(i)`, only return the outputs associated with
 	/// the transaction log entry of id `i`.
@@ -402,7 +402,7 @@ where
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain transaction information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
-	/// Note this setting is ignored if the updater process is running via a call to 
+	/// Note this setting is ignored if the updater process is running via a call to
 	/// [`start_updater`](struct.Owner.html#method.start_updater)
 	/// * `tx_id` - If `Some(i)`, only return the transactions associated with
 	/// the transaction log entry of id `i`.
@@ -482,7 +482,7 @@ where
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain transaction information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
-	/// Note this setting is ignored if the updater process is running via a call to 
+	/// Note this setting is ignored if the updater process is running via a call to
 	/// [`start_updater`](struct.Owner.html#method.start_updater)
 	/// * `minimum_confirmations` - The minimum number of confirmations an output
 	/// should have before it's included in the 'amount_currently_spendable' total
@@ -1755,7 +1755,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
 	/// * `frequency`: The frequency at which to call the update process. Note this is
-	/// time elapsed since the last successful update process. If calling via the JSON-RPC 
+	/// time elapsed since the last successful update process. If calling via the JSON-RPC
 	/// api, this represents milliseconds.
 	///
 	/// # Returns
