@@ -406,6 +406,8 @@ where
 pub struct FinalizeArgs {
 	pub input: String,
 	pub fluff: bool,
+	pub nopost: bool,
+	pub dest: Option<String>,
 }
 
 pub fn finalize<'a, L, C, K>(
@@ -462,19 +464,27 @@ where
 		})?;
 	}
 
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
-		let result = api.post_tx(m, &slate.tx, args.fluff);
-		match result {
-			Ok(_) => {
-				info!("Transaction sent successfully, check the wallet again for confirmation.");
-				Ok(())
+	if !args.nopost {
+		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+			let result = api.post_tx(m, &slate.tx, args.fluff);
+			match result {
+				Ok(_) => {
+					info!(
+						"Transaction sent successfully, check the wallet again for confirmation."
+					);
+					Ok(())
+				}
+				Err(e) => {
+					error!("Tx not sent: {}", e);
+					Err(e)
+				}
 			}
-			Err(e) => {
-				error!("Tx not sent: {}", e);
-				Err(e)
-			}
-		}
-	})?;
+		})?;
+	}
+
+	if args.dest.is_some() {
+		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate)?;
+	}
 
 	Ok(())
 }
@@ -716,6 +726,32 @@ where
 		}
 
 		Ok(())
+	})?;
+	Ok(())
+}
+
+/// Post
+pub struct PostArgs {
+	pub input: String,
+	pub fluff: bool,
+}
+
+pub fn post<'a, L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	args: PostArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
+	let slate = PathToSlate((&args.input).into()).get_tx()?;
+
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		api.post_tx(m, &slate.tx, args.fluff)?;
+		info!("Posted transaction");
+		return Ok(());
 	})?;
 	Ok(())
 }

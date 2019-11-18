@@ -559,15 +559,24 @@ pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveA
 
 pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, ParseError> {
 	let fluff = args.is_present("fluff");
+	let nopost = args.is_present("nopost");
 	let tx_file = parse_required(args, "input")?;
 
 	if !Path::new(&tx_file).is_file() {
 		let msg = format!("File {} not found.", tx_file);
 		return Err(ParseError::ArgumentError(msg));
 	}
+
+	let dest_file = match args.is_present("dest") {
+		true => Some(args.value_of("dest").unwrap().to_owned()),
+		false => None,
+	};
+
 	Ok(command::FinalizeArgs {
 		input: tx_file.to_owned(),
 		fluff: fluff,
+		nopost: nopost,
+		dest: dest_file.to_owned(),
 	})
 }
 
@@ -735,6 +744,16 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 	Ok(command::TxsArgs {
 		id: tx_id,
 		tx_slate_id: tx_slate_id,
+	})
+}
+
+pub fn parse_post_args(args: &ArgMatches) -> Result<command::PostArgs, ParseError> {
+	let tx_file = parse_required(args, "input")?;
+	let fluff = args.is_present("fluff");
+
+	Ok(command::PostArgs {
+		input: tx_file.to_owned(),
+		fluff: fluff,
 	})
 }
 
@@ -1011,6 +1030,10 @@ where
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
+		}
+		("post", Some(args)) => {
+			let a = arg_parse!(parse_post_args(&args));
+			command::post(wallet, km, a)
 		}
 		("repost", Some(args)) => {
 			let a = arg_parse!(parse_repost_args(&args));

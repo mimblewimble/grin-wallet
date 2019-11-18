@@ -176,6 +176,15 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
+        - nopost:
+            help: Do not post the transaction.
+            short: n
+            long: nopost
+        - dest:
+            help: Specify file to save the finalized slate.
+            short: d
+            long: dest
+            takes_value: true
   - invoice:
       about: Initialize an invoice transaction.
       args:
@@ -259,6 +268,18 @@ subcommands:
             short: t
             long: txid
             takes_value: true
+  - post:
+      about: Posts a finalized transaction to the chain
+      args:
+        - input:
+            help: File name of the transaction to post
+            short: i
+            long: input
+            takes_value: true
+        - fluff:
+            help: Fluff the transaction (ignore Dandelion relay protocol)
+            short: f
+            long: fluff
   - repost:
       about: Reposts a stored, completed but unconfirmed transaction to the chain, or dumps it to a file
       args:
