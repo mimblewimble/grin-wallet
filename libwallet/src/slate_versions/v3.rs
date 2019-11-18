@@ -50,10 +50,22 @@ pub struct SlateV3 {
 	/// Lock height
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
+	/// TTL, the block height at which wallets
+	/// should refuse to process the transaction and unlock all
+	/// associated outputs
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub ttl_cutoff_height: u64,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
 	pub participant_data: Vec<ParticipantDataV3>,
+	/// Payment Proof
+	#[serde(default = "default_payment_none")]
+	pub payment_proof: Option<PaymentInfoV3>,
+}
+
+fn default_payment_none() -> Option<PaymentInfoV3> {
+	None
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -91,10 +103,10 @@ pub struct ParticipantDataV3 {
 pub struct PaymentInfoV3 {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
-	pub receiver_address: DalekPublicKey,
-	#[serde(with = "secp_ser::sig_serde")]
-	pub receiver_signature: Signature,
+	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
+	pub receiver_address: Option<DalekPublicKey>,
+	#[serde(with = "secp_ser::option_sig_serde")]
+	pub receiver_signature: Option<Signature>,
 }
 
 /// A transaction

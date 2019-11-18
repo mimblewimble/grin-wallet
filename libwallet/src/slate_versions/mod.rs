@@ -21,7 +21,7 @@ use crate::slate::Slate;
 use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::types::CbData;
 
-mod ser;
+pub mod ser;
 
 #[allow(missing_docs)]
 pub mod v3;

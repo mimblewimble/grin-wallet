@@ -30,6 +30,8 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{self, secp, RwLock};
+use ed25519_dalek::PublicKey as DalekPublicKey;
+use crate::slate_versions::ser as dalek_ser;
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
@@ -40,11 +42,21 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v3::{
-	CoinbaseV3, InputV3, OutputV3, ParticipantDataV3, SlateV3, TransactionBodyV3, TransactionV3,
+	CoinbaseV3, InputV3, OutputV3, ParticipantDataV3, PaymentInfoV3, SlateV3, TransactionBodyV3, TransactionV3,
 	TxKernelV3, VersionCompatInfoV3,
 };
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::types::CbData;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentInfo {
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub sender_address: DalekPublicKey,
+	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
+	pub receiver_address: Option<DalekPublicKey>,
+	#[serde(with = "secp_ser::option_sig_serde")]
+	pub receiver_signature: Option<Signature>,
+}
 
 /// Public data for each participant in the slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -174,9 +186,20 @@ pub struct Slate {
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub ttl_cutoff_height: u64,
+	/// Participant data, each participant in the transaction will
+	/// insert their public data here. For now, 0 is sender and 1
+	/// is receiver, though this will change for multi-party
 	pub participant_data: Vec<ParticipantData>,
+	/// Payment Proof
+	#[serde(default = "default_payment_none")]
+	pub payment_proof: Option<PaymentInfo>,
 }
 
+fn default_payment_none() -> Option<PaymentInfo> {
+	None
+}
 /// Versioning and compatibility info about this slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VersionCompatInfo {
@@ -230,12 +253,14 @@ impl Slate {
 			fee: 0,
 			height: 0,
 			lock_height: 0,
+			ttl_cutoff_height: 0,
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
 				orig_version: CURRENT_SLATE_VERSION,
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
+			payment_proof: None,
 		}
 	}
 
@@ -756,11 +781,17 @@ impl From<Slate> for SlateV3 {
 			fee,
 			height,
 			lock_height,
+			ttl_cutoff_height,
 			participant_data,
 			version_info,
+			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(&version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV3::from(&p)),
+			None => None,
+		};
 		let tx = TransactionV3::from(tx);
 		SlateV3 {
 			num_participants,
@@ -770,8 +801,10 @@ impl From<Slate> for SlateV3 {
 			fee,
 			height,
 			lock_height,
+			ttl_cutoff_height,
 			participant_data,
 			version_info,
+			payment_proof,
 		}
 	}
 }
@@ -786,8 +819,10 @@ impl From<&Slate> for SlateV3 {
 			fee,
 			height,
 			lock_height,
+			ttl_cutoff_height,
 			participant_data,
 			version_info,
+			payment_proof,
 		} = slate;
 		let num_participants = *num_participants;
 		let id = *id;
@@ -796,8 +831,13 @@ impl From<&Slate> for SlateV3 {
 		let fee = *fee;
 		let height = *height;
 		let lock_height = *lock_height;
+		let ttl_cutoff_height = *ttl_cutoff_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV3::from(p)),
+			None => None,
+		};
 		SlateV3 {
 			num_participants,
 			id,
@@ -806,8 +846,10 @@ impl From<&Slate> for SlateV3 {
 			fee,
 			height,
 			lock_height,
+			ttl_cutoff_height,
 			participant_data,
 			version_info,
+			payment_proof,
 		}
 	}
 }
@@ -853,6 +895,24 @@ impl From<&VersionCompatInfo> for VersionCompatInfoV3 {
 			version,
 			orig_version,
 			block_header_version,
+		}
+	}
+}
+
+impl From<&PaymentInfo> for PaymentInfoV3 {
+	fn from(data: &PaymentInfo) -> PaymentInfoV3 {
+		let PaymentInfo {
+			sender_address,
+			receiver_address,
+			receiver_signature,
+		} = data;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let receiver_signature = *receiver_signature;
+		PaymentInfoV3 {
+			sender_address,
+			receiver_address,
+			receiver_signature,
 		}
 	}
 }
@@ -945,11 +1005,17 @@ impl From<SlateV3> for Slate {
 			fee,
 			height,
 			lock_height,
+			ttl_cutoff_height,
 			participant_data,
 			version_info,
+			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
 		let version_info = VersionCompatInfo::from(&version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfo::from(&p)),
+			None => None,
+		};
 		let tx = Transaction::from(tx);
 		Slate {
 			num_participants,
@@ -959,8 +1025,10 @@ impl From<SlateV3> for Slate {
 			fee,
 			height,
 			lock_height,
+			ttl_cutoff_height,
 			participant_data,
 			version_info,
+			payment_proof,
 		}
 	}
 }
@@ -1006,6 +1074,24 @@ impl From<&VersionCompatInfoV3> for VersionCompatInfo {
 			version,
 			orig_version,
 			block_header_version,
+		}
+	}
+}
+
+impl From<&PaymentInfoV3> for PaymentInfo {
+	fn from(data: &PaymentInfoV3) -> PaymentInfo {
+		let PaymentInfoV3 {
+			sender_address,
+			receiver_address,
+			receiver_signature,
+		} = data;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let receiver_signature = *receiver_signature;
+		PaymentInfo {
+			sender_address,
+			receiver_address,
+			receiver_signature,
 		}
 	}
 }
