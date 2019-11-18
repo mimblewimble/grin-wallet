@@ -104,7 +104,7 @@ subcommands:
             possible_values:
               - all
               - smallest
-            default_value: all
+            default_value: smallest
             takes_value: true
         - estimate_selection_strategies:
             help: Estimates all possible Coin/Output selection strategies.

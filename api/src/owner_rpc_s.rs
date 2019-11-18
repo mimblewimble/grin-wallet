@@ -22,14 +22,15 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate_versions::v2::TransactionV2;
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, VersionedSlate, WalletInfo,
-	WalletLCProvider,
+	OutputCommitMapping, Slate, SlateVersion, StatusMessage, TxLogEntry, VersionedSlate,
+	WalletInfo, WalletLCProvider,
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
 use crate::{ECDHPubkey, Owner, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
+use std::time::Duration;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
@@ -1671,13 +1672,101 @@ pub trait OwnerRpcS {
 	```
 	*/
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::start_updated](struct.Owner.html#method.start_updater).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "start_updater",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"frequency": 30000
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::stop_updater](struct.Owner.html#method.stop_updater).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "stop_updater",
+		"params": null,
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+	fn stop_updater(&self) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::get_updater_messages](struct.Owner.html#method.get_updater_messages).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_updater_messages",
+		"params": {
+			"count": 1
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": []
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind>;
 }
 
-impl<'a, L, C, K> OwnerRpcS for Owner<'a, L, C, K>
+impl<L, C, K> OwnerRpcS for Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, ErrorKind> {
 		Owner::accounts(self, (&token.keychain_mask).as_ref()).map_err(|e| e.kind())
@@ -1957,5 +2046,22 @@ where
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
 		let n = name.as_ref().map(|s| s.as_str());
 		Owner::delete_wallet(self, n).map_err(|e| e.kind())
+	}
+
+	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), ErrorKind> {
+		Owner::start_updater(
+			self,
+			(&token.keychain_mask).as_ref(),
+			Duration::from_millis(frequency as u64),
+		)
+		.map_err(|e| e.kind())
+	}
+
+	fn stop_updater(&self) -> Result<(), ErrorKind> {
+		Owner::stop_updater(self).map_err(|e| e.kind())
+	}
+
+	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind> {
+		Owner::get_updater_messages(self, count as usize).map_err(|e| e.kind())
 	}
 }

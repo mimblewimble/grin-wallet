@@ -13,6 +13,7 @@
 // limitations under the License.
 //! Functions to restore a wallet's outputs from just the master seed
 
+use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
@@ -24,7 +25,9 @@ use crate::grin_util::Mutex;
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{wallet_lock, Error, OutputCommitMapping};
+use std::cmp;
 use std::collections::HashMap;
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// Utility struct for return values from below
@@ -60,20 +63,23 @@ struct RestoredTxStats {
 	pub num_outputs: usize,
 }
 
-fn identify_utxo_outputs<'a, K, F>(
+fn identify_utxo_outputs<'a, K>(
 	keychain: &K,
 	outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
-	status_cb: &F,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	percentage_complete: u8,
 ) -> Result<Vec<OutputResult>, Error>
 where
 	K: Keychain + 'a,
-	F: Fn(&str),
 {
 	let mut wallet_outputs: Vec<OutputResult> = Vec::new();
-	status_cb(&format!(
+	let msg = format!(
 		"Scanning {} outputs in the current Grin utxo set",
 		outputs.len(),
-	));
+	);
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::Scanning(msg, percentage_complete));
+	}
 
 	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
 	let builder = proof::ProofBuilder::new(keychain);
@@ -113,13 +119,20 @@ where
 			*height
 		};
 
-		status_cb(&format!(
+		let msg = format!(
 			"Output found: {:?}, amount: {:?}, key_id: {:?}, mmr_index: {},",
 			commit, amount, key_id, mmr_index,
-		));
+		);
+
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::Scanning(msg, percentage_complete));
+		}
 
 		if switch != SwitchCommitmentType::Regular {
-			status_cb(&format!("Unexpected switch commitment type {:?}", switch))
+			let msg = format!("Unexpected switch commitment type {:?}", switch);
+			if let Some(ref s) = status_send_channel {
+				let _ = s.send(StatusMessage::UpdateWarning(msg));
+			}
 		}
 
 		wallet_outputs.push(OutputResult {
@@ -136,17 +149,16 @@ where
 	Ok(wallet_outputs)
 }
 
-fn collect_chain_outputs<'a, C, K, F>(
+fn collect_chain_outputs<'a, C, K>(
 	keychain: &K,
 	client: C,
 	start_index: u64,
 	end_index: Option<u64>,
-	status_cb: &F,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 ) -> Result<(Vec<OutputResult>, u64), Error>
 where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
-	F: Fn(&str),
 {
 	let batch_size = 1000;
 	let mut start_index = start_index;
@@ -155,17 +167,26 @@ where
 	loop {
 		let (highest_index, last_retrieved_index, outputs) =
 			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
-		status_cb(&format!(
+		let perc_complete = cmp::min(
+			((last_retrieved_index as f64 / highest_index as f64) * 100.0) as u8,
+			99,
+		);
+
+		let msg = format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
 			outputs.len(),
 			highest_index,
 			last_retrieved_index,
-		));
+		);
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
+		}
 
 		result_vec.append(&mut identify_utxo_outputs(
 			keychain,
 			outputs.clone(),
-			status_cb,
+			status_send_channel,
+			perc_complete as u8,
 		)?);
 
 		if highest_index <= last_retrieved_index {
@@ -194,8 +215,6 @@ where
 
 	let commit = w.calc_commit_for_cache(keychain_mask, output.value, &output.key_id)?;
 	let mut batch = w.batch(keychain_mask)?;
-
-	error!("RESTORING OUTPUT: {:?}", output);
 
 	let parent_key_id = output.key_id.parent_path();
 	if !found_parents.contains_key(&parent_key_id) {
@@ -311,22 +330,23 @@ where
 /// Check / repair wallet contents by scanning against chain
 /// assume wallet contents have been freshly updated with contents
 /// of latest block
-pub fn scan<'a, L, C, K, F>(
+pub fn scan<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
 	start_height: u64,
 	end_height: u64,
-	status_cb: F,
+	status_send_channel: &Option<Sender<StatusMessage>>,
 ) -> Result<ScannedBlockInfo, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
-	F: Fn(&str),
 {
 	// First, get a definitive list of outputs we own from the chain
-	status_cb("Starting UTXO scan");
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::Scanning("Starting UTXO scan".to_owned(), 0));
+	}
 	let (client, keychain) = {
 		wallet_lock!(wallet_inst, w);
 		(w.w2n_client().clone(), w.keychain(keychain_mask)?.clone())
@@ -340,12 +360,16 @@ where
 		client,
 		pmmr_range.0,
 		Some(pmmr_range.1),
-		&status_cb,
+		status_send_channel,
 	)?;
-	status_cb(&format!(
+	let msg = format!(
 		"Identified {} wallet_outputs as belonging to this wallet",
 		chain_outs.len(),
-	));
+	);
+
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::Scanning(msg, 99));
+	}
 
 	// Now, get all outputs owned by this wallet (regardless of account)
 	let wallet_outputs = {
@@ -376,11 +400,14 @@ where
 	// mark problem spent outputs as unspent (confirmed against a short-lived fork, for example)
 	for m in accidental_spend_outs.into_iter() {
 		let mut o = m.0;
-		status_cb(&format!(
+		let msg = format!(
 			"Output for {} with ID {} ({:?}) marked as spent but exists in UTXO set. \
 			 Marking unspent and cancelling any associated transaction log entries.",
 			o.value, o.key_id, m.1.commit,
-		));
+		);
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::Scanning(msg, 99));
+		}
 		o.status = OutputStatus::Unspent;
 		// any transactions associated with this should be cancelled
 		cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
@@ -394,11 +421,14 @@ where
 
 	// Restore missing outputs, adding transaction for it back to the log
 	for m in missing_outs.into_iter() {
-		status_cb(&format!(
+		let msg = format!(
 				"Confirmed output for {} with ID {} ({:?}, index {}) exists in UTXO set but not in wallet. \
 				 Restoring.",
 				m.value, m.key_id, m.commit, m.mmr_index
-			));
+			);
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::Scanning(msg, 99));
+		}
 		restore_missing_output(
 			wallet_inst.clone(),
 			keychain_mask,
@@ -412,11 +442,14 @@ where
 		// Unlock locked outputs
 		for m in locked_outs.into_iter() {
 			let mut o = m.0;
-			status_cb(&format!(
+			let msg = format!(
 				"Confirmed output for {} with ID {} ({:?}) exists in UTXO set and is locked. \
 				 Unlocking and cancelling associated transaction log entries.",
 				o.value, o.key_id, m.1.commit,
-			));
+			);
+			if let Some(ref s) = status_send_channel {
+				let _ = s.send(StatusMessage::Scanning(msg, 99));
+			}
 			o.status = OutputStatus::Unspent;
 			cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
 			wallet_lock!(wallet_inst, w);
@@ -432,11 +465,14 @@ where
 		// Delete unconfirmed outputs
 		for m in unconfirmed_outs.into_iter() {
 			let o = m.output.clone();
-			status_cb(&format!(
+			let msg = format!(
 				"Unconfirmed output for {} with ID {} ({:?}) not in UTXO set. \
 				 Deleting and cancelling associated transaction log entries.",
 				o.value, o.key_id, m.commit,
-			));
+			);
+			if let Some(ref s) = status_send_channel {
+				let _ = s.send(StatusMessage::Scanning(msg, 99));
+			}
 			cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
 			wallet_lock!(wallet_inst, w);
 			let mut batch = w.batch(keychain_mask)?;
@@ -454,7 +490,10 @@ where
 		// Only restore paths that don't exist
 		if !accounts.contains(path) {
 			let label = format!("{}_{}", label_base, acct_index);
-			status_cb(&format!("Setting account {} at path {}", label, path));
+			let msg = format!("Setting account {} at path {}", label, path);
+			if let Some(ref s) = status_send_channel {
+				let _ = s.send(StatusMessage::Scanning(msg, 99));
+			}
 			keys::set_acct_path(&mut **w, keychain_mask, &label, path)?;
 			acct_index += 1;
 		}
@@ -465,6 +504,12 @@ where
 			batch.save_child_index(path, max_child_index + 1)?;
 			batch.commit()?;
 		}
+	}
+
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::ScanningComplete(
+			"Scanning Complete".to_owned(),
+		));
 	}
 
 	Ok(ScannedBlockInfo {

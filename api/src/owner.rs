@@ -22,7 +22,8 @@ use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::create_sender;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::api_impl::owner;
+use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
+use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
@@ -30,7 +31,11 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, ZeroingString};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -46,23 +51,32 @@ use std::sync::Arc;
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
 
-pub struct Owner<'a, L, C, K>
+pub struct Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	/// contain all methods to manage the wallet
-	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
+	/// Update thread
+	updater: Arc<Mutex<owner_updater::Updater<'static, L, C, K>>>,
+	/// Stop state for update thread
+	pub updater_running: Arc<AtomicBool>,
+	/// Sender for update messages
+	status_tx: Mutex<Option<Sender<StatusMessage>>>,
+	/// Holds all update and status messages returned by the
+	/// updater process
+	updater_messages: Arc<Mutex<Vec<StatusMessage>>>,
 }
 
-impl<'a, L, C, K> Owner<'a, L, C, K>
+impl<L, C, K> Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
+	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient,
 	K: Keychain,
 {
@@ -141,11 +155,26 @@ where
 	///
 	/// ```
 
-	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>) -> Self {
+	pub fn new(wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>) -> Self {
+		let (tx, rx) = channel();
+
+		let updater_running = Arc::new(AtomicBool::new(false));
+		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
+			wallet_inst.clone(),
+			updater_running.clone(),
+		)));
+
+		let updater_messages = Arc::new(Mutex::new(vec![]));
+		let _ = start_updater_log_thread(rx, updater_messages.clone());
+
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
 			shared_key: Arc::new(Mutex::new(None)),
+			updater,
+			updater_running,
+			status_tx: Mutex::new(Some(tx)),
+			updater_messages,
 		}
 	}
 
@@ -304,6 +333,8 @@ where
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain output information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
+	/// Note this setting is ignored if the updater process is running via a call to
+	/// [`start_updater`](struct.Owner.html#method.start_updater)
 	/// * `tx_id` - If `Some(i)`, only return the outputs associated with
 	/// the transaction log entry of id `i`.
 	///
@@ -342,9 +373,18 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
 		owner::retrieve_outputs(
 			self.wallet_inst.clone(),
 			keychain_mask,
+			&tx,
 			include_spent,
 			refresh_from_node,
 			tx_id,
@@ -362,6 +402,8 @@ where
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain transaction information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
+	/// Note this setting is ignored if the updater process is running via a call to
+	/// [`start_updater`](struct.Owner.html#method.start_updater)
 	/// * `tx_id` - If `Some(i)`, only return the transactions associated with
 	/// the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
@@ -400,9 +442,18 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
 		let mut res = owner::retrieve_txs(
 			self.wallet_inst.clone(),
 			keychain_mask,
+			&tx,
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
@@ -431,6 +482,8 @@ where
 	/// provided during wallet instantiation). If `false`, the results will
 	/// contain transaction information that may be out-of-date (from the last time
 	/// the wallet's output set was refreshed against the node).
+	/// Note this setting is ignored if the updater process is running via a call to
+	/// [`start_updater`](struct.Owner.html#method.start_updater)
 	/// * `minimum_confirmations` - The minimum number of confirmations an output
 	/// should have before it's included in the 'amount_currently_spendable' total
 	///
@@ -464,9 +517,18 @@ where
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
 		owner::retrieve_summary_info(
 			self.wallet_inst.clone(),
 			keychain_mask,
+			&tx,
 			refresh_from_node,
 			minimum_confirmations,
 		)
@@ -531,7 +593,7 @@ where
 	/// 	minimum_confirmations: 2,
 	/// 	max_outputs: 500,
 	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
+	/// 	selection_strategy_is_use_all: false,
 	/// 	message: Some("Have some Grins. Love, Yeastplume".to_owned()),
 	/// 	..Default::default()
 	/// };
@@ -680,7 +742,7 @@ where
 	///		minimum_confirmations: 2,
 	///		max_outputs: 500,
 	///		num_change_outputs: 1,
-	///		selection_strategy_is_use_all: true,
+	///		selection_strategy_is_use_all: false,
 	///		..Default::default()
 	///	};
 	///
@@ -741,7 +803,7 @@ where
 	/// 	minimum_confirmations: 10,
 	/// 	max_outputs: 500,
 	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
+	/// 	selection_strategy_is_use_all: false,
 	/// 	message: Some("Remember to lock this when we're happy this is sent".to_owned()),
 	/// 	..Default::default()
 	/// };
@@ -805,7 +867,7 @@ where
 	/// 	minimum_confirmations: 10,
 	/// 	max_outputs: 500,
 	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
+	/// 	selection_strategy_is_use_all: false,
 	/// 	message: Some("Finalize this tx now".to_owned()),
 	/// 	..Default::default()
 	/// };
@@ -865,7 +927,7 @@ where
 	/// 	minimum_confirmations: 10,
 	/// 	max_outputs: 500,
 	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
+	/// 	selection_strategy_is_use_all: false,
 	/// 	message: Some("Post this tx".to_owned()),
 	/// 	..Default::default()
 	/// };
@@ -937,7 +999,7 @@ where
 	/// 	minimum_confirmations: 10,
 	/// 	max_outputs: 500,
 	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
+	/// 	selection_strategy_is_use_all: false,
 	/// 	message: Some("Cancel this tx".to_owned()),
 	/// 	..Default::default()
 	/// };
@@ -964,7 +1026,17 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(), Error> {
-		owner::cancel_tx(self.wallet_inst.clone(), keychain_mask, tx_id, tx_slate_id)
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		owner::cancel_tx(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			tx_id,
+			tx_slate_id,
+		)
 	}
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
@@ -1043,7 +1115,7 @@ where
 	/// 	minimum_confirmations: 10,
 	/// 	max_outputs: 500,
 	/// 	num_change_outputs: 1,
-	/// 	selection_strategy_is_use_all: true,
+	/// 	selection_strategy_is_use_all: false,
 	/// 	message: Some("Just verify messages".to_owned()),
 	/// 	..Default::default()
 	/// };
@@ -1140,6 +1212,7 @@ where
 			keychain_mask,
 			start_height,
 			delete_unconfirmed,
+			&None,
 		)
 	}
 
@@ -1656,6 +1729,162 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
 		lc.delete_wallet(name)
+	}
+
+	/// Starts a background wallet update thread, which performs the wallet update process
+	/// automatically at the frequency specified.
+	///
+	/// The updater process is as follows:
+	///
+	/// * Reconcile the wallet outputs against the node's current UTXO set, confirming
+	/// transactions if needs be.
+	/// * Look up transactions by kernel in cases where it's necessary (for instance, when
+	/// there are no change outputs for a transaction and transaction status can't be
+	/// inferred from the output state.
+	/// * Incrementally perform a scan of the UTXO set, correcting outputs and transactions
+	/// where their local state differs from what's on-chain. The wallet stores the last
+	/// position scanned, and will scan back 100 blocks worth of UTXOs on each update, to
+	/// correct any differences due to forks or otherwise.
+	///
+	/// Note that an update process can take a long time, particularly when the entire
+	/// UTXO set is being scanned for correctness. The wallet status can be determined by
+	/// calling the [`get_updater_messages`](struct.Owner.html#method.get_updater_messages).
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `frequency`: The frequency at which to call the update process. Note this is
+	/// time elapsed since the last successful update process. If calling via the JSON-RPC
+	/// api, this represents milliseconds.
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
+	///
+	/// if let Ok(_) = res {
+	///   // ...
+	/// }
+	/// ```
+
+	pub fn start_updater(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		frequency: Duration,
+	) -> Result<(), Error> {
+		let updater_inner = self.updater.clone();
+		let tx_inner = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let keychain_mask = match keychain_mask {
+			Some(m) => Some(m.clone()),
+			None => None,
+		};
+		let _ = thread::Builder::new()
+			.name("wallet-updater".to_string())
+			.spawn(move || {
+				let u = updater_inner.lock();
+				if let Err(e) = u.run(frequency, keychain_mask, &tx_inner) {
+					error!("Wallet state updater failed with error: {:?}", e);
+				}
+			})?;
+		Ok(())
+	}
+
+	/// Stops the background update thread. If the updater is currently updating, the
+	/// thread will stop after the next update
+	///
+	/// # Arguments
+	///
+	/// * None
+	///
+	/// # Returns
+	/// * Ok if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
+	///
+	/// if let Ok(_) = res {
+	///   // ...
+	/// }
+	///
+	/// let res = api_owner.stop_updater();
+	/// ```
+
+	pub fn stop_updater(&self) -> Result<(), Error> {
+		self.updater_running.store(false, Ordering::Relaxed);
+		Ok(())
+	}
+
+	/// Retrieve messages from the updater thread, up to `count` number of messages.
+	/// The resulting array will be ordered newest messages first. The updater will
+	/// store a maximum of 10,000 messages, after which it will start removing the oldest
+	/// messages as newer ones are created.
+	///
+	/// Messages retrieved via this method are removed from the internal queue, so calling
+	/// this function at a specified interval should result in a complete message history.
+	///
+	/// # Arguments
+	///
+	/// * `count` - The number of messages to retrieve.
+	///
+	/// # Returns
+	/// * Ok with a Vec of [`StatusMessage`](../grin_wallet_libwallet/api_impl/owner_updater/enum.StatusMessage.html)
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
+	///
+	/// let messages = api_owner.get_updater_messages(10000);
+	///
+	/// if let Ok(_) = res {
+	///   // ...
+	/// }
+	///
+	/// ```
+
+	pub fn get_updater_messages(&self, count: usize) -> Result<Vec<StatusMessage>, Error> {
+		let mut q = self.updater_messages.lock();
+		let index = q.len().saturating_sub(count);
+		Ok(q.split_off(index))
 	}
 }
 

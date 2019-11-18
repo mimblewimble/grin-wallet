@@ -121,16 +121,16 @@ where
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
-pub fn owner_single_use<'a, L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+pub fn owner_single_use<L, F, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	f: F,
 ) -> Result<(), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
-	F: FnOnce(&mut Owner<'a, L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	F: FnOnce(&mut Owner<L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	f(&mut Owner::new(wallet), keychain_mask)?;
 	Ok(())
@@ -305,7 +305,7 @@ where
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Owner<'static, L, C, K>,
+		api: Owner<L, C, K>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let owner_api = &api as &dyn OwnerRpc;
@@ -361,6 +361,9 @@ where
 {
 	/// Wallet instance
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+
+	/// Handle to Owner API
+	owner_api: Arc<Owner<L, C, K>>,
 
 	/// ECDH shared key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
@@ -592,8 +595,10 @@ where
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
+		let owner_api = Arc::new(Owner::new(wallet.clone()));
 		OwnerAPIHandlerV3 {
 			wallet,
+			owner_api,
 			shared_key: Arc::new(Mutex::new(None)),
 			keychain_mask: keychain_mask,
 			running_foreign,
@@ -603,14 +608,14 @@ where
 	fn call_api(
 		&self,
 		req: Request<Body>,
-		api: Owner<'static, L, C, K>,
+		api: Arc<Owner<L, C, K>>,
 	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
 		let key = self.shared_key.clone();
 		let mask = self.keychain_mask.clone();
 		let running_foreign = self.running_foreign;
 		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
 			let mut val = val;
-			let owner_api_s = &api as &dyn OwnerRpcS;
+			let owner_api_s = &*api as &dyn OwnerRpcS;
 			let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			let mut was_encrypted = false;
 			let mut encrypted_req_id = 0;
@@ -671,9 +676,8 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Owner::new(self.wallet.clone());
 		Box::new(
-			self.call_api(req, api)
+			self.call_api(req, self.owner_api.clone())
 				.and_then(|resp| ok(json_response_pretty(&resp))),
 		)
 	}

@@ -438,7 +438,67 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	thread::sleep(Duration::from_millis(200));
 	assert_eq!(res.unwrap().1.amount_awaiting_finalization, 6000000000);
 
-	// 21) Delete the wallet (close first)
+	// 21) Start the automatic updater, let it run for a bit
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "start_updater",
+		"params": {
+			"token": token,
+			"frequency": 3000,
+		}
+	});
+
+	let res = send_request_enc::<String>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	assert!(res.is_ok());
+	println!("RES 21: {:?}", res);
+	thread::sleep(Duration::from_millis(5000));
+
+	// 22) Retrieve some messages about updater status
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "get_updater_messages",
+		"params": {
+			"count": 1000,
+		}
+	});
+
+	let res = send_request_enc::<String>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	assert!(res.is_ok());
+	println!("RES 22: {:?}", res);
+
+	// 23) Stop Updater
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "stop_updater",
+		"params": null
+	});
+
+	let res = send_request_enc::<String>(
+		1,
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	assert!(res.is_ok());
+	println!("RES 23: {:?}", res);
+
+	// 24) Delete the wallet (close first)
 	let req = include_str!("data/v3_reqs/close_wallet.req.json");
 	let res =
 		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
@@ -447,14 +507,14 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let req = include_str!("data/v3_reqs/delete_wallet.req.json");
 	let res =
 		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
-	println!("RES 21: {:?}", res);
+	println!("RES 24: {:?}", res);
 	assert!(res.is_ok());
 
-	// 22) Wallet should be gone
+	// 25) Wallet should be gone
 	let req = include_str!("data/v3_reqs/open_wallet.req.json");
 	let res =
 		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
-	println!("RES 22: {:?}", res);
+	println!("RES 25: {:?}", res);
 	assert!(res.is_err());
 
 	clean_output_dir(test_dir);

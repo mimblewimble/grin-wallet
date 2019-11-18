@@ -1223,11 +1223,11 @@ pub trait OwnerRpc: Sync + Send {
 	fn node_height(&self) -> Result<NodeHeightResult, ErrorKind>;
 }
 
-impl<'a, L, C, K> OwnerRpc for Owner<'a, L, C, K>
+impl<'a, L, C, K> OwnerRpc for Owner<L, C, K>
 where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
 {
 	fn accounts(&self) -> Result<Vec<AcctPathMapping>, ErrorKind> {
 		Owner::accounts(self, None).map_err(|e| e.kind())
@@ -1458,9 +1458,14 @@ pub fn run_doctest_owner(
 			false,
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
-		let (wallet_refreshed, _) =
-			api_impl::owner::retrieve_summary_info(wallet1.clone(), (&mask1).as_ref(), true, 1)
-				.unwrap();
+		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			&None,
+			true,
+			1,
+		)
+		.unwrap();
 		assert!(wallet_refreshed);
 	}
 
