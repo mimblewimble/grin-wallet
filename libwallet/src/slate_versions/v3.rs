@@ -14,7 +14,9 @@
 
 //! Contains V3 of the slate (grin-wallet 3.0.0)
 //! Changes from V2:
-//! *
+//! * Addition of payment_proof (PaymentInfo struct)
+//! * Addition of a u64 ttl_cutoff_height field
+
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::{BlindingFactor, Identifier};
