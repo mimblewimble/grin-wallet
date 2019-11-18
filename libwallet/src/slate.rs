@@ -30,8 +30,8 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{self, secp, RwLock};
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use crate::slate_versions::ser as dalek_ser;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
@@ -42,8 +42,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v3::{
-	CoinbaseV3, InputV3, OutputV3, ParticipantDataV3, PaymentInfoV3, SlateV3, TransactionBodyV3, TransactionV3,
-	TxKernelV3, VersionCompatInfoV3,
+	CoinbaseV3, InputV3, OutputV3, ParticipantDataV3, PaymentInfoV3, SlateV3, TransactionBodyV3,
+	TransactionV3, TxKernelV3, VersionCompatInfoV3,
 };
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::types::CbData;

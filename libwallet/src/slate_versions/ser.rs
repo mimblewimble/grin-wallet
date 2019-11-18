@@ -44,17 +44,14 @@ pub mod dalek_pubkey_serde {
 
 /// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
 pub mod option_dalek_pubkey_serde {
-	use serde::{Deserialize, Deserializer, Serializer};
-	use serde::de::Error;
 	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
 
 	use crate::grin_util::{from_hex, to_hex};
 
 	///
-	pub fn serialize<S>(
-		key: &Option<DalekPublicKey>,
-		serializer: S,
-	) -> Result<S::Ok, S::Error>
+	pub fn serialize<S>(key: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
 	{
@@ -114,7 +111,7 @@ mod test {
 			let d_pub_key: DalekPublicKey = (&d_skey).into();
 			SerTest {
 				pub_key: d_pub_key.clone(),
-				pub_key_opt: Some(d_pub_key)
+				pub_key_opt: Some(d_pub_key),
 			}
 		}
 	}
