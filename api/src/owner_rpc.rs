@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::core::core::Transaction;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::slate_versions::v2::TransactionV2;
+use crate::libwallet::slate_versions::v3::TransactionV3;
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
 	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, VersionedSlate, WalletInfo,
@@ -397,8 +397,8 @@ pub trait OwnerRpc: Sync + Send {
 			"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 		  },
 		  "version_info": {
-				"orig_version": 2,
-				"version": 2,
+				"orig_version": 3,
+				"version": 3,
 				"block_header_version": 1
 		  }
 		}
@@ -477,8 +477,8 @@ pub trait OwnerRpc: Sync + Send {
 						"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 					},
 					"version_info": {
-						"orig_version": 2,
-						"version": 2,
+						"orig_version": 3,
+						"version": 3,
 						"block_header_version": 1
 					}
 				}
@@ -541,8 +541,8 @@ pub trait OwnerRpc: Sync + Send {
 						"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 					},
 					"version_info": {
-						"orig_version": 2,
-						"version": 2,
+						"orig_version": 3,
+						"version": 3,
 						"block_header_version": 2
 					}
 				},
@@ -625,8 +625,8 @@ pub trait OwnerRpc: Sync + Send {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 2,
-					"version": 2,
+					"orig_version": 3,
+					"version": 3,
 					"block_header_version": 2
 				}
 			}
@@ -698,8 +698,8 @@ pub trait OwnerRpc: Sync + Send {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 2,
-					"version": 2,
+					"orig_version": 3,
+					"version": 3,
 					"block_header_version": 2
 				}
 			},
@@ -740,8 +740,8 @@ pub trait OwnerRpc: Sync + Send {
 		"params": [
 		{
 			"version_info": {
-				"version": 2,
-				"orig_version": 2,
+				"version": 3,
+				"orig_version": 3,
 				"block_header_version": 2
 			},
 			"num_participants": 2,
@@ -876,8 +876,8 @@ pub trait OwnerRpc: Sync + Send {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 2,
-					"version": 2,
+					"orig_version": 3,
+					"version": 3,
 					"block_header_version": 2
 				}
 			}
@@ -954,7 +954,7 @@ pub trait OwnerRpc: Sync + Send {
 	```
 	 */
 
-	fn post_tx(&self, tx: TransactionV2, fluff: bool) -> Result<(), ErrorKind>;
+	fn post_tx(&self, tx: TransactionV3, fluff: bool) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::cancel_tx](struct.Owner.html#method.cancel_tx).
@@ -1080,7 +1080,7 @@ pub trait OwnerRpc: Sync + Send {
 	# , false, 5, true, true, false);
 	```
 	 */
-	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<TransactionV2>, ErrorKind>;
+	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<TransactionV3>, ErrorKind>;
 
 	/**
 	Networked version of [Owner::verify_slate_messages](struct.Owner.html#method.verify_slate_messages).
@@ -1137,8 +1137,8 @@ pub trait OwnerRpc: Sync + Send {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 2,
-					"version": 2,
+					"orig_version": 3,
+					"version": 3,
 					"block_header_version": 2
 				}
 			}
@@ -1271,13 +1271,13 @@ where
 
 	fn init_send_tx(&self, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::init_send_tx(self, None, args).map_err(|e| e.kind())?;
-		let version = SlateVersion::V2;
+		let version = SlateVersion::V3;
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
 	fn issue_invoice_tx(&self, args: IssueInvoiceTxArgs) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::issue_invoice_tx(self, None, args).map_err(|e| e.kind())?;
-		let version = SlateVersion::V2;
+		let version = SlateVersion::V3;
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
@@ -1288,14 +1288,14 @@ where
 	) -> Result<VersionedSlate, ErrorKind> {
 		let out_slate = Owner::process_invoice_tx(self, None, &Slate::from(in_slate), args)
 			.map_err(|e| e.kind())?;
-		let version = SlateVersion::V2;
+		let version = SlateVersion::V3;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}
 
 	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
 		let out_slate =
 			Owner::finalize_tx(self, None, &Slate::from(in_slate)).map_err(|e| e.kind())?;
-		let version = SlateVersion::V2;
+		let version = SlateVersion::V3;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}
 
@@ -1312,13 +1312,13 @@ where
 		Owner::cancel_tx(self, None, tx_id, tx_slate_id).map_err(|e| e.kind())
 	}
 
-	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<TransactionV2>, ErrorKind> {
+	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<TransactionV3>, ErrorKind> {
 		Owner::get_stored_tx(self, None, tx)
-			.map(|x| x.map(|y| TransactionV2::from(y)))
+			.map(|x| x.map(|y| TransactionV3::from(y)))
 			.map_err(|e| e.kind())
 	}
 
-	fn post_tx(&self, tx: TransactionV2, fluff: bool) -> Result<(), ErrorKind> {
+	fn post_tx(&self, tx: TransactionV3, fluff: bool) -> Result<(), ErrorKind> {
 		Owner::post_tx(self, None, &Transaction::from(tx), fluff).map_err(|e| e.kind())
 	}
 

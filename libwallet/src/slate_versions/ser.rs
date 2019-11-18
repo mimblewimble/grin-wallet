@@ -1,0 +1,92 @@
+// Copyright 2019 The Grin Developers
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Sane serialization & deserialization of cryptographic structs into hex
+
+/// Serializes an ed25519 PublicKey to and from hex
+pub mod dalek_pubkey_serde {
+	use serde::{Deserialize, Deserializer, Serializer};
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use crate::grin_util::{from_hex, to_hex};
+
+	///
+	pub fn serialize<S>(key: &DalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&to_hex(key.to_bytes().to_vec()))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekPublicKey, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de::Error;
+		String::deserialize(deserializer)
+			.and_then(|string| from_hex(string).map_err(|err| Error::custom(err.to_string())))
+			.and_then(|bytes: Vec<u8>| {
+				DalekPublicKey::from_bytes(&bytes)
+					.map_err(|err| Error::custom(err.to_string()))
+			})
+	}
+}
+
+// Test serialization methods of components that are being used
+#[cfg(test)]
+mod test {
+	use super::*;
+	use rand::rngs::mock::StepRng;
+
+	use serde::{Deserialize};
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use ed25519_dalek::SecretKey as DalekSecretKey;
+	use crate::grin_util::{secp, static_secp_instance};
+
+	use serde_json;
+
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+	struct SerTest {
+		#[serde(with = "dalek_pubkey_serde")]
+		pub pub_key: DalekPublicKey,
+	}
+
+	impl SerTest {
+		pub fn random() -> SerTest {
+			let secp_inst = static_secp_instance();
+			let secp = secp_inst.lock();
+			let mut test_rng = StepRng::new(1234567890u64, 1);
+			let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
+			let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap(); 
+			let d_pub_key: DalekPublicKey = (&d_skey).into();
+			SerTest {
+				pub_key: d_pub_key
+			}
+		}
+	}
+
+	#[test]
+	fn ser_dalek_primitives() {
+		for _ in 0..10 {
+			let s = SerTest::random();
+			println!("Before Serialization: {:?}", s);
+			let serialized = serde_json::to_string_pretty(&s).unwrap();
+			println!("JSON: {}", serialized);
+			let deserialized: SerTest = serde_json::from_str(&serialized).unwrap();
+			println!("After Serialization: {:?}", deserialized);
+			println!();
+			assert_eq!(s, deserialized);
+		}
+	}
+}
