@@ -16,9 +16,9 @@
 
 /// Serializes an ed25519 PublicKey to and from hex
 pub mod dalek_pubkey_serde {
-	use serde::{Deserialize, Deserializer, Serializer};
-	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use crate::grin_util::{from_hex, to_hex};
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use serde::{Deserialize, Deserializer, Serializer};
 
 	///
 	pub fn serialize<S>(key: &DalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
@@ -37,8 +37,7 @@ pub mod dalek_pubkey_serde {
 		String::deserialize(deserializer)
 			.and_then(|string| from_hex(string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
-				DalekPublicKey::from_bytes(&bytes)
-					.map_err(|err| Error::custom(err.to_string()))
+				DalekPublicKey::from_bytes(&bytes).map_err(|err| Error::custom(err.to_string()))
 			})
 	}
 }
@@ -49,10 +48,10 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use serde::{Deserialize};
+	use crate::grin_util::{secp, static_secp_instance};
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use ed25519_dalek::SecretKey as DalekSecretKey;
-	use crate::grin_util::{secp, static_secp_instance};
+	use serde::Deserialize;
 
 	use serde_json;
 
@@ -68,11 +67,9 @@ mod test {
 			let secp = secp_inst.lock();
 			let mut test_rng = StepRng::new(1234567890u64, 1);
 			let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
-			let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap(); 
+			let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap();
 			let d_pub_key: DalekPublicKey = (&d_skey).into();
-			SerTest {
-				pub_key: d_pub_key
-			}
+			SerTest { pub_key: d_pub_key }
 		}
 	}
 

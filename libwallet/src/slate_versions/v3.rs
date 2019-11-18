@@ -14,7 +14,7 @@
 
 //! Contains V3 of the slate (grin-wallet 3.0.0)
 //! Changes from V2:
-//! * 
+//! *
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::{BlindingFactor, Identifier};
@@ -23,9 +23,9 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
+use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use uuid::Uuid;
-use crate::slate_versions::ser as dalek_ser;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV3 {
