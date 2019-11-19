@@ -133,6 +133,8 @@ pub trait ForeignRpc {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
+				"ttl_cutoff_height": "0",
+				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
 				{
@@ -251,6 +253,8 @@ pub trait ForeignRpc {
 			"fee": "7000000",
 			"height": "5",
 			"lock_height": "0",
+			"ttl_cutoff_height": "0",
+			"payment_proof": null,
 			"participant_data": [
 				{
 					"id": "0",
@@ -279,6 +283,8 @@ pub trait ForeignRpc {
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
+				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
 				{
@@ -414,6 +420,8 @@ pub trait ForeignRpc {
 			"fee": "7000000",
 			"height": "5",
 			"lock_height": "0",
+			"ttl_cutoff_height": "0",
+			"payment_proof": null,
 			"participant_data": [
 				{
 					"id": "1",
@@ -447,6 +455,8 @@ pub trait ForeignRpc {
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
+				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
 					{

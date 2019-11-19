@@ -389,7 +389,9 @@ pub trait OwnerRpcS {
 		  "height": "4",
 		  "id": "0436430c-2b02-624c-2032-570501212b00",
 		  "lock_height": "0",
+			"ttl_cutoff_height": "0",
 		  "num_participants": 2,
+			"payment_proof": null,
 		  "participant_data": [
 			{
 			  "id": "0",
@@ -475,7 +477,9 @@ pub trait OwnerRpcS {
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"lock_height": "0",
+					"ttl_cutoff_height": "0",
 					"num_participants": 2,
+					"payment_proof": null,
 					"participant_data": [
 						{
 							"id": "1",
@@ -544,7 +548,9 @@ pub trait OwnerRpcS {
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"lock_height": "0",
+					"ttl_cutoff_height": "0",
 					"num_participants": 2,
+					"payment_proof": null,
 					"participant_data": [
 						{
 							"id": "1",
@@ -610,7 +616,9 @@ pub trait OwnerRpcS {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
 				"num_participants": 2,
+				"payment_proof": null,
 				"participant_data": [
 					{
 						"id": "1",
@@ -699,7 +707,9 @@ pub trait OwnerRpcS {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
+				"ttl_cutoff_height": "0",
 				"num_participants": 2,
+				"payment_proof": null,
 				"participant_data": [
 				{
 					"id": "0",
@@ -788,6 +798,7 @@ pub trait OwnerRpcS {
 				},
 				"num_participants": 2,
 				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"payment_proof": null,
 				"tx": {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
 					"body": {
@@ -828,6 +839,7 @@ pub trait OwnerRpcS {
 				"fee": "7000000",
 				"height": "5",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
 				"participant_data": [
 					{
 						"id": "0",
@@ -862,7 +874,9 @@ pub trait OwnerRpcS {
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
 				"num_participants": 2,
+				"payment_proof": null,
 				"participant_data": [
 					{
 						"id": "0",
@@ -1158,6 +1172,7 @@ pub trait OwnerRpcS {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
+				"ttl_cutoff_height": "0",
 				"num_participants": 2,
 				"participant_data": [
 				{
@@ -1194,7 +1209,8 @@ pub trait OwnerRpcS {
 						}
 						]
 					},
-					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
+					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
+					"payment_proof": null
 				},
 				"version_info": {
 					"orig_version": 3,
