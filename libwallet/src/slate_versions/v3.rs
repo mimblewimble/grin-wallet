@@ -105,8 +105,8 @@ pub struct ParticipantDataV3 {
 pub struct PaymentInfoV3 {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
-	pub receiver_address: Option<DalekPublicKey>,
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub receiver_address: DalekPublicKey,
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub receiver_signature: Option<Signature>,
 }

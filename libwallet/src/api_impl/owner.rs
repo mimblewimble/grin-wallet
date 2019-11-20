@@ -249,7 +249,7 @@ where
 		slate.version_info.orig_version = v;
 	}
 
-	if args.require_payment_proof {
+	if let Some(a) = args.payment_proof_recipient_address {
 		let k = w.keychain(keychain_mask)?;
 
 		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, 0)?;
@@ -257,9 +257,11 @@ where
 
 		slate.payment_proof = Some(PaymentInfo {
 			sender_address,
-			receiver_address: None,
+			receiver_address: a,
 			receiver_signature: None,
 		})
+		
+		//TODO: Save recipient address
 	}
 	Ok(slate)
 }

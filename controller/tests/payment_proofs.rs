@@ -16,6 +16,7 @@
 extern crate log;
 extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
+extern crate grin_wallet_util;
 
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_keychain as keychain;
@@ -24,9 +25,11 @@ use self::core::global;
 use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, Slate};
+use libwallet::{InitTxArgs, Slate, address};
 use std::thread;
 use std::time::Duration;
+use rand::rngs::mock::StepRng;
+use crate::grin_wallet_util::grin_util::{secp, static_secp_instance};
 
 #[macro_use]
 mod common;
@@ -76,9 +79,19 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
 
 	// Do some mining
-	let mut bh = 20u64;
+	let mut bh = 10u64;
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+
+	// Just create a dummy address for now
+	let address = {
+		let secp_inst = static_secp_instance();
+		let secp = secp_inst.lock();
+		let mut test_rng = StepRng::new(1234567890u64, 1);
+		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
+		println!("{:?}", sec_key);
+		address::ed25519_keypair(&sec_key)?.1
+	};
 
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1);
@@ -91,12 +104,12 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			require_payment_proof: true,
+			payment_proof_recipient_address: Some(address),
 			..Default::default()
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
-		assert!(slate_i.payment_proof.is_some());
+		assert_eq!(slate_i.payment_proof.as_ref().unwrap().receiver_address, address);
 		println!(
 			"Sender addr: {:?}",
 			slate_i.payment_proof.as_ref().unwrap().sender_address
