@@ -26,7 +26,7 @@ use crate::grin_util::Mutex;
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::{Slate, PaymentInfo};
+use crate::slate::{PaymentInfo, Slate};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
@@ -255,14 +255,11 @@ where
 		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, 0)?;
 		let sender_address = address::ed25519_keypair(&sec_addr_key)?.1;
 
-		slate.payment_proof = Some(
-			PaymentInfo {
-				sender_address,
-				receiver_address: None,
-				receiver_signature: None,
-			}
-		)
-
+		slate.payment_proof = Some(PaymentInfo {
+			sender_address,
+			receiver_address: None,
+			receiver_signature: None,
+		})
 	}
 	Ok(slate)
 }

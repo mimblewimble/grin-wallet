@@ -62,4 +62,3 @@ pub fn ed25519_keypair(sec_key: &SecretKey) -> Result<(DalekSecretKey, DalekPubl
 	let d_pub_key: DalekPublicKey = (&d_skey).into();
 	Ok((d_skey, d_pub_key))
 }
-

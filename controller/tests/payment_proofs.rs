@@ -77,13 +77,8 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 
 	// Do some mining
 	let mut bh = 20u64;
-	let _ = test_framework::award_blocks_to_wallet(
-		&chain,
-		wallet1.clone(),
-		mask1,
-		bh as usize,
-		false,
-	);
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1);
@@ -102,7 +97,10 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		assert!(slate_i.payment_proof.is_some());
-		println!("Sender addr: {:?}", slate_i.payment_proof.as_ref().unwrap().sender_address);
+		println!(
+			"Sender addr: {:?}",
+			slate_i.payment_proof.as_ref().unwrap().sender_address
+		);
 
 		// Check we are creating a tx with the expected lock_height of 0.
 		// We will check this produces a Plain kernel later.
