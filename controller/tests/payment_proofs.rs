@@ -23,13 +23,13 @@ use grin_wallet_util::grin_keychain as keychain;
 
 use self::core::global;
 use self::keychain::{ExtKeychain, Keychain};
+use crate::grin_wallet_util::grin_util::{secp, static_secp_instance};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, Slate, address};
+use libwallet::{address, InitTxArgs, Slate};
+use rand::rngs::mock::StepRng;
 use std::thread;
 use std::time::Duration;
-use rand::rngs::mock::StepRng;
-use crate::grin_wallet_util::grin_util::{secp, static_secp_instance};
 
 #[macro_use]
 mod common;
@@ -109,7 +109,10 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
-		assert_eq!(slate_i.payment_proof.as_ref().unwrap().receiver_address, address);
+		assert_eq!(
+			slate_i.payment_proof.as_ref().unwrap().receiver_address,
+			address
+		);
 		println!(
 			"Sender addr: {:?}",
 			slate_i.payment_proof.as_ref().unwrap().sender_address

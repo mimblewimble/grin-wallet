@@ -17,8 +17,8 @@
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::Identifier;
 use crate::grin_util::secp::pedersen;
-use crate::slate_versions::SlateVersion;
 use crate::slate_versions::ser as dalek_ser;
+use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 
 use ed25519_dalek::PublicKey as DalekPublicKey;

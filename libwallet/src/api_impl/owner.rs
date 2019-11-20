@@ -260,7 +260,7 @@ where
 			receiver_address: a,
 			receiver_signature: None,
 		})
-		
+
 		//TODO: Save recipient address
 	}
 	Ok(slate)
