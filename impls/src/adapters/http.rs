@@ -111,7 +111,7 @@ impl HttpSlateSender {
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
 
-		if !supported_slate_versions.contains(&"V2".to_owned()) {
+		if !supported_slate_versions.contains(&"V3".to_owned()) {
 			let report = format!("Unable to negotiate slate format with other wallet.");
 			error!("{}", report);
 			return Err(ErrorKind::ClientCallback(report).into());

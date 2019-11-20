@@ -12,28 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Contains V2 of the slate (grin-wallet 1.1.0)
-//! Changes from V1:
-//! * ParticipantData struct fields serialized as hex strings instead of arrays:
-//!    * public_blind_excess
-//!    * public_nonce
-//!    * part_sig
-//!    * message_sig
-//! * Transaction fields serialized as hex strings instead of arrays:
-//!    * offset
-//! * Input field serialized as hex strings instead of arrays:
-//!    commit
-//! * Output fields serialized as hex strings instead of arrays:
-//!    commit
-//!    proof
-//! * TxKernel fields serialized as hex strings instead of arrays:
-//!    commit
-//!    signature
-//! * version field removed
-//! * VersionCompatInfo struct created with fields and added to beginning of struct
-//!    version: u16
-//!    orig_version: u16,
-//!    block_header_version: u16,
+//! Contains V3 of the slate (grin-wallet 3.0.0)
+//! Changes from V2:
+//! * Addition of payment_proof (PaymentInfo struct)
+//! * Addition of a u64 ttl_cutoff_height field
 
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
@@ -43,19 +25,21 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
+use crate::slate_versions::ser as dalek_ser;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SlateV2 {
+pub struct SlateV3 {
 	/// Versioning info
-	pub version_info: VersionCompatInfoV2,
+	pub version_info: VersionCompatInfoV3,
 	/// The number of participants intended to take part in this transaction
 	pub num_participants: usize,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// The core transaction data:
 	/// inputs, outputs, kernels, kernel offset
-	pub tx: TransactionV2,
+	pub tx: TransactionV3,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -68,14 +52,26 @@ pub struct SlateV2 {
 	/// Lock height
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
+	/// TTL, the block height at which wallets
+	/// should refuse to process the transaction and unlock all
+	/// associated outputs
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub ttl_cutoff_height: u64,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
-	pub participant_data: Vec<ParticipantDataV2>,
+	pub participant_data: Vec<ParticipantDataV3>,
+	/// Payment Proof
+	#[serde(default = "default_payment_none")]
+	pub payment_proof: Option<PaymentInfoV3>,
+}
+
+fn default_payment_none() -> Option<PaymentInfoV3> {
+	None
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct VersionCompatInfoV2 {
+pub struct VersionCompatInfoV3 {
 	/// The current version of the slate format
 	pub version: u16,
 	/// Original version this slate was converted from
@@ -85,7 +81,7 @@ pub struct VersionCompatInfoV2 {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ParticipantDataV2 {
+pub struct ParticipantDataV3 {
 	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub id: u64,
@@ -105,9 +101,19 @@ pub struct ParticipantDataV2 {
 	pub message_sig: Option<Signature>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentInfoV3 {
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub sender_address: DalekPublicKey,
+	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
+	pub receiver_address: Option<DalekPublicKey>,
+	#[serde(with = "secp_ser::option_sig_serde")]
+	pub receiver_signature: Option<Signature>,
+}
+
 /// A transaction
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TransactionV2 {
+pub struct TransactionV3 {
 	/// The kernel "offset" k2
 	/// excess is k1G after splitting the key k = k1 + k2
 	#[serde(
@@ -116,21 +122,21 @@ pub struct TransactionV2 {
 	)]
 	pub offset: BlindingFactor,
 	/// The transaction body - inputs/outputs/kernels
-	pub body: TransactionBodyV2,
+	pub body: TransactionBodyV3,
 }
 
 /// TransactionBody is a common abstraction for transaction and block
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TransactionBodyV2 {
+pub struct TransactionBodyV3 {
 	/// List of inputs spent by the transaction.
-	pub inputs: Vec<InputV2>,
+	pub inputs: Vec<InputV3>,
 	/// List of outputs the transaction produces.
-	pub outputs: Vec<OutputV2>,
+	pub outputs: Vec<OutputV3>,
 	/// List of kernels that make up this transaction (usually a single kernel).
-	pub kernels: Vec<TxKernelV2>,
+	pub kernels: Vec<TxKernelV3>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InputV2 {
+pub struct InputV3 {
 	/// The features of the output being spent.
 	/// We will check maturity for coinbase output.
 	pub features: OutputFeatures,
@@ -143,7 +149,7 @@ pub struct InputV2 {
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct OutputV2 {
+pub struct OutputV3 {
 	/// Options for an output's structure or use
 	pub features: OutputFeatures,
 	/// The homomorphic commitment representing the output amount
@@ -161,7 +167,7 @@ pub struct OutputV2 {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TxKernelV2 {
+pub struct TxKernelV3 {
 	/// Options for a kernel's structure or use
 	pub features: CompatKernelFeatures,
 	/// Fee originally included in the transaction this proof is for.
@@ -187,11 +193,11 @@ pub struct TxKernelV2 {
 
 /// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CoinbaseV2 {
+pub struct CoinbaseV3 {
 	/// Output
-	pub output: OutputV2,
+	pub output: OutputV3,
 	/// Kernel
-	pub kernel: TxKernelV2,
+	pub kernel: TxKernelV3,
 	/// Key Id
 	pub key_id: Option<Identifier>,
 }

@@ -53,7 +53,7 @@ pub trait ForeignRpc {
 			"Ok": {
 				"foreign_api_version": 2,
 				"supported_slate_versions": [
-					"V2"
+					"V3"
 				]
 			}
 		}
@@ -133,6 +133,8 @@ pub trait ForeignRpc {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
+				"ttl_cutoff_height": "0",
+				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
 				{
@@ -251,6 +253,8 @@ pub trait ForeignRpc {
 			"fee": "7000000",
 			"height": "5",
 			"lock_height": "0",
+			"ttl_cutoff_height": "0",
+			"payment_proof": null,
 			"participant_data": [
 				{
 					"id": "0",
@@ -279,6 +283,8 @@ pub trait ForeignRpc {
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
+				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
 				{
@@ -414,6 +420,8 @@ pub trait ForeignRpc {
 			"fee": "7000000",
 			"height": "5",
 			"lock_height": "0",
+			"ttl_cutoff_height": "0",
+			"payment_proof": null,
 			"participant_data": [
 				{
 					"id": "1",
@@ -447,6 +455,8 @@ pub trait ForeignRpc {
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
+				"ttl_cutoff_height": "0",
+				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
 					{
@@ -529,7 +539,7 @@ where
 
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<VersionedCoinbase, ErrorKind> {
 		let cb: CbData = Foreign::build_coinbase(self, block_fees).map_err(|e| e.kind())?;
-		Ok(VersionedCoinbase::into_version(cb, SlateVersion::V2))
+		Ok(VersionedCoinbase::into_version(cb, SlateVersion::V3))
 	}
 
 	fn verify_slate_messages(&self, slate: VersionedSlate) -> Result<(), ErrorKind> {
