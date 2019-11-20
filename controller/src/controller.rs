@@ -17,7 +17,7 @@
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
+	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
 	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
@@ -98,7 +98,7 @@ where
 	let k = w_inst.keychain((&mask).as_ref())?;
 	let parent_key_id = w_inst.parent_key_id();
 	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
-	let sec_key = tor_config::address_derivation_path(&k, &parent_key_id, 0)
+	let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let onion_address = tor_config::onion_address_from_seckey(&sec_key)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;

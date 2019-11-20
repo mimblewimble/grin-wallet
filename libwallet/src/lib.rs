@@ -45,6 +45,7 @@ extern crate strum;
 extern crate strum_macros;
 
 pub mod api_impl;
+pub mod address;
 mod error;
 mod internal;
 mod slate;

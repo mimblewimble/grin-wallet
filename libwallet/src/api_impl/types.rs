@@ -86,6 +86,8 @@ pub struct InitTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
+	/// Require a payment proof from the recipient
+	pub require_payment_proof: bool,
 	/// If true, just return an estimate of the resulting slate, containing fees and amounts
 	/// locked without actually locking outputs or creating the transaction. Note if this is set to
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
@@ -124,6 +126,7 @@ impl Default for InitTxArgs {
 			message: None,
 			target_slate_version: None,
 			estimate_only: Some(false),
+			require_payment_proof: false,
 			send_args: None,
 		}
 	}

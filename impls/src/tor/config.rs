@@ -15,15 +15,13 @@
 //! Tor Configuration + Onion (Hidden) Service operations
 use crate::util::secp::key::SecretKey;
 use crate::{Error, ErrorKind};
-use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
+use grin_wallet_libwallet::address;
 
 use data_encoding::BASE32;
 use ed25519_dalek::ExpandedSecretKey;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use sha3::{Digest, Sha3_256};
-
-use crate::blake2::blake2b::blake2b;
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -96,21 +94,9 @@ impl TorRcConfig {
 	}
 }
 
-/// Output ed25519 keypair given an rust_secp256k1 SecretKey
-pub fn ed25519_keypair(sec_key: &SecretKey) -> Result<(DalekSecretKey, DalekPublicKey), Error> {
-	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
-		Ok(k) => k,
-		Err(e) => {
-			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
-		}
-	};
-	let d_pub_key: DalekPublicKey = (&d_skey).into();
-	Ok((d_skey, d_pub_key))
-}
-
 /// helper to get address
 pub fn onion_address_from_seckey(sec_key: &SecretKey) -> Result<String, Error> {
-	let (_, d_pub_key) = ed25519_keypair(sec_key)?;
+	let (_, d_pub_key) = address::ed25519_keypair(sec_key)?;
 	onion_address(&d_pub_key)
 }
 
@@ -178,7 +164,7 @@ pub fn output_onion_service_config(
 	tor_config_directory: &str,
 	sec_key: &SecretKey,
 ) -> Result<String, Error> {
-	let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
+	let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
 	let address = onion_address(&d_pub_key)?;
 	let hs_dir_file_path = format!(
 		"{}{}{}{}{}",
@@ -193,7 +179,7 @@ pub fn output_onion_service_config(
 	// create directory if it doesn't exist
 	fs::create_dir_all(&hs_dir_file_path).context(ErrorKind::IO)?;
 
-	let (d_sec_key, d_pub_key) = ed25519_keypair(&sec_key)?;
+	let (d_sec_key, d_pub_key) = address::ed25519_keypair(&sec_key)?;
 	create_onion_service_sec_key_file(&hs_dir_file_path, &d_sec_key)?;
 	create_onion_service_pub_key_file(&hs_dir_file_path, &d_pub_key)?;
 	create_onion_service_hostname_file(&hs_dir_file_path, &address)?;
@@ -272,34 +258,6 @@ pub fn output_tor_sender_config(
 	Ok(())
 }
 
-/// Derive a secret key given a derivation path and index
-pub fn address_derivation_path<K>(
-	keychain: &K,
-	parent_key_id: &Identifier,
-	index: u32,
-) -> Result<SecretKey, Error>
-where
-	K: Keychain,
-{
-	let mut key_path = parent_key_id.to_path();
-	// An output derivation for acct m/0
-	// is m/0/0/0, m/0/0/1 (for instance), m/1 is m/1/0/0, m/1/0/1
-	// Address generation path should be
-	// for m/0: m/0/1/0, m/0/1/1
-	// for m/1: m/1/1/0, m/1/1/1
-	key_path.path[1] = ChildNumber::from(1);
-	key_path.depth = key_path.depth + 1;
-	key_path.path[key_path.depth as usize - 1] = ChildNumber::from(index);
-	let key_id = Identifier::from_path(&key_path);
-	debug!("Onion Address derivation path is: {}", key_id);
-	let sec_key = keychain.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
-	let hashed = blake2b(32, &[], &sec_key.0[..]);
-	Ok(SecretKey::from_slice(
-		&keychain.secp(),
-		&hashed.as_bytes()[..],
-	)?)
-}
-
 pub fn is_tor_address(input: &str) -> Result<(), Error> {
 	let mut input = input.to_uppercase();
 	if input.starts_with("HTTP://") || input.starts_with("HTTPS://") {
@@ -356,12 +314,12 @@ mod tests {
 		let mut test_rng = StepRng::new(1234567890u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		println!("{:?}", sec_key);
-		let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
+		let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
 		println!("{:?}", d_pub_key);
 		// some randoms
 		for _ in 0..1000 {
 			let sec_key = secp::key::SecretKey::new(&secp, &mut thread_rng());
-			let (_, _) = ed25519_keypair(&sec_key)?;
+			let (_, _) = address::ed25519_keypair(&sec_key)?;
 		}
 		Ok(())
 	}
@@ -373,7 +331,7 @@ mod tests {
 		let mut test_rng = StepRng::new(1234567890u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		println!("{:?}", sec_key);
-		let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
+		let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
 		let address = onion_address(&d_pub_key)?;
 		assert_eq!(
 			"kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid",

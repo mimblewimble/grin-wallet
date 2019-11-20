@@ -26,13 +26,14 @@ use crate::grin_util::Mutex;
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::Slate;
+use crate::slate::{Slate, PaymentInfo};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
-	wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
+	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
 	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
+
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -246,6 +247,22 @@ where
 	}
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.orig_version = v;
+	}
+
+	if args.require_payment_proof {
+		let k = w.keychain(keychain_mask)?;
+
+		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, 0)?;
+		let sender_address = address::ed25519_keypair(&sec_addr_key)?.1;
+
+		slate.payment_proof = Some(
+			PaymentInfo {
+				sender_address,
+				receiver_address: None,
+				receiver_signature: None,
+			}
+		)
+
 	}
 	Ok(slate)
 }
