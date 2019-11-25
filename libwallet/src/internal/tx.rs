@@ -14,9 +14,9 @@
 
 //! Transaction building functions
 
-use uuid::Uuid;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
+use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
@@ -28,10 +28,10 @@ use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
-use ed25519_dalek::SecretKey as DalekSecretKey;
-use ed25519_dalek::PublicKey as DalekPublicKey;
-use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::Keypair as DalekKeypair;
+use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::SecretKey as DalekSecretKey;
+use ed25519_dalek::Signature as DalekSignature;
 
 // static for incrementing test UUIDs
 lazy_static! {
@@ -408,11 +408,9 @@ pub fn create_payment_proof_signature(
 	amount: u64,
 	kernel_commitment: &pedersen::Commitment,
 	sender_address: DalekPublicKey,
-	priv_key: DalekSecretKey
+	priv_key: DalekSecretKey,
 ) -> Result<DalekSignature, Error> {
-	let msg = payment_proof_message(amount,
-		kernel_commitment,
-		sender_address)?;
+	let msg = payment_proof_message(amount, kernel_commitment, sender_address)?;
 	let pub_key: DalekPublicKey = (&priv_key).into();
 	let keypair = DalekKeypair {
 		public: pub_key,
@@ -421,17 +419,17 @@ pub fn create_payment_proof_signature(
 	Ok(keypair.sign(&msg))
 }
 
-
 #[cfg(test)]
 mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_util::{secp, static_secp_instance};
 	use crate::grin_core::core::KernelFeatures;
 	use crate::grin_core::libtx::{build, ProofBuilder};
-	use crate::grin_keychain::{BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType};
-
+	use crate::grin_keychain::{
+		BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
+	};
+	use crate::grin_util::{secp, static_secp_instance};
 
 	#[test]
 	// demonstrate that input.commitment == referenced output.commitment
@@ -482,8 +480,8 @@ mod test {
 					&BlindSum::new()
 						.sub_blinding_factor(BlindingFactor::from_secret_key(skey1))
 						.add_blinding_factor(BlindingFactor::from_secret_key(skey2)),
-			)
-			.unwrap();
+				)
+				.unwrap();
 			keychain
 				.secp()
 				.commit(0, blinding_factor.secret_key(&keychain.secp()).unwrap())
@@ -498,9 +496,5 @@ mod test {
 		assert_eq!(decoded.0, amount);
 		assert_eq!(decoded.1, kernel_excess);
 		assert_eq!(decoded.2, address);
-
-
-
-
 	}
 }

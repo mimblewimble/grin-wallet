@@ -114,9 +114,7 @@ where
 	)?;
 	tx::update_message(&mut *w, keychain_mask, &mut ret_slate)?;
 
-	if let Some(ref p) = ret_slate.payment_proof {
-
-	}
+	if let Some(ref p) = ret_slate.payment_proof {}
 
 	Ok(ret_slate)
 }
