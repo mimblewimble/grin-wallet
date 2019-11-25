@@ -15,16 +15,23 @@
 //! Transaction building functions
 
 use uuid::Uuid;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use std::io::Cursor;
 
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, ErrorKind};
+use ed25519_dalek::SecretKey as DalekSecretKey;
+use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::Keypair as DalekKeypair;
 
 // static for incrementing test UUIDs
 lazy_static! {
@@ -363,11 +370,68 @@ where
 	Ok(())
 }
 
+pub fn payment_proof_message(
+	amount: u64,
+	kernel_commitment: &pedersen::Commitment,
+	sender_address: DalekPublicKey,
+) -> Result<Vec<u8>, Error> {
+	let mut msg = Vec::new();
+	msg.write_u64::<BigEndian>(amount)?;
+	msg.append(&mut kernel_commitment.0.to_vec());
+	msg.append(&mut sender_address.to_bytes().to_vec());
+	Ok(msg)
+}
+
+pub fn decode_payment_proof_message(
+	msg: &Vec<u8>,
+) -> Result<(u64, pedersen::Commitment, DalekPublicKey), Error> {
+	let mut rdr = Cursor::new(msg);
+	let amount = rdr.read_u64::<BigEndian>()?;
+	let mut commit_bytes = [0u8; 33];
+	for i in 0..33 {
+		commit_bytes[i] = rdr.read_u8()?;
+	}
+	let mut sender_address_bytes = [0u8; 32];
+	for i in 0..32 {
+		sender_address_bytes[i] = rdr.read_u8()?;
+	}
+
+	Ok((
+		amount,
+		pedersen::Commitment::from_vec(commit_bytes.to_vec()),
+		DalekPublicKey::from_bytes(&sender_address_bytes).unwrap(),
+	))
+}
+
+/// create a payment proof
+pub fn create_payment_proof_signature(
+	amount: u64,
+	kernel_commitment: &pedersen::Commitment,
+	sender_address: DalekPublicKey,
+	priv_key: DalekSecretKey
+) -> Result<DalekSignature, Error> {
+	let msg = payment_proof_message(amount,
+		kernel_commitment,
+		sender_address)?;
+	let pub_key: DalekPublicKey = (&priv_key).into();
+	let keypair = DalekKeypair {
+		public: pub_key,
+		secret: priv_key,
+	};
+	Ok(keypair.sign(&msg))
+}
+
+
 #[cfg(test)]
 mod test {
+	use super::*;
+	use rand::rngs::mock::StepRng;
+
+	use crate::grin_util::{secp, static_secp_instance};
 	use crate::grin_core::core::KernelFeatures;
 	use crate::grin_core::libtx::{build, ProofBuilder};
-	use crate::grin_keychain::{ExtKeychain, ExtKeychainPath, Keychain};
+	use crate::grin_keychain::{BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType};
+
 
 	#[test]
 	// demonstrate that input.commitment == referenced output.commitment
@@ -394,5 +458,49 @@ mod test {
 
 		assert_eq!(tx1.outputs()[0].features, tx2.inputs()[0].features);
 		assert_eq!(tx1.outputs()[0].commitment(), tx2.inputs()[0].commitment());
+	}
+
+	#[test]
+	fn payment_proof_construction() {
+		let secp_inst = static_secp_instance();
+		let secp = secp_inst.lock();
+		let mut test_rng = StepRng::new(1234567890u64, 1);
+		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
+		let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap();
+		let address: DalekPublicKey = (&d_skey).into();
+
+		let kernel_excess = {
+			ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
+			let keychain = ExtKeychain::from_random_seed(true).unwrap();
+			let switch = &SwitchCommitmentType::Regular;
+			let id1 = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
+			let id2 = ExtKeychain::derive_key_id(1, 2, 0, 0, 0);
+			let skey1 = keychain.derive_key(0, &id1, switch).unwrap();
+			let skey2 = keychain.derive_key(0, &id2, switch).unwrap();
+			let blinding_factor = keychain
+				.blind_sum(
+					&BlindSum::new()
+						.sub_blinding_factor(BlindingFactor::from_secret_key(skey1))
+						.add_blinding_factor(BlindingFactor::from_secret_key(skey2)),
+			)
+			.unwrap();
+			keychain
+				.secp()
+				.commit(0, blinding_factor.secret_key(&keychain.secp()).unwrap())
+				.unwrap()
+		};
+
+		let amount = 12345678u64;
+		let msg = payment_proof_message(amount, &kernel_excess, address).unwrap();
+		println!("payment proof message is (len {}): {:?}", msg.len(), msg);
+
+		let decoded = decode_payment_proof_message(&msg).unwrap();
+		assert_eq!(decoded.0, amount);
+		assert_eq!(decoded.1, kernel_excess);
+		assert_eq!(decoded.2, address);
+
+
+
+
 	}
 }
