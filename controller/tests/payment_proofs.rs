@@ -129,7 +129,10 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		assert!(txs[0].payment_proof.is_some());
 		let pp = txs[0].clone().payment_proof.unwrap();
-		assert_eq!(pp.receiver_address, slate_i.payment_proof.as_ref().unwrap().receiver_address);
+		assert_eq!(
+			pp.receiver_address,
+			slate_i.payment_proof.as_ref().unwrap().receiver_address
+		);
 		assert_eq!(pp.receiver_signature, None);
 		assert_eq!(pp.sender_address_path, 0);
 		assert_eq!(pp.sender_signature, None);

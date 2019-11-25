@@ -27,8 +27,8 @@ use crate::grin_util::secp::{self, pedersen, Secp256k1, Signature};
 use crate::grin_util::{LoggingConfig, ZeroingString};
 use crate::slate::ParticipantMessages;
 use crate::slate_versions::ser as dalek_ser;
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use chrono::prelude::*;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use failure::ResultExt;
 use serde;
 use serde_json;
@@ -844,7 +844,6 @@ impl TxLogEntry {
 		self.confirmation_ts = Some(Utc::now());
 	}
 }
-
 
 /// Payment proof information. Differs from what is sent via
 /// the slate

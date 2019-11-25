@@ -66,8 +66,8 @@ pub use api_impl::types::{
 pub use internal::scan::scan;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
-	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend,
-	WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider, WalletOutputBatch,
+	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
+	WalletBackend, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider, WalletOutputBatch,
 };
 
 /// Helper for taking a lock on the wallet instance
