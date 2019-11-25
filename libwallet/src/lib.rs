@@ -66,7 +66,7 @@ pub use api_impl::types::{
 pub use internal::scan::scan;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
-	OutputStatus, ScannedBlockInfo, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend,
+	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend,
 	WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider, WalletOutputBatch,
 };
 

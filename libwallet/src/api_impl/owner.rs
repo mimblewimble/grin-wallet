@@ -223,7 +223,7 @@ where
 		return Ok(slate);
 	}
 
-	let context = tx::add_inputs_to_slate(
+	let mut context = tx::add_inputs_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut slate,
@@ -238,6 +238,26 @@ where
 		use_test_rng,
 	)?;
 
+	// Payment Proof, add addresses to slate and save address
+	// TODO: Note we only use single derivation path for now,
+	// probably want to allow sender to specify which one
+	let deriv_path = 0u32;
+
+	if let Some(a) = args.payment_proof_recipient_address {
+		let k = w.keychain(keychain_mask)?;
+
+		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
+		let sender_address = address::ed25519_keypair(&sec_addr_key)?.1;
+
+		slate.payment_proof = Some(PaymentInfo {
+			sender_address,
+			receiver_address: a,
+			receiver_signature: None,
+		});
+
+		context.payment_proof_derivation_index = Some(deriv_path);
+	}
+
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
@@ -249,20 +269,6 @@ where
 		slate.version_info.orig_version = v;
 	}
 
-	if let Some(a) = args.payment_proof_recipient_address {
-		let k = w.keychain(keychain_mask)?;
-
-		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, 0)?;
-		let sender_address = address::ed25519_keypair(&sec_addr_key)?.1;
-
-		slate.payment_proof = Some(PaymentInfo {
-			sender_address,
-			receiver_address: a,
-			receiver_signature: None,
-		})
-
-		//TODO: Save recipient address
-	}
 	Ok(slate)
 }
 

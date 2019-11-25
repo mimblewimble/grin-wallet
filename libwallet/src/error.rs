@@ -225,6 +225,10 @@ pub enum ErrorKind {
 	#[fail(display = "Error generating ed25519 secret key: {}", _0)]
 	ED25519Key(String),
 
+	/// Generating Payment Proof
+	#[fail(display = "Payment Proof generation error: {}", _0)]
+	PaymentProof(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),
