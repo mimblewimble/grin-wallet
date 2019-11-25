@@ -448,18 +448,16 @@ where
 				))?;
 			}
 		};
-		let orig_sender_sk = address::address_from_derivation_path(
-			&keychain,
-			parent_key_id,
-			index,
-		)?;
+		let orig_sender_sk =
+			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
 		let orig_sender_address = address::ed25519_keypair(&orig_sender_sk)?.1;
 		if p.sender_address != orig_sender_address {
 			return Err(ErrorKind::PaymentProof(
 				"Sender address on slate does not match original sender address".to_owned(),
 			))?;
 		}
-		let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(&parent_key_id), false)?;
+		let tx_vec =
+			updater::retrieve_txs(wallet, None, Some(slate.id), Some(&parent_key_id), false)?;
 		if tx_vec.len() != 1 {
 			return Err(ErrorKind::PaymentProof(
 				"TxLogEntry with original proof info not found".to_owned(),
@@ -482,7 +480,7 @@ where
 			slate.amount,
 			&slate.calc_excess(&keychain)?,
 			orig_sender_address,
-			)?;
+		)?;
 		let sig = match p.receiver_signature {
 			Some(s) => s,
 			None => {
@@ -491,8 +489,8 @@ where
 				))?;
 			}
 		};
-	
-		if let Err(_) = p.receiver_address.verify(&msg, &sig){
+
+		if let Err(_) = p.receiver_address.verify(&msg, &sig) {
 			return Err(ErrorKind::PaymentProof(
 				"Invalid proof signature".to_owned(),
 			))?;

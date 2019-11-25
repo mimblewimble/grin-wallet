@@ -122,7 +122,7 @@ where
 			&slate.calc_excess(&keychain)?,
 			p.sender_address,
 			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
-			)?;
+		)?;
 
 		p.receiver_signature = Some(sig);
 	}
