@@ -127,10 +127,10 @@ mod test {
 	use rand::rngs::mock::StepRng;
 
 	use crate::grin_util::{secp, static_secp_instance};
+	use ed25519_dalek::Keypair;
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use ed25519_dalek::SecretKey as DalekSecretKey;
 	use ed25519_dalek::Signature as DalekSignature;
-	use ed25519_dalek::Keypair;
 	use serde::Deserialize;
 
 	use serde_json;
