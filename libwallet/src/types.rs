@@ -23,12 +23,13 @@ use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{self, pedersen, Secp256k1, Signature};
+use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{LoggingConfig, ZeroingString};
 use crate::slate::ParticipantMessages;
 use crate::slate_versions::ser as dalek_ser;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
 use serde;
 use serde_json;
@@ -852,14 +853,14 @@ pub struct StoredProofInfo {
 	/// receiver address
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
-	#[serde(with = "secp_ser::option_sig_serde")]
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	/// receiver signature
-	pub receiver_signature: Option<Signature>,
+	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
 	pub sender_address_path: u32,
 	/// sender signature
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub sender_signature: Option<Signature>,
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub sender_signature: Option<DalekSignature>,
 }
 
 impl ser::Writeable for StoredProofInfo {
