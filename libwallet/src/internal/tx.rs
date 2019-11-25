@@ -27,7 +27,7 @@ use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
-use crate::{Error, ErrorKind};
+use crate::{address, Error, ErrorKind};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
@@ -408,15 +408,97 @@ pub fn create_payment_proof_signature(
 	amount: u64,
 	kernel_commitment: &pedersen::Commitment,
 	sender_address: DalekPublicKey,
-	priv_key: DalekSecretKey,
+	sec_key: SecretKey,
 ) -> Result<DalekSignature, Error> {
 	let msg = payment_proof_message(amount, kernel_commitment, sender_address)?;
-	let pub_key: DalekPublicKey = (&priv_key).into();
+	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
+		Ok(k) => k,
+		Err(e) => {
+			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
+		}
+	};
+	let pub_key: DalekPublicKey = (&d_skey).into();
 	let keypair = DalekKeypair {
 		public: pub_key,
-		secret: priv_key,
+		secret: d_skey,
 	};
 	Ok(keypair.sign(&msg))
+}
+
+/// Verify all aspects of a completed payment proof
+pub fn verify_payment_proof<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	parent_key_id: &Identifier,
+	context: &Context,
+	slate: &Slate,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if let Some(ref p) = slate.payment_proof {
+		let keychain = wallet.keychain(keychain_mask)?;
+		let index = match context.payment_proof_derivation_index {
+			Some(i) => i,
+			None => {
+				return Err(ErrorKind::PaymentProof(
+					"Payment proof derivation index required".to_owned(),
+				))?;
+			}
+		};
+		let orig_sender_sk = address::address_from_derivation_path(
+			&keychain,
+			parent_key_id,
+			index,
+		)?;
+		let orig_sender_address = address::ed25519_keypair(&orig_sender_sk)?.1;
+		if p.sender_address != orig_sender_address {
+			return Err(ErrorKind::PaymentProof(
+				"Sender address on slate does not match original sender address".to_owned(),
+			))?;
+		}
+		let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(&parent_key_id), false)?;
+		if tx_vec.len() != 1 {
+			return Err(ErrorKind::PaymentProof(
+				"TxLogEntry with original proof info not found".to_owned(),
+			))?;
+		}
+		let orig_proof_info = match tx_vec[0].clone().payment_proof {
+			Some(o) => o,
+			None => {
+				return Err(ErrorKind::PaymentProof(
+					"Original proof info not stored in tx".to_owned(),
+				))?;
+			}
+		};
+		if orig_proof_info.receiver_address != p.receiver_address {
+			return Err(ErrorKind::PaymentProof(
+				"Recipient address on slate does not match original recipient address".to_owned(),
+			))?;
+		}
+		let msg = payment_proof_message(
+			slate.amount,
+			&slate.calc_excess(&keychain)?,
+			orig_sender_address,
+			)?;
+		let sig = match p.receiver_signature {
+			Some(s) => s,
+			None => {
+				return Err(ErrorKind::PaymentProof(
+					"Recipient did not provide requested proof signature".to_owned(),
+				))?;
+			}
+		};
+	
+		if let Err(_) = p.receiver_address.verify(&msg, &sig){
+			return Err(ErrorKind::PaymentProof(
+				"Invalid proof signature".to_owned(),
+			))?;
+		};
+	}
+	Ok(())
 }
 
 #[cfg(test)]
@@ -465,6 +547,7 @@ mod test {
 		let mut test_rng = StepRng::new(1234567890u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap();
+
 		let address: DalekPublicKey = (&d_skey).into();
 
 		let kernel_excess = {
@@ -496,5 +579,9 @@ mod test {
 		assert_eq!(decoded.0, amount);
 		assert_eq!(decoded.1, kernel_excess);
 		assert_eq!(decoded.2, address);
+
+		let sig = create_payment_proof_signature(amount, &kernel_excess, address, sec_key).unwrap();
+
+		assert!(address.verify(&msg, &sig).is_ok());
 	}
 }

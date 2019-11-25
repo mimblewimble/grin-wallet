@@ -20,7 +20,7 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
-	BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
+	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
 	WalletBackend,
 };
 
@@ -114,7 +114,18 @@ where
 	)?;
 	tx::update_message(&mut *w, keychain_mask, &mut ret_slate)?;
 
-	if let Some(ref p) = ret_slate.payment_proof {}
+	if let Some(ref mut p) = ret_slate.payment_proof {
+		let keychain = w.keychain(keychain_mask)?;
+
+		let sig = tx::create_payment_proof_signature(
+			ret_slate.amount,
+			&slate.calc_excess(&keychain)?,
+			p.sender_address,
+			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+			)?;
+
+		p.receiver_signature = Some(sig);
+	}
 
 	Ok(ret_slate)
 }

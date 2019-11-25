@@ -133,7 +133,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 			pp.receiver_address,
 			slate_i.payment_proof.as_ref().unwrap().receiver_address
 		);
-		assert_eq!(pp.receiver_signature, None);
+		assert!(pp.receiver_signature.is_some());
 		assert_eq!(pp.sender_address_path, 0);
 		assert_eq!(pp.sender_signature, None);
 
