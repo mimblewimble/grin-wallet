@@ -32,6 +32,7 @@ use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
 	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use crate::{Error, ErrorKind};
 
 use std::sync::mpsc::Sender;
@@ -71,6 +72,26 @@ where
 	K: Keychain + 'a,
 {
 	w.set_parent_key_id_by_name(label)
+}
+
+/// Retrieve the payment proof address for the current parent key at
+/// the given index
+/// set active account
+pub fn get_public_proof_address<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	index: u32,
+) -> Result<DalekPublicKey, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
+	let k = w.keychain(keychain_mask)?;
+	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
+	Ok(address::ed25519_keypair(&sec_addr_key)?.1)
 }
 
 /// retrieve outputs
@@ -439,8 +460,10 @@ where
 {
 	let mut sl = slate.clone();
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
+	let parent_key_id = w.parent_key_id();
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &mut sl, false)?;
+	tx::verify_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, false)?;
 	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;

@@ -114,12 +114,13 @@ where
 	)?;
 	tx::update_message(&mut *w, keychain_mask, &mut ret_slate)?;
 
-	if let Some(ref mut p) = ret_slate.payment_proof {
-		let keychain = w.keychain(keychain_mask)?;
+	let keychain = w.keychain(keychain_mask)?;
+	let excess = ret_slate.calc_excess(&keychain)?;
 
+	if let Some(ref mut p) = ret_slate.payment_proof {
 		let sig = tx::create_payment_proof_signature(
 			ret_slate.amount,
-			&slate.calc_excess(&keychain)?,
+			&excess,
 			p.sender_address,
 			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
 		)?;
@@ -144,7 +145,7 @@ where
 	let mut sl = slate.clone();
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &mut sl, true)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
 	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;

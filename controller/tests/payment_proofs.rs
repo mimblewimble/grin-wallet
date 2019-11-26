@@ -18,16 +18,9 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_util;
 
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-
-use self::core::global;
-use self::keychain::{ExtKeychain, Keychain};
-use crate::grin_wallet_util::grin_util::{secp, static_secp_instance};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{address, InitTxArgs, Slate};
-use rand::rngs::mock::StepRng;
+use libwallet::{InitTxArgs, Slate};
 use std::thread;
 use std::time::Duration;
 
@@ -75,24 +68,20 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	});
 
 	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
-	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
 
 	// Do some mining
-	let mut bh = 10u64;
+	let bh = 10u64;
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	// Just create a dummy address for now
-	let address = {
-		let secp_inst = static_secp_instance();
-		let secp = secp_inst.lock();
-		let mut test_rng = StepRng::new(1234567890u64, 1);
-		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
-		println!("{:?}", sec_key);
-		address::ed25519_keypair(&sec_key)?.1
-	};
+	let mut address = None;
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+		address = Some(api.get_public_proof_address(m, 0)?);
+		Ok(())
+	})?;
 
+	let address = address.unwrap();
+	println!("Public address is: {:?}", address);
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1);
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
@@ -138,6 +127,12 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		assert_eq!(pp.sender_signature, None);
 
 		slate = sender_api.finalize_tx(m, &slate)?;
+
+		// Check payment proof here
+		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
+		let tx = txs[0].clone();
+
+		println!("{:?}", tx);
 
 		Ok(())
 	})?;

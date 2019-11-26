@@ -26,7 +26,7 @@ use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
+use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
 use crate::{address, Error, ErrorKind};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -310,6 +310,7 @@ where
 pub fn update_stored_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
+	context: &Context,
 	slate: &Slate,
 	is_invoiced: bool,
 ) -> Result<(), Error>
@@ -339,6 +340,30 @@ where
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), &slate.tx)?;
 	let parent_key = tx.parent_key_id.clone();
 	tx.kernel_excess = Some(slate.tx.body.kernels[0].excess);
+
+
+	if let Some(ref p) = slate.payment_proof {
+		let derivation_index = match context.payment_proof_derivation_index {
+			Some(i) => i,
+			None => 0,
+		};
+		let keychain = wallet.keychain(keychain_mask)?;
+		let parent_key_id = wallet.parent_key_id();
+		let excess = slate.calc_excess(&keychain)?;
+		let sig = create_payment_proof_signature(
+			slate.amount,
+			&excess,
+			p.sender_address,
+			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?,
+		)?;
+		tx.payment_proof = Some(StoredProofInfo {
+			receiver_address: p.receiver_address,
+			receiver_signature: p.receiver_signature,
+			sender_address_path: derivation_index,
+			sender_signature: Some(sig),
+		})
+	}
+
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
 	batch.commit()?;

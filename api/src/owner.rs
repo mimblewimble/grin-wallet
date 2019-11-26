@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use uuid::Uuid;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
@@ -1886,6 +1887,19 @@ where
 		let index = q.len().saturating_sub(count);
 		Ok(q.split_off(index))
 	}
+
+	/// payment proofs
+	pub fn get_public_proof_address(
+		&self, 
+		keychain_mask: Option<&SecretKey>,
+		derivation_index: u32) -> Result<DalekPublicKey, Error> {
+		owner::get_public_proof_address(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			derivation_index,
+		)
+	}
+	
 }
 
 #[doc(hidden)]
