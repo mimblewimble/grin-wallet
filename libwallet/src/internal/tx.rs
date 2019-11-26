@@ -341,7 +341,6 @@ where
 	let parent_key = tx.parent_key_id.clone();
 	tx.kernel_excess = Some(slate.tx.body.kernels[0].excess);
 
-
 	if let Some(ref p) = slate.payment_proof {
 		let derivation_index = match context.payment_proof_derivation_index {
 			Some(i) => i,

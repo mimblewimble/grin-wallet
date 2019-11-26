@@ -15,8 +15,8 @@
 //! Owner API External Definition
 
 use chrono::prelude::*;
-use uuid::Uuid;
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
@@ -1890,16 +1890,12 @@ where
 
 	/// payment proofs
 	pub fn get_public_proof_address(
-		&self, 
+		&self,
 		keychain_mask: Option<&SecretKey>,
-		derivation_index: u32) -> Result<DalekPublicKey, Error> {
-		owner::get_public_proof_address(
-			self.wallet_inst.clone(),
-			keychain_mask,
-			derivation_index,
-		)
+		derivation_index: u32,
+	) -> Result<DalekPublicKey, Error> {
+		owner::get_public_proof_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
-	
 }
 
 #[doc(hidden)]

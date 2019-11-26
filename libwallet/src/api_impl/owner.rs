@@ -32,8 +32,8 @@ use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
 	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use crate::{Error, ErrorKind};
+use ed25519_dalek::PublicKey as DalekPublicKey;
 
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
