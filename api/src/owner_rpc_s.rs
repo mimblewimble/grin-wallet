@@ -264,6 +264,7 @@ pub trait OwnerRpcS {
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
 			  "tx_slate_id": null,
+			  "payment_proof": null,
 			  "tx_type": "ConfirmedCoinbase"
 			},
 			{
@@ -281,6 +282,7 @@ pub trait OwnerRpcS {
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
+			  "payment_proof": null,
 			  "tx_slate_id": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
@@ -371,6 +373,7 @@ pub trait OwnerRpcS {
 					"selection_strategy_is_use_all": true,
 					"message": "my message",
 					"target_slate_version": null,
+					"payment_proof_recipient_address": null,
 					"send_args": null
 				}
 			},
@@ -598,6 +601,7 @@ pub trait OwnerRpcS {
 					"selection_strategy_is_use_all": true,
 					"message": "Ok, here are your grins",
 					"target_slate_version": null,
+					"payment_proof_recipient_address": null,
 					"send_args": null
 				}
 			},
