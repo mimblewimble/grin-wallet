@@ -406,7 +406,7 @@ pub fn payment_proof_message(
 	Ok(msg)
 }
 
-pub fn decode_payment_proof_message(
+pub fn _decode_payment_proof_message(
 	msg: &Vec<u8>,
 ) -> Result<(u64, pedersen::Commitment, DalekPublicKey), Error> {
 	let mut rdr = Cursor::new(msg);
@@ -597,7 +597,7 @@ mod test {
 		let msg = payment_proof_message(amount, &kernel_excess, address).unwrap();
 		println!("payment proof message is (len {}): {:?}", msg.len(), msg);
 
-		let decoded = decode_payment_proof_message(&msg).unwrap();
+		let decoded = _decode_payment_proof_message(&msg).unwrap();
 		assert_eq!(decoded.0, amount);
 		assert_eq!(decoded.1, kernel_excess);
 		assert_eq!(decoded.2, address);

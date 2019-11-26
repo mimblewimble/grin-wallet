@@ -12,6 +12,7 @@
 			"selection_strategy_is_use_all": true,
 			"message": "my message",
 			"target_slate_version": null,
+			"payment_proof_recipient_address": null,
 			"send_args": null
 		}
 	},
