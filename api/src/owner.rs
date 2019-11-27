@@ -1987,7 +1987,6 @@ where
 	/// let res = api_owner.stop_updater();
 	/// ```
 
-	/// payment proofs
 	pub fn proof_address_from_onion_v3(&self, address_v3: &str) -> Result<DalekPublicKey, Error> {
 		address::pubkey_from_onion_v3(address_v3)
 	}
