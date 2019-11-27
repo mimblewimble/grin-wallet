@@ -1491,7 +1491,6 @@ pub fn run_doctest_owner(
 
 	//let proof_address = api_impl::owner::get_public_proof_address(wallet2.clone(), (&mask2).as_ref(), 0).unwrap();
 
-
 	if perform_tx {
 		let amount = 60_000_000_000;
 		let mut w_lock = wallet1.lock();
