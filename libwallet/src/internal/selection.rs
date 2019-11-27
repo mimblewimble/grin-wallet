@@ -23,6 +23,7 @@ use crate::grin_core::libtx::{
 };
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
+use crate::address;
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
@@ -162,17 +163,21 @@ where
 
 		// store extra payment proof info, if required
 		if let Some(ref p) = slate.payment_proof {
+			let sender_address_path = match context.payment_proof_derivation_index {
+				Some(p) => p,
+				None => {
+					return Err(ErrorKind::PaymentProof(
+						"Payment proof derivation index required".to_owned(),
+					))?;
+				}
+			};
+			let sender_key = address::address_from_derivation_path(&keychain, &parent_key_id, sender_address_path)?;
+			let sender_address = address::ed25519_keypair(&sender_key)?.1;
 			t.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address.clone(),
 				receiver_signature: p.receiver_signature.clone(),
-				sender_address_path: match context.payment_proof_derivation_index {
-					Some(p) => p,
-					None => {
-						return Err(ErrorKind::PaymentProof(
-							"Payment proof derivation index required".to_owned(),
-						))?;
-					}
-				},
+				sender_address,
+				sender_address_path,
 				sender_signature: None,
 			});
 		};
