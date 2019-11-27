@@ -19,11 +19,11 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::{Error, ErrorKind};
 use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
-use failure::ResultExt;
+use data_encoding::BASE32;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use failure::ResultExt;
 use sha3::{Digest, Sha3_256};
-use data_encoding::BASE32;
 
 use crate::blake2::blake2b::blake2b;
 
@@ -79,29 +79,42 @@ pub fn pubkey_from_onion_v3(onion_address: &str) -> Result<DalekPublicKey, Error
 	let orig_address_raw = input.clone();
 	// for now, just check input is the right length and try and decode from base32
 	if input.len() != 56 {
-		return Err(ErrorKind::AddressDecoding("Input address is wrong length".to_owned()).to_owned())?;
+		return Err(
+			ErrorKind::AddressDecoding("Input address is wrong length".to_owned()).to_owned(),
+		)?;
 	}
 	let mut address = BASE32
 		.decode(input.as_bytes())
-		.context(ErrorKind::AddressDecoding("Input address is not base 32".to_owned()))?
+		.context(ErrorKind::AddressDecoding(
+			"Input address is not base 32".to_owned(),
+		))?
 		.to_vec();
 
 	address.split_off(32);
-	let key = match DalekPublicKey::from_bytes(&address){
+	let key = match DalekPublicKey::from_bytes(&address) {
 		Ok(k) => k,
-			Err(_) => {
-				return Err(ErrorKind::AddressDecoding("Provided onion V3 address is invalid (parsing key)".to_owned()).to_owned())?;
+		Err(_) => {
+			return Err(ErrorKind::AddressDecoding(
+				"Provided onion V3 address is invalid (parsing key)".to_owned(),
+			)
+			.to_owned())?;
 		}
 	};
 	let test_v3 = match onion_v3_from_pubkey(&key) {
 		Ok(k) => k,
 		Err(_) => {
-			return Err(ErrorKind::AddressDecoding("Provided onion V3 address is invalid (converting from pubkey)".to_owned()).to_owned())?;
+			return Err(ErrorKind::AddressDecoding(
+				"Provided onion V3 address is invalid (converting from pubkey)".to_owned(),
+			)
+			.to_owned())?;
 		}
 	};
-	
+
 	if test_v3.to_uppercase() != orig_address_raw.to_uppercase() {
-		return Err(ErrorKind::AddressDecoding("Provided onion V3 address is invalid (no match)".to_owned()).to_owned())?;
+		return Err(ErrorKind::AddressDecoding(
+			"Provided onion V3 address is invalid (no match)".to_owned(),
+		)
+		.to_owned())?;
 	}
 	Ok(key)
 }
@@ -139,6 +152,5 @@ mod test {
 		println!("Address: {:?}", &out_address);
 
 		assert_eq!(onion_address, out_address);
-
 	}
 }

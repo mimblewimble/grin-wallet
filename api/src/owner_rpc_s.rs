@@ -1810,7 +1810,11 @@ pub trait OwnerRpcS {
 	```
 	*/
 
-	fn get_public_proof_address(&self, token: Token, derivation_index: u32) -> Result<PubAddress, ErrorKind>;
+	fn get_public_proof_address(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<PubAddress, ErrorKind>;
 
 	/**
 	Networked version of [Owner::proof_address_from_onion_v3](struct.Owner.html#method.proof_address_from_onion_v3).
@@ -1841,7 +1845,6 @@ pub trait OwnerRpcS {
 	*/
 
 	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind>;
-
 }
 
 impl<L, C, K> OwnerRpcS for Owner<L, C, K>
@@ -2147,22 +2150,23 @@ where
 		Owner::get_updater_messages(self, count as usize).map_err(|e| e.kind())
 	}
 
-	fn get_public_proof_address(&self, token: Token, derivation_index: u32) -> Result<PubAddress, ErrorKind> {
+	fn get_public_proof_address(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<PubAddress, ErrorKind> {
 		let address = Owner::get_public_proof_address(
 			self,
 			(&token.keychain_mask).as_ref(),
 			derivation_index,
 		)
 		.map_err(|e| e.kind())?;
-		Ok(PubAddress {
-			address,
-		})
+		Ok(PubAddress { address })
 	}
 
-	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind>{
-		let address = Owner::proof_address_from_onion_v3(self, &address_v3).map_err(|e| e.kind())?;
-		Ok(PubAddress {
-			address,
-		})
+	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind> {
+		let address =
+			Owner::proof_address_from_onion_v3(self, &address_v3).map_err(|e| e.kind())?;
+		Ok(PubAddress { address })
 	}
 }

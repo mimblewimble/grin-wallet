@@ -12,16 +12,16 @@
 // limitations under the License.
 
 use crate::core::libtx::secp_ser;
-use crate::libwallet::{Error, ErrorKind};
 use crate::libwallet::dalek_ser;
+use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, to_hex};
 use failure::ResultExt;
 
 use base64;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use rand::{thread_rng, Rng};
 use ring::aead;
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use serde_json::{self, Value};
 use std::collections::HashMap;
 

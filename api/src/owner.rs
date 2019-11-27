@@ -1891,7 +1891,7 @@ where
 	/// Retrieve the public proof "addresses" associated with the active account at the
 	/// given derivation path.
 	///
-	/// In this case, an "address" means a Dalek ed25519 public key corresponding to 
+	/// In this case, an "address" means a Dalek ed25519 public key corresponding to
 	/// a private key derived as follows:
 	///
 	/// e.g. The default parent account is at
@@ -1988,10 +1988,7 @@ where
 	/// ```
 
 	/// payment proofs
-	pub fn proof_address_from_onion_v3(
-		&self,
-		address_v3: &str,
-	) -> Result<DalekPublicKey, Error> {
+	pub fn proof_address_from_onion_v3(&self, address_v3: &str) -> Result<DalekPublicKey, Error> {
 		address::pubkey_from_onion_v3(address_v3)
 	}
 }
