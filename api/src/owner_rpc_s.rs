@@ -373,7 +373,7 @@ pub trait OwnerRpcS {
 					"selection_strategy_is_use_all": true,
 					"message": "my message",
 					"target_slate_version": null,
-					"payment_proof_recipient_address": null,
+					"payment_proof_recipient_address": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb",
 					"send_args": null
 				}
 			},
@@ -394,7 +394,11 @@ pub trait OwnerRpcS {
 		  "lock_height": "0",
 			"ttl_cutoff_height": "0",
 		  "num_participants": 2,
-			"payment_proof": null,
+			"payment_proof": {
+        "receiver_address": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb",
+        "receiver_signature": null,
+        "sender_address": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
+      },
 		  "participant_data": [
 			{
 			  "id": "0",
