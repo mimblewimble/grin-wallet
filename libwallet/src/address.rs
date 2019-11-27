@@ -15,8 +15,8 @@
 //! Functions defining wallet 'addresses', i.e. ed2559 keys based on
 //! a derivation path
 
-use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::from_hex;
+use crate::grin_util::secp::key::SecretKey;
 use crate::{Error, ErrorKind};
 use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
@@ -74,10 +74,9 @@ pub fn ed25519_parse_pubkey(pub_key: &str) -> Result<DalekPublicKey, Error> {
 	match DalekPublicKey::from_bytes(&bytes) {
 		Ok(k) => Ok(k),
 		Err(_) => {
-			return Err(ErrorKind::AddressDecoding(
-				"Not a valid public key".to_owned(),
-			)
-			.to_owned())?;
+			return Err(
+				ErrorKind::AddressDecoding("Not a valid public key".to_owned()).to_owned(),
+			)?;
 		}
 	}
 }

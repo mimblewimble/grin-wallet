@@ -526,7 +526,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 			t.reset().unwrap();
 			return Ok(());
 		}
-		Some(p) => p.clone()
+		Some(p) => p.clone(),
 	};
 
 	t.fg(term::color::WHITE).unwrap();

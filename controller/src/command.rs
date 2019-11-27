@@ -21,7 +21,9 @@ use crate::error::{Error, ErrorKind};
 use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _};
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
-use crate::libwallet::{address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+use crate::libwallet::{
+	address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider,
+};
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};

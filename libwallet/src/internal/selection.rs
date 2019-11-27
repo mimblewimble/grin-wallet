@@ -14,6 +14,7 @@
 
 //! Selection of inputs for building transactions
 
+use crate::address;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::libtx::{
@@ -23,7 +24,6 @@ use crate::grin_core::libtx::{
 };
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
-use crate::address;
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
@@ -171,7 +171,11 @@ where
 					))?;
 				}
 			};
-			let sender_key = address::address_from_derivation_path(&keychain, &parent_key_id, sender_address_path)?;
+			let sender_key = address::address_from_derivation_path(
+				&keychain,
+				&parent_key_id,
+				sender_address_path,
+			)?;
 			let sender_address = address::ed25519_keypair(&sender_key)?.1;
 			t.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address.clone(),
