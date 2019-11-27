@@ -15,7 +15,7 @@
 use crate::api::TLSConfig;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
-use crate::util::{Mutex, ZeroingString};
+use crate::util::{Mutex, ZeroingString, to_hex};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
@@ -26,7 +26,7 @@ use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::Slate;
-use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_libwallet::{address, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_core::global;
@@ -520,6 +520,23 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		}
 	};
 
+	let payment_proof_address = {
+		match args.is_present("request_payment_proof"){
+			true => {
+				// if the destination address is a TOR address, we don't need the address
+				// separately
+				match address::pubkey_from_onion_v3(&dest) {
+					Ok(k) => Some(to_hex(k.to_bytes().to_vec())),
+					Err(_) => {
+						Some(parse_required(args, "proof_address")?.to_owned())
+					}
+				}
+			}
+			false => None
+		}
+	};
+
+
 	Ok(command::SendArgs {
 		amount: amount,
 		message: message,
@@ -531,6 +548,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		change_outputs: change_outputs,
 		fluff: fluff,
 		max_outputs: max_outputs,
+		payment_proof_address,
 		target_slate_version: target_slate_version,
 	})
 }

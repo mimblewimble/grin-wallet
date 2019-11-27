@@ -254,6 +254,7 @@ pub struct SendArgs {
 	pub fluff: bool,
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
+	pub payment_proof_address: Option<String>,
 }
 
 pub fn send<L, C, K>(
