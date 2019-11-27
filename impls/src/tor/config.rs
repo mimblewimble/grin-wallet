@@ -17,11 +17,9 @@ use crate::util::secp::key::SecretKey;
 use crate::{Error, ErrorKind};
 use grin_wallet_libwallet::address;
 
-use data_encoding::BASE32;
 use ed25519_dalek::ExpandedSecretKey;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
-use sha3::{Digest, Sha3_256};
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -97,25 +95,7 @@ impl TorRcConfig {
 /// helper to get address
 pub fn onion_address_from_seckey(sec_key: &SecretKey) -> Result<String, Error> {
 	let (_, d_pub_key) = address::ed25519_keypair(sec_key)?;
-	onion_address(&d_pub_key)
-}
-
-/// Generate an onion address from an ed25519_dalek public key
-pub fn onion_address(pub_key: &DalekPublicKey) -> Result<String, Error> {
-	// calculate checksum
-	let mut hasher = Sha3_256::new();
-	hasher.input(b".onion checksum");
-	hasher.input(pub_key.as_bytes());
-	hasher.input([0x03u8]);
-	let checksum = hasher.result();
-
-	let mut address_bytes = pub_key.as_bytes().to_vec();
-	address_bytes.push(checksum[0]);
-	address_bytes.push(checksum[1]);
-	address_bytes.push(0x03u8);
-
-	let ret = BASE32.encode(&address_bytes);
-	Ok(ret.to_lowercase())
+	Ok(address::onion_v3_from_pubkey(&d_pub_key)?)
 }
 
 pub fn create_onion_service_sec_key_file(
@@ -165,7 +145,7 @@ pub fn output_onion_service_config(
 	sec_key: &SecretKey,
 ) -> Result<String, Error> {
 	let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
-	let address = onion_address(&d_pub_key)?;
+	let address = address::onion_v3_from_pubkey(&d_pub_key)?;
 	let hs_dir_file_path = format!(
 		"{}{}{}{}{}",
 		tor_config_directory, MAIN_SEPARATOR, HIDDEN_SERVICES_DIR, MAIN_SEPARATOR, address
@@ -259,22 +239,13 @@ pub fn output_tor_sender_config(
 }
 
 pub fn is_tor_address(input: &str) -> Result<(), Error> {
-	let mut input = input.to_uppercase();
-	if input.starts_with("HTTP://") || input.starts_with("HTTPS://") {
-		input = input.replace("HTTP://", "");
-		input = input.replace("HTTPS://", "");
+	match address::pubkey_from_onion_v3(input) {
+		Ok(_) => Ok(()),
+		Err(e) => {
+			let msg = format!("{}", e);
+			Err(ErrorKind::NotOnion(msg).to_owned())?
+		}
 	}
-	if input.ends_with(".ONION") {
-		input = input.replace(".ONION", "");
-	}
-	// for now, just check input is the right length and is base32
-	if input.len() != 56 {
-		return Err(ErrorKind::NotOnion.to_owned())?;
-	}
-	let _ = BASE32
-		.decode(input.as_bytes())
-		.context(ErrorKind::NotOnion)?;
-	Ok(())
 }
 
 pub fn complete_tor_address(input: &str) -> Result<String, Error> {
@@ -332,7 +303,7 @@ mod tests {
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		println!("{:?}", sec_key);
 		let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
-		let address = onion_address(&d_pub_key)?;
+		let address = address::onion_v3_from_pubkey(&d_pub_key)?;
 		assert_eq!(
 			"kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid",
 			address
@@ -370,6 +341,8 @@ mod tests {
 	#[test]
 	fn test_is_tor_address() -> Result<(), Error> {
 		assert!(is_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").is_ok());
+		assert!(is_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").is_ok());
+		assert!(is_tor_address("kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid").is_ok());
 		assert!(is_tor_address(
 			"http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion"
 		)

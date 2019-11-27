@@ -19,8 +19,11 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::{Error, ErrorKind};
 use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
+use failure::ResultExt;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use sha3::{Digest, Sha3_256};
+use data_encoding::BASE32;
 
 use crate::blake2::blake2b::blake2b;
 
@@ -61,4 +64,81 @@ pub fn ed25519_keypair(sec_key: &SecretKey) -> Result<(DalekSecretKey, DalekPubl
 	};
 	let d_pub_key: DalekPublicKey = (&d_skey).into();
 	Ok((d_skey, d_pub_key))
+}
+
+/// Return the ed25519 public key represented in an onion address
+pub fn pubkey_from_onion_v3(onion_address: &str) -> Result<DalekPublicKey, Error> {
+	let mut input = onion_address.to_uppercase();
+	if input.starts_with("HTTP://") || input.starts_with("HTTPS://") {
+		input = input.replace("HTTP://", "");
+		input = input.replace("HTTPS://", "");
+	}
+	if input.ends_with(".ONION") {
+		input = input.replace(".ONION", "");
+	}
+	let orig_address_raw = input.clone();
+	// for now, just check input is the right length and try and decode from base32
+	if input.len() != 56 {
+		return Err(ErrorKind::AddressDecoding("Input address is wrong length".to_owned()).to_owned())?;
+	}
+	let mut address = BASE32
+		.decode(input.as_bytes())
+		.context(ErrorKind::AddressDecoding("Input address is not base 32".to_owned()))?
+		.to_vec();
+
+	address.split_off(32);
+	let key = match DalekPublicKey::from_bytes(&address){
+		Ok(k) => k,
+			Err(_) => {
+				return Err(ErrorKind::AddressDecoding("Provided onion V3 address is invalid (parsing key)".to_owned()).to_owned())?;
+		}
+	};
+	let test_v3 = match onion_v3_from_pubkey(&key) {
+		Ok(k) => k,
+		Err(_) => {
+			return Err(ErrorKind::AddressDecoding("Provided onion V3 address is invalid (converting from pubkey)".to_owned()).to_owned())?;
+		}
+	};
+	
+	if test_v3.to_uppercase() != orig_address_raw.to_uppercase() {
+		return Err(ErrorKind::AddressDecoding("Provided onion V3 address is invalid (no match)".to_owned()).to_owned())?;
+	}
+	Ok(key)
+}
+
+/// Generate an onion address from an ed25519_dalek public key
+pub fn onion_v3_from_pubkey(pub_key: &DalekPublicKey) -> Result<String, Error> {
+	// calculate checksum
+	let mut hasher = Sha3_256::new();
+	hasher.input(b".onion checksum");
+	hasher.input(pub_key.as_bytes());
+	hasher.input([0x03u8]);
+	let checksum = hasher.result();
+
+	let mut address_bytes = pub_key.as_bytes().to_vec();
+	address_bytes.push(checksum[0]);
+	address_bytes.push(checksum[1]);
+	address_bytes.push(0x03u8);
+
+	let ret = BASE32.encode(&address_bytes);
+	Ok(ret.to_lowercase())
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn onion_v3_conversion() {
+		let onion_address = "2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid";
+
+		let key = pubkey_from_onion_v3(onion_address).unwrap();
+		println!("Key: {:?}", &key);
+
+		let out_address = onion_v3_from_pubkey(&key).unwrap();
+		println!("Address: {:?}", &out_address);
+
+		assert_eq!(onion_address, out_address);
+
+	}
 }

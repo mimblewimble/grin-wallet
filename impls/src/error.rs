@@ -83,8 +83,8 @@ pub enum ErrorKind {
 	ED25519Key(String),
 
 	/// Checking for onion address
-	#[fail(display = "Address is not an Onion v3 Address")]
-	NotOnion,
+	#[fail(display = "Address is not an Onion v3 Address: {}", _0)]
+	NotOnion(String),
 
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]

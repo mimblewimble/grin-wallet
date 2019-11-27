@@ -229,6 +229,10 @@ pub enum ErrorKind {
 	#[fail(display = "Payment Proof generation error: {}", _0)]
 	PaymentProof(String),
 
+	/// Decoding OnionV3 addresses to payment proof addresses
+	#[fail(display = "Proof Address decoding: {}", _0)]
+	AddressDecoding(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

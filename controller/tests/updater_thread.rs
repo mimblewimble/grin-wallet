@@ -19,13 +19,10 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
-use grin_wallet_util::grin_core as core;
+// use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
+// use grin_wallet_util::grin_core as core;
 
-use self::libwallet::{InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
-use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
@@ -71,9 +68,6 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		}
 	});
 
-	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
-
 	// add some accounts
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
 		api.create_account_path(m, "mining")?;
@@ -93,7 +87,7 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("mining")?;
 	}
-	let mut bh = 10u64;
+	let bh = 10u64;
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
