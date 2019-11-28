@@ -15,6 +15,7 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
+use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
@@ -22,7 +23,6 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
-use crate::config::TorConfig;
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
@@ -193,8 +193,12 @@ where
 	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-	let api_handler_v3 =
-		OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), tor_config, running_foreign);
+	let api_handler_v3 = OwnerAPIHandlerV3::new(
+		wallet.clone(),
+		keychain_mask.clone(),
+		tor_config,
+		running_foreign,
+	);
 
 	router
 		.add_route("/v2/owner", Arc::new(api_handler_v2))

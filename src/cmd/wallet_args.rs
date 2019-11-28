@@ -983,9 +983,13 @@ where
 			arg_parse!(parse_owner_api_args(&mut c, &args));
 			command::owner_api(wallet, keychain_mask, &c, &tor_config, &g)
 		}
-		("web", Some(_)) => {
-			command::owner_api(wallet, keychain_mask, &wallet_config, &tor_config, &global_wallet_args)
-		}
+		("web", Some(_)) => command::owner_api(
+			wallet,
+			keychain_mask,
+			&wallet_config,
+			&tor_config,
+			&global_wallet_args,
+		),
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
 			command::account(wallet, km, a)
