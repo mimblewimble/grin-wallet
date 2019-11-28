@@ -80,6 +80,46 @@ pub mod option_dalek_pubkey_serde {
 		})
 	}
 }
+
+/// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
+pub mod option_dalek_sig_serde {
+	use ed25519_dalek::Signature as DalekSignature;
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::grin_util::{from_hex, to_hex};
+
+	///
+	pub fn serialize<S>(key: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => serializer.serialize_str(&to_hex(key.to_bytes().to_vec())),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekSignature>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|res| match res {
+			Some(string) => from_hex(string.to_string())
+				.map_err(|err| Error::custom(err.to_string()))
+				.and_then(|bytes: Vec<u8>| {
+					let mut b = [0u8; 64];
+					b.copy_from_slice(&bytes[0..64]);
+					DalekSignature::from_bytes(&b)
+						.map(|val| Some(val))
+						.map_err(|err| Error::custom(err.to_string()))
+				}),
+			None => Ok(None),
+		})
+	}
+}
+
 // Test serialization methods of components that are being used
 #[cfg(test)]
 mod test {
@@ -87,8 +127,10 @@ mod test {
 	use rand::rngs::mock::StepRng;
 
 	use crate::grin_util::{secp, static_secp_instance};
+	use ed25519_dalek::Keypair;
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use ed25519_dalek::SecretKey as DalekSecretKey;
+	use ed25519_dalek::Signature as DalekSignature;
 	use serde::Deserialize;
 
 	use serde_json;
@@ -99,6 +141,8 @@ mod test {
 		pub pub_key: DalekPublicKey,
 		#[serde(with = "option_dalek_pubkey_serde")]
 		pub pub_key_opt: Option<DalekPublicKey>,
+		#[serde(with = "option_dalek_sig_serde")]
+		pub sig_opt: Option<DalekSignature>,
 	}
 
 	impl SerTest {
@@ -109,9 +153,19 @@ mod test {
 			let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 			let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap();
 			let d_pub_key: DalekPublicKey = (&d_skey).into();
+
+			let keypair = Keypair {
+				public: d_pub_key,
+				secret: d_skey,
+			};
+
+			let d_sig = keypair.sign("test sig".as_bytes());
+			println!("D sig: {:?}", d_sig);
+
 			SerTest {
 				pub_key: d_pub_key.clone(),
 				pub_key_opt: Some(d_pub_key),
+				sig_opt: Some(d_sig),
 			}
 		}
 	}

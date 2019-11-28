@@ -15,15 +15,11 @@
 //! Tor Configuration + Onion (Hidden) Service operations
 use crate::util::secp::key::SecretKey;
 use crate::{Error, ErrorKind};
-use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
+use grin_wallet_libwallet::address;
 
-use data_encoding::BASE32;
 use ed25519_dalek::ExpandedSecretKey;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
-use sha3::{Digest, Sha3_256};
-
-use crate::blake2::blake2b::blake2b;
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -96,40 +92,10 @@ impl TorRcConfig {
 	}
 }
 
-/// Output ed25519 keypair given an rust_secp256k1 SecretKey
-pub fn ed25519_keypair(sec_key: &SecretKey) -> Result<(DalekSecretKey, DalekPublicKey), Error> {
-	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
-		Ok(k) => k,
-		Err(e) => {
-			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
-		}
-	};
-	let d_pub_key: DalekPublicKey = (&d_skey).into();
-	Ok((d_skey, d_pub_key))
-}
-
 /// helper to get address
 pub fn onion_address_from_seckey(sec_key: &SecretKey) -> Result<String, Error> {
-	let (_, d_pub_key) = ed25519_keypair(sec_key)?;
-	onion_address(&d_pub_key)
-}
-
-/// Generate an onion address from an ed25519_dalek public key
-pub fn onion_address(pub_key: &DalekPublicKey) -> Result<String, Error> {
-	// calculate checksum
-	let mut hasher = Sha3_256::new();
-	hasher.input(b".onion checksum");
-	hasher.input(pub_key.as_bytes());
-	hasher.input([0x03u8]);
-	let checksum = hasher.result();
-
-	let mut address_bytes = pub_key.as_bytes().to_vec();
-	address_bytes.push(checksum[0]);
-	address_bytes.push(checksum[1]);
-	address_bytes.push(0x03u8);
-
-	let ret = BASE32.encode(&address_bytes);
-	Ok(ret.to_lowercase())
+	let (_, d_pub_key) = address::ed25519_keypair(sec_key)?;
+	Ok(address::onion_v3_from_pubkey(&d_pub_key)?)
 }
 
 pub fn create_onion_service_sec_key_file(
@@ -178,8 +144,8 @@ pub fn output_onion_service_config(
 	tor_config_directory: &str,
 	sec_key: &SecretKey,
 ) -> Result<String, Error> {
-	let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
-	let address = onion_address(&d_pub_key)?;
+	let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
+	let address = address::onion_v3_from_pubkey(&d_pub_key)?;
 	let hs_dir_file_path = format!(
 		"{}{}{}{}{}",
 		tor_config_directory, MAIN_SEPARATOR, HIDDEN_SERVICES_DIR, MAIN_SEPARATOR, address
@@ -193,7 +159,7 @@ pub fn output_onion_service_config(
 	// create directory if it doesn't exist
 	fs::create_dir_all(&hs_dir_file_path).context(ErrorKind::IO)?;
 
-	let (d_sec_key, d_pub_key) = ed25519_keypair(&sec_key)?;
+	let (d_sec_key, d_pub_key) = address::ed25519_keypair(&sec_key)?;
 	create_onion_service_sec_key_file(&hs_dir_file_path, &d_sec_key)?;
 	create_onion_service_pub_key_file(&hs_dir_file_path, &d_pub_key)?;
 	create_onion_service_hostname_file(&hs_dir_file_path, &address)?;
@@ -272,51 +238,14 @@ pub fn output_tor_sender_config(
 	Ok(())
 }
 
-/// Derive a secret key given a derivation path and index
-pub fn address_derivation_path<K>(
-	keychain: &K,
-	parent_key_id: &Identifier,
-	index: u32,
-) -> Result<SecretKey, Error>
-where
-	K: Keychain,
-{
-	let mut key_path = parent_key_id.to_path();
-	// An output derivation for acct m/0
-	// is m/0/0/0, m/0/0/1 (for instance), m/1 is m/1/0/0, m/1/0/1
-	// Address generation path should be
-	// for m/0: m/0/1/0, m/0/1/1
-	// for m/1: m/1/1/0, m/1/1/1
-	key_path.path[1] = ChildNumber::from(1);
-	key_path.depth = key_path.depth + 1;
-	key_path.path[key_path.depth as usize - 1] = ChildNumber::from(index);
-	let key_id = Identifier::from_path(&key_path);
-	debug!("Onion Address derivation path is: {}", key_id);
-	let sec_key = keychain.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
-	let hashed = blake2b(32, &[], &sec_key.0[..]);
-	Ok(SecretKey::from_slice(
-		&keychain.secp(),
-		&hashed.as_bytes()[..],
-	)?)
-}
-
 pub fn is_tor_address(input: &str) -> Result<(), Error> {
-	let mut input = input.to_uppercase();
-	if input.starts_with("HTTP://") || input.starts_with("HTTPS://") {
-		input = input.replace("HTTP://", "");
-		input = input.replace("HTTPS://", "");
+	match address::pubkey_from_onion_v3(input) {
+		Ok(_) => Ok(()),
+		Err(e) => {
+			let msg = format!("{}", e);
+			Err(ErrorKind::NotOnion(msg).to_owned())?
+		}
 	}
-	if input.ends_with(".ONION") {
-		input = input.replace(".ONION", "");
-	}
-	// for now, just check input is the right length and is base32
-	if input.len() != 56 {
-		return Err(ErrorKind::NotOnion.to_owned())?;
-	}
-	let _ = BASE32
-		.decode(input.as_bytes())
-		.context(ErrorKind::NotOnion)?;
-	Ok(())
 }
 
 pub fn complete_tor_address(input: &str) -> Result<String, Error> {
@@ -356,12 +285,12 @@ mod tests {
 		let mut test_rng = StepRng::new(1234567890u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		println!("{:?}", sec_key);
-		let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
+		let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
 		println!("{:?}", d_pub_key);
 		// some randoms
 		for _ in 0..1000 {
 			let sec_key = secp::key::SecretKey::new(&secp, &mut thread_rng());
-			let (_, _) = ed25519_keypair(&sec_key)?;
+			let (_, _) = address::ed25519_keypair(&sec_key)?;
 		}
 		Ok(())
 	}
@@ -373,8 +302,8 @@ mod tests {
 		let mut test_rng = StepRng::new(1234567890u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		println!("{:?}", sec_key);
-		let (_, d_pub_key) = ed25519_keypair(&sec_key)?;
-		let address = onion_address(&d_pub_key)?;
+		let (_, d_pub_key) = address::ed25519_keypair(&sec_key)?;
+		let address = address::onion_v3_from_pubkey(&d_pub_key)?;
 		assert_eq!(
 			"kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid",
 			address
@@ -412,6 +341,8 @@ mod tests {
 	#[test]
 	fn test_is_tor_address() -> Result<(), Error> {
 		assert!(is_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").is_ok());
+		assert!(is_tor_address("2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid").is_ok());
+		assert!(is_tor_address("kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid").is_ok());
 		assert!(is_tor_address(
 			"http://kcgiy5g6m76nzlzz4vyqmgdv34f6yokdqwfhdhaafanpo5p4fceibyid.onion"
 		)

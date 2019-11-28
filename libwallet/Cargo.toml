@@ -25,6 +25,9 @@ lazy_static = "1"
 strum = "0.15"
 strum_macros = "0.15"
 ed25519-dalek = "1.0.0-pre.1"
+sha3 = "0.8"
+byteorder = "1"
+data-encoding = "2"
 
 grin_wallet_util = { path = "../util", version = "3.0.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "3.0.0-alpha.1" }

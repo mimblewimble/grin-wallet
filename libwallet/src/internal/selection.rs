@@ -160,6 +160,23 @@ where
 		t.amount_debited = amount_debited;
 		t.messages = messages;
 
+		// store extra payment proof info, if required
+		if let Some(ref p) = slate.payment_proof {
+			t.payment_proof = Some(StoredProofInfo {
+				receiver_address: p.receiver_address.clone(),
+				receiver_signature: p.receiver_signature.clone(),
+				sender_address_path: match context.payment_proof_derivation_index {
+					Some(p) => p,
+					None => {
+						return Err(ErrorKind::PaymentProof(
+							"Payment proof derivation index required".to_owned(),
+						))?;
+					}
+				},
+				sender_signature: None,
+			});
+		};
+
 		// write the output representing our change
 		for (id, _, _) in &context.get_outputs() {
 			t.num_outputs += 1;

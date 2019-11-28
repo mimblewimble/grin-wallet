@@ -221,6 +221,18 @@ pub enum ErrorKind {
 	#[fail(display = "Tor Config Error: {}", _0)]
 	TorConfig(String),
 
+	/// Generating ED25519 Public Key
+	#[fail(display = "Error generating ed25519 secret key: {}", _0)]
+	ED25519Key(String),
+
+	/// Generating Payment Proof
+	#[fail(display = "Payment Proof generation error: {}", _0)]
+	PaymentProof(String),
+
+	/// Decoding OnionV3 addresses to payment proof addresses
+	#[fail(display = "Proof Address decoding: {}", _0)]
+	AddressDecoding(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

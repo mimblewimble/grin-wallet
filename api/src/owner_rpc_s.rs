@@ -27,7 +27,7 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
-use crate::{ECDHPubkey, Owner, Token};
+use crate::{ECDHPubkey, Owner, PubAddress, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
 use std::time::Duration;
@@ -264,6 +264,7 @@ pub trait OwnerRpcS {
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
 			  "tx_slate_id": null,
+			  "payment_proof": null,
 			  "tx_type": "ConfirmedCoinbase"
 			},
 			{
@@ -281,6 +282,7 @@ pub trait OwnerRpcS {
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
+			  "payment_proof": null,
 			  "tx_slate_id": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
@@ -371,6 +373,7 @@ pub trait OwnerRpcS {
 					"selection_strategy_is_use_all": true,
 					"message": "my message",
 					"target_slate_version": null,
+					"payment_proof_recipient_address": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb",
 					"send_args": null
 				}
 			},
@@ -391,7 +394,11 @@ pub trait OwnerRpcS {
 		  "lock_height": "0",
 			"ttl_cutoff_height": "0",
 		  "num_participants": 2,
-			"payment_proof": null,
+			"payment_proof": {
+		"receiver_address": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb",
+		"receiver_signature": null,
+		"sender_address": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
+	  },
 		  "participant_data": [
 			{
 			  "id": "0",
@@ -598,6 +605,7 @@ pub trait OwnerRpcS {
 					"selection_strategy_is_use_all": true,
 					"message": "Ok, here are your grins",
 					"target_slate_version": null,
+					"payment_proof_recipient_address": null,
 					"send_args": null
 				}
 			},
@@ -1776,6 +1784,71 @@ pub trait OwnerRpcS {
 	*/
 
 	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind>;
+
+	/**
+	Networked version of [Owner::get_public_proof_address](struct.Owner.html#method.get_public_proof_address).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_public_proof_address",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"derivation_index": 0
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn get_public_proof_address(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<PubAddress, ErrorKind>;
+
+	/**
+	Networked version of [Owner::proof_address_from_onion_v3](struct.Owner.html#method.proof_address_from_onion_v3).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "proof_address_from_onion_v3",
+		"params": {
+			"address_v3": "2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb"
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+
+	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind>;
 }
 
 impl<L, C, K> OwnerRpcS for Owner<L, C, K>
@@ -2079,5 +2152,25 @@ where
 
 	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind> {
 		Owner::get_updater_messages(self, count as usize).map_err(|e| e.kind())
+	}
+
+	fn get_public_proof_address(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<PubAddress, ErrorKind> {
+		let address = Owner::get_public_proof_address(
+			self,
+			(&token.keychain_mask).as_ref(),
+			derivation_index,
+		)
+		.map_err(|e| e.kind())?;
+		Ok(PubAddress { address })
+	}
+
+	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind> {
+		let address =
+			Owner::proof_address_from_onion_v3(self, &address_v3).map_err(|e| e.kind())?;
+		Ok(PubAddress { address })
 	}
 }

@@ -56,4 +56,6 @@ pub use crate::foreign_rpc::foreign_rpc as foreign_rpc_client;
 pub use crate::foreign_rpc::run_doctest_foreign;
 pub use crate::owner_rpc::run_doctest_owner;
 
-pub use types::{ECDHPubkey, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Token};
+pub use types::{
+	ECDHPubkey, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, PubAddress, Token,
+};

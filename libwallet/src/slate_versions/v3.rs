@@ -27,6 +27,7 @@ use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -105,10 +106,10 @@ pub struct ParticipantDataV3 {
 pub struct PaymentInfoV3 {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
-	pub receiver_address: Option<DalekPublicKey>,
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub receiver_signature: Option<Signature>,
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub receiver_address: DalekPublicKey,
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub receiver_signature: Option<DalekSignature>,
 }
 
 /// A transaction

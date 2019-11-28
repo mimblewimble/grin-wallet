@@ -44,6 +44,7 @@ extern crate strum;
 #[macro_use]
 extern crate strum_macros;
 
+pub mod address;
 pub mod api_impl;
 mod error;
 mod internal;
@@ -63,10 +64,11 @@ pub use api_impl::types::{
 	OutputCommitMapping, SendTXArgs, VersionInfo,
 };
 pub use internal::scan::scan;
+pub use slate_versions::ser as dalek_ser;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
-	OutputStatus, ScannedBlockInfo, TxLogEntry, TxLogEntryType, TxWrapper, WalletBackend,
-	WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider, WalletOutputBatch,
+	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
+	WalletBackend, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider, WalletOutputBatch,
 };
 
 /// Helper for taking a lock on the wallet instance

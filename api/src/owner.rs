@@ -15,6 +15,7 @@
 //! Owner API External Definition
 
 use chrono::prelude::*;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -25,7 +26,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
-	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	address, AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
@@ -1885,6 +1886,109 @@ where
 		let mut q = self.updater_messages.lock();
 		let index = q.len().saturating_sub(count);
 		Ok(q.split_off(index))
+	}
+
+	/// Retrieve the public proof "addresses" associated with the active account at the
+	/// given derivation path.
+	///
+	/// In this case, an "address" means a Dalek ed25519 public key corresponding to
+	/// a private key derived as follows:
+	///
+	/// e.g. The default parent account is at
+	///
+	/// `m/0/0`
+	///
+	/// With output blinding factors created as
+	///
+	/// `m/0/0/0`
+	/// `m/0/0/1` etc...
+	///
+	/// The corresponding public address derivation path would be at:
+	///
+	/// `m/0/1`
+	///
+	/// With addresses created as:
+	///
+	/// `m/0/1/0`
+	/// `m/0/1/1` etc...
+	///
+	/// Note that these addresses correspond to the public keys used in the addresses
+	/// of TOR hidden services configured by the wallet listener.
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `derivation_index` - The index along the derivation path to retrieve an address for
+	///
+	/// # Returns
+	/// * Ok with a DalekPublicKey representing the address
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.get_public_proof_address(None, 0);
+	///
+	/// if let Ok(_) = res {
+	///   // ...
+	/// }
+	///
+	/// ```
+
+	pub fn get_public_proof_address(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		derivation_index: u32,
+	) -> Result<DalekPublicKey, Error> {
+		owner::get_public_proof_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
+	}
+
+	/// Helper function to convert an Onion v3 address to a payment proof address (essentially
+	/// exctacting and verifying the public key)
+	///
+	/// # Arguments
+	///
+	/// * `address_v3` - An V3 Onion address
+	///
+	/// # Returns
+	/// * Ok(DalekPublicKey) representing the public key associated with the address, if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	/// or the address provided is invalid
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone());
+	///
+	/// let res = api_owner.proof_address_from_onion_v3(
+	///  "2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid"
+	/// );
+	///
+	/// if let Ok(_) = res {
+	///   // ...
+	/// }
+	///
+	/// let res = api_owner.stop_updater();
+	/// ```
+
+	pub fn proof_address_from_onion_v3(&self, address_v3: &str) -> Result<DalekPublicKey, Error> {
+		address::pubkey_from_onion_v3(address_v3)
 	}
 }
 

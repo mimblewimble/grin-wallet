@@ -26,7 +26,10 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{LoggingConfig, ZeroingString};
 use crate::slate::ParticipantMessages;
+use crate::slate_versions::ser as dalek_ser;
 use chrono::prelude::*;
+use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
 use serde;
 use serde_json;
@@ -546,6 +549,8 @@ pub struct Context {
 	pub fee: u64,
 	/// keep track of the participant id
 	pub participant_id: usize,
+	/// Payment proof sender address derivation path, if needed
+	pub payment_proof_derivation_index: Option<u32>,
 }
 
 impl Context {
@@ -569,6 +574,7 @@ impl Context {
 			output_ids: vec![],
 			fee: 0,
 			participant_id: participant_id,
+			payment_proof_derivation_index: None,
 		}
 	}
 }
@@ -784,6 +790,9 @@ pub struct TxLogEntry {
 	/// of kernel is necessary
 	#[serde(default)]
 	pub kernel_lookup_min_height: Option<u64>,
+	/// Additional info needed to stored payment proof
+	#[serde(default)]
+	pub payment_proof: Option<StoredProofInfo>,
 }
 
 impl ser::Writeable for TxLogEntry {
@@ -819,6 +828,7 @@ impl TxLogEntry {
 			stored_tx: None,
 			kernel_excess: None,
 			kernel_lookup_min_height: None,
+			payment_proof: None,
 		}
 	}
 
@@ -833,6 +843,36 @@ impl TxLogEntry {
 	/// Update confirmation TS with now
 	pub fn update_confirmation_ts(&mut self) {
 		self.confirmation_ts = Some(Utc::now());
+	}
+}
+
+/// Payment proof information. Differs from what is sent via
+/// the slate
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StoredProofInfo {
+	/// receiver address
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub receiver_address: DalekPublicKey,
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	/// receiver signature
+	pub receiver_signature: Option<DalekSignature>,
+	/// sender address derivation path index
+	pub sender_address_path: u32,
+	/// sender signature
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub sender_signature: Option<DalekSignature>,
+}
+
+impl ser::Writeable for StoredProofInfo {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for StoredProofInfo {
+	fn read(reader: &mut dyn ser::Reader) -> Result<StoredProofInfo, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
 }
 

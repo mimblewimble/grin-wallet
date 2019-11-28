@@ -32,6 +32,7 @@ use crate::grin_util::secp::Signature;
 use crate::grin_util::{self, secp, RwLock};
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
@@ -52,10 +53,10 @@ use crate::types::CbData;
 pub struct PaymentInfo {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
-	pub receiver_address: Option<DalekPublicKey>,
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub receiver_signature: Option<Signature>,
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub receiver_address: DalekPublicKey,
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub receiver_signature: Option<DalekSignature>,
 }
 
 /// Public data for each participant in the slate

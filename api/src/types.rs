@@ -12,12 +12,14 @@
 // limitations under the License.
 
 use crate::core::libtx::secp_ser;
+use crate::libwallet::dalek_ser;
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, to_hex};
 use failure::ResultExt;
 
 use base64;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use rand::{thread_rng, Rng};
 use ring::aead;
 use serde_json::{self, Value};
@@ -30,6 +32,15 @@ pub struct Token {
 	#[serde(with = "secp_ser::option_seckey_serde")]
 	/// Token to XOR mask against the stored wallet seed
 	pub keychain_mask: Option<SecretKey>,
+}
+
+/// Wrapper for dalek public keys, used as addresses
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(transparent)]
+pub struct PubAddress {
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	/// Public address
+	pub address: DalekPublicKey,
 }
 
 /// Wrapper for ECDH Public keys
