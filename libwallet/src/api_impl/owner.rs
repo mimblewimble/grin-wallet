@@ -224,7 +224,7 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, args.ttl_blocks)?;
 
 	// if we just want to estimate, don't save a context, just send the results
 	// back
@@ -324,7 +324,7 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, None)?;
 	let context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
@@ -400,6 +400,11 @@ where
 
 	// update slate current height
 	ret_slate.height = w.w2n_client().get_chain_tip()?.0;
+	if let Some(b) = args.ttl_blocks {
+		ret_slate.ttl_cutoff_height = Some(ret_slate.height + b);
+	}
+
+	// update ttl if desired
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,

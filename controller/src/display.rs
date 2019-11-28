@@ -152,6 +152,7 @@ pub fn txs(
 		bMG->"Type",
 		bMG->"Shared Transaction Id",
 		bMG->"Creation Time",
+		bMG->"TTL Cutoff Height",
 		bMG->"Confirmed?",
 		bMG->"Confirmation Time",
 		bMG->"Num. \nInputs",
@@ -173,6 +174,10 @@ pub fn txs(
 		};
 		let entry_type = format!("{}", t.tx_type);
 		let creation_ts = format!("{}", t.creation_ts.format("%Y-%m-%d %H:%M:%S"));
+		let ttl_cutoff_height = match t.ttl_cutoff_height {
+			Some(b) => format!("{}", b),
+			None => "None".to_owned(),
+		};
 		let confirmation_ts = match t.confirmation_ts {
 			Some(m) => format!("{}", m.format("%Y-%m-%d %H:%M:%S")),
 			None => "None".to_owned(),
@@ -212,6 +217,7 @@ pub fn txs(
 				bFC->entry_type,
 				bFC->slate_id,
 				bFB->creation_ts,
+				bFB->ttl_cutoff_height,
 				bFC->confirmed,
 				bFB->confirmation_ts,
 				bFC->num_inputs,
