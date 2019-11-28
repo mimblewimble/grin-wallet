@@ -101,8 +101,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	})?;
 
 	// Now mine past the block, and check again. Transaction should be gone.
-	let _ =
-		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
 
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
@@ -151,8 +150,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	})?;
 
 	// Mine past the ttl block and try to send
-	let _ =
-		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
 
 	// Wallet 2 will need to have updated past the TTL
 	wallet::controller::owner_single_use(wallet2.clone(), mask2, |sender_api, m| {
@@ -166,7 +164,6 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		println!("Send after TTL result is: {:?}", res);
 		assert!(res.is_err());
 		Ok(())
-
 	})?;
 
 	// let logging finish

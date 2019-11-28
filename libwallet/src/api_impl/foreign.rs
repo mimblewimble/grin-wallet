@@ -15,11 +15,11 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
+use crate::api_impl::owner::check_ttl;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{tx, updater};
 use crate::slate_versions::SlateVersion;
-use crate::api_impl::owner::check_ttl;
 use crate::{
 	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
 	WalletBackend,

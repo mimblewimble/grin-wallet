@@ -233,12 +233,14 @@ where
 				None,
 				false,
 			) {
-				Err(e) => return Ok(WalletProxyMessage {
-					sender_id: m.dest,
-					dest: m.sender_id,
-					method: m.method,
-					body: serde_json::to_string(&format!("Error: {}", e)).unwrap(),
-				}),
+				Err(e) => {
+					return Ok(WalletProxyMessage {
+						sender_id: m.dest,
+						dest: m.sender_id,
+						method: m.method,
+						body: serde_json::to_string(&format!("Error: {}", e)).unwrap(),
+					})
+				}
 				Ok(s) => s,
 			}
 		};

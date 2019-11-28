@@ -407,7 +407,6 @@ where
 		ret_slate.ttl_cutoff_height = Some(ret_slate.height + b);
 	}
 
-
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
 		keychain_mask,
@@ -749,7 +748,7 @@ where
 		batch.save_init_status(WalletInitStatus::InitComplete)?;
 		batch.commit()?;
 	}
-	
+
 	// Step 5: Cancel any transactions with an expired TTL
 	for tx in txs {
 		if let Some(e) = tx.ttl_cutoff_height {
@@ -765,10 +764,7 @@ where
 }
 
 /// Check TTL
-pub fn check_ttl<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	slate: &Slate,
-) -> Result<(), Error>
+pub fn check_ttl<'a, T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
