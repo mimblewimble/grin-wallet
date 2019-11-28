@@ -25,7 +25,7 @@ use crate::libwallet::{
 	address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{Mutex, ZeroingString};
+use crate::util::{to_hex, Mutex, ZeroingString};
 use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
@@ -876,6 +876,44 @@ where
 			}
 			Err(e) => {
 				error!("Wallet check failed: {}", e);
+				error!("Backtrace: {}", e.backtrace().unwrap());
+				Err(e)
+			}
+		}
+	})?;
+	Ok(())
+}
+
+/// Payment Proof Address
+pub fn address<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	g_args: &GlobalArgs,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		// Just address at derivation index 0 for now
+		let pub_key = api.get_public_proof_address(m, 0)?;
+		let result = address::onion_v3_from_pubkey(&pub_key);
+		match result {
+			Ok(a) => {
+				println!();
+				println!("Public Proof Address for account - {}", g_args.account);
+				println!("-------------------------------------");
+				println!("{}", to_hex(pub_key.as_bytes().to_vec()));
+				println!();
+				println!("TOR Onion V3 Address for account - {}", g_args.account);
+				println!("-------------------------------------");
+				println!("{}", a);
+				println!();
+				Ok(())
+			}
+			Err(e) => {
+				error!("Addres retrieval failed: {}", e);
 				error!("Backtrace: {}", e.backtrace().unwrap());
 				Err(e)
 			}
