@@ -1060,9 +1060,7 @@ where
 			let a = arg_parse!(parse_cancel_args(&args));
 			command::cancel(wallet, km, a)
 		}
-		("address", Some(_)) => {
-			command::address(wallet, &global_wallet_args, km)
-		}
+		("address", Some(_)) => command::address(wallet, &global_wallet_args, km),
 		("scan", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
 			command::scan(wallet, km, a)
