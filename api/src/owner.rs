@@ -73,6 +73,9 @@ where
 	/// Holds all update and status messages returned by the
 	/// updater process
 	updater_messages: Arc<Mutex<Vec<StatusMessage>>>,
+	/// Optional TOR configuration, holding address of sender and
+	/// data directory
+	tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> Owner<L, C, K>
@@ -176,7 +179,21 @@ where
 			updater_running,
 			status_tx: Mutex::new(Some(tx)),
 			updater_messages,
+			tor_config: Mutex::new(None),
 		}
+	}
+
+	/// Set the TOR configuration for this instance of the OwnerAPI, used during
+	/// `init_send_tx` when send args are present and a TOR address is specified
+	///
+	/// # Arguments
+	/// * `tor_config` - The optional [TorConfig](#) to use
+	/// # Returns
+	/// * Nothing
+
+	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
+		let mut lock = self.tor_config.lock();
+		*lock = tor_config;
 	}
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
@@ -636,8 +653,8 @@ where
 						.into());
 					}
 				};
-				//TODO: no TOR just now via this method, to keep compatibility for now
-				let comm_adapter = create_sender(&sa.method, &sa.dest, None)
+				let tor_config_lock = self.tor_config.lock();
+				let comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
 				self.tx_lock_outputs(keychain_mask, &slate, 0)?;

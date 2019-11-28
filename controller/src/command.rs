@@ -175,6 +175,7 @@ pub fn owner_api<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
 	config: &WalletConfig,
+	tor_config: &TorConfig,
 	g_args: &GlobalArgs,
 ) -> Result<(), Error>
 where
@@ -192,6 +193,7 @@ where
 		g_args.api_secret.clone(),
 		g_args.tls_conf.clone(),
 		config.owner_api_include_foreign.clone(),
+		Some(tor_config.clone()),
 	);
 	if let Err(e) = res {
 		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
