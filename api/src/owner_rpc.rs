@@ -239,6 +239,7 @@ pub trait OwnerRpc: Sync + Send {
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
 			  "payment_proof": null,
 			  "tx_type": "ConfirmedCoinbase"
@@ -258,6 +259,7 @@ pub trait OwnerRpc: Sync + Send {
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
 			  "payment_proof": null,
 			  "tx_type": "ConfirmedCoinbase"
@@ -343,6 +345,7 @@ pub trait OwnerRpc: Sync + Send {
 					"message": "my message",
 					"target_slate_version": null,
 					"payment_proof_recipient_address": null,
+					"ttl_blocks": null,
 					"send_args": null
 				}
 			},
@@ -361,7 +364,7 @@ pub trait OwnerRpc: Sync + Send {
 		  "height": "4",
 		  "id": "0436430c-2b02-624c-2032-570501212b00",
 		  "lock_height": "0",
-			"ttl_cutoff_height": "0",
+			"ttl_cutoff_height": null,
 			"payment_proof": null,
 		  "num_participants": 2,
 		  "participant_data": [
@@ -448,7 +451,7 @@ pub trait OwnerRpc: Sync + Send {
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"lock_height": "0",
-					"ttl_cutoff_height": "0",
+					"ttl_cutoff_height": null,
 					"payment_proof": null,
 					"num_participants": 2,
 					"participant_data": [
@@ -514,7 +517,7 @@ pub trait OwnerRpc: Sync + Send {
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"lock_height": "0",
-					"ttl_cutoff_height": "0",
+					"ttl_cutoff_height": null,
 					"payment_proof": null,
 					"num_participants": 2,
 					"participant_data": [
@@ -565,6 +568,7 @@ pub trait OwnerRpc: Sync + Send {
 					"message": "Ok, here are your grins",
 					"target_slate_version": null,
 					"payment_proof_recipient_address": null,
+					"ttl_blocks": null,
 					"send_args": null
 				}
 			],
@@ -583,7 +587,7 @@ pub trait OwnerRpc: Sync + Send {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
@@ -671,7 +675,7 @@ pub trait OwnerRpc: Sync + Send {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
@@ -760,7 +764,7 @@ pub trait OwnerRpc: Sync + Send {
 			},
 			"num_participants": 2,
 			"id": "0436430c-2b02-624c-2032-570501212b00",
-			"ttl_cutoff_height": "0",
+			"ttl_cutoff_height": null,
 			"payment_proof": null,
 			"tx": {
 				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
@@ -835,7 +839,7 @@ pub trait OwnerRpc: Sync + Send {
 				"fee": "7000000",
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"payment_proof": null,
 				"lock_height": "0",
 				"num_participants": 2,
@@ -1116,7 +1120,7 @@ pub trait OwnerRpc: Sync + Send {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"payment_proof": null,
 				"num_participants": 2,
 				"participant_data": [
