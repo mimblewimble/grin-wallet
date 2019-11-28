@@ -858,6 +858,9 @@ pub struct StoredProofInfo {
 	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
 	pub sender_address_path: u32,
+	/// sender address
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub sender_address: DalekPublicKey,
 	/// sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,

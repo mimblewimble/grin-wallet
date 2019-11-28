@@ -132,6 +132,15 @@ subcommands:
             short: d
             long: dest
             takes_value: true
+        - request_payment_proof:
+            help: Request a payment proof from the recipient. If sending to a tor address, the address will be filled automatically.
+            short: y
+            long: request_payment_proof
+        - proof_address:
+            help: Recipient proof address. If not using TOR, must be provided seprarately by the recipient
+            short: z
+            long: proof_address
+            takes_value: true
         - fluff:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
@@ -345,6 +354,8 @@ subcommands:
             short: d
             long: display
             takes_value: false
+  - address:
+      about: Display the wallet's payment proof address
   - scan:
       about: Checks a wallet's outputs against a live node, repairing and restoring missing outputs if required
       args:

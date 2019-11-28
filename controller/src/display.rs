@@ -15,7 +15,7 @@
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
 use crate::libwallet::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
+	address, AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
 };
 use crate::util;
 use prettytable;
@@ -160,6 +160,7 @@ pub fn txs(
 		bMG->"Amount \nDebited",
 		bMG->"Fee",
 		bMG->"Net \nDifference",
+		bMG->"Payment \nProof",
 		bMG->"Kernel",
 		bMG->"Tx \nData",
 	]);
@@ -201,6 +202,10 @@ pub fn txs(
 			Some(e) => util::to_hex(e.0.to_vec()),
 			None => "None".to_owned(),
 		};
+		let payment_proof = match t.payment_proof {
+			Some(_) => "Yes".to_owned(),
+			None => "None".to_owned(),
+		};
 		if dark_background_color_scheme {
 			table.add_row(row![
 				bFC->id,
@@ -215,6 +220,7 @@ pub fn txs(
 				bFR->amount_debited_str,
 				bFR->fee,
 				bFY->net_diff,
+				bfG->payment_proof,
 				bFB->kernel_excess,
 				bFb->tx_data,
 			]);
@@ -233,6 +239,7 @@ pub fn txs(
 					bFD->amount_debited_str,
 					bFD->fee,
 					bFG->net_diff,
+					bfG->payment_proof,
 					bFB->kernel_excess,
 					bFB->tx_data,
 				]);
@@ -250,6 +257,7 @@ pub fn txs(
 					bFD->amount_debited_str,
 					bFD->fee,
 					bFG->net_diff,
+					bfG->payment_proof,
 					bFB->kernel_excess,
 					bFB->tx_data,
 				]);
@@ -494,6 +502,76 @@ pub fn tx_messages(tx: &TxLogEntry, dark_background_color_scheme: bool) -> Resul
 
 	table.set_format(*prettytable::format::consts::FORMAT_NO_COLSEP);
 	table.printstd();
+	println!();
+
+	Ok(())
+}
+
+/// Display individual Payment Proof
+pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
+	let title = format!("Payment Proof - Transaction '{}'", tx.id,);
+	println!();
+	if term::stdout().is_none() {
+		println!("Could not open terminal");
+		return Ok(());
+	}
+	let mut t = term::stdout().unwrap();
+	t.fg(term::color::MAGENTA).unwrap();
+	writeln!(t, "{}", title).unwrap();
+	t.reset().unwrap();
+
+	let pp = match &tx.payment_proof {
+		None => {
+			writeln!(t, "{}", "None").unwrap();
+			t.reset().unwrap();
+			return Ok(());
+		}
+		Some(p) => p.clone(),
+	};
+
+	t.fg(term::color::WHITE).unwrap();
+	writeln!(t).unwrap();
+	let receiver_address = util::to_hex(pp.receiver_address.to_bytes().to_vec());
+	let receiver_onion_address = address::onion_v3_from_pubkey(&pp.receiver_address)?;
+	let receiver_signature = match pp.receiver_signature {
+		Some(s) => util::to_hex(s.to_bytes().to_vec()),
+		None => "None".to_owned(),
+	};
+	let fee = match tx.fee {
+		Some(f) => f,
+		None => 0,
+	};
+	let amount = if tx.amount_credited >= tx.amount_debited {
+		core::amount_to_hr_string(tx.amount_credited - tx.amount_debited, true)
+	} else {
+		format!(
+			"{}",
+			core::amount_to_hr_string(tx.amount_debited - tx.amount_credited - fee, true)
+		)
+	};
+
+	let sender_address = util::to_hex(pp.sender_address.to_bytes().to_vec());
+	let sender_onion_address = address::onion_v3_from_pubkey(&pp.sender_address)?;
+	let sender_signature = match pp.sender_signature {
+		Some(s) => util::to_hex(s.to_bytes().to_vec()),
+		None => "None".to_owned(),
+	};
+	let kernel_excess = match tx.kernel_excess {
+		Some(e) => util::to_hex(e.0.to_vec()),
+		None => "None".to_owned(),
+	};
+
+	writeln!(t, "Receiver Address: {}", receiver_address).unwrap();
+	writeln!(t, "Receiver Address (Onion V3): {}", receiver_onion_address).unwrap();
+	writeln!(t, "Receiver Signature: {}", receiver_signature).unwrap();
+	writeln!(t, "Amount: {}", amount).unwrap();
+	writeln!(t, "Kernel Excess: {}", kernel_excess).unwrap();
+	writeln!(t, "Sender Address: {}", sender_address).unwrap();
+	writeln!(t, "Sender Signature: {}", sender_signature).unwrap();
+	writeln!(t, "Sender Address (Onion V3): {}", sender_onion_address).unwrap();
+
+	t.reset().unwrap();
+
 	println!();
 
 	Ok(())

@@ -14,6 +14,7 @@
 
 //! Selection of inputs for building transactions
 
+use crate::address;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::libtx::{
@@ -162,17 +163,25 @@ where
 
 		// store extra payment proof info, if required
 		if let Some(ref p) = slate.payment_proof {
+			let sender_address_path = match context.payment_proof_derivation_index {
+				Some(p) => p,
+				None => {
+					return Err(ErrorKind::PaymentProof(
+						"Payment proof derivation index required".to_owned(),
+					))?;
+				}
+			};
+			let sender_key = address::address_from_derivation_path(
+				&keychain,
+				&parent_key_id,
+				sender_address_path,
+			)?;
+			let sender_address = address::ed25519_keypair(&sender_key)?.1;
 			t.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address.clone(),
 				receiver_signature: p.receiver_signature.clone(),
-				sender_address_path: match context.payment_proof_derivation_index {
-					Some(p) => p,
-					None => {
-						return Err(ErrorKind::PaymentProof(
-							"Payment proof derivation index required".to_owned(),
-						))?;
-					}
-				},
+				sender_address,
+				sender_address_path,
 				sender_signature: None,
 			});
 		};

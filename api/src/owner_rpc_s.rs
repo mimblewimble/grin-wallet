@@ -1849,6 +1849,39 @@ pub trait OwnerRpcS {
 	*/
 
 	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind>;
+
+	/**
+	Networked version of [Owner::set_tor_config](struct.Owner.html#method.set_tor_config).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "set_tor_config",
+		"params": {
+			"tor_config": {
+				"use_tor_listener": true,
+				"socks_proxy_addr": "127.0.0.1:59050",
+				"send_config_dir": "."
+			}
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 0, false, false, false);
+	```
+	*/
+	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind>;
 }
 
 impl<L, C, K> OwnerRpcS for Owner<L, C, K>
@@ -2172,5 +2205,10 @@ where
 		let address =
 			Owner::proof_address_from_onion_v3(self, &address_v3).map_err(|e| e.kind())?;
 		Ok(PubAddress { address })
+	}
+
+	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind> {
+		Owner::set_tor_config(self, tor_config);
+		Ok(())
 	}
 }

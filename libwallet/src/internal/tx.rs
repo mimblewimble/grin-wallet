@@ -349,16 +349,16 @@ where
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
 		let excess = slate.calc_excess(&keychain)?;
-		let sig = create_payment_proof_signature(
-			slate.amount,
-			&excess,
-			p.sender_address,
-			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?,
-		)?;
+		let sender_key =
+			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
+		let sender_address = address::ed25519_keypair(&sender_key)?.1;
+		let sig =
+			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
 		tx.payment_proof = Some(StoredProofInfo {
 			receiver_address: p.receiver_address,
 			receiver_signature: p.receiver_signature,
 			sender_address_path: derivation_index,
+			sender_address,
 			sender_signature: Some(sig),
 		})
 	}

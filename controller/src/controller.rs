@@ -15,6 +15,7 @@
 //! Controller for wallet.. instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
+use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
@@ -168,6 +169,7 @@ pub fn owner_listener<L, C, K>(
 	api_secret: Option<String>,
 	tls_config: Option<TLSConfig>,
 	owner_api_include_foreign: Option<bool>,
+	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -191,8 +193,12 @@ where
 	}
 
 	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
-	let api_handler_v3 =
-		OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), running_foreign);
+	let api_handler_v3 = OwnerAPIHandlerV3::new(
+		wallet.clone(),
+		keychain_mask.clone(),
+		tor_config,
+		running_foreign,
+	);
 
 	router
 		.add_route("/v2/owner", Arc::new(api_handler_v2))
@@ -593,9 +599,12 @@ where
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+		tor_config: Option<TorConfig>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		let owner_api = Arc::new(Owner::new(wallet.clone()));
+		let owner_api = Owner::new(wallet.clone());
+		owner_api.set_tor_config(tor_config);
+		let owner_api = Arc::new(owner_api);
 		OwnerAPIHandlerV3 {
 			wallet,
 			owner_api,

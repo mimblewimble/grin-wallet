@@ -21,9 +21,11 @@ use crate::error::{Error, ErrorKind};
 use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _};
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
-use crate::libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+use crate::libwallet::{
+	address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider,
+};
 use crate::util::secp::key::SecretKey;
-use crate::util::{Mutex, ZeroingString};
+use crate::util::{to_hex, Mutex, ZeroingString};
 use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
@@ -173,6 +175,7 @@ pub fn owner_api<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
 	config: &WalletConfig,
+	tor_config: &TorConfig,
 	g_args: &GlobalArgs,
 ) -> Result<(), Error>
 where
@@ -190,6 +193,7 @@ where
 		g_args.api_secret.clone(),
 		g_args.tls_conf.clone(),
 		config.owner_api_include_foreign.clone(),
+		Some(tor_config.clone()),
 	);
 	if let Err(e) = res {
 		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
@@ -254,6 +258,7 @@ pub struct SendArgs {
 	pub fluff: bool,
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
+	pub payment_proof_address: Option<String>,
 }
 
 pub fn send<L, C, K>(
@@ -289,6 +294,10 @@ where
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
 		} else {
+			let payment_proof_recipient_address = match args.payment_proof_address {
+				Some(ref p) => Some(address::ed25519_parse_pubkey(p)?),
+				None => None,
+			};
 			let init_args = InitTxArgs {
 				src_acct_name: None,
 				amount: args.amount,
@@ -298,6 +307,7 @@ where
 				selection_strategy_is_use_all: args.selection_strategy == "all",
 				message: args.message.clone(),
 				target_slate_version: args.target_slate_version,
+				payment_proof_recipient_address,
 				send_args: None,
 				..Default::default()
 			};
@@ -722,6 +732,7 @@ where
 			// should only be one here, but just in case
 			for tx in txs {
 				display::tx_messages(&tx, dark_scheme)?;
+				display::payment_proof(&tx)?;
 			}
 		}
 
@@ -867,6 +878,44 @@ where
 			}
 			Err(e) => {
 				error!("Wallet check failed: {}", e);
+				error!("Backtrace: {}", e.backtrace().unwrap());
+				Err(e)
+			}
+		}
+	})?;
+	Ok(())
+}
+
+/// Payment Proof Address
+pub fn address<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	g_args: &GlobalArgs,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		// Just address at derivation index 0 for now
+		let pub_key = api.get_public_proof_address(m, 0)?;
+		let result = address::onion_v3_from_pubkey(&pub_key);
+		match result {
+			Ok(a) => {
+				println!();
+				println!("Public Proof Address for account - {}", g_args.account);
+				println!("-------------------------------------");
+				println!("{}", to_hex(pub_key.as_bytes().to_vec()));
+				println!();
+				println!("TOR Onion V3 Address for account - {}", g_args.account);
+				println!("-------------------------------------");
+				println!("{}", a);
+				println!();
+				Ok(())
+			}
+			Err(e) => {
+				error!("Addres retrieval failed: {}", e);
 				error!("Backtrace: {}", e.backtrace().unwrap());
 				Err(e)
 			}
