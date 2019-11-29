@@ -12,6 +12,7 @@
 			"message": "my message",
 			"target_slate_version": null,
 			"payment_proof_recipient_address": null,
+			"ttl_blocks": null,
 			"send_args": null
 		}
 	},

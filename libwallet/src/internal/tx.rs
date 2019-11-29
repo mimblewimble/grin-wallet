@@ -76,6 +76,10 @@ where
 		slate.version_info.block_header_version = 2;
 	}
 
+	if valid_header_version(current_height, HeaderVersion(3)) {
+		slate.version_info.block_header_version = 3;
+	}
+
 	// Set the lock_height explicitly to 0 here.
 	// This will generate a Plain kernel (rather than a HeightLocked kernel).
 	slate.lock_height = 0;

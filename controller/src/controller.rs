@@ -64,8 +64,8 @@ fn check_middleware(
 			}
 			if let Some(s) = slate {
 				if s.version_info.version < CURRENT_SLATE_VERSION
-					|| (bhv == 2 && s.version_info.block_header_version != 2)
-					|| (bhv > 2 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION)
+					|| (bhv == 3 && s.version_info.block_header_version != 3)
+					|| (bhv > 3 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION)
 				{
 					Err(ErrorKind::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \

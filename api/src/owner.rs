@@ -31,7 +31,8 @@ use crate::libwallet::{
 	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, ZeroingString};
+use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use crate::util::logger::LoggingConfig;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
