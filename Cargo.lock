@@ -709,7 +709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "grin_api"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -742,7 +742,7 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "bit-vec 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -766,7 +766,7 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -793,7 +793,7 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -816,7 +816,7 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -839,7 +839,7 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "blake2-rfc 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -873,7 +873,7 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "bit-vec 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -895,7 +895,7 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#ba9cdd323ef4452fa0eceeec1bfcdcd386088d27"
+source = "git+https://github.com/mimblewimble/grin#869cfd2b82f47cf307174c78bf333ad225fe9190"
 dependencies = [
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
