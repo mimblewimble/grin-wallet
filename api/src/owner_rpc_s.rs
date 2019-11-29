@@ -25,9 +25,9 @@ use crate::libwallet::{
 	OutputCommitMapping, Slate, SlateVersion, StatusMessage, TxLogEntry, VersionedSlate,
 	WalletInfo, WalletLCProvider,
 };
+use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, ZeroingString};
-use crate::util::logger::LoggingConfig;
 use crate::{ECDHPubkey, Owner, PubAddress, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
