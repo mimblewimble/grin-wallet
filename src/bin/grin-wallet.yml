@@ -347,13 +347,7 @@ subcommands:
             long: recover
             takes_value: false
   - recover:
-      about: Recover a wallet.seed file from a recovery phrase (default) or displays a recovery phrase for an existing seed file
-      args:
-        - display:
-            help: Display wallet recovery phrase
-            short: d
-            long: display
-            takes_value: false
+      about: Displays a recovery phrase for the wallet. (use `init -r` to perform recovery)
   - address:
       about: Display the wallet's payment proof address
   - scan:

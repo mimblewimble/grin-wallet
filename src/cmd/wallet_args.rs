@@ -372,28 +372,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (passphrase, recovery_phrase) = {
-		match args.is_present("display") {
-			true => (prompt_password(&g_args.password), None),
-			false => {
-				let cont = {
-					let mut w_lock = wallet.lock();
-					let p = w_lock.lc_provider().unwrap();
-					if p.wallet_exists(None).unwrap() {
-						prompt_replace_seed()?
-					} else {
-						true
-					}
-				};
-				if !cont {
-					return Err(ParseError::CancelledError);
-				}
-				let phrase = prompt_recovery_phrase(wallet.clone())?;
-				println!("Please provide a new password for the recovered wallet");
-				(prompt_password_confirm(), Some(phrase.to_owned()))
-			}
-		}
-	};
+	let (passphrase, recovery_phrase) = prompt_password(&g_args.password), None);
 	Ok(command::RecoverArgs {
 		passphrase: passphrase,
 		recovery_phrase: recovery_phrase,
