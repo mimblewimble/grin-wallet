@@ -99,7 +99,6 @@ where
 
 /// Argument for recover
 pub struct RecoverArgs {
-	pub recovery_phrase: Option<ZeroingString>,
 	pub passphrase: ZeroingString,
 }
 
@@ -114,13 +113,8 @@ where
 {
 	let mut w_lock = wallet.lock();
 	let p = w_lock.lc_provider()?;
-	match args.recovery_phrase {
-		None => {
-			let m = p.get_mnemonic(None, args.passphrase)?;
-			show_recovery_phrase(m);
-		}
-		Some(phrase) => p.recover_from_mnemonic(phrase, args.passphrase)?,
-	}
+	let m = p.get_mnemonic(None, args.passphrase)?;
+	show_recovery_phrase(m);
 	Ok(())
 }
 
