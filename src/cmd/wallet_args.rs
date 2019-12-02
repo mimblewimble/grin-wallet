@@ -901,9 +901,7 @@ where
 			command::init(wallet, &global_wallet_args, a)
 		}
 		("recover", Some(_)) => {
-			let a = arg_parse!(parse_recover_args(
-				&global_wallet_args,
-			));
+			let a = arg_parse!(parse_recover_args(&global_wallet_args,));
 			command::recover(wallet, a)
 		}
 		("listen", Some(args)) => {
