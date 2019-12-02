@@ -23,4 +23,3 @@ Full documentation outlining how to use the command line wallet can be found on 
 # License
 
 Apache License v2.0
-
