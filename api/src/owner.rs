@@ -30,8 +30,9 @@ use crate::libwallet::{
 	NodeHeightResult, OutputCommitMapping, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
+use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
-use crate::util::{from_hex, static_secp_instance, LoggingConfig, Mutex, ZeroingString};
+use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;

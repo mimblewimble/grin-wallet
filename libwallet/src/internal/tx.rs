@@ -45,6 +45,7 @@ pub fn new_tx_slate<'a, T: ?Sized, C, K>(
 	amount: u64,
 	num_participants: usize,
 	use_test_rng: bool,
+	ttl_blocks: Option<u64>,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -53,6 +54,9 @@ where
 {
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	let mut slate = Slate::blank(num_participants);
+	if let Some(b) = ttl_blocks {
+		slate.ttl_cutoff_height = Some(current_height + b);
+	}
 	if use_test_rng {
 		{
 			let sc = SLATE_COUNTER.lock();
@@ -66,6 +70,14 @@ where
 
 	if valid_header_version(current_height, HeaderVersion(1)) {
 		slate.version_info.block_header_version = 1;
+	}
+
+	if valid_header_version(current_height, HeaderVersion(2)) {
+		slate.version_info.block_header_version = 2;
+	}
+
+	if valid_header_version(current_height, HeaderVersion(3)) {
+		slate.version_info.block_header_version = 3;
 	}
 
 	// Set the lock_height explicitly to 0 here.

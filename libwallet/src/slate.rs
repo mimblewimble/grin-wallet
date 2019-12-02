@@ -254,7 +254,7 @@ impl Slate {
 			fee: 0,
 			height: 0,
 			lock_height: 0,
-			ttl_cutoff_height: 0,
+			ttl_cutoff_height: None,
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,

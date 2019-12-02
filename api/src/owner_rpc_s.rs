@@ -25,8 +25,9 @@ use crate::libwallet::{
 	OutputCommitMapping, Slate, SlateVersion, StatusMessage, TxLogEntry, VersionedSlate,
 	WalletInfo, WalletLCProvider,
 };
+use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::{static_secp_instance, LoggingConfig, ZeroingString};
+use crate::util::{static_secp_instance, ZeroingString};
 use crate::{ECDHPubkey, Owner, PubAddress, Token};
 use easy_jsonrpc_mw;
 use rand::thread_rng;
@@ -263,6 +264,7 @@ pub trait OwnerRpcS {
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
 			  "payment_proof": null,
 			  "tx_type": "ConfirmedCoinbase"
@@ -282,6 +284,7 @@ pub trait OwnerRpcS {
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
 			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
 			  "payment_proof": null,
 			  "tx_slate_id": null,
 			  "tx_type": "ConfirmedCoinbase"
@@ -374,6 +377,7 @@ pub trait OwnerRpcS {
 					"message": "my message",
 					"target_slate_version": null,
 					"payment_proof_recipient_address": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb",
+					"ttl_blocks": null,
 					"send_args": null
 				}
 			},
@@ -392,7 +396,7 @@ pub trait OwnerRpcS {
 		  "height": "4",
 		  "id": "0436430c-2b02-624c-2032-570501212b00",
 		  "lock_height": "0",
-			"ttl_cutoff_height": "0",
+			"ttl_cutoff_height": null,
 		  "num_participants": 2,
 			"payment_proof": {
 		"receiver_address": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb",
@@ -484,7 +488,7 @@ pub trait OwnerRpcS {
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"lock_height": "0",
-					"ttl_cutoff_height": "0",
+					"ttl_cutoff_height": null,
 					"num_participants": 2,
 					"payment_proof": null,
 					"participant_data": [
@@ -555,7 +559,7 @@ pub trait OwnerRpcS {
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"lock_height": "0",
-					"ttl_cutoff_height": "0",
+					"ttl_cutoff_height": null,
 					"num_participants": 2,
 					"payment_proof": null,
 					"participant_data": [
@@ -606,6 +610,7 @@ pub trait OwnerRpcS {
 					"message": "Ok, here are your grins",
 					"target_slate_version": null,
 					"payment_proof_recipient_address": null,
+					"ttl_blocks": null,
 					"send_args": null
 				}
 			},
@@ -624,7 +629,7 @@ pub trait OwnerRpcS {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"num_participants": 2,
 				"payment_proof": null,
 				"participant_data": [
@@ -715,7 +720,7 @@ pub trait OwnerRpcS {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"num_participants": 2,
 				"payment_proof": null,
 				"participant_data": [
@@ -847,7 +852,7 @@ pub trait OwnerRpcS {
 				"fee": "7000000",
 				"height": "5",
 				"lock_height": "0",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"participant_data": [
 					{
 						"id": "0",
@@ -882,7 +887,7 @@ pub trait OwnerRpcS {
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "0",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"num_participants": 2,
 				"payment_proof": null,
 				"participant_data": [
@@ -1180,7 +1185,7 @@ pub trait OwnerRpcS {
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"lock_height": "4",
-				"ttl_cutoff_height": "0",
+				"ttl_cutoff_height": null,
 				"num_participants": 2,
 				"participant_data": [
 				{

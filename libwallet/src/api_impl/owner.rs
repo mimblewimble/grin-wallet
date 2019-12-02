@@ -224,7 +224,7 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, args.ttl_blocks)?;
 
 	// if we just want to estimate, don't save a context, just send the results
 	// back
@@ -324,7 +324,7 @@ where
 		None => None,
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, None)?;
 	let context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
@@ -366,6 +366,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d.to_owned())?;
@@ -400,6 +401,11 @@ where
 
 	// update slate current height
 	ret_slate.height = w.w2n_client().get_chain_tip()?.0;
+
+	// update ttl if desired
+	if let Some(b) = args.ttl_blocks {
+		ret_slate.ttl_cutoff_height = Some(ret_slate.height + b);
+	}
 
 	let context = tx::add_inputs_to_slate(
 		&mut *w,
@@ -459,6 +465,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
+	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	let parent_key_id = w.parent_key_id();
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
@@ -733,14 +740,44 @@ where
 
 	info.hash = tip.1;
 
-	wallet_lock!(wallet_inst, w);
-	let mut batch = w.batch(keychain_mask)?;
-	batch.save_last_scanned_block(info)?;
-	// init considered complete after first successful update
-	batch.save_init_status(WalletInitStatus::InitComplete)?;
-	batch.commit()?;
+	{
+		wallet_lock!(wallet_inst, w);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_last_scanned_block(info)?;
+		// init considered complete after first successful update
+		batch.save_init_status(WalletInitStatus::InitComplete)?;
+		batch.commit()?;
+	}
+
+	// Step 5: Cancel any transactions with an expired TTL
+	for tx in txs {
+		if let Some(e) = tx.ttl_cutoff_height {
+			if e >= tip.0 {
+				wallet_lock!(wallet_inst, w);
+				let parent_key_id = w.parent_key_id();
+				tx::cancel_tx(&mut **w, keychain_mask, &parent_key_id, Some(tx.id), None)?;
+			}
+		}
+	}
 
 	Ok(result)
+}
+
+/// Check TTL
+pub fn check_ttl<'a, T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// Refuse if TTL is expired
+	let last_confirmed_height = w.last_confirmed_height()?;
+	if let Some(e) = slate.ttl_cutoff_height {
+		if last_confirmed_height >= e {
+			return Err(ErrorKind::TransactionExpired)?;
+		}
+	}
+	Ok(())
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful

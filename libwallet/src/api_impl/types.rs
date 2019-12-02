@@ -89,6 +89,9 @@ pub struct InitTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
+	/// Number of blocks from current after which TX should be ignored
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	pub ttl_blocks: Option<u64>,
 	/// If set, require a payment proof for the particular recipient
 	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
 	pub payment_proof_recipient_address: Option<DalekPublicKey>,
@@ -129,6 +132,7 @@ impl Default for InitTxArgs {
 			selection_strategy_is_use_all: true,
 			message: None,
 			target_slate_version: None,
+			ttl_blocks: None,
 			estimate_only: Some(false),
 			payment_proof_recipient_address: None,
 			send_args: None,

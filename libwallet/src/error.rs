@@ -233,6 +233,10 @@ pub enum ErrorKind {
 	#[fail(display = "Proof Address decoding: {}", _0)]
 	AddressDecoding(String),
 
+	/// Transaction has expired it's TTL
+	#[fail(display = "Transaction Expired")]
+	TransactionExpired,
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

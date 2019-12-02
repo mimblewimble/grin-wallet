@@ -104,7 +104,7 @@ fn real_main() -> i32 {
 
 	// Load logging config
 	let l = config.members.as_mut().unwrap().logging.clone().unwrap();
-	init_logger(Some(l));
+	init_logger(Some(l), None);
 	info!(
 		"Using wallet configuration file at {}",
 		config.config_file_path.as_ref().unwrap().to_str().unwrap()
