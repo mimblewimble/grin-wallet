@@ -142,6 +142,7 @@ where
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = Some(slate.fee);
+		t.ttl_cutoff_height = slate.ttl_cutoff_height;
 
 		match slate.calc_excess(&keychain) {
 			Ok(e) => t.kernel_excess = Some(e),
@@ -263,6 +264,7 @@ where
 	t.amount_credited = amount;
 	t.num_outputs = 1;
 	t.messages = messages;
+	t.ttl_cutoff_height = slate.ttl_cutoff_height;
 	// when invoicing, this will be invalid
 	match slate.calc_excess(&keychain) {
 		Ok(e) => t.kernel_excess = Some(e),

@@ -27,7 +27,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use crate::LMDBBackend;
 use failure::ResultExt;
-use grin_wallet_util::grin_util::LoggingConfig;
+use grin_wallet_util::grin_util::logger::LoggingConfig;
 use std::fs;
 use std::path::PathBuf;
 

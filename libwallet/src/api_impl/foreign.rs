@@ -15,6 +15,7 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
+use crate::api_impl::owner::check_ttl;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{tx, updater};
@@ -70,6 +71,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match dest_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d.to_owned())?;
@@ -143,6 +145,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
+	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
