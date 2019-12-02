@@ -474,8 +474,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let tx_vec =
-		updater::retrieve_txs(wallet, None, Some(slate.id), Some(parent_key_id), false)?;
+	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(parent_key_id), false)?;
 	if tx_vec.len() == 0 {
 		return Err(ErrorKind::PaymentProof(
 			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
@@ -495,7 +494,7 @@ where
 			Some(p) => p,
 			None => {
 				return Err(ErrorKind::PaymentProof(
-				"Original proof info not stored in tx".to_owned(),
+					"Original proof info not stored in tx".to_owned(),
 				))?;
 			}
 		};
