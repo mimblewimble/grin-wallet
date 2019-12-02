@@ -184,9 +184,9 @@ pub struct Slate {
 	/// Lock height
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub lock_height: u64,
-	/// Participant data, each participant in the transaction will
-	/// insert their public data here. For now, 0 is sender and 1
-	/// is receiver, though this will change for multi-party
+	/// TTL, the block height at which wallets
+	/// should refuse to process the transaction and unlock all
+	/// associated outputs
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub ttl_cutoff_height: u64,
 	/// Participant data, each participant in the transaction will
