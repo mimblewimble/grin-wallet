@@ -89,33 +89,6 @@ fn prompt_password_confirm() -> ZeroingString {
 	first
 }
 
-fn prompt_replace_seed() -> Result<bool, ParseError> {
-	let interface = Arc::new(Interface::new("replace_seed")?);
-	interface.set_report_signal(Signal::Interrupt, true);
-	interface.set_prompt("Replace seed? (y/n)> ")?;
-	println!();
-	println!("Existing wallet.seed file already exists. Continue?");
-	println!("Continuing will back up your existing 'wallet.seed' file as 'wallet.seed.bak'");
-	println!();
-	loop {
-		let res = interface.read_line()?;
-		match res {
-			ReadResult::Eof => return Ok(false),
-			ReadResult::Signal(sig) => {
-				if sig == Signal::Interrupt {
-					interface.cancel_read_line()?;
-					return Err(ParseError::CancelledError);
-				}
-			}
-			ReadResult::Input(line) => match line.trim() {
-				"Y" | "y" => return Ok(true),
-				"N" | "n" => return Ok(false),
-				_ => println!("Please respond y or n"),
-			},
-		}
-	}
-}
-
 fn prompt_recovery_phrase<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 ) -> Result<ZeroingString, ParseError>
@@ -361,42 +334,14 @@ where
 	})
 }
 
-pub fn parse_recover_args<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+pub fn parse_recover_args(
 	g_args: &command::GlobalArgs,
-	args: &ArgMatches,
 ) -> Result<command::RecoverArgs, ParseError>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
-	L: WalletLCProvider<'static, C, K>,
-	C: NodeClient + 'static,
-	K: keychain::Keychain + 'static,
 {
-	let (passphrase, recovery_phrase) = {
-		match args.is_present("display") {
-			true => (prompt_password(&g_args.password), None),
-			false => {
-				let cont = {
-					let mut w_lock = wallet.lock();
-					let p = w_lock.lc_provider().unwrap();
-					if p.wallet_exists(None).unwrap() {
-						prompt_replace_seed()?
-					} else {
-						true
-					}
-				};
-				if !cont {
-					return Err(ParseError::CancelledError);
-				}
-				let phrase = prompt_recovery_phrase(wallet.clone())?;
-				println!("Please provide a new password for the recovered wallet");
-				(prompt_password_confirm(), Some(phrase.to_owned()))
-			}
-		}
-	};
+	let passphrase = prompt_password(&g_args.password);
 	Ok(command::RecoverArgs {
 		passphrase: passphrase,
-		recovery_phrase: recovery_phrase,
 	})
 }
 
@@ -955,12 +900,8 @@ where
 			));
 			command::init(wallet, &global_wallet_args, a)
 		}
-		("recover", Some(args)) => {
-			let a = arg_parse!(parse_recover_args(
-				wallet.clone(),
-				&global_wallet_args,
-				&args
-			));
+		("recover", Some(_)) => {
+			let a = arg_parse!(parse_recover_args(&global_wallet_args,));
 			command::recover(wallet, a)
 		}
 		("listen", Some(args)) => {
