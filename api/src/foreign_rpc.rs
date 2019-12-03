@@ -553,9 +553,10 @@ where
 		message: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
+		let slate_from = Slate::from(in_slate);
 		let out_slate = Foreign::receive_tx(
 			self,
-			&Slate::from(in_slate),
+			&slate_from,
 			dest_acct_name.as_ref().map(String::as_str),
 			message,
 		)

@@ -85,7 +85,7 @@ impl From<VersionedSlate> for Slate {
 			VersionedSlate::V3(s) => {
 				let s = SlateV3::from(s);
 				Slate::from(s)
-			} // Again, left in as a reminder
+			}
 			VersionedSlate::V2(s) => {
 				let s = SlateV3::from(s);
 				Slate::from(s)
