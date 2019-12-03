@@ -42,11 +42,11 @@ use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::slate_versions::v2::SlateV2;
 use crate::slate_versions::v3::{
 	CoinbaseV3, InputV3, OutputV3, ParticipantDataV3, PaymentInfoV3, SlateV3, TransactionBodyV3,
 	TransactionV3, TxKernelV3, VersionCompatInfoV3,
 };
-use crate::slate_versions::v2::SlateV2;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::types::CbData;
 

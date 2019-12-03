@@ -16,7 +16,7 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
-use crate::libwallet::{Error, ErrorKind, Slate, VersionedSlate, SlateVersion};
+use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedSlate};
 use crate::{SlateGetter, SlatePutter};
 use std::path::PathBuf;
 

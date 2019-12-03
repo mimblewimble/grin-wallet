@@ -14,8 +14,8 @@
 
 /// HTTP Wallet 'plugin' implementation
 use crate::client_utils::{Client, ClientError};
-use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
+use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
