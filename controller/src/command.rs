@@ -513,9 +513,7 @@ where
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
-		let mut tx_file = File::create(args.dest.clone())?;
-		tx_file.write_all(json::to_string(&slate).unwrap().as_bytes())?;
-		tx_file.sync_all()?;
+		PathToSlate((&args.dest).into()).put_tx(&slate)?;
 		Ok(())
 	})?;
 	Ok(())
