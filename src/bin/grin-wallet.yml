@@ -22,10 +22,10 @@ args:
       long: account
       takes_value: true
       default_value: default
-  - data_dir:
-      help: Directory in which to store wallet files
-      short: dd
-      long: data_dir
+  - top_level_dir:
+      help: Top directory in which wallet files are stored (location of 'grin-wallet.toml')
+      short: t
+      long: top_level_dir
       takes_value: true
   - external:
       help: Listen on 0.0.0.0 interface to allow external connections (default is 127.0.0.1)
