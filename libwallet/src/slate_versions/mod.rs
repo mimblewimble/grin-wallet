@@ -18,16 +18,16 @@
 //! remains for future needs
 
 use crate::slate::Slate;
-use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::slate_versions::v2::{CoinbaseV2, SlateV2};
+use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::types::CbData;
 
 pub mod ser;
 
 #[allow(missing_docs)]
-pub mod v3;
-#[allow(missing_docs)]
 pub mod v2;
+#[allow(missing_docs)]
+pub mod v3;
 
 /// The most recent version of the slate
 pub const CURRENT_SLATE_VERSION: u16 = 3;

@@ -32,8 +32,8 @@ use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
 
 use crate::slate_versions::v2::{
-	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2,
-	TransactionV2, TxKernelV2, VersionCompatInfoV2,
+	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2, TxKernelV2,
+	VersionCompatInfoV2,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -503,4 +503,3 @@ impl From<&TxKernelV3> for TxKernelV2 {
 		}
 	}
 }
-

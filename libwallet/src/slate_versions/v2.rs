@@ -43,9 +43,9 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
+use crate::slate_versions::v3::{OutputV3, TxKernelV3};
 use crate::types::CbData;
 use uuid::Uuid;
-use crate::slate_versions::v3::{OutputV3, TxKernelV3};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV2 {
