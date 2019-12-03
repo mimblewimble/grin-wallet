@@ -43,7 +43,9 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
+use crate::types::CbData;
 use uuid::Uuid;
+use crate::slate_versions::v3::{OutputV3, TxKernelV3};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV2 {
@@ -194,4 +196,19 @@ pub struct CoinbaseV2 {
 	pub kernel: TxKernelV2,
 	/// Key Id
 	pub key_id: Option<Identifier>,
+}
+
+// Coinbase data to versioned.
+impl From<CbData> for CoinbaseV2 {
+	fn from(cb: CbData) -> CoinbaseV2 {
+		let output = OutputV3::from(&cb.output);
+		let output = OutputV2::from(&output);
+		let kernel = TxKernelV3::from(&cb.kernel);
+		let kernel = TxKernelV2::from(&kernel);
+		CoinbaseV2 {
+			output,
+			kernel,
+			key_id: cb.key_id,
+		}
+	}
 }
