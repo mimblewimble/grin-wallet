@@ -164,10 +164,7 @@ where
 
 		let range = highest_index as f64 - start_index_stat as f64;
 		let progress = last_retrieved_index as f64 - start_index_stat as f64;
-		let perc_complete = cmp::min(
-			((progress / range) * 100.0) as u8,
-			99,
-		);
+		let perc_complete = cmp::min(((progress / range) * 100.0) as u8, 99);
 
 		let msg = format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
