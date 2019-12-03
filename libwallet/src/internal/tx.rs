@@ -474,7 +474,30 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(parent_key_id), false)?;
+	if tx_vec.len() == 0 {
+		return Err(ErrorKind::PaymentProof(
+			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
+		))?;
+	}
+
+	let orig_proof_info = tx_vec[0].clone().payment_proof;
+
+	if orig_proof_info.is_some() && slate.payment_proof.is_none() {
+		return Err(ErrorKind::PaymentProof(
+			"Expected Payment Proof for this Transaction is not present".to_owned(),
+		))?;
+	}
+
 	if let Some(ref p) = slate.payment_proof {
+		let orig_proof_info = match orig_proof_info {
+			Some(p) => p,
+			None => {
+				return Err(ErrorKind::PaymentProof(
+					"Original proof info not stored in tx".to_owned(),
+				))?;
+			}
+		};
 		let keychain = wallet.keychain(keychain_mask)?;
 		let index = match context.payment_proof_derivation_index {
 			Some(i) => i,
@@ -492,21 +515,7 @@ where
 				"Sender address on slate does not match original sender address".to_owned(),
 			))?;
 		}
-		let tx_vec =
-			updater::retrieve_txs(wallet, None, Some(slate.id), Some(&parent_key_id), false)?;
-		if tx_vec.len() != 1 {
-			return Err(ErrorKind::PaymentProof(
-				"TxLogEntry with original proof info not found".to_owned(),
-			))?;
-		}
-		let orig_proof_info = match tx_vec[0].clone().payment_proof {
-			Some(o) => o,
-			None => {
-				return Err(ErrorKind::PaymentProof(
-					"Original proof info not stored in tx".to_owned(),
-				))?;
-			}
-		};
+
 		if orig_proof_info.receiver_address != p.receiver_address {
 			return Err(ErrorKind::PaymentProof(
 				"Recipient address on slate does not match original recipient address".to_owned(),

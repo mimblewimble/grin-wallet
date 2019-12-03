@@ -213,6 +213,8 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	let arg_vec = vec![
 		"grin-wallet",
+		"-a",
+		"mining",
 		"-p",
 		"password",
 		"finalize",
@@ -307,6 +309,8 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	let arg_vec = vec![
 		"grin-wallet",
+		"-a",
+		"mining",
 		"-p",
 		"password",
 		"finalize",
