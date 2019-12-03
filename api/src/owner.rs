@@ -1226,12 +1226,16 @@ where
 		start_height: Option<u64>,
 		delete_unconfirmed: bool,
 	) -> Result<(), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
 		owner::scan(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			start_height,
 			delete_unconfirmed,
-			&None,
+			&tx,
 		)
 	}
 

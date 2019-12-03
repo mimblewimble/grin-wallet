@@ -73,13 +73,6 @@ where
 	K: Keychain + 'a,
 {
 	let mut wallet_outputs: Vec<OutputResult> = Vec::new();
-	let msg = format!(
-		"Scanning {} outputs in the current Grin utxo set",
-		outputs.len(),
-	);
-	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::Scanning(msg, percentage_complete));
-	}
 
 	let legacy_builder = proof::LegacyProofBuilder::new(keychain);
 	let builder = proof::ProofBuilder::new(keychain);
@@ -161,16 +154,17 @@ where
 	K: Keychain + 'a,
 {
 	let batch_size = 1000;
+	let start_index_stat = start_index;
 	let mut start_index = start_index;
 	let mut result_vec: Vec<OutputResult> = vec![];
 	let last_retrieved_return_index;
 	loop {
 		let (highest_index, last_retrieved_index, outputs) =
 			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
-		let perc_complete = cmp::min(
-			((last_retrieved_index as f64 / highest_index as f64) * 100.0) as u8,
-			99,
-		);
+
+		let range = highest_index as f64 - start_index_stat as f64;
+		let progress = last_retrieved_index as f64 - start_index_stat as f64;
+		let perc_complete = cmp::min(((progress / range) * 100.0) as u8, 99);
 
 		let msg = format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
