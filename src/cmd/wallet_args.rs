@@ -670,7 +670,7 @@ pub fn parse_process_invoice_args(
 		dest: dest.to_owned(),
 		max_outputs: max_outputs,
 		input: tx_file.to_owned(),
-		ttl_blocks
+		ttl_blocks,
 	})
 }
 
