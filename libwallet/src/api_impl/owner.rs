@@ -751,7 +751,7 @@ where
 	// Step 5: Cancel any transactions with an expired TTL
 	for tx in txs {
 		if let Some(e) = tx.ttl_cutoff_height {
-			if e >= tip.0 {
+			if tip.0 >= e {
 				wallet_lock!(wallet_inst, w);
 				let parent_key_id = w.parent_key_id();
 				tx::cancel_tx(&mut **w, keychain_mask, &parent_key_id, Some(tx.id), None)?;

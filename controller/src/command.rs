@@ -253,6 +253,7 @@ pub struct SendArgs {
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
 	pub payment_proof_address: Option<String>,
+	pub ttl_blocks: Option<u64>,
 }
 
 pub fn send<L, C, K>(
@@ -302,6 +303,7 @@ where
 				message: args.message.clone(),
 				target_slate_version: args.target_slate_version,
 				payment_proof_recipient_address,
+				ttl_blocks: args.ttl_blocks,
 				send_args: None,
 				..Default::default()
 			};
@@ -529,6 +531,7 @@ pub struct ProcessInvoiceArgs {
 	pub max_outputs: usize,
 	pub input: String,
 	pub estimate_selection_strategies: bool,
+	pub ttl_blocks: Option<u64>,
 }
 
 /// Process invoice
@@ -574,6 +577,7 @@ where
 				num_change_outputs: 1u32,
 				selection_strategy_is_use_all: args.selection_strategy == "all",
 				message: args.message.clone(),
+				ttl_blocks: args.ttl_blocks,
 				send_args: None,
 				..Default::default()
 			};
