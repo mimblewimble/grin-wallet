@@ -42,6 +42,7 @@ use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::slate_versions::v2::SlateV2;
 use crate::slate_versions::v3::{
 	CoinbaseV3, InputV3, OutputV3, ParticipantDataV3, PaymentInfoV3, SlateV3, TransactionBodyV3,
 	TransactionV3, TxKernelV3, VersionCompatInfoV3,
@@ -232,13 +233,11 @@ impl Slate {
 		let version = Slate::parse_slate_version(slate_json)?;
 		let v3: SlateV3 = match version {
 			3 => serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?,
-			// left as a reminder
-			/*0 => {
-				let v0: SlateV0 =
+			2 => {
+				let v2: SlateV2 =
 					serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
-				let v1 = SlateV1::from(v0);
-				SlateV3::from(v1)
-			}*/
+				SlateV3::from(v2)
+			}
 			_ => return Err(ErrorKind::SlateVersion(version).into()),
 		};
 		Ok(v3.into())
@@ -728,11 +727,10 @@ impl Serialize for Slate {
 		match self.version_info.orig_version {
 			3 => v3.serialize(serializer),
 			// left as a reminder
-			/*0 => {
-				let v1 = SlateV1::from(v2);
-				let v0 = SlateV0::from(v1);
-				v0.serialize(serializer)
-			}*/
+			2 => {
+				let v2 = SlateV2::from(&v3);
+				v2.serialize(serializer)
+			}
 			v => Err(S::Error::custom(format!("Unknown slate version {}", v))),
 		}
 	}

@@ -19,7 +19,7 @@ use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
-	CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION,
+	GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
@@ -63,10 +63,7 @@ fn check_middleware(
 				bhv = n.block_header_version;
 			}
 			if let Some(s) = slate {
-				if s.version_info.version < CURRENT_SLATE_VERSION
-//					|| (bhv == 3 && s.version_info.block_header_version != 3)
-					|| (bhv > 3 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION)
-				{
+				if bhv > 3 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
 					Err(ErrorKind::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
 						 Please upgrade the node or use a different one."

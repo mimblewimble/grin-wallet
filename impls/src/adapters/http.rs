@@ -14,6 +14,7 @@
 
 /// HTTP Wallet 'plugin' implementation
 use crate::client_utils::{Client, ClientError};
+use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
 use serde::Serialize;
@@ -64,7 +65,7 @@ impl HttpSlateSender {
 	}
 
 	/// Check version of the listening wallet
-	fn check_other_version(&self, url: &str) -> Result<(), Error> {
+	fn check_other_version(&self, url: &str) -> Result<SlateVersion, Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -111,13 +112,16 @@ impl HttpSlateSender {
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
 
-		if !supported_slate_versions.contains(&"V3".to_owned()) {
-			let report = format!("Unable to negotiate slate format with other wallet.");
-			error!("{}", report);
-			return Err(ErrorKind::ClientCallback(report).into());
+		if supported_slate_versions.contains(&"V3".to_owned()) {
+			return Ok(SlateVersion::V3);
+		}
+		if supported_slate_versions.contains(&"V2".to_owned()) {
+			return Ok(SlateVersion::V2);
 		}
 
-		Ok(())
+		let report = format!("Unable to negotiate slate format with other wallet.");
+		error!("{}", report);
+		Err(ErrorKind::ClientCallback(report).into())
 	}
 
 	fn post<IN>(
@@ -173,15 +177,28 @@ impl SlateSender for HttpSlateSender {
 				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
 		}
 
-		self.check_other_version(&url_str)?;
-
+		let slate_send = match self.check_other_version(&url_str)? {
+			SlateVersion::V3 => VersionedSlate::into_version(slate.clone(), SlateVersion::V3),
+			SlateVersion::V2 => {
+				let mut slate = slate.clone();
+				if let Some(_) = slate.payment_proof {
+					return Err(ErrorKind::ClientCallback("Payment proof requested, but other wallet does not support payment proofs. Please urge other user to upgrade, or re-send tx without a payment proof".into()).into());
+				}
+				if let Some(_) = slate.ttl_cutoff_height {
+					warn!("Slate TTL value will be ignored and removed by other wallet, as other wallet does not support this feature. Please urge other user to upgrade");
+				}
+				slate.version_info.version = 2;
+				slate.version_info.orig_version = 2;
+				VersionedSlate::into_version(slate, SlateVersion::V2)
+			}
+		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "receive_tx",
 			"id": 1,
 			"params": [
-						slate,
+						slate_send,
 						null,
 						null
 					]

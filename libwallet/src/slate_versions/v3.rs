@@ -19,6 +19,7 @@
 
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
+use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindingFactor, Identifier};
 use crate::grin_util::secp;
 use crate::grin_util::secp::key::PublicKey;
@@ -29,6 +30,11 @@ use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
+
+use crate::slate_versions::v2::{
+	InputV2, OutputV2, ParticipantDataV2, SlateV2, TransactionBodyV2, TransactionV2, TxKernelV2,
+	VersionCompatInfoV2,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV3 {
@@ -201,4 +207,299 @@ pub struct CoinbaseV3 {
 	pub kernel: TxKernelV3,
 	/// Key Id
 	pub key_id: Option<Identifier>,
+}
+
+// V2 to V3 For Slate
+impl From<SlateV2> for SlateV3 {
+	fn from(slate: SlateV2) -> SlateV3 {
+		let SlateV2 {
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			participant_data,
+			version_info,
+		} = slate;
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
+		let version_info = VersionCompatInfoV3::from(&version_info);
+		let tx = TransactionV3::from(tx);
+		SlateV3 {
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			ttl_cutoff_height: None,
+			participant_data,
+			version_info,
+			payment_proof: None,
+		}
+	}
+}
+
+impl From<&ParticipantDataV2> for ParticipantDataV3 {
+	fn from(data: &ParticipantDataV2) -> ParticipantDataV3 {
+		let ParticipantDataV2 {
+			id,
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+			message,
+			message_sig,
+		} = data;
+		let id = *id;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
+		let message_sig = *message_sig;
+		ParticipantDataV3 {
+			id,
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+			message,
+			message_sig,
+		}
+	}
+}
+
+impl From<&VersionCompatInfoV2> for VersionCompatInfoV3 {
+	fn from(data: &VersionCompatInfoV2) -> VersionCompatInfoV3 {
+		let VersionCompatInfoV2 {
+			version,
+			orig_version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let orig_version = *orig_version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfoV3 {
+			version,
+			orig_version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<TransactionV2> for TransactionV3 {
+	fn from(tx: TransactionV2) -> TransactionV3 {
+		let TransactionV2 { offset, body } = tx;
+		let body = TransactionBodyV3::from(&body);
+		TransactionV3 { offset, body }
+	}
+}
+
+impl From<&TransactionBodyV2> for TransactionBodyV3 {
+	fn from(body: &TransactionBodyV2) -> TransactionBodyV3 {
+		let TransactionBodyV2 {
+			inputs,
+			outputs,
+			kernels,
+		} = body;
+
+		let inputs = map_vec!(inputs, |inp| InputV3::from(inp));
+		let outputs = map_vec!(outputs, |out| OutputV3::from(out));
+		let kernels = map_vec!(kernels, |kern| TxKernelV3::from(kern));
+		TransactionBodyV3 {
+			inputs,
+			outputs,
+			kernels,
+		}
+	}
+}
+
+impl From<&InputV2> for InputV3 {
+	fn from(input: &InputV2) -> InputV3 {
+		let InputV2 { features, commit } = *input;
+		InputV3 { features, commit }
+	}
+}
+
+impl From<&OutputV2> for OutputV3 {
+	fn from(output: &OutputV2) -> OutputV3 {
+		let OutputV2 {
+			features,
+			commit,
+			proof,
+		} = *output;
+		OutputV3 {
+			features,
+			commit,
+			proof,
+		}
+	}
+}
+
+impl From<&TxKernelV2> for TxKernelV3 {
+	fn from(kernel: &TxKernelV2) -> TxKernelV3 {
+		let (fee, lock_height) = (kernel.fee, kernel.lock_height);
+		TxKernelV3 {
+			features: kernel.features,
+			fee,
+			lock_height,
+			excess: kernel.excess,
+			excess_sig: kernel.excess_sig,
+		}
+	}
+}
+
+// V3 to V2
+#[allow(unused_variables)]
+impl From<&SlateV3> for SlateV2 {
+	fn from(slate: &SlateV3) -> SlateV2 {
+		let SlateV3 {
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			ttl_cutoff_height,
+			participant_data,
+			version_info,
+			payment_proof,
+		} = slate;
+		let num_participants = *num_participants;
+		let id = *id;
+		let tx = TransactionV2::from(tx);
+		let amount = *amount;
+		let fee = *fee;
+		let height = *height;
+		let lock_height = *lock_height;
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV2::from(data));
+		let version_info = VersionCompatInfoV2::from(version_info);
+		SlateV2 {
+			num_participants,
+			id,
+			tx,
+			amount,
+			fee,
+			height,
+			lock_height,
+			participant_data,
+			version_info,
+		}
+	}
+}
+
+impl From<&ParticipantDataV3> for ParticipantDataV2 {
+	fn from(data: &ParticipantDataV3) -> ParticipantDataV2 {
+		let ParticipantDataV3 {
+			id,
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+			message,
+			message_sig,
+		} = data;
+		let id = *id;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
+		let message_sig = *message_sig;
+		ParticipantDataV2 {
+			id,
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+			message,
+			message_sig,
+		}
+	}
+}
+
+impl From<&VersionCompatInfoV3> for VersionCompatInfoV2 {
+	fn from(data: &VersionCompatInfoV3) -> VersionCompatInfoV2 {
+		let VersionCompatInfoV3 {
+			version,
+			orig_version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let orig_version = *orig_version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfoV2 {
+			version,
+			orig_version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<TransactionV3> for TransactionV2 {
+	fn from(tx: TransactionV3) -> TransactionV2 {
+		let TransactionV3 { offset, body } = tx;
+		let body = TransactionBodyV2::from(&body);
+		TransactionV2 { offset, body }
+	}
+}
+
+impl From<&TransactionV3> for TransactionV2 {
+	fn from(tx: &TransactionV3) -> TransactionV2 {
+		let TransactionV3 { offset, body } = tx;
+		let offset = offset.clone();
+		let body = TransactionBodyV2::from(body);
+		TransactionV2 { offset, body }
+	}
+}
+
+impl From<&TransactionBodyV3> for TransactionBodyV2 {
+	fn from(body: &TransactionBodyV3) -> TransactionBodyV2 {
+		let TransactionBodyV3 {
+			inputs,
+			outputs,
+			kernels,
+		} = body;
+
+		let inputs = map_vec!(inputs, |inp| InputV2::from(inp));
+		let outputs = map_vec!(outputs, |out| OutputV2::from(out));
+		let kernels = map_vec!(kernels, |kern| TxKernelV2::from(kern));
+		TransactionBodyV2 {
+			inputs,
+			outputs,
+			kernels,
+		}
+	}
+}
+
+impl From<&InputV3> for InputV2 {
+	fn from(input: &InputV3) -> InputV2 {
+		let InputV3 { features, commit } = *input;
+		InputV2 { features, commit }
+	}
+}
+
+impl From<&OutputV3> for OutputV2 {
+	fn from(output: &OutputV3) -> OutputV2 {
+		let OutputV3 {
+			features,
+			commit,
+			proof,
+		} = *output;
+		OutputV2 {
+			features,
+			commit,
+			proof,
+		}
+	}
+}
+
+impl From<&TxKernelV3> for TxKernelV2 {
+	fn from(kernel: &TxKernelV3) -> TxKernelV2 {
+		TxKernelV2 {
+			features: kernel.features,
+			fee: kernel.fee,
+			lock_height: kernel.lock_height,
+			excess: kernel.excess,
+			excess_sig: kernel.excess_sig,
+		}
+	}
 }

@@ -18,11 +18,14 @@
 //! remains for future needs
 
 use crate::slate::Slate;
+use crate::slate_versions::v2::{CoinbaseV2, SlateV2};
 use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::types::CbData;
 
 pub mod ser;
 
+#[allow(missing_docs)]
+pub mod v2;
 #[allow(missing_docs)]
 pub mod v3;
 
@@ -37,6 +40,8 @@ pub const GRIN_BLOCK_HEADER_VERSION: u16 = 3;
 pub enum SlateVersion {
 	/// V3 (most current)
 	V3,
+	/// V2 (2.0.0 - Onwards)
+	V2,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,6 +51,8 @@ pub enum SlateVersion {
 pub enum VersionedSlate {
 	/// Current (3.0.0 Onwards )
 	V3(SlateV3),
+	/// V2 (2.0.0 - Onwards)
+	V2(SlateV2),
 }
 
 impl VersionedSlate {
@@ -53,6 +60,7 @@ impl VersionedSlate {
 	pub fn version(&self) -> SlateVersion {
 		match *self {
 			VersionedSlate::V3(_) => SlateVersion::V3,
+			VersionedSlate::V2(_) => SlateVersion::V2,
 		}
 	}
 
@@ -62,12 +70,11 @@ impl VersionedSlate {
 			SlateVersion::V3 => VersionedSlate::V3(slate.into()),
 			// Left here as a reminder of what needs to be inserted on
 			// the release of a new slate
-			/*SlateVersion::V0 => {
+			SlateVersion::V2 => {
 				let s = SlateV3::from(slate);
-				let s = SlateV1::from(s);
-				let s = SlateV0::from(s);
-				VersionedSlate::V0(s)
-			}*/
+				let s = SlateV2::from(&s);
+				VersionedSlate::V2(s)
+			}
 		}
 	}
 }
@@ -78,13 +85,11 @@ impl From<VersionedSlate> for Slate {
 			VersionedSlate::V3(s) => {
 				let s = SlateV3::from(s);
 				Slate::from(s)
-			} // Again, left in as a reminder
-			  /*VersionedSlate::V0(s) => {
-				  let s = SlateV0::from(s);
-				  let s = SlateV1::from(s);
-				  let s = SlateV2::from(s);
-				  Slate::from(s)
-			  }*/
+			}
+			VersionedSlate::V2(s) => {
+				let s = SlateV3::from(s);
+				Slate::from(s)
+			}
 		}
 	}
 }
@@ -96,6 +101,8 @@ impl From<VersionedSlate> for Slate {
 pub enum VersionedCoinbase {
 	/// Current supported coinbase version.
 	V3(CoinbaseV3),
+	/// Previous
+	V2(CoinbaseV2),
 }
 
 impl VersionedCoinbase {
@@ -103,6 +110,7 @@ impl VersionedCoinbase {
 	pub fn into_version(cb: CbData, version: SlateVersion) -> VersionedCoinbase {
 		match version {
 			SlateVersion::V3 => VersionedCoinbase::V3(cb.into()),
+			SlateVersion::V2 => VersionedCoinbase::V2(cb.into()),
 		}
 	}
 }

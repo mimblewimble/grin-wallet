@@ -155,11 +155,6 @@ subcommands:
             short: t
             long: stored_tx
             takes_value: true
-        - slate_version:
-            help: Target slate version to output/send to receiver
-            short: v
-            long: slate_version
-            takes_value: true
   - receive:
       about: Processes a transaction file to accept a transfer from a sender
       args:
@@ -204,11 +199,6 @@ subcommands:
             help: Optional participant message to include
             short: g
             long: message
-            takes_value: true
-        - slate_version:
-            help: Target slate version to output/send to receiver
-            short: v
-            long: slate_version
             takes_value: true
         - dest:
             help: Name of destination slate output file
