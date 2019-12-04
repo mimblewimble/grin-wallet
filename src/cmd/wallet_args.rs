@@ -453,6 +453,9 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// fluff
 	let fluff = args.is_present("fluff");
 
+	// ttl_blocks
+	let ttl_blocks = parse_u64_or_none(args.value_of("ttl_blocks"));
+
 	// max_outputs
 	let max_outputs = 500;
 
@@ -493,6 +496,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		fluff: fluff,
 		max_outputs: max_outputs,
 		payment_proof_address,
+		ttl_blocks,
 		target_slate_version: target_slate_version,
 	})
 }
@@ -636,6 +640,9 @@ pub fn parse_process_invoice_args(
 		return Err(ParseError::ArgumentError(msg));
 	}
 
+	// ttl_blocks
+	let ttl_blocks = parse_u64_or_none(args.value_of("ttl_blocks"));
+
 	// max_outputs
 	let max_outputs = 500;
 
@@ -663,6 +670,7 @@ pub fn parse_process_invoice_args(
 		dest: dest.to_owned(),
 		max_outputs: max_outputs,
 		input: tx_file.to_owned(),
+		ttl_blocks,
 	})
 }
 

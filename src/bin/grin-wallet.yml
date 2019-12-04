@@ -155,6 +155,11 @@ subcommands:
             short: t
             long: stored_tx
             takes_value: true
+        - ttl_blocks:
+            help: If present, the number of blocks from the current after which wallets should refuse to process transactions further
+            short: b
+            long: ttl_blocks
+            takes_value: true
   - receive:
       about: Processes a transaction file to accept a transfer from a sender
       args:
@@ -251,6 +256,11 @@ subcommands:
             help: Partial transaction to process, expects the invoicer's transaction file.
             short: i
             long: input
+            takes_value: true
+        - ttl_blocks:
+            help: If present, the number of blocks from the current after which wallets should refuse to process transactions further
+            short: b
+            long: ttl_blocks
             takes_value: true
   - outputs:
       about: Raw wallet output info (list of outputs)
