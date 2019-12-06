@@ -443,7 +443,7 @@ pub trait OwnerRpcS {
 		  "version_info": {
 				"orig_version": 3,
 				"version": 3,
-				"block_header_version": 1
+				"block_header_version": 2
 		  }
 		}
 	  }
@@ -526,7 +526,7 @@ pub trait OwnerRpcS {
 					"version_info": {
 						"orig_version": 3,
 						"version": 3,
-						"block_header_version": 1
+						"block_header_version": 2
 					}
 				}
 			}
