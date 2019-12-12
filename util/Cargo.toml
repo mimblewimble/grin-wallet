@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_util"
-version = "3.0.0-beta.1"
+version = "3.0.0-beta.2"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Util, for generic utilities and to re-export grin crates"
 license = "Apache-2.0"
@@ -26,12 +26,12 @@ dirs = "1.0.3"
 
 # For beta release
 
-grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.1"}
-grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.1" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.1" }
-grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.1" }
-grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.1" }
-grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.1" }
+grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.2"}
+grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.2" }
+grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.2" }
+grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.2" }
+grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.2" }
+grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v3.0.0-beta.2" }
 
 # For bleeding edge
 # grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
