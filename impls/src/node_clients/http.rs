@@ -262,15 +262,35 @@ impl NodeClient for HTTPNodeClient {
 						api::OutputType::Coinbase => true,
 						api::OutputType::Transaction => false,
 					};
+					let range_proof = match out.range_proof() {
+						Ok(r) => r,
+						Err(e) => {
+							let msg = format!("Unexpected error in returned output (missing range proof): {:?}. {:?}, {}",
+									out.commit,
+									out,
+									e);
+							error!("{}", msg);
+							Err(libwallet::ErrorKind::ClientCallback(msg))?
+						}
+					};
+					let block_height = match out.block_height {
+						Some(h) => h,
+						None => {
+							let msg = format!("Unexpected error in returned output (missing block height): {:?}. {:?}",
+									out.commit,
+									out);
+							error!("{}", msg);
+							Err(libwallet::ErrorKind::ClientCallback(msg))?
+						}
+					};
 					api_outputs.push((
 						out.commit,
-						out.range_proof().unwrap(),
+						range_proof,
 						is_coinbase,
-						out.block_height.unwrap(),
+						block_height,
 						out.mmr_index,
 					));
 				}
-
 				Ok((o.highest_index, o.last_retrieved_index, api_outputs))
 			}
 			Err(e) => {
