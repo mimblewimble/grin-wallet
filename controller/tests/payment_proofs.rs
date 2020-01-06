@@ -133,9 +133,18 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		slate = sender_api.finalize_tx(m, &slate)?;
 
 		// Check payment proof here
-		let pp = sender_api.retrieve_payment_proof(m, true, None, Some(slate.id))?;
+		let mut pp = sender_api.retrieve_payment_proof(m, true, None, Some(slate.id))?;
+
+		// verify, should be good
+		sender_api.verify_payment_proof(&pp)?;
 
 		println!("{:?}", pp);
+
+		// Modify values, should not be good
+		pp.amount = 20;
+		let res = sender_api.verify_payment_proof(&pp);
+		assert!(res.is_err());
+
 
 		Ok(())
 	})?;

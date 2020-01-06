@@ -525,12 +525,12 @@ impl NodeClient for LocalWalletClient {
 		if let Some(h) = min_height {
 			query += &format!("{},", h);
 		} else {
-			query += "0,"
+			query += "1,"
 		}
 		if let Some(h) = max_height {
 			query += &format!("{}", h);
 		} else {
-			query += "0"
+			query += "1"
 		}
 
 		let m = WalletProxyMessage {

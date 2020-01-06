@@ -2037,6 +2037,16 @@ where
 			tx_slate_id,
 		)
 	}
+
+	pub fn verify_payment_proof(
+		&self,
+		proof: &PaymentProof
+	) -> Result<(), Error> {
+		owner::verify_payment_proof(
+			self.wallet_inst.clone(),
+			proof
+		)
+	}
 }
 
 #[doc(hidden)]

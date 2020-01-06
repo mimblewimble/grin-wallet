@@ -568,7 +568,7 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	let parent_key_id = w.parent_key_id();
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
-	tx::verify_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, false)?;
 	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
 	{
@@ -875,6 +875,51 @@ where
 			return Err(ErrorKind::TransactionExpired)?;
 		}
 	}
+	Ok(())
+}
+
+/// Verify/validate arbitrary payment proof
+pub fn verify_payment_proof<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	proof: &PaymentProof
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let msg = tx::payment_proof_message(
+		proof.amount,
+		&proof.excess,
+		proof.sender_address,
+	)?;
+
+	// Check Sigs
+
+	if let Err(_) = proof.recipient_address.verify(&msg, &proof.recipient_sig) {
+		return Err(ErrorKind::PaymentProof(
+			"Invalid recipient signature".to_owned(),
+		))?;
+	};
+
+	if let Err(_) = proof.sender_address.verify(&msg, &proof.sender_sig) {
+		return Err(ErrorKind::PaymentProof(
+			"Invalid sender signature".to_owned(),
+		))?;
+	};
+
+	let mut client = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().clone()
+	};
+
+	// Check kernel exists
+	if let Err(_) = client.get_kernel(&proof.excess, None, None) {
+		return Err(ErrorKind::PaymentProof(
+			"Kernel not found".to_owned(),
+		))?;
+	};
+
 	Ok(())
 }
 
