@@ -22,6 +22,7 @@ use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::Signature as DalekSignature;
 
 /// Send TX API Args
 // TODO: This is here to ensure the legacy V1 API remains intact
@@ -222,3 +223,33 @@ pub struct VersionInfo {
 	/// Slate version
 	pub supported_slate_versions: Vec<SlateVersion>,
 }
+
+/// Packaged Payment Proof
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PaymentProof {
+	/// Amount
+	pub amount: u64,
+	/// Kernel Excess
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
+	pub excess: pedersen::Commitment,
+	/// Recipient Wallet Address
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub recipient_address: DalekPublicKey,
+	/// Onion V3 Adddress of recipient
+	pub recipient_ov3_address: String,
+	/// Recipient Signature
+	#[serde(with = "dalek_ser::dalek_sig_serde")]
+	pub recipient_sig: DalekSignature,
+	/// Sender Wallet Address
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub sender_address: DalekPublicKey,
+	/// Onion V3 Adddress of sender
+	pub sender_ov3_address: String,
+	/// Sender Signature
+	#[serde(with = "dalek_ser::dalek_sig_serde")]
+	pub sender_sig: DalekSignature,
+}
+

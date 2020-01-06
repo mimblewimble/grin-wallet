@@ -81,6 +81,38 @@ pub mod option_dalek_pubkey_serde {
 	}
 }
 
+/// Serializes an ed25519_dalek::Signature to and from hex
+pub mod dalek_sig_serde {
+	use ed25519_dalek::Signature as DalekSignature;
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::grin_util::{from_hex, to_hex};
+
+	///
+	pub fn serialize<S>(key: &DalekSignature, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&to_hex(key.to_bytes().to_vec()))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekSignature, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		String::deserialize(deserializer)
+			.and_then(|string| from_hex(string).map_err(|err| Error::custom(err.to_string())))
+			.and_then(|bytes: Vec<u8>| {
+					let mut b = [0u8; 64];
+					b.copy_from_slice(&bytes[0..64]);
+					DalekSignature::from_bytes(&b)
+						.map_err(|err| Error::custom(err.to_string()))
+			})
+	}
+}
+
 /// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
 pub mod option_dalek_sig_serde {
 	use ed25519_dalek::Signature as DalekSignature;
@@ -141,6 +173,8 @@ mod test {
 		pub pub_key: DalekPublicKey,
 		#[serde(with = "option_dalek_pubkey_serde")]
 		pub pub_key_opt: Option<DalekPublicKey>,
+		#[serde(with = "dalek_sig_serde")]
+		pub sig: DalekSignature,
 		#[serde(with = "option_dalek_sig_serde")]
 		pub sig_opt: Option<DalekSignature>,
 	}
@@ -165,6 +199,7 @@ mod test {
 			SerTest {
 				pub_key: d_pub_key.clone(),
 				pub_key_opt: Some(d_pub_key),
+				sig: d_sig.clone(),
 				sig_opt: Some(d_sig),
 			}
 		}
