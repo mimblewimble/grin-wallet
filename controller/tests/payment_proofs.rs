@@ -145,7 +145,6 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		let res = sender_api.verify_payment_proof(&pp);
 		assert!(res.is_err());
 
-
 		Ok(())
 	})?;
 

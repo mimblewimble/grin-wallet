@@ -881,18 +881,14 @@ where
 /// Verify/validate arbitrary payment proof
 pub fn verify_payment_proof<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	proof: &PaymentProof
+	proof: &PaymentProof,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let msg = tx::payment_proof_message(
-		proof.amount,
-		&proof.excess,
-		proof.sender_address,
-	)?;
+	let msg = tx::payment_proof_message(proof.amount, &proof.excess, proof.sender_address)?;
 
 	// Check Sigs
 
@@ -915,9 +911,7 @@ where
 
 	// Check kernel exists
 	if let Err(_) = client.get_kernel(&proof.excess, None, None) {
-		return Err(ErrorKind::PaymentProof(
-			"Kernel not found".to_owned(),
-		))?;
+		return Err(ErrorKind::PaymentProof("Kernel not found".to_owned()))?;
 	};
 
 	Ok(())
