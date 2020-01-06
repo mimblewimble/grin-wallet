@@ -252,4 +252,3 @@ pub struct PaymentProof {
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,
 }
-

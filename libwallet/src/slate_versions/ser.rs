@@ -105,10 +105,9 @@ pub mod dalek_sig_serde {
 		String::deserialize(deserializer)
 			.and_then(|string| from_hex(string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
-					let mut b = [0u8; 64];
-					b.copy_from_slice(&bytes[0..64]);
-					DalekSignature::from_bytes(&b)
-						.map_err(|err| Error::custom(err.to_string()))
+				let mut b = [0u8; 64];
+				b.copy_from_slice(&bytes[0..64]);
+				DalekSignature::from_bytes(&b).map_err(|err| Error::custom(err.to_string()))
 			})
 	}
 }
