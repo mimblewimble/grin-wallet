@@ -126,13 +126,16 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		assert_eq!(pp.sender_address_path, 0);
 		assert_eq!(pp.sender_signature, None);
 
+		// check we should get an error at this point since proof is not complete
+		let pp = sender_api.retrieve_payment_proof(m, true, None, Some(slate.id));
+		assert!(pp.is_err());
+
 		slate = sender_api.finalize_tx(m, &slate)?;
 
 		// Check payment proof here
-		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
-		let tx = txs[0].clone();
+		let pp = sender_api.retrieve_payment_proof(m, true, None, Some(slate.id))?;
 
-		println!("{:?}", tx);
+		println!("{:?}", pp);
 
 		Ok(())
 	})?;

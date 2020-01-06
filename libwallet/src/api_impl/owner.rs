@@ -29,7 +29,7 @@ use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
-	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
+	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, PaymentProof,
 	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
@@ -191,6 +191,103 @@ where
 	let parent_key_id = w.parent_key_id();
 	let wallet_info = updater::retrieve_info(&mut **w, &parent_key_id, minimum_confirmations)?;
 	Ok((validated, wallet_info))
+}
+
+/// Retrieve payment proof
+pub fn retrieve_payment_proof<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	refresh_from_node: bool,
+	tx_id: Option<u32>,
+	tx_slate_id: Option<Uuid>,
+) -> Result<PaymentProof, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if tx_id.is_none() && tx_slate_id.is_none() {
+		return Err(ErrorKind::PaymentProofRetrieval(
+			"Transaction ID or Slate UUID must be specified".into()
+		).into());
+	}
+	let mut _validated = false;
+	if refresh_from_node {
+		_validated = update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?;
+	}
+	let txs = retrieve_txs(
+		wallet_inst.clone(),
+		keychain_mask,
+		status_send_channel,
+		refresh_from_node,
+		tx_id,
+		tx_slate_id,
+	)?;
+	if txs.1.len() != 1 {
+		return Err(ErrorKind::PaymentProofRetrieval(
+			"Transaction doesn't exist".into()
+		).into());
+	}
+	// Pull out all needed fields, returning an error if they're not present
+	let tx = txs.1[0].clone();
+	let proof = match tx.payment_proof {
+		Some(p) => p,
+		None => {
+			return Err(ErrorKind::PaymentProofRetrieval(
+				"Transaction does not contain a payment proof".into()
+			).into());
+		}
+
+	};
+	let amount = if tx.amount_credited >= tx.amount_debited {
+		tx.amount_credited - tx.amount_debited
+	} else {
+		let fee = match tx.fee {
+			Some(f) => f,
+			None => 0
+		};
+		tx.amount_debited - tx.amount_credited - fee
+	};
+	let excess = match tx.kernel_excess {
+		Some(e) => e,
+		None => {
+			return Err(ErrorKind::PaymentProofRetrieval(
+				"Transaction does not contain kernel excess".into()
+			).into());
+		}
+	};
+	let r_sig = match proof.receiver_signature {
+		Some(e) => e,
+		None => {
+			return Err(ErrorKind::PaymentProofRetrieval(
+				"Proof does not contain receiver signature ".into()
+			).into());
+		}
+	};
+	let s_sig = match proof.sender_signature {
+		Some(e) => e,
+		None => {
+			return Err(ErrorKind::PaymentProofRetrieval(
+				"Proof does not contain sender signature ".into()
+			).into());
+		}
+	};
+	Ok(PaymentProof {
+		amount: amount,
+		excess: excess,
+		recipient_address: proof.receiver_address,
+		recipient_ov3_address: address::onion_v3_from_pubkey(&proof.receiver_address)?,
+		recipient_sig: r_sig,
+		sender_address: proof.sender_address,
+		sender_ov3_address: address::onion_v3_from_pubkey(&proof.sender_address)?,
+		sender_sig: s_sig,
+	})
 }
 
 /// Initiate tx as sender
