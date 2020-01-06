@@ -29,8 +29,8 @@ use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, TxWrapper, WalletBackend, WalletInfo};
 use crate::{
-	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping, PaymentProof,
-	ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
+	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
+	PaymentProof, ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -209,8 +209,9 @@ where
 {
 	if tx_id.is_none() && tx_slate_id.is_none() {
 		return Err(ErrorKind::PaymentProofRetrieval(
-			"Transaction ID or Slate UUID must be specified".into()
-		).into());
+			"Transaction ID or Slate UUID must be specified".into(),
+		)
+		.into());
 	}
 	let mut _validated = false;
 	if refresh_from_node {
@@ -230,9 +231,7 @@ where
 		tx_slate_id,
 	)?;
 	if txs.1.len() != 1 {
-		return Err(ErrorKind::PaymentProofRetrieval(
-			"Transaction doesn't exist".into()
-		).into());
+		return Err(ErrorKind::PaymentProofRetrieval("Transaction doesn't exist".into()).into());
 	}
 	// Pull out all needed fields, returning an error if they're not present
 	let tx = txs.1[0].clone();
@@ -240,17 +239,17 @@ where
 		Some(p) => p,
 		None => {
 			return Err(ErrorKind::PaymentProofRetrieval(
-				"Transaction does not contain a payment proof".into()
-			).into());
+				"Transaction does not contain a payment proof".into(),
+			)
+			.into());
 		}
-
 	};
 	let amount = if tx.amount_credited >= tx.amount_debited {
 		tx.amount_credited - tx.amount_debited
 	} else {
 		let fee = match tx.fee {
 			Some(f) => f,
-			None => 0
+			None => 0,
 		};
 		tx.amount_debited - tx.amount_credited - fee
 	};
@@ -258,24 +257,27 @@ where
 		Some(e) => e,
 		None => {
 			return Err(ErrorKind::PaymentProofRetrieval(
-				"Transaction does not contain kernel excess".into()
-			).into());
+				"Transaction does not contain kernel excess".into(),
+			)
+			.into());
 		}
 	};
 	let r_sig = match proof.receiver_signature {
 		Some(e) => e,
 		None => {
 			return Err(ErrorKind::PaymentProofRetrieval(
-				"Proof does not contain receiver signature ".into()
-			).into());
+				"Proof does not contain receiver signature ".into(),
+			)
+			.into());
 		}
 	};
 	let s_sig = match proof.sender_signature {
 		Some(e) => e,
 		None => {
 			return Err(ErrorKind::PaymentProofRetrieval(
-				"Proof does not contain sender signature ".into()
-			).into());
+				"Proof does not contain sender signature ".into(),
+			)
+			.into());
 		}
 	};
 	Ok(PaymentProof {
