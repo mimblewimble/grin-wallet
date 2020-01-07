@@ -1879,7 +1879,7 @@ pub trait OwnerRpcS {
 		"jsonrpc": "2.0",
 		"result": {
 			"Ok": {
-				"amount": 60000000000,
+				"amount": "60000000000",
 				"excess": "09bac6083b05a32a9d9b37710c70dd0a1ef9329fde0848558976b6f1b81d80ceed",
 				"recipient_address": "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810",
 				"recipient_ov3_address": "pa7wkkdgs5bkteha7lykl7ff2wztgdrxxo442xdcq2lnaphe5aidd4id",
@@ -1902,6 +1902,48 @@ pub trait OwnerRpcS {
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<PaymentProof, ErrorKind>;
+
+	/**
+	Networked version of [Owner::verify_payment_proof](struct.Owner.html#method.verify_payment_proof).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "verify_payment_proof",
+		"params": {
+			"proof": {
+				"amount": "60000000000",
+				"excess": "09bac6083b05a32a9d9b37710c70dd0a1ef9329fde0848558976b6f1b81d80ceed",
+				"recipient_address": "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810",
+				"recipient_ov3_address": "pa7wkkdgs5bkteha7lykl7ff2wztgdrxxo442xdcq2lnaphe5aidd4id",
+				"recipient_sig": "42b6f2bbcee432185993867d1a338e260454ead536bf728f4dcc8f535508715e92a0695486ba3c9945d8ecb2cf7f703a955780253b12d0048f02d318c8f08702",
+				"sender_address": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3",
+				"sender_ov3_address": "glg5mojiqvhywjriwhooiytn3tptlvlmw7h567lezssyek3y2tjzznad",
+				"sender_sig": "5e3f5596852e83f6db7152fc51c41b4ed8742eb8045fa85a6965c52d09fcb46ba67d4f86660c9f3dc55ab84faea79d11c3831aa77934f7e90695e63d523f8604"
+			}
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": null
+		}
+	}
+	# "#
+	# , true, 5, true, true, true, true);
+	```
+	*/
+
+	fn verify_payment_proof(
+		&self,
+		proof: PaymentProof,
+	) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::set_tor_config](struct.Owner.html#method.set_tor_config).
@@ -2267,6 +2309,17 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
+		)
+		.map_err(|e| e.kind())
+	}
+
+	fn verify_payment_proof(
+		&self,
+		proof: PaymentProof,
+	) -> Result<(), ErrorKind> {
+		Owner::verify_payment_proof(
+			self,
+			&proof
 		)
 		.map_err(|e| e.kind())
 	}

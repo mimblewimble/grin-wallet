@@ -228,6 +228,7 @@ pub struct VersionInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PaymentProof {
 	/// Amount
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// Kernel Excess
 	#[serde(

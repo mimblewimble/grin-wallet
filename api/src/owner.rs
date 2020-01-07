@@ -2013,6 +2013,50 @@ where
 		address::pubkey_from_onion_v3(address_v3)
 	}
 
+	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
+	/// from a completed transaction within the wallet.
+	///
+	/// The transaction must have been created with a payment proof, and the transaction must be
+	/// complete in order for a payment proof to be returned. Either the `tx_id` or `tx_slate_id` 
+	/// argument must be provided, or the function will return an error.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `refresh_from_node` - If true, the wallet will attempt to contact
+	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	/// provided during wallet instantiation). If `false`, the results will
+	/// contain transaction information that may be out-of-date (from the last time
+	/// the wallet's output set was refreshed against the node).
+	/// Note this setting is ignored if the updater process is running via a call to
+	/// [`start_updater`](struct.Owner.html#method.start_updater)
+	/// * `tx_id` - If `Some(i)` return the proof associated with the transaction with id `i`
+	/// * `tx_slate_id` - If `Some(uuid)`, return the proof associated with the transaction with the
+	/// given `uuid`
+	///
+	/// # Returns
+	/// * Ok([PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	/// or the proof is not present or complete
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let update_from_node = true;
+	/// let tx_id = None;
+	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
+	///
+	/// // Return all TxLogEntries
+	/// let result = api_owner.retrieve_payment_proof(None, update_from_node, tx_id, tx_slate_id);
+	///
+	/// if let Ok(p) = result {
+	///		//...
+	/// }
+	/// ```
+
 	pub fn retrieve_payment_proof(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -2037,6 +2081,47 @@ where
 			tx_slate_id,
 		)
 	}
+
+	/// Verifies a [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
+	/// This process entails:
+	///
+	/// * Ensuring the kernel identified by the proof's stored excess commitment exists in the UTXO set
+	/// * Reproducing the signed message `amount|kernel_commitment|sender_address`
+	/// * Validating the proof's `recipient_sig` against the message using the recipient's 
+	/// address as the public key and
+	/// * Validating the proof's `sender_sig` against the message using the senders's 
+	/// address as the public key
+	///
+	/// # Arguments
+	/// * `proof` A [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html))
+	///
+	/// # Returns
+	/// * Ok(()) if the proof is valid
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	/// or the proof is not present or complete
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone());
+	/// let update_from_node = true;
+	/// let tx_id = None;
+	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
+	///
+	/// // Return all TxLogEntries
+	/// let result = api_owner.retrieve_payment_proof(None, update_from_node, tx_id, tx_slate_id);
+	///
+	/// // The proof will likely be exported as JSON to be provided to another party
+	///
+	/// if let Ok(p) = result {
+	///		let valid = api_owner.verify_payment_proof(&p);
+	///		if let Ok(_) = valid {
+	///		  //...
+	///		}
+	/// }
+	/// ```
 
 	pub fn verify_payment_proof(&self, proof: &PaymentProof) -> Result<(), Error> {
 		owner::verify_payment_proof(self.wallet_inst.clone(), proof)
@@ -2065,6 +2150,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		use config::WalletConfig;
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 		use libwallet::{BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate, WalletInst};
+
+		use uuid::Uuid;
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
