@@ -1940,10 +1940,7 @@ pub trait OwnerRpcS {
 	```
 	*/
 
-	fn verify_payment_proof(
-		&self,
-		proof: PaymentProof,
-	) -> Result<(), ErrorKind>;
+	fn verify_payment_proof(&self, proof: PaymentProof) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::set_tor_config](struct.Owner.html#method.set_tor_config).
@@ -2313,15 +2310,8 @@ where
 		.map_err(|e| e.kind())
 	}
 
-	fn verify_payment_proof(
-		&self,
-		proof: PaymentProof,
-	) -> Result<(), ErrorKind> {
-		Owner::verify_payment_proof(
-			self,
-			&proof
-		)
-		.map_err(|e| e.kind())
+	fn verify_payment_proof(&self, proof: PaymentProof) -> Result<(), ErrorKind> {
+		Owner::verify_payment_proof(self, &proof).map_err(|e| e.kind())
 	}
 
 	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind> {

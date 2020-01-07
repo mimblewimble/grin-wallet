@@ -2017,7 +2017,7 @@ where
 	/// from a completed transaction within the wallet.
 	///
 	/// The transaction must have been created with a payment proof, and the transaction must be
-	/// complete in order for a payment proof to be returned. Either the `tx_id` or `tx_slate_id` 
+	/// complete in order for a payment proof to be returned. Either the `tx_id` or `tx_slate_id`
 	/// argument must be provided, or the function will return an error.
 	///
 	/// # Arguments
@@ -2087,9 +2087,9 @@ where
 	///
 	/// * Ensuring the kernel identified by the proof's stored excess commitment exists in the UTXO set
 	/// * Reproducing the signed message `amount|kernel_commitment|sender_address`
-	/// * Validating the proof's `recipient_sig` against the message using the recipient's 
+	/// * Validating the proof's `recipient_sig` against the message using the recipient's
 	/// address as the public key and
-	/// * Validating the proof's `sender_sig` against the message using the senders's 
+	/// * Validating the proof's `sender_sig` against the message using the senders's
 	/// address as the public key
 	///
 	/// # Arguments
