@@ -1508,11 +1508,14 @@ pub fn run_doctest_owner(
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let proof_address = match payment_proof {
 			true => {
-				let bytes = from_hex("783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810".to_string()).unwrap();
-					let mut b = [0u8; 32];
-					b.copy_from_slice(&bytes[0..32]);
-					Some(DalekPublicKey::from_bytes(&b).unwrap())
-			},
+				let bytes = from_hex(
+					"783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810".to_string(),
+				)
+				.unwrap();
+				let mut b = [0u8; 32];
+				b.copy_from_slice(&bytes[0..32]);
+				Some(DalekPublicKey::from_bytes(&b).unwrap())
+			}
 			false => None,
 		};
 		let args = InitTxArgs {

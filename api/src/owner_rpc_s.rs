@@ -22,8 +22,8 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::slate_versions::v3::TransactionV3;
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, SlateVersion, StatusMessage, TxLogEntry, VersionedSlate,
-	WalletInfo, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, SlateVersion, StatusMessage, TxLogEntry,
+	VersionedSlate, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -1895,7 +1895,8 @@ pub trait OwnerRpcS {
 	```
 	*/
 
-	fn retrieve_payment_proof(&self,
+	fn retrieve_payment_proof(
+		&self,
 		token: Token,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
@@ -2253,7 +2254,8 @@ where
 		Ok(PubAddress { address })
 	}
 
-	fn retrieve_payment_proof(&self,
+	fn retrieve_payment_proof(
+		&self,
 		token: Token,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
