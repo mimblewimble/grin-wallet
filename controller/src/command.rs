@@ -22,7 +22,8 @@ use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateRec
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	self, address, InitTxArgs, IssueInvoiceTxArgs, PaymentProof, NodeClient, WalletInst, WalletLCProvider,
+	self, address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletInst,
+	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{to_hex, Mutex, ZeroingString};
@@ -973,19 +974,21 @@ where
 	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(wallet.clone(), keychain_mask, |api, _| {
-		let mut proof_f = match File::open(&args.input_file){
+		let mut proof_f = match File::open(&args.input_file) {
 			Ok(p) => p,
 			Err(e) => {
 				let msg = format!("{}", e);
-				error!("Unable to open payment proof file at {}: {}", args.input_file, e);
+				error!(
+					"Unable to open payment proof file at {}: {}",
+					args.input_file, e
+				);
 				return Err(libwallet::ErrorKind::PaymentProofParsing(msg).into());
 			}
-
 		};
 		let mut proof = String::new();
 		proof_f.read_to_string(&mut proof)?;
 		// read
-		let proof:PaymentProof = match json::from_str(&proof) {
+		let proof: PaymentProof = match json::from_str(&proof) {
 			Ok(p) => p,
 			Err(e) => {
 				let msg = format!("{}", e);

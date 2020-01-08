@@ -898,12 +898,20 @@ where
 	// Check kernel exists
 	match client.get_kernel(&proof.excess, None, None) {
 		Err(e) => {
-			return Err(ErrorKind::PaymentProof(format!("Error retrieving kernel from chain: {}", e).to_owned()))?;
-		},
+			return Err(ErrorKind::PaymentProof(
+				format!("Error retrieving kernel from chain: {}", e).to_owned(),
+			))?;
+		}
 		Ok(None) => {
-			return Err(ErrorKind::PaymentProof(format!("Transaction kernel with excess {:?} not found on chain", proof.excess).to_owned()))?;
-		},
-		Ok(Some(_)) => {},
+			return Err(ErrorKind::PaymentProof(
+				format!(
+					"Transaction kernel with excess {:?} not found on chain",
+					proof.excess
+				)
+				.to_owned(),
+			))?;
+		}
+		Ok(Some(_)) => {}
 	};
 
 	// Check Sigs
