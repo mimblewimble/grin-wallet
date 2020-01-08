@@ -353,7 +353,15 @@ where
 		let max = split[2].parse::<u64>().unwrap();
 		let commit_bytes = util::from_hex(excess).unwrap();
 		let commit = pedersen::Commitment::from_vec(commit_bytes);
-		let k = super::get_kernel_local(self.chain.clone(), &commit, Some(min), Some(max));
+		let min = match min {
+			0 => None,
+			m => Some(m),
+		};
+		let max = match max {
+			0 => None,
+			m => Some(m),
+		};
+		let k = super::get_kernel_local(self.chain.clone(), &commit, min, max);
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
 			dest: m.sender_id,
@@ -525,12 +533,12 @@ impl NodeClient for LocalWalletClient {
 		if let Some(h) = min_height {
 			query += &format!("{},", h);
 		} else {
-			query += "1,"
+			query += "0,"
 		}
 		if let Some(h) = max_height {
 			query += &format!("{}", h);
 		} else {
-			query += "1"
+			query += "0"
 		}
 
 		let m = WalletProxyMessage {

@@ -1437,6 +1437,8 @@ pub fn run_doctest_owner(
 		mask1.clone(),
 	);
 
+	let mut slate_outer = Slate::blank(2);
+
 	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile",
@@ -1557,6 +1559,11 @@ pub fn run_doctest_owner(
 			error!("FINALIZED TX SLATE");
 			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		}
+		slate_outer = slate;
+	}
+
+	if payment_proof {
+		let _ = api_impl::owner::post_tx(&client1, &slate_outer.tx, true).unwrap();
 	}
 
 	if perform_tx && lock_tx && finalize_tx {
