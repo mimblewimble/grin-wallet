@@ -890,8 +890,23 @@ where
 {
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, proof.sender_address)?;
 
-	// Check Sigs
+	let mut client = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().clone()
+	};
 
+	// Check kernel exists
+	match client.get_kernel(&proof.excess, None, None) {
+		Err(e) => {
+			return Err(ErrorKind::PaymentProof(format!("Error retrieving kernel from chain: {}", e).to_owned()))?;
+		},
+		Ok(None) => {
+			return Err(ErrorKind::PaymentProof(format!("Transaction kernel with excess {:?} not found on chain", proof.excess).to_owned()))?;
+		},
+		Ok(Some(_)) => {},
+	};
+
+	// Check Sigs
 	if let Err(_) = proof.recipient_address.verify(&msg, &proof.recipient_sig) {
 		return Err(ErrorKind::PaymentProof(
 			"Invalid recipient signature".to_owned(),
@@ -902,16 +917,6 @@ where
 		return Err(ErrorKind::PaymentProof(
 			"Invalid sender signature".to_owned(),
 		))?;
-	};
-
-	let mut client = {
-		wallet_lock!(wallet_inst, w);
-		w.w2n_client().clone()
-	};
-
-	// Check kernel exists
-	if let Err(_) = client.get_kernel(&proof.excess, None, None) {
-		return Err(ErrorKind::PaymentProof("Kernel not found".to_owned()))?;
 	};
 
 	Ok(())
