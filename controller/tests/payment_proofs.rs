@@ -135,8 +135,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		Ok(())
 	})?;
 
-	let _ =
-		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
 
 	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
 		// Check payment proof here
@@ -146,7 +145,6 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 
 		// verify, should be good
 		sender_api.verify_payment_proof(&pp)?;
-
 
 		// Modify values, should not be good
 		pp.amount = 20;
