@@ -1007,7 +1007,9 @@ where
 					println!("The proof's recipient address belongs to this wallet.");
 				}
 				if !iam_recipient && !iam_sender {
-					println!("Neither the proof's sender nor recipient address belongs to this wallet.");
+					println!(
+						"Neither the proof's sender nor recipient address belongs to this wallet."
+					);
 				}
 				Ok(())
 			}

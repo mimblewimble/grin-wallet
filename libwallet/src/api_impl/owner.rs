@@ -895,7 +895,11 @@ where
 
 	let (mut client, parent_key_id, keychain) = {
 		wallet_lock!(wallet_inst, w);
-		(w.w2n_client().clone(), w.parent_key_id(), w.keychain(keychain_mask)?)
+		(
+			w.w2n_client().clone(),
+			w.parent_key_id(),
+			w.keychain(keychain_mask)?,
+		)
 	};
 
 	// Check kernel exists
@@ -931,8 +935,7 @@ where
 	};
 
 	// for now, simple test as to whether one of the addresses belongs to this wallet
-	let sec_key =
-		address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
+	let sec_key = address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
 	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 		Ok(k) => k,
 		Err(e) => {

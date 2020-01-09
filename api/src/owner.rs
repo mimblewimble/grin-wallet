@@ -2131,9 +2131,10 @@ where
 	/// }
 	/// ```
 
-	pub fn verify_payment_proof(&self, 
+	pub fn verify_payment_proof(
+		&self,
 		keychain_mask: Option<&SecretKey>,
-		proof: &PaymentProof
+		proof: &PaymentProof,
 	) -> Result<(bool, bool), Error> {
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
 	}
