@@ -912,7 +912,7 @@ where
 				Ok(())
 			}
 			Err(e) => {
-				error!("Addres retrieval failed: {}", e);
+				error!("Address retrieval failed: {}", e);
 				error!("Backtrace: {}", e.backtrace().unwrap());
 				Err(e)
 			}
@@ -973,7 +973,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, _| {
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
 		let mut proof_f = match File::open(&args.input_file) {
 			Ok(p) => p,
 			Err(e) => {
@@ -996,10 +996,19 @@ where
 				return Err(libwallet::ErrorKind::PaymentProofParsing(msg).into());
 			}
 		};
-		let result = api.verify_payment_proof(&proof);
+		let result = api.verify_payment_proof(m, &proof);
 		match result {
-			Ok(_) => {
-				warn!("Payment proof is valid.");
+			Ok((iam_sender, iam_recipient)) => {
+				println!("Payment proof's signatures are valid.");
+				if iam_sender {
+					println!("The proof's sender address belongs to this wallet.");
+				}
+				if iam_recipient {
+					println!("The proof's recipient address belongs to this wallet.");
+				}
+				if !iam_recipient && !iam_sender {
+					println!("Neither the proof's sender nor recipient address belongs to this wallet.");
+				}
 				Ok(())
 			}
 			Err(e) => {

@@ -1912,6 +1912,7 @@ pub trait OwnerRpcS {
 		"jsonrpc": "2.0",
 		"method": "verify_payment_proof",
 		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"proof": {
 				"amount": "60000000000",
 				"excess": "09bac6083b05a32a9d9b37710c70dd0a1ef9329fde0848558976b6f1b81d80ceed",
@@ -1932,7 +1933,10 @@ pub trait OwnerRpcS {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": null
+			"Ok": [
+				true,
+				false
+			]
 		}
 	}
 	# "#
@@ -1940,7 +1944,7 @@ pub trait OwnerRpcS {
 	```
 	*/
 
-	fn verify_payment_proof(&self, proof: PaymentProof) -> Result<(), ErrorKind>;
+	fn verify_payment_proof(&self, token: Token, proof: PaymentProof) -> Result<(bool, bool), ErrorKind>;
 
 	/**
 	Networked version of [Owner::set_tor_config](struct.Owner.html#method.set_tor_config).
@@ -2310,8 +2314,8 @@ where
 		.map_err(|e| e.kind())
 	}
 
-	fn verify_payment_proof(&self, proof: PaymentProof) -> Result<(), ErrorKind> {
-		Owner::verify_payment_proof(self, &proof).map_err(|e| e.kind())
+	fn verify_payment_proof(&self, token: Token, proof: PaymentProof) -> Result<(bool, bool), ErrorKind> {
+		Owner::verify_payment_proof(self, (&token.keychain_mask).as_ref(), &proof).map_err(|e| e.kind())
 	}
 
 	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind> {

@@ -144,11 +144,12 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		println!("{:?}", pp);
 
 		// verify, should be good
-		sender_api.verify_payment_proof(&pp)?;
+		let res = sender_api.verify_payment_proof(m, &pp)?;
+		assert_eq!(res, (true, false));
 
 		// Modify values, should not be good
 		pp.amount = 20;
-		let res = sender_api.verify_payment_proof(&pp);
+		let res = sender_api.verify_payment_proof(m, &pp);
 		assert!(res.is_err());
 		Ok(())
 	})?;

@@ -34,6 +34,7 @@ use crate::{
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::SecretKey as DalekSecretKey;
 
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -879,10 +880,12 @@ where
 }
 
 /// Verify/validate arbitrary payment proof
+/// Returns (whether this wallet is the sender, whether this wallet is the recipient)
 pub fn verify_payment_proof<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
 	proof: &PaymentProof,
-) -> Result<(), Error>
+) -> Result<(bool, bool), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -890,9 +893,9 @@ where
 {
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, proof.sender_address)?;
 
-	let mut client = {
+	let (mut client, parent_key_id, keychain) = {
 		wallet_lock!(wallet_inst, w);
-		w.w2n_client().clone()
+		(w.w2n_client().clone(), w.parent_key_id(), w.keychain(keychain_mask)?)
 	};
 
 	// Check kernel exists
@@ -927,7 +930,21 @@ where
 		))?;
 	};
 
-	Ok(())
+	// for now, simple test as to whether one of the addresses belongs to this wallet
+	let sec_key =
+		address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
+	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
+		Ok(k) => k,
+		Err(e) => {
+			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
+		}
+	};
+	let pub_address: DalekPublicKey = (&d_skey).into();
+
+	let sender_mine = pub_address == proof.sender_address;
+	let recipient_mine = pub_address == proof.recipient_address;
+
+	Ok((sender_mine, recipient_mine))
 }
 
 /// Attempt to update outputs in wallet, return whether it was successful

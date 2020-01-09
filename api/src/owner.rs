@@ -2085,18 +2085,26 @@ where
 	/// Verifies a [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
 	/// This process entails:
 	///
-	/// * Ensuring the kernel identified by the proof's stored excess commitment exists in the UTXO set
+	/// * Ensuring the kernel identified by the proof's stored excess commitment exists in the kernel set
 	/// * Reproducing the signed message `amount|kernel_commitment|sender_address`
 	/// * Validating the proof's `recipient_sig` against the message using the recipient's
 	/// address as the public key and
 	/// * Validating the proof's `sender_sig` against the message using the senders's
 	/// address as the public key
 	///
+	/// This function also checks whether the sender or recipient address belongs to the currently
+	/// open wallet, and returns 2 booleans indicating whether the address belongs to the sender and
+	/// whether the address belongs to the recipient respectively
+	///
 	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
 	/// * `proof` A [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html))
 	///
 	/// # Returns
-	/// * Ok(()) if the proof is valid
+	/// * Ok((bool, bool)) if the proof is valid. The first boolean indicates whether the sender
+	/// address belongs to this wallet, the second whether the recipient address belongs to this
+	/// wallet
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
 	/// or the proof is not present or complete
 	///
@@ -2116,15 +2124,18 @@ where
 	/// // The proof will likely be exported as JSON to be provided to another party
 	///
 	/// if let Ok(p) = result {
-	///		let valid = api_owner.verify_payment_proof(&p);
+	///		let valid = api_owner.verify_payment_proof(None, &p);
 	///		if let Ok(_) = valid {
 	///		  //...
 	///		}
 	/// }
 	/// ```
 
-	pub fn verify_payment_proof(&self, proof: &PaymentProof) -> Result<(), Error> {
-		owner::verify_payment_proof(self.wallet_inst.clone(), proof)
+	pub fn verify_payment_proof(&self, 
+		keychain_mask: Option<&SecretKey>,
+		proof: &PaymentProof
+	) -> Result<(bool, bool), Error> {
+		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
 	}
 }
 
