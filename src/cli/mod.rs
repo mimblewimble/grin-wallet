@@ -1,4 +1,5 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2020 The Grin Developers
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,12 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate clap;
-
-use grin_wallet_config as config;
-use grin_wallet_util::grin_api as api;
-use grin_wallet_util::grin_util as util;
-
-pub mod cmd;
 mod cli;
+
+pub use cli::command_loop;

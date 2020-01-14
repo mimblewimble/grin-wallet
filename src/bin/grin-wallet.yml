@@ -348,6 +348,8 @@ subcommands:
             short: r
             long: recover
             takes_value: false
+  - open:
+      about: Opens a wallet (interactive mode only)
   - recover:
       about: Displays a recovery phrase for the wallet. (use `init -r` to perform recovery)
   - address:
