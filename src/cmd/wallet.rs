@@ -44,7 +44,10 @@ where
 	if let Some(v) = node_client.clone().get_version_info() {
 		if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
 			println!("The Grin Node in use (version {}) is outdated and incompatible with this wallet version.", v.node_version);
-			println!("Please update the node to version {} or later and try again.", MIN_COMPAT_NODE_VERSION);
+			println!(
+				"Please update the node to version {} or later and try again.",
+				MIN_COMPAT_NODE_VERSION
+			);
 			return 1;
 		}
 	}
