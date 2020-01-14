@@ -13,11 +13,11 @@
 // limitations under the License.
 
 use crate::api::TLSConfig;
+use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
-use crate::util::{to_hex, Mutex, ZeroingString};
 use crate::util::secp::key::SecretKey;
-use crate::cli::command_loop;
+use crate::util::{to_hex, Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
@@ -843,7 +843,6 @@ where
 			tc
 		}
 	};
-	
 
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet =
@@ -907,7 +906,7 @@ where
 			&wallet_config,
 			&tor_config,
 			&global_wallet_args,
-			test_mode
+			test_mode,
 		),
 		_ => parse_and_execute(
 			wallet,
@@ -918,7 +917,7 @@ where
 			&wallet_args,
 			test_mode,
 			false,
-		)
+		),
 	};
 
 	if let Err(e) = res {
@@ -929,7 +928,7 @@ where
 }
 
 pub fn parse_and_execute<L, C, K>(
-  wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
 	tor_config: &TorConfig,
@@ -1064,16 +1063,14 @@ where
 		("scan", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
 			command::scan(wallet, km, a)
-		},
+		}
 		("open", Some(_)) => {
 			// for CLI mode only, should be handled externally
 			Ok(())
-		},
+		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
 			return Err(ErrorKind::ArgumentError(msg).into());
 		}
 	}
 }
-
-

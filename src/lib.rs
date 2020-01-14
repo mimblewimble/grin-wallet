@@ -18,5 +18,5 @@ use grin_wallet_config as config;
 use grin_wallet_util::grin_api as api;
 use grin_wallet_util::grin_util as util;
 
-pub mod cmd;
 mod cli;
+pub mod cmd;

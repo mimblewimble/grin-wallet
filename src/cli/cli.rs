@@ -12,28 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::{App};
+use crate::cmd::wallet_args;
+use crate::util::secp::key::SecretKey;
+use crate::util::Mutex;
+use clap::App;
+use colored::Colorize;
+use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::Error;
+use grin_wallet_impls::DefaultWalletImpl;
+use grin_wallet_libwallet::{NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_util::grin_keychain as keychain;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper, OutputStreamType};
-use colored::Colorize;
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::sync::Arc;
-use crate::util::Mutex;
-use crate::util::secp::key::SecretKey;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_controller::command::GlobalArgs;
-use crate::cmd::wallet_args;
-use grin_wallet_libwallet::{
-	NodeClient, WalletInst, WalletLCProvider,
-};
-use grin_wallet_config::{TorConfig, WalletConfig};
-use grin_wallet_impls::{DefaultWalletImpl};
-
 
 const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
 const PROMPT: &'static str = "grin-wallet> ";
@@ -84,7 +81,7 @@ macro_rules! cli_message {
 }
 
 pub fn command_loop<L, C, K>(
-  wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
 	tor_config: &TorConfig,
@@ -140,7 +137,8 @@ where
 				// Just add 'grin-wallet' to each command behind the scenes
 				// so we don't need to maintain a separate definition file
 				let augmented_command = format!("grin-wallet {}", command);
-				let args = app.get_matches_from_safe_borrow(augmented_command.trim().split_whitespace());
+				let args =
+					app.get_matches_from_safe_borrow(augmented_command.trim().split_whitespace());
 				let done = match args {
 					Ok(args) => {
 						// handle opening separately
@@ -159,8 +157,8 @@ where
 									wallet_inst.set_parent_key_id_by_name(account)?;
 								}
 								mask
-							},
-							_ => keychain_mask
+							}
+							_ => keychain_mask,
 						};
 						match wallet_args::parse_and_execute(
 							wallet.clone(),
@@ -178,7 +176,7 @@ where
 								false
 							}
 						}
-					},
+					}
 					Err(err) => {
 						match err.kind {
 							clap::ErrorKind::HelpDisplayed => {
