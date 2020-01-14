@@ -43,6 +43,8 @@ args:
       long: api_server_address
       takes_value: true
 subcommands:
+  - cli:
+      about: Start the wallet in interactive CLI mode (EXPERIMENTAL)
   - account:
       about: List wallet accounts or create a new account
       args:
