@@ -69,14 +69,14 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	});
 
 	// add some accounts
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		api.create_account_path(m, "mining")?;
 		api.create_account_path(m, "listener")?;
 		Ok(())
 	})?;
 
 	// add some accounts
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		api.create_account_path(m, "account1")?;
 		api.create_account_path(m, "account2")?;
 		Ok(())

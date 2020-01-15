@@ -120,8 +120,9 @@ where
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn owner_single_use<L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: Option<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>>,
 	keychain_mask: Option<&SecretKey>,
+	api_context: Option<&mut Owner<L, C, K>>,
 	f: F,
 ) -> Result<(), Error>
 where
@@ -130,7 +131,21 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	f(&mut Owner::new(wallet), keychain_mask)?;
+	match api_context {
+		Some(c) => f(c, keychain_mask)?,
+		None => {
+			let wallet = match wallet {
+				Some(w) => w,
+				None => {
+					return Err(ErrorKind::GenericError(format!(
+						"Instantiated wallet or Owner API context must be provided"
+					))
+					.into())
+				}
+			};
+			f(&mut Owner::new(wallet), keychain_mask)?
+		}
+	}
 	Ok(())
 }
 

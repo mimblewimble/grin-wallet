@@ -211,7 +211,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	if args.create.is_none() {
-		let res = controller::owner_single_use(wallet, keychain_mask, |api, m| {
+		let res = controller::owner_single_use(Some(wallet), keychain_mask, None, |api, m| {
 			let acct_mappings = api.accounts(m)?;
 			// give logging thread a moment to catch up
 			thread::sleep(Duration::from_millis(200));
@@ -224,7 +224,7 @@ where
 		}
 	} else {
 		let label = args.create.unwrap();
-		let res = controller::owner_single_use(wallet, keychain_mask, |api, m| {
+		let res = controller::owner_single_use(Some(wallet), keychain_mask, None, |api, m| {
 			api.create_account_path(m, &label)?;
 			thread::sleep(Duration::from_millis(200));
 			info!("Account: '{}' Created!", label);
@@ -268,7 +268,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
@@ -460,7 +460,7 @@ where
 			Ok(())
 		})?;
 	} else {
-		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 			if let Err(e) = api.verify_slate_messages(m, &slate) {
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
@@ -471,7 +471,7 @@ where
 	}
 
 	if !args.nopost {
-		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 			let result = api.post_tx(m, &slate.tx, args.fluff);
 			match result {
 				Ok(_) => {
@@ -513,7 +513,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
 		PathToSlate((&args.dest).into()).put_tx(&slate)?;
 		Ok(())
@@ -548,7 +548,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
@@ -647,7 +647,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		let (validated, wallet_info) =
 			api.retrieve_summary_info(m, true, args.minimum_confirmations)?;
 		display::info(&g_args.account, &wallet_info, validated, dark_scheme);
@@ -667,7 +667,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, outputs) = api.retrieve_outputs(m, g_args.show_spent, true, None)?;
 		display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
@@ -694,7 +694,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
 		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
@@ -755,7 +755,7 @@ where
 {
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
 
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		api.post_tx(m, &slate.tx, args.fluff)?;
 		info!("Posted transaction");
 		return Ok(());
@@ -780,7 +780,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
 		let stored_tx = api.get_stored_tx(m, &txs[0])?;
 		if stored_tx.is_none() {
@@ -832,7 +832,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		let result = api.cancel_tx(m, args.tx_id, args.tx_slate_id);
 		match result {
 			Ok(_) => {
@@ -864,7 +864,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		warn!("Starting output scan ...",);
 		let result = api.scan(m, args.start_height, args.delete_unconfirmed);
 		match result {
@@ -893,7 +893,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(Some(wallet.clone()), keychain_mask, None, |api, m| {
 		// Just address at derivation index 0 for now
 		let pub_key = api.get_public_proof_address(m, 0)?;
 		let result = address::onion_v3_from_pubkey(&pub_key);

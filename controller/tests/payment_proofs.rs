@@ -75,7 +75,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let mut address = None;
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		address = Some(api.get_public_proof_address(m, 0)?);
 		Ok(())
 	})?;
@@ -84,7 +84,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	println!("Public address is: {:?}", address);
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1);
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
