@@ -14,9 +14,9 @@
 
 use crate::cmd::wallet_args;
 use crate::util::secp::key::SecretKey;
-use crate::util::Mutex;
 use clap::App;
 use colored::Colorize;
+use grin_wallet_api::Owner;
 use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::Error;
@@ -30,7 +30,6 @@ use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper, OutputStreamType};
 use std::borrow::Cow::{self, Borrowed, Owned};
-use std::sync::Arc;
 
 const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
 const PROMPT: &'static str = "grin-wallet> ";
@@ -81,7 +80,7 @@ macro_rules! cli_message {
 }
 
 pub fn command_loop<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
 	tor_config: &TorConfig,
@@ -144,7 +143,7 @@ where
 						// handle opening separately
 						keychain_mask = match args.subcommand() {
 							("open", Some(_)) => {
-								let mut wallet_lock = wallet.lock();
+								let mut wallet_lock = owner_api.wallet_inst.lock();
 								let lc = wallet_lock.lc_provider().unwrap();
 								let mask = lc.open_wallet(
 									None,
@@ -161,7 +160,7 @@ where
 							_ => keychain_mask,
 						};
 						match wallet_args::parse_and_execute(
-							wallet.clone(),
+							owner_api,
 							keychain_mask.clone(),
 							&wallet_config,
 							&tor_config,
