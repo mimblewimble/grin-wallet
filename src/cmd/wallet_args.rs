@@ -900,28 +900,28 @@ where
 		false => None,
 	};
 
-	// Create an API instance to operate on
-	let mut owner_api = Owner::new(wallet);
-
 	let res = match wallet_args.subcommand() {
 		("cli", Some(_)) => command_loop(
-			&mut owner_api,
+			wallet,
 			keychain_mask,
 			&wallet_config,
 			&tor_config,
 			&global_wallet_args,
 			test_mode,
 		),
-		_ => parse_and_execute(
-			&mut owner_api,
-			keychain_mask,
-			&wallet_config,
-			&tor_config,
-			&global_wallet_args,
-			&wallet_args,
-			test_mode,
-			false,
-		),
+		_ => {
+			let mut owner_api = Owner::new(wallet, None);
+			parse_and_execute(
+				&mut owner_api,
+				keychain_mask,
+				&wallet_config,
+				&tor_config,
+				&global_wallet_args,
+				&wallet_args,
+				test_mode,
+				false,
+			)
+		}
 	};
 
 	if let Err(e) = res {

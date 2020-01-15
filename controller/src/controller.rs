@@ -143,7 +143,7 @@ where
 					.into())
 				}
 			};
-			f(&mut Owner::new(wallet), keychain_mask)?
+			f(&mut Owner::new(wallet, None), keychain_mask)?
 		}
 	}
 	Ok(())
@@ -339,7 +339,7 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Owner::new(self.wallet.clone());
+		let api = Owner::new(self.wallet.clone(), None);
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),
@@ -614,7 +614,7 @@ where
 		tor_config: Option<TorConfig>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		let owner_api = Owner::new(wallet.clone());
+		let owner_api = Owner::new(wallet.clone(), None);
 		owner_api.set_tor_config(tor_config);
 		let owner_api = Arc::new(owner_api);
 		OwnerAPIHandlerV3 {

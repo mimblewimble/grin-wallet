@@ -427,7 +427,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone());
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	///
 	/// // . . .

@@ -14,6 +14,7 @@
 
 use crate::cmd::wallet_args;
 use crate::util::secp::key::SecretKey;
+use crate::util::Mutex;
 use clap::App;
 use colored::Colorize;
 use grin_wallet_api::Owner;
@@ -21,7 +22,7 @@ use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::Error;
 use grin_wallet_impls::DefaultWalletImpl;
-use grin_wallet_libwallet::{NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_libwallet::{NodeClient, StatusMessage, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_keychain as keychain;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
@@ -30,6 +31,10 @@ use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper, OutputStreamType};
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::sync::mpsc::{channel, Receiver};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
 const PROMPT: &'static str = "grin-wallet> ";
@@ -79,8 +84,30 @@ macro_rules! cli_message {
 	};
 }
 
+/// function to catch updates
+pub fn start_updater_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
+	let _ = thread::Builder::new()
+		.name("wallet-updater-status".to_string())
+		.spawn(move || loop {
+			while let Ok(m) = rx.recv() {
+				match m {
+					StatusMessage::UpdatingOutputs(s) => cli_message!("{}", s),
+					StatusMessage::UpdatingTransactions(s) => cli_message!("{}", s),
+					StatusMessage::FullScanWarn(s) => cli_message!("{}", s),
+					StatusMessage::Scanning(_, m) => {
+						//debug!("{}", s);
+						cli_message!("Scanning - {}% complete", m);
+					}
+					StatusMessage::ScanningComplete(s) => cli_message!("{}", s),
+					StatusMessage::UpdateWarning(s) => cli_message!("{}", s),
+				}
+			}
+		});
+	Ok(())
+}
+
 pub fn command_loop<L, C, K>(
-	owner_api: &mut Owner<L, C, K>,
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
 	tor_config: &TorConfig,
@@ -122,6 +149,14 @@ where
 	let mut app = App::from_yaml(yml).version(crate_version!());
 	let mut keychain_mask = keychain_mask;
 
+	// catch updater messages
+	let (tx, rx) = channel();
+	let mut owner_api = Owner::new(wallet_inst, Some(tx));
+	start_updater_thread(rx)?;
+
+	// start the automatic updater
+	owner_api.start_updater((&keychain_mask).as_ref(), Duration::from_secs(5))?;
+
 	loop {
 		match reader.readline(PROMPT) {
 			Ok(command) => {
@@ -160,7 +195,7 @@ where
 							_ => keychain_mask,
 						};
 						match wallet_args::parse_and_execute(
-							owner_api,
+							&mut owner_api,
 							keychain_mask.clone(),
 							&wallet_config,
 							&tor_config,
