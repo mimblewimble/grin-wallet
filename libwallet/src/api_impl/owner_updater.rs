@@ -57,8 +57,8 @@ pub fn start_updater_log_thread(
 ) -> Result<(), Error> {
 	let _ = thread::Builder::new()
 		.name("wallet-updater-status".to_string())
-		.spawn(move || loop {
-			while let Ok(m) = rx.try_recv() {
+		.spawn(move || {
+			while let Ok(m) = rx.recv() {
 				// save to our message queue to be read by other consumers
 				{
 					let mut q = queue.lock();
@@ -79,7 +79,6 @@ pub fn start_updater_log_thread(
 					StatusMessage::UpdateWarning(s) => warn!("{}", s),
 				}
 			}
-			thread::sleep(Duration::from_millis(500));
 		})?;
 
 	Ok(())
