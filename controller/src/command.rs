@@ -29,6 +29,7 @@ use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
 use std::io::Write;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -645,10 +646,16 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let (validated, wallet_info) =
 			api.retrieve_summary_info(m, true, args.minimum_confirmations)?;
-		display::info(&g_args.account, &wallet_info, validated, dark_scheme);
+		display::info(
+			&g_args.account,
+			&wallet_info,
+			validated || updater_running,
+			dark_scheme,
+		);
 		Ok(())
 	})?;
 	Ok(())
@@ -665,10 +672,17 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, outputs) = api.retrieve_outputs(m, g_args.show_spent, true, None)?;
-		display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
+		display::outputs(
+			&g_args.account,
+			res.height,
+			validated || updater_running,
+			outputs,
+			dark_scheme,
+		)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -692,6 +706,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
@@ -699,7 +714,7 @@ where
 		display::txs(
 			&g_args.account,
 			res.height,
-			validated,
+			validated || updater_running,
 			&txs,
 			include_status,
 			dark_scheme,
@@ -722,7 +737,13 @@ where
 
 		if id.is_some() {
 			let (_, outputs) = api.retrieve_outputs(m, true, false, id)?;
-			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
+			display::outputs(
+				&g_args.account,
+				res.height,
+				validated || updater_running,
+				outputs,
+				dark_scheme,
+			)?;
 			// should only be one here, but just in case
 			for tx in txs {
 				display::tx_messages(&tx, dark_scheme)?;
