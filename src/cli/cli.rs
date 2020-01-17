@@ -155,7 +155,7 @@ where
 	start_updater_thread(rx)?;
 
 	// start the automatic updater
-	owner_api.start_updater((&keychain_mask).as_ref(), Duration::from_secs(5))?;
+	owner_api.start_updater((&keychain_mask).as_ref(), Duration::from_secs(30))?;
 
 	loop {
 		match reader.readline(PROMPT) {
