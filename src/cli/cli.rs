@@ -35,6 +35,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use termion::clear;
 
 const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
 const PROMPT: &'static str = "grin-wallet> ";
@@ -46,10 +47,10 @@ macro_rules! cli_message {
 			{
 					use std::io::Write;
 					use crate::common::{is_cli, COLORED_PROMPT};
-					if is_cli() {
+					//if is_cli() {
 							print!("\r{}", COLORED_PROMPT);
 							std::io::stdout().flush().unwrap();
-					}
+					//}
 			}
 	};
 
@@ -60,7 +61,9 @@ macro_rules! cli_message {
 					/* if is_cli() { */
 							print!("\r");
 							print!($fmt_string, $( $arg ),*);
-							print!("\n{}", COLORED_PROMPT);
+							//print!("\n{}", COLORED_PROMPT);
+							print!(" {}", COLORED_PROMPT);
+							print!("{}", clear::AfterCursor);
 							std::io::stdout().flush().unwrap();
 					/*} else {
 							info!($fmt_string, $( $arg ),*);
@@ -156,7 +159,7 @@ where
 
 	// start the automatic updater
 	owner_api.start_updater((&keychain_mask).as_ref(), Duration::from_secs(30))?;
-
+	let mut wallet_opened = false;
 	loop {
 		match reader.readline(PROMPT) {
 			Ok(command) => {
@@ -180,15 +183,26 @@ where
 							("open", Some(_)) => {
 								let mut wallet_lock = owner_api.wallet_inst.lock();
 								let lc = wallet_lock.lc_provider().unwrap();
-								let mask = lc.open_wallet(
+								let mask = match lc.open_wallet(
 									None,
 									wallet_args::prompt_password(&global_wallet_args.password),
 									false,
 									false,
-								)?;
+								) {
+									Ok(m) => {
+										wallet_opened = true;
+										m
+									}
+									Err(e) => {
+										cli_message!("{} {}", "Error:".bright_red(), e);
+										None
+									}
+								};
 								if let Some(account) = args.value_of("account") {
-									let wallet_inst = lc.wallet_inst()?;
-									wallet_inst.set_parent_key_id_by_name(account)?;
+									if wallet_opened {
+										let wallet_inst = lc.wallet_inst()?;
+										wallet_inst.set_parent_key_id_by_name(account)?;
+									}
 								}
 								mask
 							}
