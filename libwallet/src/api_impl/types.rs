@@ -236,19 +236,13 @@ pub struct PaymentProof {
 		deserialize_with = "secp_ser::commitment_from_hex"
 	)]
 	pub excess: pedersen::Commitment,
-	/// Recipient Wallet Address
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
-	pub recipient_address: DalekPublicKey,
-	/// Onion V3 Adddress of recipient
-	pub recipient_ov3_address: String,
+	/// Recipient Wallet Address (Onion V3)
+	pub recipient_address: String,
 	/// Recipient Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub recipient_sig: DalekSignature,
-	/// Sender Wallet Address
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
-	pub sender_address: DalekPublicKey,
-	/// Onion V3 Adddress of sender
-	pub sender_ov3_address: String,
+	/// Sender Wallet Address (Onion V3)
+	pub sender_address: String,
 	/// Sender Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,

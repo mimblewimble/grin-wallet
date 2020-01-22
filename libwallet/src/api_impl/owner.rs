@@ -284,11 +284,9 @@ where
 	Ok(PaymentProof {
 		amount: amount,
 		excess: excess,
-		recipient_address: proof.receiver_address,
-		recipient_ov3_address: address::onion_v3_from_pubkey(&proof.receiver_address)?,
+		recipient_address: address::onion_v3_from_pubkey(&proof.receiver_address)?,
 		recipient_sig: r_sig,
-		sender_address: proof.sender_address,
-		sender_ov3_address: address::onion_v3_from_pubkey(&proof.sender_address)?,
+		sender_address: address::onion_v3_from_pubkey(&proof.sender_address)?,
 		sender_sig: s_sig,
 	})
 }
@@ -891,7 +889,9 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let msg = tx::payment_proof_message(proof.amount, &proof.excess, proof.sender_address)?;
+
+	let sender_pubkey = address::pubkey_from_onion_v3(&proof.sender_address)?;
+	let msg = tx::payment_proof_message(proof.amount, &proof.excess, sender_pubkey)?;
 
 	let (mut client, parent_key_id, keychain) = {
 		wallet_lock!(wallet_inst, w);
@@ -922,13 +922,15 @@ where
 	};
 
 	// Check Sigs
-	if let Err(_) = proof.recipient_address.verify(&msg, &proof.recipient_sig) {
+	let recipient_pubkey = address::pubkey_from_onion_v3(&proof.recipient_address)?;
+	if let Err(_) = recipient_pubkey.verify(&msg, &proof.recipient_sig) {
 		return Err(ErrorKind::PaymentProof(
 			"Invalid recipient signature".to_owned(),
 		))?;
 	};
 
-	if let Err(_) = proof.sender_address.verify(&msg, &proof.sender_sig) {
+	let sender_pubkey = address::pubkey_from_onion_v3(&proof.sender_address)?;
+	if let Err(_) = sender_pubkey.verify(&msg, &proof.sender_sig) {
 		return Err(ErrorKind::PaymentProof(
 			"Invalid sender signature".to_owned(),
 		))?;
@@ -942,10 +944,10 @@ where
 			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
 		}
 	};
-	let pub_address: DalekPublicKey = (&d_skey).into();
+	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
 
-	let sender_mine = pub_address == proof.sender_address;
-	let recipient_mine = pub_address == proof.recipient_address;
+	let sender_mine = my_address_pubkey == sender_pubkey;
+	let recipient_mine = my_address_pubkey == recipient_pubkey;
 
 	Ok((sender_mine, recipient_mine))
 }
