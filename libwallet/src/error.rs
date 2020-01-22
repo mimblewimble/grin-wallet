@@ -229,6 +229,14 @@ pub enum ErrorKind {
 	#[fail(display = "Payment Proof generation error: {}", _0)]
 	PaymentProof(String),
 
+	/// Retrieving Payment Proof
+	#[fail(display = "Payment Proof retrieval error: {}", _0)]
+	PaymentProofRetrieval(String),
+
+	/// Retrieving Payment Proof
+	#[fail(display = "Payment Proof parsing error: {}", _0)]
+	PaymentProofParsing(String),
+
 	/// Decoding OnionV3 addresses to payment proof addresses
 	#[fail(display = "Proof Address decoding: {}", _0)]
 	AddressDecoding(String),

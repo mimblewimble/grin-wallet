@@ -461,8 +461,8 @@ pub fn create_payment_proof_signature(
 	Ok(keypair.sign(&msg))
 }
 
-/// Verify all aspects of a completed payment proof
-pub fn verify_payment_proof<'a, T: ?Sized, C, K>(
+/// Verify all aspects of a completed payment proof on the current slate
+pub fn verify_slate_payment_proof<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,

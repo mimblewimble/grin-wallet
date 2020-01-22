@@ -368,3 +368,25 @@ subcommands:
             long: start_height
             default_value: "1"
             takes_value: true
+  - export_proof:
+      about: Export a payment proof from a completed transaction
+      args:
+          - output:
+              help: Output proof file
+              index: 1
+          - id:
+              help: If specified, retrieve the proof for the given transaction ID
+              short: i
+              long: id
+              takes_value: true
+          - txid:
+              help: If specified, retrieve the proof for the given Slate ID
+              short: t
+              long: txid
+              takes_value: true
+  - verify_proof:
+      about: Verify a payment proof
+      args:
+          - input:
+              help: Filename of a proof file
+              index: 1
