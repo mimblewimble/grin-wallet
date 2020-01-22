@@ -475,7 +475,7 @@ impl OwnerV3Helpers {
 	pub fn decrypt_request(
 		key: Arc<Mutex<Option<SecretKey>>>,
 		req: &serde_json::Value,
-	) -> Result<(u32, serde_json::Value), serde_json::Value> {
+	) -> Result<(u64, serde_json::Value), serde_json::Value> {
 		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).map_err(|e| {
@@ -497,7 +497,7 @@ impl OwnerV3Helpers {
 	/// Encrypt a response
 	pub fn encrypt_response(
 		key: Arc<Mutex<Option<SecretKey>>>,
-		id: u32,
+		id: u64,
 		res: &serde_json::Value,
 	) -> Result<serde_json::Value, serde_json::Value> {
 		let share_key_ref = key.lock();
