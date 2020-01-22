@@ -8,7 +8,7 @@ The current Grin `wallet` crate provides several layers of libraries, services, 
 various needs within the default Grin wallet as well as provide a set of useful library functions for 3rd-party implementors. At a very high level,
 the code is organized into the following components (from highest-level to lowest):
 
-* **Command Line Client** - The command line client invoked by `grin wallet [command]`, simply instantiates the other components below
+* **Command Line Client** - The command line client invoked by `grin-wallet [command]`, simply instantiates the other components below
     and parses command line arguments as needed.
 * **Web Wallet Client** - [Work In Progress]  A web wallet client accessible from the local machine only. Current code can be viewed here:
   https://github.com/mimblewimble/grin-web-wallet

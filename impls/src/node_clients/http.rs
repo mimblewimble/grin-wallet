@@ -22,6 +22,7 @@ use crate::core::core::TxKernel;
 use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use semver::Version;
 use std::collections::HashMap;
+use std::env;
 use tokio::runtime::Runtime;
 
 use crate::client_utils::Client;
@@ -200,7 +201,28 @@ impl NodeClient for HTTPNodeClient {
 
 		let client = Client::new();
 
-		for query_chunk in query_params.chunks(200) {
+		// Using an environment variable here, as this is a temporary fix
+		// and doesn't need to be permeated throughout the application
+		// configuration
+		let chunk_default = 200;
+		let chunk_size = match env::var("GRIN_OUTPUT_QUERY_SIZE") {
+			Ok(s) => match s.parse::<usize>() {
+				Ok(c) => c,
+				Err(e) => {
+					error!(
+						"Unable to parse GRIN_OUTPUT_QUERY_SIZE, defaulting to {}",
+						chunk_default
+					);
+					error!("Reason: {}", e);
+					chunk_default
+				}
+			},
+			Err(_) => chunk_default,
+		};
+
+		trace!("Output query chunk size is: {}", chunk_size);
+
+		for query_chunk in query_params.chunks(chunk_size) {
 			let url = format!("{}/v1/chain/outputs/byids?{}", addr, query_chunk.join("&"),);
 			tasks.push(client.get_async::<Vec<api::Output>>(url.as_str(), self.node_api_secret()));
 		}
@@ -341,7 +363,7 @@ pub fn create_coinbase(dest: &str, block_fees: &BlockFees) -> Result<CbData, Err
 	match single_create_coinbase(&url, &block_fees) {
 		Err(e) => {
 			error!(
-				"Failed to get coinbase from {}. Run grin wallet listen?",
+				"Failed to get coinbase from {}. Run grin-wallet listen?",
 				url
 			);
 			error!("Underlying Error: {}", e.cause().unwrap());
