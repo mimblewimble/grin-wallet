@@ -1075,7 +1075,9 @@ dependencies = [
 name = "grin_wallet_util"
 version = "3.1.0-beta.1"
 dependencies = [
+ "data-encoding 2.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "dirs 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ed25519-dalek 1.0.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "grin_api 3.1.0-beta.1 (git+https://github.com/mimblewimble/grin)",
  "grin_chain 3.1.0-beta.1 (git+https://github.com/mimblewimble/grin)",
  "grin_core 3.1.0-beta.1 (git+https://github.com/mimblewimble/grin)",
@@ -1086,6 +1088,7 @@ dependencies = [
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

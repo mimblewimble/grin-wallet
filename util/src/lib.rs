@@ -20,6 +20,9 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
+mod ov3;
+pub use ov3::OnionV3Address;
+
 pub use grin_api;
 pub use grin_chain;
 pub use grin_core;
