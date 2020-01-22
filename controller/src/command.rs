@@ -22,14 +22,15 @@ use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateRec
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider,
+	self, address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletInst,
+	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{to_hex, Mutex, ZeroingString};
 use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -911,8 +912,109 @@ where
 				Ok(())
 			}
 			Err(e) => {
-				error!("Addres retrieval failed: {}", e);
+				error!("Address retrieval failed: {}", e);
 				error!("Backtrace: {}", e.backtrace().unwrap());
+				Err(e)
+			}
+		}
+	})?;
+	Ok(())
+}
+
+/// Proof Export Args
+pub struct ProofExportArgs {
+	pub output_file: String,
+	pub id: Option<u32>,
+	pub tx_slate_id: Option<Uuid>,
+}
+
+pub fn proof_export<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	args: ProofExportArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		let result = api.retrieve_payment_proof(m, true, args.id, args.tx_slate_id);
+		match result {
+			Ok(p) => {
+				// actually export proof
+				let mut proof_file = File::create(args.output_file.clone())?;
+				proof_file.write_all(json::to_string_pretty(&p).unwrap().as_bytes())?;
+				proof_file.sync_all()?;
+				warn!("Payment proof exported to {}", args.output_file);
+				Ok(())
+			}
+			Err(e) => {
+				error!("Proof export failed: {}", e);
+				Err(e)
+			}
+		}
+	})?;
+	Ok(())
+}
+
+/// Proof Verify Args
+pub struct ProofVerifyArgs {
+	pub input_file: String,
+}
+
+pub fn proof_verify<L, C, K>(
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	args: ProofVerifyArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		let mut proof_f = match File::open(&args.input_file) {
+			Ok(p) => p,
+			Err(e) => {
+				let msg = format!("{}", e);
+				error!(
+					"Unable to open payment proof file at {}: {}",
+					args.input_file, e
+				);
+				return Err(libwallet::ErrorKind::PaymentProofParsing(msg).into());
+			}
+		};
+		let mut proof = String::new();
+		proof_f.read_to_string(&mut proof)?;
+		// read
+		let proof: PaymentProof = match json::from_str(&proof) {
+			Ok(p) => p,
+			Err(e) => {
+				let msg = format!("{}", e);
+				error!("Unable to parse payment proof file: {}", e);
+				return Err(libwallet::ErrorKind::PaymentProofParsing(msg).into());
+			}
+		};
+		let result = api.verify_payment_proof(m, &proof);
+		match result {
+			Ok((iam_sender, iam_recipient)) => {
+				println!("Payment proof's signatures are valid.");
+				if iam_sender {
+					println!("The proof's sender address belongs to this wallet.");
+				}
+				if iam_recipient {
+					println!("The proof's recipient address belongs to this wallet.");
+				}
+				if !iam_recipient && !iam_sender {
+					println!(
+						"Neither the proof's sender nor recipient address belongs to this wallet."
+					);
+				}
+				Ok(())
+			}
+			Err(e) => {
+				error!("Proof not valid: {}", e);
 				Err(e)
 			}
 		}
