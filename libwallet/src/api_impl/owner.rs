@@ -889,7 +889,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-
 	let sender_pubkey = address::pubkey_from_onion_v3(&proof.sender_address)?;
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, sender_pubkey)?;
 
