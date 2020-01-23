@@ -20,18 +20,31 @@ use sha3::{Digest, Sha3_256};
 use std::convert::TryFrom;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+/// OnionV3 Address Errors
 pub enum OnionV3Error {
+	/// Error decoding an address from a string
 	AddressDecoding(String),
+	/// Error with given private key
 	InvalidPrivateKey(String),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 /// Struct to hold an onion V3 address, represented internally as a raw
 /// ed25519 public key
 pub struct OnionV3Address([u8; 32]);
 
 impl OnionV3Address {
+	/// from bytes
+	pub fn from_bytes(bytes: [u8; 32]) -> Self {
+		OnionV3Address(bytes)
+	}
+
+	/// as bytes
+	pub fn as_bytes(&self) -> &[u8; 32] {
+		&self.0
+	}
+
 	/// populate from a private key
 	pub fn from_private(key: &[u8; 32]) -> Result<Self, OnionV3Error> {
 		let d_skey = match DalekSecretKey::from_bytes(key) {
@@ -47,7 +60,21 @@ impl OnionV3Address {
 		Ok(OnionV3Address(d_pub_key.as_bytes().clone()))
 	}
 
-	// Return as onion v3 address string
+	/// return dalek public key
+	pub fn to_ed25519(&self) -> Result<DalekPublicKey, OnionV3Error> {
+		let d_skey = match DalekPublicKey::from_bytes(&self.0) {
+			Ok(k) => k,
+			Err(e) => {
+				return Err(OnionV3Error::InvalidPrivateKey(format!(
+					"Unable to create dalek public key: {}",
+					e
+				)));
+			}
+		};
+		Ok(d_skey)
+	}
+
+	/// Return as onion v3 address string
 	fn to_ov3_str(&self) -> String {
 		// calculate checksum
 		let mut hasher = Sha3_256::new();

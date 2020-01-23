@@ -22,6 +22,7 @@ use crate::grin_core::ser;
 use crate::grin_util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::Mutex;
+use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
@@ -366,11 +367,11 @@ where
 		let k = w.keychain(keychain_mask)?;
 
 		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
-		let sender_address = address::ed25519_keypair(&sec_addr_key)?.1;
+		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
-			sender_address,
-			receiver_address: a,
+			sender_address: sender_address.to_ed25519()?,
+			receiver_address: a.to_ed25519()?,
 			receiver_signature: None,
 		});
 

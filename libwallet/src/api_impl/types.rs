@@ -20,8 +20,8 @@ use crate::grin_util::secp::pedersen;
 use crate::slate_versions::ser as dalek_ser;
 use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
+use grin_wallet_util::OnionV3Address;
 
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 
 /// Send TX API Args
@@ -94,8 +94,8 @@ pub struct InitTxArgs {
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	pub ttl_blocks: Option<u64>,
 	/// If set, require a payment proof for the particular recipient
-	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
-	pub payment_proof_recipient_address: Option<DalekPublicKey>,
+	#[serde(with = "dalek_ser::option_ov3_serde")]
+	pub payment_proof_recipient_address: Option<OnionV3Address>,
 	/// If true, just return an estimate of the resulting slate, containing fees and amounts
 	/// locked without actually locking outputs or creating the transaction. Note if this is set to
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
