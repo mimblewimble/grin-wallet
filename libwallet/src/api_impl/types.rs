@@ -237,12 +237,14 @@ pub struct PaymentProof {
 	)]
 	pub excess: pedersen::Commitment,
 	/// Recipient Wallet Address (Onion V3)
-	pub recipient_address: String,
+	#[serde(with = "dalek_ser::ov3_serde")]
+	pub recipient_address: OnionV3Address,
 	/// Recipient Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub recipient_sig: DalekSignature,
 	/// Sender Wallet Address (Onion V3)
-	pub sender_address: String,
+	#[serde(with = "dalek_ser::ov3_serde")]
+	pub sender_address: OnionV3Address,
 	/// Sender Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,

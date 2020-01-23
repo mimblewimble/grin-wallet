@@ -26,6 +26,7 @@ use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
+use grin_wallet_util::OnionV3Address;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -98,7 +99,7 @@ where
 	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 	let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
-	let onion_address = tor_config::onion_address_from_seckey(&sec_key)
+	let onion_address = OnionV3Address::from_private(&sec_key.0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",

@@ -27,6 +27,7 @@ use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
+use crate::util::OnionV3Address;
 use crate::{address, Error, ErrorKind};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -363,14 +364,14 @@ where
 		let excess = slate.calc_excess(&keychain)?;
 		let sender_key =
 			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
-		let sender_address = address::ed25519_keypair(&sender_key)?.1;
+		let sender_address = OnionV3Address::from_bytes(sender_key.0);
 		let sig =
 			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
 		tx.payment_proof = Some(StoredProofInfo {
 			receiver_address: p.receiver_address,
 			receiver_signature: p.receiver_signature,
 			sender_address_path: derivation_index,
-			sender_address,
+			sender_address: sender_address.to_ed25519()?,
 			sender_signature: Some(sig),
 		})
 	}
@@ -509,8 +510,8 @@ where
 		};
 		let orig_sender_sk =
 			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
-		let orig_sender_address = address::ed25519_keypair(&orig_sender_sk)?.1;
-		if p.sender_address != orig_sender_address {
+		let orig_sender_address = OnionV3Address::from_bytes(orig_sender_sk.0);
+		if p.sender_address != orig_sender_address.to_ed25519()? {
 			return Err(ErrorKind::PaymentProof(
 				"Sender address on slate does not match original sender address".to_owned(),
 			))?;
@@ -524,7 +525,7 @@ where
 		let msg = payment_proof_message(
 			slate.amount,
 			&slate.calc_excess(&keychain)?,
-			orig_sender_address,
+			orig_sender_address.to_ed25519()?,
 		)?;
 		let sig = match p.receiver_signature {
 			Some(s) => s,

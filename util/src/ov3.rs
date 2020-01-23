@@ -192,13 +192,6 @@ mod test {
 		let ret: Result<OnionV3Address, OnionV3Error> = onion_address_str.try_into();
 		assert!(ret.is_err());
 
-		/*let key = pubkey_from_onion_v3(onion_address).unwrap();
-		println!("Key: {:?}", &key);
-
-		let out_address = onion_v3_from_pubkey(&key).unwrap();
-		println!("Address: {:?}", &out_address);
-
-		assert_eq!(onion_address, out_address);*/
 		Ok(())
 	}
 }

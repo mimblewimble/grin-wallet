@@ -18,6 +18,7 @@ use crate::keychain;
 use crate::libwallet;
 use crate::util::secp;
 use failure::{Backtrace, Context, Fail};
+use grin_wallet_util::OnionV3AddressError;
 use std::env;
 use std::fmt::{self, Display};
 
@@ -41,6 +42,10 @@ pub enum ErrorKind {
 	/// Keychain error
 	#[fail(display = "Keychain error")]
 	Keychain(keychain::Error),
+
+	/// Onion V3 Address Error
+	#[fail(display = "Onion V3 Address Error")]
+	OnionV3Address(OnionV3AddressError),
 
 	/// Error when formatting json
 	#[fail(display = "IO error")]
@@ -185,5 +190,11 @@ impl From<libtx::Error> for Error {
 		Error {
 			inner: Context::new(ErrorKind::LibTX(error.kind())),
 		}
+	}
+}
+
+impl From<OnionV3AddressError> for Error {
+	fn from(error: OnionV3AddressError) -> Error {
+		Error::from(ErrorKind::OnionV3Address(error))
 	}
 }
