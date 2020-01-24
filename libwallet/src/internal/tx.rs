@@ -364,7 +364,7 @@ where
 		let excess = slate.calc_excess(&keychain)?;
 		let sender_key =
 			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
-		let sender_address = OnionV3Address::from_bytes(sender_key.0);
+		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 		let sig =
 			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
 		tx.payment_proof = Some(StoredProofInfo {
@@ -510,7 +510,7 @@ where
 		};
 		let orig_sender_sk =
 			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
-		let orig_sender_address = OnionV3Address::from_bytes(orig_sender_sk.0);
+		let orig_sender_address = OnionV3Address::from_private(&orig_sender_sk.0)?;
 		if p.sender_address != orig_sender_address.to_ed25519()? {
 			return Err(ErrorKind::PaymentProof(
 				"Sender address on slate does not match original sender address".to_owned(),

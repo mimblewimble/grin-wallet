@@ -178,7 +178,7 @@ where
 				&parent_key_id,
 				sender_address_path,
 			)?;
-			let sender_address = OnionV3Address::from_bytes(sender_key.0);
+			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 			t.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address.clone(),
 				receiver_signature: p.receiver_signature.clone(),
