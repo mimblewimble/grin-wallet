@@ -23,11 +23,12 @@ use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateRec
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	self, address, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletLCProvider,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
-use crate::util::{to_hex, Mutex, ZeroingString};
+use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
+use grin_wallet_util::OnionV3Address;
 use serde_json as json;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -251,7 +252,7 @@ pub struct SendArgs {
 	pub fluff: bool,
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
-	pub payment_proof_address: Option<String>,
+	pub payment_proof_address: Option<OnionV3Address>,
 	pub ttl_blocks: Option<u64>,
 }
 
@@ -289,10 +290,6 @@ where
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
 		} else {
-			let payment_proof_recipient_address = match args.payment_proof_address {
-				Some(ref p) => Some(address::ed25519_parse_pubkey(p)?),
-				None => None,
-			};
 			let init_args = InitTxArgs {
 				src_acct_name: None,
 				amount: args.amount,
@@ -302,7 +299,7 @@ where
 				selection_strategy_is_use_all: args.selection_strategy == "all",
 				message: args.message.clone(),
 				target_slate_version: args.target_slate_version,
-				payment_proof_recipient_address,
+				payment_proof_recipient_address: args.payment_proof_address.clone(),
 				ttl_blocks: args.ttl_blocks,
 				send_args: None,
 				..Default::default()
@@ -917,26 +914,13 @@ where
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		// Just address at derivation index 0 for now
 		let pub_key = api.get_public_proof_address(m, 0)?;
-		let result = address::onion_v3_from_pubkey(&pub_key);
-		match result {
-			Ok(a) => {
-				println!();
-				println!("Public Proof Address for account - {}", g_args.account);
-				println!("-------------------------------------");
-				println!("{}", to_hex(pub_key.as_bytes().to_vec()));
-				println!();
-				println!("TOR Onion V3 Address for account - {}", g_args.account);
-				println!("-------------------------------------");
-				println!("{}", a);
-				println!();
-				Ok(())
-			}
-			Err(e) => {
-				error!("Address retrieval failed: {}", e);
-				error!("Backtrace: {}", e.backtrace().unwrap());
-				Err(e)
-			}
-		}
+		let addr = OnionV3Address::from_bytes(pub_key.to_bytes());
+		println!();
+		println!("Address for account - {}", g_args.account);
+		println!("-------------------------------------");
+		println!("{}", addr);
+		println!();
+		Ok(())
 	})?;
 	Ok(())
 }

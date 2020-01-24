@@ -27,6 +27,7 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
+use crate::util::OnionV3Address;
 use std::collections::HashMap;
 
 /// Initialize a transaction on the sender side, returns a corresponding
@@ -177,11 +178,11 @@ where
 				&parent_key_id,
 				sender_address_path,
 			)?;
-			let sender_address = address::ed25519_keypair(&sender_key)?.1;
+			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 			t.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address.clone(),
 				receiver_signature: p.receiver_signature.clone(),
-				sender_address,
+				sender_address: sender_address.to_ed25519()?,
 				sender_address_path,
 				sender_signature: None,
 			});

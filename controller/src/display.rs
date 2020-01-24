@@ -15,9 +15,10 @@
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
 use crate::libwallet::{
-	address, AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
+	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
 };
 use crate::util;
+use grin_wallet_util::OnionV3Address;
 use prettytable;
 use std::io::prelude::Write;
 use term;
@@ -537,8 +538,6 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 
 	t.fg(term::color::WHITE).unwrap();
 	writeln!(t).unwrap();
-	let receiver_address = util::to_hex(pp.receiver_address.to_bytes().to_vec());
-	let receiver_onion_address = address::onion_v3_from_pubkey(&pp.receiver_address)?;
 	let receiver_signature = match pp.receiver_signature {
 		Some(s) => util::to_hex(s.to_bytes().to_vec()),
 		None => "None".to_owned(),
@@ -556,8 +555,6 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		)
 	};
 
-	let sender_address = util::to_hex(pp.sender_address.to_bytes().to_vec());
-	let sender_onion_address = address::onion_v3_from_pubkey(&pp.sender_address)?;
 	let sender_signature = match pp.sender_signature {
 		Some(s) => util::to_hex(s.to_bytes().to_vec()),
 		None => "None".to_owned(),
@@ -567,14 +564,22 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		None => "None".to_owned(),
 	};
 
-	writeln!(t, "Receiver Address: {}", receiver_address).unwrap();
-	writeln!(t, "Receiver Address (Onion V3): {}", receiver_onion_address).unwrap();
+	writeln!(
+		t,
+		"Receiver Address: {}",
+		OnionV3Address::from_bytes(pp.receiver_address.to_bytes())
+	)
+	.unwrap();
 	writeln!(t, "Receiver Signature: {}", receiver_signature).unwrap();
 	writeln!(t, "Amount: {}", amount).unwrap();
 	writeln!(t, "Kernel Excess: {}", kernel_excess).unwrap();
-	writeln!(t, "Sender Address: {}", sender_address).unwrap();
+	writeln!(
+		t,
+		"Sender Address: {}",
+		OnionV3Address::from_bytes(pp.sender_address.to_bytes())
+	)
+	.unwrap();
 	writeln!(t, "Sender Signature: {}", sender_signature).unwrap();
-	writeln!(t, "Sender Address (Onion V3): {}", sender_onion_address).unwrap();
 
 	t.reset().unwrap();
 

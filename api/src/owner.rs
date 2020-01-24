@@ -26,13 +26,15 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
-	address, AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, TxLogEntry, WalletInfo, WalletInst,
 	WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use grin_wallet_util::OnionV3Address;
+use std::convert::TryFrom;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -2020,7 +2022,8 @@ where
 	/// ```
 
 	pub fn proof_address_from_onion_v3(&self, address_v3: &str) -> Result<DalekPublicKey, Error> {
-		address::pubkey_from_onion_v3(address_v3)
+		let addr = OnionV3Address::try_from(address_v3)?;
+		Ok(addr.to_ed25519()?)
 	}
 
 	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)

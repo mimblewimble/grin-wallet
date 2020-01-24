@@ -19,6 +19,7 @@ use crate::grin_core::libtx;
 use crate::grin_keychain;
 use crate::grin_store;
 use crate::grin_util::secp;
+use crate::util;
 use failure::{Backtrace, Context, Fail};
 use std::env;
 use std::fmt::{self, Display};
@@ -72,6 +73,10 @@ pub enum ErrorKind {
 	/// Secp Error
 	#[fail(display = "Secp error")]
 	Secp(secp::Error),
+
+	/// Onion V3 Address Error
+	#[fail(display = "Onion V3 Address Error")]
+	OnionV3Address(util::OnionV3AddressError),
 
 	/// Callback implementation error conversion
 	#[fail(display = "Trait Implementation error")]
@@ -371,5 +376,11 @@ impl From<committed::Error> for Error {
 impl From<grin_store::Error> for Error {
 	fn from(error: grin_store::Error) -> Error {
 		Error::from(ErrorKind::Backend(format!("{}", error)))
+	}
+}
+
+impl From<util::OnionV3AddressError> for Error {
+	fn from(error: util::OnionV3AddressError) -> Error {
+		Error::from(ErrorKind::OnionV3Address(error))
 	}
 }

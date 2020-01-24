@@ -371,7 +371,7 @@ where
 
 #[allow(dead_code)]
 pub fn send_request_enc<OUT>(
-	sec_req_id: u32,
+	sec_req_id: u64,
 	internal_request_id: u32,
 	dest: &str,
 	req: &str,
