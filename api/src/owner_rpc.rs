@@ -23,9 +23,11 @@ use crate::libwallet::{
 	OutputCommitMapping, Slate, SlateVersion, TxLogEntry, VersionedSlate, WalletInfo,
 	WalletLCProvider,
 };
-use crate::util::{from_hex, Mutex};
+use crate::util::Mutex;
 use crate::{Owner, OwnerRpcS};
 use easy_jsonrpc_mw;
+use grin_wallet_util::OnionV3Address;
+use std::convert::TryFrom;
 use std::sync::Arc;
 
 /// Public definition used to generate Owner jsonrpc api.
@@ -1380,8 +1382,6 @@ pub fn run_doctest_owner(
 	use grin_wallet_libwallet::{api_impl, WalletInst};
 	use grin_wallet_util::grin_keychain::ExtKeychain;
 
-	use ed25519_dalek::PublicKey as DalekPublicKey;
-
 	use crate::core::global;
 	use crate::core::global::ChainTypes;
 	use grin_wallet_util::grin_util as util;
@@ -1510,13 +1510,8 @@ pub fn run_doctest_owner(
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let proof_address = match payment_proof {
 			true => {
-				let bytes = from_hex(
-					"783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810".to_string(),
-				)
-				.unwrap();
-				let mut b = [0u8; 32];
-				b.copy_from_slice(&bytes[0..32]);
-				Some(DalekPublicKey::from_bytes(&b).unwrap())
+				let address = "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810";
+				Some(OnionV3Address::try_from(address).unwrap())
 			}
 			false => None,
 		};

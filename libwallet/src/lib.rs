@@ -28,6 +28,8 @@ use grin_wallet_util::grin_keychain;
 use grin_wallet_util::grin_store;
 use grin_wallet_util::grin_util;
 
+use grin_wallet_util as util;
+
 use blake2_rfc as blake2;
 
 use failure;

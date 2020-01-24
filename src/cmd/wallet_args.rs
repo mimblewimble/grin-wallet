@@ -15,7 +15,7 @@
 use crate::api::TLSConfig;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
-use crate::util::{to_hex, Mutex, ZeroingString};
+use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
@@ -26,16 +26,16 @@ use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::Slate;
-use grin_wallet_libwallet::{
-	address, IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider,
-};
+use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_core::global;
 use grin_wallet_util::grin_keychain as keychain;
+use grin_wallet_util::OnionV3Address;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -475,9 +475,18 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			true => {
 				// if the destination address is a TOR address, we don't need the address
 				// separately
-				match address::pubkey_from_onion_v3(&dest) {
-					Ok(k) => Some(to_hex(k.to_bytes().to_vec())),
-					Err(_) => Some(parse_required(args, "proof_address")?.to_owned()),
+				match OnionV3Address::try_from(dest) {
+					Ok(a) => Some(a),
+					Err(_) => {
+						let addr = parse_required(args, "proof_address")?;
+						match OnionV3Address::try_from(addr) {
+							Ok(a) => Some(a),
+							Err(e) => {
+								let msg = format!("Invalid proof address: {:?}", e);
+								return Err(ParseError::ArgumentError(msg));
+							}
+						}
+					}
 				}
 			}
 			false => None,

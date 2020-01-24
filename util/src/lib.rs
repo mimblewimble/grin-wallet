@@ -20,6 +20,13 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
+#[macro_use]
+extern crate serde_derive;
+
+mod ov3;
+pub use ov3::OnionV3Address;
+pub use ov3::OnionV3Error as OnionV3AddressError;
+
 pub use grin_api;
 pub use grin_chain;
 pub use grin_core;

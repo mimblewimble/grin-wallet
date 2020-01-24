@@ -24,6 +24,8 @@ use libwallet::{InitTxArgs, Slate};
 use std::thread;
 use std::time::Duration;
 
+use grin_wallet_util::OnionV3Address;
+
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
@@ -80,7 +82,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		Ok(())
 	})?;
 
-	let address = address.unwrap();
+	let address = OnionV3Address::from_bytes(address.as_ref().unwrap().to_bytes());
 	println!("Public address is: {:?}", address);
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1);
@@ -93,14 +95,14 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			payment_proof_recipient_address: Some(address),
+			payment_proof_recipient_address: Some(address.clone()),
 			..Default::default()
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		assert_eq!(
 			slate_i.payment_proof.as_ref().unwrap().receiver_address,
-			address
+			address.to_ed25519()?,
 		);
 		println!(
 			"Sender addr: {:?}",

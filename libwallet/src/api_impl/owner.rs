@@ -22,6 +22,7 @@ use crate::grin_core::ser;
 use crate::grin_util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::Mutex;
+use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
@@ -92,7 +93,8 @@ where
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
 	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
-	Ok(address::ed25519_keypair(&sec_addr_key)?.1)
+	let addr = OnionV3Address::from_private(&sec_addr_key.0)?;
+	Ok(addr.to_ed25519()?)
 }
 
 /// retrieve outputs
@@ -284,9 +286,9 @@ where
 	Ok(PaymentProof {
 		amount: amount,
 		excess: excess,
-		recipient_address: address::onion_v3_from_pubkey(&proof.receiver_address)?,
+		recipient_address: OnionV3Address::from_bytes(proof.receiver_address.to_bytes()),
 		recipient_sig: r_sig,
-		sender_address: address::onion_v3_from_pubkey(&proof.sender_address)?,
+		sender_address: OnionV3Address::from_bytes(proof.sender_address.to_bytes()),
 		sender_sig: s_sig,
 	})
 }
@@ -366,11 +368,11 @@ where
 		let k = w.keychain(keychain_mask)?;
 
 		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
-		let sender_address = address::ed25519_keypair(&sec_addr_key)?.1;
+		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
-			sender_address,
-			receiver_address: a,
+			sender_address: sender_address.to_ed25519()?,
+			receiver_address: a.to_ed25519()?,
 			receiver_signature: None,
 		});
 
@@ -889,7 +891,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let sender_pubkey = address::pubkey_from_onion_v3(&proof.sender_address)?;
+	let sender_pubkey = proof.sender_address.to_ed25519()?;
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, sender_pubkey)?;
 
 	let (mut client, parent_key_id, keychain) = {
@@ -921,14 +923,14 @@ where
 	};
 
 	// Check Sigs
-	let recipient_pubkey = address::pubkey_from_onion_v3(&proof.recipient_address)?;
+	let recipient_pubkey = proof.recipient_address.to_ed25519()?;
 	if let Err(_) = recipient_pubkey.verify(&msg, &proof.recipient_sig) {
 		return Err(ErrorKind::PaymentProof(
 			"Invalid recipient signature".to_owned(),
 		))?;
 	};
 
-	let sender_pubkey = address::pubkey_from_onion_v3(&proof.sender_address)?;
+	let sender_pubkey = proof.sender_address.to_ed25519()?;
 	if let Err(_) = sender_pubkey.verify(&msg, &proof.sender_sig) {
 		return Err(ErrorKind::PaymentProof(
 			"Invalid sender signature".to_owned(),
