@@ -300,6 +300,7 @@ pub fn parse_init_args<L, C, K>(
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
+	test_mode: bool,
 ) -> Result<command::InitArgs, ParseError>
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
@@ -307,7 +308,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	if config_file_exists(&config.data_file_dir) {
+	if config_file_exists(&config.data_file_dir) && !test_mode {
 		return Err(ParseError::WalletExists(config.data_file_dir.clone()));
 	}
 
@@ -957,7 +958,8 @@ where
 				wallet.clone(),
 				&wallet_config,
 				&global_wallet_args,
-				&args
+				&args,
+				test_mode,
 			));
 			command::init(wallet, &global_wallet_args, a)
 		}
