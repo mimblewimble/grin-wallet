@@ -92,9 +92,11 @@ pub struct InitTxArgs {
 	pub target_slate_version: Option<u16>,
 	/// Number of blocks from current after which TX should be ignored
 	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(default)]
 	pub ttl_blocks: Option<u64>,
 	/// If set, require a payment proof for the particular recipient
 	#[serde(with = "dalek_ser::option_ov3_serde")]
+	#[serde(default)]
 	pub payment_proof_recipient_address: Option<OnionV3Address>,
 	/// If true, just return an estimate of the resulting slate, containing fees and amounts
 	/// locked without actually locking outputs or creating the transaction. Note if this is set to
