@@ -42,7 +42,10 @@ pub const API_SECRET_FILE_NAME: &'static str = ".api_secret";
 /// Owner API secret
 pub const OWNER_API_SECRET_FILE_NAME: &'static str = ".owner_api_secret";
 
-fn get_grin_path(chain_type: &global::ChainTypes) -> Result<PathBuf, ConfigError> {
+fn get_grin_path(
+	chain_type: &global::ChainTypes,
+	create_path: bool,
+) -> Result<PathBuf, ConfigError> {
 	// Check if grin dir exists
 	let mut grin_path = match dirs::home_dir() {
 		Some(p) => p,
@@ -51,10 +54,17 @@ fn get_grin_path(chain_type: &global::ChainTypes) -> Result<PathBuf, ConfigError
 	grin_path.push(GRIN_HOME);
 	grin_path.push(chain_type.shortname());
 	// Create if the default path doesn't exist
-	if !grin_path.exists() {
+	if !grin_path.exists() && create_path {
 		fs::create_dir_all(grin_path.clone())?;
 	}
-	Ok(grin_path)
+
+	if !grin_path.exists() {
+		return Err(ConfigError::PathNotFoundError(String::from(
+			grin_path.to_str().unwrap(),
+		)));
+	} else {
+		Ok(grin_path)
+	}
 }
 
 fn check_config_current_dir(path: &str) -> Option<PathBuf> {
@@ -104,7 +114,7 @@ fn check_api_secret_file(
 ) -> Result<(), ConfigError> {
 	let grin_path = match data_path {
 		Some(p) => p,
-		None => get_grin_path(chain_type)?,
+		None => get_grin_path(chain_type, false)?,
 	};
 	let mut api_secret_path = grin_path.clone();
 	api_secret_path.push(file_name);
@@ -119,17 +129,23 @@ fn check_api_secret_file(
 pub fn initial_setup_wallet(
 	chain_type: &global::ChainTypes,
 	data_path: Option<PathBuf>,
+	create_path: bool,
 ) -> Result<GlobalWalletConfig, ConfigError> {
-	check_api_secret_file(chain_type, data_path.clone(), OWNER_API_SECRET_FILE_NAME)?;
-	check_api_secret_file(chain_type, data_path.clone(), API_SECRET_FILE_NAME)?;
+	if create_path {
+		if let Some(p) = data_path.clone() {
+			fs::create_dir_all(p)?;
+		}
+	}
 	// Use config file if current directory if it exists, .grin home otherwise
-	if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
-		GlobalWalletConfig::new(p.to_str().unwrap())
+	let (path, config) = if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
+		let mut path = p.clone();
+		path.pop();
+		(path, GlobalWalletConfig::new(p.to_str().unwrap())?)
 	} else {
 		// Check if grin dir exists
-		let grin_path = match data_path {
+		let grin_path = match data_path.clone() {
 			Some(p) => p,
-			None => get_grin_path(chain_type)?,
+			None => get_grin_path(chain_type, create_path)?,
 		};
 
 		// Get path to default config file
@@ -137,16 +153,28 @@ pub fn initial_setup_wallet(
 		config_path.push(WALLET_CONFIG_FILE_NAME);
 
 		// Return defaults if file doesn't exist
-		if !config_path.exists() {
-			let mut default_config = GlobalWalletConfig::for_chain(chain_type);
-			default_config.config_file_path = Some(config_path);
-			// update paths relative to current dir
-			default_config.update_paths(&grin_path);
-			Ok(default_config)
-		} else {
-			GlobalWalletConfig::new(config_path.to_str().unwrap())
+		match config_path.clone().exists() {
+			false => {
+				let mut default_config = GlobalWalletConfig::for_chain(chain_type);
+				default_config.config_file_path = Some(config_path);
+				// update paths relative to current dir
+				default_config.update_paths(&grin_path);
+				(grin_path, default_config)
+			}
+			true => {
+				let mut path = config_path.clone();
+				path.pop();
+				(
+					path,
+					GlobalWalletConfig::new(config_path.to_str().unwrap())?,
+				)
+			}
 		}
-	}
+	};
+
+	check_api_secret_file(chain_type, Some(path.clone()), OWNER_API_SECRET_FILE_NAME)?;
+	check_api_secret_file(chain_type, Some(path), API_SECRET_FILE_NAME)?;
+	Ok(config)
 }
 
 impl Default for GlobalWalletConfigMembers {
