@@ -82,6 +82,13 @@ fn check_config_current_dir(path: &str) -> Option<PathBuf> {
 	None
 }
 
+/// Whether a config file exists at the given directory
+pub fn config_file_exists(path: &str) -> bool {
+	let mut path = PathBuf::from(path);
+	path.push(WALLET_CONFIG_FILE_NAME);
+	path.exists()
+}
+
 /// Create file with api secret
 pub fn init_api_secret(api_secret_path: &PathBuf) -> Result<(), ConfigError> {
 	let mut api_secret_file = File::create(api_secret_path)?;
