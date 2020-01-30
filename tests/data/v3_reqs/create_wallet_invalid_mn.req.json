@@ -1,0 +1,11 @@
+{
+	"jsonrpc": "2.0",
+	"method": "create_wallet",
+	"params": {
+		"name": null,
+		"mnemonic": "this is not valid",
+		"mnemonic_length": 32,
+		"password": "passwoid"
+	},
+	"id": 1
+}

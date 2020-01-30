@@ -1,0 +1,11 @@
+{
+	"jsonrpc": "2.0",
+	"method": "create_wallet",
+	"params": {
+		"name": null,
+		"mnemonic": "fat twenty mean degree forget shell check candy immense awful flame next during february bulb bike sun wink theory day kiwi embrace peace lunch",
+		"mnemonic_length": 32,
+		"password": "passwoid"
+	},
+	"id": 1
+}
