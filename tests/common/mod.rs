@@ -308,7 +308,7 @@ where
 {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
-	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None).unwrap();
+	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
 	let mut wallet_config = config.clone().members.unwrap().wallet;
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;

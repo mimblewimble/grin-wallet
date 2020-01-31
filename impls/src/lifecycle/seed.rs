@@ -150,6 +150,7 @@ impl WalletSeed {
 		seed_length: usize,
 		recovery_phrase: Option<util::ZeroingString>,
 		password: util::ZeroingString,
+		test_mode: bool,
 	) -> Result<WalletSeed, Error> {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
@@ -158,8 +159,9 @@ impl WalletSeed {
 
 		warn!("Generating wallet seed file at: {}", seed_file_path);
 		let exists = WalletSeed::seed_file_exists(data_file_dir)?;
-		if exists {
+		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
+			error!("{}", msg);
 			return Err(ErrorKind::WalletSeedExists(msg))?;
 		}
 
