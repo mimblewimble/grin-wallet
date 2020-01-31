@@ -183,7 +183,16 @@ where
 				return Err(ErrorKind::WalletSeedExists(msg))?;
 			}
 		}
-		let _ = WalletSeed::init_file(&data_dir_name, mnemonic_length, mnemonic.clone(), password);
+		WalletSeed::init_file(
+			&data_dir_name,
+			mnemonic_length,
+			mnemonic.clone(),
+			password,
+			test_mode,
+		)
+		.context(ErrorKind::Lifecycle(
+			"Error creating wallet seed (is mnemonic valid?)".into(),
+		))?;
 		info!("Wallet seed file created");
 		let mut wallet: LMDBBackend<'a, C, K> =
 			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
@@ -327,6 +336,7 @@ where
 			0,
 			Some(ZeroingString::from(orig_mnemonic)),
 			new.clone(),
+			false,
 		);
 		info!("Wallet seed file created");
 

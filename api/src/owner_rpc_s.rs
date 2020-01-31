@@ -1517,7 +1517,7 @@ pub trait OwnerRpcS {
 		"params": {
 			"name": null,
 			"mnemonic": null,
-			"mnemonic_length": 0,
+			"mnemonic_length": 32,
 			"password": "my_secret_password"
 		},
 		"id": 1

@@ -517,6 +517,20 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	println!("RES 25: {:?}", res);
 	assert!(res.is_err());
 
+	// 26) Try to create a wallet with an invalid mnemonic
+	let req = include_str!("data/v3_reqs/create_wallet_invalid_mn.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 26: {:?}", res);
+	assert!(res.is_err());
+
+	// 27) Try to create a wallet with an valid mnemonic
+	let req = include_str!("data/v3_reqs/create_wallet_valid_mn.req.json");
+	let res =
+		send_request_enc::<String>(1, 1, "http://127.0.0.1:43420/v3/owner", &req, &shared_key)?;
+	println!("RES 27: {:?}", res);
+	assert!(res.is_ok());
+
 	clean_output_dir(test_dir);
 
 	Ok(())
