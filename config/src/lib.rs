@@ -30,7 +30,9 @@ mod comments;
 pub mod config;
 pub mod types;
 
-pub use crate::config::{initial_setup_wallet, GRIN_WALLET_DIR, WALLET_CONFIG_FILE_NAME};
+pub use crate::config::{
+	config_file_exists, initial_setup_wallet, GRIN_WALLET_DIR, WALLET_CONFIG_FILE_NAME,
+};
 pub use crate::types::{
 	ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers, TorConfig, WalletConfig,
 };

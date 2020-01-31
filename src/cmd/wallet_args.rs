@@ -19,7 +19,7 @@ use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
-use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::tor::config::is_tor_address;
@@ -58,6 +58,8 @@ pub enum ParseError {
 	ArgumentError(String),
 	#[fail(display = "Parsing IO error: {}", _0)]
 	IOError(String),
+	#[fail(display = "Wallet configuration already exists: {}", _0)]
+	WalletExists(String),
 	#[fail(display = "User Cancelled")]
 	CancelledError,
 }
@@ -298,6 +300,7 @@ pub fn parse_init_args<L, C, K>(
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
+	test_mode: bool,
 ) -> Result<command::InitArgs, ParseError>
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
@@ -305,6 +308,10 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	if config_file_exists(&config.data_file_dir) && !test_mode {
+		return Err(ParseError::WalletExists(config.data_file_dir.clone()));
+	}
+
 	let list_length = match args.is_present("short_wordlist") {
 		false => 32,
 		true => 16,
@@ -951,7 +958,8 @@ where
 				wallet.clone(),
 				&wallet_config,
 				&global_wallet_args,
-				&args
+				&args,
+				test_mode,
 			));
 			command::init(wallet, &global_wallet_args, a)
 		}
