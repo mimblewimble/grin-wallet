@@ -129,7 +129,7 @@ impl ParticipantMessageData {
 
 impl fmt::Display for ParticipantMessageData {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		writeln!(f, "")?;
+		writeln!(f)?;
 		write!(f, "Participant ID {} ", self.id)?;
 		if self.id == 0 {
 			writeln!(f, "(Sender)")?;
