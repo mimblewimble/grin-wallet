@@ -12,6 +12,8 @@
 // limitations under the License.
 
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate clap;
 
 use grin_wallet_config as config;

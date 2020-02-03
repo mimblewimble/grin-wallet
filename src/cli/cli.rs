@@ -16,7 +16,7 @@ use crate::cmd::wallet_args;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
 use clap::App;
-use colored::Colorize;
+//use colored::Colorize;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::command::GlobalArgs;
@@ -41,47 +41,45 @@ const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
 const PROMPT: &'static str = "grin-wallet> ";
 //const HISTORY_PATH: &str = ".history";
 
-#[macro_export]
-macro_rules! cli_message {
-	() => {
-			{
-					use std::io::Write;
-					use crate::common::{is_cli, COLORED_PROMPT};
-					//if is_cli() {
-							print!("\r{}", COLORED_PROMPT);
-							std::io::stdout().flush().unwrap();
-					//}
-			}
-	};
+// static for keeping track of current stdin buffer contents
+lazy_static! {
+	static ref STDIN_CONTENTS: Mutex<String> = { Mutex::new(String::from("")) };
+}
 
+#[macro_export]
+macro_rules! cli_message_inline {
 	($fmt_string:expr, $( $arg:expr ),+) => {
 			{
 					use std::io::Write;
+					let contents = STDIN_CONTENTS.lock();
 					/* use crate::common::{is_cli, COLORED_PROMPT}; */
 					/* if is_cli() { */
 							print!("\r");
 							print!($fmt_string, $( $arg ),*);
-							//print!("\n{}", COLORED_PROMPT);
 							print!(" {}", COLORED_PROMPT);
 							print!("{}", clear::AfterCursor);
+							print!("{}", *contents);
 							std::io::stdout().flush().unwrap();
 					/*} else {
 							info!($fmt_string, $( $arg ),*);
 					}*/
 			}
 	};
+}
 
-	($fmt_string:expr) => {
+#[macro_export]
+macro_rules! cli_message {
+	($fmt_string:expr, $( $arg:expr ),+) => {
 			{
 					use std::io::Write;
-					use crate::common::{is_cli, COLORED_PROMPT};
-					/*if is_cli() {*/
-							print!("\r");
-							print!($fmt_string);
-							print!("\n{}", COLORED_PROMPT);
+					/* use crate::common::{is_cli, COLORED_PROMPT}; */
+					/* if is_cli() { */
+							//print!("\r");
+							print!($fmt_string, $( $arg ),*);
+							println!();
 							std::io::stdout().flush().unwrap();
 					/*} else {
-							info!($fmt_string);
+							info!($fmt_string, $( $arg ),*);
 					}*/
 			}
 	};
@@ -94,15 +92,15 @@ pub fn start_updater_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
 		.spawn(move || loop {
 			while let Ok(m) = rx.recv() {
 				match m {
-					StatusMessage::UpdatingOutputs(s) => cli_message!("{}", s),
-					StatusMessage::UpdatingTransactions(s) => cli_message!("{}", s),
-					StatusMessage::FullScanWarn(s) => cli_message!("{}", s),
+					StatusMessage::UpdatingOutputs(s) => cli_message_inline!("{}", s),
+					StatusMessage::UpdatingTransactions(s) => cli_message_inline!("{}", s),
+					StatusMessage::FullScanWarn(s) => cli_message_inline!("{}", s),
 					StatusMessage::Scanning(_, m) => {
 						//debug!("{}", s);
-						cli_message!("Scanning - {}% complete", m);
+						cli_message_inline!("Scanning - {}% complete - Please Wait", m);
 					}
-					StatusMessage::ScanningComplete(s) => cli_message!("{}", s),
-					StatusMessage::UpdateWarning(s) => cli_message!("{}", s),
+					StatusMessage::ScanningComplete(s) => cli_message_inline!("{}", s),
+					StatusMessage::UpdateWarning(s) => cli_message_inline!("{}", s),
 				}
 			}
 		});
@@ -170,6 +168,13 @@ where
 				if command.to_lowercase() == "exit" {
 					break;
 				}
+				/* use crate::common::{is_cli, COLORED_PROMPT}; */
+
+				// reset buffer
+				{
+					let mut contents = STDIN_CONTENTS.lock();
+					*contents = String::from("");
+				}
 
 				// Just add 'grin-wallet' to each command behind the scenes
 				// so we don't need to maintain a separate definition file
@@ -194,7 +199,7 @@ where
 										m
 									}
 									Err(e) => {
-										cli_message!("{} {}", "Error:".bright_red(), e);
+										cli_message!("{}", e);
 										None
 									}
 								};
@@ -218,22 +223,18 @@ where
 							test_mode,
 							true,
 						) {
-							Ok(_) => false,
+							Ok(_) => {
+								cli_message!("Command '{}' completed", args.subcommand().0);
+								false
+							}
 							Err(err) => {
-								cli_message!("{} {}", "Error:".bright_red(), err);
+								cli_message!("{}", err);
 								false
 							}
 						}
 					}
 					Err(err) => {
-						match err.kind {
-							clap::ErrorKind::HelpDisplayed => {
-								cli_message!("{}", err);
-							}
-							_ => {
-								cli_message!("{} {}", "Error:".bright_red(), err);
-							}
-						}
+						cli_message!("{}", err);
 						false
 					}
 				};
@@ -270,7 +271,9 @@ impl Completer for EditorHelper {
 }
 
 impl Hinter for EditorHelper {
-	fn hint(&self, _line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<String> {
+	fn hint(&self, line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<String> {
+		let mut contents = STDIN_CONTENTS.lock();
+		*contents = line.into();
 		None
 	}
 }

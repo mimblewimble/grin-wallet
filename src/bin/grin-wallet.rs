@@ -16,7 +16,6 @@
 
 #[macro_use]
 extern crate clap;
-
 #[macro_use]
 extern crate log;
 use crate::config::ConfigError;
