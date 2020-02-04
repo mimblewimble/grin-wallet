@@ -44,7 +44,7 @@ args:
       takes_value: true
 subcommands:
   - cli:
-      about: Start the wallet in interactive CLI mode (EXPERIMENTAL)
+      about: Start the wallet in interactive CLI mode (EXPERIMENTAL and UNDER DEVELOPMENT)
   - account:
       about: List wallet accounts or create a new account
       args:
@@ -350,6 +350,8 @@ subcommands:
             takes_value: false
   - open:
       about: Opens a wallet (interactive mode only)
+  - close:
+      about: Closes the wallet (interactive mode only)
   - recover:
       about: Displays a recovery phrase for the wallet. (use `init -r` to perform recovery)
   - address:

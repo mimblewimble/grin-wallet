@@ -183,7 +183,7 @@ where
 					app.get_matches_from_safe_borrow(augmented_command.trim().split_whitespace());
 				let done = match args {
 					Ok(args) => {
-						// handle opening separately
+						// handle opening /closing separately
 						keychain_mask = match args.subcommand() {
 							("open", Some(_)) => {
 								let mut wallet_lock = owner_api.wallet_inst.lock();
@@ -210,6 +210,12 @@ where
 									}
 								}
 								mask
+							}
+							("close", Some(_)) => {
+								let mut wallet_lock = owner_api.wallet_inst.lock();
+								let lc = wallet_lock.lc_provider().unwrap();
+								lc.close_wallet(None)?;
+								None
 							}
 							_ => keychain_mask,
 						};

@@ -258,6 +258,12 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
+	// Check if wallet has been opened first
+	{
+		let mut w_lock = wallet.lock();
+		let lc = w_lock.lc_provider()?;
+		let _ = lc.wallet_inst()?;
+	}
 	// need to keep in scope while the main listener is running
 	let _tor_process = match use_tor {
 		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {

@@ -130,6 +130,7 @@ pub fn listen<L, C, K>(
 	tor_config: &TorConfig,
 	args: &ListenArgs,
 	g_args: &GlobalArgs,
+	cli_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -137,13 +138,36 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let res = match args.method.as_str() {
-		"http" => controller::foreign_listener(
-			owner_api.wallet_inst.clone(),
-			keychain_mask,
-			&config.api_listen_addr(),
-			g_args.tls_conf.clone(),
-			tor_config.use_tor_listener,
-		),
+		"http" => {
+			let wallet_inst = owner_api.wallet_inst.clone();
+			let config = config.clone();
+			let tor_config = tor_config.clone();
+			let g_args = g_args.clone();
+			let api_thread = thread::Builder::new()
+				.name("wallet-http-listener".to_string())
+				.spawn(move || {
+					let res = controller::foreign_listener(
+						wallet_inst,
+						keychain_mask,
+						&config.api_listen_addr(),
+						g_args.tls_conf.clone(),
+						tor_config.use_tor_listener,
+					);
+					if let Err(e) = res {
+						error!("Error starting listener: {}", e);
+					}
+				});
+			if let Ok(t) = api_thread {
+				if !cli_mode {
+					let r = t.join();
+					if let Err(_) = r {
+						error!("Error starting listener");
+						return Err(ErrorKind::ListenerError.into());
+					}
+				}
+			}
+			Ok(())
+		}
 		"keybase" => KeybaseAllChannels::new()?.listen(
 			config.clone(),
 			g_args.password.clone().unwrap(),

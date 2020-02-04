@@ -105,6 +105,10 @@ pub enum ErrorKind {
 	ArgumentError(String),
 
 	/// Other
+	#[fail(display = "Listener Startup Error")]
+	ListenerError,
+
+	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),
 }

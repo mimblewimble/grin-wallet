@@ -130,7 +130,7 @@ fn real_main() -> i32 {
 	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
 	// no logging to stdout if we're running cli
 	match args.subcommand() {
-		("cli", _) => l.log_to_stdout = false,
+		("cli", _) => l.log_to_stdout = true,
 		_ => {}
 	};
 	init_logger(Some(l), None);

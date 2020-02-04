@@ -993,7 +993,7 @@ pub fn parse_and_execute<L, C, K>(
 	global_wallet_args: &command::GlobalArgs,
 	wallet_args: &ArgMatches,
 	test_mode: bool,
-	_cli_mode: bool,
+	cli_mode: bool,
 ) -> Result<(), Error>
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
@@ -1028,6 +1028,7 @@ where
 				&t,
 				&a,
 				&global_wallet_args.clone(),
+				cli_mode,
 			)
 		}
 		("owner_api", Some(args)) => {
@@ -1132,6 +1133,10 @@ where
 			command::scan(owner_api, km, a)
 		}
 		("open", Some(_)) => {
+			// for CLI mode only, should be handled externally
+			Ok(())
+		}
+		("close", Some(_)) => {
 			// for CLI mode only, should be handled externally
 			Ok(())
 		}
