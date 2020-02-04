@@ -3,8 +3,3 @@ steps:
       choco install -y llvm
     displayName: Windows Install LLVM
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
-  - script: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -y
-      echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-    displayName: macOS Install Rust
-    condition: eq( variables['Agent.OS'], 'Darwin' )
