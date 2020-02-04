@@ -35,7 +35,6 @@ use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use termion::clear;
 
 const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
 const PROMPT: &'static str = "grin-wallet> ";
@@ -57,7 +56,7 @@ macro_rules! cli_message_inline {
 							print!("\r");
 							print!($fmt_string, $( $arg ),*);
 							print!(" {}", COLORED_PROMPT);
-							print!("{}", clear::AfterCursor);
+							print!("\x1B[J");
 							print!("{}", *contents);
 							std::io::stdout().flush().unwrap();
 					/*} else {
