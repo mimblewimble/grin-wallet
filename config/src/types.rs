@@ -93,7 +93,7 @@ impl WalletConfig {
 	/// Use value from config file, defaulting to sensible value if missing.
 	pub fn owner_api_listen_port(&self) -> u16 {
 		self.owner_api_listen_port
-			.unwrap_or(WalletConfig::default_owner_api_listen_port())
+			.unwrap_or_else(WalletConfig::default_owner_api_listen_port)
 	}
 
 	/// Owner API listen address
@@ -166,7 +166,7 @@ impl From<io::Error> for ConfigError {
 	fn from(error: io::Error) -> ConfigError {
 		ConfigError::FileIOError(
 			String::from(""),
-			String::from(format!("Error loading config file: {}", error)),
+			format!("Error loading config file: {}", error),
 		)
 	}
 }

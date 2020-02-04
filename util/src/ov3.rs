@@ -57,7 +57,7 @@ impl OnionV3Address {
 			}
 		};
 		let d_pub_key: DalekPublicKey = (&d_skey).into();
-		Ok(OnionV3Address(d_pub_key.as_bytes().clone()))
+		Ok(OnionV3Address(*d_pub_key.as_bytes()))
 	}
 
 	/// return dalek public key

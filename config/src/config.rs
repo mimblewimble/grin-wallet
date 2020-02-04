@@ -32,15 +32,15 @@ use crate::types::{TorConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
 
 /// Wallet configuration file name
-pub const WALLET_CONFIG_FILE_NAME: &'static str = "grin-wallet.toml";
-const WALLET_LOG_FILE_NAME: &'static str = "grin-wallet.log";
-const GRIN_HOME: &'static str = ".grin";
+pub const WALLET_CONFIG_FILE_NAME: &str = "grin-wallet.toml";
+const WALLET_LOG_FILE_NAME: &str = "grin-wallet.log";
+const GRIN_HOME: &str = ".grin";
 /// Wallet data directory
-pub const GRIN_WALLET_DIR: &'static str = "wallet_data";
+pub const GRIN_WALLET_DIR: &str = "wallet_data";
 /// Node API secret
-pub const API_SECRET_FILE_NAME: &'static str = ".api_secret";
+pub const API_SECRET_FILE_NAME: &str = ".api_secret";
 /// Owner API secret
-pub const OWNER_API_SECRET_FILE_NAME: &'static str = ".owner_api_secret";
+pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 fn get_grin_path(
 	chain_type: &global::ChainTypes,
@@ -123,7 +123,7 @@ fn check_api_secret_file(
 		Some(p) => p,
 		None => get_grin_path(chain_type, false)?,
 	};
-	let mut api_secret_path = grin_path.clone();
+	let mut api_secret_path = grin_path;
 	api_secret_path.push(file_name);
 	if !api_secret_path.exists() {
 		init_api_secret(&api_secret_path)
@@ -150,7 +150,7 @@ pub fn initial_setup_wallet(
 		(path, GlobalWalletConfig::new(p.to_str().unwrap())?)
 	} else {
 		// Check if grin dir exists
-		let grin_path = match data_path.clone() {
+		let grin_path = match data_path {
 			Some(p) => p,
 			None => get_grin_path(chain_type, create_path)?,
 		};
@@ -265,7 +265,7 @@ impl GlobalWalletConfig {
 							.unwrap()
 							.clone(),
 					),
-					String::from(format!("{}", e)),
+					format!("{}", e),
 				));
 			}
 		}
@@ -311,10 +311,7 @@ impl GlobalWalletConfig {
 		match encoded {
 			Ok(enc) => return Ok(enc),
 			Err(e) => {
-				return Err(ConfigError::SerializationError(String::from(format!(
-					"{}",
-					e
-				))));
+				return Err(ConfigError::SerializationError(format!("{}", e)));
 			}
 		}
 	}

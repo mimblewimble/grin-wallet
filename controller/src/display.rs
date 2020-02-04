@@ -451,7 +451,7 @@ pub fn tx_messages(tx: &TxLogEntry, dark_background_color_scheme: bool) -> Resul
 
 	let msgs = match tx.messages.clone() {
 		None => {
-			writeln!(t, "{}", "None").unwrap();
+			writeln!(t, "None").unwrap();
 			t.reset().unwrap();
 			return Ok(());
 		}
@@ -459,7 +459,7 @@ pub fn tx_messages(tx: &TxLogEntry, dark_background_color_scheme: bool) -> Resul
 	};
 
 	if msgs.messages.is_empty() {
-		writeln!(t, "{}", "None").unwrap();
+		writeln!(t, "None").unwrap();
 		t.reset().unwrap();
 		return Ok(());
 	}
@@ -529,7 +529,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 
 	let pp = match &tx.payment_proof {
 		None => {
-			writeln!(t, "{}", "None").unwrap();
+			writeln!(t, "None").unwrap();
 			t.reset().unwrap();
 			return Ok(());
 		}
