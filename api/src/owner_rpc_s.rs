@@ -2130,7 +2130,7 @@ where
 		tx: &TxLogEntry,
 	) -> Result<Option<TransactionV3>, ErrorKind> {
 		Owner::get_stored_tx(self, (&token.keychain_mask).as_ref(), tx)
-			.map(|x| x.map(|y| TransactionV3::from(y)))
+			.map(|x| x.map(TransactionV3::from))
 			.map_err(|e| e.kind())
 	}
 
@@ -2173,21 +2173,19 @@ where
 		let secp = secp_inst.lock();
 		let sec_key = SecretKey::new(&secp, &mut thread_rng());
 
-		let mut shared_pubkey = ecdh_pubkey.ecdh_pubkey.clone();
+		let mut shared_pubkey = ecdh_pubkey.ecdh_pubkey;
 		shared_pubkey
 			.mul_assign(&secp, &sec_key)
-			.map_err(|e| ErrorKind::Secp(e))?;
+			.map_err(ErrorKind::Secp)?;
 
 		let x_coord = shared_pubkey.serialize_vec(&secp, true);
-		let shared_key =
-			SecretKey::from_slice(&secp, &x_coord[1..]).map_err(|e| ErrorKind::Secp(e))?;
+		let shared_key = SecretKey::from_slice(&secp, &x_coord[1..]).map_err(ErrorKind::Secp)?;
 		{
 			let mut s = self.shared_key.lock();
 			*s = Some(shared_key);
 		}
 
-		let pub_key =
-			PublicKey::from_secret_key(&secp, &sec_key).map_err(|e| ErrorKind::Secp(e))?;
+		let pub_key = PublicKey::from_secret_key(&secp, &sec_key).map_err(ErrorKind::Secp)?;
 
 		Ok(ECDHPubkey {
 			ecdh_pubkey: pub_key,
@@ -2247,7 +2245,7 @@ where
 		let n = name.as_ref().map(|s| s.as_str());
 		let res =
 			Owner::get_mnemonic(self, n, ZeroingString::from(password)).map_err(|e| e.kind())?;
-		Ok(format!("{}", &*res))
+		Ok((&*res).to_string())
 	}
 
 	fn change_password(

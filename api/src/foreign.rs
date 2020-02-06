@@ -121,10 +121,10 @@ where
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 	/// # let dir = dir
-	/// # 	.path()
-	/// # 	.to_str()
-	/// # 	.ok_or("Failed to convert tmpdir path to string.".to_owned())
-	/// # 	.unwrap();
+	/// #   .path()
+	/// #   .to_str()
+	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
+	/// #   .unwrap();
 	/// # wallet_config.data_file_dir = dir.to_owned();
 	///
 	/// // A NodeClient must first be created to handle communication between
@@ -137,7 +137,7 @@ where
 	/// // These traits can be replaced with alternative implementations if desired
 	///
 	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
-	///		as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
+	///     as Box<WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
 	///
 	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
 	/// let lc = wallet.lc_provider().unwrap();
@@ -236,17 +236,17 @@ where
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
 	///
 	/// let block_fees = BlockFees {
-	///		fees: 800000,
-	///		height: 234323,
-	///		key_id: None,
+	///     fees: 800000,
+	///     height: 234323,
+	///     key_id: None,
 	/// };
 	/// // Build a new coinbase output
 	///
-	///	let res = api_foreign.build_coinbase(&block_fees);
+	/// let res = api_foreign.build_coinbase(&block_fees);
 	///
 	/// if let Ok(cb_data) = res {
-	///		// cb_data is populated with coinbase output info
-	///		// ...
+	///     // cb_data is populated with coinbase output info
+	///     // ...
 	/// }
 	/// ```
 
@@ -294,13 +294,13 @@ where
 	/// # let slate = Slate::blank(2);
 	/// // Receive a slate via some means
 	///
-	///	let res = api_foreign.verify_slate_messages(&slate);
+	/// let res = api_foreign.verify_slate_messages(&slate);
 	///
 	/// if let Err(e) = res {
-	///		// Messages don't validate, likely return an error
-	///		// ...
+	///     // Messages don't validate, likely return an error
+	///     // ...
 	/// } else {
-	/// 	// Slate messages are fine
+	///     // Slate messages are fine
 	/// }
 	///
 	///
@@ -370,8 +370,8 @@ where
 	/// let result = api_foreign.receive_tx(&slate, None, None);
 	///
 	/// if let Ok(slate) = result {
-	///		// Send back to recipient somehow
-	///		// ...
+	///     // Send back to recipient somehow
+	///     // ...
 	/// }
 	/// ```
 
@@ -433,15 +433,15 @@ where
 	/// // . . .
 	/// // Issue the invoice tx via the owner API
 	/// let args = IssueInvoiceTxArgs {
-	///		amount: 10_000_000_000,
-	///		..Default::default()
+	///     amount: 10_000_000_000,
+	///     ..Default::default()
 	/// };
 	/// let result = api_owner.issue_invoice_tx(None, args);
 	///
-	///	// If result okay, send to payer, who will apply the transaction via their
-	///	// owner API, then send back the slate
-	///	// ...
-	///	# let slate = Slate::blank(2);
+	/// // If result okay, send to payer, who will apply the transaction via their
+	/// // owner API, then send back the slate
+	/// // ...
+	/// # let slate = Slate::blank(2);
 	///
 	/// let slate = api_foreign.finalize_invoice_tx(&slate);
 	/// // if okay, then post via the owner API

@@ -1344,7 +1344,7 @@ where
 
 	fn get_stored_tx(&self, tx: &TxLogEntry) -> Result<Option<TransactionV3>, ErrorKind> {
 		Owner::get_stored_tx(self, None, tx)
-			.map(|x| x.map(|y| TransactionV3::from(y)))
+			.map(|x| x.map(TransactionV3::from))
 			.map_err(|e| e.kind())
 	}
 
@@ -1458,9 +1458,7 @@ pub fn run_doctest_owner(
 	let _ = lc.set_top_level_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone(), false)
 		.unwrap();
-	let mask2 = lc
-		.open_wallet(None, empty_string.clone(), use_token, true)
-		.unwrap();
+	let mask2 = lc.open_wallet(None, empty_string, use_token, true).unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
 	if mask2.is_some() {
@@ -1558,7 +1556,7 @@ pub fn run_doctest_owner(
 	}
 
 	if payment_proof {
-		let _ = api_impl::owner::post_tx(&client1, &slate_outer.tx, true).unwrap();
+		api_impl::owner::post_tx(&client1, &slate_outer.tx, true).unwrap();
 	}
 
 	if perform_tx && lock_tx && finalize_tx {
