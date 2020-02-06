@@ -894,6 +894,7 @@ where
 pub struct CheckArgs {
 	pub delete_unconfirmed: bool,
 	pub start_height: Option<u64>,
+	pub backwards_from_tip: Option<u64>,
 }
 
 pub fn scan<L, C, K>(
@@ -907,8 +908,16 @@ where
 	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		warn!("Starting output scan ...",);
-		let result = api.scan(m, args.start_height, args.delete_unconfirmed);
+		let tip_height = api.node_height(m)?.height;
+		let start_height = match args.backwards_from_tip {
+			Some(b) => tip_height.saturating_sub(b),
+			None => match args.start_height {
+				Some(s) => s,
+				None => 1,
+			},
+		};
+		warn!("Starting output scan from height {} ...", start_height);
+		let result = api.scan(m, Some(start_height), args.delete_unconfirmed);
 		match result {
 			Ok(_) => {
 				warn!("Wallet check complete",);
