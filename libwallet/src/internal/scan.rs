@@ -238,21 +238,19 @@ where
 		t.update_confirmation_ts();
 		batch.save_tx_log_entry(t, &parent_key_id)?;
 		log_id
+	} else if let Some(ref mut s) = tx_stats {
+		let ts = s.get(&parent_key_id).unwrap().clone();
+		s.insert(
+			parent_key_id.clone(),
+			RestoredTxStats {
+				log_id: ts.log_id,
+				amount_credited: ts.amount_credited + output.value,
+				num_outputs: ts.num_outputs + 1,
+			},
+		);
+		ts.log_id
 	} else {
-		if let Some(ref mut s) = tx_stats {
-			let ts = s.get(&parent_key_id).unwrap().clone();
-			s.insert(
-				parent_key_id.clone(),
-				RestoredTxStats {
-					log_id: ts.log_id,
-					amount_credited: ts.amount_credited + output.value,
-					num_outputs: ts.num_outputs + 1,
-				},
-			);
-			ts.log_id
-		} else {
-			0
-		}
+		0
 	};
 
 	let _ = batch.save(OutputData {
@@ -269,9 +267,9 @@ where
 		tx_log_entry: Some(log_id),
 	});
 
-	let max_child_index = found_parents.get(&parent_key_id).unwrap().clone();
+	let max_child_index = *found_parents.get(&parent_key_id).unwrap();
 	if output.n_child >= max_child_index {
-		found_parents.insert(parent_key_id.clone(), output.n_child);
+		found_parents.insert(parent_key_id, output.n_child);
 	}
 
 	batch.commit()?;
@@ -294,12 +292,12 @@ where
 	let updated_tx_entry = if output.tx_log_entry.is_some() {
 		let entries = updater::retrieve_txs(
 			&mut **w,
-			output.tx_log_entry.clone(),
+			output.tx_log_entry,
 			None,
 			Some(&parent_key_id),
 			false,
 		)?;
-		if entries.len() > 0 {
+		if !entries.is_empty() {
 			let mut entry = entries[0].clone();
 			match entry.tx_type {
 				TxLogEntryType::TxSent => entry.tx_type = TxLogEntryType::TxSentCancelled,
@@ -343,7 +341,7 @@ where
 	}
 	let (client, keychain) = {
 		wallet_lock!(wallet_inst, w);
-		(w.w2n_client().clone(), w.keychain(keychain_mask)?.clone())
+		(w.w2n_client().clone(), w.keychain(keychain_mask)?)
 	};
 
 	// Retrieve the actual PMMR index range we're looking for
