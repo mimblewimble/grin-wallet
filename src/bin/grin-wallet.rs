@@ -16,7 +16,6 @@
 
 #[macro_use]
 extern crate clap;
-
 #[macro_use]
 extern crate log;
 use crate::config::ConfigError;
@@ -128,7 +127,12 @@ fn real_main() -> i32 {
 	//config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
 
 	// Load logging config
-	let l = config.members.as_mut().unwrap().logging.clone().unwrap();
+	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
+	// no logging to stdout if we're running cli
+	match args.subcommand() {
+		("cli", _) => l.log_to_stdout = true,
+		_ => {}
+	};
 	init_logger(Some(l), None);
 	info!(
 		"Using wallet configuration file at {}",

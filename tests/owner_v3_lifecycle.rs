@@ -339,23 +339,28 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let mut slate: Slate = res.unwrap().into();
 
 	// give this slate over to wallet 2 manually
-	grin_wallet_controller::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
-		let args = InitTxArgs {
-			src_acct_name: None,
-			amount: slate.amount,
-			minimum_confirmations: 1,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: false,
-			..Default::default()
-		};
-		let res = api.process_invoice_tx(m, &slate, args);
-		assert!(res.is_ok());
-		slate = res.unwrap();
-		api.tx_lock_outputs(m, &slate, 0)?;
+	grin_wallet_controller::controller::owner_single_use(
+		Some(wallet2.clone()),
+		mask2,
+		None,
+		|api, m| {
+			let args = InitTxArgs {
+				src_acct_name: None,
+				amount: slate.amount,
+				minimum_confirmations: 1,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: false,
+				..Default::default()
+			};
+			let res = api.process_invoice_tx(m, &slate, args);
+			assert!(res.is_ok());
+			slate = res.unwrap();
+			api.tx_lock_outputs(m, &slate, 0)?;
 
-		Ok(())
-	})?;
+			Ok(())
+		},
+	)?;
 
 	//16) Finalize the invoice tx (to foreign api)
 	// (Tests that foreign API on same port also has its stored mask updated)

@@ -72,14 +72,14 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		api.create_account_path(m, "mining")?;
 		api.create_account_path(m, "listener")?;
 		Ok(())
 	})?;
 
 	// add some accounts
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		api.create_account_path(m, "account1")?;
 		api.create_account_path(m, "account2")?;
 		Ok(())
@@ -100,7 +100,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let mut slate = Slate::blank(2);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
@@ -144,14 +144,14 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	}
 
 	// wallet 1 finalize
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		slate = PathToSlate((&receive_file).into()).get_tx()?;
 		slate = api.finalize_tx(m, &slate)?;
 		Ok(())
 	})?;
 
 	// Now repost from cached
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let stored_tx = api.get_stored_tx(m, &txs[0])?;
 		api.post_tx(m, &stored_tx.unwrap(), false)?;
@@ -163,7 +163,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	bh += 3;
 
 	// update/test contents of both accounts
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
@@ -176,7 +176,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		w.set_parent_key_id_by_name("listener")?;
 	}
 
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.last_confirmed_height, bh);
@@ -197,7 +197,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let mut slate = Slate::blank(2);
 	let amount = 60_000_000_000;
 
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -219,7 +219,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	bh += 3;
 
 	// Now repost from cached
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let stored_tx = api.get_stored_tx(m, &txs[0])?;
 		api.post_tx(m, &stored_tx.unwrap(), false)?;
@@ -231,7 +231,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	bh += 3;
 	//
 	// update/test contents of both accounts
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
@@ -239,7 +239,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.last_confirmed_height, bh);

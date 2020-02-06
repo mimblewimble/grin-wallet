@@ -76,7 +76,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1);
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -103,7 +103,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	// Now mine past the block, and check again. Transaction should be gone.
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
 
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let tx = txs[0].clone();
 
@@ -113,7 +113,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	})?;
 
 	// Should also be gone in wallet 2, and output gone
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |sender_api, m| {
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let tx = txs[0].clone();
 		let outputs = sender_api.retrieve_outputs(m, false, true, None)?.1;
@@ -126,7 +126,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	// try again, except try and send off the transaction for completion beyond the expiry
 	let mut slate = Slate::blank(1);
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -153,13 +153,13 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 2, false);
 
 	// Wallet 2 will need to have updated past the TTL
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |sender_api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |sender_api, m| {
 		let (_, _) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		Ok(())
 	})?;
 
 	// And when wallet 1 sends, should be rejected
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |_sender_api, _m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |_sender_api, _m| {
 		let res = client1.send_tx_slate_direct("wallet2", &slate);
 		println!("Send after TTL result is: {:?}", res);
 		assert!(res.is_err());

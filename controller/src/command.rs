@@ -15,6 +15,7 @@
 //! Grin wallet command-line function implementations
 
 use crate::api::TLSConfig;
+use crate::apiwallet::Owner;
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
@@ -22,7 +23,7 @@ use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateRec
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletInst, WalletLCProvider,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -31,6 +32,7 @@ use grin_wallet_util::OnionV3Address;
 use serde_json as json;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -67,7 +69,7 @@ pub struct InitArgs {
 }
 
 pub fn init<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	g_args: &GlobalArgs,
 	args: InitArgs,
 ) -> Result<(), Error>
@@ -76,7 +78,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut w_lock = wallet.lock();
+	let mut w_lock = owner_api.wallet_inst.lock();
 	let p = w_lock.lc_provider()?;
 	p.create_config(
 		&g_args.chain_type,
@@ -103,16 +105,13 @@ pub struct RecoverArgs {
 	pub passphrase: ZeroingString,
 }
 
-pub fn recover<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-	args: RecoverArgs,
-) -> Result<(), Error>
+pub fn recover<L, C, K>(owner_api: &mut Owner<L, C, K>, args: RecoverArgs) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut w_lock = wallet.lock();
+	let mut w_lock = owner_api.wallet_inst.lock();
 	let p = w_lock.lc_provider()?;
 	let m = p.get_mnemonic(None, args.passphrase)?;
 	show_recovery_phrase(m);
@@ -125,12 +124,13 @@ pub struct ListenArgs {
 }
 
 pub fn listen<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
 	tor_config: &TorConfig,
 	args: &ListenArgs,
 	g_args: &GlobalArgs,
+	cli_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -138,13 +138,36 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let res = match args.method.as_str() {
-		"http" => controller::foreign_listener(
-			wallet.clone(),
-			keychain_mask,
-			&config.api_listen_addr(),
-			g_args.tls_conf.clone(),
-			tor_config.use_tor_listener,
-		),
+		"http" => {
+			let wallet_inst = owner_api.wallet_inst.clone();
+			let config = config.clone();
+			let tor_config = tor_config.clone();
+			let g_args = g_args.clone();
+			let api_thread = thread::Builder::new()
+				.name("wallet-http-listener".to_string())
+				.spawn(move || {
+					let res = controller::foreign_listener(
+						wallet_inst,
+						keychain_mask,
+						&config.api_listen_addr(),
+						g_args.tls_conf.clone(),
+						tor_config.use_tor_listener,
+					);
+					if let Err(e) = res {
+						error!("Error starting listener: {}", e);
+					}
+				});
+			if let Ok(t) = api_thread {
+				if !cli_mode {
+					let r = t.join();
+					if let Err(_) = r {
+						error!("Error starting listener");
+						return Err(ErrorKind::ListenerError.into());
+					}
+				}
+			}
+			Ok(())
+		}
 		"keybase" => KeybaseAllChannels::new()?.listen(
 			config.clone(),
 			g_args.password.clone().unwrap(),
@@ -167,7 +190,7 @@ where
 }
 
 pub fn owner_api<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	config: &WalletConfig,
 	tor_config: &TorConfig,
@@ -182,7 +205,7 @@ where
 	// also being run at the same time
 	let km = Arc::new(Mutex::new(keychain_mask));
 	let res = controller::owner_listener(
-		wallet,
+		owner_api.wallet_inst.clone(),
 		km,
 		config.owner_api_listen_addr().as_str(),
 		g_args.api_secret.clone(),
@@ -202,7 +225,7 @@ pub struct AccountArgs {
 }
 
 pub fn account<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: AccountArgs,
 ) -> Result<(), Error>
@@ -212,7 +235,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	if args.create.is_none() {
-		let res = controller::owner_single_use(wallet, keychain_mask, |api, m| {
+		let res = controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 			let acct_mappings = api.accounts(m)?;
 			// give logging thread a moment to catch up
 			thread::sleep(Duration::from_millis(200));
@@ -225,7 +248,7 @@ where
 		}
 	} else {
 		let label = args.create.unwrap();
-		let res = controller::owner_single_use(wallet, keychain_mask, |api, m| {
+		let res = controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 			api.create_account_path(m, &label)?;
 			thread::sleep(Duration::from_millis(200));
 			info!("Account: '{}' Created!", label);
@@ -258,7 +281,7 @@ pub struct SendArgs {
 }
 
 pub fn send<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	tor_config: Option<TorConfig>,
 	args: SendArgs,
@@ -269,7 +292,8 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	let wallet_inst = owner_api.wallet_inst.clone();
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
@@ -333,7 +357,7 @@ where
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
-					controller::foreign_single_use(wallet, km, |api| {
+					controller::foreign_single_use(wallet_inst, km, |api| {
 						slate = api.receive_tx(&slate, Some(&args.dest), None)?;
 						Ok(())
 					})?;
@@ -374,7 +398,7 @@ pub struct ReceiveArgs {
 }
 
 pub fn receive<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
@@ -389,7 +413,7 @@ where
 		None => None,
 		Some(&m) => Some(m.to_owned()),
 	};
-	controller::foreign_single_use(wallet, km, |api| {
+	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);
 			return Err(e);
@@ -414,7 +438,7 @@ pub struct FinalizeArgs {
 }
 
 pub fn finalize<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: FinalizeArgs,
 ) -> Result<(), Error>
@@ -448,7 +472,7 @@ where
 			None => None,
 			Some(&m) => Some(m.to_owned()),
 		};
-		controller::foreign_single_use(wallet.clone(), km, |api| {
+		controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
 			if let Err(e) = api.verify_slate_messages(&slate) {
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
@@ -457,7 +481,7 @@ where
 			Ok(())
 		})?;
 	} else {
-		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 			if let Err(e) = api.verify_slate_messages(m, &slate) {
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
@@ -468,7 +492,7 @@ where
 	}
 
 	if !args.nopost {
-		controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 			let result = api.post_tx(m, &slate.tx, args.fluff);
 			match result {
 				Ok(_) => {
@@ -501,7 +525,7 @@ pub struct IssueInvoiceArgs {
 }
 
 pub fn issue_invoice_tx<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: IssueInvoiceArgs,
 ) -> Result<(), Error>
@@ -510,7 +534,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
 		PathToSlate((&args.dest).into()).put_tx(&slate)?;
 		Ok(())
@@ -533,7 +557,7 @@ pub struct ProcessInvoiceArgs {
 
 /// Process invoice
 pub fn process_invoice<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	tor_config: Option<TorConfig>,
 	args: ProcessInvoiceArgs,
@@ -545,7 +569,8 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	let wallet_inst = owner_api.wallet_inst.clone();
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
 				.into_iter()
@@ -611,7 +636,7 @@ where
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
-					controller::foreign_single_use(wallet, km, |api| {
+					controller::foreign_single_use(wallet_inst, km, |api| {
 						slate = api.finalize_invoice_tx(&slate)?;
 						Ok(())
 					})?;
@@ -633,7 +658,7 @@ pub struct InfoArgs {
 }
 
 pub fn info<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: InfoArgs,
@@ -644,17 +669,23 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let (validated, wallet_info) =
 			api.retrieve_summary_info(m, true, args.minimum_confirmations)?;
-		display::info(&g_args.account, &wallet_info, validated, dark_scheme);
+		display::info(
+			&g_args.account,
+			&wallet_info,
+			validated || updater_running,
+			dark_scheme,
+		);
 		Ok(())
 	})?;
 	Ok(())
 }
 
 pub fn outputs<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	dark_scheme: bool,
@@ -664,10 +695,17 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, outputs) = api.retrieve_outputs(m, g_args.show_spent, true, None)?;
-		display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
+		display::outputs(
+			&g_args.account,
+			res.height,
+			validated || updater_running,
+			outputs,
+			dark_scheme,
+		)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -680,7 +718,7 @@ pub struct TxsArgs {
 }
 
 pub fn txs<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: TxsArgs,
@@ -691,14 +729,15 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
 		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
 		display::txs(
 			&g_args.account,
 			res.height,
-			validated,
+			validated || updater_running,
 			&txs,
 			include_status,
 			dark_scheme,
@@ -721,7 +760,13 @@ where
 
 		if id.is_some() {
 			let (_, outputs) = api.retrieve_outputs(m, true, false, id)?;
-			display::outputs(&g_args.account, res.height, validated, outputs, dark_scheme)?;
+			display::outputs(
+				&g_args.account,
+				res.height,
+				validated || updater_running,
+				outputs,
+				dark_scheme,
+			)?;
 			// should only be one here, but just in case
 			for tx in txs {
 				display::tx_messages(&tx, dark_scheme)?;
@@ -741,7 +786,7 @@ pub struct PostArgs {
 }
 
 pub fn post<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: PostArgs,
 ) -> Result<(), Error>
@@ -752,7 +797,7 @@ where
 {
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
 
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		api.post_tx(m, &slate.tx, args.fluff)?;
 		info!("Posted transaction");
 		return Ok(());
@@ -768,7 +813,7 @@ pub struct RepostArgs {
 }
 
 pub fn repost<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: RepostArgs,
 ) -> Result<(), Error>
@@ -777,7 +822,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
 		let stored_tx = api.get_stored_tx(m, &txs[0])?;
 		if stored_tx.is_none() {
@@ -820,7 +865,7 @@ pub struct CancelArgs {
 }
 
 pub fn cancel<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: CancelArgs,
 ) -> Result<(), Error>
@@ -829,7 +874,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let result = api.cancel_tx(m, args.tx_id, args.tx_slate_id);
 		match result {
 			Ok(_) => {
@@ -852,7 +897,7 @@ pub struct CheckArgs {
 }
 
 pub fn scan<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: CheckArgs,
 ) -> Result<(), Error>
@@ -861,7 +906,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		warn!("Starting output scan ...",);
 		let result = api.scan(m, args.start_height, args.delete_unconfirmed);
 		match result {
@@ -881,7 +926,7 @@ where
 
 /// Payment Proof Address
 pub fn address<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	g_args: &GlobalArgs,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), Error>
@@ -890,7 +935,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		// Just address at derivation index 0 for now
 		let pub_key = api.get_public_proof_address(m, 0)?;
 		let addr = OnionV3Address::from_bytes(pub_key.to_bytes());
@@ -912,7 +957,7 @@ pub struct ProofExportArgs {
 }
 
 pub fn proof_export<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: ProofExportArgs,
 ) -> Result<(), Error>
@@ -921,7 +966,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let result = api.retrieve_payment_proof(m, true, args.id, args.tx_slate_id);
 		match result {
 			Ok(p) => {
@@ -947,7 +992,7 @@ pub struct ProofVerifyArgs {
 }
 
 pub fn proof_verify<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: ProofVerifyArgs,
 ) -> Result<(), Error>
@@ -956,7 +1001,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	controller::owner_single_use(wallet.clone(), keychain_mask, |api, m| {
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let mut proof_f = match File::open(&args.input_file) {
 			Ok(p) => p,
 			Err(e) => {

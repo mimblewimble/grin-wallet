@@ -69,7 +69,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		api.create_account_path(m, "mining")?;
 		api.create_account_path(m, "listener")?;
 		Ok(())
@@ -85,7 +85,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Sanity check wallet 1 contents
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
@@ -95,7 +95,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	let mut slate = Slate::blank(2);
 
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		// Wallet 2 inititates an invoice transaction, requesting payment
 		let args = IssueInvoiceTxArgs {
 			amount: reward * 2,
@@ -105,7 +105,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		// Wallet 1 receives the invoice transaction
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -129,7 +129,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// wallet 1 posts so wallet 2 doesn't get the mined amount
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		api.post_tx(m, &slate.tx, false)?;
 		Ok(())
 	})?;
@@ -139,7 +139,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	bh += 3;
 
 	// Check transaction log for wallet 2
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		let (_, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
 		assert!(refreshed);
@@ -155,7 +155,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// Check transaction log for wallet 1, ensure only 1 entry
 	// exists
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
 		assert!(refreshed);
@@ -168,7 +168,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// Test self-sending
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, |api, m| {
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		// Wallet 1 inititates an invoice transaction, requesting payment
 		let args = IssueInvoiceTxArgs {
 			amount: reward * 2,

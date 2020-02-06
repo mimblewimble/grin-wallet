@@ -13,12 +13,15 @@
 // limitations under the License.
 
 use crate::api::TLSConfig;
+use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
+use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use failure::Fail;
+use grin_wallet_api::Owner;
 use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
@@ -922,6 +925,7 @@ where
 	match wallet_args.subcommand() {
 		("init", Some(_)) => open_wallet = false,
 		("recover", _) => open_wallet = false,
+		("cli", _) => open_wallet = false,
 		("owner_api", _) => {
 			// If wallet exists, open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
@@ -950,34 +954,81 @@ where
 		false => None,
 	};
 
-	let km = (&keychain_mask).as_ref();
-
 	let res = match wallet_args.subcommand() {
+		("cli", Some(_)) => command_loop(
+			wallet,
+			keychain_mask,
+			&wallet_config,
+			&tor_config,
+			&global_wallet_args,
+			test_mode,
+		),
+		_ => {
+			let mut owner_api = Owner::new(wallet, None);
+			parse_and_execute(
+				&mut owner_api,
+				keychain_mask,
+				&wallet_config,
+				&tor_config,
+				&global_wallet_args,
+				&wallet_args,
+				test_mode,
+				false,
+			)
+		}
+	};
+
+	if let Err(e) = res {
+		Err(e)
+	} else {
+		Ok(wallet_args.subcommand().0.to_owned())
+	}
+}
+
+pub fn parse_and_execute<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<SecretKey>,
+	wallet_config: &WalletConfig,
+	tor_config: &TorConfig,
+	global_wallet_args: &command::GlobalArgs,
+	wallet_args: &ArgMatches,
+	test_mode: bool,
+	cli_mode: bool,
+) -> Result<(), Error>
+where
+	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let km = (&keychain_mask).as_ref();
+	match wallet_args.subcommand() {
 		("init", Some(args)) => {
 			let a = arg_parse!(parse_init_args(
-				wallet.clone(),
-				&wallet_config,
-				&global_wallet_args,
+				owner_api.wallet_inst.clone(),
+				wallet_config,
+				global_wallet_args,
 				&args,
 				test_mode,
 			));
-			command::init(wallet, &global_wallet_args, a)
+			command::init(owner_api, &global_wallet_args, a)
 		}
 		("recover", Some(_)) => {
 			let a = arg_parse!(parse_recover_args(&global_wallet_args,));
-			command::recover(wallet, a)
+			command::recover(owner_api, a)
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
 			let mut t = tor_config.clone();
 			let a = arg_parse!(parse_listen_args(&mut c, &mut t, &args));
 			command::listen(
-				wallet,
+				owner_api,
 				Arc::new(Mutex::new(keychain_mask)),
 				&c,
 				&t,
 				&a,
 				&global_wallet_args.clone(),
+				cli_mode,
 			)
 		}
 		("owner_api", Some(args)) => {
@@ -985,47 +1036,47 @@ where
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
 			arg_parse!(parse_owner_api_args(&mut c, &args));
-			command::owner_api(wallet, keychain_mask, &c, &tor_config, &g)
+			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g)
 		}
 		("web", Some(_)) => command::owner_api(
-			wallet,
+			owner_api,
 			keychain_mask,
-			&wallet_config,
-			&tor_config,
-			&global_wallet_args,
+			wallet_config,
+			tor_config,
+			global_wallet_args,
 		),
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
-			command::account(wallet, km, a)
+			command::account(owner_api, km, a)
 		}
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(&args));
 			command::send(
-				wallet,
+				owner_api,
 				km,
-				Some(tor_config),
+				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(wallet, km, &global_wallet_args, a)
+			command::receive(owner_api, km, &global_wallet_args, a)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
-			command::finalize(wallet, km, a)
+			command::finalize(owner_api, km, a)
 		}
 		("invoice", Some(args)) => {
 			let a = arg_parse!(parse_issue_invoice_args(&args));
-			command::issue_invoice_tx(wallet, km, a)
+			command::issue_invoice_tx(owner_api, km, a)
 		}
 		("pay", Some(args)) => {
 			let a = arg_parse!(parse_process_invoice_args(&args, !test_mode));
 			command::process_invoice(
-				wallet,
+				owner_api,
 				km,
-				Some(tor_config),
+				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -1033,15 +1084,15 @@ where
 		("info", Some(args)) => {
 			let a = arg_parse!(parse_info_args(&args));
 			command::info(
-				wallet,
+				owner_api,
 				km,
-				&global_wallet_args,
+				global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("outputs", Some(_)) => command::outputs(
-			wallet,
+			owner_api,
 			km,
 			&global_wallet_args,
 			wallet_config.dark_background_color_scheme.unwrap_or(true),
@@ -1049,7 +1100,7 @@ where
 		("txs", Some(args)) => {
 			let a = arg_parse!(parse_txs_args(&args));
 			command::txs(
-				wallet,
+				owner_api,
 				km,
 				&global_wallet_args,
 				a,
@@ -1058,37 +1109,40 @@ where
 		}
 		("post", Some(args)) => {
 			let a = arg_parse!(parse_post_args(&args));
-			command::post(wallet, km, a)
+			command::post(owner_api, km, a)
 		}
 		("repost", Some(args)) => {
 			let a = arg_parse!(parse_repost_args(&args));
-			command::repost(wallet, km, a)
+			command::repost(owner_api, km, a)
 		}
 		("cancel", Some(args)) => {
 			let a = arg_parse!(parse_cancel_args(&args));
-			command::cancel(wallet, km, a)
+			command::cancel(owner_api, km, a)
 		}
 		("export_proof", Some(args)) => {
 			let a = arg_parse!(parse_export_proof_args(&args));
-			command::proof_export(wallet, km, a)
+			command::proof_export(owner_api, km, a)
 		}
 		("verify_proof", Some(args)) => {
 			let a = arg_parse!(parse_verify_proof_args(&args));
-			command::proof_verify(wallet, km, a)
+			command::proof_verify(owner_api, km, a)
 		}
-		("address", Some(_)) => command::address(wallet, &global_wallet_args, km),
+		("address", Some(_)) => command::address(owner_api, &global_wallet_args, km),
 		("scan", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
-			command::scan(wallet, km, a)
+			command::scan(owner_api, km, a)
+		}
+		("open", Some(_)) => {
+			// for CLI mode only, should be handled externally
+			Ok(())
+		}
+		("close", Some(_)) => {
+			// for CLI mode only, should be handled externally
+			Ok(())
 		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
 			return Err(ErrorKind::ArgumentError(msg).into());
 		}
-	};
-	if let Err(e) = res {
-		Err(e)
-	} else {
-		Ok(wallet_args.subcommand().0.to_owned())
 	}
 }

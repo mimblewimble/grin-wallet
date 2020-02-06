@@ -122,13 +122,23 @@ where
 	) -> Result<(), Error> {
 		self.is_running.store(true, Ordering::Relaxed);
 		loop {
+			let wallet_opened = {
+				let mut w_lock = self.wallet_inst.lock();
+				let w_provider = w_lock.lc_provider()?;
+				match w_provider.wallet_inst() {
+					Ok(_) => true,
+					Err(_) => false,
+				}
+			};
 			// Business goes here
-			owner::update_wallet_state(
-				self.wallet_inst.clone(),
-				(&keychain_mask).as_ref(),
-				status_send_channel,
-				false,
-			)?;
+			if wallet_opened {
+				owner::update_wallet_state(
+					self.wallet_inst.clone(),
+					(&keychain_mask).as_ref(),
+					status_send_channel,
+					false,
+				)?;
+			}
 			if !self.is_running.load(Ordering::Relaxed) {
 				break;
 			}

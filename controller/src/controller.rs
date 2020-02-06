@@ -121,8 +121,9 @@ where
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn owner_single_use<L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: Option<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>>,
 	keychain_mask: Option<&SecretKey>,
+	api_context: Option<&mut Owner<L, C, K>>,
 	f: F,
 ) -> Result<(), Error>
 where
@@ -131,7 +132,21 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	f(&mut Owner::new(wallet), keychain_mask)?;
+	match api_context {
+		Some(c) => f(c, keychain_mask)?,
+		None => {
+			let wallet = match wallet {
+				Some(w) => w,
+				None => {
+					return Err(ErrorKind::GenericError(format!(
+						"Instantiated wallet or Owner API context must be provided"
+					))
+					.into())
+				}
+			};
+			f(&mut Owner::new(wallet, None), keychain_mask)?
+		}
+	}
 	Ok(())
 }
 
@@ -243,6 +258,12 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
+	// Check if wallet has been opened first
+	{
+		let mut w_lock = wallet.lock();
+		let lc = w_lock.lc_provider()?;
+		let _ = lc.wallet_inst()?;
+	}
 	// need to keep in scope while the main listener is running
 	let _tor_process = match use_tor {
 		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {
@@ -325,7 +346,7 @@ where
 	}
 
 	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Owner::new(self.wallet.clone());
+		let api = Owner::new(self.wallet.clone(), None);
 		Box::new(
 			self.call_api(req, api)
 				.and_then(|resp| ok(json_response_pretty(&resp))),
@@ -600,7 +621,7 @@ where
 		tor_config: Option<TorConfig>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		let owner_api = Owner::new(wallet.clone());
+		let owner_api = Owner::new(wallet.clone(), None);
 		owner_api.set_tor_config(tor_config);
 		let owner_api = Arc::new(owner_api);
 		OwnerAPIHandlerV3 {
