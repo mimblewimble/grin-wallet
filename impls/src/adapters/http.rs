@@ -25,7 +25,7 @@ use std::path::MAIN_SEPARATOR;
 use crate::tor::config as tor_config;
 use crate::tor::process as tor_process;
 
-const TOR_CONFIG_PATH: &'static str = "tor/sender";
+const TOR_CONFIG_PATH: &str = "tor/sender";
 
 #[derive(Clone)]
 pub struct HttpSlateSender {
@@ -78,10 +78,9 @@ impl HttpSlateSender {
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
 				// Report that the other version of the wallet is out of date
-				report = format!(
-					"Other wallet is incompatible and requires an upgrade. \
+				report = "Other wallet is incompatible and requires an upgrade. \
 					 Please urge the other wallet owner to upgrade and try the transaction again."
-				);
+					.to_string();
 			}
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
@@ -107,7 +106,7 @@ impl HttpSlateSender {
 
 		// trivial tests for now, but will be expanded later
 		if foreign_api_version < 2 {
-			let report = format!("Other wallet reports unrecognized API format.");
+			let report = "Other wallet reports unrecognized API format.".to_string();
 			error!("{}", report);
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
@@ -119,7 +118,7 @@ impl HttpSlateSender {
 			return Ok(SlateVersion::V2);
 		}
 
-		let report = format!("Unable to negotiate slate format with other wallet.");
+		let report = "Unable to negotiate slate format with other wallet.".to_string();
 		error!("{}", report);
 		Err(ErrorKind::ClientCallback(report).into())
 	}
@@ -136,7 +135,7 @@ impl HttpSlateSender {
 		let mut client = Client::new();
 		if self.use_socks {
 			client.use_socks = true;
-			client.socks_proxy_addr = self.socks_proxy_addr.clone();
+			client.socks_proxy_addr = self.socks_proxy_addr;
 		}
 		let req = client.create_post_request(url, api_secret, &input)?;
 		let res = client.send_request(req)?;
@@ -167,24 +166,24 @@ impl SlateSender for HttpSlateSender {
 				&tor_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
 			)
-			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 			// Start TOR process
 			tor.torrc_path(&format!("{}/torrc", &tor_dir))
 				.working_dir(&tor_dir)
 				.timeout(20)
 				.completion_percent(100)
 				.launch()
-				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
+				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)))?;
 		}
 
 		let slate_send = match self.check_other_version(&url_str)? {
 			SlateVersion::V3 => VersionedSlate::into_version(slate.clone(), SlateVersion::V3),
 			SlateVersion::V2 => {
 				let mut slate = slate.clone();
-				if let Some(_) = slate.payment_proof {
+				if slate.payment_proof.is_some() {
 					return Err(ErrorKind::ClientCallback("Payment proof requested, but other wallet does not support payment proofs. Please urge other user to upgrade, or re-send tx without a payment proof".into()).into());
 				}
-				if let Some(_) = slate.ttl_cutoff_height {
+				if slate.ttl_cutoff_height.is_some() {
 					warn!("Slate TTL value will be ignored and removed by other wallet, as other wallet does not support this feature. Please urge other user to upgrade");
 				}
 				slate.version_info.version = 2;
@@ -236,7 +235,7 @@ pub struct SchemeNotHttp;
 
 impl Into<Error> for SchemeNotHttp {
 	fn into(self) -> Error {
-		let err_str = format!("url scheme must be http",);
+		let err_str = "url scheme must be http".to_string();
 		ErrorKind::GenericError(err_str).into()
 	}
 }
