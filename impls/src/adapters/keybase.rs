@@ -373,8 +373,7 @@ impl SlateReceiver for KeybaseAllChannels {
 			for (msg, channel) in &unread.unwrap() {
 				let blob = Slate::deserialize_upgrade(&msg);
 				match blob {
-					Ok(message) => {
-						let slate: Slate = message;
+					Ok(slate) => {
 						let tx_uuid = slate.id;
 
 						// Reject multiple recipients channel for safety
