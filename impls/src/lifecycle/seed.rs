@@ -29,7 +29,7 @@ use crate::util;
 use crate::{Error, ErrorKind};
 use failure::ResultExt;
 
-pub const SEED_FILE: &'static str = "wallet.seed";
+pub const SEED_FILE: &str = "wallet.seed";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct WalletSeed(Vec<u8>);
@@ -108,10 +108,8 @@ impl WalletSeed {
 			i += 1;
 		}
 		path.push(backup_seed_file_name.clone());
-		if let Err(_) = fs::rename(seed_file_name, backup_seed_file_name.as_str()) {
-			return Err(ErrorKind::GenericError(
-				"Can't rename wallet seed file".to_owned(),
-			))?;
+		if fs::rename(seed_file_name, backup_seed_file_name.as_str()).is_err() {
+			return Err(ErrorKind::GenericError("Can't rename wallet seed file".to_owned()).into());
 		}
 		warn!("{} backed up as {}", seed_file_name, backup_seed_file_name);
 		Ok(backup_seed_file_name)
@@ -133,7 +131,8 @@ impl WalletSeed {
 				data_file_dir.to_owned(),
 				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
 					.to_owned(),
-			))?;
+			)
+			.into());
 		}
 		let seed = WalletSeed::from_mnemonic(word_list)?;
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
@@ -162,7 +161,7 @@ impl WalletSeed {
 		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
 			error!("{}", msg);
-			return Err(ErrorKind::WalletSeedExists(msg))?;
+			return Err(ErrorKind::WalletSeedExists(msg).into());
 		}
 
 		let seed = match recovery_phrase {
@@ -203,7 +202,7 @@ impl WalletSeed {
 				 Run \"grin-wallet init\" to initialize a new wallet.",
 				seed_file_path
 			);
-			Err(ErrorKind::WalletSeedDoesntExist)?
+			Err(ErrorKind::WalletSeedDoesntExist.into())
 		}
 	}
 
@@ -242,7 +241,7 @@ impl EncryptedWalletSeed {
 		let mut key = [0; 32];
 		pbkdf2::derive(&digest::SHA512, 100, &salt, password, &mut key);
 		let content = seed.0.to_vec();
-		let mut enc_bytes = content.clone();
+		let mut enc_bytes = content;
 		let suffix_len = aead::CHACHA20_POLY1305.tag_len();
 		for _ in 0..suffix_len {
 			enc_bytes.push(0);
@@ -262,15 +261,15 @@ impl EncryptedWalletSeed {
 	pub fn decrypt(&self, password: &str) -> Result<WalletSeed, Error> {
 		let mut encrypted_seed = match util::from_hex(self.encrypted_seed.clone()) {
 			Ok(s) => s,
-			Err(_) => return Err(ErrorKind::Encryption)?,
+			Err(_) => return Err(ErrorKind::Encryption.into()),
 		};
 		let salt = match util::from_hex(self.salt.clone()) {
 			Ok(s) => s,
-			Err(_) => return Err(ErrorKind::Encryption)?,
+			Err(_) => return Err(ErrorKind::Encryption.into()),
 		};
 		let nonce = match util::from_hex(self.nonce.clone()) {
 			Ok(s) => s,
-			Err(_) => return Err(ErrorKind::Encryption)?,
+			Err(_) => return Err(ErrorKind::Encryption.into()),
 		};
 		let password = password.as_bytes();
 		let mut key = [0; 32];

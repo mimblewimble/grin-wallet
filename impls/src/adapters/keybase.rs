@@ -44,7 +44,7 @@ impl KeybaseChannel {
 	/// Check if keybase is installed and return an adapter object.
 	pub fn new(channel: String) -> Result<KeybaseChannel, Error> {
 		// Limit only one recipient
-		if channel.matches(",").count() > 0 {
+		if channel.matches(',').count() > 0 {
 			return Err(
 				ErrorKind::GenericError("Only one recipient is supported!".to_owned()).into(),
 			);
@@ -83,12 +83,12 @@ fn api_send(payload: &str) -> Result<Value, Error> {
 			String::from_utf8_lossy(&output.stdout),
 			String::from_utf8_lossy(&output.stderr)
 		);
-		Err(ErrorKind::GenericError("keybase api fail".to_owned()))?
+		Err(ErrorKind::GenericError("keybase api fail".to_owned()).into())
 	} else {
 		let response: Value =
 			from_str(from_utf8(&output.stdout).expect("Bad output")).expect("Bad output");
 		let err_msg = format!("{}", response["error"]["message"]);
-		if err_msg.len() > 0 && err_msg != "null" {
+		if !err_msg.is_empty() && err_msg != "null" {
 			error!("api_send got error: {}", err_msg);
 		}
 
@@ -107,12 +107,12 @@ fn whoami() -> Result<String, Error> {
 			String::from_utf8_lossy(&output.stdout),
 			String::from_utf8_lossy(&output.stderr)
 		);
-		Err(ErrorKind::GenericError("keybase api fail".to_owned()))?
+		Err(ErrorKind::GenericError("keybase api fail".to_owned()).into())
 	} else {
 		let response: Value =
 			from_str(from_utf8(&output.stdout).expect("Bad output")).expect("Bad output");
 		let err_msg = format!("{}", response["error"]["message"]);
-		if err_msg.len() > 0 && err_msg != "null" {
+		if !err_msg.is_empty() && err_msg != "null" {
 			error!("status query got error: {}", err_msg);
 		}
 
@@ -121,9 +121,7 @@ fn whoami() -> Result<String, Error> {
 			Ok(s.to_string())
 		} else {
 			error!("keybase username query fail");
-			Err(ErrorKind::GenericError(
-				"keybase username query fail".to_owned(),
-			))?
+			Err(ErrorKind::GenericError("keybase username query fail".to_owned()).into())
 		}
 	}
 }
@@ -159,7 +157,7 @@ fn read_from_channel(channel: &str, topic: &str) -> Result<Vec<String>, Error> {
 		}
 		Ok(unread)
 	} else {
-		Err(ErrorKind::GenericError("keybase api fail".to_owned()))?
+		Err(ErrorKind::GenericError("keybase api fail".to_owned()).into())
 	}
 }
 
@@ -202,7 +200,7 @@ fn get_unread(topic: &str) -> Result<HashMap<String, String>, Error> {
 		}
 		Ok(unread)
 	} else {
-		Err(ErrorKind::GenericError("keybase api fail".to_owned()))?
+		Err(ErrorKind::GenericError("keybase api fail".to_owned()).into())
 	}
 }
 
@@ -276,16 +274,11 @@ fn poll(nseconds: u64, channel: &str) -> Option<Slate> {
 		let unread = read_from_channel(channel, SLATE_SIGNED);
 		for msg in unread.unwrap().iter() {
 			let blob = Slate::deserialize_upgrade(&msg);
-			match blob {
-				Ok(slate) => {
-					let slate: Slate = slate.into();
-					info!(
-						"keybase response message received from @{}, tx uuid: {}",
-						channel, slate.id,
-					);
-					return Some(slate);
-				}
-				Err(_) => (),
+			if let Ok(slate) = blob {
+				info!(
+					"keybase response message received from @{}, tx uuid: {}",
+					channel, slate.id,
+				);
 			}
 		}
 		sleep(POLL_SLEEP_DURATION);
@@ -306,19 +299,17 @@ impl SlateSender for KeybaseChannel {
 		match send(&slate, &self.0, SLATE_NEW, TTL) {
 			true => (),
 			false => {
-				return Err(ErrorKind::ClientCallback(
-					"Posting transaction slate".to_owned(),
-				))?;
+				return Err(
+					ErrorKind::ClientCallback("Posting transaction slate".to_owned()).into(),
+				);
 			}
 		}
 		info!("tx request has been sent to @{}, tx uuid: {}", &self.0, id);
 		// Wait for response from recipient with SLATE_SIGNED topic
 		match poll(TTL as u64, &self.0) {
-			Some(slate) => return Ok(slate),
+			Some(slate) => Ok(slate),
 			None => {
-				return Err(ErrorKind::ClientCallback(
-					"Receiving reply from recipient".to_owned(),
-				))?;
+				Err(ErrorKind::ClientCallback("Receiving reply from recipient".to_owned()).into())
 			}
 		}
 	}
@@ -355,17 +346,16 @@ impl SlateReceiver for KeybaseAllChannels {
 		node_api_secret: Option<String>,
 	) -> Result<(), Error> {
 		let node_client = HTTPNodeClient::new(&config.check_node_api_http_addr, node_api_secret);
-		let mut wallet = Box::new(
-			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
-		)
-			as Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
-					HTTPNodeClient,
-					ExtKeychain,
-				>,
-			>;
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client).unwrap())
+				as Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+						HTTPNodeClient,
+						ExtKeychain,
+					>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		lc.set_top_level_directory(&config.data_file_dir)?;
 		let mask = lc.open_wallet(None, passphrase, true, false)?;
@@ -383,17 +373,16 @@ impl SlateReceiver for KeybaseAllChannels {
 			for (msg, channel) in &unread.unwrap() {
 				let blob = Slate::deserialize_upgrade(&msg);
 				match blob {
-					Ok(message) => {
-						let slate: Slate = message.clone().into();
+					Ok(slate) => {
 						let tx_uuid = slate.id;
 
 						// Reject multiple recipients channel for safety
 						{
-							if channel.matches(",").count() > 1 {
+							if channel.matches(',').count() > 1 {
 								error!(
 									"Incoming tx initiated on channel \"{}\" is rejected, multiple recipients channel! amount: {}(g), tx uuid: {}",
 									channel,
-									slate.amount as f64 / 1000000000.0,
+									slate.amount as f64 / 1_000_000_000.0,
 									tx_uuid,
 								);
 								continue;
@@ -403,7 +392,7 @@ impl SlateReceiver for KeybaseAllChannels {
 						info!(
 							"tx initiated on channel \"{}\", to send you {}(g). tx uuid: {}",
 							channel,
-							slate.amount as f64 / 1000000000.0,
+							slate.amount as f64 / 1_000_000_000.0,
 							tx_uuid,
 						);
 						if let Err(e) = slate.verify_messages() {
@@ -411,15 +400,14 @@ impl SlateReceiver for KeybaseAllChannels {
 							return Err(e);
 						}
 						let res = {
-							let r = foreign::receive_tx(
+							foreign::receive_tx(
 								&mut **wallet_inst,
 								Some(mask.as_ref().unwrap()),
 								&slate,
 								None,
 								None,
 								false,
-							);
-							r
+							)
 						};
 						match res {
 							// Reply to the same channel with topic SLATE_SIGNED
@@ -460,7 +448,7 @@ fn notify_on_receive(keybase_notify_ttl: u16, channel: String, tx_uuid: String) 
 	if keybase_notify_ttl > 0 {
 		let my_username = whoami();
 		if let Ok(username) = my_username {
-			let split = channel.split(",");
+			let split = channel.split(',');
 			let vec: Vec<&str> = split.collect();
 			if vec.len() > 1 {
 				let receiver = username;

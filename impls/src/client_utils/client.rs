@@ -339,9 +339,9 @@ impl Client {
 				let addr = match self.socks_proxy_addr {
 					Some(a) => a,
 					None => {
-						return Box::new(result(Err(ErrorKind::RequestError(format!(
-							"Can't parse Socks proxy address"
-						))
+						return Box::new(result(Err(ErrorKind::RequestError(
+							"Can't parse Socks proxy address".to_string(),
+						)
 						.into())))
 					}
 				};

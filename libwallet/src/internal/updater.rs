@@ -66,8 +66,8 @@ where
 		outputs = outputs
 			.iter()
 			.filter(|o| o.root_key_id == *k)
-			.map(|o| o.clone())
-			.collect();
+			.cloned()
+			.collect()
 	}
 
 	outputs.sort_by_key(|out| out.n_child);
@@ -178,13 +178,7 @@ where
 		false => unspents
 			.into_iter()
 			.filter(|x| match x.tx_log_entry.as_ref() {
-				Some(t) => {
-					if let Some(_) = tx_entries.iter().find(|&te| te.id == *t) {
-						true
-					} else {
-						false
-					}
-				}
+				Some(t) => tx_entries.iter().any(|te| te.id == *t),
 				None => true,
 			})
 			.collect(),
@@ -228,7 +222,7 @@ where
 			batch.save(o)?;
 		}
 	}
-	let mut tx = tx.clone();
+	let mut tx = tx;
 	if tx.tx_type == TxLogEntryType::TxSent {
 		tx.tx_type = TxLogEntryType::TxSentCancelled;
 	}
@@ -291,8 +285,7 @@ where
 								let secp = static_secp_instance();
 								let secp = secp.lock();
 								let over_commit = secp.commit_value(output.value)?;
-								let excess =
-									secp.commit_sum(vec![commit.clone()], vec![over_commit])?;
+								let excess = secp.commit_sum(vec![*commit], vec![over_commit])?;
 								t.kernel_excess = Some(excess);
 								t.kernel_lookup_min_height = Some(height);
 							}
@@ -350,7 +343,7 @@ where
 	// and a list of outputs we want to query the node for
 	let wallet_outputs = map_wallet_outputs(wallet, keychain_mask, parent_key_id, update_all)?;
 
-	let wallet_output_keys = wallet_outputs.keys().map(|commit| commit.clone()).collect();
+	let wallet_output_keys = wallet_outputs.keys().copied().collect();
 
 	let api_outputs = wallet
 		.w2n_client()

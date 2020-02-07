@@ -82,21 +82,21 @@ where
 		let logging = match logging_config {
 			Some(l) => Some(l),
 			None => match default_config.members.as_ref() {
-				Some(m) => m.clone().logging.clone(),
+				Some(m) => m.clone().logging,
 				None => None,
 			},
 		};
 		let wallet = match wallet_config {
 			Some(w) => w,
 			None => match default_config.members.as_ref() {
-				Some(m) => m.clone().wallet.clone(),
+				Some(m) => m.clone().wallet,
 				None => WalletConfig::default(),
 			},
 		};
 		let tor = match tor_config {
 			Some(t) => Some(t),
 			None => match default_config.members.as_ref() {
-				Some(m) => m.clone().tor.clone(),
+				Some(m) => m.clone().tor,
 				None => Some(TorConfig::default()),
 			},
 		};
@@ -138,7 +138,7 @@ where
 		let mut abs_path = std::env::current_dir()?;
 		abs_path.push(self.data_dir.clone());
 
-		default_config.update_paths(&PathBuf::from(abs_path));
+		default_config.update_paths(&abs_path);
 		let res = default_config.write_to_file(config_file_name.to_str().unwrap());
 		if let Err(e) = res {
 			let msg = format!(
@@ -180,7 +180,7 @@ where
 		if !test_mode {
 			if let Ok(true) = exists {
 				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
-				return Err(ErrorKind::WalletSeedExists(msg))?;
+				return Err(ErrorKind::WalletSeedExists(msg).into());
 			}
 		}
 		WalletSeed::init_file(
@@ -245,10 +245,9 @@ where
 	}
 
 	fn close_wallet(&mut self, _name: Option<&str>) -> Result<(), Error> {
-		match self.backend.as_mut() {
-			Some(b) => b.close()?,
-			None => {}
-		};
+		if let Some(b) = self.backend.as_mut() {
+			b.close()?
+		}
 		self.backend = None;
 		Ok(())
 	}
@@ -283,7 +282,7 @@ where
 	fn validate_mnemonic(&self, mnemonic: ZeroingString) -> Result<(), Error> {
 		match WalletSeed::from_mnemonic(mnemonic) {
 			Ok(_) => Ok(()),
-			Err(_) => Err(ErrorKind::GenericError("Validating mnemonic".into()))?,
+			Err(_) => Err(ErrorKind::GenericError("Validating mnemonic".into()).into()),
 		}
 	}
 
@@ -345,9 +344,9 @@ where
 		)?;
 
 		if orig_wallet_seed != new_wallet_seed {
-			let msg = format!(
+			let msg =
 				"New and Old wallet seeds are not equal on password change, not removing backups."
-			);
+					.to_string();
 			return Err(ErrorKind::Lifecycle(msg).into());
 		}
 		// Removin

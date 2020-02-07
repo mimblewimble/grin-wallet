@@ -28,13 +28,13 @@ use std::path::{Path, MAIN_SEPARATOR};
 
 use failure::ResultExt;
 
-const SEC_KEY_FILE: &'static str = "hs_ed25519_secret_key";
-const PUB_KEY_FILE: &'static str = "hs_ed25519_public_key";
-const HOSTNAME_FILE: &'static str = "hostname";
-const TORRC_FILE: &'static str = "torrc";
-const TOR_DATA_DIR: &'static str = "data";
-const AUTH_CLIENTS_DIR: &'static str = "authorized_clients";
-const HIDDEN_SERVICES_DIR: &'static str = "onion_service_addresses";
+const SEC_KEY_FILE: &str = "hs_ed25519_secret_key";
+const PUB_KEY_FILE: &str = "hs_ed25519_public_key";
+const HOSTNAME_FILE: &str = "hostname";
+const TORRC_FILE: &str = "torrc";
+const TOR_DATA_DIR: &str = "data";
+const AUTH_CLIENTS_DIR: &str = "authorized_clients";
+const HIDDEN_SERVICES_DIR: &str = "onion_service_addresses";
 
 #[cfg(unix)]
 fn set_permissions(file_path: &str) -> Result<(), Error> {
@@ -100,7 +100,7 @@ pub fn create_onion_service_sec_key_file(
 	let key_file_path = &format!("{}{}{}", os_directory, MAIN_SEPARATOR, SEC_KEY_FILE);
 	let mut file = File::create(key_file_path).context(ErrorKind::IO)?;
 	// Tag is always 32 bytes, so pad with null zeroes
-	file.write("== ed25519v1-secret: type0 ==\0\0\0".as_bytes())
+	file.write(b"== ed25519v1-secret: type0 ==\0\0\0")
 		.context(ErrorKind::IO)?;
 	let expanded_skey: ExpandedSecretKey = ExpandedSecretKey::from(sec_key);
 	file.write_all(&expanded_skey.to_bytes())
@@ -115,7 +115,7 @@ pub fn create_onion_service_pub_key_file(
 	let key_file_path = &format!("{}{}{}", os_directory, MAIN_SEPARATOR, PUB_KEY_FILE);
 	let mut file = File::create(key_file_path).context(ErrorKind::IO)?;
 	// Tag is always 32 bytes, so pad with null zeroes
-	file.write("== ed25519v1-public: type0 ==\0\0\0".as_bytes())
+	file.write(b"== ed25519v1-public: type0 ==\0\0\0")
 		.context(ErrorKind::IO)?;
 	file.write_all(pub_key.as_bytes()).context(ErrorKind::IO)?;
 	Ok(())
@@ -170,7 +170,7 @@ pub fn output_torrc(
 	tor_config_directory: &str,
 	wallet_listener_addr: &str,
 	socks_port: &str,
-	service_dirs: &Vec<String>,
+	service_dirs: &[String],
 ) -> Result<(), Error> {
 	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
 
@@ -195,7 +195,7 @@ pub fn output_torrc(
 pub fn output_tor_listener_config(
 	tor_config_directory: &str,
 	wallet_listener_addr: &str,
-	listener_keys: &Vec<SecretKey>,
+	listener_keys: &[SecretKey],
 ) -> Result<(), Error> {
 	let tor_data_dir = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TOR_DATA_DIR);
 
@@ -228,7 +228,7 @@ pub fn output_tor_sender_config(
 	// create data directory if it doesn't exist
 	fs::create_dir_all(&tor_config_dir).context(ErrorKind::IO)?;
 
-	output_torrc(tor_config_dir, "", socks_listener_addr, &vec![])?;
+	output_torrc(tor_config_dir, "", socks_listener_addr, &[])?;
 
 	Ok(())
 }
@@ -238,13 +238,13 @@ pub fn is_tor_address(input: &str) -> Result<(), Error> {
 		Ok(_) => Ok(()),
 		Err(e) => {
 			let msg = format!("{:?}", e);
-			Err(ErrorKind::NotOnion(msg).to_owned())?
+			Err(ErrorKind::NotOnion(msg).into())
 		}
 	}
 }
 
 pub fn complete_tor_address(input: &str) -> Result<String, Error> {
-	let _ = is_tor_address(input)?;
+	is_tor_address(input)?;
 	let mut input = input.to_uppercase();
 	if !input.starts_with("HTTP://") && !input.starts_with("HTTPS://") {
 		input = format!("HTTP://{}", input);
@@ -278,7 +278,7 @@ mod tests {
 		setup(test_dir);
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
-		let mut test_rng = StepRng::new(1234567890u64, 1);
+		let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		output_onion_service_config(test_dir, &sec_key)?;
 		clean_output_dir(test_dir);
@@ -291,9 +291,9 @@ mod tests {
 		setup(test_dir);
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
-		let mut test_rng = StepRng::new(1234567890u64, 1);
+		let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
-		output_tor_listener_config(test_dir, "127.0.0.1:3415", &vec![sec_key])?;
+		output_tor_listener_config(test_dir, "127.0.0.1:3415", &[sec_key])?;
 		clean_output_dir(test_dir);
 		Ok(())
 	}

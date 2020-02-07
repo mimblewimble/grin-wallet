@@ -142,9 +142,7 @@ impl NodeClient for HTTPNodeClient {
 	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
 		let version = self
 			.get_version_info()
-			.ok_or(libwallet::ErrorKind::ClientCallback(
-				"Unable to get version".into(),
-			))?;
+			.ok_or_else(|| libwallet::ErrorKind::ClientCallback("Unable to get version".into()))?;
 		let version = Version::parse(&version.node_version)
 			.map_err(|_| libwallet::ErrorKind::ClientCallback("Unable to parse version".into()))?;
 		if version <= Version::new(2, 0, 0) {
@@ -159,12 +157,12 @@ impl NodeClient for HTTPNodeClient {
 			query += &format!("min_height={}", h);
 		}
 		if let Some(h) = max_height {
-			if query.len() > 0 {
+			if !query.is_empty() {
 				query += "&";
 			}
 			query += &format!("max_height={}", h);
 		}
-		if query.len() > 0 {
+		if !query.is_empty() {
 			query.insert_str(0, "?");
 		}
 
@@ -292,7 +290,7 @@ impl NodeClient for HTTPNodeClient {
 									out,
 									e);
 							error!("{}", msg);
-							Err(libwallet::ErrorKind::ClientCallback(msg))?
+							return Err(libwallet::ErrorKind::ClientCallback(msg).into());
 						}
 					};
 					let block_height = match out.block_height {
@@ -302,7 +300,7 @@ impl NodeClient for HTTPNodeClient {
 									out.commit,
 									out);
 							error!("{}", msg);
-							Err(libwallet::ErrorKind::ClientCallback(msg))?
+							return Err(libwallet::ErrorKind::ClientCallback(msg).into());
 						}
 					};
 					api_outputs.push((
@@ -322,7 +320,7 @@ impl NodeClient for HTTPNodeClient {
 					addr, e
 				);
 				let report = format!("outputs by pmmr index: {}", e);
-				Err(libwallet::ErrorKind::ClientCallback(report))?
+				Err(libwallet::ErrorKind::ClientCallback(report).into())
 			}
 		}
 	}
@@ -349,7 +347,7 @@ impl NodeClient for HTTPNodeClient {
 				// if we got anything other than 200 back from server, bye
 				error!("heightstopmmr: error contacting {}. Error: {}", addr, e);
 				let report = format!(": {}", e);
-				Err(libwallet::ErrorKind::ClientCallback(report))?
+				Err(libwallet::ErrorKind::ClientCallback(report).into())
 			}
 		}
 	}

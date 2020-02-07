@@ -82,10 +82,7 @@ impl VersionedSlate {
 impl From<VersionedSlate> for Slate {
 	fn from(slate: VersionedSlate) -> Slate {
 		match slate {
-			VersionedSlate::V3(s) => {
-				let s = SlateV3::from(s);
-				Slate::from(s)
-			}
+			VersionedSlate::V3(s) => Slate::from(s),
 			VersionedSlate::V2(s) => {
 				let s = SlateV3::from(s);
 				Slate::from(s)

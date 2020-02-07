@@ -70,7 +70,7 @@ pub mod ov3_serde {
 		String::deserialize(deserializer).and_then(|s| {
 			OnionV3Address::try_from(s.as_str())
 				.map_err(|err: OnionV3AddressError| Error::custom(format!("{:?}", err)))
-				.and_then(|a| Ok(a))
+				.and_then(Ok)
 		})
 	}
 }
@@ -128,13 +128,13 @@ pub mod option_dalek_pubkey_serde {
 		D: Deserializer<'de>,
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => from_hex(string.to_string())
+			Some(string) => from_hex(string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					DalekPublicKey::from_bytes(&b)
-						.map(|val| Some(val))
+						.map(Some)
 						.map_err(|err| Error::custom(err.to_string()))
 				}),
 			None => Ok(None),
@@ -198,13 +198,13 @@ pub mod option_dalek_sig_serde {
 		D: Deserializer<'de>,
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => from_hex(string.to_string())
+			Some(string) => from_hex(string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
 					let mut b = [0u8; 64];
 					b.copy_from_slice(&bytes[0..64]);
 					DalekSignature::from_bytes(&b)
-						.map(|val| Some(val))
+						.map(Some)
 						.map_err(|err| Error::custom(err.to_string()))
 				}),
 			None => Ok(None),

@@ -125,10 +125,7 @@ where
 			let wallet_opened = {
 				let mut w_lock = self.wallet_inst.lock();
 				let w_provider = w_lock.lc_provider()?;
-				match w_provider.wallet_inst() {
-					Ok(_) => true,
-					Err(_) => false,
-				}
+				w_provider.wallet_inst().is_ok()
 			};
 			// Business goes here
 			if wallet_opened {

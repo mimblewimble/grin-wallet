@@ -125,7 +125,7 @@ fn answer_hello(
 	if response[0] == 5 && response[1] == 0 {
 		Box::new(ok(socket))
 	} else if response[0] == 5 && response[1] == 2 && creds.is_some() {
-		Box::new(auth_negotiation(socket, creds).and_then(|socket| ok(socket)))
+		Box::new(auth_negotiation(socket, creds).and_then(ok))
 	} else {
 		Box::new(
 			Err(Error::new(
@@ -159,7 +159,7 @@ fn write_addr(socket: TcpStream, req: Destination) -> HandshakeFuture<TcpStream>
 	};
 
 	let mut packet = Vec::new();
-	packet.write_all(&vec![5, 1, 0]).unwrap();
+	packet.write_all(&[5, 1, 0]).unwrap();
 
 	packet.write_u8(3).unwrap();
 	packet.write_u8(host.as_bytes().len() as u8).unwrap();
