@@ -37,7 +37,7 @@ where
 	// for m/0: m/0/1/0, m/0/1/1
 	// for m/1: m/1/1/0, m/1/1/1
 	key_path.path[1] = ChildNumber::from(1);
-	key_path.depth = key_path.depth + 1;
+	key_path.depth += 1;
 	key_path.path[key_path.depth as usize - 1] = ChildNumber::from(index);
 	let key_id = Identifier::from_path(&key_path);
 	let sec_key = keychain.derive_key(0, &key_id, &SwitchCommitmentType::None)?;

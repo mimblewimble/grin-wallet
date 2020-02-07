@@ -59,9 +59,9 @@ fn get_grin_path(
 	}
 
 	if !grin_path.exists() {
-		return Err(ConfigError::PathNotFoundError(String::from(
+		Err(ConfigError::PathNotFoundError(String::from(
 			grin_path.to_str().unwrap(),
-		)));
+		)))
 	} else {
 		Ok(grin_path)
 	}
@@ -253,21 +253,12 @@ impl GlobalWalletConfig {
 		match decoded {
 			Ok(gc) => {
 				self.members = Some(gc);
-				return Ok(self);
+				Ok(self)
 			}
-			Err(e) => {
-				return Err(ConfigError::ParseError(
-					String::from(
-						self.config_file_path
-							.as_mut()
-							.unwrap()
-							.to_str()
-							.unwrap()
-							.clone(),
-					),
-					format!("{}", e),
-				));
-			}
+			Err(e) => Err(ConfigError::ParseError(
+				String::from(self.config_file_path.as_mut().unwrap().to_str().unwrap()),
+				format!("{}", e),
+			)),
 		}
 	}
 
@@ -309,10 +300,8 @@ impl GlobalWalletConfig {
 		let encoded: Result<String, toml::ser::Error> =
 			toml::to_string(self.members.as_mut().unwrap());
 		match encoded {
-			Ok(enc) => return Ok(enc),
-			Err(e) => {
-				return Err(ConfigError::SerializationError(format!("{}", e)));
-			}
+			Ok(enc) => Ok(enc),
+			Err(e) => Err(ConfigError::SerializationError(format!("{}", e))),
 		}
 	}
 

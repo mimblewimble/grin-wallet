@@ -43,7 +43,7 @@ fn get_output_local(chain: &chain::Chain, commit: &pedersen::Commitment) -> Opti
 	];
 
 	for x in outputs.iter() {
-		if let Ok(_) = chain.is_unspent(&x) {
+		if chain.is_unspent(&x).is_ok() {
 			let block_height = chain.get_header_for_output(&x).unwrap().height;
 			let output_pos = chain.get_output_pos(&x.commit).unwrap_or(0);
 			return Some(api::Output::new(&commit, block_height, output_pos));
@@ -221,8 +221,7 @@ where
 		let slate_i = owner::init_send_tx(&mut **w, keychain_mask, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
 		owner::tx_lock_outputs(&mut **w, keychain_mask, &slate, 0)?;
-		let slate = owner::finalize_tx(&mut **w, keychain_mask, &slate)?;
-		slate
+		owner::finalize_tx(&mut **w, keychain_mask, &slate)?
 	};
 	let client = {
 		let mut w_lock = wallet.lock();

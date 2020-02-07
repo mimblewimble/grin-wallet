@@ -674,9 +674,7 @@ pub fn run_doctest_foreign(
 	let _ = lc.set_top_level_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone(), false)
 		.unwrap();
-	let mask2 = lc
-		.open_wallet(None, empty_string.clone(), use_token, true)
-		.unwrap();
+	let mask2 = lc.open_wallet(None, empty_string, use_token, true).unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
 	wallet_proxy.add_wallet(

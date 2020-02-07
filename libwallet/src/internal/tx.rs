@@ -181,7 +181,7 @@ where
 	// Generate a kernel offset and subtract from our context's secret key. Store
 	// the offset in the slate's transaction kernel, and adds our public key
 	// information to the slate
-	let _ = slate.fill_round_1(
+	slate.fill_round_1(
 		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
@@ -192,7 +192,7 @@ where
 
 	if !is_initator {
 		// perform partial sig
-		let _ = slate.fill_round_2(
+		slate.fill_round_2(
 			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
@@ -229,7 +229,7 @@ where
 	)?;
 
 	// fill public keys
-	let _ = slate.fill_round_1(
+	slate.fill_round_1(
 		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
@@ -240,7 +240,7 @@ where
 
 	if !is_initiator {
 		// perform partial sig
-		let _ = slate.fill_round_2(
+		slate.fill_round_2(
 			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
@@ -264,7 +264,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let _ = slate.fill_round_2(
+	slate.fill_round_2(
 		&wallet.keychain(keychain_mask)?,
 		&context.sec_key,
 		&context.sec_nonce,
@@ -297,14 +297,14 @@ where
 	}
 	let tx_vec = updater::retrieve_txs(wallet, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
 	if tx_vec.len() != 1 {
-		return Err(ErrorKind::TransactionDoesntExist(tx_id_string))?;
+		return Err(ErrorKind::TransactionDoesntExist(tx_id_string).into());
 	}
 	let tx = tx_vec[0].clone();
 	if tx.tx_type != TxLogEntryType::TxSent && tx.tx_type != TxLogEntryType::TxReceived {
-		return Err(ErrorKind::TransactionNotCancellable(tx_id_string))?;
+		return Err(ErrorKind::TransactionNotCancellable(tx_id_string).into());
 	}
-	if tx.confirmed == true {
-		return Err(ErrorKind::TransactionNotCancellable(tx_id_string))?;
+	if tx.confirmed {
+		return Err(ErrorKind::TransactionNotCancellable(tx_id_string).into());
 	}
 	// get outputs associated with tx
 	let res = updater::retrieve_outputs(
@@ -338,17 +338,17 @@ where
 	// don't want to assume this is the right tx, in case of self-sending
 	for t in tx_vec {
 		if t.tx_type == TxLogEntryType::TxSent && !is_invoiced {
-			tx = Some(t.clone());
+			tx = Some(t);
 			break;
 		}
 		if t.tx_type == TxLogEntryType::TxReceived && is_invoiced {
-			tx = Some(t.clone());
+			tx = Some(t);
 			break;
 		}
 	}
 	let mut tx = match tx {
 		Some(t) => t,
-		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()))?,
+		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into()),
 	};
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), &slate.tx)?;
 	let parent_key = tx.parent_key_id.clone();
@@ -395,7 +395,7 @@ where
 {
 	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, false)?;
 	if tx_vec.is_empty() {
-		return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()))?;
+		return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into());
 	}
 	let mut batch = wallet.batch(keychain_mask)?;
 	for mut tx in tx_vec.into_iter() {
@@ -420,7 +420,7 @@ pub fn payment_proof_message(
 }
 
 pub fn _decode_payment_proof_message(
-	msg: &Vec<u8>,
+	msg: &[u8],
 ) -> Result<(u64, pedersen::Commitment, DalekPublicKey), Error> {
 	let mut rdr = Cursor::new(msg);
 	let amount = rdr.read_u64::<BigEndian>()?;
@@ -451,7 +451,7 @@ pub fn create_payment_proof_signature(
 	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 		Ok(k) => k,
 		Err(e) => {
-			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
+			return Err(ErrorKind::ED25519Key(format!("{}", e)).into());
 		}
 	};
 	let pub_key: DalekPublicKey = (&d_skey).into();
@@ -476,10 +476,11 @@ where
 	K: Keychain + 'a,
 {
 	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(parent_key_id), false)?;
-	if tx_vec.len() == 0 {
+	if tx_vec.is_empty() {
 		return Err(ErrorKind::PaymentProof(
 			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
-		))?;
+		)
+		.into());
 	}
 
 	let orig_proof_info = tx_vec[0].clone().payment_proof;
@@ -487,7 +488,8 @@ where
 	if orig_proof_info.is_some() && slate.payment_proof.is_none() {
 		return Err(ErrorKind::PaymentProof(
 			"Expected Payment Proof for this Transaction is not present".to_owned(),
-		))?;
+		)
+		.into());
 	}
 
 	if let Some(ref p) = slate.payment_proof {
@@ -496,7 +498,8 @@ where
 			None => {
 				return Err(ErrorKind::PaymentProof(
 					"Original proof info not stored in tx".to_owned(),
-				))?;
+				)
+				.into());
 			}
 		};
 		let keychain = wallet.keychain(keychain_mask)?;
@@ -505,7 +508,8 @@ where
 			None => {
 				return Err(ErrorKind::PaymentProof(
 					"Payment proof derivation index required".to_owned(),
-				))?;
+				)
+				.into());
 			}
 		};
 		let orig_sender_sk =
@@ -514,13 +518,15 @@ where
 		if p.sender_address != orig_sender_address.to_ed25519()? {
 			return Err(ErrorKind::PaymentProof(
 				"Sender address on slate does not match original sender address".to_owned(),
-			))?;
+			)
+			.into());
 		}
 
 		if orig_proof_info.receiver_address != p.receiver_address {
 			return Err(ErrorKind::PaymentProof(
 				"Recipient address on slate does not match original recipient address".to_owned(),
-			))?;
+			)
+			.into());
 		}
 		let msg = payment_proof_message(
 			slate.amount,
@@ -532,14 +538,13 @@ where
 			None => {
 				return Err(ErrorKind::PaymentProof(
 					"Recipient did not provide requested proof signature".to_owned(),
-				))?;
+				)
+				.into());
 			}
 		};
 
-		if let Err(_) = p.receiver_address.verify(&msg, &sig) {
-			return Err(ErrorKind::PaymentProof(
-				"Invalid proof signature".to_owned(),
-			))?;
+		if p.receiver_address.verify(&msg, &sig).is_err() {
+			return Err(ErrorKind::PaymentProof("Invalid proof signature".to_owned()).into());
 		};
 	}
 	Ok(())
@@ -588,7 +593,7 @@ mod test {
 	fn payment_proof_construction() {
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
-		let mut test_rng = StepRng::new(1234567890u64, 1);
+		let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
 		let d_skey = DalekSecretKey::from_bytes(&sec_key.0).unwrap();
 
@@ -615,7 +620,7 @@ mod test {
 				.unwrap()
 		};
 
-		let amount = 12345678u64;
+		let amount = 1_234_567_890_u64;
 		let msg = payment_proof_message(amount, &kernel_excess, address).unwrap();
 		println!("payment proof message is (len {}): {:?}", msg.len(), msg);
 

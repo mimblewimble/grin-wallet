@@ -61,9 +61,9 @@ use std::thread;
 use sysinfo::{Process, ProcessExt, Signal};
 
 #[cfg(windows)]
-const TOR_EXE_NAME: &'static str = "tor.exe";
+const TOR_EXE_NAME: &str = "tor.exe";
 #[cfg(not(windows))]
-const TOR_EXE_NAME: &'static str = "tor";
+const TOR_EXE_NAME: &str = "tor";
 
 #[derive(Debug)]
 pub enum Error {
@@ -160,7 +160,7 @@ impl TorProcess {
 			let pid_file_name = format!("{}{}pid", d, MAIN_SEPARATOR);
 			// kill off PID if its already running
 			if Path::new(&pid_file_name).exists() {
-				let pid = fs::read_to_string(&pid_file_name).map_err(|err| Error::IO(err))?;
+				let pid = fs::read_to_string(&pid_file_name).map_err(Error::IO)?;
 				let pid = pid
 					.parse::<i32>()
 					.map_err(|err| Error::PID(format!("{:?}", err)))?;
@@ -186,9 +186,9 @@ impl TorProcess {
 			// split out the process id, so if we don't exit cleanly
 			// we can take it down on the next run
 			let pid_file_name = format!("{}{}pid", d, MAIN_SEPARATOR);
-			let mut file = File::create(pid_file_name).map_err(|err| Error::IO(err))?;
+			let mut file = File::create(pid_file_name).map_err(Error::IO)?;
 			file.write_all(format!("{}", tor_process.id()).as_bytes())
-				.map_err(|err| Error::IO(err))?;
+				.map_err(Error::IO)?;
 		}
 
 		let stdout = BufReader::new(tor_process.stdout.take().unwrap());
@@ -228,7 +228,7 @@ impl TorProcess {
 		completion_perc: u8,
 	) -> Result<BufReader<ChildStdout>, Error> {
 		let re_bootstrap = Regex::new(r"^\[notice\] Bootstrapped (?P<perc>[0-9]+)%(.*): ")
-			.map_err(|err| Error::Regex(err))?;
+			.map_err(Error::Regex)?;
 
 		let timestamp_len = "May 16 02:50:08.792".len();
 		let mut warnings = Vec::new();
@@ -253,7 +253,7 @@ impl TorProcess {
 								.captures(line)
 								.and_then(|c| c.name("perc"))
 								.and_then(|pc| pc.as_str().parse::<u8>().ok())
-								.ok_or(Error::InvalidBootstrapLine(line.to_string()))?;
+								.ok_or_else(|| Error::InvalidBootstrapLine(line.to_string()))?;
 
 							if perc >= completion_perc {
 								break;

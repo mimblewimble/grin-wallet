@@ -111,15 +111,16 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut validated = false;
-	if refresh_from_node {
-		validated = update_wallet_state(
+	let validated = if refresh_from_node {
+		update_wallet_state(
 			wallet_inst.clone(),
 			keychain_mask,
 			status_send_channel,
 			false,
-		)?;
-	}
+		)?
+	} else {
+		false
+	};
 
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
@@ -150,15 +151,16 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut validated = false;
-	if refresh_from_node {
-		validated = update_wallet_state(
+	let validated = if refresh_from_node {
+		update_wallet_state(
 			wallet_inst.clone(),
 			keychain_mask,
 			status_send_channel,
 			false,
-		)?;
-	}
+		)?
+	} else {
+		false
+	};
 
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
@@ -180,15 +182,16 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut validated = false;
-	if refresh_from_node {
-		validated = update_wallet_state(
+	let validated = if refresh_from_node {
+		update_wallet_state(
 			wallet_inst.clone(),
 			keychain_mask,
 			status_send_channel,
 			false,
-		)?;
-	}
+		)?
+	} else {
+		false
+	};
 
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
@@ -216,15 +219,16 @@ where
 		)
 		.into());
 	}
-	let mut _validated = false;
 	if refresh_from_node {
-		_validated = update_wallet_state(
+		update_wallet_state(
 			wallet_inst.clone(),
 			keychain_mask,
 			status_send_channel,
 			false,
-		)?;
-	}
+		)?
+	} else {
+		false
+	};
 	let txs = retrieve_txs(
 		wallet_inst.clone(),
 		keychain_mask,
@@ -469,7 +473,7 @@ where
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d.to_owned())?;
+			let pm = w.get_acct_path(d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),
@@ -570,8 +574,8 @@ where
 	let parent_key_id = w.parent_key_id();
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, false)?;
-	tx::update_message(&mut *w, keychain_mask, &mut sl)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+	tx::update_message(&mut *w, keychain_mask, &sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes(), 0)?;
@@ -601,7 +605,8 @@ where
 	)? {
 		return Err(ErrorKind::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
-		))?;
+		)
+		.into());
 	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
@@ -739,7 +744,7 @@ where
 {
 	let parent_key_id = {
 		wallet_lock!(wallet_inst, w);
-		w.parent_key_id().clone()
+		w.parent_key_id()
 	};
 	let client = {
 		wallet_lock!(wallet_inst, w);
@@ -822,7 +827,7 @@ where
 	let start_index = last_scanned_block.height.saturating_sub(100);
 
 	if last_scanned_block.height == 0 {
-		let msg = format!("This wallet has not been scanned against the current chain. Beginning full scan... (this first scan may take a while, but subsequent scans will be much quicker)");
+		let msg = "This wallet has not been scanned against the current chain. Beginning full scan... (this first scan may take a while, but subsequent scans will be much quicker)".to_string();
 		if let Some(ref s) = status_send_channel {
 			let _ = s.send(StatusMessage::FullScanWarn(msg));
 		}
@@ -873,7 +878,7 @@ where
 	let last_confirmed_height = w.last_confirmed_height()?;
 	if let Some(e) = slate.ttl_cutoff_height {
 		if last_confirmed_height >= e {
-			return Err(ErrorKind::TransactionExpired)?;
+			return Err(ErrorKind::TransactionExpired.into());
 		}
 	}
 	Ok(())
@@ -906,35 +911,31 @@ where
 	// Check kernel exists
 	match client.get_kernel(&proof.excess, None, None) {
 		Err(e) => {
-			return Err(ErrorKind::PaymentProof(
-				format!("Error retrieving kernel from chain: {}", e).to_owned(),
-			))?;
+			return Err(ErrorKind::PaymentProof(format!(
+				"Error retrieving kernel from chain: {}",
+				e
+			))
+			.into());
 		}
 		Ok(None) => {
-			return Err(ErrorKind::PaymentProof(
-				format!(
-					"Transaction kernel with excess {:?} not found on chain",
-					proof.excess
-				)
-				.to_owned(),
-			))?;
+			return Err(ErrorKind::PaymentProof(format!(
+				"Transaction kernel with excess {:?} not found on chain",
+				proof.excess
+			))
+			.into());
 		}
 		Ok(Some(_)) => {}
 	};
 
 	// Check Sigs
 	let recipient_pubkey = proof.recipient_address.to_ed25519()?;
-	if let Err(_) = recipient_pubkey.verify(&msg, &proof.recipient_sig) {
-		return Err(ErrorKind::PaymentProof(
-			"Invalid recipient signature".to_owned(),
-		))?;
+	if recipient_pubkey.verify(&msg, &proof.recipient_sig).is_err() {
+		return Err(ErrorKind::PaymentProof("Invalid recipient signature".to_owned()).into());
 	};
 
 	let sender_pubkey = proof.sender_address.to_ed25519()?;
-	if let Err(_) = sender_pubkey.verify(&msg, &proof.sender_sig) {
-		return Err(ErrorKind::PaymentProof(
-			"Invalid sender signature".to_owned(),
-		))?;
+	if sender_pubkey.verify(&msg, &proof.sender_sig).is_err() {
+		return Err(ErrorKind::PaymentProof("Invalid sender signature".to_owned()).into());
 	};
 
 	// for now, simple test as to whether one of the addresses belongs to this wallet
@@ -942,7 +943,7 @@ where
 	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 		Ok(k) => k,
 		Err(e) => {
-			return Err(ErrorKind::ED25519Key(format!("{}", e)).to_owned())?;
+			return Err(ErrorKind::ED25519Key(format!("{}", e)).into());
 		}
 	};
 	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
@@ -990,7 +991,7 @@ where
 {
 	let parent_key_id = {
 		wallet_lock!(wallet_inst, w);
-		w.parent_key_id().clone()
+		w.parent_key_id()
 	};
 
 	let mut client = {
