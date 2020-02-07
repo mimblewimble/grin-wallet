@@ -705,9 +705,15 @@ pub fn parse_info_args(args: &ArgMatches) -> Result<command::InfoArgs, ParseErro
 pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseError> {
 	let delete_unconfirmed = args.is_present("delete_unconfirmed");
 	let start_height = parse_u64_or_none(args.value_of("start_height"));
+	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
+	if backwards_from_tip.is_some() && start_height.is_some() {
+		let msg = format!("backwards_from tip and start_height cannot both be present");
+		return Err(ParseError::ArgumentError(msg));
+	}
 	Ok(command::CheckArgs {
-		start_height: start_height,
-		delete_unconfirmed: delete_unconfirmed,
+		start_height,
+		backwards_from_tip,
+		delete_unconfirmed,
 	})
 }
 
