@@ -147,7 +147,7 @@ impl Client {
 	/// object as body on a given URL that returns a JSON object. Handles request
 	/// building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn _post<IN, OUT>(
+	pub fn post<IN, OUT>(
 		&self,
 		url: &str,
 		api_secret: Option<String>,

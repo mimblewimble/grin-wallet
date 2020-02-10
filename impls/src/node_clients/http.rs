@@ -30,6 +30,9 @@ use crate::libwallet;
 use crate::util::secp::pedersen;
 use crate::util::{self, to_hex};
 
+use super::resp_types::*;
+use crate::client_utils::json_rpc::*;
+
 #[derive(Clone)]
 pub struct HTTPNodeClient {
 	node_url: String,
@@ -50,6 +53,33 @@ impl HTTPNodeClient {
 	/// Allow returning the chain height without needing a wallet instantiated
 	pub fn chain_height(&self) -> Result<(u64, String), libwallet::Error> {
 		self.get_chain_tip()
+	}
+
+	fn send_json_request<D: serde::de::DeserializeOwned>(
+		&self,
+		method: &str,
+		params: &[serde_json::Value],
+	) -> Result<D, libwallet::Error> {
+		let url = format!("{}/v2/foreign", self.node_url());
+		let client = Client::new();
+		let req = build_request(method, params);
+		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
+
+		match res {
+			Err(e) => {
+				let report = format!("Error calling {}: {}", method, e);
+				error!("{}", report);
+				Err(libwallet::ErrorKind::ClientCallback(report).into())
+			}
+			Ok(inner) => match inner.into_result() {
+				Ok(r) => Ok(r),
+				Err(e) => {
+					let report = format!("Unable to parse response for {}: {}", method, e);
+					error!("{}", report);
+					Err(libwallet::ErrorKind::ClientCallback(report).into())
+				}
+			},
+		}
 	}
 }
 
@@ -119,18 +149,8 @@ impl NodeClient for HTTPNodeClient {
 
 	/// Return the chain tip from a given node
 	fn get_chain_tip(&self) -> Result<(u64, String), libwallet::Error> {
-		let addr = self.node_url();
-		let url = format!("{}/v1/chain", addr);
-		let client = Client::new();
-		let res = client.get::<api::Tip>(url.as_str(), self.node_api_secret());
-		match res {
-			Err(e) => {
-				let report = format!("Getting chain height from node: {}", e);
-				error!("Get chain height error: {}", e);
-				Err(libwallet::ErrorKind::ClientCallback(report).into())
-			}
-			Ok(r) => Ok((r.height, r.last_block_pushed)),
-		}
+		let result = self.send_json_request::<GetTipResp>("get_tip", &[])?;
+		Ok((result.height, result.last_block_pushed))
 	}
 
 	/// Get kernel implementation
