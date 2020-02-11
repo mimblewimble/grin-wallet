@@ -441,7 +441,7 @@ impl NodeClient for LocalWalletClient {
 	}
 	/// Posts a transaction to a grin node
 	/// In this case it will create a new block with award rewarded to
-	fn post_tx(&self, tx: &TxWrapper, _fluff: bool) -> Result<(), libwallet::Error> {
+	fn post_tx(&self, tx: &Transaction, _fluff: bool) -> Result<(), libwallet::Error> {
 		let m = WalletProxyMessage {
 			sender_id: self.id.clone(),
 			dest: self.node_url().to_owned(),

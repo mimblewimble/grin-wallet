@@ -13,12 +13,15 @@
 // limitations under the License.
 
 //! Client functions, implementations of the NodeClient trait
-//! specific to the FileWallet
+
 use crate::api::{self, LocatedTxKernel, OutputPrintable};
-use crate::core::core::TxKernel;
-use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
+use crate::core::core::{Transaction, TxKernel};
+use crate::libwallet::{NodeClient, NodeVersionInfo};
+use futures::{stream, Stream};
 use semver::Version;
 use std::collections::HashMap;
+use std::env;
+use tokio::runtime::Runtime;
 
 use crate::client_utils::Client;
 use crate::libwallet;
@@ -127,21 +130,9 @@ impl NodeClient for HTTPNodeClient {
 	}
 
 	/// Posts a transaction to a grin node
-	fn post_tx(&self, tx: &TxWrapper, fluff: bool) -> Result<(), libwallet::Error> {
-		let url;
-		let dest = self.node_url();
-		if fluff {
-			url = format!("{}/v1/pool/push_tx?fluff", dest);
-		} else {
-			url = format!("{}/v1/pool/push_tx", dest);
-		}
-		let client = Client::new();
-		let res = client.post_no_ret(url.as_str(), self.node_api_secret(), tx);
-		if let Err(e) = res {
-			let report = format!("Posting transaction to node: {}", e);
-			error!("Post TX Error: {}", e);
-			return Err(libwallet::ErrorKind::ClientCallback(report).into());
-		}
+	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), libwallet::Error> {
+		let params = json!([tx, fluff]);
+		self.send_json_request::<serde_json::Value>("push_transaction", &params)?;
 		Ok(())
 	}
 
@@ -211,16 +202,73 @@ impl NodeClient for HTTPNodeClient {
 		}
 
 		// build vec of commits for inclusion in query
-		let commit_params: Vec<String> = wallet_outputs
+		let query_params: Vec<String> = wallet_outputs
 			.iter()
 			.map(|commit| format!("{}", util::to_hex(commit.as_ref().to_vec())))
 			.collect();
 
-		let params = json!([commit_params, null, null, false, false]);
+		let mut tasks = Vec::new();
+		// going to leave this here even though we're moving
+		// to the json RPC api to keep the functionality of
+		// parallelizing larger requests. Will raise default
+		// from 200 to 500, however
+		let chunk_default = 500;
+		let chunk_size = match env::var("GRIN_OUTPUT_QUERY_SIZE") {
+			Ok(s) => match s.parse::<usize>() {
+				Ok(c) => c,
+				Err(e) => {
+					error!(
+						"Unable to parse GRIN_OUTPUT_QUERY_SIZE, defaulting to {}",
+						chunk_default
+					);
+					error!("Reason: {}", e);
+					chunk_default
+				}
+			},
+			Err(_) => chunk_default,
+		};
 
-		let result = self.send_json_request::<Vec<OutputPrintable>>("get_outputs", &params)?;
+		trace!("Output query chunk size is: {}", chunk_size);
 
-		for out in result.iter() {
+		let url = format!("{}/v2/foreign", self.node_url());
+		let client = Client::new();
+		/*let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);*/
+
+		for query_chunk in query_params.chunks(chunk_size) {
+			let params = json!([query_chunk, null, null, false, false]);
+			let req = build_request("get_outputs", &params);
+			tasks.push(client.post_async::<Request, Response>(
+				url.as_str(),
+				&req,
+				self.node_api_secret(),
+			));
+		}
+
+		let task = stream::futures_unordered(tasks).collect();
+		let mut rt = Runtime::new().unwrap();
+		let results: Vec<OutputPrintable> = match rt.block_on(task) {
+			Ok(resps) => {
+				let mut results = vec![];
+				for r in resps {
+					match r.into_result::<Vec<OutputPrintable>>() {
+						Ok(mut r) => results.append(&mut r),
+						Err(e) => {
+							let report = format!("Unable to parse response for get_outputs: {}", e);
+							error!("{}", report);
+							return Err(libwallet::ErrorKind::ClientCallback(report).into());
+						}
+					};
+				}
+				results
+			}
+			Err(e) => {
+				let report = format!("Getting outputs by id: {}", e);
+				error!("Outputs by id failed: {}", e);
+				return Err(libwallet::ErrorKind::ClientCallback(report).into());
+			}
+		};
+
+		for out in results.iter() {
 			let height = match out.block_height {
 				Some(h) => h,
 				None => {
