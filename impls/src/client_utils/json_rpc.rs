@@ -20,7 +20,7 @@ use hyper;
 use serde_json;
 
 /// Builds a request
-pub fn build_request<'a, 'b>(name: &'a str, params: &'b [serde_json::Value]) -> Request<'a, 'b> {
+pub fn build_request<'a, 'b>(name: &'a str, params: &'b serde_json::Value) -> Request<'a, 'b> {
 	Request {
 		method: name,
 		params: params,
@@ -35,7 +35,7 @@ pub struct Request<'a, 'b> {
 	/// The name of the RPC call
 	pub method: &'a str,
 	/// Parameters to the RPC call
-	pub params: &'b [serde_json::Value],
+	pub params: &'b serde_json::Value,
 	/// Identifier for this Request, which should appear in the response
 	pub id: serde_json::Value,
 	/// jsonrpc field, MUST be "2.0"

@@ -22,3 +22,9 @@ pub struct GetTipResp {
 	pub prev_block_to_last: String,
 	pub total_difficulty: u64,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct GetVersionResp {
+	pub node_version: String,
+	pub block_header_version: u16,
+}

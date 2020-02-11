@@ -14,16 +14,11 @@
 
 //! Client functions, implementations of the NodeClient trait
 //! specific to the FileWallet
-
-use futures::{stream, Stream};
-
-use crate::api::{self, LocatedTxKernel};
+use crate::api::{self, LocatedTxKernel, OutputPrintable};
 use crate::core::core::TxKernel;
 use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use semver::Version;
 use std::collections::HashMap;
-use std::env;
-use tokio::runtime::Runtime;
 
 use crate::client_utils::Client;
 use crate::libwallet;
@@ -58,7 +53,7 @@ impl HTTPNodeClient {
 	fn send_json_request<D: serde::de::DeserializeOwned>(
 		&self,
 		method: &str,
-		params: &[serde_json::Value],
+		params: &serde_json::Value,
 	) -> Result<D, libwallet::Error> {
 		let url = format!("{}/v2/foreign", self.node_url());
 		let client = Client::new();
@@ -103,10 +98,14 @@ impl NodeClient for HTTPNodeClient {
 		if let Some(v) = self.node_version_info.as_ref() {
 			return Some(v.clone());
 		}
-		let url = format!("{}/v1/version", self.node_url());
-		let client = Client::new();
-		let mut retval = match client.get::<NodeVersionInfo>(url.as_str(), self.node_api_secret()) {
-			Ok(n) => n,
+		let retval = match self
+			.send_json_request::<GetVersionResp>("get_version", &serde_json::Value::Null)
+		{
+			Ok(n) => NodeVersionInfo {
+				node_version: n.node_version,
+				block_header_version: n.block_header_version,
+				verified: Some(true),
+			},
 			Err(e) => {
 				// If node isn't available, allow offline functions
 				// unfortunately have to parse string due to error structure
@@ -123,7 +122,6 @@ impl NodeClient for HTTPNodeClient {
 				}
 			}
 		};
-		retval.verified = Some(true);
 		self.node_version_info = Some(retval.clone());
 		Some(retval)
 	}
@@ -149,7 +147,7 @@ impl NodeClient for HTTPNodeClient {
 
 	/// Return the chain tip from a given node
 	fn get_chain_tip(&self) -> Result<(u64, String), libwallet::Error> {
-		let result = self.send_json_request::<GetTipResp>("get_tip", &[])?;
+		let result = self.send_json_request::<GetTipResp>("get_tip", &serde_json::Value::Null)?;
 		Ok((result.height, result.last_block_pushed))
 	}
 
@@ -205,65 +203,35 @@ impl NodeClient for HTTPNodeClient {
 		&self,
 		wallet_outputs: Vec<pedersen::Commitment>,
 	) -> Result<HashMap<pedersen::Commitment, (String, u64, u64)>, libwallet::Error> {
-		let addr = self.node_url();
-		// build the necessary query params -
-		// ?id=xxx&id=yyy&id=zzz
-		let query_params: Vec<String> = wallet_outputs
-			.iter()
-			.map(|commit| format!("id={}", util::to_hex(commit.as_ref().to_vec())))
-			.collect();
-
 		// build a map of api outputs by commit so we can look them up efficiently
 		let mut api_outputs: HashMap<pedersen::Commitment, (String, u64, u64)> = HashMap::new();
-		let mut tasks = Vec::new();
 
-		let client = Client::new();
-
-		// Using an environment variable here, as this is a temporary fix
-		// and doesn't need to be permeated throughout the application
-		// configuration
-		let chunk_default = 200;
-		let chunk_size = match env::var("GRIN_OUTPUT_QUERY_SIZE") {
-			Ok(s) => match s.parse::<usize>() {
-				Ok(c) => c,
-				Err(e) => {
-					error!(
-						"Unable to parse GRIN_OUTPUT_QUERY_SIZE, defaulting to {}",
-						chunk_default
-					);
-					error!("Reason: {}", e);
-					chunk_default
-				}
-			},
-			Err(_) => chunk_default,
-		};
-
-		trace!("Output query chunk size is: {}", chunk_size);
-
-		for query_chunk in query_params.chunks(chunk_size) {
-			let url = format!("{}/v1/chain/outputs/byids?{}", addr, query_chunk.join("&"),);
-			tasks.push(client.get_async::<Vec<api::Output>>(url.as_str(), self.node_api_secret()));
+		if wallet_outputs.is_empty() {
+			return Ok(api_outputs);
 		}
 
-		let task = stream::futures_unordered(tasks).collect();
+		// build vec of commits for inclusion in query
+		let commit_params: Vec<String> = wallet_outputs
+			.iter()
+			.map(|commit| format!("{}", util::to_hex(commit.as_ref().to_vec())))
+			.collect();
 
-		let mut rt = Runtime::new().unwrap();
-		let results = match rt.block_on(task) {
-			Ok(outputs) => outputs,
-			Err(e) => {
-				let report = format!("Getting outputs by id: {}", e);
-				error!("Outputs by id failed: {}", e);
-				return Err(libwallet::ErrorKind::ClientCallback(report).into());
-			}
-		};
+		let params = json!([commit_params, null, null, false, false]);
 
-		for res in results {
-			for out in res {
-				api_outputs.insert(
-					out.commit.commit(),
-					(util::to_hex(out.commit.to_vec()), out.height, out.mmr_index),
-				);
-			}
+		let result = self.send_json_request::<Vec<OutputPrintable>>("get_outputs", &params)?;
+
+		for out in result.iter() {
+			let height = match out.block_height {
+				Some(h) => h,
+				None => {
+					let msg = format!("Missing block height for output {:?}", out.commit);
+					return Err(libwallet::ErrorKind::ClientCallback(msg).into());
+				}
+			};
+			api_outputs.insert(
+				out.commit,
+				(util::to_hex(out.commit.0.to_vec()), height, out.mmr_index),
+			);
 		}
 		Ok(api_outputs)
 	}
