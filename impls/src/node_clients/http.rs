@@ -18,7 +18,6 @@ use crate::api::{self, LocatedTxKernel, OutputPrintable};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet::{NodeClient, NodeVersionInfo};
 use futures::{stream, Stream};
-use semver::Version;
 use std::collections::HashMap;
 use std::env;
 use tokio::runtime::Runtime;
@@ -69,9 +68,10 @@ impl HTTPNodeClient {
 				error!("{}", report);
 				Err(libwallet::ErrorKind::ClientCallback(report).into())
 			}
-			Ok(inner) => match inner.into_result() {
+			Ok(inner) => match inner.clone().into_result() {
 				Ok(r) => Ok(r),
 				Err(e) => {
+					error!("{:?}", inner);
 					let report = format!("Unable to parse response for {}: {}", method, e);
 					error!("{}", report);
 					Err(libwallet::ErrorKind::ClientCallback(report).into())
@@ -149,44 +149,34 @@ impl NodeClient for HTTPNodeClient {
 		min_height: Option<u64>,
 		max_height: Option<u64>,
 	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
-		let version = self
-			.get_version_info()
-			.ok_or_else(|| libwallet::ErrorKind::ClientCallback("Unable to get version".into()))?;
-		let version = Version::parse(&version.node_version)
-			.map_err(|_| libwallet::ErrorKind::ClientCallback("Unable to parse version".into()))?;
-		if version <= Version::new(2, 0, 0) {
-			return Err(libwallet::ErrorKind::ClientCallback(
-				"Kernel lookup not supported by node, please upgrade it".into(),
-			)
-			.into());
-		}
-
-		let mut query = String::new();
-		if let Some(h) = min_height {
-			query += &format!("min_height={}", h);
-		}
-		if let Some(h) = max_height {
-			if !query.is_empty() {
-				query += "&";
-			}
-			query += &format!("max_height={}", h);
-		}
-		if !query.is_empty() {
-			query.insert_str(0, "?");
-		}
-
-		let url = format!(
-			"{}/v1/chain/kernels/{}{}",
-			self.node_url(),
-			to_hex(excess.0.to_vec()),
-			query
-		);
+		let method = "get_kernel";
+		let params = json!([to_hex(excess.0.to_vec()), min_height, max_height]);
+		// have to handle this manually since the error needs to be parsed
+		let url = format!("{}/v2/foreign", self.node_url());
 		let client = Client::new();
-		let res: Option<LocatedTxKernel> = client
-			.get(url.as_str(), self.node_api_secret())
-			.map_err(|e| libwallet::ErrorKind::ClientCallback(format!("Kernel lookup: {}", e)))?;
+		let req = build_request(method, &params);
+		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
 
-		Ok(res.map(|k| (k.tx_kernel, k.height, k.mmr_index)))
+		match res {
+			Err(e) => {
+				let report = format!("Error calling {}: {}", method, e);
+				error!("{}", report);
+				Err(libwallet::ErrorKind::ClientCallback(report).into())
+			}
+			Ok(inner) => match inner.clone().into_result::<LocatedTxKernel>() {
+				Ok(r) => Ok(Some((r.tx_kernel, r.height, r.mmr_index))),
+				Err(e) => {
+					let contents = format!("{:?}", inner);
+					if contents.contains("NotFound") {
+						Ok(None)
+					} else {
+						let report = format!("Unable to parse response for {}: {}", method, e);
+						error!("{}", report);
+						Err(libwallet::ErrorKind::ClientCallback(report).into())
+					}
+				}
+			},
+		}
 	}
 
 	/// Retrieve outputs from node
