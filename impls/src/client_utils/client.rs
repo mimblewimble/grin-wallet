@@ -31,7 +31,7 @@ use serde_json;
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::runtime::Runtime;
+use tokio::runtime::current_thread::Runtime;
 
 /// Errors that can be returned by an ApiEndpoint implementation.
 #[derive(Debug)]

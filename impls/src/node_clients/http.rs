@@ -23,7 +23,7 @@ use crate::libwallet::{NodeClient, NodeVersionInfo, TxWrapper};
 use semver::Version;
 use std::collections::HashMap;
 use std::env;
-use tokio::runtime::Runtime;
+use tokio::runtime::current_thread::Runtime;
 
 use crate::client_utils::Client;
 use crate::libwallet;
