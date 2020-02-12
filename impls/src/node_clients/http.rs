@@ -14,7 +14,7 @@
 
 //! Client functions, implementations of the NodeClient trait
 
-use crate::api::{self, LocatedTxKernel, OutputPrintable};
+use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet::{NodeClient, NodeVersionInfo};
 use futures::{stream, Stream};
@@ -356,52 +356,9 @@ impl NodeClient for HTTPNodeClient {
 		start_height: u64,
 		end_height: Option<u64>,
 	) -> Result<(u64, u64), libwallet::Error> {
-		debug!("Indices start");
-		let addr = self.node_url();
-		let mut query_param = format!("start_height={}", start_height);
-		if let Some(e) = end_height {
-			query_param = format!("{}&end_height={}", query_param, e);
-		};
+		let params = json!([start_height, end_height]);
+		let res = self.send_json_request::<OutputListing>("get_pmmr_indices", &params)?;
 
-		let url = format!("{}/v1/txhashset/heightstopmmr?{}", addr, query_param,);
-
-		let client = Client::new();
-
-		match client.get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
-			Ok(o) => Ok((o.last_retrieved_index, o.highest_index)),
-			Err(e) => {
-				// if we got anything other than 200 back from server, bye
-				error!("heightstopmmr: error contacting {}. Error: {}", addr, e);
-				let report = format!(": {}", e);
-				Err(libwallet::ErrorKind::ClientCallback(report).into())
-			}
-		}
+		Ok((res.last_retrieved_index, res.highest_index))
 	}
 }
-
-/*
-/// Call the wallet API to create a coinbase output for the given block_fees.
-/// Will retry based on default "retry forever with backoff" behavior.
-pub fn create_coinbase(dest: &str, block_fees: &BlockFees) -> Result<CbData, Error> {
-	let url = format!("{}/v1/wallet/foreign/build_coinbase", dest);
-	match single_create_coinbase(&url, &block_fees) {
-		Err(e) => {
-			error!(
-				"Failed to get coinbase from {}. Run grin-wallet listen?",
-				url
-			);
-			error!("Underlying Error: {}", e.cause().unwrap());
-			error!("Backtrace: {}", e.backtrace().unwrap());
-			Err(e)?
-		}
-		Ok(res) => Ok(res),
-	}
-}
-
-/// Makes a single request to the wallet API to create a new coinbase output.
-fn single_create_coinbase(url: &str, block_fees: &BlockFees) -> Result<CbData, Error> {
-	let res = Client::post(url, None, block_fees).context(ErrorKind::GenericError(
-		"Posting create coinbase".to_string(),
-	))?;
-	Ok(res)
-}*/
