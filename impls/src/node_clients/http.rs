@@ -289,68 +289,47 @@ impl NodeClient for HTTPNodeClient {
 		),
 		libwallet::Error,
 	> {
-		let addr = self.node_url();
-		let mut query_param = format!("start_index={}&max={}", start_index, max_outputs);
-
-		if let Some(e) = end_index {
-			query_param = format!("{}&end_index={}", query_param, e);
-		};
-
-		let url = format!("{}/v1/txhashset/outputs?{}", addr, query_param,);
-
 		let mut api_outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)> =
 			Vec::new();
 
-		let client = Client::new();
-
-		match client.get::<api::OutputListing>(url.as_str(), self.node_api_secret()) {
-			Ok(o) => {
-				for out in o.outputs {
-					let is_coinbase = match out.output_type {
-						api::OutputType::Coinbase => true,
-						api::OutputType::Transaction => false,
-					};
-					let range_proof = match out.range_proof() {
-						Ok(r) => r,
-						Err(e) => {
-							let msg = format!("Unexpected error in returned output (missing range proof): {:?}. {:?}, {}",
-									out.commit,
-									out,
-									e);
-							error!("{}", msg);
-							return Err(libwallet::ErrorKind::ClientCallback(msg).into());
-						}
-					};
-					let block_height = match out.block_height {
-						Some(h) => h,
-						None => {
-							let msg = format!("Unexpected error in returned output (missing block height): {:?}. {:?}",
-									out.commit,
-									out);
-							error!("{}", msg);
-							return Err(libwallet::ErrorKind::ClientCallback(msg).into());
-						}
-					};
-					api_outputs.push((
-						out.commit,
-						range_proof,
-						is_coinbase,
-						block_height,
-						out.mmr_index,
-					));
+		let params = json!([start_index, end_index, max_outputs, Some(true)]);
+		let res = self.send_json_request::<OutputListing>("get_unspent_outputs", &params)?;
+		for out in res.outputs {
+			let is_coinbase = match out.output_type {
+				api::OutputType::Coinbase => true,
+				api::OutputType::Transaction => false,
+			};
+			let range_proof = match out.range_proof() {
+				Ok(r) => r,
+				Err(e) => {
+					let msg = format!(
+						"Unexpected error in returned output (missing range proof): {:?}. {:?}, {}",
+						out.commit, out, e
+					);
+					error!("{}", msg);
+					return Err(libwallet::ErrorKind::ClientCallback(msg).into());
 				}
-				Ok((o.highest_index, o.last_retrieved_index, api_outputs))
-			}
-			Err(e) => {
-				// if we got anything other than 200 back from server, bye
-				error!(
-					"get_outputs_by_pmmr_index: error contacting {}. Error: {}",
-					addr, e
-				);
-				let report = format!("outputs by pmmr index: {}", e);
-				Err(libwallet::ErrorKind::ClientCallback(report).into())
-			}
+			};
+			let block_height = match out.block_height {
+				Some(h) => h,
+				None => {
+					let msg = format!(
+						"Unexpected error in returned output (missing block height): {:?}. {:?}",
+						out.commit, out
+					);
+					error!("{}", msg);
+					return Err(libwallet::ErrorKind::ClientCallback(msg).into());
+				}
+			};
+			api_outputs.push((
+				out.commit,
+				range_proof,
+				is_coinbase,
+				block_height,
+				out.mmr_index,
+			));
 		}
+		Ok((res.highest_index, res.last_retrieved_index, api_outputs))
 	}
 
 	fn height_range_to_pmmr_indices(
