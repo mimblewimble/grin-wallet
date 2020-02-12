@@ -22,14 +22,12 @@ use crate::chain::Chain;
 use crate::core::core::verifier_cache::LruVerifierCache;
 use crate::core::core::{Transaction, TxKernel};
 use crate::core::global::{set_mining_mode, ChainTypes};
-use crate::core::{pow, ser};
+use crate::core::pow;
 use crate::keychain::Keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::slate_versions::v3::SlateV3;
-use crate::libwallet::{
-	NodeClient, NodeVersionInfo, Slate, TxWrapper, WalletInst, WalletLCProvider,
-};
+use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider};
 use crate::util;
 use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
@@ -177,16 +175,8 @@ where
 	fn post_tx(&mut self, m: WalletProxyMessage) -> Result<WalletProxyMessage, libwallet::Error> {
 		let dest_wallet = self.wallets.get_mut(&m.sender_id).unwrap().1.clone();
 		let dest_wallet_mask = self.wallets.get_mut(&m.sender_id).unwrap().2.clone();
-		let wrapper: TxWrapper = serde_json::from_str(&m.body).context(
-			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper".to_owned()),
-		)?;
-
-		let tx_bin = util::from_hex(wrapper.tx_hex).context(
-			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx_bin".to_owned()),
-		)?;
-
-		let tx: Transaction = ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion(1)).context(
-			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper: tx".to_owned()),
+		let tx: Transaction = serde_json::from_str(&m.body).context(
+			libwallet::ErrorKind::ClientCallback("Error parsing Transaction".to_owned()),
 		)?;
 
 		super::award_block_to_wallet(

@@ -30,6 +30,8 @@ use crate::util::{self, to_hex};
 use super::resp_types::*;
 use crate::client_utils::json_rpc::*;
 
+const ENDPOINT: &str = "/v2/foreign";
+
 #[derive(Clone)]
 pub struct HTTPNodeClient {
 	node_url: String,
@@ -57,7 +59,7 @@ impl HTTPNodeClient {
 		method: &str,
 		params: &serde_json::Value,
 	) -> Result<D, libwallet::Error> {
-		let url = format!("{}/v2/foreign", self.node_url());
+		let url = format!("{}{}", self.node_url(), ENDPOINT);
 		let client = Client::new();
 		let req = build_request(method, params);
 		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
@@ -152,7 +154,7 @@ impl NodeClient for HTTPNodeClient {
 		let method = "get_kernel";
 		let params = json!([to_hex(excess.0.to_vec()), min_height, max_height]);
 		// have to handle this manually since the error needs to be parsed
-		let url = format!("{}/v2/foreign", self.node_url());
+		let url = format!("{}{}", self.node_url(), ENDPOINT);
 		let client = Client::new();
 		let req = build_request(method, &params);
 		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
@@ -220,7 +222,7 @@ impl NodeClient for HTTPNodeClient {
 
 		trace!("Output query chunk size is: {}", chunk_size);
 
-		let url = format!("{}/v2/foreign", self.node_url());
+		let url = format!("{}{}", self.node_url(), ENDPOINT);
 		let client = Client::new();
 		/*let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);*/
 
