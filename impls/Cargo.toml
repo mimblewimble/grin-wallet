@@ -26,6 +26,8 @@ tokio-core = "0.1"
 tokio-retry = "0.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
+jsonrpc-client-core = "0.5.0"
+jsonrpc-client-http = "0.5.0"
 
 #http client (copied from grin)
 http = "0.1.5"

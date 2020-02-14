@@ -79,7 +79,7 @@ impl HttpSlateSender {
 			if err_string.contains("404") {
 				// Report that the other version of the wallet is out of date
 				report = "Other wallet is incompatible and requires an upgrade. \
-					 Please urge the other wallet owner to upgrade and try the transaction again."
+				          Please urge the other wallet owner to upgrade and try the transaction again."
 					.to_string();
 			}
 			error!("{}", report);
