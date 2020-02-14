@@ -17,10 +17,10 @@
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet::{NodeClient, NodeVersionInfo};
-use futures::{stream, Stream};
+use futures::{stream, Future, Stream};
 use std::collections::HashMap;
 use std::env;
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 use crate::client_utils::Client;
 use crate::libwallet;
@@ -237,8 +237,10 @@ impl NodeClient for HTTPNodeClient {
 		}
 
 		let task = stream::futures_unordered(tasks).collect();
-		let mut rt = Runtime::new().unwrap();
-		let results: Vec<OutputPrintable> = match rt.block_on(task) {
+		let mut rt = Builder::new().core_threads(1).build().unwrap();
+		let res = rt.block_on(task);
+		let _ = rt.shutdown_now().wait();
+		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
 				let mut results = vec![];
 				for r in resps {

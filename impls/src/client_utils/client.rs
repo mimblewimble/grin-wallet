@@ -31,7 +31,7 @@ use serde_json;
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::runtime::Runtime;
+use tokio::runtime::Builder;
 
 /// Errors that can be returned by an ApiEndpoint implementation.
 #[derive(Debug)]
@@ -389,8 +389,12 @@ impl Client {
 
 	pub fn send_request(&self, req: Request<Body>) -> Result<String, Error> {
 		let task = self.send_request_async(req);
-		let mut rt =
-			Runtime::new().context(ErrorKind::Internal("can't create Tokio runtime".to_owned()))?;
-		Ok(rt.block_on(task)?)
+		let mut rt = Builder::new()
+			.core_threads(1)
+			.build()
+			.context(ErrorKind::Internal("can't create Tokio runtime".to_owned()))?;
+		let res = rt.block_on(task);
+		let _ = rt.shutdown_now().wait();
+		res
 	}
 }
