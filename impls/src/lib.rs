@@ -22,6 +22,8 @@ use blake2_rfc as blake2;
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde_json;
 use grin_wallet_libwallet as libwallet;
 use grin_wallet_util::grin_api as api;
 use grin_wallet_util::grin_chain as chain;

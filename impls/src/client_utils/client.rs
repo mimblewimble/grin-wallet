@@ -120,7 +120,7 @@ impl Client {
 	/// Helper function to easily issue an async HTTP GET request against a given
 	/// URL that returns a future. Handles request building, JSON deserialization
 	/// and response code checking.
-	pub fn get_async<'a, T>(
+	pub fn _get_async<'a, T>(
 		&self,
 		url: &'a str,
 		api_secret: Option<String>,
@@ -147,7 +147,7 @@ impl Client {
 	/// object as body on a given URL that returns a JSON object. Handles request
 	/// building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn _post<IN, OUT>(
+	pub fn post<IN, OUT>(
 		&self,
 		url: &str,
 		api_secret: Option<String>,
@@ -165,7 +165,7 @@ impl Client {
 	/// provided JSON object as body on a given URL that returns a future. Handles
 	/// request building, JSON serialization and deserialization, and response code
 	/// checking.
-	pub fn _post_async<IN, OUT>(
+	pub fn post_async<IN, OUT>(
 		&self,
 		url: &str,
 		input: &IN,
@@ -186,7 +186,7 @@ impl Client {
 	/// object as body on a given URL that returns nothing. Handles request
 	/// building, JSON serialization, and response code
 	/// checking.
-	pub fn post_no_ret<IN>(
+	pub fn _post_no_ret<IN>(
 		&self,
 		url: &str,
 		api_secret: Option<String>,
