@@ -13,6 +13,7 @@
 
 use crate::core::libtx::secp_ser;
 use crate::libwallet::dalek_ser;
+use crate::libwallet::slate_versions::ser::u64_or_string;
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, to_hex};
@@ -142,6 +143,7 @@ pub struct EncryptedRequest {
 	/// method
 	pub method: String,
 	/// id
+	#[serde(with = "u64_or_string")]
 	pub id: String,
 	/// Body params, which includes nonce and encrypted request
 	pub params: EncryptedBody,
@@ -187,6 +189,7 @@ pub struct EncryptedResponse {
 	/// JSON RPC response
 	pub jsonrpc: String,
 	/// id
+	#[serde(with = "u64_or_string")]
 	pub id: String,
 	/// result
 	pub result: HashMap<String, EncryptedBody>,
