@@ -1,0 +1,14 @@
+{
+  "name": "node-sample",
+  "version": "0.0.1",
+  "description": "Sample of connecting to the secure OwnerAPI via node",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "jayson": "^3.2.0"
+  }
+}
