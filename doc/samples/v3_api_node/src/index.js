@@ -1,6 +1,6 @@
 /* Sample Code for connecting to the V3 Secure API via Node
  *
- * With thanks t xiajoy of Niffler Wallet:
+ * With thanks to xiaojay of Niffler Wallet:
  * https://github.com/grinfans/Niffler/blob/gw3/src/shared/walletv3.js
  *
  */
