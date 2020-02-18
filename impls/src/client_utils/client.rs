@@ -110,7 +110,7 @@ impl Client {
 	/// Helper function to easily issue a HTTP GET request against a given URL that
 	/// returns a JSON object. Handles request building, JSON deserialization and
 	/// response code checking.
-	pub fn get<'a, T>(&self, url: &'a str, api_secret: Option<String>) -> Result<T, Error>
+	pub fn _get<'a, T>(&self, url: &'a str, api_secret: Option<String>) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de>,
 	{

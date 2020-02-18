@@ -602,7 +602,7 @@ mod test {
 		let kernel_excess = {
 			ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 			let keychain = ExtKeychain::from_random_seed(true).unwrap();
-			let switch = &SwitchCommitmentType::Regular;
+			let switch = SwitchCommitmentType::Regular;
 			let id1 = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
 			let id2 = ExtKeychain::derive_key_id(1, 2, 0, 0, 0);
 			let skey1 = keychain.derive_key(0, &id1, switch).unwrap();
