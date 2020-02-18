@@ -19,7 +19,7 @@ extern crate log;
 
 extern crate grin_wallet;
 
-use grin_wallet_api::ECDHPubkey;
+use grin_wallet_api::{ECDHPubkey, JsonId};
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 use clap::App;
@@ -74,8 +74,13 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 1) Attempt to send an encrypted request before calling `init_secure_api`
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
-	let res =
-		send_request_enc::<String>("1", 1, "http://127.0.0.1:33420/v3/owner", &req, &sec_key)?;
+	let res = send_request_enc::<String>(
+		&JsonId::IntId(1),
+		1,
+		"http://127.0.0.1:33420/v3/owner",
+		&req,
+		&sec_key,
+	)?;
 	println!("RES 1: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32001);
@@ -98,7 +103,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	// 4) A normal request, correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
-		"1",
+		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,
@@ -112,7 +117,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	bad_key.0[0] = 0;
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
-		"1",
+		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,
@@ -154,7 +159,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	// 8) Encrypted call to `init_secure_api`, followed by re-deriving key
 	let req = include_str!("data/v3_reqs/init_secure_api.req.json");
 	let res = send_request_enc(
-		"1",
+		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req.to_string(),
@@ -168,7 +173,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	// 9) A normal request, with new correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
-		"1",
+		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,
@@ -189,7 +194,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	// 11) A normal request, correct key
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
-		"1",
+		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,
@@ -209,7 +214,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	})
 	.to_string();
 	let res = send_request_enc::<String>(
-		"12",
+		&JsonId::IntId(12),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,
@@ -222,7 +227,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	// 13) A request which triggers an internal API error (not enough funds)
 	let req = include_str!("data/v3_reqs/init_send_tx.req.json");
 	let res = send_request_enc::<String>(
-		"13",
+		&JsonId::StrId(String::from("13")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
 		&req,

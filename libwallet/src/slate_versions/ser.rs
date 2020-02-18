@@ -13,47 +13,6 @@
 // limitations under the License.
 //! Sane serialization & deserialization of cryptographic structs into hex
 
-/// Used to ensure provided u64s in Encrypted API requests are turned
-/// into Strings, for legacy reasons
-pub mod u64_or_string {
-	use std::fmt;
-
-	use serde::{de, Deserializer, Serializer};
-
-	/// serialize into a string
-	pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		T: fmt::Display,
-		S: Serializer,
-	{
-		serializer.collect_str(value)
-	}
-
-	/// deserialize from either literal or string
-	pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		struct Visitor;
-		impl<'a> de::Visitor<'a> for Visitor {
-			type Value = String;
-			fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-				write!(formatter, "a string or an int fitting into u64")
-			}
-			fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
-				Ok(format!("{}", v))
-			}
-			fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-			where
-				E: de::Error,
-			{
-				s.parse().map_err(de::Error::custom)
-			}
-		}
-		deserializer.deserialize_any(Visitor)
-	}
-}
-
 /// Serializes an OnionV3Address to and from hex
 pub mod option_ov3_serde {
 	use serde::de::Error;

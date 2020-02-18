@@ -26,6 +26,7 @@ use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
+use grin_wallet_api::JsonId;
 use grin_wallet_util::OnionV3Address;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
@@ -497,7 +498,7 @@ impl OwnerV3Helpers {
 	pub fn decrypt_request(
 		key: Arc<Mutex<Option<SecretKey>>>,
 		req: &serde_json::Value,
-	) -> Result<(String, serde_json::Value), serde_json::Value> {
+	) -> Result<(JsonId, serde_json::Value), serde_json::Value> {
 		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).map_err(|e| {
@@ -519,7 +520,7 @@ impl OwnerV3Helpers {
 	/// Encrypt a response
 	pub fn encrypt_response(
 		key: Arc<Mutex<Option<SecretKey>>>,
-		id: &str,
+		id: &JsonId,
 		res: &serde_json::Value,
 	) -> Result<serde_json::Value, serde_json::Value> {
 		let share_key_ref = key.lock();
@@ -646,7 +647,7 @@ where
 			let owner_api_s = &*api as &dyn OwnerRpcS;
 			let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			let mut was_encrypted = false;
-			let mut encrypted_req_id = String::from("");
+			let mut encrypted_req_id = JsonId::StrId(String::from(""));
 			if !is_init_secure_api {
 				if let Err(v) = OwnerV3Helpers::check_encryption_started(key.clone()) {
 					return ok(v);
