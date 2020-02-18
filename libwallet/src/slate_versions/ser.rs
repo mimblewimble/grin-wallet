@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 //! Sane serialization & deserialization of cryptographic structs into hex
+
 /// Serializes an OnionV3Address to and from hex
 pub mod option_ov3_serde {
 	use serde::de::Error;

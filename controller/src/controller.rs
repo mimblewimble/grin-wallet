@@ -26,6 +26,7 @@ use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};
+use grin_wallet_api::JsonId;
 use grin_wallet_util::OnionV3Address;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
@@ -497,7 +498,7 @@ impl OwnerV3Helpers {
 	pub fn decrypt_request(
 		key: Arc<Mutex<Option<SecretKey>>>,
 		req: &serde_json::Value,
-	) -> Result<(u64, serde_json::Value), serde_json::Value> {
+	) -> Result<(JsonId, serde_json::Value), serde_json::Value> {
 		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_req: EncryptedRequest = serde_json::from_value(req.clone()).map_err(|e| {
@@ -508,7 +509,7 @@ impl OwnerV3Helpers {
 			)
 			.as_json_value()
 		})?;
-		let id = enc_req.id;
+		let id = enc_req.id.clone();
 		let res = enc_req.decrypt(&shared_key).map_err(|e| {
 			EncryptionErrorResponse::new(1, -32002, &format!("Decryption error: {}", e.kind()))
 				.as_json_value()
@@ -519,7 +520,7 @@ impl OwnerV3Helpers {
 	/// Encrypt a response
 	pub fn encrypt_response(
 		key: Arc<Mutex<Option<SecretKey>>>,
-		id: u64,
+		id: &JsonId,
 		res: &serde_json::Value,
 	) -> Result<serde_json::Value, serde_json::Value> {
 		let share_key_ref = key.lock();
@@ -646,7 +647,7 @@ where
 			let owner_api_s = &*api as &dyn OwnerRpcS;
 			let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 			let mut was_encrypted = false;
-			let mut encrypted_req_id = 0;
+			let mut encrypted_req_id = JsonId::StrId(String::from(""));
 			if !is_init_secure_api {
 				if let Err(v) = OwnerV3Helpers::check_encryption_started(key.clone()) {
 					return ok(v);
@@ -655,7 +656,7 @@ where
 				match res {
 					Err(e) => return ok(e),
 					Ok(v) => {
-						encrypted_req_id = v.0;
+						encrypted_req_id = v.0.clone();
 						val = v.1;
 					}
 				}
@@ -675,7 +676,7 @@ where
 					if was_encrypted {
 						let res = OwnerV3Helpers::encrypt_response(
 							key.clone(),
-							encrypted_req_id,
+							&encrypted_req_id,
 							&unencrypted_intercept,
 						);
 						r = match res {

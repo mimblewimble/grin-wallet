@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::{env, fs};
 use util::{Mutex, ZeroingString};
 
-use grin_wallet_api::{EncryptedRequest, EncryptedResponse};
+use grin_wallet_api::{EncryptedRequest, EncryptedResponse, JsonId};
 use grin_wallet_config::{GlobalWalletConfig, WalletConfig, GRIN_WALLET_DIR};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{NodeClient, WalletInfo, WalletInst};
@@ -371,7 +371,7 @@ where
 
 #[allow(dead_code)]
 pub fn send_request_enc<OUT>(
-	sec_req_id: u64,
+	sec_req_id: &JsonId,
 	internal_request_id: u32,
 	dest: &str,
 	req: &str,

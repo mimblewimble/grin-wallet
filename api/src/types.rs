@@ -25,6 +25,17 @@ use ring::aead;
 use serde_json::{self, Value};
 use std::collections::HashMap;
 
+/// Represents a compliant JSON RPC 2.0 id.
+/// Valid id: Integer, String.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum JsonId {
+	/// Integer Id
+	IntId(u32),
+	/// String Id
+	StrId(String),
+}
+
 /// Wrapper for API Tokens
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(transparent)]
@@ -142,19 +153,18 @@ pub struct EncryptedRequest {
 	/// method
 	pub method: String,
 	/// id
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub id: u64,
+	pub id: JsonId,
 	/// Body params, which includes nonce and encrypted request
 	pub params: EncryptedBody,
 }
 
 impl EncryptedRequest {
 	/// from json
-	pub fn from_json(id: u64, json_in: &Value, enc_key: &SecretKey) -> Result<Self, Error> {
+	pub fn from_json(id: &JsonId, json_in: &Value, enc_key: &SecretKey) -> Result<Self, Error> {
 		Ok(EncryptedRequest {
 			jsonrpc: "2.0".to_owned(),
 			method: "encrypted_request_v3".to_owned(),
-			id: id,
+			id: id.clone(),
 			params: EncryptedBody::from_json(json_in, enc_key)?,
 		})
 	}
@@ -188,15 +198,14 @@ pub struct EncryptedResponse {
 	/// JSON RPC response
 	pub jsonrpc: String,
 	/// id
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub id: u64,
+	pub id: JsonId,
 	/// result
 	pub result: HashMap<String, EncryptedBody>,
 }
 
 impl EncryptedResponse {
 	/// from json
-	pub fn from_json(id: u64, json_in: &Value, enc_key: &SecretKey) -> Result<Self, Error> {
+	pub fn from_json(id: &JsonId, json_in: &Value, enc_key: &SecretKey) -> Result<Self, Error> {
 		let mut result_set = HashMap::new();
 		result_set.insert(
 			"Ok".to_string(),
@@ -204,7 +213,7 @@ impl EncryptedResponse {
 		);
 		Ok(EncryptedResponse {
 			jsonrpc: "2.0".to_owned(),
-			id: id,
+			id: id.clone(),
 			result: result_set,
 		})
 	}
@@ -307,12 +316,13 @@ fn encrypted_request() -> Result<(), Error> {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000"
 		}
 	});
-	let enc_req = EncryptedRequest::from_json(1, &req, &shared_key)?;
+	let enc_req =
+		EncryptedRequest::from_json(&JsonId::StrId(String::from("1")), &req, &shared_key)?;
 	println!("{:?}", enc_req);
 	let dec_req = enc_req.decrypt(&shared_key)?;
 	println!("{:?}", dec_req);
 	assert_eq!(req, dec_req);
-	let enc_res = EncryptedResponse::from_json(1, &req, &shared_key)?;
+	let enc_res = EncryptedResponse::from_json(&JsonId::IntId(1), &req, &shared_key)?;
 	println!("{:?}", enc_res);
 	println!("{:?}", enc_res.as_json_str()?);
 	let dec_res = enc_res.decrypt(&shared_key)?;
