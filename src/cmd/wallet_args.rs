@@ -35,10 +35,9 @@ use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_core::global;
 use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_util::OnionV3Address;
-use linefeed::terminal::Signal;
-use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::convert::TryFrom;
+use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -103,22 +102,16 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let interface = Arc::new(Interface::new("recover")?);
-	let mut phrase = ZeroingString::from("");
-	interface.set_report_signal(Signal::Interrupt, true);
-	interface.set_prompt("phrase> ")?;
+	let phrase: ZeroingString;
+	println!("Please enter your recovery phrase:");
 	loop {
-		println!("Please enter your recovery phrase:");
-		let res = interface.read_line()?;
-		match res {
-			ReadResult::Eof => break,
-			ReadResult::Signal(sig) => {
-				if sig == Signal::Interrupt {
-					interface.cancel_read_line()?;
-					return Err(ParseError::CancelledError);
-				}
-			}
-			ReadResult::Input(line) => {
+		let stdin = io::stdin();
+		let mut line = String::new();
+		stdin.lock().read_line(&mut line).unwrap();
+
+		match line.trim() {
+			"Q" => return Err(ParseError::CancelledError),
+			line => {
 				let mut w_lock = wallet.lock();
 				let p = w_lock.lc_provider().unwrap();
 				if p.validate_mnemonic(ZeroingString::from(line.clone()))
@@ -129,8 +122,8 @@ where
 				} else {
 					println!();
 					println!("Recovery word phrase is invalid.");
+					println!("Please enter a valid recovery word phrase or Q to quit");
 					println!();
-					interface.set_buffer(&line)?;
 				}
 			}
 		}
@@ -139,12 +132,8 @@ where
 }
 
 fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
-	let interface = Arc::new(Interface::new("pay")?);
 	let amount = amount_to_hr_string(slate.amount, false);
-	interface.set_report_signal(Signal::Interrupt, true);
-	interface.set_prompt(
-		"To proceed, type the exact amount of the invoice as displayed above (or Q/q to quit) > ",
-	)?;
+
 	println!();
 	println!(
 		"This command will pay the amount specified in the invoice using your wallet's funds."
@@ -167,27 +156,22 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 	}
 	println!("Please review the above information carefully before proceeding");
 	println!();
+	println!("To proceed, type the exact amount of the invoice as displayed above:");
 	loop {
-		let res = interface.read_line()?;
-		match res {
-			ReadResult::Eof => return Ok(false),
-			ReadResult::Signal(sig) => {
-				if sig == Signal::Interrupt {
-					interface.cancel_read_line()?;
-					return Err(ParseError::CancelledError);
-				}
-			}
-			ReadResult::Input(line) => {
-				match line.trim() {
-					"Q" | "q" => return Err(ParseError::CancelledError),
-					result => {
-						if result == amount {
-							return Ok(true);
-						} else {
-							println!("Please enter exact amount of the invoice as shown above or Q to quit");
-							println!();
-						}
-					}
+		let stdin = io::stdin();
+		let mut line = String::new();
+		stdin.lock().read_line(&mut line).unwrap();
+
+		match line.trim() {
+			"Q" => return Err(ParseError::CancelledError),
+			result => {
+				if result == amount {
+					return Ok(true);
+				} else {
+					println!(
+						"Please enter exact amount of the invoice as shown above or Q to quit"
+					);
+					println!();
 				}
 			}
 		}
