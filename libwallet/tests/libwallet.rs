@@ -31,7 +31,7 @@ fn kernel_sig_msg() -> secp::Message {
 #[test]
 fn aggsig_sender_receiver_interaction() {
 	let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
-	let switch = &SwitchCommitmentType::Regular;
+	let switch = SwitchCommitmentType::Regular;
 	let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
 	let receiver_keychain = ExtKeychain::from_random_seed(true).unwrap();
 
@@ -237,7 +237,7 @@ fn aggsig_sender_receiver_interaction() {
 #[test]
 fn aggsig_sender_receiver_interaction_offset() {
 	let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
-	let switch = &SwitchCommitmentType::Regular;
+	let switch = SwitchCommitmentType::Regular;
 	let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
 	let receiver_keychain = ExtKeychain::from_random_seed(true).unwrap();
 
@@ -457,7 +457,7 @@ fn test_rewind_range_proof() {
 	let builder = proof::ProofBuilder::new(&keychain);
 	let key_id = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
 	let key_id2 = ExtKeychain::derive_key_id(1, 2, 0, 0, 0);
-	let switch = &SwitchCommitmentType::Regular;
+	let switch = SwitchCommitmentType::Regular;
 	let commit = keychain.commit(5, &key_id, switch).unwrap();
 	let extra_data = [99u8; 64];
 
@@ -484,7 +484,7 @@ fn test_rewind_range_proof() {
 	let (r_amount, r_key_id, r_switch) = proof_info.unwrap();
 	assert_eq!(r_amount, 5);
 	assert_eq!(r_key_id, key_id);
-	assert_eq!(&r_switch, switch);
+	assert_eq!(r_switch, switch);
 
 	// cannot rewind with a different commit
 	let commit2 = keychain.commit(5, &key_id2, switch).unwrap();

@@ -40,7 +40,7 @@ where
 	key_path.depth += 1;
 	key_path.path[key_path.depth as usize - 1] = ChildNumber::from(index);
 	let key_id = Identifier::from_path(&key_path);
-	let sec_key = keychain.derive_key(0, &key_id, &SwitchCommitmentType::None)?;
+	let sec_key = keychain.derive_key(0, &key_id, SwitchCommitmentType::None)?;
 	let hashed = blake2b(32, &[], &sec_key.0[..]);
 	Ok(SecretKey::from_slice(
 		&keychain.secp(),
