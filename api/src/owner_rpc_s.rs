@@ -30,6 +30,7 @@ use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, ZeroingString};
 use crate::{ECDHPubkey, Owner, PubAddress, Token};
 use easy_jsonrpc_mw;
+use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
 use std::time::Duration;
 
@@ -1826,6 +1827,15 @@ pub trait OwnerRpcS {
 	) -> Result<PubAddress, ErrorKind>;
 
 	/**
+	Needs documentation!
+	*/
+	fn get_onion_v3_address(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<OnionV3Address, ErrorKind>;
+
+	/**
 	Networked version of [Owner::proof_address_from_onion_v3](struct.Owner.html#method.proof_address_from_onion_v3).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -2293,6 +2303,21 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		Ok(PubAddress { address })
+	}
+
+	fn get_onion_v3_address(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<OnionV3Address, ErrorKind> {
+		let pub_key = Owner::get_public_proof_address(
+			self,
+			(&token.keychain_mask).as_ref(),
+			derivation_index,
+		)
+		.map_err(|e| e.kind())?;
+		let address = OnionV3Address::from_bytes(pub_key.to_bytes());
+		Ok(address)
 	}
 
 	fn retrieve_payment_proof(
