@@ -14,7 +14,5 @@
 
 mod client;
 pub mod json_rpc;
-mod socksv5;
 
-pub use self::socksv5::Socksv5Connector;
 pub use client::{Client, Error as ClientError};

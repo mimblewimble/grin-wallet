@@ -259,7 +259,7 @@ impl EncryptedWalletSeed {
 		let mut key = [0; 64];
 		pbkdf2::derive(
 			ring::pbkdf2::PBKDF2_HMAC_SHA512,
-			NonZeroU32::new_unchecked(100),
+			NonZeroU32::new(100).unwrap(),
 			&salt,
 			password,
 			&mut key,
@@ -271,7 +271,7 @@ impl EncryptedWalletSeed {
 			enc_bytes.push(0);
 		}
 		let unbound_key = aead::UnboundKey::new(&aead::CHACHA20_POLY1305, &key).unwrap();
-		let sealing_key: aead::SealingKey<RandomNonce> =
+		let mut sealing_key: aead::SealingKey<RandomNonce> =
 			aead::BoundKey::new(unbound_key, RandomNonce);
 		let aad = aead::Aad::empty();
 		sealing_key.seal_in_place_append_tag(aad, &mut enc_bytes);
@@ -301,7 +301,7 @@ impl EncryptedWalletSeed {
 		let mut key = [0; 32];
 		pbkdf2::derive(
 			ring::pbkdf2::PBKDF2_HMAC_SHA512,
-			NonZeroU32::new_unchecked(100),
+			NonZeroU32::new(100).unwrap(),
 			&salt,
 			password,
 			&mut key,
@@ -311,7 +311,8 @@ impl EncryptedWalletSeed {
 		n.copy_from_slice(&nonce[0..12]);
 		let nonce = OpeningNonce(n);
 		let unbound_key = aead::UnboundKey::new(&aead::CHACHA20_POLY1305, &key).unwrap();
-		let opening_key: aead::OpeningKey<OpeningNonce> = aead::BoundKey::new(unbound_key, nonce);
+		let mut opening_key: aead::OpeningKey<OpeningNonce> =
+			aead::BoundKey::new(unbound_key, nonce);
 		let aad = aead::Aad::empty();
 		opening_key.open_in_place(aad, &mut encrypted_seed);
 
