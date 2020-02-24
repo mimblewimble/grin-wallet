@@ -24,10 +24,9 @@ use crate::libwallet::{
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
-use futures::future::{err, ok};
-use futures::{Future, Stream};
 use grin_wallet_api::JsonId;
 use grin_wallet_util::OnionV3Address;
+use hyper::body;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -302,8 +301,6 @@ where
 		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
 }
 
-type WalletResponseFuture = Box<dyn Future<Item = Response<Body>, Error = Error> + Send>;
-
 /// V2 API Handler/Wrapper for owner functions
 pub struct OwnerAPIHandlerV2<L, C, K>
 where
@@ -317,7 +314,7 @@ where
 
 impl<L, C, K> OwnerAPIHandlerV2<L, C, K>
 where
-	L: WalletLCProvider<'static, C, K>,
+	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
@@ -328,30 +325,25 @@ where
 		OwnerAPIHandlerV2 { wallet }
 	}
 
-	fn call_api(
-		&self,
-		req: Request<Body>,
-		api: Owner<L, C, K>,
-	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
-		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
-			let owner_api = &api as &dyn OwnerRpc;
-			match owner_api.handle_request(val) {
-				MaybeReply::Reply(r) => ok(r),
-				MaybeReply::DontReply => {
-					// Since it's http, we need to return something. We return [] because jsonrpc
-					// clients will parse it as an empty batch response.
-					ok(serde_json::json!([]))
-				}
+	async fn call_api(req: Request<Body>, api: Owner<L, C, K>) -> Result<serde_json::Value, Error> {
+		let val: serde_json::Value = parse_body(req).await?;
+		match OwnerRpc::handle_request(&api, val) {
+			MaybeReply::Reply(r) => Ok(r),
+			MaybeReply::DontReply => {
+				// Since it's http, we need to return something. We return [] because jsonrpc
+				// clients will parse it as an empty batch response.
+				Ok(serde_json::json!([]))
 			}
-		}))
+		}
 	}
 
-	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let api = Owner::new(self.wallet.clone(), None);
-		Box::new(
-			self.call_api(req, api)
-				.and_then(|resp| ok(json_response_pretty(&resp))),
-		)
+	async fn handle_post_request(
+		req: Request<Body>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	) -> Result<Response<Body>, Error> {
+		let api = Owner::new(wallet, None);
+		let res = Self::call_api(req, api).await?;
+		Ok(json_response_pretty(&res))
 	}
 }
 
@@ -362,18 +354,20 @@ where
 	K: Keychain + 'static,
 {
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
-		Box::new(
-			self.handle_post_request(req)
-				.and_then(|r| ok(r))
-				.or_else(|e| {
+		let wallet = self.wallet.clone();
+		Box::pin(async move {
+			match Self::handle_post_request(req, wallet).await {
+				Ok(r) => Ok(r),
+				Err(e) => {
 					error!("Request Error: {:?}", e);
-					ok(create_error_response(e))
-				}),
-		)
+					Ok(create_error_response(e))
+				}
+			}
+		})
 	}
 
 	fn options(&self, _req: Request<Body>) -> ResponseFuture {
-		Box::new(ok(create_ok_response("{}")))
+		Box::pin(async { Ok(create_ok_response("{}")) })
 	}
 }
 
@@ -634,81 +628,81 @@ where
 		}
 	}
 
-	fn call_api(
-		&self,
+	async fn call_api(
 		req: Request<Body>,
+		key: Arc<Mutex<Option<SecretKey>>>,
+		mask: Arc<Mutex<Option<SecretKey>>>,
+		running_foreign: bool,
 		api: Arc<Owner<L, C, K>>,
-	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
-		let key = self.shared_key.clone();
-		let mask = self.keychain_mask.clone();
-		let running_foreign = self.running_foreign;
-		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
-			let mut val = val;
-			let owner_api_s = &*api as &dyn OwnerRpcS;
-			let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
-			let mut was_encrypted = false;
-			let mut encrypted_req_id = JsonId::StrId(String::from(""));
-			if !is_init_secure_api {
-				if let Err(v) = OwnerV3Helpers::check_encryption_started(key.clone()) {
-					return ok(v);
-				}
-				let res = OwnerV3Helpers::decrypt_request(key.clone(), &val);
-				match res {
-					Err(e) => return ok(e),
-					Ok(v) => {
-						encrypted_req_id = v.0.clone();
-						val = v.1;
-					}
-				}
-				was_encrypted = true;
+	) -> Result<serde_json::Value, Error> {
+		let mut val: serde_json::Value = parse_body(req).await?;
+		let mut is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
+		let mut was_encrypted = false;
+		let mut encrypted_req_id = JsonId::StrId(String::from(""));
+		if !is_init_secure_api {
+			if let Err(v) = OwnerV3Helpers::check_encryption_started(key.clone()) {
+				return Ok(v);
 			}
-			// check again, in case it was an encrypted call to init_secure_api
-			is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
-			// also need to intercept open/close wallet requests
-			let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
-			match owner_api_s.handle_request(val) {
-				MaybeReply::Reply(mut r) => {
-					let (_was_error, unencrypted_intercept) =
-						OwnerV3Helpers::check_error_response(&r.clone());
-					if is_open_wallet && running_foreign {
-						OwnerV3Helpers::update_mask(mask, &r.clone());
-					}
-					if was_encrypted {
-						let res = OwnerV3Helpers::encrypt_response(
-							key.clone(),
-							&encrypted_req_id,
-							&unencrypted_intercept,
-						);
-						r = match res {
-							Ok(v) => v,
-							Err(v) => return ok(v),
-						}
-					}
-					// intercept init_secure_api response (after encryption,
-					// in case it was an encrypted call to 'init_api_secure')
-					if is_init_secure_api {
-						OwnerV3Helpers::update_owner_api_shared_key(
-							key.clone(),
-							&unencrypted_intercept,
-							api.shared_key.lock().clone(),
-						);
-					}
-					ok(r)
-				}
-				MaybeReply::DontReply => {
-					// Since it's http, we need to return something. We return [] because jsonrpc
-					// clients will parse it as an empty batch response.
-					ok(serde_json::json!([]))
+			let res = OwnerV3Helpers::decrypt_request(key.clone(), &val);
+			match res {
+				Err(e) => return Ok(e),
+				Ok(v) => {
+					encrypted_req_id = v.0.clone();
+					val = v.1;
 				}
 			}
-		}))
+			was_encrypted = true;
+		}
+		// check again, in case it was an encrypted call to init_secure_api
+		is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
+		// also need to intercept open/close wallet requests
+		let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
+		match OwnerRpcS::handle_request(&*api, val) {
+			MaybeReply::Reply(mut r) => {
+				let (_was_error, unencrypted_intercept) =
+					OwnerV3Helpers::check_error_response(&r.clone());
+				if is_open_wallet && running_foreign {
+					OwnerV3Helpers::update_mask(mask, &r.clone());
+				}
+				if was_encrypted {
+					let res = OwnerV3Helpers::encrypt_response(
+						key.clone(),
+						&encrypted_req_id,
+						&unencrypted_intercept,
+					);
+					r = match res {
+						Ok(v) => v,
+						Err(v) => return Ok(v),
+					}
+				}
+				// intercept init_secure_api response (after encryption,
+				// in case it was an encrypted call to 'init_api_secure')
+				if is_init_secure_api {
+					OwnerV3Helpers::update_owner_api_shared_key(
+						key.clone(),
+						&unencrypted_intercept,
+						api.shared_key.lock().clone(),
+					);
+				}
+				Ok(r)
+			}
+			MaybeReply::DontReply => {
+				// Since it's http, we need to return something. We return [] because jsonrpc
+				// clients will parse it as an empty batch response.
+				Ok(serde_json::json!([]))
+			}
+		}
 	}
 
-	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		Box::new(
-			self.call_api(req, self.owner_api.clone())
-				.and_then(|resp| ok(json_response_pretty(&resp))),
-		)
+	async fn handle_post_request(
+		req: Request<Body>,
+		key: Arc<Mutex<Option<SecretKey>>>,
+		mask: Arc<Mutex<Option<SecretKey>>>,
+		running_foreign: bool,
+		api: Arc<Owner<L, C, K>>,
+	) -> Result<Response<Body>, Error> {
+		let res = Self::call_api(req, key, mask, running_foreign, api).await?;
+		Ok(json_response_pretty(&res))
 	}
 }
 
@@ -719,18 +713,24 @@ where
 	K: Keychain + 'static,
 {
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
-		Box::new(
-			self.handle_post_request(req)
-				.and_then(|r| ok(r))
-				.or_else(|e| {
+		let key = self.shared_key.clone();
+		let mask = self.keychain_mask.clone();
+		let running_foreign = self.running_foreign;
+		let api = self.owner_api.clone();
+
+		Box::pin(async move {
+			match Self::handle_post_request(req, key, mask, running_foreign, api).await {
+				Ok(r) => Ok(r),
+				Err(e) => {
 					error!("Request Error: {:?}", e);
-					ok(create_error_response(e))
-				}),
-		)
+					Ok(create_error_response(e))
+				}
+			}
+		})
 	}
 
 	fn options(&self, _req: Request<Body>) -> ResponseFuture {
-		Box::new(ok(create_ok_response("{}")))
+		Box::pin(async { Ok(create_ok_response("{}")) })
 	}
 }
 /// V2 API Handler/Wrapper for foreign functions
@@ -763,31 +763,29 @@ where
 		}
 	}
 
-	fn call_api(
-		&self,
+	async fn call_api(
 		req: Request<Body>,
 		api: Foreign<'static, L, C, K>,
-	) -> Box<dyn Future<Item = serde_json::Value, Error = Error> + Send> {
-		Box::new(parse_body(req).and_then(move |val: serde_json::Value| {
-			let foreign_api = &api as &dyn ForeignRpc;
-			match foreign_api.handle_request(val) {
-				MaybeReply::Reply(r) => ok({ r }),
-				MaybeReply::DontReply => {
-					// Since it's http, we need to return something. We return [] because jsonrpc
-					// clients will parse it as an empty batch response.
-					ok(serde_json::json!([]))
-				}
+	) -> Result<serde_json::Value, Error> {
+		let val: serde_json::Value = parse_body(req).await?;
+		match ForeignRpc::handle_request(&api, val) {
+			MaybeReply::Reply(r) => Ok(r),
+			MaybeReply::DontReply => {
+				// Since it's http, we need to return something. We return [] because jsonrpc
+				// clients will parse it as an empty batch response.
+				Ok(serde_json::json!([]))
 			}
-		}))
+		}
 	}
 
-	fn handle_post_request(&self, req: Request<Body>) -> WalletResponseFuture {
-		let mask = self.keychain_mask.lock();
-		let api = Foreign::new(self.wallet.clone(), mask.clone(), Some(check_middleware));
-		Box::new(
-			self.call_api(req, api)
-				.and_then(|resp| ok(json_response_pretty(&resp))),
-		)
+	async fn handle_post_request(
+		req: Request<Body>,
+		mask: Option<SecretKey>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	) -> Result<Response<Body>, Error> {
+		let api = Foreign::new(wallet, mask, Some(check_middleware));
+		let res = Self::call_api(req, api).await?;
+		Ok(json_response_pretty(&res))
 	}
 }
 
@@ -798,18 +796,22 @@ where
 	K: Keychain + 'static,
 {
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
-		Box::new(
-			self.handle_post_request(req)
-				.and_then(|r| ok(r))
-				.or_else(|e| {
+		let mask = self.keychain_mask.lock().clone();
+		let wallet = self.wallet.clone();
+
+		Box::pin(async move {
+			match Self::handle_post_request(req, mask, wallet).await {
+				Ok(v) => Ok(v),
+				Err(e) => {
 					error!("Request Error: {:?}", e);
-					ok(create_error_response(e))
-				}),
-		)
+					Ok(create_error_response(e))
+				}
+			}
+		})
 	}
 
 	fn options(&self, _req: Request<Body>) -> ResponseFuture {
-		Box::new(ok(create_ok_response("{}")))
+		Box::pin(async { Ok(create_ok_response("{}")) })
 	}
 }
 
@@ -866,9 +868,7 @@ fn create_ok_response(json: &str) -> Response<Body> {
 /// Whenever the status code is `StatusCode::OK` the text parameter should be
 /// valid JSON as the content type header will be set to `application/json'
 fn response<T: Into<Body>>(status: StatusCode, text: T) -> Response<Body> {
-	let mut builder = &mut Response::builder();
-
-	builder = builder
+	let mut builder = Response::builder()
 		.status(status)
 		.header("access-control-allow-origin", "*")
 		.header(
@@ -883,19 +883,14 @@ fn response<T: Into<Body>>(status: StatusCode, text: T) -> Response<Body> {
 	builder.body(text.into()).unwrap()
 }
 
-fn parse_body<T>(req: Request<Body>) -> Box<dyn Future<Item = T, Error = Error> + Send>
+async fn parse_body<T>(req: Request<Body>) -> Result<T, Error>
 where
 	for<'de> T: Deserialize<'de> + Send + 'static,
 {
-	Box::new(
-		req.into_body()
-			.concat2()
-			.map_err(|_| ErrorKind::GenericError("Failed to read request".to_owned()).into())
-			.and_then(|body| match serde_json::from_reader(&body.to_vec()[..]) {
-				Ok(obj) => ok(obj),
-				Err(e) => {
-					err(ErrorKind::GenericError(format!("Invalid request body: {}", e)).into())
-				}
-			}),
-	)
+	let body = body::to_bytes(req.into_body())
+		.await
+		.map_err(|_| ErrorKind::GenericError("Failed to read request".to_string()))?;
+
+	serde_json::from_reader(&body[..])
+		.map_err(|e| ErrorKind::GenericError(format!("Invalid request body: {}", e)).into())
 }

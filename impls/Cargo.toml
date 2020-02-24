@@ -24,6 +24,7 @@ ring = "0.16"
 tokio = { version = "0.2", features = ["full"] }
 uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = { version = "0.4.4", features = ["serde"] }
+crossbeam-utils = "0.7"
 
 #http client (copied from grin)
 http = "0.1.5"

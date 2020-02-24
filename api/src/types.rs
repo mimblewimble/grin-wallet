@@ -128,6 +128,12 @@ impl EncryptedBody {
 		let nonce = from_hex(self.nonce.clone()).context(ErrorKind::APIEncryption(
 			"EncryptedBody Dec: Invalid Nonce".to_string(),
 		))?;
+		if nonce.len() < 12 {
+			return Err(ErrorKind::APIEncryption(
+				"EncryptedBody Dec: Invalid Nonce length".to_string(),
+			)
+			.into());
+		}
 		let mut n = [0u8; 12];
 		n.copy_from_slice(&nonce[0..12]);
 		let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &dec_key.0).unwrap();

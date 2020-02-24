@@ -15,6 +15,7 @@
 //! High level JSON/HTTP client API
 
 use crate::util::to_base64;
+use crossbeam_utils::thread::scope;
 use failure::{Backtrace, Context, Fail, ResultExt};
 use hyper::body;
 use hyper::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
@@ -39,7 +40,7 @@ pub enum ErrorKind {
 	#[fail(display = "Internal error: {}", _0)]
 	Internal(String),
 	#[fail(display = "Bad arguments: {}", _0)]
-	Argument(String),
+	_Argument(String),
 	#[fail(display = "Not found.")]
 	_NotFound,
 	#[fail(display = "Request error: {}", _0)]
@@ -323,11 +324,17 @@ impl Client {
 
 	pub fn send_request(&self, req: Request<Body>) -> Result<String, Error> {
 		let task = self.send_request_async(req);
-		let mut rt = Builder::new()
-			.basic_scheduler()
-			.enable_all()
-			.build()
-			.context(ErrorKind::Internal("can't create Tokio runtime".to_owned()))?;
-		rt.block_on(task)
+		scope(|s| {
+			let handle = s.spawn(|_| {
+				let mut rt = Builder::new()
+					.basic_scheduler()
+					.enable_all()
+					.build()
+					.context(ErrorKind::Internal("can't create Tokio runtime".to_owned()))?;
+				rt.block_on(task)
+			});
+			handle.join().unwrap()
+		})
+		.unwrap()
 	}
 }
