@@ -80,17 +80,22 @@ impl EncryptedBody {
 			))?
 			.as_bytes()
 			.to_vec();
-		let sealing_key = aead::SealingKey::new(&aead::AES_256_GCM, &enc_key.0).context(
-			ErrorKind::APIEncryption("EncryptedBody Enc: Unable to create key".to_owned()),
-		)?;
+
 		let nonce: [u8; 12] = thread_rng().gen();
-		let suffix_len = aead::AES_256_GCM.tag_len();
-		for _ in 0..suffix_len {
-			to_encrypt.push(0);
+
+		let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &enc_key.0).unwrap();
+		let sealing_key: aead::LessSafeKey = aead::LessSafeKey::new(unbound_key);
+		let aad = aead::Aad::from(&[]);
+		let res = sealing_key.seal_in_place_append_tag(
+			aead::Nonce::assume_unique_for_key(nonce),
+			aad,
+			&mut to_encrypt,
+		);
+		if let Err(_) = res {
+			return Err(
+				ErrorKind::APIEncryption("EncryptedBody: encryption failed".to_owned()).into(),
+			);
 		}
-		aead::seal_in_place(&sealing_key, &nonce, &[], &mut to_encrypt, suffix_len).context(
-			ErrorKind::APIEncryption("EncryptedBody: Encryption Failed".to_owned()),
-		)?;
 
 		Ok(EncryptedBody {
 			nonce: to_hex(nonce.to_vec()),
@@ -120,20 +125,25 @@ impl EncryptedBody {
 		let mut to_decrypt = base64::decode(&self.body_enc).context(ErrorKind::APIEncryption(
 			"EncryptedBody Dec: Encrypted request contains invalid Base64".to_string(),
 		))?;
-		let opening_key = aead::OpeningKey::new(&aead::AES_256_GCM, &dec_key.0).context(
-			ErrorKind::APIEncryption("EncryptedBody Dec: Unable to create key".to_owned()),
-		)?;
 		let nonce = from_hex(self.nonce.clone()).context(ErrorKind::APIEncryption(
 			"EncryptedBody Dec: Invalid Nonce".to_string(),
 		))?;
-		aead::open_in_place(&opening_key, &nonce, &[], 0, &mut to_decrypt).context(
-			ErrorKind::APIEncryption(
-				"EncryptedBody Dec: Decryption Failed (is key correct?)".to_string(),
-			),
-		)?;
+		let mut n = [0u8; 12];
+		n.copy_from_slice(&nonce[0..12]);
+		let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &dec_key.0).unwrap();
+		let opening_key: aead::LessSafeKey = aead::LessSafeKey::new(unbound_key);
+		let aad = aead::Aad::from(&[]);
+		let res =
+			opening_key.open_in_place(aead::Nonce::assume_unique_for_key(n), aad, &mut to_decrypt);
+		if let Err(_) = res {
+			return Err(
+				ErrorKind::APIEncryption("EncryptedBody: decryption failed".to_owned()).into(),
+			);
+		}
 		for _ in 0..aead::AES_256_GCM.tag_len() {
 			to_decrypt.pop();
 		}
+
 		let decrypted = String::from_utf8(to_decrypt).context(ErrorKind::APIEncryption(
 			"EncryptedBody Dec: Invalid UTF-8".to_string(),
 		))?;
