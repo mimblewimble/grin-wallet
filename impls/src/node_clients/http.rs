@@ -17,7 +17,8 @@
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet::{NodeClient, NodeVersionInfo};
-use futures::{stream, Future, Stream};
+use futures::stream::FuturesUnordered;
+use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
 use tokio::runtime::Builder;
@@ -199,7 +200,6 @@ impl NodeClient for HTTPNodeClient {
 			.map(|commit| format!("{}", util::to_hex(commit.as_ref().to_vec())))
 			.collect();
 
-		let mut tasks = Vec::new();
 		// going to leave this here even though we're moving
 		// to the json RPC api to keep the functionality of
 		// parallelizing larger requests. Will raise default
@@ -223,23 +223,39 @@ impl NodeClient for HTTPNodeClient {
 		trace!("Output query chunk size is: {}", chunk_size);
 
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
-		let client = Client::new();
-		/*let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);*/
 
-		for query_chunk in query_params.chunks(chunk_size) {
-			let params = json!([query_chunk, null, null, false, false]);
-			let req = build_request("get_outputs", &params);
-			tasks.push(client.post_async::<Request, Response>(
-				url.as_str(),
-				&req,
-				self.node_api_secret(),
-			));
-		}
+		let task = async move {
+			let client = Client::new();
 
-		let task = stream::futures_unordered(tasks).collect();
-		let mut rt = Builder::new().core_threads(1).build().unwrap();
-		let res = rt.block_on(task);
-		let _ = rt.shutdown_now().wait();
+			let params: Vec<_> = query_params
+				.chunks(chunk_size)
+				.map(|c| json!([c, null, null, false, false]))
+				.collect();
+
+			let mut reqs = Vec::with_capacity(params.len());
+			for p in &params {
+				reqs.push(build_request("get_outputs", p));
+			}
+
+			let mut tasks = Vec::with_capacity(params.len());
+			for req in &reqs {
+				tasks.push(client.post_async::<Request, Response>(
+					url.as_str(),
+					req,
+					self.node_api_secret(),
+				));
+			}
+
+			let task: FuturesUnordered<_> = tasks.into_iter().collect();
+			task.try_collect().await
+		};
+
+		let mut rt = Builder::new()
+			.threaded_scheduler()
+			.enable_all()
+			.build()
+			.unwrap();
+		let res: Result<Vec<Response>, _> = rt.block_on(task);
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
 				let mut results = vec![];
