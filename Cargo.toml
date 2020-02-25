@@ -22,7 +22,6 @@ exclude = ["integration"]
 [dependencies]
 clap = { version = "2.31", features = ["yaml"] }
 rpassword = "2.0.0"
-ctrlc = { version = "3.1", features = ["termination"] }
 failure = "0.1"
 failure_derive = "0.1"
 prettytable-rs = "0.7"
@@ -30,7 +29,6 @@ log = "0.4"
 linefeed = "0.5"
 semver = "0.9"
 rustyline = "6"
-colored = "1.6"
 lazy_static = "1"
 
 grin_wallet_api = { path = "./api", version = "3.1.0-beta.2" }
