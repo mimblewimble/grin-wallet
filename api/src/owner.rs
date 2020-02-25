@@ -298,7 +298,7 @@ where
 	) -> Result<Identifier, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_account_path(&mut **w, keychain_mask, label)
+		owner::create_account_path(&mut **w, keychain_mask, label.to_string())
 	}
 
 	/// Sets the wallet's currently active account. This sets the

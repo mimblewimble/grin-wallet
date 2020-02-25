@@ -74,7 +74,7 @@ where
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match dest_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d.to_owned())?;
+			let pm = w.get_acct_path(d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),

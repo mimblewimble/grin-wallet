@@ -180,7 +180,11 @@ where
 	fn parent_key_id(&mut self) -> Identifier;
 
 	/// Iterate over all output data stored by the backend
-	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a>;
+	fn iter<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+		tx_id: Option<u32>,
+	) -> Box<dyn Iterator<Item = OutputData> + 'a>;
 
 	/// Get output data by id
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
@@ -196,14 +200,20 @@ where
 		participant_id: usize,
 	) -> Result<Context, Error>;
 
-	/// Iterate over all output data stored by the backend
-	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a>;
+	/// Iterate over all transaction logs stored by the backend
+	fn tx_log_iter<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+		outstanding_only: bool,
+	) -> Box<dyn Iterator<Item = TxLogEntry> + 'a>;
 
 	/// Iterate over all stored account paths
 	fn acct_path_iter<'a>(&'a self) -> Box<dyn Iterator<Item = AcctPathMapping> + 'a>;
 
 	/// Gets an account path for a given label
-	fn get_acct_path(&self, label: String) -> Result<Option<AcctPathMapping>, Error>;
+	fn get_acct_path(&self, label: &str) -> Result<Option<AcctPathMapping>, Error>;
 
 	/// Stores a transaction
 	fn store_tx(&self, uuid: &str, tx: &Transaction) -> Result<(), Error>;
@@ -234,6 +244,71 @@ where
 
 	/// Flag whether the wallet needs a full UTXO scan on next update attempt
 	fn init_status(&mut self) -> Result<WalletInitStatus, Error>;
+
+	/// Iterate over all outputs that are not marked as spent
+	fn unspent_outputs<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+		tx_id: Option<u32>,
+	) -> Box<dyn Iterator<Item = OutputData> + 'a> {
+		Box::new(
+			self.iter(parent_key_id, tx_id)
+				.filter(|x| x.status != OutputStatus::Spent),
+		)
+	}
+
+	/// Iterate over all outputs that are marked as unconfirmed
+	fn unconfirmed_outputs<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+	) -> Box<dyn Iterator<Item = OutputData> + 'a> {
+		Box::new(
+			self.iter(parent_key_id, None)
+				.filter(|x| x.status == OutputStatus::Unconfirmed),
+		)
+	}
+
+	/// Iterate over all outputs that are involved in an outstanding transaction
+	fn outstanding_outputs<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+	) -> Box<dyn Iterator<Item = OutputData> + 'a> {
+		let tx_entries: Vec<_> = self
+			.tx_log_iter(parent_key_id, None, None, true)
+			.map(|t| t.id)
+			.collect();
+
+		Box::new(
+			self.iter(parent_key_id, None)
+				.filter(|x| x.status != OutputStatus::Spent)
+				.filter(move |x| {
+					x.tx_log_entry
+						.as_ref()
+						.map(|t| tx_entries.contains(t))
+						.unwrap_or(true)
+				}),
+		)
+	}
+
+	/// Iterate over all outputs that are considered eligible for spending
+	fn eligible_outputs<'a>(
+		&'a self,
+		parent_key_id: &Identifier,
+		current_height: u64,
+		minimum_confirmations: u64,
+	) -> Box<dyn Iterator<Item = OutputData> + 'a> {
+		Box::new(
+			self.iter(Some(parent_key_id), None)
+				.filter(move |x| x.eligible_to_spend(current_height, minimum_confirmations)),
+		)
+	}
+
+	/// Find account path with highest k in m/k/0
+	fn highest_acct_path(&self) -> Option<AcctPathMapping> {
+		self.acct_path_iter().max_by(|a, b| {
+			<u32>::from(a.path.to_path().path[0]).cmp(&<u32>::from(b.path.to_path().path[0]))
+		})
+	}
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a

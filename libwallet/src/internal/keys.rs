@@ -63,28 +63,22 @@ where
 pub fn new_acct_path<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	label: &str,
+	label: String,
 ) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let label = label.to_owned();
-	if wallet.acct_path_iter().any(|l| l.label == label) {
+	if wallet.get_acct_path(&label)?.is_some() {
 		return Err(ErrorKind::AccountLabelAlreadyExists(label).into());
 	}
 
 	// We're always using paths at m/k/0 for parent keys for output derivations
 	// so find the highest of those, then increment (to conform with external/internal
 	// derivation chains in BIP32 spec)
-
-	let highest_entry = wallet.acct_path_iter().max_by(|a, b| {
-		<u32>::from(a.path.to_path().path[0]).cmp(&<u32>::from(b.path.to_path().path[0]))
-	});
-
 	let return_id = {
-		if let Some(e) = highest_entry {
+		if let Some(e) = wallet.highest_acct_path() {
 			let mut p = e.path.to_path();
 			p.path[0] = ChildNumber::from(<u32>::from(p.path[0]) + 1);
 			p.to_identifier()
