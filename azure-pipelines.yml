@@ -46,6 +46,7 @@ jobs:
         CI_JOB: release
         PLATFORM: linux-amd64
   steps:
+    - template: '.ci/install.yml'
     - template: '.ci/test.yml'
     - template: '.ci/release.yml'
 - job: macos
