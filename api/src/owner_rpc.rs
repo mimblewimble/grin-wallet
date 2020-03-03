@@ -75,7 +75,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , true, 4, false, false, false, false);
+	# , 4, false, false, false, false);
 	```
 	*/
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, ErrorKind>;
@@ -108,7 +108,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# ,true, 4, false, false, false, false);
+	# , 4, false, false, false, false);
 	```
 	 */
 	fn create_account_path(&self, token: Token, label: &String) -> Result<Identifier, ErrorKind>;
@@ -141,7 +141,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , true, 4, false, false, false, false);
+	# , 4, false, false, false, false);
 	```
 	 */
 	fn set_active_account(&self, token: Token, label: &String) -> Result<(), ErrorKind>;
@@ -212,7 +212,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 2, false, false, false, false);
+	# , 2, false, false, false, false);
 	```
 	*/
 	fn retrieve_outputs(
@@ -297,7 +297,7 @@ pub trait OwnerRpc {
 	  }
 	}
 	# "#
-	# , true, 2, false, false, false, false);
+	# , 2, false, false, false, false);
 	```
 	*/
 
@@ -348,7 +348,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,true, 4, false, false, false, false);
+	# , 4, false, false, false, false);
 	```
 	 */
 
@@ -452,7 +452,7 @@ pub trait OwnerRpc {
 	  }
 	}
 		# "#
-		# ,true, 4, false, false, false, false);
+		# , 4, false, false, false, false);
 	```
 	*/
 
@@ -535,7 +535,7 @@ pub trait OwnerRpc {
 			}
 		}
 		# "#
-		# ,true, 4, false, false, false, false);
+		# , 4, false, false, false, false);
 	```
 	*/
 
@@ -694,7 +694,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,true, 4, false, false, false, false);
+	# , 4, false, false, false, false);
 	```
 	*/
 
@@ -783,7 +783,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,true, 5 ,true, false, false, false);
+	# , 5 ,true, false, false, false);
 
 	```
 	 */
@@ -956,7 +956,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, true, true, false, false);
+	# , 5, true, true, false, false);
 	```
 	 */
 	fn finalize_tx(&self, token: Token, slate: VersionedSlate)
@@ -1024,7 +1024,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, true, true, true, false);
+	# , 5, true, true, true, false);
 	```
 	 */
 
@@ -1058,7 +1058,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, true, true, false, false);
+	# , 5, true, true, false, false);
 	```
 	 */
 	fn cancel_tx(
@@ -1161,7 +1161,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, true, true, false, false);
+	# , 5, true, true, false, false);
 	```
 	 */
 	fn get_stored_tx(
@@ -1247,7 +1247,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# ,true, 0 ,false, false, false, false);
+	# , 0 ,false, false, false, false);
 	```
 	*/
 	fn verify_slate_messages(&self, token: Token, slate: VersionedSlate) -> Result<(), ErrorKind>;
@@ -1280,7 +1280,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 1, false, false, false, false);
+	# , 1, false, false, false, false);
 	```
 	 */
 	fn scan(
@@ -1319,7 +1319,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, false, false, false, false);
+	# , 5, false, false, false, false);
 	```
 	 */
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
@@ -1402,7 +1402,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, false, false, false, false);
+	# , 5, false, false, false, false);
 	```
 	*/
 
@@ -1432,7 +1432,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, false, false, false, false);
+	# , 5, false, false, false, false);
 	```
 	*/
 
@@ -1498,7 +1498,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, false, false, false, false);
+	# , 5, false, false, false, false);
 	```
 	*/
 	fn create_config(
@@ -1536,7 +1536,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1573,7 +1573,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1603,7 +1603,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1634,7 +1634,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1666,7 +1666,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 	fn change_password(
@@ -1700,7 +1700,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
@@ -1730,7 +1730,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1758,7 +1758,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 	fn stop_updater(&self) -> Result<(), ErrorKind>;
@@ -1787,7 +1787,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1818,7 +1818,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1852,7 +1852,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 
@@ -1892,7 +1892,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, true, true, true, true);
+	# , 5, true, true, true, true);
 	```
 	*/
 
@@ -1939,7 +1939,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 5, true, true, true, true);
+	# , 5, true, true, true, true);
 	```
 	*/
 
@@ -1977,7 +1977,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , true, 0, false, false, false, false);
+	# , 0, false, false, false, false);
 	```
 	*/
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind>;
@@ -2340,7 +2340,6 @@ where
 pub fn run_doctest_owner(
 	request: serde_json::Value,
 	test_dir: &str,
-	use_token: bool,
 	blocks_to_mine: u64,
 	perform_tx: bool,
 	lock_tx: bool,
@@ -2391,7 +2390,7 @@ pub fn run_doctest_owner(
 	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone(), false)
 		.unwrap();
 	let mask1 = lc
-		.open_wallet(None, empty_string.clone(), use_token, true)
+		.open_wallet(None, empty_string.clone(), true, true)
 		.unwrap();
 	let wallet1 = Arc::new(Mutex::new(wallet1));
 
@@ -2427,7 +2426,7 @@ pub fn run_doctest_owner(
 	let _ = lc.set_top_level_directory(&format!("{}/wallet2", test_dir));
 	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone(), false)
 		.unwrap();
-	let mask2 = lc.open_wallet(None, empty_string, use_token, true).unwrap();
+	let mask2 = lc.open_wallet(None, empty_string, true, true).unwrap();
 	let wallet2 = Arc::new(Mutex::new(wallet2));
 
 	if mask2.is_some() {
@@ -2550,7 +2549,7 @@ pub fn run_doctest_owner(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
-	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr, $payment_proof:expr) => {
+	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr, $payment_proof:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -2578,7 +2577,6 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			let response = run_doctest_owner(
 				request_val,
 				dir,
-				$use_token,
 				$blocks_to_mine,
 				$perform_tx,
 				$lock_tx,
