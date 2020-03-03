@@ -27,10 +27,13 @@ use crate::libwallet::{
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::{static_secp_instance, ZeroingString};
+use crate::util::{static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Owner, PubAddress, Token};
 use easy_jsonrpc_mw;
+use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
+use std::convert::TryFrom;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Public definition used to generate Owner jsonrpc api.
@@ -2331,4 +2334,267 @@ where
 		Owner::set_tor_config(self, tor_config);
 		Ok(())
 	}
+}
+
+/// helper to set up a real environment to run integrated doctests
+pub fn run_doctest_owner(
+	request: serde_json::Value,
+	test_dir: &str,
+	use_token: bool,
+	blocks_to_mine: u64,
+	perform_tx: bool,
+	lock_tx: bool,
+	finalize_tx: bool,
+	payment_proof: bool,
+) -> Result<Option<serde_json::Value>, String> {
+	use easy_jsonrpc_mw::Handler;
+	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+	use grin_wallet_libwallet::{api_impl, WalletInst};
+	use grin_wallet_util::grin_keychain::ExtKeychain;
+
+	use crate::core::global::ChainTypes;
+	use grin_wallet_util::grin_util as util;
+
+	use std::{fs, thread};
+
+	util::init_test_logger();
+	let _ = fs::remove_dir_all(test_dir);
+	global::set_mining_mode(ChainTypes::AutomatedTesting);
+
+	let mut wallet_proxy: WalletProxy<
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
+	> = WalletProxy::new(test_dir);
+	let chain = wallet_proxy.chain.clone();
+
+	let rec_phrase_1 = util::ZeroingString::from(
+		"fat twenty mean degree forget shell check candy immense awful \
+		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch",
+	);
+	let empty_string = util::ZeroingString::from("");
+
+	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
+	let mut wallet1 =
+		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
+			as Box<
+				dyn WalletInst<
+					'static,
+					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>;
+	let lc = wallet1.lc_provider().unwrap();
+	let _ = lc.set_top_level_directory(&format!("{}/wallet1", test_dir));
+	lc.create_wallet(None, Some(rec_phrase_1), 32, empty_string.clone(), false)
+		.unwrap();
+	let mask1 = lc
+		.open_wallet(None, empty_string.clone(), use_token, true)
+		.unwrap();
+	let wallet1 = Arc::new(Mutex::new(wallet1));
+
+	if mask1.is_some() {
+		println!("WALLET 1 MASK: {:?}", mask1.clone().unwrap());
+	}
+
+	wallet_proxy.add_wallet(
+		"wallet1",
+		client1.get_send_instance(),
+		wallet1.clone(),
+		mask1.clone(),
+	);
+
+	let mut slate_outer = Slate::blank(2);
+
+	let rec_phrase_2 = util::ZeroingString::from(
+		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
+		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile",
+	);
+	let client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
+	let mut wallet2 =
+		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
+			as Box<
+				dyn WalletInst<
+					'static,
+					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>;
+	let lc = wallet2.lc_provider().unwrap();
+	let _ = lc.set_top_level_directory(&format!("{}/wallet2", test_dir));
+	lc.create_wallet(None, Some(rec_phrase_2), 32, empty_string.clone(), false)
+		.unwrap();
+	let mask2 = lc.open_wallet(None, empty_string, use_token, true).unwrap();
+	let wallet2 = Arc::new(Mutex::new(wallet2));
+
+	if mask2.is_some() {
+		println!("WALLET 2 MASK: {:?}", mask2.clone().unwrap());
+	}
+
+	wallet_proxy.add_wallet(
+		"wallet2",
+		client2.get_send_instance(),
+		wallet2.clone(),
+		mask2.clone(),
+	);
+
+	// Set the wallet proxy listener running
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	// Mine a few blocks to wallet 1 so there's something to send
+	for _ in 0..blocks_to_mine {
+		let _ = test_framework::award_blocks_to_wallet(
+			&chain,
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			1 as usize,
+			false,
+		);
+		//update local outputs after each block, so transaction IDs stay consistent
+		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			&None,
+			true,
+			1,
+		)
+		.unwrap();
+		assert!(wallet_refreshed);
+	}
+
+	//let proof_address = api_impl::owner::get_public_proof_address(wallet2.clone(), (&mask2).as_ref(), 0).unwrap();
+
+	if perform_tx {
+		let amount = 60_000_000_000;
+		let mut w_lock = wallet1.lock();
+		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+		let proof_address = match payment_proof {
+			true => {
+				let address = "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810";
+				Some(OnionV3Address::try_from(address).unwrap())
+			}
+			false => None,
+		};
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			payment_proof_recipient_address: proof_address,
+			..Default::default()
+		};
+		let mut slate =
+			api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
+		println!("INITIAL SLATE");
+		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+		{
+			let mut w_lock = wallet2.lock();
+			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+			slate = api_impl::foreign::receive_tx(
+				&mut **w2,
+				(&mask2).as_ref(),
+				&slate,
+				None,
+				None,
+				true,
+			)
+			.unwrap();
+			w2.close().unwrap();
+		}
+		// Spit out slate for input to finalize_tx
+		if lock_tx {
+			api_impl::owner::tx_lock_outputs(&mut **w, (&mask2).as_ref(), &slate, 0).unwrap();
+		}
+		println!("RECEIPIENT SLATE");
+		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+		if finalize_tx {
+			slate = api_impl::owner::finalize_tx(&mut **w, (&mask2).as_ref(), &slate).unwrap();
+			error!("FINALIZED TX SLATE");
+			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+		}
+		slate_outer = slate;
+	}
+
+	if payment_proof {
+		api_impl::owner::post_tx(&client1, &slate_outer.tx, true).unwrap();
+	}
+
+	if perform_tx && lock_tx && finalize_tx {
+		// mine to move the chain on
+		let _ = test_framework::award_blocks_to_wallet(
+			&chain,
+			wallet1.clone(),
+			(&mask1).as_ref(),
+			3 as usize,
+			false,
+		);
+	}
+
+	let mut api_owner = Owner::new(wallet1, None);
+	api_owner.doctest_mode = true;
+	let owner_api = &api_owner as &dyn OwnerRpcS;
+	let res = owner_api.handle_request(request).as_option();
+	let _ = fs::remove_dir_all(test_dir);
+	Ok(res)
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! doctest_helper_json_rpc_owner_assert_response {
+	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr, $payment_proof:expr) => {
+		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
+		// json response.
+		// In order to prevent leaking tempdirs, This function should not panic.
+
+		// These cause LMDB to run out of disk space on CircleCI
+		// disable for now on windows
+		// TODO: Fix properly
+		#[cfg(not(target_os = "windows"))]
+			{
+			use grin_wallet_api::run_doctest_owner;
+			use serde_json;
+			use serde_json::Value;
+			use tempfile::tempdir;
+
+			let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
+			let dir = dir
+				.path()
+				.to_str()
+				.ok_or("Failed to convert tmpdir path to string.".to_owned())
+				.unwrap();
+
+			let request_val: Value = serde_json::from_str($request).unwrap();
+			let expected_response: Value = serde_json::from_str($expected_response).unwrap();
+
+			let response = run_doctest_owner(
+				request_val,
+				dir,
+				$use_token,
+				$blocks_to_mine,
+				$perform_tx,
+				$lock_tx,
+				$finalize_tx,
+				$payment_proof,
+				)
+			.unwrap()
+			.unwrap();
+
+			if response != expected_response {
+				panic!(
+					"(left != right) \nleft: {}\nright: {}",
+					serde_json::to_string_pretty(&response).unwrap(),
+					serde_json::to_string_pretty(&expected_response).unwrap()
+				);
+				}
+			}
+	};
 }

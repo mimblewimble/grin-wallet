@@ -40,7 +40,7 @@ use crate::impls::tor::process as tor_process;
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
-	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc, OwnerRpcS,
+	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpcS,
 };
 use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
@@ -205,17 +205,12 @@ where
 		running_foreign = true;
 	}
 
-	let api_handler_v2 = OwnerAPIHandlerV2::new(wallet.clone());
 	let api_handler_v3 = OwnerAPIHandlerV3::new(
 		wallet.clone(),
 		keychain_mask.clone(),
 		tor_config,
 		running_foreign,
 	);
-
-	router
-		.add_route("/v2/owner", Arc::new(api_handler_v2))
-		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
 	router
 		.add_route("/v3/owner", Arc::new(api_handler_v3))
@@ -299,76 +294,6 @@ where
 	api_thread
 		.join()
 		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
-}
-
-/// V2 API Handler/Wrapper for owner functions
-pub struct OwnerAPIHandlerV2<L, C, K>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
-{
-	/// Wallet instance
-	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-}
-
-impl<L, C, K> OwnerAPIHandlerV2<L, C, K>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
-{
-	/// Create a new owner API handler for GET methods
-	pub fn new(
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	) -> OwnerAPIHandlerV2<L, C, K> {
-		OwnerAPIHandlerV2 { wallet }
-	}
-
-	async fn call_api(req: Request<Body>, api: Owner<L, C, K>) -> Result<serde_json::Value, Error> {
-		let val: serde_json::Value = parse_body(req).await?;
-		match OwnerRpc::handle_request(&api, val) {
-			MaybeReply::Reply(r) => Ok(r),
-			MaybeReply::DontReply => {
-				// Since it's http, we need to return something. We return [] because jsonrpc
-				// clients will parse it as an empty batch response.
-				Ok(serde_json::json!([]))
-			}
-		}
-	}
-
-	async fn handle_post_request(
-		req: Request<Body>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	) -> Result<Response<Body>, Error> {
-		let api = Owner::new(wallet, None);
-		let res = Self::call_api(req, api).await?;
-		Ok(json_response_pretty(&res))
-	}
-}
-
-impl<L, C, K> api::Handler for OwnerAPIHandlerV2<L, C, K>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
-{
-	fn post(&self, req: Request<Body>) -> ResponseFuture {
-		let wallet = self.wallet.clone();
-		Box::pin(async move {
-			match Self::handle_post_request(req, wallet).await {
-				Ok(r) => Ok(r),
-				Err(e) => {
-					error!("Request Error: {:?}", e);
-					Ok(create_error_response(e))
-				}
-			}
-		})
-	}
-
-	fn options(&self, _req: Request<Body>) -> ResponseFuture {
-		Box::pin(async { Ok(create_ok_response("{}")) })
-	}
 }
 
 /// V3 API Handler/Wrapper for owner functions, which include a secure
