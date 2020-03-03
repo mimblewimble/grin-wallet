@@ -40,7 +40,7 @@ use crate::impls::tor::process as tor_process;
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
-	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpcS,
+	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
 };
 use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
@@ -582,7 +582,7 @@ where
 		is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 		// also need to intercept open/close wallet requests
 		let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
-		match OwnerRpcS::handle_request(&*api, val) {
+		match OwnerRpc::handle_request(&*api, val) {
 			MaybeReply::Reply(mut r) => {
 				let (_was_error, unencrypted_intercept) =
 					OwnerV3Helpers::check_error_response(&r.clone());
