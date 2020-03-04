@@ -27,15 +27,16 @@ impl SlatePutter for PathToSlate {
 	fn put_tx(&self, slate: &Slate) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
 		let out_slate = {
-			if slate.payment_proof.is_some() || slate.ttl_cutoff_height.is_some() {
-				warn!("Transaction contains features that require grin-wallet 3.0.0 or later");
-				warn!("Please ensure the other party is running grin-wallet v3.0.0 or later before sending");
-				VersionedSlate::into_version(slate.clone(), SlateVersion::V3)
+			// TODO: This will need to be filled with any incompatibilities in the V4 Slate
+			if false {
+				warn!("Transaction contains features that require grin-wallet 4.0.0 or later");
+				warn!("Please ensure the other party is running grin-wallet v4.0.0 or later before sending");
+				VersionedSlate::into_version(slate.clone(), SlateVersion::V4)
 			} else {
 				let mut s = slate.clone();
-				s.version_info.version = 2;
-				s.version_info.orig_version = 2;
-				VersionedSlate::into_version(s, SlateVersion::V2)
+				s.version_info.version = 3;
+				s.version_info.orig_version = 3;
+				VersionedSlate::into_version(s, SlateVersion::V3)
 			}
 		};
 		pub_tx.write_all(
