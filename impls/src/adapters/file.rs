@@ -23,6 +23,10 @@ use std::path::PathBuf;
 #[derive(Clone)]
 pub struct PathToSlate(pub PathBuf);
 
+#[deprecated(
+	since = "3.1.0",
+	note = "Remember to handle SlateV4 incompatibilities here"
+)]
 impl SlatePutter for PathToSlate {
 	fn put_tx(&self, slate: &Slate) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;

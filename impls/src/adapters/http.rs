@@ -143,6 +143,10 @@ impl HttpSlateSender {
 	}
 }
 
+#[deprecated(
+	since = "3.0.0",
+	note = "Remember to handle SlateV4 incompatibilities here"
+)]
 impl SlateSender for HttpSlateSender {
 	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
