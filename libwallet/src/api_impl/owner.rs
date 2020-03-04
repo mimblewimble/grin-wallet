@@ -54,7 +54,7 @@ where
 pub fn create_account_path<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	label: &str,
+	label: String,
 ) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -309,7 +309,7 @@ where
 {
 	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d)?;
+			let pm = w.get_acct_path(&d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),
@@ -409,7 +409,7 @@ where
 {
 	let parent_key_id = match args.dest_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d)?;
+			let pm = w.get_acct_path(&d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),
@@ -471,7 +471,7 @@ where
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d)?;
+			let pm = w.get_acct_path(&d)?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),

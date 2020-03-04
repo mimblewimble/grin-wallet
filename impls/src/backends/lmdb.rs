@@ -274,13 +274,11 @@ where
 
 	/// Set parent path by account name
 	fn set_parent_key_id_by_name(&mut self, label: &str) -> Result<(), Error> {
-		let label = label.to_owned();
-		let res = self.acct_path_iter().find(|l| l.label == label);
-		if let Some(a) = res {
+		if let Some(a) = self.get_acct_path(label)? {
 			self.set_parent_key_id(a.path);
 			Ok(())
 		} else {
-			Err(ErrorKind::UnknownAccountLabel(label).into())
+			Err(ErrorKind::UnknownAccountLabel(label.to_string()).into())
 		}
 	}
 
@@ -302,8 +300,25 @@ where
 			.map_err(|e| e.into())
 	}
 
-	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a> {
-		Box::new(self.db.iter(&[OUTPUT_PREFIX]).unwrap().map(|o| o.1))
+	fn iter<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+		tx_id: Option<u32>,
+	) -> Box<dyn Iterator<Item = OutputData> + 'a> {
+		let parent_key_id = parent_key_id.cloned();
+		Box::new(
+			self.db
+				.iter(&[OUTPUT_PREFIX])
+				.unwrap()
+				.map(|o: (_, OutputData)| o.1)
+				.filter(move |o| {
+					parent_key_id
+						.as_ref()
+						.map(|id| o.root_key_id == *id)
+						.unwrap_or(true)
+				})
+				.filter(move |o| tx_id.map(|id| o.tx_log_entry == Some(id)).unwrap_or(true)),
+		)
 	}
 
 	fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
@@ -311,8 +326,40 @@ where
 		self.db.get_ser(&key).map_err(|e| e.into())
 	}
 
-	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a> {
-		Box::new(self.db.iter(&[TX_LOG_ENTRY_PREFIX]).unwrap().map(|o| o.1))
+	fn tx_log_iter<'a>(
+		&'a self,
+		parent_key_id: Option<&Identifier>,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+		outstanding_only: bool,
+	) -> Box<dyn Iterator<Item = TxLogEntry> + 'a> {
+		use crate::libwallet::TxLogEntryType::*;
+		let parent_key_id = parent_key_id.cloned();
+		Box::new(
+			self.db
+				.iter(&[TX_LOG_ENTRY_PREFIX])
+				.unwrap()
+				.map(|o: (_, TxLogEntry)| o.1)
+				.filter(move |tx| {
+					parent_key_id
+						.as_ref()
+						.map(|id| tx.parent_key_id == *id)
+						.unwrap_or(true)
+				})
+				.filter(move |tx| tx_id.map(|id| tx.id == id).unwrap_or(true))
+				.filter(move |tx| {
+					tx_slate_id
+						.map(|id| tx.tx_slate_id == Some(id))
+						.unwrap_or(true)
+				})
+				.filter(move |tx| {
+					if outstanding_only {
+						!tx.confirmed && (tx.tx_type == TxReceived || tx.tx_type == TxSent)
+					} else {
+						true
+					}
+				}),
+		)
 	}
 
 	fn get_private_context(
@@ -350,7 +397,7 @@ where
 		)
 	}
 
-	fn get_acct_path(&self, label: String) -> Result<Option<AcctPathMapping>, Error> {
+	fn get_acct_path(&self, label: &str) -> Result<Option<AcctPathMapping>, Error> {
 		let acct_key = to_key(ACCOUNT_PATH_MAPPING_PREFIX, &mut label.as_bytes().to_vec());
 		self.db.get_ser(&acct_key).map_err(|e| e.into())
 	}
