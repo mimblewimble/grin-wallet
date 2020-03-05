@@ -108,14 +108,13 @@ fn height_range_to_pmmr_indices_local(
 	}
 }
 
-/// Adds a block with a given reward to the chain and mines it
-pub fn add_block_with_reward(
+fn create_block_with_reward(
 	chain: &Chain,
+	prev: core::core::BlockHeader,
 	txs: Vec<&Transaction>,
 	reward_output: Output,
 	reward_kernel: TxKernel,
-) {
-	let prev = chain.head_header().unwrap();
+) -> core::core::Block {
 	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter().unwrap());
 	let mut b = core::core::Block::new(
 		&prev,
@@ -134,8 +133,50 @@ pub fn add_block_with_reward(
 		global::min_edge_bits(),
 	)
 	.unwrap();
-	chain.process_block(b, chain::Options::MINE).unwrap();
-	chain.validate(false).unwrap();
+	b
+}
+
+/// Adds a block with a given reward to the chain and mines it
+pub fn add_block_with_reward(
+	chain: &Chain,
+	txs: Vec<&Transaction>,
+	reward_output: Output,
+	reward_kernel: TxKernel,
+) {
+	let prev = chain.head_header().unwrap();
+	let block = create_block_with_reward(chain, prev, txs, reward_output, reward_kernel);
+	process_block(chain, block);
+}
+
+/// adds a reward output to a wallet, includes that reward in a block
+/// and return the block
+pub fn create_block_for_wallet<'a, L, C, K>(
+	chain: &Chain,
+	prev: core::core::BlockHeader,
+	txs: Vec<&Transaction>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<core::core::Block, libwallet::Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: keychain::Keychain + 'a,
+{
+	// build block fees
+	let fee_amt = txs.iter().map(|tx| tx.fee()).sum();
+	let block_fees = BlockFees {
+		fees: fee_amt,
+		key_id: None,
+		height: prev.height + 1,
+	};
+	// build coinbase (via api) and add block
+	let coinbase_tx = {
+		let mut w_lock = wallet.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		foreign::build_coinbase(&mut **w, keychain_mask, &block_fees, false)?
+	};
+	let block = create_block_with_reward(chain, prev, txs, coinbase_tx.output, coinbase_tx.kernel);
+	Ok(block)
 }
 
 /// adds a reward output to a wallet, includes that reward in a block, mines
@@ -152,22 +193,15 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	// build block fees
 	let prev = chain.head_header().unwrap();
-	let fee_amt = txs.iter().map(|tx| tx.fee()).sum();
-	let block_fees = BlockFees {
-		fees: fee_amt,
-		key_id: None,
-		height: prev.height + 1,
-	};
-	// build coinbase (via api) and add block
-	let coinbase_tx = {
-		let mut w_lock = wallet.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		foreign::build_coinbase(&mut **w, keychain_mask, &block_fees, false)?
-	};
-	add_block_with_reward(chain, txs, coinbase_tx.output, coinbase_tx.kernel);
+	let block = create_block_for_wallet(chain, prev, txs, wallet, keychain_mask)?;
+	process_block(chain, block);
 	Ok(())
+}
+
+pub fn process_block(chain: &Chain, block: core::core::Block) {
+	chain.process_block(block, chain::Options::MINE).unwrap();
+	chain.validate(false).unwrap();
 }
 
 /// Award a blocks to a wallet directly

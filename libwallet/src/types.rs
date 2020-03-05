@@ -483,16 +483,26 @@ impl OutputData {
 
 	/// Marks this output as unspent if it was previously unconfirmed
 	pub fn mark_unspent(&mut self) {
-		if let OutputStatus::Unconfirmed = self.status {
-			self.status = OutputStatus::Unspent
-		};
+		match self.status {
+			OutputStatus::Unconfirmed | OutputStatus::Reverted => {
+				self.status = OutputStatus::Unspent
+			}
+			_ => {}
+		}
 	}
 
 	/// Mark an output as spent
 	pub fn mark_spent(&mut self) {
 		match self.status {
-			OutputStatus::Unspent => self.status = OutputStatus::Spent,
-			OutputStatus::Locked => self.status = OutputStatus::Spent,
+			OutputStatus::Unspent | OutputStatus::Locked => self.status = OutputStatus::Spent,
+			_ => (),
+		}
+	}
+
+	/// Mark an output as reverted
+	pub fn mark_reverted(&mut self) {
+		match self.status {
+			OutputStatus::Unspent => self.status = OutputStatus::Reverted,
 			_ => (),
 		}
 	}
@@ -511,6 +521,8 @@ pub enum OutputStatus {
 	Locked,
 	/// Spent
 	Spent,
+	/// Reverted
+	Reverted,
 }
 
 impl fmt::Display for OutputStatus {
@@ -520,6 +532,7 @@ impl fmt::Display for OutputStatus {
 			OutputStatus::Unspent => write!(f, "Unspent"),
 			OutputStatus::Locked => write!(f, "Locked"),
 			OutputStatus::Spent => write!(f, "Spent"),
+			OutputStatus::Reverted => write!(f, "Reverted"),
 		}
 	}
 }
@@ -707,6 +720,9 @@ pub struct WalletInfo {
 	/// amount locked via previous transactions
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_locked: u64,
+	/// amount previously confirmed, now reverted
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub amount_reverted: u64,
 }
 
 /// Types of transactions that can be contained within a TXLog entry
@@ -722,6 +738,8 @@ pub enum TxLogEntryType {
 	TxReceivedCancelled,
 	/// Sent transaction that was rolled back by user
 	TxSentCancelled,
+	/// Received transaction that was reverted on-chain
+	TxReverted,
 }
 
 impl fmt::Display for TxLogEntryType {
@@ -732,6 +750,7 @@ impl fmt::Display for TxLogEntryType {
 			TxLogEntryType::TxSent => write!(f, "Sent Tx"),
 			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx\n- Cancelled"),
 			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx\n- Cancelled"),
+			TxLogEntryType::TxReverted => write!(f, "Received Tx\n- Reverted"),
 		}
 	}
 }
