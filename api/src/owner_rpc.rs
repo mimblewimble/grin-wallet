@@ -270,6 +270,7 @@ pub trait OwnerRpc {
 			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
 			  "payment_proof": null,
+			  "reverted_after": null,
 			  "tx_type": "ConfirmedCoinbase"
 			},
 			{
@@ -289,6 +290,7 @@ pub trait OwnerRpc {
 			  "stored_tx": null,
 			  "ttl_cutoff_height": null,
 			  "payment_proof": null,
+			  "reverted_after": null,
 			  "tx_slate_id": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}

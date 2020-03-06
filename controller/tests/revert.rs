@@ -31,6 +31,7 @@ use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::secp::key::SecretKey;
 use grin_wallet_util::grin_util::Mutex;
 use log::error;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 type Wallet = Arc<
@@ -51,6 +52,7 @@ fn revert(
 ) -> Result<
 	(
 		Arc<chain::Chain>,
+		Arc<AtomicBool>,
 		u64,
 		u64,
 		Transaction,
@@ -62,10 +64,12 @@ fn revert(
 	libwallet::Error,
 > {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let stopper = wallet_proxy.running.clone();
 	let chain = wallet_proxy.chain.clone();
-	let chain2 = create_wallet_proxy(&format!("{}/chain2", test_dir))
-		.chain
-		.clone();
+	let test_dir2 = format!("{}/chain2", test_dir);
+	let wallet_proxy2 = create_wallet_proxy(&test_dir2);
+	let chain2 = wallet_proxy2.chain.clone();
+	let stopper2 = wallet_proxy2.running.clone();
 
 	create_wallet_and_add!(
 		client1,
@@ -230,6 +234,7 @@ fn revert(
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
 		assert!(tx.confirmed);
 		assert!(tx.kernel_excess.is_some());
+		assert!(tx.reverted_after.is_none());
 		Ok(())
 	})?;
 
@@ -264,14 +269,18 @@ fn revert(
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReverted);
 		assert!(!tx.confirmed);
+		assert!(tx.reverted_after.is_some());
 		Ok(())
 	})?;
 
-	Ok((chain, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i))
+	stopper2.store(false, Ordering::Relaxed);
+	Ok((
+		chain, stopper, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i,
+	))
 }
 
 fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	let (chain, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i) = revert(test_dir)?;
+	let (chain, stopper, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i) = revert(test_dir)?;
 	let mask1 = mask1_i.as_ref();
 	let mask2 = mask2_i.as_ref();
 
@@ -280,7 +289,7 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	let bh = bh + 1;
 
-	// Check receiver
+	// Check funds have been confirmed again
 	owner(Some(wallet2.clone()), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
@@ -294,14 +303,16 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
 		assert!(tx.confirmed);
+		assert!(tx.reverted_after.is_none());
 		Ok(())
 	})?;
 
+	stopper.store(false, Ordering::Relaxed);
 	Ok(())
 }
 
 fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	let (_, sent, bh, _, _, _, wallet2, mask2_i) = revert(test_dir)?;
+	let (_, stopper, sent, bh, _, _, _, wallet2, mask2_i) = revert(test_dir)?;
 	let mask2 = mask2_i.as_ref();
 
 	// Cancelling tx
@@ -336,6 +347,8 @@ fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceivedCancelled);
 		Ok(())
 	})?;
+
+	stopper.store(false, Ordering::Relaxed);
 	Ok(())
 }
 

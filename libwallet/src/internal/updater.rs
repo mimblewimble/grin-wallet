@@ -314,6 +314,7 @@ where
 							if let Some(mut t) = tx {
 								if t.tx_type == TxLogEntryType::TxReverted {
 									t.tx_type = TxLogEntryType::TxReceived;
+									t.reverted_after = None;
 								}
 								t.update_confirmation_ts();
 								t.confirmed = true;
@@ -343,6 +344,10 @@ where
 		for mut tx in batch.tx_log_iter() {
 			if reverted_kernels.contains(&tx.id) && tx.parent_key_id == *parent_key_id {
 				tx.tx_type = TxLogEntryType::TxReverted;
+				tx.reverted_after = tx.confirmation_ts.clone().and_then(|t| {
+					let now = chrono::Utc::now();
+					(now - t).to_std().ok()
+				});
 				tx.confirmed = false;
 				batch.save_tx_log_entry(tx, &parent_key_id)?;
 			}
