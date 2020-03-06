@@ -18,15 +18,49 @@ mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
 use grin_wallet_controller::controller::owner_single_use as owner;
 use grin_wallet_impls::test_framework::*;
-use grin_wallet_impls::{PathToSlate, SlatePutter};
+use grin_wallet_impls::{DefaultLCProvider, PathToSlate, SlatePutter};
 use grin_wallet_libwallet as libwallet;
 use grin_wallet_libwallet::api_impl::types::InitTxArgs;
+use grin_wallet_libwallet::WalletInst;
+use grin_wallet_util::grin_chain as chain;
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::hash::Hashed;
+use grin_wallet_util::grin_core::core::Transaction;
 use grin_wallet_util::grin_core::global;
+use grin_wallet_util::grin_keychain::ExtKeychain;
+use grin_wallet_util::grin_util::secp::key::SecretKey;
+use grin_wallet_util::grin_util::Mutex;
 use log::error;
+use std::sync::Arc;
 
-fn revert_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+type Wallet = Arc<
+	Mutex<
+		Box<
+			dyn WalletInst<
+				'static,
+				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+				LocalWalletClient,
+				ExtKeychain,
+			>,
+		>,
+	>,
+>;
+
+fn revert(
+	test_dir: &'static str,
+) -> Result<
+	(
+		Arc<chain::Chain>,
+		u64,
+		u64,
+		Transaction,
+		Wallet,
+		Option<SecretKey>,
+		Wallet,
+		Option<SecretKey>,
+	),
+	libwallet::Error,
+> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 	let chain2 = create_wallet_proxy(&format!("{}/chain2", test_dir))
@@ -139,7 +173,7 @@ fn revert_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 	let tx = tx.unwrap();
 
-	// Check receiver status
+	// Check funds have been received
 	owner(Some(wallet2.clone()), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
@@ -181,7 +215,7 @@ fn revert_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	let bh = bh + 1;
 
-	// Check receiver
+	// Check funds have been confirmed
 	owner(Some(wallet2.clone()), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
@@ -215,9 +249,9 @@ fn revert_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	let bh = bh + 1;
 
-	// Check receiver
+	// Check funds have been reverted
 	owner(Some(wallet2.clone()), mask2, None, |api, m| {
-		api.scan(mask2, None, false)?;
+		api.scan(m, None, false)?;
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		assert_eq!(info.last_confirmed_height, bh);
@@ -232,6 +266,14 @@ fn revert_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		assert!(!tx.confirmed);
 		Ok(())
 	})?;
+
+	Ok((chain, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i))
+}
+
+fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	let (chain, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i) = revert(test_dir)?;
+	let mask1 = mask1_i.as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Include the tx into the chain again, the tx should no longer be reverted
 	award_block_to_wallet(&chain, vec![&tx], wallet1.clone(), mask1)?;
@@ -258,11 +300,60 @@ fn revert_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	Ok(())
 }
 
+fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	let (_, sent, bh, _, _, _, wallet2, mask2_i) = revert(test_dir)?;
+	let mask2 = mask2_i.as_ref();
+
+	// Cancelling tx
+	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+		// Sanity check
+		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
+		assert!(refreshed);
+		assert_eq!(info.last_confirmed_height, bh);
+		assert_eq!(info.total, 0);
+		assert_eq!(info.amount_currently_spendable, 0);
+		assert_eq!(info.amount_reverted, sent);
+
+		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		assert_eq!(txs.len(), 1);
+		let tx = &txs[0];
+
+		// Cancel
+		api.cancel_tx(m, Some(tx.id), None)?;
+
+		// Check updated summary info
+		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
+		assert!(refreshed);
+		assert_eq!(info.last_confirmed_height, bh);
+		assert_eq!(info.total, 0);
+		assert_eq!(info.amount_currently_spendable, 0);
+		assert_eq!(info.amount_reverted, 0);
+
+		// Check updated tx log
+		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		assert_eq!(txs.len(), 1);
+		let tx = &txs[0];
+		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceivedCancelled);
+		Ok(())
+	})?;
+	Ok(())
+}
+
 #[test]
-fn tx_revert() {
+fn tx_revert_reconfirm() {
 	let test_dir = "test_output/revert_tx";
 	setup(test_dir);
-	if let Err(e) = revert_impl(test_dir) {
+	if let Err(e) = revert_reconfirm_impl(test_dir) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn tx_revert_cancel() {
+	let test_dir = "test_output/revert_tx_cancel";
+	setup(test_dir);
+	if let Err(e) = revert_cancel_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	clean_output_dir(test_dir);
