@@ -53,8 +53,8 @@ pub trait ForeignRpc {
 			"Ok": {
 				"foreign_api_version": 2,
 				"supported_slate_versions": [
-					"V3",
-					"V2"
+					"V4",
+					"V3"
 				]
 			}
 		}

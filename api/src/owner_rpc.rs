@@ -19,7 +19,7 @@ use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::slate_versions::v3::TransactionV3;
+use crate::libwallet::slate_versions::v4::TransactionV4;
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, Slate, SlateVersion, StatusMessage, TxLogEntry,
@@ -444,8 +444,8 @@ pub trait OwnerRpc {
 			"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 		  },
 		  "version_info": {
-				"orig_version": 3,
-				"version": 3,
+				"orig_version": 4,
+				"version": 4,
 				"block_header_version": 2
 		  }
 		}
@@ -527,8 +527,8 @@ pub trait OwnerRpc {
 						"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 					},
 					"version_info": {
-						"orig_version": 3,
-						"version": 3,
+						"orig_version": 4,
+						"version": 4,
 						"block_header_version": 2
 					}
 				}
@@ -598,8 +598,8 @@ pub trait OwnerRpc {
 						"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 					},
 					"version_info": {
-						"orig_version": 3,
-						"version": 3,
+						"orig_version": 4,
+						"version": 4,
 						"block_header_version": 2
 					}
 				},
@@ -686,8 +686,8 @@ pub trait OwnerRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 3,
-					"version": 3,
+					"orig_version": 4,
+					"version": 4,
 					"block_header_version": 2
 				}
 			}
@@ -764,8 +764,8 @@ pub trait OwnerRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 3,
-					"version": 3,
+					"orig_version": 4,
+					"version": 4,
 					"block_header_version": 2
 				}
 			},
@@ -1028,7 +1028,7 @@ pub trait OwnerRpc {
 	```
 	 */
 
-	fn post_tx(&self, token: Token, tx: TransactionV3, fluff: bool) -> Result<(), ErrorKind>;
+	fn post_tx(&self, token: Token, tx: TransactionV4, fluff: bool) -> Result<(), ErrorKind>;
 
 	/**
 	Networked version of [Owner::cancel_tx](struct.Owner.html#method.cancel_tx).
@@ -1168,7 +1168,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		tx: &TxLogEntry,
-	) -> Result<Option<TransactionV3>, ErrorKind>;
+	) -> Result<Option<TransactionV4>, ErrorKind>;
 
 	/**
 	Networked version of [Owner::verify_slate_messages](struct.Owner.html#method.verify_slate_messages).
@@ -2055,7 +2055,7 @@ where
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
-		let version = SlateVersion::V3;
+		let version = SlateVersion::V4;
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
@@ -2066,7 +2066,7 @@ where
 	) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
-		let version = SlateVersion::V3;
+		let version = SlateVersion::V4;
 		Ok(VersionedSlate::into_version(slate, version))
 	}
 
@@ -2083,7 +2083,7 @@ where
 			args,
 		)
 		.map_err(|e| e.kind())?;
-		let version = SlateVersion::V3;
+		let version = SlateVersion::V4;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}
 
@@ -2098,7 +2098,7 @@ where
 			&Slate::from(in_slate),
 		)
 		.map_err(|e| e.kind())?;
-		let version = SlateVersion::V3;
+		let version = SlateVersion::V4;
 		Ok(VersionedSlate::into_version(out_slate, version))
 	}
 
@@ -2131,13 +2131,13 @@ where
 		&self,
 		token: Token,
 		tx: &TxLogEntry,
-	) -> Result<Option<TransactionV3>, ErrorKind> {
+	) -> Result<Option<TransactionV4>, ErrorKind> {
 		Owner::get_stored_tx(self, (&token.keychain_mask).as_ref(), tx)
-			.map(|x| x.map(TransactionV3::from))
+			.map(|x| x.map(TransactionV4::from))
 			.map_err(|e| e.kind())
 	}
 
-	fn post_tx(&self, token: Token, tx: TransactionV3, fluff: bool) -> Result<(), ErrorKind> {
+	fn post_tx(&self, token: Token, tx: TransactionV4, fluff: bool) -> Result<(), ErrorKind> {
 		Owner::post_tx(
 			self,
 			(&token.keychain_mask).as_ref(),
