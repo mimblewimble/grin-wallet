@@ -114,13 +114,18 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		assert_eq!(0, slate.lock_height);
 
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
-		slate = sender_api.finalize_tx(m, &slate)?;
+		sender_api.tx_lock_outputs(m, &mut slate, 0)?;
+		slate = sender_api.finalize_tx(m, &mut slate)?;
 
 		// Check we have a single kernel and that it is a Plain kernel (no lock_height).
-		assert_eq!(slate.tx.kernels().len(), 1);
+		assert_eq!(slate.tx_or_err()?.kernels().len(), 1);
 		assert_eq!(
-			slate.tx.kernels().first().map(|k| k.features).unwrap(),
+			slate
+				.tx_or_err()?
+				.kernels()
+				.first()
+				.map(|k| k.features)
+				.unwrap(),
 			transaction::KernelFeatures::Plain { fee: 2000000 }
 		);
 
@@ -168,7 +173,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// post transaction
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.post_tx(m, &slate.tx, false)?;
+		api.post_tx(m, slate.tx_or_err()?, false)?;
 		Ok(())
 	})?;
 
@@ -292,8 +297,8 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
-		slate = sender_api.finalize_tx(m, &slate)?;
+		sender_api.tx_lock_outputs(m, &mut slate, 0)?;
+		slate = sender_api.finalize_tx(m, &mut slate)?;
 		Ok(())
 	})?;
 
@@ -401,8 +406,8 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
-		slate = sender_api.finalize_tx(m, &slate)?;
+		sender_api.tx_lock_outputs(m, &mut slate, 0)?;
+		slate = sender_api.finalize_tx(m, &mut slate)?;
 		Ok(())
 	})?;
 

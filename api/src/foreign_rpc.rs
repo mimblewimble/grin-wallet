@@ -562,14 +562,14 @@ where
 			message,
 		)
 		.map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_invoice_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
 		let out_slate =
-			Foreign::finalize_invoice_tx(self, &Slate::from(in_slate)).map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version))
+			Foreign::finalize_invoice_tx(self, &mut Slate::from(in_slate)).map_err(|e| e.kind())?;
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 }
 

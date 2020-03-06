@@ -104,7 +104,7 @@ where
 pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
+	slate: &mut Slate,
 	context: &Context,
 ) -> Result<(), Error>
 where
@@ -211,7 +211,10 @@ where
 		batch.commit()?;
 		t
 	};
-	wallet.store_tx(&format!("{}", tx_entry.tx_slate_id.unwrap()), &slate.tx)?;
+	wallet.store_tx(
+		&format!("{}", tx_entry.tx_slate_id.unwrap()),
+		slate.tx_or_err()?,
+	)?;
 	Ok(())
 }
 

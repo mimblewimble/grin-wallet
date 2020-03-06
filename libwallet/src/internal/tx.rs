@@ -324,7 +324,7 @@ pub fn update_stored_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	context: &Context,
-	slate: &Slate,
+	slate: &mut Slate,
 	is_invoiced: bool,
 ) -> Result<(), Error>
 where
@@ -350,11 +350,11 @@ where
 		Some(t) => t,
 		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into()),
 	};
-	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), &slate.tx)?;
+	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 	let parent_key = tx.parent_key_id.clone();
-	tx.kernel_excess = Some(slate.tx.body.kernels[0].excess);
+	tx.kernel_excess = Some(slate.tx_or_err()?.body.kernels[0].excess);
 
-	if let Some(ref p) = slate.payment_proof {
+	if let Some(ref p) = slate.clone().payment_proof {
 		let derivation_index = match context.payment_proof_derivation_index {
 			Some(i) => i,
 			None => 0,
@@ -468,7 +468,7 @@ pub fn verify_slate_payment_proof<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	context: &Context,
-	slate: &Slate,
+	slate: &mut Slate,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -492,9 +492,9 @@ where
 		.into());
 	}
 
-	if let Some(ref p) = slate.payment_proof {
+	if let Some(ref p) = slate.clone().payment_proof {
 		let orig_proof_info = match orig_proof_info {
-			Some(p) => p,
+			Some(p) => p.clone(),
 			None => {
 				return Err(ErrorKind::PaymentProof(
 					"Original proof info not stored in tx".to_owned(),

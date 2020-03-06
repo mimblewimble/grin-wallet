@@ -396,7 +396,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			let res = api.process_invoice_tx(m, &slate, args);
 			assert!(res.is_ok());
 			slate = res.unwrap();
-			api.tx_lock_outputs(m, &slate, 0)?;
+			api.tx_lock_outputs(m, &mut slate, 0)?;
 
 			Ok(())
 		},
@@ -409,7 +409,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		"id": 1,
 		"method": "finalize_invoice_tx",
 		"params": {
-			"slate": VersionedSlate::into_version(slate, SlateVersion::V3),
+			"slate": VersionedSlate::into_version(slate, SlateVersion::V3)?,
 		}
 	});
 	let res =

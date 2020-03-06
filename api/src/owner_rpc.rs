@@ -2056,7 +2056,7 @@ where
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version))
+		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn issue_invoice_tx(
@@ -2067,7 +2067,7 @@ where
 		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version))
+		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn process_invoice_tx(
@@ -2084,7 +2084,7 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(out_slate, version))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(
@@ -2095,11 +2095,11 @@ where
 		let out_slate = Owner::finalize_tx(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&Slate::from(in_slate),
+			&mut Slate::from(in_slate),
 		)
 		.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(out_slate, version))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn tx_lock_outputs(
@@ -2111,7 +2111,7 @@ where
 		Owner::tx_lock_outputs(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&Slate::from(in_slate),
+			&mut Slate::from(in_slate),
 			participant_id,
 		)
 		.map_err(|e| e.kind())
@@ -2511,12 +2511,12 @@ pub fn run_doctest_owner(
 		}
 		// Spit out slate for input to finalize_tx
 		if lock_tx {
-			api_impl::owner::tx_lock_outputs(&mut **w, (&mask2).as_ref(), &slate, 0).unwrap();
+			api_impl::owner::tx_lock_outputs(&mut **w, (&mask2).as_ref(), &mut slate, 0).unwrap();
 		}
 		println!("RECEIPIENT SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		if finalize_tx {
-			slate = api_impl::owner::finalize_tx(&mut **w, (&mask2).as_ref(), &slate).unwrap();
+			slate = api_impl::owner::finalize_tx(&mut **w, (&mask2).as_ref(), &mut slate).unwrap();
 			error!("FINALIZED TX SLATE");
 			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		}
@@ -2524,7 +2524,7 @@ pub fn run_doctest_owner(
 	}
 
 	if payment_proof {
-		api_impl::owner::post_tx(&client1, &slate_outer.tx, true).unwrap();
+		api_impl::owner::post_tx(&client1, slate_outer.tx_or_err().unwrap(), true).unwrap();
 	}
 
 	if perform_tx && lock_tx && finalize_tx {

@@ -117,20 +117,20 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &mut slate, 0)?;
 		Ok(())
 	})?;
 
 	// wallet 2 finalizes and posts
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&slate)?;
+		slate = api.finalize_invoice_tx(&mut slate)?;
 		Ok(())
 	})?;
 
 	// wallet 1 posts so wallet 2 doesn't get the mined amount
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.post_tx(m, &slate.tx, false)?;
+		api.post_tx(m, slate.tx_or_err()?, false)?;
 		Ok(())
 	})?;
 	bh += 1;
@@ -186,14 +186,14 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &mut slate, 0)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalizes and posts
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&slate)?;
+		slate = api.finalize_invoice_tx(&mut slate)?;
 		Ok(())
 	})?;
 

@@ -348,11 +348,11 @@ where
 			match args.method.as_str() {
 				"file" => {
 					PathToSlate((&args.dest).into()).put_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &mut slate, 0)?;
 					return Ok(());
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &mut slate, 0)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
@@ -365,7 +365,7 @@ where
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &mut slate, 0)?;
 				}
 			}
 
@@ -373,8 +373,8 @@ where
 				error!("Error validating participant messages: {}", e);
 				e
 			})?;
-			slate = api.finalize_tx(m, &slate)?;
-			let result = api.post_tx(m, &slate.tx, args.fluff);
+			slate = api.finalize_tx(m, &mut slate)?;
+			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
 			match result {
 				Ok(_) => {
 					info!("Tx sent ok",);
@@ -493,7 +493,7 @@ where
 
 	if !args.nopost {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			let result = api.post_tx(m, &slate.tx, args.fluff);
+			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
 			match result {
 				Ok(_) => {
 					info!(
@@ -628,23 +628,23 @@ where
 				"file" => {
 					let slate_putter = PathToSlate((&args.dest).into());
 					slate_putter.put_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &mut slate, 0)?;
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &mut slate, 0)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
 					controller::foreign_single_use(wallet_inst, km, |api| {
-						slate = api.finalize_invoice_tx(&slate)?;
+						slate = api.finalize_invoice_tx(&mut slate)?;
 						Ok(())
 					})?;
 				}
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &mut slate, 0)?;
 				}
 			}
 		}
@@ -795,10 +795,10 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let slate = PathToSlate((&args.input).into()).get_tx()?;
+	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		api.post_tx(m, &slate.tx, args.fluff)?;
+		api.post_tx(m, slate.tx_or_err()?, args.fluff)?;
 		info!("Posted transaction");
 		return Ok(());
 	})?;

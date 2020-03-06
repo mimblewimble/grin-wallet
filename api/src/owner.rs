@@ -633,11 +633,11 @@ where
 	///     args,
 	/// );
 	///
-	/// if let Ok(slate) = result {
+	/// if let Ok(mut slate) = result {
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     api_owner.tx_lock_outputs(None, &slate, 0);
+	///     api_owner.tx_lock_outputs(None, &mut slate, 0);
 	/// }
 	/// ```
 
@@ -670,14 +670,14 @@ where
 				let comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
-				self.tx_lock_outputs(keychain_mask, &slate, 0)?;
-				let slate = match sa.finalize {
-					true => self.finalize_tx(keychain_mask, &slate)?,
+				self.tx_lock_outputs(keychain_mask, &mut slate, 0)?;
+				let mut slate = match sa.finalize {
+					true => self.finalize_tx(keychain_mask, &mut slate)?,
 					false => slate,
 				};
 
 				if sa.post_tx {
-					self.post_tx(keychain_mask, &slate.tx, sa.fluff)?;
+					self.post_tx(keychain_mask, slate.tx_or_err()?, sa.fluff)?;
 				}
 				Ok(slate)
 			}
@@ -843,18 +843,18 @@ where
 	///     args,
 	/// );
 	///
-	/// if let Ok(slate) = result {
+	/// if let Ok(mut slate) = result {
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     api_owner.tx_lock_outputs(None, &slate, 0);
+	///     api_owner.tx_lock_outputs(None, &mut slate, 0);
 	/// }
 	/// ```
 
 	pub fn tx_lock_outputs(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		slate: &Slate,
+		slate: &mut Slate,
 		participant_id: usize,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
@@ -907,26 +907,26 @@ where
 	///     args,
 	/// );
 	///
-	/// if let Ok(slate) = result {
+	/// if let Ok(mut slate) = result {
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &mut slate, 0);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
-	///     let res = api_owner.finalize_tx(None, &slate);
+	///     let res = api_owner.finalize_tx(None, &mut slate);
 	/// }
 	/// ```
 
 	pub fn finalize_tx(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		slate: &Slate,
+		slate: &mut Slate,
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::finalize_tx(&mut **w, keychain_mask, &slate)
+		owner::finalize_tx(&mut **w, keychain_mask, slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -967,16 +967,16 @@ where
 	///     args,
 	/// );
 	///
-	/// if let Ok(slate) = result {
+	/// if let Ok(mut slate) = result {
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &mut slate, 0);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
-	///     let res = api_owner.finalize_tx(None, &slate);
-	///     let res = api_owner.post_tx(None, &slate.tx, true);
+	///     let res = api_owner.finalize_tx(None, &mut slate);
+	///     let res = api_owner.post_tx(None, slate.tx_or_err().unwrap(), true);
 	/// }
 	/// ```
 
@@ -1039,11 +1039,11 @@ where
 	///     args,
 	/// );
 	///
-	/// if let Ok(slate) = result {
+	/// if let Ok(mut slate) = result {
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &mut slate, 0);
 	///     //
 	///     // We didn't get the slate back, or something else went wrong
 	///     //
@@ -1155,15 +1155,15 @@ where
 	///     args,
 	/// );
 	///
-	/// if let Ok(slate) = result {
+	/// if let Ok(mut slate) = result {
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &mut slate, 0);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
-	///     let res = api_owner.verify_slate_messages(None, &slate);
+	///     let res = api_owner.verify_slate_messages(None, &mut slate);
 	/// }
 	/// ```
 	pub fn verify_slate_messages(

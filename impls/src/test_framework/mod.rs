@@ -206,7 +206,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	let slate = {
+	let mut slate = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let args = InitTxArgs {
@@ -219,16 +219,16 @@ where
 			..Default::default()
 		};
 		let slate_i = owner::init_send_tx(&mut **w, keychain_mask, args, test_mode)?;
-		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, &slate, 0)?;
-		owner::finalize_tx(&mut **w, keychain_mask, &slate)?
+		let mut slate = client.send_tx_slate_direct(dest, &slate_i)?;
+		owner::tx_lock_outputs(&mut **w, keychain_mask, &mut slate, 0)?;
+		owner::finalize_tx(&mut **w, keychain_mask, &mut slate)?
 	};
 	let client = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.w2n_client().clone()
 	};
-	owner::post_tx(&client, &slate.tx, false)?; // mines a block
+	owner::post_tx(&client, slate.tx_or_err()?, false)?; // mines a block
 	Ok(())
 }
 

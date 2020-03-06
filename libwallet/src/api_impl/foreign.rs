@@ -137,7 +137,7 @@ where
 pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
+	slate: &mut Slate,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -148,7 +148,7 @@ where
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, true)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
 	tx::update_message(&mut *w, keychain_mask, &sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;

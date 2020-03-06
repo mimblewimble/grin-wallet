@@ -91,7 +91,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
+		sender_api.tx_lock_outputs(m, &mut slate, 0)?;
 
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let tx = txs[0].clone();
@@ -138,8 +138,8 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			ttl_blocks: Some(2),
 			..Default::default()
 		};
-		let slate_i = sender_api.init_send_tx(m, args)?;
-		sender_api.tx_lock_outputs(m, &slate_i, 0)?;
+		let mut slate_i = sender_api.init_send_tx(m, args)?;
+		sender_api.tx_lock_outputs(m, &mut slate_i, 0)?;
 		slate = slate_i;
 
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;

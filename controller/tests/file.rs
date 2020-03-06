@@ -123,7 +123,7 @@ fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 		let mut slate = api.init_send_tx(m, args)?;
 		// output tx file
 		PathToSlate((&send_file).into()).put_tx(&mut slate)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &mut slate, 0)?;
 		Ok(())
 	})?;
 
@@ -157,8 +157,8 @@ fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let mut slate = PathToSlate(receive_file.into()).get_tx()?;
 		api.verify_slate_messages(m, &slate)?;
-		slate = api.finalize_tx(m, &slate)?;
-		api.post_tx(m, &slate.tx, false)?;
+		slate = api.finalize_tx(m, &mut slate)?;
+		api.post_tx(m, slate.tx_or_err()?, false)?;
 		bh += 1;
 		Ok(())
 	})?;
