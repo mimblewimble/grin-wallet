@@ -309,7 +309,9 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		Ok(())
 	})?;
 
+	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
 	Ok(())
 }
 
