@@ -33,6 +33,8 @@ use grin_wallet_util::grin_util::Mutex;
 use log::error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 type Wallet = Arc<
 	Mutex<
@@ -348,7 +350,9 @@ fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
+	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
 	Ok(())
 }
 
