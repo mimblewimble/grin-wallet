@@ -33,7 +33,7 @@ use common::{clean_output_dir, create_wallet_proxy, setup};
 fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
-	let stopper = waller_proxy.running.clone();
+	let stopper = wallet_proxy.running.clone();
 
 	create_wallet_and_add!(
 		client1,
