@@ -137,7 +137,7 @@ where
 pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
+	slate: &Slate,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,

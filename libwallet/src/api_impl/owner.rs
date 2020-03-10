@@ -543,7 +543,7 @@ where
 pub fn tx_lock_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
+	slate: &Slate,
 	participant_id: usize,
 ) -> Result<(), Error>
 where
@@ -559,7 +559,7 @@ where
 pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
+	slate: &Slate,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -571,8 +571,8 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	let parent_key_id = w.parent_key_id();
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
-	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &mut sl)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, false)?;
+	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
 	tx::update_message(&mut *w, keychain_mask, &sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;

@@ -324,7 +324,7 @@ pub fn update_stored_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	context: &Context,
-	slate: &mut Slate,
+	slate: &Slate,
 	is_invoiced: bool,
 ) -> Result<(), Error>
 where
@@ -468,7 +468,7 @@ pub fn verify_slate_payment_proof<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	context: &Context,
-	slate: &mut Slate,
+	slate: &Slate,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,

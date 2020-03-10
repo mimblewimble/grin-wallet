@@ -441,13 +441,13 @@ where
 	/// // If result okay, send to payer, who will apply the transaction via their
 	/// // owner API, then send back the slate
 	/// // ...
-	/// # let mut slate = Slate::blank(2);
+	/// # let slate = Slate::blank(2);
 	///
-	/// let slate = api_foreign.finalize_invoice_tx(&mut slate);
+	/// let slate = api_foreign.finalize_invoice_tx(&slate);
 	/// // if okay, then post via the owner API
 	/// ```
 
-	pub fn finalize_invoice_tx(&self, slate: &mut Slate) -> Result<Slate, Error> {
+	pub fn finalize_invoice_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {

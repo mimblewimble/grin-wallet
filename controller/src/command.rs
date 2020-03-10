@@ -348,11 +348,11 @@ where
 			match args.method.as_str() {
 				"file" => {
 					PathToSlate((&args.dest).into()).put_tx(&slate)?;
-					api.tx_lock_outputs(m, &mut slate, 0)?;
+					api.tx_lock_outputs(m, &slate, 0)?;
 					return Ok(());
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &mut slate, 0)?;
+					api.tx_lock_outputs(m, &slate, 0)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
@@ -477,7 +477,7 @@ where
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
 			}
-			slate = api.finalize_invoice_tx(&mut slate)?;
+			slate = api.finalize_invoice_tx(&slate)?;
 			Ok(())
 		})?;
 	} else {
@@ -486,7 +486,7 @@ where
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
 			}
-			slate = api.finalize_tx(m, &mut slate)?;
+			slate = api.finalize_tx(m, &slate)?;
 			Ok(())
 		})?;
 	}
