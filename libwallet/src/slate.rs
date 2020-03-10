@@ -227,13 +227,20 @@ impl Slate {
 	/// Return the transaction, throwing an error if it doesn't exist
 	/// to be used at points in the code where the existence of a transaction
 	/// is assumed
-	pub fn tx_or_err(&mut self) -> Result<&mut Transaction, Error> {
-		match &mut self.tx {
+	pub fn tx_or_err(&self) -> Result<&Transaction, Error> {
+		match &self.tx {
 			Some(t) => Ok(t),
 			None => Err(ErrorKind::SlateTransactionRequired.into()),
 		}
 	}
 
+	/// As above, but return mutable reference
+	pub fn tx_or_err_mut(&mut self) -> Result<&mut Transaction, Error> {
+		match &mut self.tx {
+			Some(t) => Ok(t),
+			None => Err(ErrorKind::SlateTransactionRequired.into()),
+		}
+	}
 	/// Attempt to find slate version
 	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
 		let probe: SlateVersionProbe =
@@ -523,7 +530,7 @@ impl Slate {
 		// Generate a random kernel offset here
 		// and subtract it from the blind_sum so we create
 		// the aggsig context with the "split" key
-		self.tx_or_err()?.offset = match use_test_rng {
+		self.tx_or_err_mut()?.offset = match use_test_rng {
 			false => {
 				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()))
 			}
@@ -544,7 +551,7 @@ impl Slate {
 	}
 
 	/// Checks the fees in the transaction in the given slate are valid
-	fn check_fees(&mut self) -> Result<(), Error> {
+	fn check_fees(&self) -> Result<(), Error> {
 		let tx = self.tx_or_err()?;
 		// double check the fee amount included in the partial tx
 		// we don't necessarily want to just trust the sender
@@ -681,7 +688,7 @@ impl Slate {
 	}
 
 	/// return the final excess
-	pub fn calc_excess<K>(&mut self, keychain: &K) -> Result<Commitment, Error>
+	pub fn calc_excess<K>(&self, keychain: &K) -> Result<Commitment, Error>
 	where
 		K: Keychain,
 	{
@@ -714,7 +721,7 @@ impl Slate {
 
 		debug!("Final Tx excess: {:?}", final_excess);
 
-		let final_tx = self.tx_or_err()?;
+		let final_tx = self.tx_or_err_mut()?;
 
 		// update the tx kernel to reflect the offset excess and sig
 		assert_eq!(final_tx.kernels().len(), 1);

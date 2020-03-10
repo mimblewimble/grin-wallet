@@ -206,7 +206,7 @@ where
 	C: NodeClient + 'a,
 	K: keychain::Keychain + 'a,
 {
-	let mut slate = {
+	let slate = {
 		let mut w_lock = wallet.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let args = InitTxArgs {

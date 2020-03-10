@@ -795,7 +795,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
+	let slate = PathToSlate((&args.input).into()).get_tx()?;
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		api.post_tx(m, slate.tx_or_err()?, args.fluff)?;

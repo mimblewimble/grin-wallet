@@ -671,7 +671,7 @@ where
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
 				self.tx_lock_outputs(keychain_mask, &mut slate, 0)?;
-				let mut slate = match sa.finalize {
+				let slate = match sa.finalize {
 					true => self.finalize_tx(keychain_mask, &mut slate)?,
 					false => slate,
 				};

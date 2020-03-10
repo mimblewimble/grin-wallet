@@ -104,7 +104,7 @@ where
 pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
+	slate: &Slate,
 	context: &Context,
 ) -> Result<(), Error>
 where
