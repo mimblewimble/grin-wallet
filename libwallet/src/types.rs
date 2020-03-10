@@ -36,6 +36,7 @@ use serde;
 use serde_json;
 use std::collections::HashMap;
 use std::fmt;
+use std::time::Duration;
 use uuid::Uuid;
 
 /// Combined trait to allow dynamic wallet dispatch
@@ -483,16 +484,26 @@ impl OutputData {
 
 	/// Marks this output as unspent if it was previously unconfirmed
 	pub fn mark_unspent(&mut self) {
-		if let OutputStatus::Unconfirmed = self.status {
-			self.status = OutputStatus::Unspent
-		};
+		match self.status {
+			OutputStatus::Unconfirmed | OutputStatus::Reverted => {
+				self.status = OutputStatus::Unspent
+			}
+			_ => {}
+		}
 	}
 
 	/// Mark an output as spent
 	pub fn mark_spent(&mut self) {
 		match self.status {
-			OutputStatus::Unspent => self.status = OutputStatus::Spent,
-			OutputStatus::Locked => self.status = OutputStatus::Spent,
+			OutputStatus::Unspent | OutputStatus::Locked => self.status = OutputStatus::Spent,
+			_ => (),
+		}
+	}
+
+	/// Mark an output as reverted
+	pub fn mark_reverted(&mut self) {
+		match self.status {
+			OutputStatus::Unspent => self.status = OutputStatus::Reverted,
 			_ => (),
 		}
 	}
@@ -511,6 +522,8 @@ pub enum OutputStatus {
 	Locked,
 	/// Spent
 	Spent,
+	/// Reverted
+	Reverted,
 }
 
 impl fmt::Display for OutputStatus {
@@ -520,6 +533,7 @@ impl fmt::Display for OutputStatus {
 			OutputStatus::Unspent => write!(f, "Unspent"),
 			OutputStatus::Locked => write!(f, "Locked"),
 			OutputStatus::Spent => write!(f, "Spent"),
+			OutputStatus::Reverted => write!(f, "Reverted"),
 		}
 	}
 }
@@ -707,6 +721,9 @@ pub struct WalletInfo {
 	/// amount locked via previous transactions
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_locked: u64,
+	/// amount previously confirmed, now reverted
+	#[serde(with = "secp_ser::string_or_u64")]
+	pub amount_reverted: u64,
 }
 
 /// Types of transactions that can be contained within a TXLog entry
@@ -722,6 +739,8 @@ pub enum TxLogEntryType {
 	TxReceivedCancelled,
 	/// Sent transaction that was rolled back by user
 	TxSentCancelled,
+	/// Received transaction that was reverted on-chain
+	TxReverted,
 }
 
 impl fmt::Display for TxLogEntryType {
@@ -732,6 +751,7 @@ impl fmt::Display for TxLogEntryType {
 			TxLogEntryType::TxSent => write!(f, "Sent Tx"),
 			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx\n- Cancelled"),
 			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx\n- Cancelled"),
+			TxLogEntryType::TxReverted => write!(f, "Received Tx\n- Reverted"),
 		}
 	}
 }
@@ -791,6 +811,9 @@ pub struct TxLogEntry {
 	/// Additional info needed to stored payment proof
 	#[serde(default)]
 	pub payment_proof: Option<StoredProofInfo>,
+	/// Track the time it took for a transaction to get reverted
+	#[serde(with = "option_duration_as_secs", default)]
+	pub reverted_after: Option<Duration>,
 }
 
 impl ser::Writeable for TxLogEntry {
@@ -828,6 +851,7 @@ impl TxLogEntry {
 			kernel_excess: None,
 			kernel_lookup_min_height: None,
 			payment_proof: None,
+			reverted_after: None,
 		}
 	}
 
@@ -967,5 +991,85 @@ impl ser::Readable for WalletInitStatus {
 	fn read(reader: &mut dyn ser::Reader) -> Result<WalletInitStatus, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+	}
+}
+
+/// Serializes an Option<Duration> to and from a string
+pub mod option_duration_as_secs {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+	use std::time::Duration;
+
+	///
+	pub fn serialize<S>(dur: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match dur {
+			Some(dur) => serializer.serialize_str(&format!("{}", dur.as_secs())),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		match Option::<String>::deserialize(deserializer)? {
+			Some(s) => {
+				let secs = s
+					.parse::<u64>()
+					.map_err(|err| Error::custom(err.to_string()))?;
+				Ok(Some(Duration::from_secs(secs)))
+			}
+			None => Ok(None),
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use serde_json::Value;
+
+	#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+	struct TestSer {
+		#[serde(with = "option_duration_as_secs", default)]
+		dur: Option<Duration>,
+	}
+
+	#[test]
+	fn duration_serde() {
+		let some = TestSer {
+			dur: Some(Duration::from_secs(100)),
+		};
+		let val = serde_json::to_value(some.clone()).unwrap();
+		if let Value::Object(o) = &val {
+			if let Value::String(s) = o.get("dur").unwrap() {
+				assert_eq!(s, "100");
+			} else {
+				panic!("Invalid type");
+			}
+		} else {
+			panic!("Invalid type")
+		}
+		assert_eq!(some, serde_json::from_value(val).unwrap());
+
+		let none = TestSer { dur: None };
+		let val = serde_json::to_value(none.clone()).unwrap();
+		if let Value::Object(o) = &val {
+			if let Value::Null = o.get("dur").unwrap() {
+				// ok
+			} else {
+				panic!("Invalid type");
+			}
+		} else {
+			panic!("Invalid type")
+		}
+		assert_eq!(none, serde_json::from_value(val).unwrap());
+
+		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
+		assert_eq!(none, none2);
 	}
 }

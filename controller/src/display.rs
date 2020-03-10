@@ -304,6 +304,12 @@ pub fn info(
 			bFG->"Confirmed Total",
 			FG->amount_to_hr_string(wallet_info.total, false)
 		]);
+		if wallet_info.amount_reverted > 0 {
+			table.add_row(row![
+				Fr->format!("Reverted"),
+				Fr->amount_to_hr_string(wallet_info.amount_reverted, false)
+			]);
+		}
 		// Only dispay "Immature Coinbase" if we have related outputs in the wallet.
 		// This row just introduces confusion if the wallet does not receive coinbase rewards.
 		if wallet_info.amount_immature > 0 {
@@ -337,6 +343,12 @@ pub fn info(
 			bFG->"Total",
 			FG->amount_to_hr_string(wallet_info.total, false)
 		]);
+		if wallet_info.amount_reverted > 0 {
+			table.add_row(row![
+				Fr->format!("Reverted"),
+				Fr->amount_to_hr_string(wallet_info.amount_reverted, false)
+			]);
+		}
 		// Only dispay "Immature Coinbase" if we have related outputs in the wallet.
 		// This row just introduces confusion if the wallet does not receive coinbase rewards.
 		if wallet_info.amount_immature > 0 {
