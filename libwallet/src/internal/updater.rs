@@ -15,7 +15,7 @@
 //! Utilities to check the status of all the outputs we have stored in
 //! the wallet storage and update them.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::error::Error;
@@ -121,7 +121,8 @@ where
 				true => {
 					!tx_entry.confirmed
 						&& (tx_entry.tx_type == TxLogEntryType::TxReceived
-							|| tx_entry.tx_type == TxLogEntryType::TxSent)
+							|| tx_entry.tx_type == TxLogEntryType::TxSent
+							|| tx_entry.tx_type == TxLogEntryType::TxReverted)
 				}
 				false => true,
 			};
@@ -157,14 +158,13 @@ pub fn map_wallet_outputs<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	update_all: bool,
-) -> Result<HashMap<pedersen::Commitment, (Identifier, Option<u64>)>, Error>
+) -> Result<HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut wallet_outputs: HashMap<pedersen::Commitment, (Identifier, Option<u64>)> =
-		HashMap::new();
+	let mut wallet_outputs = HashMap::new();
 	let keychain = wallet.keychain(keychain_mask)?;
 	let unspents: Vec<OutputData> = wallet
 		.iter()
@@ -174,7 +174,7 @@ where
 	let tx_entries = retrieve_txs(wallet, None, None, Some(&parent_key_id), true)?;
 
 	// Only select outputs that are actually involved in an outstanding transaction
-	let unspents: Vec<OutputData> = match update_all {
+	let unspents = match update_all {
 		false => unspents
 			.into_iter()
 			.filter(|x| match x.tx_log_entry.as_ref() {
@@ -192,7 +192,13 @@ where
 				.commit(out.value, &out.key_id, SwitchCommitmentType::Regular)
 				.unwrap(), // TODO: proper support for different switch commitment schemes
 		};
-		wallet_outputs.insert(commit, (out.key_id.clone(), out.mmr_index));
+		let val = (
+			out.key_id.clone(),
+			out.mmr_index,
+			out.tx_log_entry,
+			out.status == OutputStatus::Unspent,
+		);
+		wallet_outputs.insert(commit, val);
 	}
 	Ok(wallet_outputs)
 }
@@ -201,7 +207,7 @@ where
 pub fn cancel_tx_and_outputs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	tx: TxLogEntry,
+	mut tx: TxLogEntry,
 	outputs: Vec<OutputData>,
 	parent_key_id: &Identifier,
 ) -> Result<(), Error>
@@ -214,7 +220,7 @@ where
 
 	for mut o in outputs {
 		// unlock locked outputs
-		if o.status == OutputStatus::Unconfirmed {
+		if o.status == OutputStatus::Unconfirmed || o.status == OutputStatus::Reverted {
 			batch.delete(&o.key_id, &o.mmr_index)?;
 		}
 		if o.status == OutputStatus::Locked {
@@ -222,12 +228,12 @@ where
 			batch.save(o)?;
 		}
 	}
-	let mut tx = tx;
-	if tx.tx_type == TxLogEntryType::TxSent {
-		tx.tx_type = TxLogEntryType::TxSentCancelled;
-	}
-	if tx.tx_type == TxLogEntryType::TxReceived {
-		tx.tx_type = TxLogEntryType::TxReceivedCancelled;
+	match tx.tx_type {
+		TxLogEntryType::TxSent => tx.tx_type = TxLogEntryType::TxSentCancelled,
+		TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {
+			tx.tx_type = TxLogEntryType::TxReceivedCancelled
+		}
+		_ => {}
 	}
 	batch.save_tx_log_entry(tx, parent_key_id)?;
 	batch.commit()?;
@@ -238,8 +244,9 @@ where
 pub fn apply_api_outputs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>)>,
+	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
 	api_outputs: &HashMap<pedersen::Commitment, (String, u64, u64)>,
+	reverted_kernels: HashSet<u32>,
 	height: u64,
 	parent_key_id: &Identifier,
 ) -> Result<(), Error>
@@ -264,7 +271,7 @@ where
 			return Ok(());
 		}
 		let mut batch = wallet.batch(keychain_mask)?;
-		for (commit, (id, mmr_index)) in wallet_outputs.iter() {
+		for (commit, (id, mmr_index, _, _)) in wallet_outputs.iter() {
 			if let Ok(mut output) = batch.get(id, mmr_index) {
 				match api_outputs.get(&commit) {
 					Some(o) => {
@@ -296,12 +303,19 @@ where
 						// also mark the transaction in which this output is involved as confirmed
 						// note that one involved input/output confirmation SHOULD be enough
 						// to reliably confirm the tx
-						if !output.is_coinbase && output.status == OutputStatus::Unconfirmed {
+						if !output.is_coinbase
+							&& (output.status == OutputStatus::Unconfirmed
+								|| output.status == OutputStatus::Reverted)
+						{
 							let tx = batch.tx_log_iter().find(|t| {
 								Some(t.id) == output.tx_log_entry
 									&& t.parent_key_id == *parent_key_id
 							});
 							if let Some(mut t) = tx {
+								if t.tx_type == TxLogEntryType::TxReverted {
+									t.tx_type = TxLogEntryType::TxReceived;
+									t.reverted_after = None;
+								}
 								t.update_confirmation_ts();
 								t.confirmed = true;
 								batch.save_tx_log_entry(t, &parent_key_id)?;
@@ -310,11 +324,35 @@ where
 						output.height = o.1;
 						output.mark_unspent();
 					}
-					None => output.mark_spent(),
-				};
+					None => {
+						if !output.is_coinbase
+							&& output
+								.tx_log_entry
+								.map(|i| reverted_kernels.contains(&i))
+								.unwrap_or(false)
+						{
+							output.mark_reverted();
+						} else {
+							output.mark_spent();
+						}
+					}
+				}
 				batch.save(output)?;
 			}
 		}
+
+		for mut tx in batch.tx_log_iter() {
+			if reverted_kernels.contains(&tx.id) && tx.parent_key_id == *parent_key_id {
+				tx.tx_type = TxLogEntryType::TxReverted;
+				tx.reverted_after = tx.confirmation_ts.clone().and_then(|t| {
+					let now = chrono::Utc::now();
+					(now - t).to_std().ok()
+				});
+				tx.confirmed = false;
+				batch.save_tx_log_entry(tx, &parent_key_id)?;
+			}
+		}
+
 		{
 			batch.save_last_confirmed_height(parent_key_id, height)?;
 		}
@@ -349,16 +387,69 @@ where
 		.w2n_client()
 		.get_outputs_from_node(wallet_output_keys)?;
 
+	// For any disappeared output, check the on-chain status of the corresponding transaction kernel
+	// If it is no longer present, the transaction was reverted due to a re-org
+	let reverted_kernels =
+		find_reverted_kernels(wallet, &wallet_outputs, &api_outputs, parent_key_id)?;
+
 	apply_api_outputs(
 		wallet,
 		keychain_mask,
 		&wallet_outputs,
 		&api_outputs,
+		reverted_kernels,
 		height,
 		parent_key_id,
 	)?;
 	clean_old_unconfirmed(wallet, keychain_mask, height)?;
 	Ok(())
+}
+
+fn find_reverted_kernels<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
+	api_outputs: &HashMap<pedersen::Commitment, (String, u64, u64)>,
+	parent_key_id: &Identifier,
+) -> Result<HashSet<u32>, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut client = wallet.w2n_client().clone();
+	let mut ids = HashSet::new();
+
+	// Get transaction IDs for outputs that are no longer unspent
+	for (commit, (_, _, tx_id, was_unspent)) in wallet_outputs {
+		if let Some(tx_id) = *tx_id {
+			if *was_unspent && !api_outputs.contains_key(commit) {
+				ids.insert(tx_id);
+			}
+		}
+	}
+
+	// Get corresponding kernels
+	let kernels = wallet
+		.tx_log_iter()
+		.filter(|t| {
+			ids.contains(&t.id)
+				&& t.parent_key_id == *parent_key_id
+				&& t.tx_type == TxLogEntryType::TxReceived
+		})
+		.filter_map(|t| {
+			t.kernel_excess
+				.map(|e| (t.id, e, t.kernel_lookup_min_height))
+		});
+
+	// Check each of the kernels on-chain
+	let mut reverted = HashSet::new();
+	for (id, excess, min_height) in kernels {
+		if client.get_kernel(&excess, min_height, None)?.is_none() {
+			reverted.insert(id);
+		}
+	}
+
+	Ok(reverted)
 }
 
 fn clean_old_unconfirmed<'a, T: ?Sized, C, K>(
@@ -414,6 +505,7 @@ where
 	let mut awaiting_finalization_total = 0;
 	let mut unconfirmed_total = 0;
 	let mut locked_total = 0;
+	let mut reverted_total = 0;
 
 	for out in outputs {
 		match out.status {
@@ -440,6 +532,7 @@ where
 			OutputStatus::Locked => {
 				locked_total += out.value;
 			}
+			OutputStatus::Reverted => reverted_total += out.value,
 			OutputStatus::Spent => {}
 		}
 	}
@@ -453,6 +546,7 @@ where
 		amount_immature: immature_total,
 		amount_locked: locked_total,
 		amount_currently_spendable: unspent_total,
+		amount_reverted: reverted_total,
 	})
 }
 

@@ -270,6 +270,7 @@ pub trait OwnerRpc {
 			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
 			  "payment_proof": null,
+			  "reverted_after": null,
 			  "tx_type": "ConfirmedCoinbase"
 			},
 			{
@@ -289,6 +290,7 @@ pub trait OwnerRpc {
 			  "stored_tx": null,
 			  "ttl_cutoff_height": null,
 			  "payment_proof": null,
+			  "reverted_after": null,
 			  "tx_slate_id": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
@@ -340,6 +342,7 @@ pub trait OwnerRpc {
 					"amount_currently_spendable": "60000000000",
 					"amount_immature": "180000000000",
 					"amount_locked": "0",
+					"amount_reverted": "0",
 					"last_confirmed_height": "4",
 					"minimum_confirmations": "1",
 					"total": "240000000000"
