@@ -25,6 +25,7 @@ use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
 use libwallet::InitTxArgs;
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
@@ -37,6 +38,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
 
 	create_wallet_and_add!(
 		client1,
@@ -258,6 +260,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// let logging finish
+	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));
 	Ok(())
 }

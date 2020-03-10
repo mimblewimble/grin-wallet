@@ -22,6 +22,7 @@ use grin_wallet_util::grin_core as core;
 
 use impls::test_framework::{self, LocalWalletClient};
 use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
@@ -34,6 +35,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
 
 	create_wallet_and_add!(
 		client1,
@@ -201,6 +203,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	//bh += 3;
 
 	// let logging finish
+	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));
 
 	Ok(())

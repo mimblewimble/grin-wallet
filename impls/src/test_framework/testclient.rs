@@ -139,8 +139,16 @@ where
 		self.running.store(true, Ordering::Relaxed);
 		loop {
 			thread::sleep(Duration::from_millis(10));
+			if !self.running.load(Ordering::Relaxed) {
+				info!("Proxy stopped");
+				return Ok(());
+			}
+
 			// read queue
-			let m = self.rx.recv().unwrap();
+			let m = match self.rx.recv_timeout(Duration::from_millis(10)) {
+				Ok(m) => m,
+				Err(_) => continue,
+			};
 			trace!("Wallet Client Proxy Received: {:?}", m);
 			let resp = match m.method.as_ref() {
 				"get_chain_tip" => self.get_chain_tip(m)?,
@@ -154,9 +162,6 @@ where
 			};
 
 			self.respond(resp);
-			if !self.running.load(Ordering::Relaxed) {
-				return Ok(());
-			}
 		}
 	}
 
