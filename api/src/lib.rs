@@ -42,7 +42,6 @@ mod foreign_rpc;
 
 mod owner;
 mod owner_rpc;
-mod owner_rpc_s;
 
 mod types;
 
@@ -50,7 +49,6 @@ pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddleware
 pub use crate::foreign_rpc::ForeignRpc;
 pub use crate::owner::Owner;
 pub use crate::owner_rpc::OwnerRpc;
-pub use crate::owner_rpc_s::OwnerRpcS;
 
 pub use crate::foreign_rpc::foreign_rpc as foreign_rpc_client;
 pub use crate::foreign_rpc::run_doctest_foreign;

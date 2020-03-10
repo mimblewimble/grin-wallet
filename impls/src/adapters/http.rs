@@ -111,11 +111,11 @@ impl HttpSlateSender {
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
 
+		if supported_slate_versions.contains(&"V4".to_owned()) {
+			return Ok(SlateVersion::V4);
+		}
 		if supported_slate_versions.contains(&"V3".to_owned()) {
 			return Ok(SlateVersion::V3);
-		}
-		if supported_slate_versions.contains(&"V2".to_owned()) {
-			return Ok(SlateVersion::V2);
 		}
 
 		let report = "Unable to negotiate slate format with other wallet.".to_string();
@@ -143,6 +143,10 @@ impl HttpSlateSender {
 	}
 }
 
+#[deprecated(
+	since = "3.0.0",
+	note = "Remember to handle SlateV4 incompatibilities here"
+)]
 impl SlateSender for HttpSlateSender {
 	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
@@ -177,18 +181,17 @@ impl SlateSender for HttpSlateSender {
 		}
 
 		let slate_send = match self.check_other_version(&url_str)? {
-			SlateVersion::V3 => VersionedSlate::into_version(slate.clone(), SlateVersion::V3),
-			SlateVersion::V2 => {
+			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4),
+			SlateVersion::V3 => {
 				let mut slate = slate.clone();
-				if slate.payment_proof.is_some() {
-					return Err(ErrorKind::ClientCallback("Payment proof requested, but other wallet does not support payment proofs. Please urge other user to upgrade, or re-send tx without a payment proof".into()).into());
+				let _r: crate::adapters::Reminder;
+				//TODO: Fill out with Slate V4 incompatibilities
+				if false {
+					return Err(ErrorKind::ClientCallback("feature x requested, but other wallet does not support feature x. Please urge other user to upgrade, or re-send tx without feature x".into()).into());
 				}
-				if slate.ttl_cutoff_height.is_some() {
-					warn!("Slate TTL value will be ignored and removed by other wallet, as other wallet does not support this feature. Please urge other user to upgrade");
-				}
-				slate.version_info.version = 2;
-				slate.version_info.orig_version = 2;
-				VersionedSlate::into_version(slate, SlateVersion::V2)
+				slate.version_info.version = 3;
+				slate.version_info.orig_version = 3;
+				VersionedSlate::into_version(slate, SlateVersion::V3)
 			}
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate

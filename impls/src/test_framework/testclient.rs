@@ -26,7 +26,7 @@ use crate::core::pow;
 use crate::keychain::Keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::slate_versions::v3::SlateV3;
+use crate::libwallet::slate_versions::v4::SlateV4;
 use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider};
 use crate::util;
 use crate::util::secp::key::SecretKey;
@@ -210,7 +210,7 @@ where
 			Some(w) => w,
 		};
 
-		let slate: SlateV3 = serde_json::from_str(&m.body).context(
+		let slate: SlateV4 = serde_json::from_str(&m.body).context(
 			libwallet::ErrorKind::ClientCallback("Error parsing TxWrapper".to_owned()),
 		)?;
 
@@ -243,7 +243,7 @@ where
 			sender_id: m.dest,
 			dest: m.sender_id,
 			method: m.method,
-			body: serde_json::to_string(&SlateV3::from(slate)).unwrap(),
+			body: serde_json::to_string(&SlateV4::from(slate)).unwrap(),
 		})
 	}
 
@@ -404,7 +404,7 @@ impl LocalWalletClient {
 			sender_id: self.id.clone(),
 			dest: dest.to_owned(),
 			method: "send_tx_slate".to_owned(),
-			body: serde_json::to_string(&SlateV3::from(slate)).unwrap(),
+			body: serde_json::to_string(&SlateV4::from(slate)).unwrap(),
 		};
 		{
 			let p = self.proxy_tx.lock();
@@ -415,7 +415,7 @@ impl LocalWalletClient {
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
 		trace!("Received send_tx_slate response: {:?}", m.clone());
-		let slate: SlateV3 = serde_json::from_str(&m.body).context(
+		let slate: SlateV4 = serde_json::from_str(&m.body).context(
 			libwallet::ErrorKind::ClientCallback("Parsing send_tx_slate response".to_owned()),
 		)?;
 		Ok(Slate::from(slate))
