@@ -87,8 +87,8 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		};
 		slate = api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
-		api.tx_lock_outputs(m, &mut slate, 0)?;
-		slate = api.finalize_tx(m, &mut slate)?;
+		api.tx_lock_outputs(m, &slate, 0)?;
+		slate = api.finalize_tx(m, &slate)?;
 		api.post_tx(m, slate.tx_or_err()?, false)?;
 		Ok(())
 	})?;
@@ -126,14 +126,14 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &mut slate, 0)?;
+		api.tx_lock_outputs(m, &slate, 0)?;
 		Ok(())
 	})?;
 
 	// wallet 2 finalizes and posts
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&mut slate)?;
+		slate = api.finalize_invoice_tx(&slate)?;
 		Ok(())
 	})?;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask1, None, |api, m| {

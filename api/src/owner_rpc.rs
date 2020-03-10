@@ -2095,7 +2095,7 @@ where
 		let out_slate = Owner::finalize_tx(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&mut Slate::from(in_slate),
+			&Slate::from(in_slate),
 		)
 		.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
@@ -2111,7 +2111,7 @@ where
 		Owner::tx_lock_outputs(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&mut Slate::from(in_slate),
+			&Slate::from(in_slate),
 			participant_id,
 		)
 		.map_err(|e| e.kind())
@@ -2511,12 +2511,12 @@ pub fn run_doctest_owner(
 		}
 		// Spit out slate for input to finalize_tx
 		if lock_tx {
-			api_impl::owner::tx_lock_outputs(&mut **w, (&mask2).as_ref(), &mut slate, 0).unwrap();
+			api_impl::owner::tx_lock_outputs(&mut **w, (&mask2).as_ref(), &slate, 0).unwrap();
 		}
 		println!("RECEIPIENT SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		if finalize_tx {
-			slate = api_impl::owner::finalize_tx(&mut **w, (&mask2).as_ref(), &mut slate).unwrap();
+			slate = api_impl::owner::finalize_tx(&mut **w, (&mask2).as_ref(), &slate).unwrap();
 			error!("FINALIZED TX SLATE");
 			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		}

@@ -365,7 +365,7 @@ where
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &mut slate, 0)?;
+					api.tx_lock_outputs(m, &slate, 0)?;
 				}
 			}
 
@@ -373,7 +373,7 @@ where
 				error!("Error validating participant messages: {}", e);
 				e
 			})?;
-			slate = api.finalize_tx(m, &mut slate)?;
+			slate = api.finalize_tx(m, &slate)?;
 			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
 			match result {
 				Ok(_) => {
@@ -628,23 +628,23 @@ where
 				"file" => {
 					let slate_putter = PathToSlate((&args.dest).into());
 					slate_putter.put_tx(&slate)?;
-					api.tx_lock_outputs(m, &mut slate, 0)?;
+					api.tx_lock_outputs(m, &slate, 0)?;
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &mut slate, 0)?;
+					api.tx_lock_outputs(m, &slate, 0)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
 					controller::foreign_single_use(wallet_inst, km, |api| {
-						slate = api.finalize_invoice_tx(&mut slate)?;
+						slate = api.finalize_invoice_tx(&slate)?;
 						Ok(())
 					})?;
 				}
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &mut slate, 0)?;
+					api.tx_lock_outputs(m, &slate, 0)?;
 				}
 			}
 		}

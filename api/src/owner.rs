@@ -672,7 +672,7 @@ where
 				slate = comm_adapter.send_tx(&slate)?;
 				self.tx_lock_outputs(keychain_mask, &slate, 0)?;
 				let slate = match sa.finalize {
-					true => self.finalize_tx(keychain_mask, &mut slate)?,
+					true => self.finalize_tx(keychain_mask, &slate)?,
 					false => slate,
 				};
 

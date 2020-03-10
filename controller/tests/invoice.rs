@@ -117,14 +117,14 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &mut slate, 0)?;
+		api.tx_lock_outputs(m, &slate, 0)?;
 		Ok(())
 	})?;
 
 	// wallet 2 finalizes and posts
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&mut slate)?;
+		slate = api.finalize_invoice_tx(&slate)?;
 		Ok(())
 	})?;
 
@@ -186,14 +186,14 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &mut slate, 0)?;
+		api.tx_lock_outputs(m, &slate, 0)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalizes and posts
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&mut slate)?;
+		slate = api.finalize_invoice_tx(&slate)?;
 		Ok(())
 	})?;
 
