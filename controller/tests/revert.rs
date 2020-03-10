@@ -207,8 +207,13 @@ fn revert(
 
 	// Build 2 blocks at same height: 1 with the tx, 1 without
 	let head = chain.head_header().unwrap();
-	let block_with =
-		create_block_for_wallet(&chain, head.clone(), vec![&tx], wallet1.clone(), mask1)?;
+	let block_with = create_block_for_wallet(
+		&chain,
+		head.clone(),
+		vec![&tx.as_ref().unwrap()],
+		wallet1.clone(),
+		mask1,
+	)?;
 	let block_without = create_block_for_wallet(&chain, head, vec![], wallet1.clone(), mask1)?;
 
 	// Add block with tx to the chain
@@ -277,7 +282,15 @@ fn revert(
 
 	stopper2.store(false, Ordering::Relaxed);
 	Ok((
-		chain, stopper, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i,
+		chain,
+		stopper,
+		sent,
+		bh,
+		tx.unwrap(),
+		wallet1,
+		mask1_i,
+		wallet2,
+		mask2_i,
 	))
 }
 
