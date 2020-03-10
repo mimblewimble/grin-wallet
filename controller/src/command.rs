@@ -374,7 +374,7 @@ where
 				e
 			})?;
 			slate = api.finalize_tx(m, &slate)?;
-			let result = api.post_tx(m, &slate.tx, args.fluff);
+			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
 			match result {
 				Ok(_) => {
 					info!("Tx sent ok",);
@@ -477,7 +477,7 @@ where
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
 			}
-			slate = api.finalize_invoice_tx(&mut slate)?;
+			slate = api.finalize_invoice_tx(&slate)?;
 			Ok(())
 		})?;
 	} else {
@@ -486,14 +486,14 @@ where
 				error!("Error validating participant messages: {}", e);
 				return Err(e);
 			}
-			slate = api.finalize_tx(m, &mut slate)?;
+			slate = api.finalize_tx(m, &slate)?;
 			Ok(())
 		})?;
 	}
 
 	if !args.nopost {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			let result = api.post_tx(m, &slate.tx, args.fluff);
+			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
 			match result {
 				Ok(_) => {
 					info!(
@@ -798,7 +798,7 @@ where
 	let slate = PathToSlate((&args.input).into()).get_tx()?;
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		api.post_tx(m, &slate.tx, args.fluff)?;
+		api.post_tx(m, slate.tx_or_err()?, args.fluff)?;
 		info!("Posted transaction");
 		return Ok(());
 	})?;

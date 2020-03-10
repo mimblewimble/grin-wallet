@@ -132,7 +132,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// wallet 1 posts so wallet 2 doesn't get the mined amount
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.post_tx(m, &slate.tx, false)?;
+		api.post_tx(m, slate.tx_or_err()?, false)?;
 		Ok(())
 	})?;
 	bh += 1;

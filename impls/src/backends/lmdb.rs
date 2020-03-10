@@ -380,7 +380,7 @@ where
 		let mut tx_f = File::open(tx_file)?;
 		let mut content = String::new();
 		tx_f.read_to_string(&mut content)?;
-		let tx_bin = util::from_hex(content).unwrap();
+		let tx_bin = util::from_hex(&content).unwrap();
 		Ok(Some(
 			ser::deserialize::<Transaction>(&mut &tx_bin[..], ser::ProtocolVersion(1)).unwrap(),
 		))

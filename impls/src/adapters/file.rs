@@ -32,12 +32,12 @@ impl SlatePutter for PathToSlate {
 			if false {
 				warn!("Transaction contains features that require grin-wallet 4.0.0 or later");
 				warn!("Please ensure the other party is running grin-wallet v4.0.0 or later before sending");
-				VersionedSlate::into_version(slate.clone(), SlateVersion::V4)
+				VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?
 			} else {
 				let mut s = slate.clone();
 				s.version_info.version = 3;
 				s.version_info.orig_version = 3;
-				VersionedSlate::into_version(s, SlateVersion::V3)
+				VersionedSlate::into_version(s, SlateVersion::V3)?
 			}
 		};
 		pub_tx.write_all(

@@ -444,7 +444,7 @@ where
 
 #[allow(dead_code)]
 pub fn derive_ecdh_key(sec_key_str: &str, other_pubkey: &PublicKey) -> SecretKey {
-	let sec_key_bytes = from_hex(sec_key_str.to_owned()).unwrap();
+	let sec_key_bytes = from_hex(sec_key_str).unwrap();
 	let sec_key = {
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();

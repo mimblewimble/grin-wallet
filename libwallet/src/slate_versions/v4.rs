@@ -26,8 +26,10 @@ use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
 use crate::slate_versions::ser as dalek_ser;
+use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
+use std::convert::TryFrom;
 use uuid::Uuid;
 
 use crate::slate_versions::v3::{
@@ -45,7 +47,9 @@ pub struct SlateV4 {
 	pub id: Uuid,
 	/// The core transaction data:
 	/// inputs, outputs, kernels, kernel offset
-	pub tx: TransactionV4,
+	/// Optional as of V4 to allow for a compact
+	/// transaction initiation
+	pub tx: Option<TransactionV4>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -236,7 +240,7 @@ impl From<SlateV3> for SlateV4 {
 			version_info,
 			num_participants,
 			id,
-			tx,
+			tx: Some(tx),
 			amount,
 			fee,
 			height,
@@ -372,8 +376,9 @@ impl From<&PaymentInfoV3> for PaymentInfoV4 {
 
 // V4 to V3
 #[allow(unused_variables)]
-impl From<&SlateV4> for SlateV3 {
-	fn from(slate: &SlateV4) -> SlateV3 {
+impl TryFrom<&SlateV4> for SlateV3 {
+	type Error = Error;
+	fn try_from(slate: &SlateV4) -> Result<SlateV3, Error> {
 		let SlateV4 {
 			num_participants,
 			id,
@@ -389,7 +394,6 @@ impl From<&SlateV4> for SlateV3 {
 		} = slate;
 		let num_participants = *num_participants;
 		let id = *id;
-		let tx = TransactionV3::from(tx);
 		let amount = *amount;
 		let fee = *fee;
 		let height = *height;
@@ -400,8 +404,18 @@ impl From<&SlateV4> for SlateV3 {
 			Some(p) => Some(PaymentInfoV3::from(p)),
 			None => None,
 		};
+		let tx = match tx {
+			Some(t) => TransactionV3::from(t),
+			None => {
+				return Err(ErrorKind::SlateInvalidDowngrade(
+					"Full transaction info required".to_owned(),
+				)
+				.into())
+			}
+		};
+
 		let ttl_cutoff_height = *ttl_cutoff_height;
-		SlateV3 {
+		Ok(SlateV3 {
 			num_participants,
 			id,
 			tx,
@@ -413,7 +427,7 @@ impl From<&SlateV4> for SlateV3 {
 			participant_data,
 			version_info,
 			payment_proof,
-		}
+		})
 	}
 }
 

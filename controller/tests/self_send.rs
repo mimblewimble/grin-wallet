@@ -101,7 +101,7 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			Ok(())
 		})?;
 		slate = api.finalize_tx(m, &slate)?;
-		api.post_tx(m, &slate.tx, false)?; // mines a block
+		api.post_tx(m, slate.tx_or_err()?, false)?; // mines a block
 		bh += 1;
 		Ok(())
 	})?;

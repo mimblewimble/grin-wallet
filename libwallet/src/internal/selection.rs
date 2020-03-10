@@ -211,7 +211,10 @@ where
 		batch.commit()?;
 		t
 	};
-	wallet.store_tx(&format!("{}", tx_entry.tx_slate_id.unwrap()), &slate.tx)?;
+	wallet.store_tx(
+		&format!("{}", tx_entry.tx_slate_id.unwrap()),
+		slate.tx_or_err()?,
+	)?;
 	Ok(())
 }
 

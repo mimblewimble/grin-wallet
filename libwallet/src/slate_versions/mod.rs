@@ -21,6 +21,8 @@ use crate::slate::Slate;
 use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::types::CbData;
+use crate::Error;
+use std::convert::TryFrom;
 
 pub mod ser;
 
@@ -65,13 +67,13 @@ impl VersionedSlate {
 	}
 
 	/// convert this slate type to a specified older version
-	pub fn into_version(slate: Slate, version: SlateVersion) -> VersionedSlate {
+	pub fn into_version(slate: Slate, version: SlateVersion) -> Result<VersionedSlate, Error> {
 		match version {
-			SlateVersion::V4 => VersionedSlate::V4(slate.into()),
+			SlateVersion::V4 => Ok(VersionedSlate::V4(slate.into())),
 			SlateVersion::V3 => {
 				let s = SlateV4::from(slate);
-				let s = SlateV3::from(&s);
-				VersionedSlate::V3(s)
+				let s = SlateV3::try_from(&s)?;
+				Ok(VersionedSlate::V3(s))
 			}
 		}
 	}

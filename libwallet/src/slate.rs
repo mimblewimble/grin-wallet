@@ -38,6 +38,7 @@ use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde::ser::{Serialize, Serializer};
 use serde_json;
+use std::convert::TryFrom;
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -172,7 +173,9 @@ pub struct Slate {
 	pub id: Uuid,
 	/// The core transaction data:
 	/// inputs, outputs, kernels, kernel offset
-	pub tx: Transaction,
+	/// Optional as of V4 to allow for a compact
+	/// transaction initiation
+	pub tx: Option<Transaction>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -221,6 +224,23 @@ pub struct ParticipantMessages {
 }
 
 impl Slate {
+	/// Return the transaction, throwing an error if it doesn't exist
+	/// to be used at points in the code where the existence of a transaction
+	/// is assumed
+	pub fn tx_or_err(&self) -> Result<&Transaction, Error> {
+		match &self.tx {
+			Some(t) => Ok(t),
+			None => Err(ErrorKind::SlateTransactionRequired.into()),
+		}
+	}
+
+	/// As above, but return mutable reference
+	pub fn tx_or_err_mut(&mut self) -> Result<&mut Transaction, Error> {
+		match &mut self.tx {
+			Some(t) => Ok(t),
+			None => Err(ErrorKind::SlateTransactionRequired.into()),
+		}
+	}
 	/// Attempt to find slate version
 	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
 		let probe: SlateVersionProbe =
@@ -248,7 +268,7 @@ impl Slate {
 		Slate {
 			num_participants: num_participants,
 			id: Uuid::new_v4(),
-			tx: Transaction::empty(),
+			tx: Some(Transaction::empty()),
 			amount: 0,
 			fee: 0,
 			height: 0,
@@ -276,20 +296,23 @@ impl Slate {
 		K: Keychain,
 		B: ProofBuild,
 	{
-		self.update_kernel();
-		let (tx, blind) = build::partial_transaction(self.tx.clone(), elems, keychain, builder)?;
-		self.tx = tx;
+		self.update_kernel()?;
+		let (tx, blind) =
+			build::partial_transaction(self.tx_or_err()?.clone(), elems, keychain, builder)?;
+		self.tx = Some(tx);
 		Ok(blind)
 	}
 
 	/// Update the tx kernel based on kernel features derived from the current slate.
 	/// The fee may change as we build a transaction and we need to
 	/// update the tx kernel to reflect this during the tx building process.
-	pub fn update_kernel(&mut self) {
-		self.tx = self
-			.tx
-			.clone()
-			.replace_kernel(TxKernel::with_features(self.kernel_features()));
+	pub fn update_kernel(&mut self) -> Result<(), Error> {
+		self.tx = Some(
+			self.tx_or_err()?
+				.clone()
+				.replace_kernel(TxKernel::with_features(self.kernel_features())),
+		);
+		Ok(())
 	}
 
 	/// Completes callers part of round 1, adding public key info
@@ -307,7 +330,7 @@ impl Slate {
 		K: Keychain,
 	{
 		// Whoever does this first generates the offset
-		if self.tx.offset == BlindingFactor::zero() {
+		if self.tx_or_err()?.offset == BlindingFactor::zero() {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
 		self.add_participant_info(
@@ -507,7 +530,7 @@ impl Slate {
 		// Generate a random kernel offset here
 		// and subtract it from the blind_sum so we create
 		// the aggsig context with the "split" key
-		self.tx.offset = match use_test_rng {
+		self.tx_or_err_mut()?.offset = match use_test_rng {
 			false => {
 				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()))
 			}
@@ -521,7 +544,7 @@ impl Slate {
 		let blind_offset = keychain.blind_sum(
 			&BlindSum::new()
 				.add_blinding_factor(BlindingFactor::from_secret_key(sec_key.clone()))
-				.sub_blinding_factor(self.tx.offset.clone()),
+				.sub_blinding_factor(self.tx_or_err()?.offset.clone()),
 		)?;
 		*sec_key = blind_offset.secret_key(&keychain.secp())?;
 		Ok(())
@@ -529,19 +552,20 @@ impl Slate {
 
 	/// Checks the fees in the transaction in the given slate are valid
 	fn check_fees(&self) -> Result<(), Error> {
+		let tx = self.tx_or_err()?;
 		// double check the fee amount included in the partial tx
 		// we don't necessarily want to just trust the sender
 		// we could just overwrite the fee here (but we won't) due to the sig
 		let fee = tx_fee(
-			self.tx.inputs().len(),
-			self.tx.outputs().len(),
-			self.tx.kernels().len(),
+			tx.inputs().len(),
+			tx.outputs().len(),
+			tx.kernels().len(),
 			None,
 		);
 
-		if fee > self.tx.fee() {
+		if fee > tx.fee() {
 			return Err(
-				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", self.tx.fee(), fee,)).into(),
+				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(), fee,)).into(),
 			);
 		}
 
@@ -668,8 +692,8 @@ impl Slate {
 	where
 		K: Keychain,
 	{
-		let kernel_offset = &self.tx.offset;
-		let tx = self.tx.clone();
+		let tx = self.tx_or_err()?.clone();
+		let kernel_offset = tx.offset.clone();
 		let overage = tx.fee() as i64;
 		let tx_excess = tx.sum_commitments(overage)?;
 
@@ -697,7 +721,7 @@ impl Slate {
 
 		debug!("Final Tx excess: {:?}", final_excess);
 
-		let mut final_tx = self.tx.clone();
+		let final_tx = self.tx_or_err_mut()?;
 
 		// update the tx kernel to reflect the offset excess and sig
 		assert_eq!(final_tx.kernels().len(), 1);
@@ -713,7 +737,6 @@ impl Slate {
 		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
 		final_tx.validate(Weighting::AsTransaction, verifier_cache)?;
 
-		self.tx = final_tx;
 		Ok(())
 	}
 }
@@ -730,7 +753,10 @@ impl Serialize for Slate {
 			4 => v4.serialize(serializer),
 			// left as a reminder
 			3 => {
-				let v3 = SlateV3::from(&v4);
+				let v3 = match SlateV3::try_from(&v4) {
+					Ok(s) => s,
+					Err(e) => return Err(S::Error::custom(format!("{}", e))),
+				};
 				v3.serialize(serializer)
 			}
 			v => Err(S::Error::custom(format!("Unknown slate version {}", v))),
@@ -793,11 +819,14 @@ impl From<Slate> for SlateV4 {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
 		};
-		let tx = TransactionV4::from(tx);
+		let tx = match tx {
+			Some(t) => Some(TransactionV4::from(t)),
+			None => None,
+		};
 		SlateV4 {
 			num_participants,
 			id,
-			tx,
+			tx: tx,
 			amount,
 			fee,
 			height,
@@ -827,7 +856,6 @@ impl From<&Slate> for SlateV4 {
 		} = slate;
 		let num_participants = *num_participants;
 		let id = *id;
-		let tx = TransactionV4::from(tx);
 		let amount = *amount;
 		let fee = *fee;
 		let height = *height;
@@ -837,6 +865,10 @@ impl From<&Slate> for SlateV4 {
 		let version_info = VersionCompatInfoV4::from(version_info);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(p)),
+			None => None,
+		};
+		let tx = match tx {
+			Some(t) => Some(TransactionV4::from(t)),
 			None => None,
 		};
 		SlateV4 {
@@ -1017,7 +1049,10 @@ impl From<SlateV4> for Slate {
 			Some(p) => Some(PaymentInfo::from(&p)),
 			None => None,
 		};
-		let tx = Transaction::from(tx);
+		let tx = match tx {
+			Some(t) => Some(Transaction::from(t)),
+			None => None,
+		};
 		Slate {
 			num_participants,
 			id,

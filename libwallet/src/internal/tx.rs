@@ -351,11 +351,11 @@ where
 		Some(t) => t,
 		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into()),
 	};
-	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), &slate.tx)?;
+	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 	let parent_key = tx.parent_key_id.clone();
-	tx.kernel_excess = Some(slate.tx.body.kernels[0].excess);
+	tx.kernel_excess = Some(slate.tx_or_err()?.body.kernels[0].excess);
 
-	if let Some(ref p) = slate.payment_proof {
+	if let Some(ref p) = slate.clone().payment_proof {
 		let derivation_index = match context.payment_proof_derivation_index {
 			Some(i) => i,
 			None => 0,
@@ -493,9 +493,9 @@ where
 		.into());
 	}
 
-	if let Some(ref p) = slate.payment_proof {
+	if let Some(ref p) = slate.clone().payment_proof {
 		let orig_proof_info = match orig_proof_info {
-			Some(p) => p,
+			Some(p) => p.clone(),
 			None => {
 				return Err(ErrorKind::PaymentProof(
 					"Original proof info not stored in tx".to_owned(),

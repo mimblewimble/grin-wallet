@@ -181,7 +181,7 @@ impl SlateSender for HttpSlateSender {
 		}
 
 		let slate_send = match self.check_other_version(&url_str)? {
-			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4),
+			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
 			SlateVersion::V3 => {
 				let mut slate = slate.clone();
 				let _r: crate::adapters::Reminder;
@@ -191,7 +191,7 @@ impl SlateSender for HttpSlateSender {
 				}
 				slate.version_info.version = 3;
 				slate.version_info.orig_version = 3;
-				VersionedSlate::into_version(slate, SlateVersion::V3)
+				VersionedSlate::into_version(slate, SlateVersion::V3)?
 			}
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate

@@ -96,7 +96,7 @@ pub mod dalek_pubkey_serde {
 	{
 		use serde::de::Error;
 		String::deserialize(deserializer)
-			.and_then(|string| from_hex(string).map_err(|err| Error::custom(err.to_string())))
+			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
 				DalekPublicKey::from_bytes(&bytes).map_err(|err| Error::custom(err.to_string()))
 			})
@@ -128,7 +128,7 @@ pub mod option_dalek_pubkey_serde {
 		D: Deserializer<'de>,
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => from_hex(string)
+			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
 					let mut b = [0u8; 32];
@@ -164,7 +164,7 @@ pub mod dalek_sig_serde {
 		D: Deserializer<'de>,
 	{
 		String::deserialize(deserializer)
-			.and_then(|string| from_hex(string).map_err(|err| Error::custom(err.to_string())))
+			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
 				let mut b = [0u8; 64];
 				b.copy_from_slice(&bytes[0..64]);
@@ -198,7 +198,7 @@ pub mod option_dalek_sig_serde {
 		D: Deserializer<'de>,
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => from_hex(string)
+			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
 					let mut b = [0u8; 64];

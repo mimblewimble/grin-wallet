@@ -677,7 +677,7 @@ where
 				};
 
 				if sa.post_tx {
-					self.post_tx(keychain_mask, &slate.tx, sa.fluff)?;
+					self.post_tx(keychain_mask, slate.tx_or_err()?, sa.fluff)?;
 				}
 				Ok(slate)
 			}
@@ -926,7 +926,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::finalize_tx(&mut **w, keychain_mask, &slate)
+		owner::finalize_tx(&mut **w, keychain_mask, slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -976,7 +976,7 @@ where
 	///     // Retrieve slate back from recipient
 	///     //
 	///     let res = api_owner.finalize_tx(None, &slate);
-	///     let res = api_owner.post_tx(None, &slate.tx, true);
+	///     let res = api_owner.post_tx(None, slate.tx_or_err().unwrap(), true);
 	/// }
 	/// ```
 
@@ -1598,10 +1598,8 @@ where
 			let secp = secp_inst.lock();
 			return Ok(Some(SecretKey::from_slice(
 				&secp,
-				&from_hex(
-					"d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868".to_owned(),
-				)
-				.unwrap(),
+				&from_hex("d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868")
+					.unwrap(),
 			)?));
 		}
 		let mut w_lock = self.wallet_inst.lock();

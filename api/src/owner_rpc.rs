@@ -2059,7 +2059,7 @@ where
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version))
+		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn issue_invoice_tx(
@@ -2070,7 +2070,7 @@ where
 		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version))
+		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn process_invoice_tx(
@@ -2087,7 +2087,7 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(out_slate, version))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(
@@ -2102,7 +2102,7 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(out_slate, version))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn tx_lock_outputs(
@@ -2527,7 +2527,7 @@ pub fn run_doctest_owner(
 	}
 
 	if payment_proof {
-		api_impl::owner::post_tx(&client1, &slate_outer.tx, true).unwrap();
+		api_impl::owner::post_tx(&client1, slate_outer.tx_or_err().unwrap(), true).unwrap();
 	}
 
 	if perform_tx && lock_tx && finalize_tx {

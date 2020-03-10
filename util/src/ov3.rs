@@ -104,7 +104,7 @@ impl TryFrom<&str> for OnionV3Address {
 
 	fn try_from(input: &str) -> Result<Self, Self::Error> {
 		// First attempt to decode a pubkey from hex
-		if let Ok(b) = from_hex(input.to_owned()) {
+		if let Ok(b) = from_hex(input) {
 			if b.len() == 32 {
 				let mut retval = OnionV3Address([0; 32]);
 				retval.0.copy_from_slice(&b[0..32]);

@@ -125,9 +125,9 @@ impl EncryptedBody {
 		let mut to_decrypt = base64::decode(&self.body_enc).context(ErrorKind::APIEncryption(
 			"EncryptedBody Dec: Encrypted request contains invalid Base64".to_string(),
 		))?;
-		let nonce = from_hex(self.nonce.clone()).context(ErrorKind::APIEncryption(
-			"EncryptedBody Dec: Invalid Nonce".to_string(),
-		))?;
+		let nonce = from_hex(&self.nonce).map_err(|_| {
+			ErrorKind::APIEncryption("EncryptedBody Dec: Invalid Nonce".to_string())
+		})?;
 		if nonce.len() < 12 {
 			return Err(ErrorKind::APIEncryption(
 				"EncryptedBody Dec: Invalid Nonce length".to_string(),
@@ -321,7 +321,7 @@ fn encrypted_request() -> Result<(), Error> {
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
 
-		let sec_key_bytes = from_hex(sec_key_str.to_owned()).unwrap();
+		let sec_key_bytes = from_hex(sec_key_str).unwrap();
 		SecretKey::from_slice(&secp, &sec_key_bytes)?
 	};
 	let req = serde_json::json!({

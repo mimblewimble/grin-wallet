@@ -262,7 +262,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		w.w2n_client().clone()
 	};
-	owner::post_tx(&client, &slate.tx, false)?; // mines a block
+	owner::post_tx(&client, slate.tx_or_err()?, false)?; // mines a block
 	Ok(())
 }
 
