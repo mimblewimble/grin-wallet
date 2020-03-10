@@ -49,8 +49,8 @@ impl WalletSeed {
 	}
 
 	pub fn _from_hex(hex: &str) -> Result<WalletSeed, Error> {
-		let bytes = util::from_hex(hex.to_string())
-			.context(ErrorKind::GenericError("Invalid hex".to_owned()))?;
+		let bytes = util::from_hex(&hex.to_string())
+			.map_err(|_| ErrorKind::GenericError("Invalid hex".to_owned()))?;
 		Ok(WalletSeed::from_bytes(&bytes))
 	}
 
@@ -274,15 +274,15 @@ impl EncryptedWalletSeed {
 
 	/// Decrypt seed
 	pub fn decrypt(&self, password: &str) -> Result<WalletSeed, Error> {
-		let mut encrypted_seed = match util::from_hex(self.encrypted_seed.clone()) {
+		let mut encrypted_seed = match util::from_hex(&self.encrypted_seed.clone()) {
 			Ok(s) => s,
 			Err(_) => return Err(ErrorKind::Encryption.into()),
 		};
-		let salt = match util::from_hex(self.salt.clone()) {
+		let salt = match util::from_hex(&self.salt.clone()) {
 			Ok(s) => s,
 			Err(_) => return Err(ErrorKind::Encryption.into()),
 		};
-		let nonce = match util::from_hex(self.nonce.clone()) {
+		let nonce = match util::from_hex(&self.nonce.clone()) {
 			Ok(s) => s,
 			Err(_) => return Err(ErrorKind::Encryption.into()),
 		};

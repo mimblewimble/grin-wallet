@@ -397,7 +397,7 @@ impl OwnerV3Helpers {
 	/// Update the shared mask, in case of foreign API being run
 	pub fn update_mask(mask: Arc<Mutex<Option<SecretKey>>>, val: &serde_json::Value) {
 		if let Some(key) = val["result"]["Ok"].as_str() {
-			let key_bytes = match from_hex(key.to_owned()) {
+			let key_bytes = match from_hex(key) {
 				Ok(k) => k,
 				Err(_) => return,
 			};

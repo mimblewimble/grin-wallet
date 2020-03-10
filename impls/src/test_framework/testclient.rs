@@ -276,7 +276,7 @@ where
 			if o_str.is_empty() {
 				continue;
 			}
-			let c = util::from_hex(o_str).unwrap();
+			let c = util::from_hex(&o_str).unwrap();
 			let commit = Commitment::from_vec(c);
 			let out = super::get_output_local(&self.chain.clone(), &commit);
 			if let Some(o) = out {
@@ -345,7 +345,7 @@ where
 		let excess = split[0].parse::<String>().unwrap();
 		let min = split[1].parse::<u64>().unwrap();
 		let max = split[2].parse::<u64>().unwrap();
-		let commit_bytes = util::from_hex(excess).unwrap();
+		let commit_bytes = util::from_hex(&excess).unwrap();
 		let commit = pedersen::Commitment::from_vec(commit_bytes);
 		let min = match min {
 			0 => None,

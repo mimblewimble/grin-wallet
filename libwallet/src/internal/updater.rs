@@ -77,7 +77,7 @@ where
 		.into_iter()
 		.map(|output| {
 			let commit = match output.commit.clone() {
-				Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
+				Some(c) => pedersen::Commitment::from_vec(util::from_hex(&c).unwrap()),
 				None => keychain
 					.commit(output.value, &output.key_id, SwitchCommitmentType::Regular)
 					.unwrap(), // TODO: proper support for different switch commitment schemes
@@ -187,7 +187,7 @@ where
 
 	for out in unspents {
 		let commit = match out.commit.clone() {
-			Some(c) => pedersen::Commitment::from_vec(util::from_hex(c).unwrap()),
+			Some(c) => pedersen::Commitment::from_vec(util::from_hex(&c).unwrap()),
 			None => keychain
 				.commit(out.value, &out.key_id, SwitchCommitmentType::Regular)
 				.unwrap(), // TODO: proper support for different switch commitment schemes

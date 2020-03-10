@@ -1598,10 +1598,8 @@ where
 			let secp = secp_inst.lock();
 			return Ok(Some(SecretKey::from_slice(
 				&secp,
-				&from_hex(
-					"d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868".to_owned(),
-				)
-				.unwrap(),
+				&from_hex("d096b3cb75986b3b13f80b8f5243a9edf0af4c74ac37578c5a12cfb5b59b1868")
+					.unwrap(),
 			)?));
 		}
 		let mut w_lock = self.wallet_inst.lock();

@@ -65,7 +65,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	let sec_key_str = "e00dcc4a009e3427c6b1e1a550c538179d46f3827a13ed74c759c860761caf1e";
 	let _pub_key_str = "03b3c18c9a38783d105e238953b1638b021ba7456d87a5c085b3bdb75777b4c490";
 
-	let sec_key_bytes = from_hex(sec_key_str.to_owned()).unwrap();
+	let sec_key_bytes = from_hex(sec_key_str).unwrap();
 	let sec_key = {
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
