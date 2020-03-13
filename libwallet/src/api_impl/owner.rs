@@ -392,6 +392,13 @@ where
 		slate.version_info.orig_version = v;
 	}
 
+	if let Some(true) = args.compact_mode {
+		let k = w.keychain(keychain_mask)?;
+		slate.excess = Some(slate.calc_excess(&k)?);
+		slate.tx = None;
+		error!("{:?}", slate);
+	}
+
 	Ok(slate)
 }
 
@@ -553,6 +560,22 @@ where
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
 	selection::lock_tx_context(&mut *w, keychain_mask, slate, &context)
+}
+
+/// Repopulate outputs into a compacted slate
+pub fn tx_repopulate<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	participant_id: usize,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
+	tx::repopulate_tx(&mut *w, keychain_mask, slate, &context)
 }
 
 /// Finalize slate

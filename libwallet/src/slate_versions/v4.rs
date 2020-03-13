@@ -50,6 +50,9 @@ pub struct SlateV4 {
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
 	pub tx: Option<TransactionV4>,
+	/// Current excess, if the tx above is not provided
+	/// during compact mode
+	pub excess: Option<Commitment>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -241,6 +244,7 @@ impl From<SlateV3> for SlateV4 {
 			num_participants,
 			id,
 			tx: Some(tx),
+			excess: None,
 			amount,
 			fee,
 			height,
@@ -383,6 +387,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			num_participants,
 			id,
 			tx,
+			excess,
 			amount,
 			fee,
 			height,

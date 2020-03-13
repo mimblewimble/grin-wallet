@@ -16,6 +16,7 @@
 use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::check_ttl;
+use crate::grin_core::core::transaction::Transaction;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{tx, updater};
@@ -70,6 +71,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	error!("RECEIVING TX");
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match dest_acct_name {
@@ -103,6 +105,11 @@ where
 		}
 		None => None,
 	};
+	// if this is compact mode, we need to create the transaction now
+	if ret_slate.is_compact() {
+		ret_slate.tx = Some(Transaction::empty());
+	}
+	error!("ADDING OUTPUT");
 
 	tx::add_output_to_slate(
 		&mut *w,
@@ -117,6 +124,7 @@ where
 	tx::update_message(&mut *w, keychain_mask, &ret_slate)?;
 
 	let keychain = w.keychain(keychain_mask)?;
+	error!("CALCING EXCESS");
 	let excess = ret_slate.calc_excess(&keychain)?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {

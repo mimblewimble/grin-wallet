@@ -176,6 +176,9 @@ pub struct Slate {
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
 	pub tx: Option<Transaction>,
+	/// Current excess, if the tx above is not provided
+	/// during compact mode
+	pub excess: Option<Commitment>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -269,6 +272,7 @@ impl Slate {
 			num_participants: num_participants,
 			id: Uuid::new_v4(),
 			tx: Some(Transaction::empty()),
+			excess: None,
 			amount: 0,
 			fee: 0,
 			height: 0,
@@ -282,6 +286,11 @@ impl Slate {
 			},
 			payment_proof: None,
 		}
+	}
+
+	/// Convenience fn to decide whether the slate is in compact mode
+	pub fn is_compact(&self) -> bool {
+		return self.excess.is_some();
 	}
 
 	/// Adds selected inputs and outputs to the slate's transaction
@@ -375,8 +384,13 @@ impl Slate {
 	where
 		K: Keychain,
 	{
-		self.check_fees()?;
+		// TODO: Note we're unable to verify fees in this instance
+		if !self.is_compact() {
+			error!("CHECK FEES??");
+			self.check_fees()?;
+		}
 
+		error!("RECIPIENT VERIFY PARTIAL SIGS");
 		self.verify_part_sigs(keychain.secp())?;
 		let sig_part = aggsig::calculate_partial_sig(
 			keychain.secp(),
@@ -687,23 +701,33 @@ impl Slate {
 		Ok(final_sig)
 	}
 
-	/// return the final excess
+	/// Calculate the excess
 	pub fn calc_excess<K>(&self, keychain: &K) -> Result<Commitment, Error>
 	where
 		K: Keychain,
 	{
 		let tx = self.tx_or_err()?.clone();
-		let kernel_offset = tx.offset.clone();
-		let overage = tx.fee() as i64;
-		let tx_excess = tx.sum_commitments(overage)?;
+		// if explicit excess is provided, just add to the current
+		// tx sum without including the offset. Otherwise, calc as normal
+		if let Some(ex) = self.excess.as_ref() {
+			let overage = tx.fee() as i64;
+			let tx_excess = tx.sum_commitments(overage)?;
+			Ok(keychain
+				.secp()
+				.commit_sum(vec![tx_excess], vec![ex.clone()])?)
+		} else {
+			let kernel_offset = tx.offset.clone();
+			let overage = tx.fee() as i64;
+			let tx_excess = tx.sum_commitments(overage)?;
 
-		// subtract the kernel_excess (built from kernel_offset)
-		let offset_excess = keychain
-			.secp()
-			.commit(0, kernel_offset.secret_key(&keychain.secp())?)?;
-		Ok(keychain
-			.secp()
-			.commit_sum(vec![tx_excess], vec![offset_excess])?)
+			// subtract the kernel_excess (built from kernel_offset)
+			let offset_excess = keychain
+				.secp()
+				.commit(0, kernel_offset.secret_key(&keychain.secp())?)?;
+			Ok(keychain
+				.secp()
+				.commit_sum(vec![tx_excess], vec![offset_excess])?)
+		}
 	}
 
 	/// builds a final transaction after the aggregated sig exchange
@@ -804,6 +828,7 @@ impl From<Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
+			excess,
 			amount,
 			fee,
 			height,
@@ -826,7 +851,8 @@ impl From<Slate> for SlateV4 {
 		SlateV4 {
 			num_participants,
 			id,
-			tx: tx,
+			tx,
+			excess,
 			amount,
 			fee,
 			height,
@@ -845,6 +871,7 @@ impl From<&Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
+			excess,
 			amount,
 			fee,
 			height,
@@ -871,10 +898,12 @@ impl From<&Slate> for SlateV4 {
 			Some(t) => Some(TransactionV4::from(t)),
 			None => None,
 		};
+		let excess = *excess;
 		SlateV4 {
 			num_participants,
 			id,
 			tx,
+			excess,
 			amount,
 			fee,
 			height,
@@ -1034,6 +1063,7 @@ impl From<SlateV4> for Slate {
 			num_participants,
 			id,
 			tx,
+			excess,
 			amount,
 			fee,
 			height,
@@ -1057,6 +1087,7 @@ impl From<SlateV4> for Slate {
 			num_participants,
 			id,
 			tx,
+			excess,
 			amount,
 			fee,
 			height,

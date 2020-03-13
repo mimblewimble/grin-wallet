@@ -14,6 +14,11 @@
 
 //! Transaction building functions
 
+use crate::grin_core::libtx::{
+	build,
+	proof::{ProofBuild, ProofBuilder},
+	tx_fee,
+};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use uuid::Uuid;
@@ -219,6 +224,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	error!("BUILD RECIPIENT");
 	// create an output using the amount in the slate
 	let (_, mut context) = selection::build_recipient_output(
 		wallet,
@@ -228,6 +234,7 @@ where
 		use_test_rng,
 	)?;
 
+	error!("FILL ROUND 1");
 	// fill public keys
 	slate.fill_round_1(
 		&wallet.keychain(keychain_mask)?,
@@ -238,6 +245,7 @@ where
 		use_test_rng,
 	)?;
 
+	error!("FILL ROUND 2");
 	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(
@@ -247,8 +255,38 @@ where
 			participant_id,
 		)?;
 	}
+	error!("ADDED OUTPUT");
 
 	Ok(context)
+}
+
+/// Repopulates output in the slate's tranacstion
+/// with outputs from the stored context
+/// change outputs and tx log entry
+pub fn repopulate_tx<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	context: &Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	/*let keychain = wallet.keychain(keychain_mask)?;
+	let mut body = &slate.tx_or_err_mut()?.body;*/
+	//let mut parts = vec![];
+	/*for (id, _, value) in &context.get_inputs() {
+		if let Some(i) = input {
+			if i.is_coinbase {
+				parts.push(build::coinbase_input(value, coin.key_id.clone()));
+			} else {
+				parts.push(build::input(value, coin.key_id.clone()));
+			}
+		}
+	}*/
+	Ok(())
 }
 
 /// Complete a transaction

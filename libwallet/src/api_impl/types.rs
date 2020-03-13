@@ -106,6 +106,9 @@ pub struct InitTxArgs {
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
+	/// If set, create slate in 'compact' mode, sending as little information to the other
+	/// party as necessary
+	pub compact_mode: Option<bool>,
 }
 
 /// Send TX API Args, for convenience functionality that inits the transaction and sends
@@ -139,6 +142,7 @@ impl Default for InitTxArgs {
 			estimate_only: Some(false),
 			payment_proof_recipient_address: None,
 			send_args: None,
+			compact_mode: Some(false),
 		}
 	}
 }
