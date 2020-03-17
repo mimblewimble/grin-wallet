@@ -619,3 +619,39 @@ fn select_from(amount: u64, select_all: bool, outputs: Vec<OutputData>) -> Optio
 		None
 	}
 }
+
+/// Repopulates output in the slate's tranacstion
+/// with outputs from the stored context
+/// change outputs and tx log entry
+pub fn repopulate_tx<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	context: &Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = wallet.keychain(keychain_mask)?;
+	let mut parts = vec![];
+	for (id, _, value) in &context.get_inputs() {
+		let input = wallet.iter().find(|out| out.key_id == *id);
+		if let Some(i) = input {
+			if i.is_coinbase {
+				parts.push(build::coinbase_input(*value, i.key_id.clone()));
+			} else {
+				parts.push(build::input(*value, i.key_id.clone()));
+			}
+		}
+	}
+	for (id, _, value) in &context.get_outputs() {
+		let output = wallet.iter().find(|out| out.key_id == *id);
+		if let Some(i) = output {
+			parts.push(build::output(*value, i.key_id.clone()));
+		}
+	}
+	let _ = slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), parts)?;
+	Ok(())
+}

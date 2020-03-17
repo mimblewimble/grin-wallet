@@ -575,7 +575,7 @@ where
 	K: Keychain + 'a,
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
-	tx::repopulate_tx(&mut *w, keychain_mask, slate, &context)
+	selection::repopulate_tx(&mut *w, keychain_mask, slate, &context)
 }
 
 /// Finalize slate
