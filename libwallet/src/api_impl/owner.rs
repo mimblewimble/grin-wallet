@@ -397,14 +397,8 @@ where
 	}
 
 	if let Some(true) = args.compact_mode {
-		error!("PRE COMPACT SLATE");
-		error!("{}", slate);
 		let k = w.keychain(keychain_mask)?;
-		slate.excess = Some(slate.calc_excess(&k)?);
-		slate.tx = None;
-		slate.is_compact = true;
-		error!("POST COMPACT SLATE");
-		error!("{}", slate);
+		slate.compact(&k)?;
 	}
 
 	Ok(slate)
@@ -587,8 +581,6 @@ where
 	let parent_key_id = w.parent_key_id();
 	if sl.is_compact {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-		error!("REPOPULATED SLATE");
-		error!("{}", sl);
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;

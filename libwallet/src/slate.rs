@@ -256,6 +256,19 @@ impl Slate {
 			None => Err(ErrorKind::SlateTransactionRequired.into()),
 		}
 	}
+	/// Compact the slate for initial sending, storing the excess + offset explicitl
+	/// and removing my input/output data
+	/// This info must be stored in the context for repopulation later
+	pub fn compact<K>(&mut self, keychain: &K) -> Result<(), Error>
+	where
+		K: Keychain,
+	{
+		self.excess = Some(self.calc_excess(keychain)?);
+		self.tx = None;
+		self.is_compact = true;
+		Ok(())
+	}
+
 	/// Attempt to find slate version
 	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
 		let probe: SlateVersionProbe =
