@@ -178,7 +178,13 @@ pub struct Slate {
 	pub tx: Option<Transaction>,
 	/// Current excess, if the tx above is not provided
 	/// during compact mode
+	#[serde(with = "secp_ser::option_commitment_serde")]
 	pub excess: Option<Commitment>,
+	/// Whether the slate was created in compact mode
+	/// Made explicit since the tx data can be populated
+	/// at any point in the process, making it difficult
+	/// to tell whether the slate was intended to be compact
+	pub is_compact: bool,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -203,6 +209,12 @@ pub struct Slate {
 	/// Payment Proof
 	#[serde(default = "default_payment_none")]
 	pub payment_proof: Option<PaymentInfo>,
+}
+
+impl fmt::Display for Slate {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}", serde_json::to_string_pretty(&self).unwrap())
+	}
 }
 
 fn default_payment_none() -> Option<PaymentInfo> {
@@ -273,6 +285,7 @@ impl Slate {
 			id: Uuid::new_v4(),
 			tx: Some(Transaction::empty()),
 			excess: None,
+			is_compact: false,
 			amount: 0,
 			fee: 0,
 			height: 0,
@@ -286,11 +299,6 @@ impl Slate {
 			},
 			payment_proof: None,
 		}
-	}
-
-	/// Convenience fn to decide whether the slate is in compact mode
-	pub fn is_compact(&self) -> bool {
-		return self.excess.is_some();
 	}
 
 	/// Adds selected inputs and outputs to the slate's transaction
@@ -339,7 +347,7 @@ impl Slate {
 		K: Keychain,
 	{
 		// Whoever does this first generates the offset
-		if self.tx_or_err()?.offset == BlindingFactor::zero() {
+		if self.tx_or_err()?.offset == BlindingFactor::zero() && !self.is_compact {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
 		self.add_participant_info(
@@ -385,7 +393,7 @@ impl Slate {
 		K: Keychain,
 	{
 		// TODO: Note we're unable to verify fees in this instance
-		if !self.is_compact() {
+		if !self.is_compact {
 			error!("CHECK FEES??");
 			self.check_fees()?;
 		}
@@ -829,6 +837,7 @@ impl From<Slate> for SlateV4 {
 			id,
 			tx,
 			excess,
+			is_compact,
 			amount,
 			fee,
 			height,
@@ -853,6 +862,7 @@ impl From<Slate> for SlateV4 {
 			id,
 			tx,
 			excess,
+			is_compact,
 			amount,
 			fee,
 			height,
@@ -872,6 +882,7 @@ impl From<&Slate> for SlateV4 {
 			id,
 			tx,
 			excess,
+			is_compact,
 			amount,
 			fee,
 			height,
@@ -899,11 +910,13 @@ impl From<&Slate> for SlateV4 {
 			None => None,
 		};
 		let excess = *excess;
+		let is_compact = *is_compact;
 		SlateV4 {
 			num_participants,
 			id,
 			tx,
 			excess,
+			is_compact,
 			amount,
 			fee,
 			height,
@@ -1064,6 +1077,7 @@ impl From<SlateV4> for Slate {
 			id,
 			tx,
 			excess,
+			is_compact,
 			amount,
 			fee,
 			height,
@@ -1088,6 +1102,7 @@ impl From<SlateV4> for Slate {
 			id,
 			tx,
 			excess,
+			is_compact,
 			amount,
 			fee,
 			height,

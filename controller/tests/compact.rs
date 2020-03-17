@@ -92,12 +92,14 @@ fn compact_slate_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		println!("Returned slate is: {:?}", slate);
 		sender_api.tx_lock_outputs(m, &slate, 0)?;
 
-		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
+		let slate = sender_api.finalize_tx(m, &slate)?;
+		println!("finalized slate is: {}", slate);
+
+		/*let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let tx = txs[0].clone();
-		println!("Returned tx is: {:?}", tx);
+		println!("Returned tx is: {:?}", tx);*/
 
 		// attempt to post it
 		sender_api.post_tx(m, slate.tx_or_err()?, false)?;

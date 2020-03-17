@@ -106,7 +106,7 @@ where
 		None => None,
 	};
 	// if this is compact mode, we need to create the transaction now
-	if ret_slate.is_compact() {
+	if ret_slate.is_compact {
 		ret_slate.tx = Some(Transaction::empty());
 	}
 	error!("ADDING OUTPUT");

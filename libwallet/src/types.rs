@@ -21,7 +21,7 @@ use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
@@ -560,6 +560,9 @@ pub struct Context {
 	pub participant_id: usize,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
+	/// Store calculated transaction offset, for repopulating
+	/// compact slates
+	pub offset: Option<BlindingFactor>,
 }
 
 impl Context {
@@ -570,6 +573,7 @@ impl Context {
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
 		participant_id: usize,
+		offset: Option<BlindingFactor>,
 	) -> Context {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
@@ -584,6 +588,7 @@ impl Context {
 			fee: 0,
 			participant_id: participant_id,
 			payment_proof_derivation_index: None,
+			offset: offset.clone(),
 		}
 	}
 }

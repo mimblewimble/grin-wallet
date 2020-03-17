@@ -76,6 +76,7 @@ where
 		&parent_key_id,
 		use_test_nonce,
 		0,
+		None,
 	);
 
 	context.fee = fee;
@@ -257,6 +258,7 @@ where
 		&parent_key_id,
 		use_test_rng,
 		1,
+		None,
 	);
 
 	error!("ADD OUTPUT RECIPIENT");
@@ -623,6 +625,7 @@ fn select_from(amount: u64, select_all: bool, outputs: Vec<OutputData>) -> Optio
 /// Repopulates output in the slate's tranacstion
 /// with outputs from the stored context
 /// change outputs and tx log entry
+/// Remove the explicitly stored excess
 pub fn repopulate_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
@@ -653,5 +656,10 @@ where
 		}
 	}
 	let _ = slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), parts)?;
+	slate.excess = None;
+	// restore the original offset
+	if let Some(o) = &context.offset {
+		slate.tx_or_err_mut()?.offset = o.clone();
+	}
 	Ok(())
 }

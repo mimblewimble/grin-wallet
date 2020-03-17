@@ -381,6 +381,10 @@ where
 		context.payment_proof_derivation_index = Some(deriv_path);
 	}
 
+	if let Some(true) = args.compact_mode {
+		context.offset = Some(slate.tx_or_err()?.offset.clone());
+	}
+
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
@@ -393,10 +397,14 @@ where
 	}
 
 	if let Some(true) = args.compact_mode {
+		error!("PRE COMPACT SLATE");
+		error!("{}", slate);
 		let k = w.keychain(keychain_mask)?;
 		slate.excess = Some(slate.calc_excess(&k)?);
 		slate.tx = None;
-		error!("{:?}", slate);
+		slate.is_compact = true;
+		error!("POST COMPACT SLATE");
+		error!("{}", slate);
 	}
 
 	Ok(slate)
@@ -562,22 +570,6 @@ where
 	selection::lock_tx_context(&mut *w, keychain_mask, slate, &context)
 }
 
-/// Repopulate outputs into a compacted slate
-pub fn tx_repopulate<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-	participant_id: usize,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
-	selection::repopulate_tx(&mut *w, keychain_mask, slate, &context)
-}
-
 /// Finalize slate
 pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
@@ -593,6 +585,11 @@ where
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	let parent_key_id = w.parent_key_id();
+	if sl.is_compact {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		error!("REPOPULATED SLATE");
+		error!("{}", sl);
+	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
