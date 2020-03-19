@@ -19,7 +19,7 @@ use crate::api_impl::owner::check_ttl;
 use crate::grin_core::core::transaction::Transaction;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
-use crate::internal::{tx, updater};
+use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
 	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
@@ -155,6 +155,9 @@ where
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
+	if sl.is_compact {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
 	tx::update_message(&mut *w, keychain_mask, &sl)?;

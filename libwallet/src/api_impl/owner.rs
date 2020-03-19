@@ -436,7 +436,7 @@ where
 	};
 
 	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, None)?;
-	let context = tx::add_output_to_slate(
+	let mut context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut slate,
@@ -446,6 +446,10 @@ where
 		true,
 		use_test_rng,
 	)?;
+
+	if let Some(true) = args.compact_mode {
+		context.offset = Some(slate.tx_or_err()?.offset.clone());
+	}
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -457,6 +461,11 @@ where
 
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.orig_version = v;
+	}
+
+	if let Some(true) = args.compact_mode {
+		let k = w.keychain(keychain_mask)?;
+		slate.compact(&k)?;
 	}
 
 	Ok(slate)
@@ -516,6 +525,11 @@ where
 	// update ttl if desired
 	if let Some(b) = args.ttl_blocks {
 		ret_slate.ttl_cutoff_height = Some(ret_slate.height + b);
+	}
+
+	// if this is compact mode, we need to create the transaction now
+	if ret_slate.is_compact {
+		ret_slate.tx = Some(Transaction::empty());
 	}
 
 	let context = tx::add_inputs_to_slate(

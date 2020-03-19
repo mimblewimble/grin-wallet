@@ -163,6 +163,8 @@ pub struct IssueInvoiceTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
+	/// Whether to initialize the TX in compact mode
+	pub compact_mode: Option<bool>,
 }
 
 impl Default for IssueInvoiceTxArgs {
@@ -172,6 +174,7 @@ impl Default for IssueInvoiceTxArgs {
 			amount: 0,
 			message: None,
 			target_slate_version: None,
+			compact_mode: Some(false),
 		}
 	}
 }

@@ -20,7 +20,7 @@ extern crate grin_wallet_util;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, Slate};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -60,7 +60,7 @@ fn compact_slate_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false
 	);
 
-	let _mask2 = (&mask2_i).as_ref();
+	let mask2 = (&mask2_i).as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -95,17 +95,63 @@ fn compact_slate_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		sender_api.tx_lock_outputs(m, &slate, 0)?;
 
 		let slate = sender_api.finalize_tx(m, &slate)?;
-		println!("finalized slate is: {}", slate);
-
-		/*let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
-		let tx = txs[0].clone();
-		println!("Returned tx is: {:?}", tx);*/
 
 		// attempt to post it
 		sender_api.post_tx(m, slate.tx_or_err()?, false)?;
 
 		Ok(())
 	})?;
+
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
+
+	// now an invoice tx
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+		// Wallet 2 inititates an invoice transaction, requesting payment
+		let args = IssueInvoiceTxArgs {
+			amount: amount,
+			compact_mode: Some(true),
+			..Default::default()
+		};
+		slate = api.issue_invoice_tx(m, args)?;
+		Ok(())
+	})?;
+
+	println!("Compact slate: {}", slate);
+
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		// Wallet 1 receives the invoice transaction
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: slate.amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		slate = api.process_invoice_tx(m, &slate, args)?;
+		api.tx_lock_outputs(m, &slate, 0)?;
+		Ok(())
+	})?;
+
+	println!("Returned slate: {}", slate);
+
+	// wallet 2 finalizes and posts
+	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
+		// Wallet 2 receives the invoice transaction
+		slate = api.finalize_invoice_tx(&slate)?;
+		Ok(())
+	})?;
+
+	println!("Finalized slate: {}", slate);
+
+	// wallet 1 posts so wallet 2 doesn't get the mined amount
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+		api.post_tx(m, slate.tx_or_err()?, false)?;
+		Ok(())
+	})?;
+
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
