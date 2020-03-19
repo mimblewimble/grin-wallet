@@ -404,6 +404,8 @@ pub trait OwnerRpc {
 		  "lock_height": "0",
 			"ttl_cutoff_height": null,
 		  "num_participants": 2,
+			"excess": null,
+			"is_compact": false,
 			"payment_proof": {
 		"receiver_address": "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810",
 		"receiver_signature": null,
@@ -497,6 +499,8 @@ pub trait OwnerRpc {
 					"ttl_cutoff_height": null,
 					"num_participants": 2,
 					"payment_proof": null,
+					"excess": null,
+					"is_compact": false,
 					"participant_data": [
 						{
 							"id": "1",
@@ -568,6 +572,8 @@ pub trait OwnerRpc {
 					"ttl_cutoff_height": null,
 					"num_participants": 2,
 					"payment_proof": null,
+					"excess": null,
+					"is_compact": false,
 					"participant_data": [
 						{
 							"id": "1",
@@ -638,6 +644,8 @@ pub trait OwnerRpc {
 				"ttl_cutoff_height": null,
 				"num_participants": 2,
 				"payment_proof": null,
+				"excess": null,
+				"is_compact": false,
 				"participant_data": [
 					{
 						"id": "1",
@@ -896,6 +904,8 @@ pub trait OwnerRpc {
 				"ttl_cutoff_height": null,
 				"num_participants": 2,
 				"payment_proof": null,
+				"excess": null,
+				"is_compact": false,
 				"participant_data": [
 					{
 						"id": "0",
