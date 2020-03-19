@@ -575,7 +575,13 @@ where
 	K: Keychain + 'a,
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
-	selection::lock_tx_context(&mut *w, keychain_mask, slate, &context)
+	let mut sl = slate.clone();
+	if sl.is_compact && sl.tx == None {
+		// attempt to repopulate if we're the initiator
+		sl.tx = Some(Transaction::empty());
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+	}
+	selection::lock_tx_context(&mut *w, keychain_mask, &sl, &context)
 }
 
 /// Finalize slate

@@ -219,7 +219,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	error!("BUILD RECIPIENT");
 	// create an output using the amount in the slate
 	let (_, mut context) = selection::build_recipient_output(
 		wallet,
@@ -229,7 +228,6 @@ where
 		use_test_rng,
 	)?;
 
-	error!("FILL ROUND 1");
 	// fill public keys
 	slate.fill_round_1(
 		&wallet.keychain(keychain_mask)?,
@@ -240,7 +238,6 @@ where
 		use_test_rng,
 	)?;
 
-	error!("FILL ROUND 2");
 	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(
@@ -250,7 +247,6 @@ where
 			participant_id,
 		)?;
 	}
-	error!("ADDED OUTPUT");
 
 	Ok(context)
 }

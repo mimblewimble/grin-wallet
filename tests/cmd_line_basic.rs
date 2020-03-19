@@ -288,6 +288,54 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		},
 	)?;
 
+	// file exchange, compact
+	let file_name = format!("{}/tx1_compact.part_tx", test_dir);
+	let response_file_name = format!("{}/tx1_compact.part_tx.response", test_dir);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password",
+		"-a",
+		"mining",
+		"send",
+		"--compact",
+		"-m",
+		"file",
+		"-d",
+		&file_name,
+		"-g",
+		"This is a compact slate",
+		"10",
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password",
+		"-a",
+		"account_1",
+		"receive",
+		"-i",
+		&file_name,
+		"-g",
+		"Thanks, Yeast!",
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
+
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"mining",
+		"-p",
+		"password",
+		"finalize",
+		"-i",
+		&response_file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	bh += 1;
+
 	// Self-send to same account, using smallest strategy
 	let arg_vec = vec![
 		"grin-wallet",
@@ -451,7 +499,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"mining",
 		"cancel",
 		"-i",
-		"26",
+		"27",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
@@ -470,6 +518,51 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 	let output_file_name = format!("{}/invoice.slate.paid", test_dir);
+
+	// now pay the invoice tx, wallet 1
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"mining",
+		"-p",
+		"password",
+		"pay",
+		"-i",
+		&file_name,
+		"-d",
+		&output_file_name,
+		"-g",
+		"Here you go",
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	// and finalize, wallet 2
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password",
+		"finalize",
+		"-i",
+		&output_file_name,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+	// issue an invoice tx, wallet 2, compacted
+	let file_name = format!("{}/invoice_compacted.slate", test_dir);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password",
+		"invoice",
+		"--compact",
+		"-d",
+		&file_name,
+		"-g",
+		"Please give me your precious grins compacted. Love, Yeast",
+		"2",
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+	let output_file_name = format!("{}/invoice_compacted.slate.paid", test_dir);
 
 	// now pay the invoice tx, wallet 1
 	let arg_vec = vec![

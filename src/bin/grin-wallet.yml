@@ -162,6 +162,9 @@ subcommands:
             short: b
             long: ttl_blocks
             takes_value: true
+        - compact:
+            help: If present, send transaction in compact mode (without revealing inputs or change outputs)
+            long: compact
   - receive:
       about: Processes a transaction file to accept a transfer from a sender
       args:
@@ -212,6 +215,9 @@ subcommands:
             short: d
             long: dest
             takes_value: true
+        - compact:
+            help: If present, send transaction in compact mode (without revealing outputs)
+            long: compact
   - pay:
       about: Spend coins to pay the provided invoice transaction
       args:

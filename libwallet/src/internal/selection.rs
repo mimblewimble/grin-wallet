@@ -242,7 +242,6 @@ where
 	let height = slate.height;
 
 	let slate_id = slate.id;
-	error!("ADD TX_ELEMENTS RECIPIENT");
 	let blinding = slate.add_transaction_elements(
 		&keychain,
 		&ProofBuilder::new(&keychain),
@@ -261,7 +260,6 @@ where
 		None,
 	);
 
-	error!("ADD OUTPUT RECIPIENT");
 	context.add_output(&key_id, &None, amount);
 	let messages = Some(slate.participant_messages());
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
@@ -274,7 +272,6 @@ where
 	t.messages = messages;
 	t.ttl_cutoff_height = slate.ttl_cutoff_height;
 	// when invoicing, this will be invalid
-	error!("CALC EXCESS RECIPIENT");
 	if let Ok(e) = slate.calc_excess(&keychain) {
 		t.kernel_excess = Some(e)
 	}

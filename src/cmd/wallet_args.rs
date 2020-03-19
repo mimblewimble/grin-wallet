@@ -469,6 +469,9 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// max_outputs
 	let max_outputs = 500;
 
+	// compact mode
+	let compact_slate = args.is_present("compact");
+
 	// target slate version to create/send
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -517,6 +520,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		payment_proof_address,
 		ttl_blocks,
 		target_slate_version: target_slate_version,
+		compact_slate,
 	})
 }
 
@@ -595,6 +599,8 @@ pub fn parse_issue_invoice_args(
 			false => None,
 		}
 	};
+	// compact mode
+	let compact_slate = args.is_present("compact");
 	// dest (output file)
 	let dest = parse_required(args, "dest")?;
 	Ok(command::IssueInvoiceArgs {
@@ -604,7 +610,7 @@ pub fn parse_issue_invoice_args(
 			amount,
 			message,
 			target_slate_version,
-			compact_mode: Some(false),
+			compact_mode: Some(compact_slate),
 		},
 	})
 }

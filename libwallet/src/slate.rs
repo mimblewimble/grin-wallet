@@ -407,11 +407,9 @@ impl Slate {
 	{
 		// TODO: Note we're unable to verify fees in this instance
 		if !self.is_compact {
-			error!("CHECK FEES??");
 			self.check_fees()?;
 		}
 
-		error!("RECIPIENT VERIFY PARTIAL SIGS");
 		self.verify_part_sigs(keychain.secp())?;
 		let sig_part = aggsig::calculate_partial_sig(
 			keychain.secp(),
