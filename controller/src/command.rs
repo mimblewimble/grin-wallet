@@ -278,7 +278,6 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 	pub payment_proof_address: Option<OnionV3Address>,
 	pub ttl_blocks: Option<u64>,
-	pub compact_slate: bool,
 }
 
 pub fn send<L, C, K>(
@@ -327,7 +326,6 @@ where
 				payment_proof_recipient_address: args.payment_proof_address.clone(),
 				ttl_blocks: args.ttl_blocks,
 				send_args: None,
-				compact_mode: Some(args.compact_slate),
 				..Default::default()
 			};
 			let result = api.init_send_tx(m, init_args);

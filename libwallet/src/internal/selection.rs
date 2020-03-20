@@ -147,6 +147,7 @@ where
 		t.ttl_cutoff_height = slate.ttl_cutoff_height;
 
 		if let Ok(e) = slate.calc_excess(&keychain) {
+			println!("LOCKING CONTEXT excess: {:?}", e);
 			t.kernel_excess = Some(e)
 		}
 		t.kernel_lookup_min_height = Some(slate.height);

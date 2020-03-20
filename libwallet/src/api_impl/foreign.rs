@@ -105,7 +105,7 @@ where
 		None => None,
 	};
 	// if this is compact mode, we need to create the transaction now
-	if ret_slate.is_compact {
+	if ret_slate.is_compact() {
 		ret_slate.tx = Some(Transaction::empty());
 	}
 
@@ -152,7 +152,7 @@ where
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
-	if sl.is_compact {
+	if sl.is_compact() {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;

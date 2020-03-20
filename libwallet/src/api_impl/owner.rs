@@ -381,9 +381,7 @@ where
 		context.payment_proof_derivation_index = Some(deriv_path);
 	}
 
-	if let Some(true) = args.compact_mode {
-		context.offset = Some(slate.tx_or_err()?.offset.clone());
-	}
+	context.offset = Some(slate.tx_or_err()?.offset.clone());
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -396,10 +394,8 @@ where
 		slate.version_info.orig_version = v;
 	}
 
-	if let Some(true) = args.compact_mode {
-		let k = w.keychain(keychain_mask)?;
-		slate.compact(&k)?;
-	}
+	let k = w.keychain(keychain_mask)?;
+	slate.compact(&k)?;
 
 	Ok(slate)
 }
@@ -447,9 +443,7 @@ where
 		use_test_rng,
 	)?;
 
-	if let Some(true) = args.compact_mode {
-		context.offset = Some(slate.tx_or_err()?.offset.clone());
-	}
+	context.offset = Some(slate.tx_or_err()?.offset.clone());
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -463,10 +457,8 @@ where
 		slate.version_info.orig_version = v;
 	}
 
-	if let Some(true) = args.compact_mode {
-		let k = w.keychain(keychain_mask)?;
-		slate.compact(&k)?;
-	}
+	let k = w.keychain(keychain_mask)?;
+	slate.compact(&k)?;
 
 	Ok(slate)
 }
@@ -528,7 +520,7 @@ where
 	}
 
 	// if this is compact mode, we need to create the transaction now
-	if ret_slate.is_compact {
+	if ret_slate.is_compact() {
 		ret_slate.tx = Some(Transaction::empty());
 	}
 
@@ -576,7 +568,7 @@ where
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
 	let mut sl = slate.clone();
-	if sl.is_compact && sl.tx == None {
+	if sl.is_compact() && sl.tx == None {
 		// attempt to repopulate if we're the initiator
 		sl.tx = Some(Transaction::empty());
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
@@ -599,7 +591,7 @@ where
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
 	let parent_key_id = w.parent_key_id();
-	if sl.is_compact {
+	if sl.is_compact() {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;

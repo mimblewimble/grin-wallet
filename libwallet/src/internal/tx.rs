@@ -353,7 +353,11 @@ where
 	};
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 	let parent_key = tx.parent_key_id.clone();
-	tx.kernel_excess = Some(slate.tx_or_err()?.body.kernels[0].excess);
+
+	{
+		let keychain = wallet.keychain(keychain_mask)?;
+		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
+	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		let derivation_index = match context.payment_proof_derivation_index {
