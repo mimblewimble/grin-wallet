@@ -478,6 +478,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut ret_slate = slate.clone();
+	println!("PROCESSING SLATE: {}", slate);
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match args.src_acct_name {
 		Some(d) => {
@@ -568,11 +569,14 @@ where
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
 	let mut sl = slate.clone();
+	println!("check TX is None?");
 	if sl.is_compact() && sl.tx == None {
 		// attempt to repopulate if we're the initiator
+		println!("TX is None, repopulate?");
 		sl.tx = Some(Transaction::empty());
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	}
+	println!("{}", sl);
 	selection::lock_tx_context(&mut *w, keychain_mask, &sl, &context)
 }
 

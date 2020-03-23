@@ -727,11 +727,24 @@ impl Slate {
 		// if explicit excess is provided, just add to the current
 		// tx sum without including the offset. Otherwise, calc as normal
 		if let Some(ex) = self.excess.as_ref() {
-			let overage = tx.fee() as i64;
-			let tx_excess = tx.sum_commitments(overage)?;
-			Ok(keychain
-				.secp()
-				.commit_sum(vec![tx_excess], vec![ex.clone()])?)
+			let vec_i: Vec<Commitment> = tx.body.inputs.iter().map(|i| i.commit.clone()).collect();
+			let vec_o: Vec<Commitment> = tx.body.outputs.iter().map(|o| o.commit.clone()).collect();
+			let sum = keychain.secp().commit_sum(vec_i, vec_o)?;
+			println!("manual sum of inputs, inputs: {:?}", sum);
+
+			let calced_sum = if self.participant_data.len() == 1 {
+				// Normal workflow
+				keychain.secp().commit_sum(vec![ex.clone()], vec![sum])?
+			} else {
+				// Invoice workflow
+				keychain.secp().commit_sum(vec![sum], vec![ex.clone()])?
+			};
+			println!("calced sum manual: {:?}", calced_sum);
+			Ok(calced_sum)
+
+		/*Ok(keychain
+		.secp()
+		.commit_sum(vec![tx_excess], vec![ex.clone()])?)*/
 		} else {
 			let kernel_offset = tx.offset.clone();
 			let overage = tx.fee() as i64;
