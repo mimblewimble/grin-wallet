@@ -175,10 +175,6 @@ pub struct Slate {
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
 	pub tx: Option<Transaction>,
-	/// Current excess, if the tx above is not provided
-	/// during compact mode
-	#[serde(with = "secp_ser::option_commitment_serde")]
-	pub excess: Option<Commitment>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -255,14 +251,10 @@ impl Slate {
 		self.version_info.version >= 4
 	}
 
-	/// Compact the slate for initial sending, storing the excess + offset explicitl
+	/// Compact the slate for initial sending, storing the excess + offset explicit
 	/// and removing my input/output data
 	/// This info must be stored in the context for repopulation later
-	pub fn compact<K>(&mut self, keychain: &K) -> Result<(), Error>
-	where
-		K: Keychain,
-	{
-		self.excess = Some(self.calc_excess(keychain)?);
+	pub fn compact(&mut self) -> Result<(), Error> {
 		self.tx = None;
 		Ok(())
 	}
@@ -295,7 +287,6 @@ impl Slate {
 			num_participants: num_participants,
 			id: Uuid::new_v4(),
 			tx: Some(Transaction::empty()),
-			excess: None,
 			amount: 0,
 			fee: 0,
 			height: 0,
@@ -357,7 +348,7 @@ impl Slate {
 		K: Keychain,
 	{
 		// Whoever does this first generates the offset
-		if self.tx_or_err()?.offset == BlindingFactor::zero() && self.excess == None {
+		if self.participant_data.len() == 0 {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
 		self.add_participant_info(
@@ -832,7 +823,6 @@ impl From<Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,
@@ -856,7 +846,6 @@ impl From<Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,
@@ -875,7 +864,6 @@ impl From<&Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,
@@ -902,12 +890,10 @@ impl From<&Slate> for SlateV4 {
 			Some(t) => Some(TransactionV4::from(t)),
 			None => None,
 		};
-		let excess = *excess;
 		SlateV4 {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,
@@ -1067,7 +1053,6 @@ impl From<SlateV4> for Slate {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,
@@ -1091,7 +1076,6 @@ impl From<SlateV4> for Slate {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,

@@ -394,8 +394,7 @@ where
 		slate.version_info.orig_version = v;
 	}
 
-	let k = w.keychain(keychain_mask)?;
-	slate.compact(&k)?;
+	slate.compact()?;
 
 	Ok(slate)
 }
@@ -457,8 +456,7 @@ where
 		slate.version_info.orig_version = v;
 	}
 
-	let k = w.keychain(keychain_mask)?;
-	slate.compact(&k)?;
+	slate.compact()?;
 
 	Ok(slate)
 }

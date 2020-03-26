@@ -653,7 +653,6 @@ where
 		}
 	}
 	let _ = slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), parts)?;
-	slate.excess = None;
 	// restore the original offset
 	if let Some(o) = &context.offset {
 		slate.tx_or_err_mut()?.offset = o.clone();

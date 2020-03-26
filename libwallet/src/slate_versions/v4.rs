@@ -15,7 +15,6 @@
 //! Contains V4 of the slate (grin-wallet 4.0.0)
 //! Changes from V3:
 //! * tx field becomes an Option
-//! * excess: Option<Commitment> is added, to allow for compact sends
 
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
@@ -51,10 +50,6 @@ pub struct SlateV4 {
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
 	pub tx: Option<TransactionV4>,
-	/// Current excess, if the tx above is not provided
-	/// during compact mode
-	#[serde(with = "secp_ser::option_commitment_serde")]
-	pub excess: Option<Commitment>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
@@ -246,7 +241,6 @@ impl From<SlateV3> for SlateV4 {
 			num_participants,
 			id,
 			tx: Some(tx),
-			excess: None,
 			amount,
 			fee,
 			height,
@@ -389,7 +383,6 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			num_participants,
 			id,
 			tx,
-			excess,
 			amount,
 			fee,
 			height,
