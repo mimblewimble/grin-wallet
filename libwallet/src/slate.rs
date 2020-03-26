@@ -18,7 +18,6 @@
 use crate::blake2::blake2b::blake2b;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_core::core::committed::Committed;
 use crate::grin_core::core::transaction::{
 	Input, KernelFeatures, Output, Transaction, TransactionBody, TxKernel, Weighting,
 };
@@ -448,11 +447,14 @@ impl Slate {
 
 	/// Return the sum of public nonces
 	fn pub_nonce_sum(&self, secp: &secp::Secp256k1) -> Result<PublicKey, Error> {
-		let pub_nonces = self
+		let pub_nonces: Vec<&PublicKey> = self
 			.participant_data
 			.iter()
 			.map(|p| &p.public_nonce)
 			.collect();
+		if pub_nonces.len() == 0 {
+			return Err(ErrorKind::Commit(format!("Participant nonces cannot be empty")).into());
+		}
 		match PublicKey::from_combination(secp, pub_nonces) {
 			Ok(k) => Ok(k),
 			Err(e) => Err(ErrorKind::Secp(e).into()),
@@ -461,11 +463,16 @@ impl Slate {
 
 	/// Return the sum of public blinding factors
 	fn pub_blind_sum(&self, secp: &secp::Secp256k1) -> Result<PublicKey, Error> {
-		let pub_blinds = self
+		let pub_blinds: Vec<&PublicKey> = self
 			.participant_data
 			.iter()
 			.map(|p| &p.public_blind_excess)
 			.collect();
+		if pub_blinds.len() == 0 {
+			return Err(
+				ErrorKind::Commit(format!("Participant Blind sums cannot be empty")).into(),
+			);
+		}
 		match PublicKey::from_combination(secp, pub_blinds) {
 			Ok(k) => Ok(k),
 			Err(e) => Err(ErrorKind::Secp(e).into()),
@@ -723,41 +730,8 @@ impl Slate {
 	where
 		K: Keychain,
 	{
-		let tx = self.tx_or_err()?.clone();
-		// if explicit excess is provided, just add to the current
-		// tx sum without including the offset. Otherwise, calc as normal
-		if let Some(ex) = self.excess.as_ref() {
-			let vec_i: Vec<Commitment> = tx.body.inputs.iter().map(|i| i.commit.clone()).collect();
-			let vec_o: Vec<Commitment> = tx.body.outputs.iter().map(|o| o.commit.clone()).collect();
-			let sum = keychain.secp().commit_sum(vec_i, vec_o)?;
-			println!("manual sum of inputs, inputs: {:?}", sum);
-
-			let calced_sum = if self.participant_data.len() == 1 {
-				// Normal workflow
-				keychain.secp().commit_sum(vec![ex.clone()], vec![sum])?
-			} else {
-				// Invoice workflow
-				keychain.secp().commit_sum(vec![sum], vec![ex.clone()])?
-			};
-			println!("calced sum manual: {:?}", calced_sum);
-			Ok(calced_sum)
-
-		/*Ok(keychain
-		.secp()
-		.commit_sum(vec![tx_excess], vec![ex.clone()])?)*/
-		} else {
-			let kernel_offset = tx.offset.clone();
-			let overage = tx.fee() as i64;
-			let tx_excess = tx.sum_commitments(overage)?;
-
-			// subtract the kernel_excess (built from kernel_offset)
-			let offset_excess = keychain
-				.secp()
-				.commit(0, kernel_offset.secret_key(&keychain.secp())?)?;
-			Ok(keychain
-				.secp()
-				.commit_sum(vec![tx_excess], vec![offset_excess])?)
-		}
+		let sum = self.pub_blind_sum(keychain.secp())?;
+		Ok(Commitment::from_pubkey(keychain.secp(), &sum)?)
 	}
 
 	/// builds a final transaction after the aggregated sig exchange

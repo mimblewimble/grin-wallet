@@ -219,8 +219,9 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let keychain = wallet.keychain(keychain_mask)?;
 	// create an output using the amount in the slate
-	let (_, mut context) = selection::build_recipient_output(
+	let (_, mut context, mut tx) = selection::build_recipient_output(
 		wallet,
 		keychain_mask,
 		slate,
@@ -230,7 +231,7 @@ where
 
 	// fill public keys
 	slate.fill_round_1(
-		&wallet.keychain(keychain_mask)?,
+		&keychain,
 		&mut context.sec_key,
 		&context.sec_nonce,
 		1,
@@ -241,11 +242,16 @@ where
 	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(
-			&wallet.keychain(keychain_mask)?,
+			&keychain,
 			&context.sec_key,
 			&context.sec_nonce,
 			participant_id,
 		)?;
+		// update excess in stored transaction
+		let mut batch = wallet.batch(keychain_mask)?;
+		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
+		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+		batch.commit()?;
 	}
 
 	Ok(context)

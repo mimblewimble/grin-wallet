@@ -77,6 +77,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// send a single block's worth of transactions with minimal strategy
 	let mut slate = Slate::blank(2);
+	let mut stored_excess = None;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -91,6 +92,8 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(m, &slate, 0)?;
 		slate = api.finalize_tx(m, &slate)?;
+		println!("Posted TX: {}", slate);
+		stored_excess = Some(slate.tx.as_ref().unwrap().body.kernels[0].excess);
 		api.post_tx(m, slate.tx_or_err()?, false)?;
 		Ok(())
 	})?;
@@ -98,8 +101,6 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// ensure stored excess is correct in both wallets
 	// Wallet 1 calculated the excess with the full slate // Wallet 2 only had the excess provided by
 	// wallet 1
-
-	let mut stored_excess = None;
 
 	// Refresh and check transaction log for wallet 1
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -109,8 +110,8 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		println!("SIMPLE SEND - SENDING WALLET");
 		println!("{:?}", tx);
 		println!();
-		stored_excess = tx.kernel_excess;
 		assert!(tx.confirmed);
+		assert_eq!(stored_excess, tx.kernel_excess);
 		Ok(())
 	})?;
 
@@ -162,6 +163,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask1, None, |api, m| {
 		println!("Posted TX: {}", slate);
+		stored_excess = Some(slate.tx.as_ref().unwrap().body.kernels[0].excess);
 		api.post_tx(m, slate.tx_or_err()?, false)?;
 		Ok(())
 	})?;
@@ -175,6 +177,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			println!("Wallet 2: {:?}", tx);
 			println!();
 			assert!(tx.confirmed);
+			assert_eq!(stored_excess, tx.kernel_excess);
 		}
 		Ok(())
 	})?;

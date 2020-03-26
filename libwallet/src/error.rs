@@ -186,6 +186,10 @@ pub enum ErrorKind {
 	#[fail(display = "Committed Error")]
 	Committed(committed::Error),
 
+	/// Error from summing commitments
+	#[fail(display = "Committed Error: {}", _0)]
+	Commit(String),
+
 	/// Can't parse slate version
 	#[fail(display = "Can't parse slate version")]
 	SlateVersionParse,

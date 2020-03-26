@@ -147,7 +147,6 @@ where
 		t.ttl_cutoff_height = slate.ttl_cutoff_height;
 
 		if let Ok(e) = slate.calc_excess(&keychain) {
-			println!("LOCKING CONTEXT excess: {:?}", e);
 			t.kernel_excess = Some(e)
 		}
 		t.kernel_lookup_min_height = Some(slate.height);
@@ -229,7 +228,7 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	slate: &mut Slate,
 	parent_key_id: Identifier,
 	use_test_rng: bool,
-) -> Result<(Identifier, Context), Error>
+) -> Result<(Identifier, Context, TxLogEntry), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -290,10 +289,10 @@ where
 		is_coinbase: false,
 		tx_log_entry: Some(log_id),
 	})?;
-	batch.save_tx_log_entry(t, &parent_key_id)?;
+	batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
 	batch.commit()?;
 
-	Ok((key_id, context))
+	Ok((key_id, context, t))
 }
 
 /// Builds a transaction to send to someone from the HD seed associated with the
