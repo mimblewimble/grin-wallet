@@ -49,6 +49,8 @@ pub struct SlateV4 {
 	/// inputs, outputs, kernels, kernel offset
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
+	#[serde(default = "default_tx_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub tx: Option<TransactionV4>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
@@ -66,6 +68,8 @@ pub struct SlateV4 {
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
 	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(default = "default_ttl_none")]
 	pub ttl_cutoff_height: Option<u64>,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -77,6 +81,14 @@ pub struct SlateV4 {
 }
 
 fn default_payment_none() -> Option<PaymentInfoV4> {
+	None
+}
+
+fn default_tx_none() -> Option<TransactionV4> {
+	None
+}
+
+fn default_ttl_none() -> Option<u64> {
 	None
 }
 
