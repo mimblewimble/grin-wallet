@@ -167,7 +167,9 @@ pub struct Slate {
 	/// Versioning info
 	pub version_info: VersionCompatInfo,
 	/// The number of participants intended to take part in this transaction
-	pub num_participants: usize,
+	#[serde(default = "default_num_participants_2")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// The core transaction data:
@@ -223,9 +225,9 @@ fn default_ttl_none() -> Option<u64> {
 	None
 }
 
-/*fn default_num_participants() -> Option<u64> {
+fn default_num_participants_2() -> Option<usize> {
 	Some(2)
-}*/
+}
 
 /// Versioning and compatibility info about this slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -268,6 +270,14 @@ impl Slate {
 		self.version_info.version >= 4
 	}
 
+	/// number of participants
+	pub fn num_participants(&self) -> usize {
+		match self.num_participants {
+			Some(n) => n,
+			None => 2,
+		}
+	}
+
 	/// Compact the slate for initial sending, storing the excess + offset explicit
 	/// and removing my input/output data
 	/// This info must be stored in the context for repopulation later
@@ -300,8 +310,12 @@ impl Slate {
 
 	/// Create a new slate
 	pub fn blank(num_participants: usize) -> Slate {
+		let np = match num_participants {
+			2 => None,
+			n => Some(n),
+		};
 		Slate {
-			num_participants: num_participants,
+			num_participants: np, // assume 2 if not present
 			id: Uuid::new_v4(),
 			tx: Some(Transaction::empty()),
 			amount: 0,
@@ -424,7 +438,7 @@ impl Slate {
 			Some(&self.pub_blind_sum(keychain.secp())?),
 			&self.msg_to_sign()?,
 		)?;
-		for i in 0..self.num_participants {
+		for i in 0..self.num_participants() {
 			if self.participant_data[i].id == participant_id as u64 {
 				self.participant_data[i].part_sig = Some(sig_part);
 				break;

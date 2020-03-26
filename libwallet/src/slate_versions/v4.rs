@@ -42,7 +42,9 @@ pub struct SlateV4 {
 	/// Versioning info
 	pub version_info: VersionCompatInfoV4,
 	/// The number of participants intended to take part in this transaction
-	pub num_participants: usize,
+	#[serde(default = "default_num_participants_2")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// The core transaction data:
@@ -90,6 +92,10 @@ fn default_tx_none() -> Option<TransactionV4> {
 
 fn default_ttl_none() -> Option<u64> {
 	None
+}
+
+fn default_num_participants_2() -> Option<usize> {
+	Some(2)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -250,7 +256,7 @@ impl From<SlateV3> for SlateV4 {
 		let tx = TransactionV4::from(tx);
 		SlateV4 {
 			version_info,
-			num_participants,
+			num_participants: Some(num_participants),
 			id,
 			tx: Some(tx),
 			amount,
@@ -404,7 +410,10 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			version_info,
 			payment_proof,
 		} = slate;
-		let num_participants = *num_participants;
+		let num_participants = match *num_participants {
+			Some(p) => p,
+			None => 2,
+		};
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
