@@ -37,7 +37,6 @@ use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde::ser::{Serialize, Serializer};
 use serde_json;
-use std::convert::TryFrom;
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -234,8 +233,6 @@ fn default_num_participants_2() -> Option<usize> {
 pub struct VersionCompatInfo {
 	/// The current version of the slate format
 	pub version: u16,
-	/// Original version this slate was converted from
-	pub orig_version: u16,
 	/// The grin block header version this slate is intended for
 	pub block_header_version: u16,
 }
@@ -326,7 +323,6 @@ impl Slate {
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
-				orig_version: CURRENT_SLATE_VERSION,
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
 			payment_proof: None,
@@ -796,21 +792,8 @@ impl Serialize for Slate {
 	where
 		S: Serializer,
 	{
-		use serde::ser::Error;
-
 		let v4 = SlateV4::from(self);
-		match self.version_info.orig_version {
-			4 => v4.serialize(serializer),
-			// left as a reminder
-			3 => {
-				let v3 = match SlateV3::try_from(&v4) {
-					Ok(s) => s,
-					Err(e) => return Err(S::Error::custom(format!("{}", e))),
-				};
-				v3.serialize(serializer)
-			}
-			v => Err(S::Error::custom(format!("Unknown slate version {}", v))),
-		}
+		v4.serialize(serializer)
 	}
 }
 
@@ -968,15 +951,12 @@ impl From<&VersionCompatInfo> for VersionCompatInfoV4 {
 	fn from(data: &VersionCompatInfo) -> VersionCompatInfoV4 {
 		let VersionCompatInfo {
 			version,
-			orig_version,
 			block_header_version,
 		} = data;
 		let version = *version;
-		let orig_version = *orig_version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfoV4 {
 			version,
-			orig_version,
 			block_header_version,
 		}
 	}
@@ -1150,15 +1130,12 @@ impl From<&VersionCompatInfoV4> for VersionCompatInfo {
 	fn from(data: &VersionCompatInfoV4) -> VersionCompatInfo {
 		let VersionCompatInfoV4 {
 			version,
-			orig_version,
 			block_header_version,
 		} = data;
 		let version = *version;
-		let orig_version = *orig_version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfo {
 			version,
-			orig_version,
 			block_header_version,
 		}
 	}

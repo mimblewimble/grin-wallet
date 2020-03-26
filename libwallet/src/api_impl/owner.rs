@@ -390,9 +390,6 @@ where
 		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
 		batch.commit()?;
 	}
-	if let Some(v) = args.target_slate_version {
-		slate.version_info.orig_version = v;
-	}
 
 	slate.compact()?;
 
@@ -450,10 +447,6 @@ where
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), 1, &context)?;
 		batch.commit()?;
-	}
-
-	if let Some(v) = args.target_slate_version {
-		slate.version_info.orig_version = v;
 	}
 
 	slate.compact()?;
@@ -543,10 +536,6 @@ where
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
 		batch.commit()?;
-	}
-
-	if let Some(v) = args.target_slate_version {
-		ret_slate.version_info.orig_version = v;
 	}
 
 	Ok(ret_slate)

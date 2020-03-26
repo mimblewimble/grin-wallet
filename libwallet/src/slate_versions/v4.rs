@@ -102,8 +102,6 @@ fn default_num_participants_2() -> Option<usize> {
 pub struct VersionCompatInfoV4 {
 	/// The current version of the slate format
 	pub version: u16,
-	/// Original version this slate was converted from
-	pub orig_version: u16,
 	/// Version of grin block header this slate is compatible with
 	pub block_header_version: u16,
 }
@@ -305,11 +303,10 @@ impl From<&VersionCompatInfoV3> for VersionCompatInfoV4 {
 			block_header_version,
 		} = data;
 		let version = *version;
-		let orig_version = *orig_version;
+		let _orig_version = *orig_version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfoV4 {
 			version,
-			orig_version,
 			block_header_version,
 		}
 	}
@@ -483,11 +480,10 @@ impl From<&VersionCompatInfoV4> for VersionCompatInfoV3 {
 	fn from(data: &VersionCompatInfoV4) -> VersionCompatInfoV3 {
 		let VersionCompatInfoV4 {
 			version,
-			orig_version,
 			block_header_version,
 		} = data;
 		let version = *version;
-		let orig_version = *orig_version;
+		let orig_version = version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfoV3 {
 			version,

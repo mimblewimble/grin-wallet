@@ -36,7 +36,6 @@ impl SlatePutter for PathToSlate {
 			} else {
 				let mut s = slate.clone();
 				s.version_info.version = 4;
-				s.version_info.orig_version = 4;
 				VersionedSlate::into_version(s, SlateVersion::V4)?
 			}
 		};
