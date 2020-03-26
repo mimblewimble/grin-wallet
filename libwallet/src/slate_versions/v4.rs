@@ -120,11 +120,6 @@ pub struct ParticipantDataV4 {
 	/// Public partial signature
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part_sig: Option<Signature>,
-	/// A message for other participants
-	pub message: Option<String>,
-	/// Signature, created with private key corresponding to 'public_blind_excess'
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub message_sig: Option<Signature>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -282,15 +277,13 @@ impl From<&ParticipantDataV3> for ParticipantDataV4 {
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
-		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
-		let message_sig = *message_sig;
+		let _message: Option<String> = message.as_ref().map(|t| String::from(&**t));
+		let _message_sig = *message_sig;
 		ParticipantDataV4 {
 			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		}
 	}
 }
@@ -456,22 +449,18 @@ impl From<&ParticipantDataV4> for ParticipantDataV3 {
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		} = data;
 		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
-		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
-		let message_sig = *message_sig;
 		ParticipantDataV3 {
 			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
+			message: None,
+			message_sig: None,
 		}
 	}
 }

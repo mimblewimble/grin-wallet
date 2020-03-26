@@ -27,7 +27,6 @@ use crate::{
 };
 
 const FOREIGN_API_VERSION: u16 = 2;
-const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// Return the version info
 pub fn check_version() -> VersionInfo {
@@ -52,18 +51,12 @@ where
 	updater::build_coinbase(&mut *w, keychain_mask, block_fees, test_mode)
 }
 
-/// verify slate messages
-pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
-	slate.verify_messages()
-}
-
 /// Receive a tx as recipient
 pub fn receive_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
-	message: Option<String>,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -97,13 +90,6 @@ where
 		}
 	}
 
-	let message = match message {
-		Some(mut m) => {
-			m.truncate(USER_MESSAGE_MAX_LEN);
-			Some(m)
-		}
-		None => None,
-	};
 	// if this is compact mode, we need to create the transaction now
 	if ret_slate.is_compact() {
 		ret_slate.tx = Some(Transaction::empty());
@@ -115,11 +101,9 @@ where
 		&mut ret_slate,
 		&parent_key_id,
 		1,
-		message,
 		false,
 		use_test_rng,
 	)?;
-	tx::update_message(&mut *w, keychain_mask, &ret_slate)?;
 
 	let keychain = w.keychain(keychain_mask)?;
 	let excess = ret_slate.calc_excess(&keychain)?;
@@ -157,7 +141,6 @@ where
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
-	tx::update_message(&mut *w, keychain_mask, &sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes(), 1)?;

@@ -28,8 +28,6 @@ use std::time::Duration;
 
 use grin_wallet_libwallet::InitTxArgs;
 
-use serde_json;
-
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
@@ -136,21 +134,10 @@ fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 	}
 
 	let mut slate = PathToSlate((&send_file).into()).get_tx()?;
-	let mut naughty_slate = slate.clone();
-	naughty_slate.participant_data[0].message = Some("I changed the message".to_owned());
-
-	// verify messages on slate match
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.verify_slate_messages(m, &slate)?;
-		assert!(api.verify_slate_messages(m, &naughty_slate).is_err());
-		Ok(())
-	})?;
-
-	let sender2_message = "And this is sender 2's message".to_owned();
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = api.receive_tx(&slate, None, Some(sender2_message.clone()))?;
+		slate = api.receive_tx(&slate, None)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate)?;
 		Ok(())
 	})?;
@@ -158,7 +145,6 @@ fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let mut slate = PathToSlate(receive_file.into()).get_tx()?;
-		api.verify_slate_messages(m, &slate)?;
 		slate = api.finalize_tx(m, &slate)?;
 		api.post_tx(m, slate.tx_or_err()?, false)?;
 		bh += 1;
@@ -183,36 +169,6 @@ fn file_exchange_test_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.last_confirmed_height, bh);
 		assert_eq!(wallet2_info.total, 2 * reward);
-		Ok(())
-	})?;
-
-	// Check messages, all participants should have both
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, tx) = api.retrieve_txs(m, true, None, Some(slate.id))?;
-		assert_eq!(
-			tx[0].clone().messages.unwrap().messages[0].message,
-			Some(message.to_owned())
-		);
-		assert_eq!(
-			tx[0].clone().messages.unwrap().messages[1].message,
-			Some(sender2_message.to_owned())
-		);
-
-		let msg_json = serde_json::to_string_pretty(&tx[0].clone().messages.unwrap()).unwrap();
-		println!("{}", msg_json);
-		Ok(())
-	})?;
-
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		let (_, tx) = api.retrieve_txs(m, true, None, Some(slate.id))?;
-		assert_eq!(
-			tx[0].clone().messages.unwrap().messages[0].message,
-			Some(message.to_owned())
-		);
-		assert_eq!(
-			tx[0].clone().messages.unwrap().messages[1].message,
-			Some(sender2_message)
-		);
 		Ok(())
 	})?;
 

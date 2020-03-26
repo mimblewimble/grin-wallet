@@ -146,7 +146,6 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
 	participant_id: usize,
-	message: Option<String>,
 	is_initator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
@@ -186,7 +185,6 @@ where
 		&mut context.sec_key,
 		&context.sec_nonce,
 		participant_id,
-		message,
 		use_test_rng,
 	)?;
 
@@ -210,7 +208,6 @@ pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	slate: &mut Slate,
 	parent_key_id: &Identifier,
 	participant_id: usize,
-	message: Option<String>,
 	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
@@ -235,7 +232,6 @@ where
 		&mut context.sec_key,
 		&context.sec_nonce,
 		1,
-		message,
 		use_test_rng,
 	)?;
 
@@ -389,31 +385,6 @@ where
 
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
-	batch.commit()?;
-	Ok(())
-}
-
-/// Update the transaction participant messages
-pub fn update_message<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, false)?;
-	if tx_vec.is_empty() {
-		return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into());
-	}
-	let mut batch = wallet.batch(keychain_mask)?;
-	for mut tx in tx_vec.into_iter() {
-		tx.messages = Some(slate.participant_messages());
-		let parent_key = tx.parent_key_id.clone();
-		batch.save_tx_log_entry(tx, &parent_key)?;
-	}
 	batch.commit()?;
 	Ok(())
 }

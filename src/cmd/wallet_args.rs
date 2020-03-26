@@ -161,10 +161,6 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 		println!("* The resulting transaction will be saved to the file '{}', which you can manually send back to the invoice creator.", dest);
 	}
 	println!();
-	println!("The invoice slate's participant info is:");
-	for m in slate.participant_messages().messages {
-		println!("{}", m);
-	}
 	println!("Please review the above information carefully before proceeding");
 	println!();
 	loop {
@@ -408,12 +404,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		}
 	};
 
-	// message
-	let message = match args.is_present("message") {
-		true => Some(args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
-
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
 	let min_c = parse_u64(min_c, "minimum_confirmations")?;
@@ -505,7 +495,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	Ok(command::SendArgs {
 		amount: amount,
-		message: message,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
@@ -521,12 +510,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 }
 
 pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
-	// message
-	let message = match receive_args.is_present("message") {
-		true => Some(receive_args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
-
 	// input
 	let tx_file = parse_required(receive_args, "input")?;
 
@@ -538,7 +521,6 @@ pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveA
 
 	Ok(command::ReceiveArgs {
 		input: tx_file.to_owned(),
-		message: message,
 	})
 }
 

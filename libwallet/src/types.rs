@@ -26,7 +26,6 @@ use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::ZeroingString;
-use crate::slate::ParticipantMessages;
 use crate::slate_versions::ser as dalek_ser;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -801,8 +800,6 @@ pub struct TxLogEntry {
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(default)]
 	pub ttl_cutoff_height: Option<u64>,
-	/// Message data, stored as json
-	pub messages: Option<ParticipantMessages>,
 	/// Location of the store transaction, (reference or resending)
 	pub stored_tx: Option<String>,
 	/// Associated kernel excess, for later lookup if necessary
@@ -851,7 +848,6 @@ impl TxLogEntry {
 			num_outputs: 0,
 			fee: None,
 			ttl_cutoff_height: None,
-			messages: None,
 			stored_tx: None,
 			kernel_excess: None,
 			kernel_lookup_min_height: None,

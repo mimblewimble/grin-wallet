@@ -133,7 +133,6 @@ where
 
 	let tx_entry = {
 		let lock_inputs = context.get_inputs();
-		let messages = Some(slate.participant_messages());
 		let slate_id = slate.id;
 		let height = slate.height;
 		let parent_key_id = context.parent_key_id.clone();
@@ -161,7 +160,6 @@ where
 		}
 
 		t.amount_debited = amount_debited;
-		t.messages = messages;
 
 		// store extra payment proof info, if required
 		if let Some(ref p) = slate.payment_proof {
@@ -261,7 +259,6 @@ where
 	);
 
 	context.add_output(&key_id, &None, amount);
-	let messages = Some(slate.participant_messages());
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -269,7 +266,6 @@ where
 	t.tx_slate_id = Some(slate_id);
 	t.amount_credited = amount;
 	t.num_outputs = 1;
-	t.messages = messages;
 	t.ttl_cutoff_height = slate.ttl_cutoff_height;
 	// when invoicing, this will be invalid
 	if let Ok(e) = slate.calc_excess(&keychain) {

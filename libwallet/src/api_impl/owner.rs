@@ -38,8 +38,6 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
-const USER_MESSAGE_MAX_LEN: usize = 256;
-
 /// List of accounts
 pub fn accounts<'a, T: ?Sized, C, K>(w: &mut T) -> Result<Vec<AcctPathMapping>, Error>
 where
@@ -318,14 +316,6 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let message = match args.message {
-		Some(mut m) => {
-			m.truncate(USER_MESSAGE_MAX_LEN);
-			Some(m)
-		}
-		None => None,
-	};
-
 	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, args.ttl_blocks)?;
 
 	// if we just want to estimate, don't save a context, just send the results
@@ -356,7 +346,6 @@ where
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
 		0,
-		message,
 		true,
 		use_test_rng,
 	)?;
@@ -419,14 +408,6 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let message = match args.message {
-		Some(mut m) => {
-			m.truncate(USER_MESSAGE_MAX_LEN);
-			Some(m)
-		}
-		None => None,
-	};
-
 	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, None)?;
 	let mut context = tx::add_output_to_slate(
 		&mut *w,
@@ -434,7 +415,6 @@ where
 		&mut slate,
 		&parent_key_id,
 		1,
-		message,
 		true,
 		use_test_rng,
 	)?;
@@ -494,14 +474,6 @@ where
 		}
 	}
 
-	let message = match args.message {
-		Some(mut m) => {
-			m.truncate(USER_MESSAGE_MAX_LEN);
-			Some(m)
-		}
-		None => None,
-	};
-
 	// update slate current height
 	ret_slate.height = w.w2n_client().get_chain_tip()?.0;
 
@@ -525,7 +497,6 @@ where
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
 		0,
-		message,
 		false,
 		use_test_rng,
 	)?;
@@ -584,7 +555,6 @@ where
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
-	tx::update_message(&mut *w, keychain_mask, &sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes(), 0)?;
@@ -653,11 +623,6 @@ where
 		);
 		Ok(())
 	}
-}
-
-/// verify slate messages
-pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
-	slate.verify_messages()
 }
 
 /// check repair

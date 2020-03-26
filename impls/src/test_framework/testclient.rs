@@ -219,14 +219,8 @@ where
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			let mask = wallet.2.clone();
 			// receive tx
-			match foreign::receive_tx(
-				&mut **w,
-				(&mask).as_ref(),
-				&Slate::from(slate),
-				None,
-				None,
-				false,
-			) {
+			match foreign::receive_tx(&mut **w, (&mask).as_ref(), &Slate::from(slate), None, false)
+			{
 				Err(e) => {
 					return Ok(WalletProxyMessage {
 						sender_id: m.dest,

@@ -15,7 +15,6 @@
 //! Functions for building partial transactions to be passed
 //! around during an interactive wallet exchange
 
-use crate::blake2::blake2b::blake2b;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
@@ -28,7 +27,7 @@ use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
-use crate::grin_util::{self, secp, RwLock};
+use crate::grin_util::{secp, RwLock};
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
@@ -74,11 +73,6 @@ pub struct ParticipantData {
 	/// Public partial signature
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part_sig: Option<Signature>,
-	/// A message for other participants
-	pub message: Option<String>,
-	/// Signature, created with private key corresponding to 'public_blind_excess'
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub message_sig: Option<Signature>,
 }
 
 impl ParticipantData {
@@ -95,64 +89,6 @@ impl ParticipantData {
 	/// -Part sig is filled out
 	pub fn is_complete(&self) -> bool {
 		self.part_sig.is_some()
-	}
-}
-
-/// Public message data (for serialising and storage)
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ParticipantMessageData {
-	/// id of the particpant in the tx
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub id: u64,
-	/// Public key
-	#[serde(with = "secp_ser::pubkey_serde")]
-	pub public_key: PublicKey,
-	/// Message,
-	pub message: Option<String>,
-	/// Signature
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub message_sig: Option<Signature>,
-}
-
-impl ParticipantMessageData {
-	/// extract relevant message data from participant data
-	pub fn from_participant_data(p: &ParticipantData) -> ParticipantMessageData {
-		ParticipantMessageData {
-			id: p.id,
-			public_key: p.public_blind_excess,
-			message: p.message.clone(),
-			message_sig: p.message_sig,
-		}
-	}
-}
-
-impl fmt::Display for ParticipantMessageData {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		writeln!(f)?;
-		write!(f, "Participant ID {} ", self.id)?;
-		if self.id == 0 {
-			writeln!(f, "(Sender)")?;
-		} else {
-			writeln!(f, "(Recipient)")?;
-		}
-		writeln!(f, "---------------------")?;
-		let static_secp = grin_util::static_secp_instance();
-		let static_secp = static_secp.lock();
-		writeln!(
-			f,
-			"Public Key: {}",
-			&grin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec())
-		)?;
-		let message = match self.message.clone() {
-			None => "None".to_owned(),
-			Some(m) => m,
-		};
-		writeln!(f, "Message: {}", message)?;
-		let message_sig = match self.message_sig {
-			None => "None".to_owned(),
-			Some(m) => grin_util::to_hex(m.to_raw_data().to_vec()),
-		};
-		writeln!(f, "Message Signature: {}", message_sig)
 	}
 }
 
@@ -235,13 +171,6 @@ pub struct VersionCompatInfo {
 	pub version: u16,
 	/// The grin block header version this slate is intended for
 	pub block_header_version: u16,
-}
-
-/// Helper just to facilitate serialization
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ParticipantMessages {
-	/// included messages
-	pub messages: Vec<ParticipantMessageData>,
 }
 
 impl Slate {
@@ -368,7 +297,6 @@ impl Slate {
 		sec_key: &mut SecretKey,
 		sec_nonce: &SecretKey,
 		participant_id: usize,
-		message: Option<String>,
 		use_test_rng: bool,
 	) -> Result<(), Error>
 	where
@@ -378,15 +306,7 @@ impl Slate {
 		if self.participant_data.len() == 0 {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
-		self.add_participant_info(
-			keychain,
-			&sec_key,
-			&sec_nonce,
-			participant_id,
-			None,
-			message,
-			use_test_rng,
-		)?;
+		self.add_participant_info(keychain, &sec_key, &sec_nonce, participant_id, None)?;
 		Ok(())
 	}
 
@@ -516,8 +436,6 @@ impl Slate {
 		sec_nonce: &SecretKey,
 		id: usize,
 		part_sig: Option<Signature>,
-		message: Option<String>,
-		use_test_rng: bool,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
@@ -526,48 +444,13 @@ impl Slate {
 		let pub_key = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
 
-		let test_message_nonce = SecretKey::from_slice(&keychain.secp(), &[1; 32]).unwrap();
-		let message_nonce = match use_test_rng {
-			false => None,
-			true => Some(&test_message_nonce),
-		};
-
-		// Sign the provided message
-		let message_sig = {
-			if let Some(m) = message.clone() {
-				let hashed = blake2b(secp::constants::MESSAGE_SIZE, &[], &m.as_bytes()[..]);
-				let m = secp::Message::from_slice(&hashed.as_bytes())?;
-				let res = aggsig::sign_single(
-					&keychain.secp(),
-					&m,
-					&sec_key,
-					message_nonce,
-					Some(&pub_key),
-				)?;
-				Some(res)
-			} else {
-				None
-			}
-		};
 		self.participant_data.push(ParticipantData {
 			id: id as u64,
 			public_blind_excess: pub_key,
 			public_nonce: pub_nonce,
 			part_sig: part_sig,
-			message: message,
-			message_sig: message_sig,
 		});
 		Ok(())
-	}
-
-	/// helper to return all participant messages
-	pub fn participant_messages(&self) -> ParticipantMessages {
-		let mut ret = ParticipantMessages { messages: vec![] };
-		for ref m in self.participant_data.iter() {
-			ret.messages
-				.push(ParticipantMessageData::from_participant_data(m));
-		}
-		ret
 	}
 
 	/// Somebody involved needs to generate an offset with their private key
@@ -651,50 +534,6 @@ impl Slate {
 					Some(&self.pub_blind_sum(secp)?),
 					&self.msg_to_sign()?,
 				)?;
-			}
-		}
-		Ok(())
-	}
-
-	/// Verifies any messages in the slate's participant data match their signatures
-	pub fn verify_messages(&self) -> Result<(), Error> {
-		let secp = secp::Secp256k1::with_caps(secp::ContextFlag::VerifyOnly);
-		for p in self.participant_data.iter() {
-			if let Some(msg) = &p.message {
-				let hashed = blake2b(secp::constants::MESSAGE_SIZE, &[], &msg.as_bytes()[..]);
-				let m = secp::Message::from_slice(&hashed.as_bytes())?;
-				let signature = match p.message_sig {
-					None => {
-						error!("verify_messages - participant message doesn't have signature. Message: \"{}\"",
-						   String::from_utf8_lossy(&msg.as_bytes()[..]));
-						return Err(ErrorKind::Signature(
-							"Optional participant messages doesn't have signature".to_owned(),
-						)
-						.into());
-					}
-					Some(s) => s,
-				};
-				if !aggsig::verify_single(
-					&secp,
-					&signature,
-					&m,
-					None,
-					&p.public_blind_excess,
-					Some(&p.public_blind_excess),
-					false,
-				) {
-					error!("verify_messages - participant message doesn't match signature. Message: \"{}\"",
-						   String::from_utf8_lossy(&msg.as_bytes()[..]));
-					return Err(ErrorKind::Signature(
-						"Optional participant messages do not match signatures".to_owned(),
-					)
-					.into());
-				} else {
-					info!(
-						"verify_messages - signature verified ok. Participant message: \"{}\"",
-						String::from_utf8_lossy(&msg.as_bytes()[..])
-					);
-				}
 			}
 		}
 		Ok(())
@@ -927,22 +766,16 @@ impl From<&ParticipantData> for ParticipantDataV4 {
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		} = data;
 		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
-		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
-		let message_sig = *message_sig;
 		ParticipantDataV4 {
 			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		}
 	}
 }
@@ -1106,22 +939,16 @@ impl From<&ParticipantDataV4> for ParticipantData {
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		} = data;
 		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
-		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
-		let message_sig = *message_sig;
 		ParticipantData {
 			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		}
 	}
 }
