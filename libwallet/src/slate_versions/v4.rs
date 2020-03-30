@@ -64,8 +64,10 @@ pub struct SlateV4 {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub lock_height: u64,
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(default = "default_lock_height_0")]
+	pub lock_height: Option<u64>,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
@@ -96,6 +98,10 @@ fn default_ttl_none() -> Option<u64> {
 
 fn default_num_participants_2() -> Option<usize> {
 	Some(2)
+}
+
+fn default_lock_height_0() -> Option<u64> {
+	Some(0)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -255,7 +261,7 @@ impl From<SlateV3> for SlateV4 {
 			amount,
 			fee,
 			height,
-			lock_height,
+			lock_height: Some(lock_height),
 			ttl_cutoff_height,
 			participant_data,
 			payment_proof,
@@ -408,7 +414,10 @@ impl TryFrom<&SlateV4> for SlateV3 {
 		let amount = *amount;
 		let fee = *fee;
 		let height = *height;
-		let lock_height = *lock_height;
+		let lock_height = match *lock_height {
+			Some(l) => l,
+			None => 0,
+		};
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(version_info);
 		let payment_proof = match payment_proof {

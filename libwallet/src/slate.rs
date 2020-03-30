@@ -124,8 +124,10 @@ pub struct Slate {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub lock_height: u64,
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(default = "default_lock_height_0")]
+	pub lock_height: Option<u64>,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
@@ -162,6 +164,10 @@ fn default_ttl_none() -> Option<u64> {
 
 fn default_num_participants_2() -> Option<usize> {
 	Some(2)
+}
+
+fn default_lock_height_0() -> Option<u64> {
+	Some(0)
 }
 
 /// Versioning and compatibility info about this slate
@@ -201,6 +207,14 @@ impl Slate {
 		match self.num_participants {
 			Some(n) => n,
 			None => 2,
+		}
+	}
+
+	/// Lock Height
+	pub fn lock_height(&self) -> u64 {
+		match self.lock_height {
+			Some(n) => n,
+			None => 0,
 		}
 	}
 
@@ -247,7 +261,7 @@ impl Slate {
 			amount: 0,
 			fee: 0,
 			height: 0,
-			lock_height: 0,
+			lock_height: None,
 			ttl_cutoff_height: None,
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
@@ -313,11 +327,11 @@ impl Slate {
 	// Construct the appropriate kernel features based on our fee and lock_height.
 	// If lock_height is 0 then its a plain kernel, otherwise its a height locked kernel.
 	fn kernel_features(&self) -> KernelFeatures {
-		match self.lock_height {
+		match self.lock_height() {
 			0 => KernelFeatures::Plain { fee: self.fee },
 			_ => KernelFeatures::HeightLocked {
 				fee: self.fee,
-				lock_height: self.lock_height,
+				lock_height: self.lock_height(),
 			},
 		}
 	}

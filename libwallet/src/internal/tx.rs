@@ -83,7 +83,7 @@ where
 
 	// Set the lock_height explicitly to 0 here.
 	// This will generate a Plain kernel (rather than a HeightLocked kernel).
-	slate.lock_height = 0;
+	slate.lock_height = None;
 
 	Ok(slate)
 }
