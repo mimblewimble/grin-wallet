@@ -54,8 +54,14 @@ pub struct PaymentInfo {
 	pub sender_address: DalekPublicKey,
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
+	#[serde(default = "default_receiver_signature_none")]
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub receiver_signature: Option<DalekSignature>,
+}
+
+fn default_receiver_signature_none() -> Option<DalekSignature> {
+	None
 }
 
 /// Public data for each participant in the slate
@@ -71,8 +77,14 @@ pub struct ParticipantData {
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_nonce: PublicKey,
 	/// Public partial signature
+	#[serde(default = "default_part_sig_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part_sig: Option<Signature>,
+}
+
+fn default_part_sig_none() -> Option<Signature> {
+	None
 }
 
 impl ParticipantData {
