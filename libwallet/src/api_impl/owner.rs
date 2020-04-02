@@ -345,7 +345,6 @@ where
 		args.num_change_outputs as usize,
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
-		0,
 		true,
 		use_test_rng,
 	)?;
@@ -376,7 +375,7 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
+		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
 
@@ -414,7 +413,6 @@ where
 		keychain_mask,
 		&mut slate,
 		&parent_key_id,
-		1,
 		true,
 		use_test_rng,
 	)?;
@@ -425,7 +423,7 @@ where
 	// recieve the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		batch.save_private_context(slate.id.as_bytes(), 1, &context)?;
+		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
 
@@ -487,7 +485,10 @@ where
 		ret_slate.tx = Some(Transaction::empty());
 	}
 
-	let context = tx::add_inputs_to_slate(
+	// if self sending, make sure to store 'initiator' keys
+	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
+
+	let mut context = tx::add_inputs_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut ret_slate,
@@ -496,16 +497,29 @@ where
 		args.num_change_outputs as usize,
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
-		0,
 		false,
 		use_test_rng,
 	)?;
+
+	// if self-sending, merge contexts
+	if let Ok(c) = context_res {
+		context.initial_sec_key = c.initial_sec_key;
+		context.initial_sec_nonce = c.initial_sec_nonce;
+		context.offset = c.offset;
+		context.is_invoice = c.is_invoice;
+		for o in c.output_ids.iter() {
+			context.output_ids.push(o.clone());
+		}
+		for i in c.input_ids.iter() {
+			context.input_ids.push(i.clone());
+		}
+	}
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		batch.save_private_context(slate.id.as_bytes(), 0, &context)?;
+		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
 
@@ -517,14 +531,13 @@ pub fn tx_lock_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	participant_id: usize,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let context = w.get_private_context(keychain_mask, slate.id.as_bytes(), participant_id)?;
+	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
 	let mut sl = slate.clone();
 	if sl.is_compact() && sl.tx == None {
 		// attempt to repopulate if we're the initiator
@@ -547,17 +560,17 @@ where
 {
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 0)?;
+	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	let parent_key_id = w.parent_key_id();
 	if sl.is_compact() {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	}
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 0, &context)?;
+	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		batch.delete_private_context(sl.id.as_bytes(), 0)?;
+		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
 	Ok(sl)
@@ -703,6 +716,26 @@ where
 		}
 	}
 }
+
+/// return whether slate was an invoice tx
+pub fn context_is_invoice<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<bool, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let context = {
+		wallet_lock!(wallet_inst, w);
+		let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+		context
+	};
+	Ok(context.is_invoice)
+}
+
 /// Experimental, wrap the entire definition of how a wallet's state is updated
 pub fn update_wallet_state<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,

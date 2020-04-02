@@ -67,9 +67,6 @@ fn default_receiver_signature_none() -> Option<DalekSignature> {
 /// Public data for each participant in the slate
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantData {
-	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub id: u64,
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_blind_excess: PublicKey,
@@ -284,6 +281,24 @@ impl Slate {
 			payment_proof: None,
 		}
 	}
+	/// Completes caller's part of round 2, completing signatures
+	pub fn part_data_with_secnonce<K>(
+		&self,
+		keychain: &K,
+		sec_nonce: &SecretKey,
+	) -> Result<Option<ParticipantData>, Error>
+	where
+		K: Keychain,
+	{
+		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+		for i in 0..self.num_participants() {
+			// find my entry
+			if self.participant_data[i].public_nonce == pub_nonce {
+				return Ok(Some(self.participant_data[i].clone()));
+			}
+		}
+		Ok(None)
+	}
 
 	/// Adds selected inputs and outputs to the slate's transaction
 	/// Returns blinding factor
@@ -323,7 +338,6 @@ impl Slate {
 		keychain: &K,
 		sec_key: &mut SecretKey,
 		sec_nonce: &SecretKey,
-		participant_id: usize,
 		use_test_rng: bool,
 	) -> Result<(), Error>
 	where
@@ -333,7 +347,7 @@ impl Slate {
 		if self.participant_data.len() == 0 {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
-		self.add_participant_info(keychain, &sec_key, &sec_nonce, participant_id, None)?;
+		self.add_participant_info(keychain, &sec_key, &sec_nonce, None)?;
 		Ok(())
 	}
 
@@ -362,7 +376,6 @@ impl Slate {
 		keychain: &K,
 		sec_key: &SecretKey,
 		sec_nonce: &SecretKey,
-		participant_id: usize,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
@@ -381,8 +394,10 @@ impl Slate {
 			Some(&self.pub_blind_sum(keychain.secp())?),
 			&self.msg_to_sign()?,
 		)?;
+		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
 		for i in 0..self.num_participants() {
-			if self.participant_data[i].id == participant_id as u64 {
+			// find my entry
+			if self.participant_data[i].public_nonce == pub_nonce {
 				self.participant_data[i].part_sig = Some(sig_part);
 				break;
 			}
@@ -398,16 +413,6 @@ impl Slate {
 	{
 		let final_sig = self.finalize_signature(keychain)?;
 		self.finalize_transaction(keychain, &final_sig)
-	}
-
-	/// Return the participant with the given id
-	pub fn participant_with_id(&self, id: usize) -> Option<ParticipantData> {
-		for p in self.participant_data.iter() {
-			if p.id as usize == id {
-				return Some(p.clone());
-			}
-		}
-		None
 	}
 
 	/// Return the sum of public nonces
@@ -461,7 +466,6 @@ impl Slate {
 		keychain: &K,
 		sec_key: &SecretKey,
 		sec_nonce: &SecretKey,
-		id: usize,
 		part_sig: Option<Signature>,
 	) -> Result<(), Error>
 	where
@@ -472,7 +476,6 @@ impl Slate {
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
 
 		self.participant_data.push(ParticipantData {
-			id: id as u64,
 			public_blind_excess: pub_key,
 			public_nonce: pub_nonce,
 			part_sig: part_sig,
@@ -789,17 +792,14 @@ impl From<&Slate> for SlateV4 {
 impl From<&ParticipantData> for ParticipantDataV4 {
 	fn from(data: &ParticipantData) -> ParticipantDataV4 {
 		let ParticipantData {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
 		} = data;
-		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
 		ParticipantDataV4 {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
@@ -962,17 +962,14 @@ impl From<SlateV4> for Slate {
 impl From<&ParticipantDataV4> for ParticipantData {
 	fn from(data: &ParticipantDataV4) -> ParticipantData {
 		let ParticipantDataV4 {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
 		} = data;
-		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
 		ParticipantData {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,

@@ -193,7 +193,6 @@ where
 		&mut self,
 		keychain_mask: Option<&SecretKey>,
 		slate_id: &[u8],
-		participant_id: usize,
 	) -> Result<Context, Error>;
 
 	/// Iterate over all output data stored by the backend
@@ -295,19 +294,10 @@ where
 	fn lock_output(&mut self, out: &mut OutputData) -> Result<(), Error>;
 
 	/// Saves the private context associated with a slate id
-	fn save_private_context(
-		&mut self,
-		slate_id: &[u8],
-		participant_id: usize,
-		ctx: &Context,
-	) -> Result<(), Error>;
+	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error>;
 
 	/// Delete the private context associated with the slate id
-	fn delete_private_context(
-		&mut self,
-		slate_id: &[u8],
-		participant_id: usize,
-	) -> Result<(), Error>;
+	fn delete_private_context(&mut self, slate_id: &[u8]) -> Result<(), Error>;
 
 	/// Write the wallet data to backend file
 	fn commit(&self) -> Result<(), Error>;
@@ -547,6 +537,10 @@ pub struct Context {
 	/// Secret nonce (of which public is shared)
 	/// (basically a SecretKey)
 	pub sec_nonce: SecretKey,
+	/// only used if self-sending an invoice
+	pub initial_sec_key: SecretKey,
+	/// as above
+	pub initial_sec_nonce: SecretKey,
 	/// store my outputs + amounts between invocations
 	/// Id, mmr_index (if known), amount
 	pub output_ids: Vec<(Identifier, Option<u64>, u64)>,
@@ -555,13 +549,13 @@ pub struct Context {
 	pub input_ids: Vec<(Identifier, Option<u64>, u64)>,
 	/// store the calculated fee
 	pub fee: u64,
-	/// keep track of the participant id
-	pub participant_id: usize,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
 	/// Store calculated transaction offset, for repopulating
 	/// compact slates
 	pub offset: Option<BlindingFactor>,
+	/// whether this was an invoice transaction
+	pub is_invoice: bool,
 }
 
 impl Context {
@@ -571,8 +565,8 @@ impl Context {
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
-		participant_id: usize,
 		offset: Option<BlindingFactor>,
+		is_invoice: bool,
 	) -> Context {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
@@ -580,14 +574,16 @@ impl Context {
 		};
 		Context {
 			parent_key_id: parent_key_id.clone(),
-			sec_key: sec_key,
-			sec_nonce,
+			sec_key: sec_key.clone(),
+			sec_nonce: sec_nonce.clone(),
+			initial_sec_key: sec_key.clone(),
+			initial_sec_nonce: sec_nonce.clone(),
 			input_ids: vec![],
 			output_ids: vec![],
 			fee: 0,
-			participant_id: participant_id,
 			payment_proof_derivation_index: None,
 			offset: offset.clone(),
+			is_invoice,
 		}
 	}
 }

@@ -94,7 +94,7 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		let mut slate = api.init_send_tx(m, args)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &slate)?;
 		// Send directly to self
 		wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
 			slate = api.receive_tx(&slate, Some("listener"))?;

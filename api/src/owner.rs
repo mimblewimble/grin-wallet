@@ -670,7 +670,7 @@ where
 				let comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
-				self.tx_lock_outputs(keychain_mask, &slate, 0)?;
+				self.tx_lock_outputs(keychain_mask, &slate)?;
 				let slate = match sa.finalize {
 					true => self.finalize_tx(keychain_mask, &slate)?,
 					false => slate,
@@ -855,11 +855,10 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
-		participant_id: usize,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, slate, participant_id)
+		owner::tx_lock_outputs(&mut **w, keychain_mask, slate)
 	}
 
 	/// Finalizes a transaction, after all parties
@@ -2084,6 +2083,15 @@ where
 		proof: &PaymentProof,
 	) -> Result<(bool, bool), Error> {
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
+	}
+
+	/// Return my participant data
+	pub fn context_is_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<bool, Error> {
+		owner::context_is_invoice(self.wallet_inst.clone(), keychain_mask, slate)
 	}
 }
 

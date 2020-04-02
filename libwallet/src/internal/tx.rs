@@ -145,8 +145,7 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	is_initator: bool,
+	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
@@ -174,6 +173,7 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
+		!is_initiator,
 		use_test_rng,
 	)?;
 
@@ -184,17 +184,17 @@ where
 		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
-		participant_id,
 		use_test_rng,
 	)?;
 
-	if !is_initator {
+	context.initial_sec_key = context.sec_key.clone();
+
+	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(
 			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
-			participant_id,
 		)?;
 	}
 
@@ -207,7 +207,6 @@ pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	parent_key_id: &Identifier,
-	participant_id: usize,
 	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
@@ -223,6 +222,7 @@ where
 		keychain_mask,
 		slate,
 		parent_key_id.clone(),
+		is_initiator,
 		use_test_rng,
 	)?;
 
@@ -231,18 +231,14 @@ where
 		&keychain,
 		&mut context.sec_key,
 		&context.sec_nonce,
-		1,
 		use_test_rng,
 	)?;
 
+	context.initial_sec_key = context.sec_key.clone();
+
 	if !is_initiator {
 		// perform partial sig
-		slate.fill_round_2(
-			&keychain,
-			&context.sec_key,
-			&context.sec_nonce,
-			participant_id,
-		)?;
+		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
 		// update excess in stored transaction
 		let mut batch = wallet.batch(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
@@ -258,7 +254,6 @@ pub fn complete_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	participant_id: usize,
 	context: &Context,
 ) -> Result<(), Error>
 where
@@ -266,12 +261,20 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	slate.fill_round_2(
-		&wallet.keychain(keychain_mask)?,
-		&context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-	)?;
+	// when self sending invoice tx, use initiator nonce to finalize
+	let (sec_key, sec_nonce) = {
+		if context.initial_sec_key != context.sec_key
+			&& context.initial_sec_nonce != context.sec_nonce
+		{
+			(
+				context.initial_sec_key.clone(),
+				context.initial_sec_nonce.clone(),
+			)
+		} else {
+			(context.sec_key.clone(), context.sec_nonce.clone())
+		}
+	};
+	slate.fill_round_2(&wallet.keychain(keychain_mask)?, &sec_key, &sec_nonce)?;
 
 	// Final transaction can be built by anyone at this stage
 	slate.finalize(&wallet.keychain(keychain_mask)?)?;

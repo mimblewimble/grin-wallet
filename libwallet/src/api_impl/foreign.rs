@@ -100,7 +100,6 @@ where
 		keychain_mask,
 		&mut ret_slate,
 		&parent_key_id,
-		1,
 		false,
 		use_test_rng,
 	)?;
@@ -135,15 +134,15 @@ where
 {
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
+	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	if sl.is_compact() {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	}
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
+	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		batch.delete_private_context(sl.id.as_bytes(), 1)?;
+		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
 	Ok(sl)

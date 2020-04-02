@@ -45,6 +45,7 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: Identifier,
+	is_invoice: bool,
 	use_test_nonce: bool,
 ) -> Result<Context, Error>
 where
@@ -75,8 +76,8 @@ where
 		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
-		0,
 		None,
+		is_invoice,
 	);
 
 	context.fee = fee;
@@ -225,6 +226,7 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	parent_key_id: Identifier,
+	is_invoice: bool,
 	use_test_rng: bool,
 ) -> Result<(Identifier, Context, TxLogEntry), Error>
 where
@@ -254,8 +256,8 @@ where
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,
-		1,
 		None,
+		is_invoice,
 	);
 
 	context.add_output(&key_id, &None, amount);

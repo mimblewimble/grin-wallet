@@ -131,9 +131,6 @@ pub struct VersionCompatInfoV4 {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantDataV4 {
-	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub id: u64,
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_blind_excess: PublicKey,
@@ -308,14 +305,13 @@ impl From<&ParticipantDataV3> for ParticipantDataV4 {
 			message,
 			message_sig,
 		} = data;
-		let id = *id;
+		let _id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
 		let _message: Option<String> = message.as_ref().map(|t| String::from(&**t));
 		let _message_sig = *message_sig;
 		ParticipantDataV4 {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
@@ -483,17 +479,15 @@ impl TryFrom<&SlateV4> for SlateV3 {
 impl From<&ParticipantDataV4> for ParticipantDataV3 {
 	fn from(data: &ParticipantDataV4) -> ParticipantDataV3 {
 		let ParticipantDataV4 {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
 		} = data;
-		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
 		ParticipantDataV3 {
-			id,
+			id: 0,
 			public_blind_excess,
 			public_nonce,
 			part_sig,

@@ -26,6 +26,8 @@ pub struct PathToSlate(pub PathBuf);
 impl SlatePutter for PathToSlate {
 	fn put_tx(&self, slate: &Slate) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
+		// TODO:
+		// * Will need to set particpant id to 1 manually if this is invoice
 		let _r: crate::adapters::Reminder;
 		let out_slate = {
 			// TODO: This will need to be filled with any incompatibilities in the V4 Slate

@@ -319,13 +319,8 @@ where
 		&mut self,
 		keychain_mask: Option<&SecretKey>,
 		slate_id: &[u8],
-		participant_id: usize,
 	) -> Result<Context, Error> {
-		let ctx_key = to_key_u64(
-			PRIVATE_TX_CONTEXT_PREFIX,
-			&mut slate_id.to_vec(),
-			participant_id as u64,
-		);
+		let ctx_key = to_key_u64(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec(), 0);
 		let (blind_xor_key, nonce_xor_key) =
 			private_ctx_xor_keys(&self.keychain(keychain_mask)?, slate_id)?;
 
@@ -681,17 +676,8 @@ where
 		self.save(out.clone())
 	}
 
-	fn save_private_context(
-		&mut self,
-		slate_id: &[u8],
-		participant_id: usize,
-		ctx: &Context,
-	) -> Result<(), Error> {
-		let ctx_key = to_key_u64(
-			PRIVATE_TX_CONTEXT_PREFIX,
-			&mut slate_id.to_vec(),
-			participant_id as u64,
-		);
+	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error> {
+		let ctx_key = to_key_u64(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec(), 0);
 		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain(), slate_id)?;
 
 		let mut s_ctx = ctx.clone();
@@ -708,16 +694,8 @@ where
 		Ok(())
 	}
 
-	fn delete_private_context(
-		&mut self,
-		slate_id: &[u8],
-		participant_id: usize,
-	) -> Result<(), Error> {
-		let ctx_key = to_key_u64(
-			PRIVATE_TX_CONTEXT_PREFIX,
-			&mut slate_id.to_vec(),
-			participant_id as u64,
-		);
+	fn delete_private_context(&mut self, slate_id: &[u8]) -> Result<(), Error> {
+		let ctx_key = to_key_u64(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec(), 0);
 		self.db
 			.borrow()
 			.as_ref()

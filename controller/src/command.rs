@@ -346,11 +346,11 @@ where
 			match args.method.as_str() {
 				"file" => {
 					PathToSlate((&args.dest).into()).put_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 					return Ok(());
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
@@ -363,7 +363,7 @@ where
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 				}
 			}
 
@@ -443,18 +443,11 @@ where
 	// based on the slate contents
 	// for now, we can tell this is an invoice transaction
 	// if the receipient (participant 1) hasn't completed sigs
-	let part_data = slate.participant_with_id(1);
-	let is_invoice = {
-		match part_data {
-			None => {
-				error!("Expected slate participant data missing");
-				return Err(ErrorKind::ArgumentError(
-					"Expected Slate participant data missing".into(),
-				))?;
-			}
-			Some(p) => !p.is_complete(),
-		}
-	};
+	let mut is_invoice = false;
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		is_invoice = api.context_is_invoice(m, &slate)?;
+		Ok(())
+	})?;
 
 	if is_invoice {
 		let km = match keychain_mask.as_ref() {
@@ -605,10 +598,10 @@ where
 				"file" => {
 					let slate_putter = PathToSlate((&args.dest).into());
 					slate_putter.put_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
@@ -621,7 +614,7 @@ where
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 				}
 			}
 		}

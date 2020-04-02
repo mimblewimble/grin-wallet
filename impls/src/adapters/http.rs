@@ -143,10 +143,6 @@ impl HttpSlateSender {
 	}
 }
 
-#[deprecated(
-	since = "3.0.0",
-	note = "Remember to handle SlateV4 incompatibilities here"
-)]
 impl SlateSender for HttpSlateSender {
 	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
@@ -186,6 +182,7 @@ impl SlateSender for HttpSlateSender {
 				let mut slate = slate.clone();
 				let _r: crate::adapters::Reminder;
 				//TODO: Fill out with Slate V4 incompatibilities
+				// * Will need to set particpant id to 1 manually if this is invoice
 				if false {
 					return Err(ErrorKind::ClientCallback("feature x requested, but other wallet does not support feature x. Please urge other user to upgrade, or re-send tx without feature x".into()).into());
 				}
