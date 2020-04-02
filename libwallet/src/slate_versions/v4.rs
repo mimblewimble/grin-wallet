@@ -29,6 +29,8 @@
 //! * `payment_proof` may be omitted from the slate if it is None (null),
 //! * `message` is removed from `participant_info` entries
 //! * `message_sig` is removed from `participant_info` entries
+//! * `id` is removed from `participant_info` entries. Parties can identify themselves via
+//!    private keys stored in the transaction context
 //! * `part_sig` may be omitted from a `participant_info` entry if it has not yet been filled out
 //! * `receiver_signature` may be omitted from `payment_proof` if it has not yet been filled out
 
