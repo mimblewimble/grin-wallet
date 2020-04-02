@@ -14,7 +14,23 @@
 
 //! Contains V4 of the slate (grin-wallet 4.0.0)
 //! Changes from V3:
-//! * tx field becomes an Option
+//! * `tx` field becomes an Option
+//! * `tx` field is omitted from the slate if it is None (null)
+//! * `tx` field and enclosed inputs/outputs do not need to be included in the first
+//!   leg of a transaction exchange. (All inputs/outputs naturally need to be present at time
+//!   of posting).
+//! * `num_participants` becomes an Option
+//! * `num_participants` may be omitted from the slate if it is None (null),
+//!    if `num_participants` is omitted, it's value is assumed to be 2
+//! * `lock_height` becomes an Option
+//! * `lock_height` may be omitted from the slate if it is None (null),
+//!    if `lock_height` is omitted, it's value is assumed to be 2
+//! * `ttl_cutoff_height` may be omitted from the slate if it is None (null),
+//! * `payment_proof` may be omitted from the slate if it is None (null),
+//! * `message` is removed from `participant_info` entries
+//! * `message_sig` is removed from `participant_info` entries
+//! * `part_sig` may be omitted from a `participant_info` entry if it has not yet been filled out
+//! * `receiver_signature` may be omitted from `payment_proof` if it has not yet been filled out
 
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
@@ -81,6 +97,7 @@ pub struct SlateV4 {
 	pub participant_data: Vec<ParticipantDataV4>,
 	/// Payment Proof
 	#[serde(default = "default_payment_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub payment_proof: Option<PaymentInfoV4>,
 }
 

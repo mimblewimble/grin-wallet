@@ -153,6 +153,7 @@ pub struct Slate {
 	pub participant_data: Vec<ParticipantData>,
 	/// Payment Proof
 	#[serde(default = "default_payment_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub payment_proof: Option<PaymentInfo>,
 }
 

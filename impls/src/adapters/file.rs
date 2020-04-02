@@ -40,7 +40,7 @@ impl SlatePutter for PathToSlate {
 			}
 		};
 		pub_tx.write_all(
-			serde_json::to_string(&out_slate)
+			serde_json::to_string_pretty(&out_slate)
 				.map_err(|_| ErrorKind::SlateSer)?
 				.as_bytes(),
 		)?;
