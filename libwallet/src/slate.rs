@@ -394,10 +394,10 @@ impl Slate {
 			Some(&self.pub_blind_sum(keychain.secp())?),
 			&self.msg_to_sign()?,
 		)?;
-		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+		let pub_excess = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		for i in 0..self.num_participants() {
 			// find my entry
-			if self.participant_data[i].public_nonce == pub_nonce {
+			if self.participant_data[i].public_blind_excess == pub_excess {
 				self.participant_data[i].part_sig = Some(sig_part);
 				break;
 			}

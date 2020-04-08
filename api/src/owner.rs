@@ -2086,6 +2086,7 @@ where
 	}
 
 	/// Return my participant data
+	// TODO: This will be removed once state is added to slate
 	pub fn context_is_invoice(
 		&self,
 		keychain_mask: Option<&SecretKey>,
