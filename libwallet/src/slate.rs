@@ -173,11 +173,11 @@ fn default_ttl_none() -> Option<u64> {
 }
 
 fn default_num_participants_2() -> Option<usize> {
-	Some(2)
+	None
 }
 
 fn default_lock_height_0() -> Option<u64> {
-	Some(0)
+	None
 }
 
 /// Versioning and compatibility info about this slate

@@ -289,12 +289,6 @@ where
 	/// excess value).
 	/// * `dest_acct_name` - The name of the account into which the slate should be received. If
 	/// `None`, the default account is used.
-	/// * `message` - An optional participant message to include alongside the recipient's public
-	/// ParticipantData within the slate. This message will include a signature created with the
-	/// recipient's private excess value, and will be publically verifiable. Note this message is for
-	/// the convenience of the participants during the exchange; it is not included in the final
-	/// transaction sent to the chain. The message will be truncated to 256 characters.
-	/// Validation of this message is optional.
 	///
 	/// # Returns
 	/// * a result containing:
@@ -316,7 +310,7 @@ where
 	///
 	/// // . . .
 	/// // Obtain a sent slate somehow
-	/// let result = api_foreign.receive_tx(&slate, None, None);
+	/// let result = api_foreign.receive_tx(&slate, None);
 	///
 	/// if let Ok(slate) = result {
 	///     // Send back to recipient somehow
