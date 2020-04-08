@@ -262,7 +262,6 @@ pub trait OwnerRpc {
 			  "id": 0,
 			  "kernel_excess": "0838e19c490038b10f051c9c190a9b1f96d59bbd242f5d3143f50630deb74342ed",
 			  "kernel_lookup_min_height": 1,
-			  "messages": null,
 			  "num_inputs": 0,
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
@@ -283,7 +282,6 @@ pub trait OwnerRpc {
 			  "id": 1,
 			  "kernel_excess": "08cd9d890c0b6a004f700aa5939a1ce0488fe2a11fa33cf096b50732ceab0be1df",
 			  "kernel_lookup_min_height": 2,
-			  "messages": null,
 			  "num_inputs": 0,
 			  "num_outputs": 1,
 			  "parent_key_id": "0200000000000000000000000000000000",
@@ -437,7 +435,6 @@ pub trait OwnerRpc {
 				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"args": {
 					"amount": "6000000000",
-					"message": "Please give me your grins",
 					"dest_acct_name": null,
 					"target_slate_version": null
 				}
@@ -456,25 +453,15 @@ pub trait OwnerRpc {
 					"fee": "0",
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
-					"lock_height": "0",
-					"ttl_cutoff_height": null,
-					"num_participants": 2,
-					"payment_proof": null,
 					"participant_data": [
 						{
-							"id": "1",
-							"message": "Please give me your grins",
-							"message_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841bd9bccdcf5d3a402bccc77d36346d3a899259a884f643e90266984289b39a59d2",
-							"part_sig": null,
 							"public_blind_excess": "028e95921cc0d5be5922362265d352c9bdabe51a9e1502a3f0d4a10387f1893f40",
 							"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 						}
 					],
-					"tx": null,
 					"version_info": {
-						"orig_version": 4,
-						"version": 4,
-						"block_header_version": 2
+						"block_header_version": 2,
+						"version": 4
 					}
 				}
 			}
@@ -506,16 +493,8 @@ pub trait OwnerRpc {
 					"fee": "0",
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
-					"lock_height": "0",
-					"ttl_cutoff_height": null,
-					"num_participants": 2,
-					"payment_proof": null,
 					"participant_data": [
 						{
-							"id": "1",
-							"message": "Please give me your grins",
-							"message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fd2599ab38942986602e943f684a85992893a6d34367dc7cc2b403a5dcfcdbcd9",
-							"part_sig": null,
 							"public_blind_excess": "028e95921cc0d5be5922362265d352c9bdabe51a9e1502a3f0d4a10387f1893f40",
 							"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 						}
@@ -543,7 +522,6 @@ pub trait OwnerRpc {
 						"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 					},
 					"version_info": {
-						"orig_version": 4,
 						"version": 4,
 						"block_header_version": 2
 					}
@@ -555,7 +533,6 @@ pub trait OwnerRpc {
 					"max_outputs": 500,
 					"num_change_outputs": 1,
 					"selection_strategy_is_use_all": true,
-					"message": "Ok, here are your grins",
 					"target_slate_version": null,
 					"payment_proof_recipient_address": null,
 					"ttl_blocks": null,
@@ -576,24 +553,13 @@ pub trait OwnerRpc {
 				"fee": "8000000",
 				"height": "4",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"lock_height": "0",
-				"ttl_cutoff_height": null,
-				"num_participants": 2,
-				"payment_proof": null,
 				"participant_data": [
 					{
-						"id": "1",
-						"message": "Please give me your grins",
-						"message_sig": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fd2599ab38942986602e943f684a85992893a6d34367dc7cc2b403a5dcfcdbcd9",
-						"part_sig": null,
+						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b619d40fb6a6fb60449ef9727aeb782e7a5b50fdbfd2d735b49ccc55b477cd319",
 						"public_blind_excess": "028e95921cc0d5be5922362265d352c9bdabe51a9e1502a3f0d4a10387f1893f40",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 					},
 					{
-						"id": "0",
-						"message": "Ok, here are your grins",
-						"message_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841be91ae0f6b50fabc39eefa28118cccdd8fbf5b5afe96972630450f47b72433646",
-						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b619d40fb6a6fb60449ef9727aeb782e7a5b50fdbfd2d735b49ccc55b477cd319",
 						"public_blind_excess": "0309e22f2adaa9b81f51414b775b86acd096e17794eb8159bfcfef27caa4bf5c90",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 					}
@@ -626,9 +592,8 @@ pub trait OwnerRpc {
 					"offset": "0000000000000000000000000000000000000000000000000000000000000000"
 				},
 				"version_info": {
-					"orig_version": 4,
-					"version": 4,
-					"block_header_version": 2
+					"block_header_version": 2,
+					"version": 4
 				}
 			}
 		}
@@ -668,10 +633,6 @@ pub trait OwnerRpc {
 				"payment_proof": null,
 				"participant_data": [
 				{
-					"id": "0",
-					"message": "my message",
-					"message_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b1d4c1358be398f801eb90d933774b5218fa7e769b11c4c640402253353656f75",
-					"part_sig": null,
 					"public_blind_excess": "034b4df2f0558b73ea72a1ca5c4ab20217c66bbe0829056fca7abe76888e9349ee",
 					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 				}
@@ -704,12 +665,10 @@ pub trait OwnerRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 4,
 					"version": 4,
 					"block_header_version": 2
 				}
-			},
-			"participant_id": 0
+			}
 		}
 	}
 	# "#
