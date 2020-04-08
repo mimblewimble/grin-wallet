@@ -380,7 +380,6 @@ pub trait OwnerRpc {
 					"max_outputs": 500,
 					"num_change_outputs": 1,
 					"selection_strategy_is_use_all": true,
-					"message": "my message",
 					"target_slate_version": null,
 					"payment_proof_recipient_address": "pa7wkkdgs5bkteha7lykl7ff2wztgdrxxo442xdcq2lnaphe5aidd4id",
 					"ttl_blocks": null,
@@ -401,28 +400,18 @@ pub trait OwnerRpc {
 					"fee": "8000000",
 					"height": "4",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
-					"lock_height": "0",
-					"num_participants": 2,
 					"participant_data": [
 						{
-							"id": "0",
-							"message": "my message",
-							"message_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b1d4c1358be398f801eb90d933774b5218fa7e769b11c4c640402253353656f75",
-							"part_sig": null,
 							"public_blind_excess": "034b4df2f0558b73ea72a1ca5c4ab20217c66bbe0829056fca7abe76888e9349ee",
 							"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 						}
 					],
 					"payment_proof": {
 						"receiver_address": "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810",
-						"receiver_signature": null,
 						"sender_address": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
 					},
-					"ttl_cutoff_height": null,
-					"tx": null,
 					"version_info": {
 						"block_header_version": 2,
-						"orig_version": 4,
 						"version": 4
 					}
 				}
@@ -754,13 +743,10 @@ pub trait OwnerRpc {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"slate": {
 				"version_info": {
-					"version": 3,
-					"orig_version": 3,
-					"block_header_version": 2
+					"version": 4,
+					"block_header_version": 3
 				},
-				"num_participants": 2,
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"payment_proof": null,
 				"tx": {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
 					"body": {
@@ -800,24 +786,15 @@ pub trait OwnerRpc {
 				"amount": "60000000000",
 				"fee": "7000000",
 				"height": "5",
-				"lock_height": "0",
-				"ttl_cutoff_height": null,
 				"participant_data": [
 					{
-						"id": "0",
 						"public_blind_excess": "033ac2158fa0077f087de60c19d8e431753baa5b63b6e1477f05a2a6e7190d4592",
-						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-						"part_sig": null,
-						"message": null,
-						"message_sig": null
+						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 					},
 					{
-						"id": "1",
 						"public_blind_excess": "024f9bc78c984c78d6e916d3a00746aa30fa1172124c8dbc0cbddcb7b486719bc7",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841ba9c6dd6185c2b819799700fa1a69201f96cc6dfb9ca205a0ef7c35fb81d57dac",
-						"message": null,
-						"message_sig": null
+						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841ba9c6dd6185c2b819799700fa1a69201f96cc6dfb9ca205a0ef7c35fb81d57dac"
 					}
 				]
 			}
@@ -830,28 +807,18 @@ pub trait OwnerRpc {
 		"jsonrpc": "2.0",
 		"id": 1,
 		"result": {
-		"Ok": {
+			"Ok": {
 				"amount": "60000000000",
 				"fee": "7000000",
 				"height": "5",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"lock_height": "0",
-				"ttl_cutoff_height": null,
-				"num_participants": 2,
-				"payment_proof": null,
 				"participant_data": [
 					{
-						"id": "0",
-						"message": null,
-						"message_sig": null,
 						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b38641aefa907a2fc1c051b1f73202794fffb6d422e328516a5c6b2ef41e935f8",
 						"public_blind_excess": "033ac2158fa0077f087de60c19d8e431753baa5b63b6e1477f05a2a6e7190d4592",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 					},
 					{
-						"id": "1",
-						"message": null,
-						"message_sig": null,
 						"part_sig": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841ba9c6dd6185c2b819799700fa1a69201f96cc6dfb9ca205a0ef7c35fb81d57dac",
 						"public_blind_excess": "024f9bc78c984c78d6e916d3a00746aa30fa1172124c8dbc0cbddcb7b486719bc7",
 						"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
@@ -894,9 +861,8 @@ pub trait OwnerRpc {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
 				"version_info": {
-					"orig_version": 3,
-					"version": 3,
-					"block_header_version": 2
+					"block_header_version": 3,
+					"version": 4
 				}
 			}
 		}

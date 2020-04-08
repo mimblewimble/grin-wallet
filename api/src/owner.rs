@@ -637,7 +637,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     api_owner.tx_lock_outputs(None, &slate, 0);
+	///     api_owner.tx_lock_outputs(None, &slate);
 	/// }
 	/// ```
 
@@ -847,7 +847,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     api_owner.tx_lock_outputs(None, &slate, 0);
+	///     api_owner.tx_lock_outputs(None, &slate);
 	/// }
 	/// ```
 
@@ -910,7 +910,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
@@ -970,7 +970,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
@@ -1042,7 +1042,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
 	///     //
 	///     // We didn't get the slate back, or something else went wrong
 	///     //
