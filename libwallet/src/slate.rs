@@ -21,14 +21,14 @@ use crate::grin_core::core::transaction::{
 	Input, KernelFeatures, Output, Transaction, TransactionBody, TxKernel, Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
-use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, secp_ser, tx_fee};
+use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, RwLock};
-use crate::slate_versions::ser as dalek_ser;
+use crate::slate_versions::ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
@@ -48,40 +48,25 @@ use crate::slate_versions::v4::{
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::types::CbData;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct PaymentInfo {
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(deserialize_with = "ser::dalek_pubkey_serde::deserialize")]
 	pub sender_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(deserialize_with = "ser::dalek_pubkey_serde::deserialize")]
 	pub receiver_address: DalekPublicKey,
-	#[serde(default = "default_receiver_signature_none")]
-	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
-	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(deserialize_with = "ser::option_dalek_sig_serde::deserialize")]
 	pub receiver_signature: Option<DalekSignature>,
 }
 
-fn default_receiver_signature_none() -> Option<DalekSignature> {
-	None
-}
-
 /// Public data for each participant in the slate
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ParticipantData {
 	/// Public key corresponding to private blinding factor
-	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_blind_excess: PublicKey,
 	/// Public key corresponding to private nonce
-	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_nonce: PublicKey,
 	/// Public partial signature
-	#[serde(default = "default_part_sig_none")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part_sig: Option<Signature>,
-}
-
-fn default_part_sig_none() -> Option<Signature> {
-	None
 }
 
 impl ParticipantData {
@@ -109,10 +94,8 @@ impl ParticipantData {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Slate {
 	/// Versioning info
-	pub version_info: VersionCompatInfo,
+	pub ver: VersionCompatInfo,
 	/// The number of participants intended to take part in this transaction
-	#[serde(default = "default_num_participants_2")]
-	#[serde(skip_serializing_if = "Option::is_none")]
 	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
@@ -120,37 +103,24 @@ pub struct Slate {
 	/// inputs, outputs, kernels, kernel offset
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
-	#[serde(default = "default_tx_none")]
-	#[serde(skip_serializing_if = "Option::is_none")]
 	pub tx: Option<Transaction>,
 	/// base amount (excluding fee)
-	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// fee amount
-	#[serde(with = "secp_ser::string_or_u64")]
 	pub fee: u64,
 	/// Block height for the transaction
-	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
-	#[serde(with = "secp_ser::opt_string_or_u64")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(default = "default_lock_height_0")]
 	pub lock_height: Option<u64>,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
-	#[serde(with = "secp_ser::opt_string_or_u64")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(default = "default_ttl_none")]
 	pub ttl_cutoff_height: Option<u64>,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
 	pub participant_data: Vec<ParticipantData>,
 	/// Payment Proof
-	#[serde(default = "default_payment_none")]
-	#[serde(skip_serializing_if = "Option::is_none")]
 	pub payment_proof: Option<PaymentInfo>,
 }
 
@@ -158,26 +128,6 @@ impl fmt::Display for Slate {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", serde_json::to_string_pretty(&self).unwrap())
 	}
-}
-
-fn default_payment_none() -> Option<PaymentInfo> {
-	None
-}
-
-fn default_tx_none() -> Option<Transaction> {
-	None
-}
-
-fn default_ttl_none() -> Option<u64> {
-	None
-}
-
-fn default_num_participants_2() -> Option<usize> {
-	None
-}
-
-fn default_lock_height_0() -> Option<u64> {
-	None
 }
 
 /// Versioning and compatibility info about this slate
@@ -209,7 +159,7 @@ impl Slate {
 	}
 	/// Whether the slate started life as a compact slate
 	pub fn is_compact(&self) -> bool {
-		self.version_info.version >= 4
+		self.ver.version >= 4
 	}
 
 	/// number of participants
@@ -274,7 +224,7 @@ impl Slate {
 			lock_height: None,
 			ttl_cutoff_height: None,
 			participant_data: vec![],
-			version_info: VersionCompatInfo {
+			ver: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
@@ -712,11 +662,11 @@ impl From<Slate> for SlateV4 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
-		let version_info = VersionCompatInfoV4::from(&version_info);
+		let ver = VersionCompatInfoV4::from(&ver);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
@@ -735,7 +685,7 @@ impl From<Slate> for SlateV4 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		}
 	}
@@ -753,7 +703,7 @@ impl From<&Slate> for SlateV4 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		} = slate;
 		let num_participants = *num_participants;
@@ -764,7 +714,7 @@ impl From<&Slate> for SlateV4 {
 		let lock_height = *lock_height;
 		let ttl_cutoff_height = *ttl_cutoff_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
-		let version_info = VersionCompatInfoV4::from(version_info);
+		let ver = VersionCompatInfoV4::from(ver);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(p)),
 			None => None,
@@ -783,7 +733,7 @@ impl From<&Slate> for SlateV4 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		}
 	}
@@ -930,11 +880,11 @@ impl From<SlateV4> for Slate {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
-		let version_info = VersionCompatInfo::from(&version_info);
+		let ver = VersionCompatInfo::from(&ver);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfo::from(&p)),
 			None => None,
@@ -953,7 +903,7 @@ impl From<SlateV4> for Slate {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		}
 	}
