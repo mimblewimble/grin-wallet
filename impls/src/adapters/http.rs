@@ -186,7 +186,7 @@ impl SlateSender for HttpSlateSender {
 				if false {
 					return Err(ErrorKind::ClientCallback("feature x requested, but other wallet does not support feature x. Please urge other user to upgrade, or re-send tx without feature x".into()).into());
 				}
-				slate.ver.version = 4;
+				slate.version_info.version = 4;
 				VersionedSlate::into_version(slate, SlateVersion::V4)?
 			}
 		};

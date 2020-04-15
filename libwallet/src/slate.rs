@@ -94,7 +94,7 @@ impl ParticipantData {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Slate {
 	/// Versioning info
-	pub ver: VersionCompatInfo,
+	pub version_info: VersionCompatInfo,
 	/// The number of participants intended to take part in this transaction
 	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
@@ -159,7 +159,7 @@ impl Slate {
 	}
 	/// Whether the slate started life as a compact slate
 	pub fn is_compact(&self) -> bool {
-		self.ver.version >= 4
+		self.version_info.version >= 4
 	}
 
 	/// number of participants
@@ -224,7 +224,7 @@ impl Slate {
 			lock_height: None,
 			ttl_cutoff_height: None,
 			participant_data: vec![],
-			ver: VersionCompatInfo {
+			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
@@ -662,11 +662,11 @@ impl From<Slate> for SlateV4 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			ver,
+			version_info,
 			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
-		let ver = VersionCompatInfoV4::from(&ver);
+		let ver = VersionCompatInfoV4::from(&version_info);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
@@ -703,7 +703,7 @@ impl From<&Slate> for SlateV4 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			ver,
+			version_info,
 			payment_proof,
 		} = slate;
 		let num_participants = *num_participants;
@@ -714,7 +714,7 @@ impl From<&Slate> for SlateV4 {
 		let lock_height = *lock_height;
 		let ttl_cutoff_height = *ttl_cutoff_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
-		let ver = VersionCompatInfoV4::from(ver);
+		let ver = VersionCompatInfoV4::from(version_info);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(p)),
 			None => None,
@@ -884,7 +884,7 @@ impl From<SlateV4> for Slate {
 			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
-		let ver = VersionCompatInfo::from(&ver);
+		let version_info = VersionCompatInfo::from(&ver);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfo::from(&p)),
 			None => None,
@@ -903,7 +903,7 @@ impl From<SlateV4> for Slate {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			ver,
+			version_info,
 			payment_proof,
 		}
 	}

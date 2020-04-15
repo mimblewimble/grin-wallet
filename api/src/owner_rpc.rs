@@ -701,10 +701,7 @@ pub trait OwnerRpc {
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"slate": {
-				"version_info": {
-					"version": 4,
-					"block_header_version": 3
-				},
+				"ver": "4.3",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"tx": {
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
@@ -819,10 +816,7 @@ pub trait OwnerRpc {
 					},
 					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000"
 				},
-				"version_info": {
-					"block_header_version": 3,
-					"version": 4
-				}
+				"ver": "4.3"
 			}
 		}
 	}
