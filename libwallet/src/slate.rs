@@ -31,7 +31,6 @@ use crate::grin_util::{secp, RwLock};
 use crate::slate_versions::ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
-use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde::ser::{Serialize, Serializer};
@@ -40,11 +39,11 @@ use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::slate_versions::v3::SlateV3;
 use crate::slate_versions::v4::{
 	CoinbaseV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateV4, TransactionBodyV4,
 	TransactionV4, TxKernelV4, VersionCompatInfoV4,
 };
+use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::types::CbData;
 
@@ -186,24 +185,14 @@ impl Slate {
 		Ok(())
 	}
 
-	/// Attempt to find slate version
-	pub fn parse_slate_version(slate_json: &str) -> Result<u16, Error> {
-		let probe: SlateVersionProbe =
-			serde_json::from_str(slate_json).map_err(|_| ErrorKind::SlateVersionParse)?;
-		Ok(probe.version())
-	}
-
 	/// Recieve a slate, upgrade it to the latest version internally
+	/// Throw error if this can't be done
 	pub fn deserialize_upgrade(slate_json: &str) -> Result<Slate, Error> {
-		let version = Slate::parse_slate_version(slate_json)?;
-		let v4: SlateV4 = match version {
-			4 => serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?,
-			3 => {
-				let v3: SlateV3 =
-					serde_json::from_str(slate_json).context(ErrorKind::SlateDeser)?;
-				SlateV4::from(v3)
-			}
-			_ => return Err(ErrorKind::SlateVersion(version).into()),
+		let v_slate: VersionedSlate =
+			serde_json::from_str(slate_json).map_err(|_| ErrorKind::SlateVersionParse)?;
+		let v4: SlateV4 = match v_slate {
+			VersionedSlate::V4(s) => s,
+			VersionedSlate::V3(_) => return Err(ErrorKind::SlateVersion(3).into()),
 		};
 		Ok(v4.into())
 	}
@@ -613,26 +602,6 @@ impl Serialize for Slate {
 	{
 		let v4 = SlateV4::from(self);
 		v4.serialize(serializer)
-	}
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SlateVersionProbe {
-	#[serde(default)]
-	version: Option<u64>,
-	#[serde(default)]
-	version_info: Option<VersionCompatInfo>,
-}
-
-impl SlateVersionProbe {
-	pub fn version(&self) -> u16 {
-		match &self.version_info {
-			Some(v) => v.version,
-			None => match self.version {
-				Some(_) => 1,
-				None => 0,
-			},
-		}
 	}
 }
 
