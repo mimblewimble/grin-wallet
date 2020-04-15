@@ -130,19 +130,19 @@ pub trait ForeignRpc {
 		"id": 1,
 		"params": [
 			{
-			"ver": "4.3",
-			"id": "0436430c-2b02-624c-2032-570501212b00",
-			"amount": "60000000000",
-			"fee": "7000000",
-			"height": "5",
-			"participant_data": [
-				{
-					"public_blind_excess": "033ac2158fa0077f087de60c19d8e431753baa5b63b6e1477f05a2a6e7190d4592",
-					"public_nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
-				}
-			]
-		},
-		null
+				"ver": "4.2",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"amt": "60000000000",
+				"fee": "7000000",
+				"height": "5",
+				"sigs": [
+					{
+						"xs": "AzrCFY+gB38IfeYMGdjkMXU7qltjtuFHfwWipucZDUWS",
+						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP"
+					}
+				]
+			},
+			null
 		]
 	}
 	# "#
