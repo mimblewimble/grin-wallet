@@ -254,7 +254,7 @@ where
 		};
 		let slate_i = owner::init_send_tx(&mut **w, keychain_mask, args, test_mode)?;
 		let slate = client.send_tx_slate_direct(dest, &slate_i)?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, &slate, 0)?;
+		owner::tx_lock_outputs(&mut **w, keychain_mask, &slate)?;
 		owner::finalize_tx(&mut **w, keychain_mask, &slate)?
 	};
 	let client = {

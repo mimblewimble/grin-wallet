@@ -266,7 +266,6 @@ where
 /// Arguments for the send command
 pub struct SendArgs {
 	pub amount: u64,
-	pub message: Option<String>,
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
@@ -321,7 +320,6 @@ where
 				max_outputs: args.max_outputs as u32,
 				num_change_outputs: args.change_outputs as u32,
 				selection_strategy_is_use_all: args.selection_strategy == "all",
-				message: args.message.clone(),
 				target_slate_version: args.target_slate_version,
 				payment_proof_recipient_address: args.payment_proof_address.clone(),
 				ttl_blocks: args.ttl_blocks,
@@ -348,31 +346,27 @@ where
 			match args.method.as_str() {
 				"file" => {
 					PathToSlate((&args.dest).into()).put_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 					return Ok(());
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
 					};
 					controller::foreign_single_use(wallet_inst, km, |api| {
-						slate = api.receive_tx(&slate, Some(&args.dest), None)?;
+						slate = api.receive_tx(&slate, Some(&args.dest))?;
 						Ok(())
 					})?;
 				}
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 				}
 			}
 
-			api.verify_slate_messages(m, &slate).map_err(|e| {
-				error!("Error validating participant messages: {}", e);
-				e
-			})?;
 			slate = api.finalize_tx(m, &slate)?;
 			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
 			match result {
@@ -394,7 +388,6 @@ where
 /// Receive command argument
 pub struct ReceiveArgs {
 	pub input: String,
-	pub message: Option<String>,
 }
 
 pub fn receive<L, C, K>(
@@ -414,11 +407,7 @@ where
 		Some(&m) => Some(m.to_owned()),
 	};
 	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-		if let Err(e) = api.verify_slate_messages(&slate) {
-			error!("Error validating participant messages: {}", e);
-			return Err(e);
-		}
-		slate = api.receive_tx(&slate, Some(&g_args.account), args.message.clone())?;
+		slate = api.receive_tx(&slate, Some(&g_args.account))?;
 		Ok(())
 	})?;
 	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate)?;
@@ -454,18 +443,11 @@ where
 	// based on the slate contents
 	// for now, we can tell this is an invoice transaction
 	// if the receipient (participant 1) hasn't completed sigs
-	let part_data = slate.participant_with_id(1);
-	let is_invoice = {
-		match part_data {
-			None => {
-				error!("Expected slate participant data missing");
-				return Err(ErrorKind::ArgumentError(
-					"Expected Slate participant data missing".into(),
-				))?;
-			}
-			Some(p) => !p.is_complete(),
-		}
-	};
+	let mut is_invoice = false;
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		is_invoice = api.context_is_invoice(m, &slate)?;
+		Ok(())
+	})?;
 
 	if is_invoice {
 		let km = match keychain_mask.as_ref() {
@@ -473,19 +455,11 @@ where
 			Some(&m) => Some(m.to_owned()),
 		};
 		controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-			if let Err(e) = api.verify_slate_messages(&slate) {
-				error!("Error validating participant messages: {}", e);
-				return Err(e);
-			}
 			slate = api.finalize_invoice_tx(&slate)?;
 			Ok(())
 		})?;
 	} else {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			if let Err(e) = api.verify_slate_messages(m, &slate) {
-				error!("Error validating participant messages: {}", e);
-				return Err(e);
-			}
 			slate = api.finalize_tx(m, &slate)?;
 			Ok(())
 		})?;
@@ -603,10 +577,6 @@ where
 				send_args: None,
 				..Default::default()
 			};
-			if let Err(e) = api.verify_slate_messages(m, &slate) {
-				error!("Error validating participant messages: {}", e);
-				return Err(e);
-			}
 			let result = api.process_invoice_tx(m, &slate, init_args);
 			let mut slate = match result {
 				Ok(s) => {
@@ -628,10 +598,10 @@ where
 				"file" => {
 					let slate_putter = PathToSlate((&args.dest).into());
 					slate_putter.put_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 				}
 				"self" => {
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 					let km = match keychain_mask.as_ref() {
 						None => None,
 						Some(&m) => Some(m.to_owned()),
@@ -644,7 +614,7 @@ where
 				method => {
 					let sender = create_sender(method, &args.dest, tor_config)?;
 					slate = sender.send_tx(&slate)?;
-					api.tx_lock_outputs(m, &slate, 0)?;
+					api.tx_lock_outputs(m, &slate)?;
 				}
 			}
 		}
@@ -769,7 +739,6 @@ where
 			)?;
 			// should only be one here, but just in case
 			for tx in txs {
-				display::tx_messages(&tx, dark_scheme)?;
 				display::payment_proof(&tx)?;
 			}
 		}

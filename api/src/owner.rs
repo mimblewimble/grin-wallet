@@ -637,7 +637,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     api_owner.tx_lock_outputs(None, &slate, 0);
+	///     api_owner.tx_lock_outputs(None, &slate);
 	/// }
 	/// ```
 
@@ -670,7 +670,7 @@ where
 				let comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
-				self.tx_lock_outputs(keychain_mask, &slate, 0)?;
+				self.tx_lock_outputs(keychain_mask, &slate)?;
 				let slate = match sa.finalize {
 					true => self.finalize_tx(keychain_mask, &slate)?,
 					false => slate,
@@ -847,7 +847,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     api_owner.tx_lock_outputs(None, &slate, 0);
+	///     api_owner.tx_lock_outputs(None, &slate);
 	/// }
 	/// ```
 
@@ -855,11 +855,10 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
-		participant_id: usize,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, slate, participant_id)
+		owner::tx_lock_outputs(&mut **w, keychain_mask, slate)
 	}
 
 	/// Finalizes a transaction, after all parties
@@ -911,7 +910,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
@@ -971,7 +970,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
 	///     //
 	///     // Retrieve slate back from recipient
 	///     //
@@ -1043,7 +1042,7 @@ where
 	///     // Send slate somehow
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
 	///     //
 	///     // We didn't get the slate back, or something else went wrong
 	///     //
@@ -1114,70 +1113,6 @@ where
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
 		owner::get_stored_tx(&**w, tx_log_entry)
-	}
-
-	/// Verifies all messages in the slate match their public keys.
-	///
-	/// The optional messages themselves are part of the `participant_data` field within the slate.
-	/// Messages are signed with the same key used to sign for the paricipant's inputs, and can thus be
-	/// verified with the public key found in the `public_blind_excess` field. This function is a
-	/// simple helper to returns whether all signatures in the participant data match their public
-	/// keys.
-	///
-	/// # Arguments
-	///
-	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// being used.
-	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
-	///
-	/// # Returns
-	/// * `Ok(())` if successful and the signatures validate
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
-	///
-	/// # Example
-	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
-	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
-	/// let args = InitTxArgs {
-	///     src_acct_name: None,
-	///     amount: 2_000_000_000,
-	///     minimum_confirmations: 10,
-	///     max_outputs: 500,
-	///     num_change_outputs: 1,
-	///     selection_strategy_is_use_all: false,
-	///     message: Some("Just verify messages".to_owned()),
-	///     ..Default::default()
-	/// };
-	/// let result = api_owner.init_send_tx(
-	///     None,
-	///     args,
-	/// );
-	///
-	/// if let Ok(slate) = result {
-	///     // Send slate somehow
-	///     // ...
-	///     // Lock our outputs if we're happy the slate was (or is being) sent
-	///     let res = api_owner.tx_lock_outputs(None, &slate, 0);
-	///     //
-	///     // Retrieve slate back from recipient
-	///     //
-	///     let res = api_owner.verify_slate_messages(None, &slate);
-	/// }
-	/// ```
-	pub fn verify_slate_messages(
-		&self,
-		keychain_mask: Option<&SecretKey>,
-		slate: &Slate,
-	) -> Result<(), Error> {
-		{
-			let mut w_lock = self.wallet_inst.lock();
-			let w = w_lock.lc_provider()?.wallet_inst()?;
-			// Test keychain mask, to keep API consistent
-			let _ = w.keychain(keychain_mask)?;
-		}
-		owner::verify_slate_messages(slate)
 	}
 
 	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet
@@ -2148,6 +2083,16 @@ where
 		proof: &PaymentProof,
 	) -> Result<(bool, bool), Error> {
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
+	}
+
+	/// Return my participant data
+	// TODO: This will be removed once state is added to slate
+	pub fn context_is_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<bool, Error> {
+		owner::context_is_invoice(self.wallet_inst.clone(), keychain_mask, slate)
 	}
 }
 

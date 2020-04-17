@@ -268,57 +268,6 @@ where
 		)
 	}
 
-	/// Verifies all messages in the slate match their public keys.
-	///
-	/// The option messages themselves are part of the `participant_data` field within the slate.
-	/// Messages are signed with the same key used to sign for the paricipant's inputs, and can thus be
-	/// verified with the public key found in the `public_blind_excess` field. This function is a
-	/// simple helper to returns whether all signatures in the participant data match their public
-	/// keys.
-	///
-	/// # Arguments
-	///
-	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
-	///
-	/// # Returns
-	/// * `Ok(())` if successful and the signatures validate
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
-	///
-	/// # Example
-	/// Set up as in [`new`](struct.Foreign.html#method.new) method above.
-	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
-	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
-	///
-	/// # let slate = Slate::blank(2);
-	/// // Receive a slate via some means
-	///
-	/// let res = api_foreign.verify_slate_messages(&slate);
-	///
-	/// if let Err(e) = res {
-	///     // Messages don't validate, likely return an error
-	///     // ...
-	/// } else {
-	///     // Slate messages are fine
-	/// }
-	///
-	///
-	/// ```
-
-	pub fn verify_slate_messages(&self, slate: &Slate) -> Result<(), Error> {
-		if let Some(m) = self.middleware.as_ref() {
-			let mut w_lock = self.wallet_inst.lock();
-			let w = w_lock.lc_provider()?.wallet_inst()?;
-			m(
-				ForeignCheckMiddlewareFn::VerifySlateMessages,
-				w.w2n_client().get_version_info(),
-				Some(slate),
-			)?;
-		}
-		foreign::verify_slate_messages(slate)
-	}
-
 	/// Recieve a tranaction created by another party, returning the modified
 	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) object, modified with
 	/// the recipient's output for the transaction amount, and public signature data. This slate can
@@ -340,12 +289,6 @@ where
 	/// excess value).
 	/// * `dest_acct_name` - The name of the account into which the slate should be received. If
 	/// `None`, the default account is used.
-	/// * `message` - An optional participant message to include alongside the recipient's public
-	/// ParticipantData within the slate. This message will include a signature created with the
-	/// recipient's private excess value, and will be publically verifiable. Note this message is for
-	/// the convenience of the participants during the exchange; it is not included in the final
-	/// transaction sent to the chain. The message will be truncated to 256 characters.
-	/// Validation of this message is optional.
 	///
 	/// # Returns
 	/// * a result containing:
@@ -367,7 +310,7 @@ where
 	///
 	/// // . . .
 	/// // Obtain a sent slate somehow
-	/// let result = api_foreign.receive_tx(&slate, None, None);
+	/// let result = api_foreign.receive_tx(&slate, None);
 	///
 	/// if let Ok(slate) = result {
 	///     // Send back to recipient somehow
@@ -375,12 +318,7 @@ where
 	/// }
 	/// ```
 
-	pub fn receive_tx(
-		&self,
-		slate: &Slate,
-		dest_acct_name: Option<&str>,
-		message: Option<String>,
-	) -> Result<Slate, Error> {
+	pub fn receive_tx(&self, slate: &Slate, dest_acct_name: Option<&str>) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -395,7 +333,6 @@ where
 			(&self.keychain_mask).as_ref(),
 			slate,
 			dest_acct_name,
-			message,
 			self.doctest_mode,
 		)
 	}

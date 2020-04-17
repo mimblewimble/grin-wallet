@@ -119,7 +119,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
 
@@ -187,10 +187,13 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
+		println!("Self invoice slate init: {}", slate);
 		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
+
+	println!("Self invoice slate after process: {}", slate);
 
 	// wallet 1 finalizes and posts
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {

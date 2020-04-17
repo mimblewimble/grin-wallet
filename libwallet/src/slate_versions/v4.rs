@@ -14,7 +14,25 @@
 
 //! Contains V4 of the slate (grin-wallet 4.0.0)
 //! Changes from V3:
-//! * TBD
+//! * `tx` field becomes an Option
+//! * `tx` field is omitted from the slate if it is None (null)
+//! * `tx` field and enclosed inputs/outputs do not need to be included in the first
+//!   leg of a transaction exchange. (All inputs/outputs naturally need to be present at time
+//!   of posting).
+//! * `num_participants` becomes an Option
+//! * `num_participants` may be omitted from the slate if it is None (null),
+//!    if `num_participants` is omitted, it's value is assumed to be 2
+//! * `lock_height` becomes an Option
+//! * `lock_height` may be omitted from the slate if it is None (null),
+//!    if `lock_height` is omitted, it's value is assumed to be 2
+//! * `ttl_cutoff_height` may be omitted from the slate if it is None (null),
+//! * `payment_proof` may be omitted from the slate if it is None (null),
+//! * `message` is removed from `participant_info` entries
+//! * `message_sig` is removed from `participant_info` entries
+//! * `id` is removed from `participant_info` entries. Parties can identify themselves via
+//!    private keys stored in the transaction context
+//! * `part_sig` may be omitted from a `participant_info` entry if it has not yet been filled out
+//! * `receiver_signature` may be omitted from `payment_proof` if it has not yet been filled out
 
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::libtx::secp_ser;
@@ -42,13 +60,17 @@ pub struct SlateV4 {
 	/// Versioning info
 	pub version_info: VersionCompatInfoV4,
 	/// The number of participants intended to take part in this transaction
-	pub num_participants: usize,
+	#[serde(default = "default_num_participants_2")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// The core transaction data:
 	/// inputs, outputs, kernels, kernel offset
 	/// Optional as of V4 to allow for a compact
 	/// transaction initiation
+	#[serde(default = "default_tx_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub tx: Option<TransactionV4>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
@@ -60,12 +82,16 @@ pub struct SlateV4 {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub height: u64,
 	/// Lock height
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub lock_height: u64,
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(default = "default_lock_height_0")]
+	pub lock_height: Option<u64>,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
 	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(default = "default_ttl_none")]
 	pub ttl_cutoff_height: Option<u64>,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -73,6 +99,7 @@ pub struct SlateV4 {
 	pub participant_data: Vec<ParticipantDataV4>,
 	/// Payment Proof
 	#[serde(default = "default_payment_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub payment_proof: Option<PaymentInfoV4>,
 }
 
@@ -80,21 +107,32 @@ fn default_payment_none() -> Option<PaymentInfoV4> {
 	None
 }
 
+fn default_tx_none() -> Option<TransactionV4> {
+	None
+}
+
+fn default_ttl_none() -> Option<u64> {
+	None
+}
+
+fn default_num_participants_2() -> Option<usize> {
+	None
+}
+
+fn default_lock_height_0() -> Option<u64> {
+	None
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VersionCompatInfoV4 {
 	/// The current version of the slate format
 	pub version: u16,
-	/// Original version this slate was converted from
-	pub orig_version: u16,
 	/// Version of grin block header this slate is compatible with
 	pub block_header_version: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParticipantDataV4 {
-	/// Id of participant in the transaction. (For now, 0=sender, 1=rec)
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub id: u64,
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_blind_excess: PublicKey,
@@ -102,13 +140,14 @@ pub struct ParticipantDataV4 {
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub public_nonce: PublicKey,
 	/// Public partial signature
+	#[serde(default = "default_part_sig_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part_sig: Option<Signature>,
-	/// A message for other participants
-	pub message: Option<String>,
-	/// Signature, created with private key corresponding to 'public_blind_excess'
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub message_sig: Option<Signature>,
+}
+
+fn default_part_sig_none() -> Option<Signature> {
+	None
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -117,8 +156,14 @@ pub struct PaymentInfoV4 {
 	pub sender_address: DalekPublicKey,
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
+	#[serde(default = "default_receiver_signature_none")]
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub receiver_signature: Option<DalekSignature>,
+}
+
+fn default_receiver_signature_none() -> Option<DalekSignature> {
+	None
 }
 
 /// A transaction
@@ -238,13 +283,13 @@ impl From<SlateV3> for SlateV4 {
 		let tx = TransactionV4::from(tx);
 		SlateV4 {
 			version_info,
-			num_participants,
+			num_participants: Some(num_participants),
 			id,
 			tx: Some(tx),
 			amount,
 			fee,
 			height,
-			lock_height,
+			lock_height: Some(lock_height),
 			ttl_cutoff_height,
 			participant_data,
 			payment_proof,
@@ -262,19 +307,16 @@ impl From<&ParticipantDataV3> for ParticipantDataV4 {
 			message,
 			message_sig,
 		} = data;
-		let id = *id;
+		let _id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
-		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
-		let message_sig = *message_sig;
+		let _message: Option<String> = message.as_ref().map(|t| String::from(&**t));
+		let _message_sig = *message_sig;
 		ParticipantDataV4 {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		}
 	}
 }
@@ -287,11 +329,10 @@ impl From<&VersionCompatInfoV3> for VersionCompatInfoV4 {
 			block_header_version,
 		} = data;
 		let version = *version;
-		let orig_version = *orig_version;
+		let _orig_version = *orig_version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfoV4 {
 			version,
-			orig_version,
 			block_header_version,
 		}
 	}
@@ -392,12 +433,18 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			version_info,
 			payment_proof,
 		} = slate;
-		let num_participants = *num_participants;
+		let num_participants = match *num_participants {
+			Some(p) => p,
+			None => 2,
+		};
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
 		let height = *height;
-		let lock_height = *lock_height;
+		let lock_height = match *lock_height {
+			Some(l) => l,
+			None => 0,
+		};
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(version_info);
 		let payment_proof = match payment_proof {
@@ -434,26 +481,20 @@ impl TryFrom<&SlateV4> for SlateV3 {
 impl From<&ParticipantDataV4> for ParticipantDataV3 {
 	fn from(data: &ParticipantDataV4) -> ParticipantDataV3 {
 		let ParticipantDataV4 {
-			id,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
 		} = data;
-		let id = *id;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
-		let message: Option<String> = message.as_ref().map(|t| String::from(&**t));
-		let message_sig = *message_sig;
 		ParticipantDataV3 {
-			id,
+			id: 0,
 			public_blind_excess,
 			public_nonce,
 			part_sig,
-			message,
-			message_sig,
+			message: None,
+			message_sig: None,
 		}
 	}
 }
@@ -462,11 +503,10 @@ impl From<&VersionCompatInfoV4> for VersionCompatInfoV3 {
 	fn from(data: &VersionCompatInfoV4) -> VersionCompatInfoV3 {
 		let VersionCompatInfoV4 {
 			version,
-			orig_version,
 			block_header_version,
 		} = data;
 		let version = *version;
-		let orig_version = *orig_version;
+		let orig_version = version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfoV3 {
 			version,

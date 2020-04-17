@@ -21,12 +21,11 @@ use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::ZeroingString;
-use crate::slate::ParticipantMessages;
 use crate::slate_versions::ser as dalek_ser;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -194,7 +193,6 @@ where
 		&mut self,
 		keychain_mask: Option<&SecretKey>,
 		slate_id: &[u8],
-		participant_id: usize,
 	) -> Result<Context, Error>;
 
 	/// Iterate over all output data stored by the backend
@@ -296,19 +294,10 @@ where
 	fn lock_output(&mut self, out: &mut OutputData) -> Result<(), Error>;
 
 	/// Saves the private context associated with a slate id
-	fn save_private_context(
-		&mut self,
-		slate_id: &[u8],
-		participant_id: usize,
-		ctx: &Context,
-	) -> Result<(), Error>;
+	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error>;
 
 	/// Delete the private context associated with the slate id
-	fn delete_private_context(
-		&mut self,
-		slate_id: &[u8],
-		participant_id: usize,
-	) -> Result<(), Error>;
+	fn delete_private_context(&mut self, slate_id: &[u8]) -> Result<(), Error>;
 
 	/// Write the wallet data to backend file
 	fn commit(&self) -> Result<(), Error>;
@@ -548,6 +537,10 @@ pub struct Context {
 	/// Secret nonce (of which public is shared)
 	/// (basically a SecretKey)
 	pub sec_nonce: SecretKey,
+	/// only used if self-sending an invoice
+	pub initial_sec_key: SecretKey,
+	/// as above
+	pub initial_sec_nonce: SecretKey,
 	/// store my outputs + amounts between invocations
 	/// Id, mmr_index (if known), amount
 	pub output_ids: Vec<(Identifier, Option<u64>, u64)>,
@@ -556,10 +549,13 @@ pub struct Context {
 	pub input_ids: Vec<(Identifier, Option<u64>, u64)>,
 	/// store the calculated fee
 	pub fee: u64,
-	/// keep track of the participant id
-	pub participant_id: usize,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
+	/// Store calculated transaction offset, for repopulating
+	/// compact slates
+	pub offset: Option<BlindingFactor>,
+	/// whether this was an invoice transaction
+	pub is_invoice: bool,
 }
 
 impl Context {
@@ -569,7 +565,8 @@ impl Context {
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
-		participant_id: usize,
+		offset: Option<BlindingFactor>,
+		is_invoice: bool,
 	) -> Context {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
@@ -577,13 +574,16 @@ impl Context {
 		};
 		Context {
 			parent_key_id: parent_key_id.clone(),
-			sec_key: sec_key,
-			sec_nonce,
+			sec_key: sec_key.clone(),
+			sec_nonce: sec_nonce.clone(),
+			initial_sec_key: sec_key.clone(),
+			initial_sec_nonce: sec_nonce.clone(),
 			input_ids: vec![],
 			output_ids: vec![],
 			fee: 0,
-			participant_id: participant_id,
 			payment_proof_derivation_index: None,
+			offset: offset.clone(),
+			is_invoice,
 		}
 	}
 }
@@ -796,8 +796,6 @@ pub struct TxLogEntry {
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(default)]
 	pub ttl_cutoff_height: Option<u64>,
-	/// Message data, stored as json
-	pub messages: Option<ParticipantMessages>,
 	/// Location of the store transaction, (reference or resending)
 	pub stored_tx: Option<String>,
 	/// Associated kernel excess, for later lookup if necessary
@@ -846,7 +844,6 @@ impl TxLogEntry {
 			num_outputs: 0,
 			fee: None,
 			ttl_cutoff_height: None,
-			messages: None,
 			stored_tx: None,
 			kernel_excess: None,
 			kernel_lookup_min_height: None,

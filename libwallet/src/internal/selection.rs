@@ -45,6 +45,7 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: Identifier,
+	is_invoice: bool,
 	use_test_nonce: bool,
 ) -> Result<Context, Error>
 where
@@ -75,7 +76,8 @@ where
 		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
-		0,
+		None,
+		is_invoice,
 	);
 
 	context.fee = fee;
@@ -132,7 +134,6 @@ where
 
 	let tx_entry = {
 		let lock_inputs = context.get_inputs();
-		let messages = Some(slate.participant_messages());
 		let slate_id = slate.id;
 		let height = slate.height;
 		let parent_key_id = context.parent_key_id.clone();
@@ -160,7 +161,6 @@ where
 		}
 
 		t.amount_debited = amount_debited;
-		t.messages = messages;
 
 		// store extra payment proof info, if required
 		if let Some(ref p) = slate.payment_proof {
@@ -226,8 +226,9 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	parent_key_id: Identifier,
+	is_invoice: bool,
 	use_test_rng: bool,
-) -> Result<(Identifier, Context), Error>
+) -> Result<(Identifier, Context, TxLogEntry), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -255,11 +256,11 @@ where
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,
-		1,
+		None,
+		is_invoice,
 	);
 
 	context.add_output(&key_id, &None, amount);
-	let messages = Some(slate.participant_messages());
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -267,7 +268,6 @@ where
 	t.tx_slate_id = Some(slate_id);
 	t.amount_credited = amount;
 	t.num_outputs = 1;
-	t.messages = messages;
 	t.ttl_cutoff_height = slate.ttl_cutoff_height;
 	// when invoicing, this will be invalid
 	if let Ok(e) = slate.calc_excess(&keychain) {
@@ -287,10 +287,10 @@ where
 		is_coinbase: false,
 		tx_log_entry: Some(log_id),
 	})?;
-	batch.save_tx_log_entry(t, &parent_key_id)?;
+	batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
 	batch.commit()?;
 
-	Ok((key_id, context))
+	Ok((key_id, context, t))
 }
 
 /// Builds a transaction to send to someone from the HD seed associated with the
@@ -615,4 +615,45 @@ fn select_from(amount: u64, select_all: bool, outputs: Vec<OutputData>) -> Optio
 	} else {
 		None
 	}
+}
+
+/// Repopulates output in the slate's tranacstion
+/// with outputs from the stored context
+/// change outputs and tx log entry
+/// Remove the explicitly stored excess
+pub fn repopulate_tx<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	context: &Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = wallet.keychain(keychain_mask)?;
+	let mut parts = vec![];
+	for (id, _, value) in &context.get_inputs() {
+		let input = wallet.iter().find(|out| out.key_id == *id);
+		if let Some(i) = input {
+			if i.is_coinbase {
+				parts.push(build::coinbase_input(*value, i.key_id.clone()));
+			} else {
+				parts.push(build::input(*value, i.key_id.clone()));
+			}
+		}
+	}
+	for (id, _, value) in &context.get_outputs() {
+		let output = wallet.iter().find(|out| out.key_id == *id);
+		if let Some(i) = output {
+			parts.push(build::output(*value, i.key_id.clone()));
+		}
+	}
+	let _ = slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), parts)?;
+	// restore the original offset
+	if let Some(o) = &context.offset {
+		slate.tx_or_err_mut()?.offset = o.clone();
+	}
+	Ok(())
 }

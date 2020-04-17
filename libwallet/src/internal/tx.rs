@@ -83,7 +83,7 @@ where
 
 	// Set the lock_height explicitly to 0 here.
 	// This will generate a Plain kernel (rather than a HeightLocked kernel).
-	slate.lock_height = 0;
+	slate.lock_height = None;
 
 	Ok(slate)
 }
@@ -145,9 +145,7 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	message: Option<String>,
-	is_initator: bool,
+	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
@@ -175,6 +173,7 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
+		!is_initiator,
 		use_test_rng,
 	)?;
 
@@ -185,18 +184,17 @@ where
 		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
-		participant_id,
-		message,
 		use_test_rng,
 	)?;
 
-	if !is_initator {
+	context.initial_sec_key = context.sec_key.clone();
+
+	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(
 			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
-			participant_id,
 		)?;
 	}
 
@@ -209,8 +207,6 @@ pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	message: Option<String>,
 	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
@@ -219,33 +215,35 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let keychain = wallet.keychain(keychain_mask)?;
 	// create an output using the amount in the slate
-	let (_, mut context) = selection::build_recipient_output(
+	let (_, mut context, mut tx) = selection::build_recipient_output(
 		wallet,
 		keychain_mask,
 		slate,
 		parent_key_id.clone(),
+		is_initiator,
 		use_test_rng,
 	)?;
 
 	// fill public keys
 	slate.fill_round_1(
-		&wallet.keychain(keychain_mask)?,
+		&keychain,
 		&mut context.sec_key,
 		&context.sec_nonce,
-		1,
-		message,
 		use_test_rng,
 	)?;
 
+	context.initial_sec_key = context.sec_key.clone();
+
 	if !is_initiator {
 		// perform partial sig
-		slate.fill_round_2(
-			&wallet.keychain(keychain_mask)?,
-			&context.sec_key,
-			&context.sec_nonce,
-			participant_id,
-		)?;
+		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
+		// update excess in stored transaction
+		let mut batch = wallet.batch(keychain_mask)?;
+		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
+		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+		batch.commit()?;
 	}
 
 	Ok(context)
@@ -256,7 +254,6 @@ pub fn complete_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	participant_id: usize,
 	context: &Context,
 ) -> Result<(), Error>
 where
@@ -264,12 +261,20 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	slate.fill_round_2(
-		&wallet.keychain(keychain_mask)?,
-		&context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-	)?;
+	// when self sending invoice tx, use initiator nonce to finalize
+	let (sec_key, sec_nonce) = {
+		if context.initial_sec_key != context.sec_key
+			&& context.initial_sec_nonce != context.sec_nonce
+		{
+			(
+				context.initial_sec_key.clone(),
+				context.initial_sec_nonce.clone(),
+			)
+		} else {
+			(context.sec_key.clone(), context.sec_nonce.clone())
+		}
+	};
+	slate.fill_round_2(&wallet.keychain(keychain_mask)?, &sec_key, &sec_nonce)?;
 
 	// Final transaction can be built by anyone at this stage
 	slate.finalize(&wallet.keychain(keychain_mask)?)?;
@@ -353,7 +358,11 @@ where
 	};
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 	let parent_key = tx.parent_key_id.clone();
-	tx.kernel_excess = Some(slate.tx_or_err()?.body.kernels[0].excess);
+
+	{
+		let keychain = wallet.keychain(keychain_mask)?;
+		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
+	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		let derivation_index = match context.payment_proof_derivation_index {
@@ -379,31 +388,6 @@ where
 
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
-	batch.commit()?;
-	Ok(())
-}
-
-/// Update the transaction participant messages
-pub fn update_message<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, false)?;
-	if tx_vec.is_empty() {
-		return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into());
-	}
-	let mut batch = wallet.batch(keychain_mask)?;
-	for mut tx in tx_vec.into_iter() {
-		tx.messages = Some(slate.participant_messages());
-		let parent_key = tx.parent_key_id.clone();
-		batch.save_tx_log_entry(tx, &parent_key)?;
-	}
 	batch.commit()?;
 	Ok(())
 }
