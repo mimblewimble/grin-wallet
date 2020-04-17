@@ -185,5 +185,5 @@ fn wallet_file_exchange() {
 	if let Err(e) = file_exchange_test_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
-	clean_output_dir(test_dir);
+	//clean_output_dir(test_dir);
 }

@@ -43,7 +43,7 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::slate::CompatKernelFeatures;
-use crate::slate_versions::ser as dalek_ser;
+use crate::slate_versions::ser;
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
@@ -58,7 +58,8 @@ use crate::slate_versions::v3::{
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV4 {
 	/// Versioning info
-	pub version_info: VersionCompatInfoV4,
+	#[serde(with = "ser::version_info_v4")]
+	pub ver: VersionCompatInfoV4,
 	/// The number of participants intended to take part in this transaction
 	#[serde(default = "default_num_participants_2")]
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -152,12 +153,12 @@ fn default_part_sig_none() -> Option<Signature> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PaymentInfoV4 {
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
 	#[serde(default = "default_receiver_signature_none")]
-	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	#[serde(with = "ser::option_dalek_sig_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub receiver_signature: Option<DalekSignature>,
 }
@@ -274,7 +275,7 @@ impl From<SlateV3> for SlateV4 {
 			payment_proof,
 		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
-		let version_info = VersionCompatInfoV4::from(&version_info);
+		let ver = VersionCompatInfoV4::from(&version_info);
 
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
@@ -282,7 +283,7 @@ impl From<SlateV3> for SlateV4 {
 		};
 		let tx = TransactionV4::from(tx);
 		SlateV4 {
-			version_info,
+			ver,
 			num_participants: Some(num_participants),
 			id,
 			tx: Some(tx),
@@ -430,7 +431,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
-			version_info,
+			ver,
 			payment_proof,
 		} = slate;
 		let num_participants = match *num_participants {
@@ -446,7 +447,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			None => 0,
 		};
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
-		let version_info = VersionCompatInfoV3::from(version_info);
+		let version_info = VersionCompatInfoV3::from(ver);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV3::from(p)),
 			None => None,

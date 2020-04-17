@@ -212,6 +212,48 @@ pub mod option_dalek_sig_serde {
 	}
 }
 
+/// Serializes slates 'version_info' field
+pub mod version_info_v4 {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::slate_versions::v4::VersionCompatInfoV4;
+
+	///
+	pub fn serialize<S>(v: &VersionCompatInfoV4, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&format!("{}.{}", v.version, v.block_header_version))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<VersionCompatInfoV4, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		String::deserialize(deserializer).and_then(|s| {
+			let mut retval = VersionCompatInfoV4 {
+				version: 0,
+				block_header_version: 0,
+			};
+			let v: Vec<&str> = s.split('.').collect();
+			if v.len() != 2 {
+				return Err(Error::custom("Cannot parse version"));
+			}
+			match u16::from_str_radix(v[0], 10) {
+				Ok(u) => retval.version = u,
+				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
+			}
+			match u16::from_str_radix(v[1], 10) {
+				Ok(u) => retval.block_header_version = u,
+				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
+			}
+			Ok(retval)
+		})
+	}
+}
+
 // Test serialization methods of components that are being used
 #[cfg(test)]
 mod test {
