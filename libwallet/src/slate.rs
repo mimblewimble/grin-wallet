@@ -27,7 +27,7 @@ use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
-use crate::grin_util::{secp, RwLock};
+use crate::grin_util::{secp, static_secp_instance, RwLock};
 use crate::slate_versions::ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
@@ -40,8 +40,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
-	CoinbaseV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateV4, TransactionBodyV4,
-	TransactionV4, TxKernelV4, VersionCompatInfoV4,
+	CoinbaseV4, CommitsV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateV4,
+	TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
@@ -350,7 +350,7 @@ impl Slate {
 	where
 		K: Keychain,
 	{
-		let final_sig = self.finalize_signature(keychain)?;
+		let final_sig = self.finalize_signature(keychain.secp())?;
 		self.finalize_transaction(keychain, &final_sig)
 	}
 
@@ -525,23 +525,20 @@ impl Slate {
 	///
 	/// Returns completed transaction ready for posting to the chain
 
-	fn finalize_signature<K>(&mut self, keychain: &K) -> Result<Signature, Error>
-	where
-		K: Keychain,
-	{
-		self.verify_part_sigs(keychain.secp())?;
+	fn finalize_signature(&mut self, secp: &secp::Secp256k1) -> Result<Signature, Error> {
+		self.verify_part_sigs(secp)?;
 
 		let part_sigs = self.part_sigs();
-		let pub_nonce_sum = self.pub_nonce_sum(keychain.secp())?;
-		let final_pubkey = self.pub_blind_sum(keychain.secp())?;
+		let pub_nonce_sum = self.pub_nonce_sum(secp)?;
+		let final_pubkey = self.pub_blind_sum(secp)?;
 		// get the final signature
-		let final_sig = aggsig::add_signatures(&keychain.secp(), part_sigs, &pub_nonce_sum)?;
+		let final_sig = aggsig::add_signatures(secp, part_sigs, &pub_nonce_sum)?;
 
 		// Calculate the final public key (for our own sanity check)
 
 		// Check our final sig verifies
 		aggsig::verify_completed_sig(
-			&keychain.secp(),
+			secp,
 			&final_sig,
 			&final_pubkey,
 			Some(&final_pubkey),
@@ -552,12 +549,9 @@ impl Slate {
 	}
 
 	/// Calculate the excess
-	pub fn calc_excess<K>(&self, keychain: &K) -> Result<Commitment, Error>
-	where
-		K: Keychain,
-	{
-		let sum = self.pub_blind_sum(keychain.secp())?;
-		Ok(Commitment::from_pubkey(keychain.secp(), &sum)?)
+	pub fn calc_excess(&self, secp: &secp::Secp256k1) -> Result<Commitment, Error> {
+		let sum = self.pub_blind_sum(secp)?;
+		Ok(Commitment::from_pubkey(secp, &sum)?)
 	}
 
 	/// builds a final transaction after the aggregated sig exchange
@@ -571,7 +565,7 @@ impl Slate {
 	{
 		self.check_fees()?;
 		// build the final excess based on final tx and offset
-		let final_excess = self.calc_excess(keychain)?;
+		let final_excess = self.calc_excess(keychain.secp())?;
 
 		debug!("Final Tx excess: {:?}", final_excess);
 
@@ -624,7 +618,7 @@ impl From<Slate> for SlateV4 {
 		let Slate {
 			num_participants,
 			id,
-			tx,
+			tx: _,
 			amount,
 			fee,
 			height,
@@ -633,21 +627,17 @@ impl From<Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
-		} = slate;
+		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(&version_info);
 		let payment_proof = match payment_proof {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
 		};
-		let tx = match tx {
-			Some(t) => Some(TransactionV4::from(t)),
-			None => None,
-		};
 		SlateV4 {
 			num_participants,
 			id,
-			tx,
+			coms: (&slate).into(),
 			amt: amount,
 			fee,
 			height,
@@ -665,7 +655,7 @@ impl From<&Slate> for SlateV4 {
 		let Slate {
 			num_participants,
 			id,
-			tx,
+			tx: _,
 			amount,
 			fee,
 			height,
@@ -688,14 +678,11 @@ impl From<&Slate> for SlateV4 {
 			Some(p) => Some(PaymentInfoV4::from(p)),
 			None => None,
 		};
-		let tx = match tx {
-			Some(t) => Some(TransactionV4::from(t)),
-			None => None,
-		};
+
 		SlateV4 {
 			num_participants,
 			id,
-			tx,
+			coms: slate.into(),
 			amt: amount,
 			fee,
 			height,
@@ -705,6 +692,32 @@ impl From<&Slate> for SlateV4 {
 			ver,
 			payment_proof,
 		}
+	}
+}
+
+// Node's Transaction object and lock height to SlateV4 `coms`
+impl From<&Slate> for Option<Vec<CommitsV4>> {
+	fn from(slate: &Slate) -> Option<Vec<CommitsV4>> {
+		let mut ret_vec = vec![];
+		let (ins, outs) = match slate.tx.as_ref() {
+			Some(t) => (t.body.inputs.clone(), t.body.outputs.clone()),
+			None => return None,
+		};
+		for i in ins.iter() {
+			ret_vec.push(CommitsV4 {
+				f: i.features,
+				c: i.commit,
+				p: None,
+			});
+		}
+		for o in outs.iter() {
+			ret_vec.push(CommitsV4 {
+				f: o.features,
+				c: o.commit,
+				p: Some(o.proof),
+			});
+		}
+		Some(ret_vec)
 	}
 }
 
@@ -842,7 +855,7 @@ impl From<SlateV4> for Slate {
 		let SlateV4 {
 			num_participants,
 			id,
-			tx,
+			coms: _,
 			amt: amount,
 			fee,
 			height,
@@ -851,21 +864,17 @@ impl From<SlateV4> for Slate {
 			sigs: participant_data,
 			ver,
 			payment_proof,
-		} = slate;
+		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
 		let version_info = VersionCompatInfo::from(&ver);
-		let payment_proof = match payment_proof {
-			Some(p) => Some(PaymentInfo::from(&p)),
-			None => None,
-		};
-		let tx = match tx {
-			Some(t) => Some(Transaction::from(t)),
+		let payment_proof = match &payment_proof {
+			Some(p) => Some(PaymentInfo::from(p)),
 			None => None,
 		};
 		Slate {
 			num_participants,
 			id,
-			tx,
+			tx: (&slate).into(),
 			amount,
 			fee,
 			height,
@@ -875,6 +884,65 @@ impl From<SlateV4> for Slate {
 			version_info,
 			payment_proof,
 		}
+	}
+}
+
+pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
+	let coms = match slate.coms.as_ref() {
+		Some(c) => c,
+		None => return None,
+	};
+	let secp = static_secp_instance();
+	let secp = secp.lock();
+	let mut calc_slate = Slate::blank(2);
+	for d in slate.sigs.iter() {
+		calc_slate.participant_data.push(ParticipantData {
+			public_blind_excess: d.xs,
+			public_nonce: d.nonce,
+			part_sig: d.part,
+		});
+	}
+	let excess = match calc_slate.calc_excess(&secp) {
+		Ok(e) => e,
+		Err(_) => Commitment::from_vec(vec![0]),
+	};
+	let excess_sig = match calc_slate.finalize_signature(&secp) {
+		Ok(s) => s,
+		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
+	};
+	let kernel = TxKernel {
+		features: match slate.lock_height {
+			Some(0) | None => KernelFeatures::Plain { fee: slate.fee },
+			Some(n) => KernelFeatures::HeightLocked {
+				fee: slate.fee,
+				lock_height: n,
+			},
+		},
+		excess,
+		excess_sig,
+	};
+	let mut tx = Transaction::empty();
+	tx.body.kernels.push(kernel);
+	for c in coms.iter() {
+		match &c.p {
+			Some(p) => tx.body.outputs.push(Output {
+				features: c.f,
+				commit: c.c,
+				proof: p.clone(),
+			}),
+			None => tx.body.inputs.push(Input {
+				features: c.f,
+				commit: c.c,
+			}),
+		}
+	}
+	Some(tx)
+}
+
+// Node's Transaction object and lock height to SlateV4 `coms`
+impl From<&SlateV4> for Option<Transaction> {
+	fn from(slate: &SlateV4) -> Option<Transaction> {
+		tx_from_slate_v4(slate)
 	}
 }
 

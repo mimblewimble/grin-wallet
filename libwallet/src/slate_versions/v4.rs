@@ -34,7 +34,7 @@
 //! * `part_sig` may be omitted from a `participant_info` entry if it has not yet been filled out
 //! * `receiver_signature` may be omitted from `payment_proof` if it has not yet been filled out
 
-use crate::grin_core::core::transaction::OutputFeatures;
+use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindingFactor, Identifier};
@@ -66,13 +66,10 @@ pub struct SlateV4 {
 	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
-	/// The core transaction data:
-	/// inputs, outputs, kernels, kernel offset
-	/// Optional as of V4 to allow for a compact
-	/// transaction initiation
-	#[serde(default = "default_tx_none")]
+	/// Inputs/Output commits added to slate
+	#[serde(default = "default_coms_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub tx: Option<TransactionV4>,
+	pub coms: Option<Vec<CommitsV4>>,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amt: u64,
@@ -110,7 +107,7 @@ fn default_payment_none() -> Option<PaymentInfoV4> {
 	None
 }
 
-fn default_tx_none() -> Option<TransactionV4> {
+fn default_coms_none() -> Option<Vec<CommitsV4>> {
 	None
 }
 
@@ -167,6 +164,24 @@ pub struct PaymentInfoV4 {
 
 fn default_receiver_signature_none() -> Option<DalekSignature> {
 	None
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct CommitsV4 {
+	/// Options for an output's structure or use
+	#[serde(default = "default_output_feature")]
+	#[serde(skip_serializing_if = "output_feature_is_plain")]
+	pub f: OutputFeatures,
+	/// The homomorphic commitment representing the output amount
+	#[serde(
+		serialize_with = "ser::as_base64",
+		deserialize_with = "ser::commitment_from_base64"
+	)]
+	pub c: Commitment,
+	/// A proof that the commitment is in the right range
+	/// Only applies for transaction outputs
+	#[serde(with = "ser::option_rangeproof_base64")]
+	pub p: Option<RangeProof>,
 }
 
 /// A transaction
@@ -365,7 +380,7 @@ impl From<SlateV3> for SlateV4 {
 			version_info,
 			num_participants,
 			id,
-			tx,
+			tx: _,
 			amount,
 			fee,
 			height,
@@ -373,7 +388,7 @@ impl From<SlateV3> for SlateV4 {
 			ttl_cutoff_height,
 			participant_data,
 			payment_proof,
-		} = slate;
+		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(&version_info);
 
@@ -381,12 +396,11 @@ impl From<SlateV3> for SlateV4 {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
 		};
-		let tx = TransactionV4::from(tx);
 		SlateV4 {
 			ver,
 			num_participants: Some(num_participants),
 			id,
-			tx: Some(tx),
+			coms: (&slate).into(),
 			amt: amount,
 			fee,
 			height,
@@ -395,6 +409,27 @@ impl From<SlateV3> for SlateV4 {
 			sigs: participant_data,
 			payment_proof,
 		}
+	}
+}
+
+impl From<&SlateV3> for Option<Vec<CommitsV4>> {
+	fn from(slate: &SlateV3) -> Option<Vec<CommitsV4>> {
+		let mut ret_vec = vec![];
+		for i in slate.tx.body.inputs.iter() {
+			ret_vec.push(CommitsV4 {
+				f: i.features,
+				c: i.commit,
+				p: None,
+			});
+		}
+		for o in slate.tx.body.outputs.iter() {
+			ret_vec.push(CommitsV4 {
+				f: o.features,
+				c: o.commit,
+				p: Some(o.proof),
+			});
+		}
+		Some(ret_vec)
 	}
 }
 
@@ -524,7 +559,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 		let SlateV4 {
 			num_participants,
 			id,
-			tx,
+			coms,
 			amt: amount,
 			fee,
 			height,
@@ -552,6 +587,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			Some(p) => Some(PaymentInfoV3::from(p)),
 			None => None,
 		};
+		let tx: Option<TransactionV3> = slate.into();
 		let tx = match tx {
 			Some(t) => TransactionV3::from(t),
 			None => {
@@ -576,6 +612,67 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			version_info,
 			payment_proof,
 		})
+	}
+}
+
+// Node's Transaction object and lock height to SlateV4 `coms`
+impl From<&SlateV4> for Option<TransactionV3> {
+	fn from(slate: &SlateV4) -> Option<TransactionV3> {
+		let res = crate::slate::tx_from_slate_v4(slate);
+		let tx = match res {
+			Some(tx) => tx,
+			None => return None,
+		};
+		let mut out_fee = 0;
+		let mut out_lock_height = 0;
+		let txv4 = TransactionV3 {
+			offset: tx.offset,
+			body: TransactionBodyV3 {
+				inputs: tx
+					.body
+					.inputs
+					.iter()
+					.map(|i| InputV3 {
+						features: i.features,
+						commit: i.commit,
+					})
+					.collect(),
+				outputs: tx
+					.body
+					.outputs
+					.iter()
+					.map(|o| OutputV3 {
+						features: o.features,
+						commit: o.commit,
+						proof: o.proof,
+					})
+					.collect(),
+				kernels: tx
+					.body
+					.kernels
+					.iter()
+					.map(|k| TxKernelV3 {
+						features: match k.features {
+							KernelFeatures::Plain { fee } => {
+								out_fee = fee;
+								CompatKernelFeatures::Plain
+							}
+							KernelFeatures::Coinbase => CompatKernelFeatures::Coinbase,
+							KernelFeatures::HeightLocked { fee, lock_height } => {
+								out_fee = fee;
+								out_lock_height = lock_height;
+								CompatKernelFeatures::HeightLocked
+							}
+						},
+						fee: out_fee,
+						lock_height: out_lock_height,
+						excess: k.excess,
+						excess_sig: k.excess_sig,
+					})
+					.collect(),
+			},
+		};
+		Some(txv4)
 	}
 }
 

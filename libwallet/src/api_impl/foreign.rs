@@ -105,7 +105,7 @@ where
 	)?;
 
 	let keychain = w.keychain(keychain_mask)?;
-	let excess = ret_slate.calc_excess(&keychain)?;
+	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
 		let sig = tx::create_payment_proof_signature(

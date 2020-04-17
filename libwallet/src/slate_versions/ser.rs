@@ -145,6 +145,38 @@ pub mod option_sig_base64 {
 	}
 }
 
+/// Serializes an Option<secp::Signature> to and from hex
+pub mod option_rangeproof_base64 {
+	use crate::grin_util::secp::pedersen::RangeProof;
+	use base64;
+	use serde::de::{Error, IntoDeserializer};
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(proof: &Option<RangeProof>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match proof {
+			Some(p) => serializer.serialize_str(&base64::encode(&p)),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<RangeProof>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|res| match res {
+			Some(string) => base64::decode(&string)
+				.map_err(|err| Error::custom(err.to_string()))
+				.and_then(|val| Ok(Some(RangeProof::deserialize(val.into_deserializer())?))),
+			None => Ok(None),
+		})
+	}
+}
+
 /// Serializes an OnionV3Address to and from hex
 pub mod option_ov3_serde {
 	use serde::de::Error;
@@ -356,7 +388,7 @@ pub mod version_info_v4 {
 	where
 		S: Serializer,
 	{
-		serializer.serialize_str(&format!("{}.{}", v.version, v.block_header_version))
+		serializer.serialize_str(&format!("{}:{}", v.version, v.block_header_version))
 	}
 
 	///
@@ -369,7 +401,7 @@ pub mod version_info_v4 {
 				version: 0,
 				block_header_version: 0,
 			};
-			let v: Vec<&str> = s.split('.').collect();
+			let v: Vec<&str> = s.split(':').collect();
 			if v.len() != 2 {
 				return Err(Error::custom("Cannot parse version"));
 			}
