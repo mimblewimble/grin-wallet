@@ -648,12 +648,12 @@ impl From<Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
-			amount,
+			amt: amount,
 			fee,
 			height,
 			lock_height,
 			ttl_cutoff_height,
-			participant_data,
+			sigs: participant_data,
 			ver,
 			payment_proof,
 		}
@@ -696,12 +696,12 @@ impl From<&Slate> for SlateV4 {
 			num_participants,
 			id,
 			tx,
-			amount,
+			amt: amount,
 			fee,
 			height,
 			lock_height,
 			ttl_cutoff_height,
-			participant_data,
+			sigs: participant_data,
 			ver,
 			payment_proof,
 		}
@@ -719,9 +719,9 @@ impl From<&ParticipantData> for ParticipantDataV4 {
 		let public_nonce = *public_nonce;
 		let part_sig = *part_sig;
 		ParticipantDataV4 {
-			public_blind_excess,
-			public_nonce,
-			part_sig,
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
 		}
 	}
 }
@@ -788,9 +788,9 @@ impl From<&TransactionBody> for TransactionBodyV4 {
 		let outputs = map_vec!(outputs, |out| OutputV4::from(out));
 		let kernels = map_vec!(kernels, |kern| TxKernelV4::from(kern));
 		TransactionBodyV4 {
-			inputs,
-			outputs,
-			kernels,
+			ins: inputs,
+			outs: outputs,
+			kers: kernels,
 		}
 	}
 }
@@ -811,8 +811,8 @@ impl From<&Output> for OutputV4 {
 		} = *output;
 		OutputV4 {
 			features,
-			commit,
-			proof,
+			com: commit,
+			prf: proof,
 		}
 	}
 }
@@ -843,12 +843,12 @@ impl From<SlateV4> for Slate {
 			num_participants,
 			id,
 			tx,
-			amount,
+			amt: amount,
 			fee,
 			height,
 			lock_height,
 			ttl_cutoff_height,
-			participant_data,
+			sigs: participant_data,
 			ver,
 			payment_proof,
 		} = slate;
@@ -881,9 +881,9 @@ impl From<SlateV4> for Slate {
 impl From<&ParticipantDataV4> for ParticipantData {
 	fn from(data: &ParticipantDataV4) -> ParticipantData {
 		let ParticipantDataV4 {
-			public_blind_excess,
-			public_nonce,
-			part_sig,
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
 		} = data;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
@@ -939,15 +939,11 @@ impl From<TransactionV4> for Transaction {
 
 impl From<&TransactionBodyV4> for TransactionBody {
 	fn from(body: &TransactionBodyV4) -> TransactionBody {
-		let TransactionBodyV4 {
-			inputs,
-			outputs,
-			kernels,
-		} = body;
+		let TransactionBodyV4 { ins, outs, kers } = body;
 
-		let inputs = map_vec!(inputs, |inp| Input::from(inp));
-		let outputs = map_vec!(outputs, |out| Output::from(out));
-		let kernels = map_vec!(kernels, |kern| TxKernel::from(kern));
+		let inputs = map_vec!(ins, |inp| Input::from(inp));
+		let outputs = map_vec!(outs, |out| Output::from(out));
+		let kernels = map_vec!(kers, |kern| TxKernel::from(kern));
 		TransactionBody {
 			inputs,
 			outputs,
@@ -967,8 +963,8 @@ impl From<&OutputV4> for Output {
 	fn from(output: &OutputV4) -> Output {
 		let OutputV4 {
 			features,
-			commit,
-			proof,
+			com: commit,
+			prf: proof,
 		} = *output;
 		Output {
 			features,
