@@ -241,7 +241,7 @@ where
 		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
 		// update excess in stored transaction
 		let mut batch = wallet.batch(keychain_mask)?;
-		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
+		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
 		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 		batch.commit()?;
 	}
@@ -361,7 +361,7 @@ where
 
 	{
 		let keychain = wallet.keychain(keychain_mask)?;
-		tx.kernel_excess = Some(slate.calc_excess(&keychain)?);
+		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
 	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
@@ -371,7 +371,7 @@ where
 		};
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
-		let excess = slate.calc_excess(&keychain)?;
+		let excess = slate.calc_excess(keychain.secp())?;
 		let sender_key =
 			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
@@ -515,7 +515,7 @@ where
 		}
 		let msg = payment_proof_message(
 			slate.amount,
-			&slate.calc_excess(&keychain)?,
+			&slate.calc_excess(&keychain.secp())?,
 			orig_sender_address.to_ed25519()?,
 		)?;
 		let sig = match p.receiver_signature {

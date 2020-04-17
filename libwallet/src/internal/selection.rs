@@ -146,7 +146,7 @@ where
 		t.fee = Some(slate.fee);
 		t.ttl_cutoff_height = slate.ttl_cutoff_height;
 
-		if let Ok(e) = slate.calc_excess(&keychain) {
+		if let Ok(e) = slate.calc_excess(keychain.secp()) {
 			t.kernel_excess = Some(e)
 		}
 		t.kernel_lookup_min_height = Some(slate.height);
@@ -270,7 +270,7 @@ where
 	t.num_outputs = 1;
 	t.ttl_cutoff_height = slate.ttl_cutoff_height;
 	// when invoicing, this will be invalid
-	if let Ok(e) = slate.calc_excess(&keychain) {
+	if let Ok(e) = slate.calc_excess(keychain.secp()) {
 		t.kernel_excess = Some(e)
 	}
 	t.kernel_lookup_min_height = Some(slate.height);
