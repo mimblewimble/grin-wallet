@@ -28,7 +28,6 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, static_secp_instance, RwLock};
-use crate::slate_versions::ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use rand::rngs::mock::StepRng;
@@ -47,18 +46,18 @@ use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::types::CbData;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct PaymentInfo {
-	#[serde(deserialize_with = "ser::dalek_pubkey_serde::deserialize")]
+	/// Sender address
 	pub sender_address: DalekPublicKey,
-	#[serde(deserialize_with = "ser::dalek_pubkey_serde::deserialize")]
+	/// Receiver address
 	pub receiver_address: DalekPublicKey,
-	#[serde(deserialize_with = "ser::option_dalek_sig_serde::deserialize")]
+	/// Receiver signature
 	pub receiver_signature: Option<DalekSignature>,
 }
 
 /// Public data for each participant in the slate
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct ParticipantData {
 	/// Public key corresponding to private blinding factor
 	pub public_blind_excess: PublicKey,
@@ -90,7 +89,7 @@ impl ParticipantData {
 /// the slate around by whatever means they choose, (but we can provide some
 /// binary or JSON serialization helpers here).
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Slate {
 	/// Versioning info
 	pub version_info: VersionCompatInfo,
@@ -107,8 +106,6 @@ pub struct Slate {
 	pub amount: u64,
 	/// fee amount
 	pub fee: u64,
-	/// Block height for the transaction
-	pub height: u64,
 	/// Lock height
 	pub lock_height: Option<u64>,
 	/// TTL, the block height at which wallets
@@ -130,7 +127,7 @@ impl fmt::Display for Slate {
 }
 
 /// Versioning and compatibility info about this slate
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct VersionCompatInfo {
 	/// The current version of the slate format
 	pub version: u16,
@@ -209,7 +206,6 @@ impl Slate {
 			tx: Some(Transaction::empty()),
 			amount: 0,
 			fee: 0,
-			height: 0,
 			lock_height: None,
 			ttl_cutoff_height: None,
 			participant_data: vec![],
@@ -621,7 +617,6 @@ impl From<Slate> for SlateV4 {
 			tx: _,
 			amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
@@ -640,7 +635,6 @@ impl From<Slate> for SlateV4 {
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			sigs: participant_data,
@@ -658,7 +652,6 @@ impl From<&Slate> for SlateV4 {
 			tx: _,
 			amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
@@ -669,7 +662,6 @@ impl From<&Slate> for SlateV4 {
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
-		let height = *height;
 		let lock_height = *lock_height;
 		let ttl_cutoff_height = *ttl_cutoff_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
@@ -685,7 +677,6 @@ impl From<&Slate> for SlateV4 {
 			coms: slate.into(),
 			amt: amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			sigs: participant_data,
@@ -858,7 +849,6 @@ impl From<SlateV4> for Slate {
 			coms: _,
 			amt: amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			sigs: participant_data,
@@ -877,7 +867,6 @@ impl From<SlateV4> for Slate {
 			tx: (&slate).into(),
 			amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,

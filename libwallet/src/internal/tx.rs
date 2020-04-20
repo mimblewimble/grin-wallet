@@ -67,7 +67,6 @@ where
 		*SLATE_COUNTER.lock() += 1;
 	}
 	slate.amount = amount;
-	slate.height = current_height;
 
 	if valid_header_version(current_height, HeaderVersion(1)) {
 		slate.version_info.block_header_version = 1;
@@ -140,6 +139,7 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
+	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
 	num_change_outputs: usize,
@@ -168,6 +168,7 @@ where
 		&wallet.keychain(keychain_mask)?,
 		keychain_mask,
 		slate,
+		current_height,
 		minimum_confirmations,
 		max_outputs,
 		num_change_outputs,
@@ -206,6 +207,7 @@ pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
+	current_height: u64,
 	parent_key_id: &Identifier,
 	is_initiator: bool,
 	use_test_rng: bool,
@@ -221,6 +223,7 @@ where
 		wallet,
 		keychain_mask,
 		slate,
+		current_height,
 		parent_key_id.clone(),
 		is_initiator,
 		use_test_rng,

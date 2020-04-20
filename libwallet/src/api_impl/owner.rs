@@ -336,10 +336,12 @@ where
 		return Ok(slate);
 	}
 
+	let height = w.w2n_client().get_chain_tip()?.0;
 	let mut context = tx::add_inputs_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut slate,
+		height,
 		args.minimum_confirmations,
 		args.max_outputs as usize,
 		args.num_change_outputs as usize,
@@ -408,10 +410,12 @@ where
 	};
 
 	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, None)?;
+	let height = w.w2n_client().get_chain_tip()?.0;
 	let mut context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut slate,
+		height,
 		&parent_key_id,
 		true,
 		use_test_rng,
@@ -472,12 +476,11 @@ where
 		}
 	}
 
-	// update slate current height
-	ret_slate.height = w.w2n_client().get_chain_tip()?.0;
+	let height = w.w2n_client().get_chain_tip()?.0;
 
 	// update ttl if desired
 	if let Some(b) = args.ttl_blocks {
-		ret_slate.ttl_cutoff_height = Some(ret_slate.height + b);
+		ret_slate.ttl_cutoff_height = Some(height + b);
 	}
 
 	// if this is compact mode, we need to create the transaction now
@@ -492,6 +495,7 @@ where
 		&mut *w,
 		keychain_mask,
 		&mut ret_slate,
+		height,
 		args.minimum_confirmations,
 		args.max_outputs as usize,
 		args.num_change_outputs as usize,
@@ -544,7 +548,8 @@ where
 		sl.tx = Some(Transaction::empty());
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	}
-	selection::lock_tx_context(&mut *w, keychain_mask, &sl, &context)
+	let height = w.w2n_client().get_chain_tip()?.0;
+	selection::lock_tx_context(&mut *w, keychain_mask, &sl, height, &context)
 }
 
 /// Finalize slate

@@ -40,6 +40,7 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	keychain: &K,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
+	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
 	change_outputs: usize,
@@ -57,7 +58,7 @@ where
 		wallet,
 		keychain_mask,
 		slate.amount,
-		slate.height,
+		current_height,
 		minimum_confirmations,
 		max_outputs,
 		change_outputs,
@@ -107,6 +108,7 @@ pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
+	current_height: u64,
 	context: &Context,
 ) -> Result<(), Error>
 where
@@ -135,7 +137,7 @@ where
 	let tx_entry = {
 		let lock_inputs = context.get_inputs();
 		let slate_id = slate.id;
-		let height = slate.height;
+		let height = current_height;
 		let parent_key_id = context.parent_key_id.clone();
 		let mut batch = wallet.batch(keychain_mask)?;
 		let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -149,7 +151,7 @@ where
 		if let Ok(e) = slate.calc_excess(keychain.secp()) {
 			t.kernel_excess = Some(e)
 		}
-		t.kernel_lookup_min_height = Some(slate.height);
+		t.kernel_lookup_min_height = Some(current_height);
 
 		let mut amount_debited = 0;
 		t.num_inputs = lock_inputs.len();
@@ -225,6 +227,7 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
+	current_height: u64,
 	parent_key_id: Identifier,
 	is_invoice: bool,
 	use_test_rng: bool,
@@ -239,7 +242,7 @@ where
 	let keychain = wallet.keychain(keychain_mask)?;
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
-	let height = slate.height;
+	let height = current_height;
 
 	let slate_id = slate.id;
 	let blinding = slate.add_transaction_elements(
@@ -273,7 +276,7 @@ where
 	if let Ok(e) = slate.calc_excess(keychain.secp()) {
 		t.kernel_excess = Some(e)
 	}
-	t.kernel_lookup_min_height = Some(slate.height);
+	t.kernel_lookup_min_height = Some(current_height);
 	batch.save(OutputData {
 		root_key_id: parent_key_id.clone(),
 		key_id: key_id_inner.clone(),

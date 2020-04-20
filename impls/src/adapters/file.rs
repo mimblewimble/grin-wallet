@@ -28,6 +28,7 @@ impl SlatePutter for PathToSlate {
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
 		// * Will need to set particpant id to 1 manually if this is invoice
+		// * Set slate height manually
 		let _r: crate::adapters::Reminder;
 		let out_slate = {
 			// TODO: This will need to be filled with any incompatibilities in the V4 Slate
