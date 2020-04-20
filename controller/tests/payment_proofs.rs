@@ -87,7 +87,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	let address = OnionV3Address::from_bytes(address.as_ref().unwrap().to_bytes());
 	println!("Public address is: {:?}", address);
 	let amount = 60_000_000_000;
-	let mut slate = Slate::blank(1);
+	let mut slate = Slate::blank(1, false);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {

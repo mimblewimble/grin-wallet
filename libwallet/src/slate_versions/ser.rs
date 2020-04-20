@@ -418,6 +418,51 @@ pub mod version_info_v4 {
 	}
 }
 
+/// Serializes slates 'state' field
+pub mod slate_state_v4 {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::slate_versions::v4::SlateStateV4;
+
+	///
+	pub fn serialize<S>(st: &SlateStateV4, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		let label = match st {
+			SlateStateV4::Unknown => "NA",
+			SlateStateV4::Standard1 => "S1",
+			SlateStateV4::Standard2 => "S2",
+			SlateStateV4::Standard3 => "S3",
+			SlateStateV4::Invoice1 => "I1",
+			SlateStateV4::Invoice2 => "I2",
+			SlateStateV4::Invoice3 => "I3",
+		};
+		serializer.serialize_str(label)
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<SlateStateV4, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		String::deserialize(deserializer).and_then(|s| {
+			let retval = match s.as_str() {
+				"NA" => SlateStateV4::Unknown,
+				"S1" => SlateStateV4::Standard1,
+				"S2" => SlateStateV4::Standard2,
+				"S3" => SlateStateV4::Standard3,
+				"I1" => SlateStateV4::Invoice1,
+				"I2" => SlateStateV4::Invoice2,
+				"I3" => SlateStateV4::Invoice3,
+				_ => return Err(Error::custom("Invalid Slate state")),
+			};
+			Ok(retval)
+		})
+	}
+}
+
 // Test serialization methods of components that are being used
 #[cfg(test)]
 mod test {

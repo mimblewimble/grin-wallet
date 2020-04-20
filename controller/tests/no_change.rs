@@ -76,7 +76,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let fee = core::libtx::tx_fee(1, 1, 1, None);
 
 	// send a single block's worth of transactions with minimal strategy
-	let mut slate = Slate::blank(2);
+	let mut slate = Slate::blank(2, false);
 	let mut stored_excess = None;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let args = InitTxArgs {

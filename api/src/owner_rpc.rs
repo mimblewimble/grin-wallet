@@ -2123,7 +2123,7 @@ pub fn run_doctest_owner(
 		mask1.clone(),
 	);
 
-	let mut slate_outer = Slate::blank(2);
+	let mut slate_outer = Slate::blank(2, false);
 
 	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
