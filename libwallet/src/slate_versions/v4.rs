@@ -67,6 +67,7 @@ pub struct SlateV4 {
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// Slate state
+	#[serde(with = "ser::slate_state_v4")]
 	pub sta: SlateStateV4,
 	/// Inputs/Output commits added to slate
 	#[serde(default = "default_coms_none")]
