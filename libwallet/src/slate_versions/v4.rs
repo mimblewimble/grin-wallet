@@ -19,7 +19,7 @@
 //! * `tx` field and enclosed inputs/outputs do not need to be included in the first
 //!   leg of a transaction exchange. (All inputs/outputs naturally need to be present at time
 //!   of posting).
-//! * `num_participants` becomes an Option
+//! * `num_participants` becomes an Option<u8>
 //! * `num_participants` may be omitted from the slate if it is None (null),
 //!    if `num_participants` is omitted, it's value is assumed to be 2
 //! * `lock_height` becomes an Option
@@ -142,7 +142,7 @@ pub enum SlateStateV4 {
 	Invoice3,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct VersionCompatInfoV4 {
 	/// The current version of the slate format
 	pub version: u16,
@@ -150,7 +150,7 @@ pub struct VersionCompatInfoV4 {
 	pub block_header_version: u16,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ParticipantDataV4 {
 	/// Public key corresponding to private blinding factor
 	#[serde(with = "ser::pubkey_base64")]
