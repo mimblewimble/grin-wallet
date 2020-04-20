@@ -25,7 +25,7 @@ use crate::util::OnionV3Address;
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::{PaymentInfo, Slate};
+use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
@@ -534,6 +534,7 @@ where
 		batch.commit()?;
 	}
 
+	ret_slate.state = SlateState::Invoice2;
 	Ok(ret_slate)
 }
 
@@ -585,6 +586,7 @@ where
 		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
+	sl.state = SlateState::Standard3;
 	Ok(sl)
 }
 

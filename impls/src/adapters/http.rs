@@ -184,6 +184,7 @@ impl SlateSender for HttpSlateSender {
 				//TODO: Fill out with Slate V4 incompatibilities
 				// * Will need to set particpant id to 1 manually if this is invoice
 				// * Set slate height manually
+				// * Reconcile unknown slate states from V3
 				if false {
 					return Err(ErrorKind::ClientCallback("feature x requested, but other wallet does not support feature x. Please urge other user to upgrade, or re-send tx without feature x".into()).into());
 				}

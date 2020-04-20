@@ -122,6 +122,7 @@ fn default_lock_height_0() -> Option<u64> {
 	None
 }
 
+/// Slate state definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SlateStateV4 {
 	/// Unknown, coming from earlier versions of the slate

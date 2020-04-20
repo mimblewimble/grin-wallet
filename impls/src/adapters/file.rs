@@ -29,6 +29,7 @@ impl SlatePutter for PathToSlate {
 		// TODO:
 		// * Will need to set particpant id to 1 manually if this is invoice
 		// * Set slate height manually
+		// * Reconcile unknown slate states from V3
 		let _r: crate::adapters::Reminder;
 		let out_slate = {
 			// TODO: This will need to be filled with any incompatibilities in the V4 Slate

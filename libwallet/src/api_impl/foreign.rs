@@ -22,8 +22,8 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
-	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
-	WalletBackend,
+	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, SlateState, TxLogEntryType,
+	VersionInfo, WalletBackend,
 };
 
 const FOREIGN_API_VERSION: u16 = 2;
@@ -121,6 +121,7 @@ where
 		p.receiver_signature = Some(sig);
 	}
 
+	ret_slate.state = SlateState::Standard2;
 	Ok(ret_slate)
 }
 
@@ -148,5 +149,6 @@ where
 		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
+	sl.state = SlateState::Invoice3;
 	Ok(sl)
 }

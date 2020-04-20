@@ -21,7 +21,7 @@ use grin_wallet_libwallet as libwallet;
 use grin_wallet_util::grin_core as core;
 
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, SlateState};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -106,6 +106,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = api.issue_invoice_tx(m, args)?;
 		Ok(())
 	})?;
+	assert_eq!(slate.state, SlateState::Invoice1);
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		// Wallet 1 receives the invoice transaction
@@ -122,6 +123,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
+	assert_eq!(slate.state, SlateState::Invoice2);
 
 	// wallet 2 finalizes and posts
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
@@ -129,6 +131,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = api.finalize_invoice_tx(&slate)?;
 		Ok(())
 	})?;
+	assert_eq!(slate.state, SlateState::Invoice3);
 
 	// wallet 1 posts so wallet 2 doesn't get the mined amount
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {

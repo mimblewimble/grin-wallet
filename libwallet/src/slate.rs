@@ -128,7 +128,8 @@ impl fmt::Display for Slate {
 	}
 }
 
-#[derive(Debug, Clone)]
+/// Slate state definition
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlateState {
 	/// Unknown, coming from earlier slate versions
 	Unknown,
