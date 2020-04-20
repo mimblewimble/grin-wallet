@@ -78,9 +78,6 @@ pub struct SlateV4 {
 	#[serde(default = "default_u64")]
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	pub fee: u64,
-	/// Block height for the transaction
-	#[serde(with = "secp_ser::string_or_u64")]
-	pub height: u64,
 	/// Lock height
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -383,7 +380,7 @@ impl From<SlateV3> for SlateV4 {
 			tx: _,
 			amount,
 			fee,
-			height,
+			height: _,
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,
@@ -403,7 +400,6 @@ impl From<SlateV3> for SlateV4 {
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			height,
 			lock_height: Some(lock_height),
 			ttl_cutoff_height,
 			sigs: participant_data,
@@ -562,7 +558,6 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			coms,
 			amt: amount,
 			fee,
-			height,
 			lock_height,
 			ttl_cutoff_height,
 			sigs: participant_data,
@@ -576,7 +571,6 @@ impl TryFrom<&SlateV4> for SlateV3 {
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
-		let height = *height;
 		let lock_height = match *lock_height {
 			Some(l) => l,
 			None => 0,
@@ -605,7 +599,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			tx,
 			amount,
 			fee,
-			height,
+			height: 0,
 			lock_height,
 			ttl_cutoff_height,
 			participant_data,

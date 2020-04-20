@@ -95,10 +95,13 @@ where
 		ret_slate.tx = Some(Transaction::empty());
 	}
 
+	let height = w.last_confirmed_height()?;
+
 	tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut ret_slate,
+		height,
 		&parent_key_id,
 		false,
 		use_test_rng,
