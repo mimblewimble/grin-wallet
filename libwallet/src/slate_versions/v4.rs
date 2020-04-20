@@ -66,6 +66,9 @@ pub struct SlateV4 {
 	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
+	/// Slate state
+	#[serde(with = "ser::slate_state_v4")]
+	pub sta: SlateStateV4,
 	/// Inputs/Output commits added to slate
 	#[serde(default = "default_coms_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -118,6 +121,25 @@ fn default_num_participants_2() -> Option<usize> {
 
 fn default_lock_height_0() -> Option<u64> {
 	None
+}
+
+/// Slate state definition
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SlateStateV4 {
+	/// Unknown, coming from earlier versions of the slate
+	Unknown,
+	/// Standard flow, freshly init
+	Standard1,
+	/// Standard flow, return journey
+	Standard2,
+	/// Standard flow, ready for transaction posting
+	Standard3,
+	/// Invoice flow, freshly init
+	Invoice1,
+	///Invoice flow, return journey
+	Invoice2,
+	/// Invoice flow, ready for tranasction posting
+	Invoice3,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -397,6 +419,7 @@ impl From<SlateV3> for SlateV4 {
 			ver,
 			num_participants: Some(num_participants),
 			id,
+			sta: SlateStateV4::Unknown,
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
@@ -555,6 +578,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 		let SlateV4 {
 			num_participants,
 			id,
+			sta: _,
 			coms,
 			amt: amount,
 			fee,

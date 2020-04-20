@@ -99,7 +99,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let send_file = format!("{}/part_tx_1.tx", test_dir);
 	let receive_file = format!("{}/part_tx_2.tx", test_dir);
 
-	let mut slate = Slate::blank(2);
+	let mut slate = Slate::blank(2, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -196,7 +196,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = Slate::blank(2);
+	let mut slate = Slate::blank(2, false);
 	let amount = 60_000_000_000;
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {

@@ -25,7 +25,7 @@ use crate::util::OnionV3Address;
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::{PaymentInfo, Slate};
+use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
@@ -316,7 +316,14 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, args.ttl_blocks)?;
+	let mut slate = tx::new_tx_slate(
+		&mut *w,
+		args.amount,
+		false,
+		2,
+		use_test_rng,
+		args.ttl_blocks,
+	)?;
 
 	// if we just want to estimate, don't save a context, just send the results
 	// back
@@ -409,7 +416,7 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, 2, use_test_rng, None)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let mut context = tx::add_output_to_slate(
 		&mut *w,
@@ -527,6 +534,7 @@ where
 		batch.commit()?;
 	}
 
+	ret_slate.state = SlateState::Invoice2;
 	Ok(ret_slate)
 }
 
@@ -578,6 +586,7 @@ where
 		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
+	sl.state = SlateState::Standard3;
 	Ok(sl)
 }
 

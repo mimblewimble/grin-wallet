@@ -39,8 +39,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
-	CoinbaseV4, CommitsV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateV4,
-	TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
+	CoinbaseV4, CommitsV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4,
+	SlateV4, TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
@@ -97,6 +97,8 @@ pub struct Slate {
 	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
+	/// Slate state
+	pub state: SlateState,
 	/// The core transaction data:
 	/// inputs, outputs, kernels, kernel offset
 	/// Optional as of V4 to allow for a compact
@@ -124,6 +126,25 @@ impl fmt::Display for Slate {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", serde_json::to_string_pretty(&self).unwrap())
 	}
+}
+
+/// Slate state definition
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SlateState {
+	/// Unknown, coming from earlier slate versions
+	Unknown,
+	/// Standard flow, freshly init
+	Standard1,
+	/// Standard flow, return journey
+	Standard2,
+	/// Standard flow, ready for transaction posting
+	Standard3,
+	/// Invoice flow, freshly init
+	Invoice1,
+	///Invoice flow, return journey
+	Invoice2,
+	/// Invoice flow, ready for tranasction posting
+	Invoice3,
 }
 
 /// Versioning and compatibility info about this slate
@@ -195,14 +216,19 @@ impl Slate {
 	}
 
 	/// Create a new slate
-	pub fn blank(num_participants: usize) -> Slate {
+	pub fn blank(num_participants: usize, is_invoice: bool) -> Slate {
 		let np = match num_participants {
 			2 => None,
 			n => Some(n),
 		};
+		let state = match is_invoice {
+			true => SlateState::Invoice1,
+			false => SlateState::Standard1,
+		};
 		Slate {
 			num_participants: np, // assume 2 if not present
 			id: Uuid::new_v4(),
+			state,
 			tx: Some(Transaction::empty()),
 			amount: 0,
 			fee: 0,
@@ -614,6 +640,7 @@ impl From<Slate> for SlateV4 {
 		let Slate {
 			num_participants,
 			id,
+			state,
 			tx: _,
 			amount,
 			fee,
@@ -629,9 +656,11 @@ impl From<Slate> for SlateV4 {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
 		};
+		let sta = SlateStateV4::from(&state);
 		SlateV4 {
 			num_participants,
 			id,
+			sta,
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
@@ -649,6 +678,7 @@ impl From<&Slate> for SlateV4 {
 		let Slate {
 			num_participants,
 			id,
+			state,
 			tx: _,
 			amount,
 			fee,
@@ -670,10 +700,12 @@ impl From<&Slate> for SlateV4 {
 			Some(p) => Some(PaymentInfoV4::from(p)),
 			None => None,
 		};
+		let sta = SlateStateV4::from(state);
 
 		SlateV4 {
 			num_participants,
 			id,
+			sta,
 			coms: slate.into(),
 			amt: amount,
 			fee,
@@ -726,6 +758,20 @@ impl From<&ParticipantData> for ParticipantDataV4 {
 			xs: public_blind_excess,
 			nonce: public_nonce,
 			part: part_sig,
+		}
+	}
+}
+
+impl From<&SlateState> for SlateStateV4 {
+	fn from(data: &SlateState) -> SlateStateV4 {
+		match data {
+			SlateState::Unknown => SlateStateV4::Unknown,
+			SlateState::Standard1 => SlateStateV4::Standard1,
+			SlateState::Standard2 => SlateStateV4::Standard2,
+			SlateState::Standard3 => SlateStateV4::Standard3,
+			SlateState::Invoice1 => SlateStateV4::Invoice1,
+			SlateState::Invoice2 => SlateStateV4::Invoice2,
+			SlateState::Invoice3 => SlateStateV4::Invoice3,
 		}
 	}
 }
@@ -846,6 +892,7 @@ impl From<SlateV4> for Slate {
 		let SlateV4 {
 			num_participants,
 			id,
+			sta,
 			coms: _,
 			amt: amount,
 			fee,
@@ -861,9 +908,11 @@ impl From<SlateV4> for Slate {
 			Some(p) => Some(PaymentInfo::from(p)),
 			None => None,
 		};
+		let state = SlateState::from(&sta);
 		Slate {
 			num_participants,
 			id,
+			state,
 			tx: (&slate).into(),
 			amount,
 			fee,
@@ -883,7 +932,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	};
 	let secp = static_secp_instance();
 	let secp = secp.lock();
-	let mut calc_slate = Slate::blank(2);
+	let mut calc_slate = Slate::blank(2, false);
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
 			public_blind_excess: d.xs,
@@ -949,6 +998,20 @@ impl From<&ParticipantDataV4> for ParticipantData {
 			public_blind_excess,
 			public_nonce,
 			part_sig,
+		}
+	}
+}
+
+impl From<&SlateStateV4> for SlateState {
+	fn from(data: &SlateStateV4) -> SlateState {
+		match data {
+			SlateStateV4::Unknown => SlateState::Unknown,
+			SlateStateV4::Standard1 => SlateState::Standard1,
+			SlateStateV4::Standard2 => SlateState::Standard2,
+			SlateStateV4::Standard3 => SlateState::Standard3,
+			SlateStateV4::Invoice1 => SlateState::Invoice1,
+			SlateStateV4::Invoice2 => SlateState::Invoice2,
+			SlateStateV4::Invoice3 => SlateState::Invoice3,
 		}
 	}
 }
