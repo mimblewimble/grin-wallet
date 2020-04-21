@@ -18,7 +18,8 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, KernelFeatures, Output, Transaction, TransactionBody, TxKernel, Weighting,
+	Input, KernelFeatures, Output, OutputFeatures, Transaction, TransactionBody, TxKernel,
+	Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
@@ -39,8 +40,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
-	CoinbaseV4, CommitsV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4,
-	SlateV4, TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
+	CoinbaseV4, CommitsV4, InputV4, OutputFeaturesV4, OutputV4, ParticipantDataV4, PaymentInfoV4,
+	SlateStateV4, SlateV4, TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
@@ -720,14 +721,14 @@ impl From<&Slate> for Option<Vec<CommitsV4>> {
 		};
 		for i in ins.iter() {
 			ret_vec.push(CommitsV4 {
-				f: i.features,
+				f: i.features.into(),
 				c: i.commit,
 				p: None,
 			});
 		}
 		for o in outs.iter() {
 			ret_vec.push(CommitsV4 {
-				f: o.features,
+				f: o.features.into(),
 				c: o.commit,
 				p: Some(o.proof),
 			});
@@ -801,6 +802,16 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 	}
 }
 
+impl From<OutputFeatures> for OutputFeaturesV4 {
+	fn from(of: OutputFeatures) -> OutputFeaturesV4 {
+		let index = match of {
+			OutputFeatures::Plain => 0,
+			OutputFeatures::Coinbase => 1,
+		};
+		OutputFeaturesV4(index)
+	}
+}
+
 impl From<Transaction> for TransactionV4 {
 	fn from(tx: Transaction) -> TransactionV4 {
 		let Transaction { offset, body } = tx;
@@ -840,7 +851,10 @@ impl From<&TransactionBody> for TransactionBodyV4 {
 impl From<&Input> for InputV4 {
 	fn from(input: &Input) -> InputV4 {
 		let Input { features, commit } = *input;
-		InputV4 { features, commit }
+		InputV4 {
+			features: features.into(),
+			commit,
+		}
 	}
 }
 
@@ -852,7 +866,7 @@ impl From<&Output> for OutputV4 {
 			proof,
 		} = *output;
 		OutputV4 {
-			features,
+			features: features.into(),
 			com: commit,
 			prf: proof,
 		}
@@ -956,12 +970,12 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	for c in coms.iter() {
 		match &c.p {
 			Some(p) => tx.body.outputs.push(Output {
-				features: c.f,
+				features: c.f.into(),
 				commit: c.c,
 				proof: p.clone(),
 			}),
 			None => tx.body.inputs.push(Input {
-				features: c.f,
+				features: c.f.into(),
 				commit: c.c,
 			}),
 		}
@@ -1041,6 +1055,15 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 	}
 }
 
+impl From<OutputFeaturesV4> for OutputFeatures {
+	fn from(of: OutputFeaturesV4) -> OutputFeatures {
+		match of.0 {
+			1 => OutputFeatures::Coinbase,
+			0 | _ => OutputFeatures::Plain,
+		}
+	}
+}
+
 impl From<TransactionV4> for Transaction {
 	fn from(tx: TransactionV4) -> Transaction {
 		let TransactionV4 { offset, body } = tx;
@@ -1067,7 +1090,10 @@ impl From<&TransactionBodyV4> for TransactionBody {
 impl From<&InputV4> for Input {
 	fn from(input: &InputV4) -> Input {
 		let InputV4 { features, commit } = *input;
-		Input { features, commit }
+		Input {
+			features: features.into(),
+			commit,
+		}
 	}
 }
 
@@ -1079,7 +1105,7 @@ impl From<&OutputV4> for Output {
 			prf: proof,
 		} = *output;
 		Output {
-			features,
+			features: features.into(),
 			commit,
 			proof,
 		}

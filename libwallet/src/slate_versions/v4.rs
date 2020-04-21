@@ -34,7 +34,7 @@
 //! * `part_sig` may be omitted from a `participant_info` entry if it has not yet been filled out
 //! * `receiver_signature` may be omitted from `payment_proof` if it has not yet been filled out
 
-use crate::grin_core::core::transaction::{KernelFeatures, OutputFeatures};
+use crate::grin_core::core::transaction::KernelFeatures;
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindingFactor, Identifier};
@@ -198,7 +198,7 @@ pub struct CommitsV4 {
 	/// Options for an output's structure or use
 	#[serde(default = "default_output_feature")]
 	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub f: OutputFeatures,
+	pub f: OutputFeaturesV4,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
 		serialize_with = "ser::as_base64",
@@ -212,6 +212,9 @@ pub struct CommitsV4 {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub p: Option<RangeProof>,
 }
+
+#[derive(Serialize, Deserialize, Copy, Debug, Clone)]
+pub struct OutputFeaturesV4(pub u8);
 
 /// A transaction
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -278,7 +281,7 @@ pub struct InputV4 {
 	/// We will check maturity for coinbase output.
 	#[serde(default = "default_output_feature")]
 	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub features: OutputFeatures,
+	pub features: OutputFeaturesV4,
 	/// The commit referencing the output being spent.
 	#[serde(
 		serialize_with = "secp_ser::as_hex",
@@ -292,7 +295,7 @@ pub struct OutputV4 {
 	/// Options for an output's structure or use
 	#[serde(default = "default_output_feature")]
 	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub features: OutputFeatures,
+	pub features: OutputFeaturesV4,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
 		serialize_with = "ser::as_base64",
@@ -307,12 +310,12 @@ pub struct OutputV4 {
 	pub prf: RangeProof,
 }
 
-fn default_output_feature() -> OutputFeatures {
-	OutputFeatures::Plain
+fn default_output_feature() -> OutputFeaturesV4 {
+	OutputFeaturesV4(0)
 }
 
-fn output_feature_is_plain(o: &OutputFeatures) -> bool {
-	*o == OutputFeatures::Plain
+fn output_feature_is_plain(o: &OutputFeaturesV4) -> bool {
+	o.0 == 0
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -454,14 +457,14 @@ impl From<&SlateV3> for Option<Vec<CommitsV4>> {
 		let mut ret_vec = vec![];
 		for i in slate.tx.body.inputs.iter() {
 			ret_vec.push(CommitsV4 {
-				f: i.features,
+				f: i.features.into(),
 				c: i.commit,
 				p: None,
 			});
 		}
 		for o in slate.tx.body.outputs.iter() {
 			ret_vec.push(CommitsV4 {
-				f: o.features,
+				f: o.features.into(),
 				c: o.commit,
 				p: Some(o.proof),
 			});
@@ -541,7 +544,10 @@ impl From<&TransactionBodyV3> for TransactionBodyV4 {
 impl From<&InputV3> for InputV4 {
 	fn from(input: &InputV3) -> InputV4 {
 		let InputV3 { features, commit } = *input;
-		InputV4 { features, commit }
+		InputV4 {
+			features: features.into(),
+			commit,
+		}
 	}
 }
 
@@ -553,7 +559,7 @@ impl From<&OutputV3> for OutputV4 {
 			proof,
 		} = *output;
 		OutputV4 {
-			features,
+			features: features.into(),
 			com: commit,
 			prf: proof,
 		}
@@ -786,7 +792,10 @@ impl From<&TransactionBodyV4> for TransactionBodyV3 {
 impl From<&InputV4> for InputV3 {
 	fn from(input: &InputV4) -> InputV3 {
 		let InputV4 { features, commit } = *input;
-		InputV3 { features, commit }
+		InputV3 {
+			features: features.into(),
+			commit,
+		}
 	}
 }
 
@@ -798,7 +807,7 @@ impl From<&OutputV4> for OutputV3 {
 			prf: proof,
 		} = *output;
 		OutputV3 {
-			features,
+			features: features.into(),
 			commit,
 			proof,
 		}
