@@ -208,6 +208,8 @@ pub struct CommitsV4 {
 	/// A proof that the commitment is in the right range
 	/// Only applies for transaction outputs
 	#[serde(with = "ser::option_rangeproof_base64")]
+	#[serde(default = "default_range_proof")]
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub p: Option<RangeProof>,
 }
 
@@ -264,6 +266,10 @@ fn outputs_are_empty(v: &Vec<OutputV4>) -> bool {
 
 fn default_outputs() -> Vec<OutputV4> {
 	vec![]
+}
+
+fn default_range_proof() -> Option<RangeProof> {
+	None
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
