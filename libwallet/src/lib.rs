@@ -63,7 +63,7 @@ pub use crate::slate_versions::{
 pub use api_impl::owner_updater::StatusMessage;
 pub use api_impl::types::{
 	BlockFees, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, SendTXArgs, VersionInfo,
+	OutputCommitMapping, PaymentProof, VersionInfo,
 };
 pub use internal::scan::scan;
 pub use slate_versions::ser as dalek_ser;

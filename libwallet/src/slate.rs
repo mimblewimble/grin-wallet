@@ -18,7 +18,8 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, KernelFeatures, Output, Transaction, TransactionBody, TxKernel, Weighting,
+	Input, KernelFeatures, Output, OutputFeatures, Transaction, TransactionBody, TxKernel,
+	Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
@@ -39,8 +40,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
-	CoinbaseV4, CommitsV4, InputV4, OutputV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4,
-	SlateV4, TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
+	CoinbaseV4, CommitsV4, InputV4, OutputFeaturesV4, OutputV4, ParticipantDataV4, PaymentInfoV4,
+	SlateStateV4, SlateV4, TransactionBodyV4, TransactionV4, TxKernelV4, VersionCompatInfoV4,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
@@ -94,7 +95,7 @@ pub struct Slate {
 	/// Versioning info
 	pub version_info: VersionCompatInfo,
 	/// The number of participants intended to take part in this transaction
-	pub num_participants: Option<usize>,
+	pub num_participants: u8,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// Slate state
@@ -109,11 +110,11 @@ pub struct Slate {
 	/// fee amount
 	pub fee: u64,
 	/// Lock height
-	pub lock_height: Option<u64>,
+	pub lock_height: u64,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
-	pub ttl_cutoff_height: Option<u64>,
+	pub ttl_cutoff_height: u64,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
@@ -180,18 +181,10 @@ impl Slate {
 	}
 
 	/// number of participants
-	pub fn num_participants(&self) -> usize {
+	pub fn num_participants(&self) -> u8 {
 		match self.num_participants {
-			Some(n) => n,
-			None => 2,
-		}
-	}
-
-	/// Lock Height
-	pub fn lock_height(&self) -> u64 {
-		match self.lock_height {
-			Some(n) => n,
-			None => 0,
+			0 => 2,
+			n => n,
 		}
 	}
 
@@ -216,10 +209,10 @@ impl Slate {
 	}
 
 	/// Create a new slate
-	pub fn blank(num_participants: usize, is_invoice: bool) -> Slate {
+	pub fn blank(num_participants: u8, is_invoice: bool) -> Slate {
 		let np = match num_participants {
-			2 => None,
-			n => Some(n),
+			0 => 2,
+			n => n,
 		};
 		let state = match is_invoice {
 			true => SlateState::Invoice1,
@@ -232,8 +225,8 @@ impl Slate {
 			tx: Some(Transaction::empty()),
 			amount: 0,
 			fee: 0,
-			lock_height: None,
-			ttl_cutoff_height: None,
+			lock_height: 0,
+			ttl_cutoff_height: 0,
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
@@ -252,7 +245,7 @@ impl Slate {
 		K: Keychain,
 	{
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
-		for i in 0..self.num_participants() {
+		for i in 0..self.num_participants() as usize {
 			// find my entry
 			if self.participant_data[i].public_nonce == pub_nonce {
 				return Ok(Some(self.participant_data[i].clone()));
@@ -315,11 +308,11 @@ impl Slate {
 	// Construct the appropriate kernel features based on our fee and lock_height.
 	// If lock_height is 0 then its a plain kernel, otherwise its a height locked kernel.
 	fn kernel_features(&self) -> KernelFeatures {
-		match self.lock_height() {
+		match self.lock_height {
 			0 => KernelFeatures::Plain { fee: self.fee },
 			_ => KernelFeatures::HeightLocked {
 				fee: self.fee,
-				lock_height: self.lock_height(),
+				lock_height: self.lock_height,
 			},
 		}
 	}
@@ -356,7 +349,7 @@ impl Slate {
 			&self.msg_to_sign()?,
 		)?;
 		let pub_excess = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
-		for i in 0..self.num_participants() {
+		for i in 0..self.num_participants() as usize {
 			// find my entry
 			if self.participant_data[i].public_blind_excess == pub_excess {
 				self.participant_data[i].part_sig = Some(sig_part);
@@ -638,14 +631,14 @@ impl From<CbData> for CoinbaseV4 {
 impl From<Slate> for SlateV4 {
 	fn from(slate: Slate) -> SlateV4 {
 		let Slate {
-			num_participants,
+			num_participants: num_parts,
 			id,
 			state,
 			tx: _,
 			amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_height: lock_hgt,
+			ttl_cutoff_height: ttl,
 			participant_data,
 			version_info,
 			payment_proof,
@@ -658,17 +651,17 @@ impl From<Slate> for SlateV4 {
 		};
 		let sta = SlateStateV4::from(&state);
 		SlateV4 {
-			num_participants,
+			num_parts,
 			id,
 			sta,
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt,
+			ttl,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		}
 	}
 }
@@ -688,12 +681,12 @@ impl From<&Slate> for SlateV4 {
 			version_info,
 			payment_proof,
 		} = slate;
-		let num_participants = *num_participants;
+		let num_parts = *num_participants;
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
-		let lock_height = *lock_height;
-		let ttl_cutoff_height = *ttl_cutoff_height;
+		let lock_hgt = *lock_height;
+		let ttl = *ttl_cutoff_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(version_info);
 		let payment_proof = match payment_proof {
@@ -703,17 +696,17 @@ impl From<&Slate> for SlateV4 {
 		let sta = SlateStateV4::from(state);
 
 		SlateV4 {
-			num_participants,
+			num_parts,
 			id,
 			sta,
 			coms: slate.into(),
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt,
+			ttl,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		}
 	}
 }
@@ -728,14 +721,14 @@ impl From<&Slate> for Option<Vec<CommitsV4>> {
 		};
 		for i in ins.iter() {
 			ret_vec.push(CommitsV4 {
-				f: i.features,
+				f: i.features.into(),
 				c: i.commit,
 				p: None,
 			});
 		}
 		for o in outs.iter() {
 			ret_vec.push(CommitsV4 {
-				f: o.features,
+				f: o.features.into(),
 				c: o.commit,
 				p: Some(o.proof),
 			});
@@ -802,10 +795,20 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 		let receiver_address = *receiver_address;
 		let receiver_signature = *receiver_signature;
 		PaymentInfoV4 {
-			sender_address,
-			receiver_address,
-			receiver_signature,
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
 		}
+	}
+}
+
+impl From<OutputFeatures> for OutputFeaturesV4 {
+	fn from(of: OutputFeatures) -> OutputFeaturesV4 {
+		let index = match of {
+			OutputFeatures::Plain => 0,
+			OutputFeatures::Coinbase => 1,
+		};
+		OutputFeaturesV4(index)
 	}
 }
 
@@ -848,7 +851,10 @@ impl From<&TransactionBody> for TransactionBodyV4 {
 impl From<&Input> for InputV4 {
 	fn from(input: &Input) -> InputV4 {
 		let Input { features, commit } = *input;
-		InputV4 { features, commit }
+		InputV4 {
+			features: features.into(),
+			commit,
+		}
 	}
 }
 
@@ -860,7 +866,7 @@ impl From<&Output> for OutputV4 {
 			proof,
 		} = *output;
 		OutputV4 {
-			features,
+			features: features.into(),
 			com: commit,
 			prf: proof,
 		}
@@ -890,17 +896,17 @@ impl From<&TxKernel> for TxKernelV4 {
 impl From<SlateV4> for Slate {
 	fn from(slate: SlateV4) -> Slate {
 		let SlateV4 {
-			num_participants,
+			num_parts: num_participants,
 			id,
 			sta,
 			coms: _,
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt: lock_height,
+			ttl: ttl_cutoff_height,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
 		let version_info = VersionCompatInfo::from(&ver);
@@ -949,9 +955,9 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
 	};
 	let kernel = TxKernel {
-		features: match slate.lock_height {
-			Some(0) | None => KernelFeatures::Plain { fee: slate.fee },
-			Some(n) => KernelFeatures::HeightLocked {
+		features: match slate.lock_hgt {
+			0 => KernelFeatures::Plain { fee: slate.fee },
+			n => KernelFeatures::HeightLocked {
 				fee: slate.fee,
 				lock_height: n,
 			},
@@ -964,12 +970,12 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	for c in coms.iter() {
 		match &c.p {
 			Some(p) => tx.body.outputs.push(Output {
-				features: c.f,
+				features: c.f.into(),
 				commit: c.c,
 				proof: p.clone(),
 			}),
 			None => tx.body.inputs.push(Input {
-				features: c.f,
+				features: c.f.into(),
 				commit: c.c,
 			}),
 		}
@@ -1034,9 +1040,9 @@ impl From<&VersionCompatInfoV4> for VersionCompatInfo {
 impl From<&PaymentInfoV4> for PaymentInfo {
 	fn from(data: &PaymentInfoV4) -> PaymentInfo {
 		let PaymentInfoV4 {
-			sender_address,
-			receiver_address,
-			receiver_signature,
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
 		} = data;
 		let sender_address = *sender_address;
 		let receiver_address = *receiver_address;
@@ -1045,6 +1051,15 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 			sender_address,
 			receiver_address,
 			receiver_signature,
+		}
+	}
+}
+
+impl From<OutputFeaturesV4> for OutputFeatures {
+	fn from(of: OutputFeaturesV4) -> OutputFeatures {
+		match of.0 {
+			1 => OutputFeatures::Coinbase,
+			0 | _ => OutputFeatures::Plain,
 		}
 	}
 }
@@ -1075,7 +1090,10 @@ impl From<&TransactionBodyV4> for TransactionBody {
 impl From<&InputV4> for Input {
 	fn from(input: &InputV4) -> Input {
 		let InputV4 { features, commit } = *input;
-		Input { features, commit }
+		Input {
+			features: features.into(),
+			commit,
+		}
 	}
 }
 
@@ -1087,7 +1105,7 @@ impl From<&OutputV4> for Output {
 			prf: proof,
 		} = *output;
 		Output {
-			features,
+			features: features.into(),
 			commit,
 			proof,
 		}

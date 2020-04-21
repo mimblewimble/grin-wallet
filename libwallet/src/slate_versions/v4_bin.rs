@@ -62,7 +62,7 @@ impl Writeable for SlateV4Bin {
 				} else {
 					writer.write_u8(0)?;
 				}
-				o.f.write(writer)?;
+				OutputFeatures::from(o.f).write(writer)?;
 				o.c.write(writer)?;
 				if let Some(p) = o.p.clone() {
 					p.write(writer)?;
@@ -118,7 +118,7 @@ impl Readable for SlateV4Bin {
 				for _ in 0..n {
 					let is_output = reader.read_u8()?;
 					let c = CommitsV4 {
-						f: OutputFeatures::read(reader)?,
+						f: OutputFeatures::read(reader)?.into(),
 						c: Commitment::read(reader)?,
 						p: match is_output {
 							1 => Some(RangeProof::read(reader)?),
@@ -149,16 +149,16 @@ impl Readable for SlateV4Bin {
 		};
 		Ok(SlateV4Bin(SlateV4 {
 			ver,
-			num_participants: None,
+			num_parts: 2,       //TODO
 			id: Uuid::new_v4(), //TODO
 			sta,
 			coms,
 			amt,
 			fee,
-			lock_height: None,       //TODO
-			ttl_cutoff_height: None, //TODO
+			lock_hgt: 0, //TODO
+			ttl: 0,      //TODO
 			sigs,
-			payment_proof: None, //TODO
+			proof: None, //TODO
 		}))
 	}
 }
@@ -196,12 +196,12 @@ fn slate_v4_serialize_deserialize() {
 
 	// add some random commit data
 	let com1 = CommitsV4 {
-		f: OutputFeatures::Plain,
+		f: OutputFeatures::Plain.into(),
 		c: Commitment::from_vec([3u8; 1].to_vec()),
 		p: None,
 	};
 	let com2 = CommitsV4 {
-		f: OutputFeatures::Plain,
+		f: OutputFeatures::Plain.into(),
 		c: Commitment::from_vec([4u8; 1].to_vec()),
 		p: Some(RangeProof::zero()),
 	};

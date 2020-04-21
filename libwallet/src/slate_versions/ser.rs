@@ -267,6 +267,36 @@ pub mod dalek_pubkey_serde {
 	}
 }
 
+/// Serializes an ed25519 PublicKey to and from base64
+pub mod dalek_pubkey_base64 {
+	use base64;
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(key: &DalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&base64::encode(&key.to_bytes()))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekPublicKey, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de::Error;
+		String::deserialize(deserializer)
+			.and_then(|string| {
+				base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
+			})
+			.and_then(|bytes: Vec<u8>| {
+				DalekPublicKey::from_bytes(&bytes).map_err(|err| Error::custom(err.to_string()))
+			})
+	}
+}
+
 /// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
 pub mod option_dalek_pubkey_serde {
 	use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -376,6 +406,44 @@ pub mod option_dalek_sig_serde {
 	}
 }
 
+/// Serializes an Option<ed25519_dalek::PublicKey> to and from base64
+pub mod option_dalek_sig_base64 {
+	use base64;
+	use ed25519_dalek::Signature as DalekSignature;
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(key: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => serializer.serialize_str(&base64::encode(&key.to_bytes().to_vec())),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekSignature>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|res| match res {
+			Some(string) => base64::decode(&string)
+				.map_err(|err| Error::custom(err.to_string()))
+				.and_then(|bytes: Vec<u8>| {
+					let mut b = [0u8; 64];
+					b.copy_from_slice(&bytes[0..64]);
+					DalekSignature::from_bytes(&b)
+						.map(Some)
+						.map_err(|err| Error::custom(err.to_string()))
+				}),
+			None => Ok(None),
+		})
+	}
+}
+
 /// Serializes slates 'version_info' field
 pub mod version_info_v4 {
 	use serde::de::Error;
@@ -463,6 +531,37 @@ pub mod slate_state_v4 {
 	}
 }
 
+/// Serializes an secp256k1 pubkey to base64
+pub mod uuid_base64 {
+	use base64;
+	use serde::{Deserialize, Deserializer, Serializer};
+	use uuid::Uuid;
+
+	///
+	pub fn serialize<S>(id: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&base64::encode(&id.as_bytes()))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de::Error;
+		String::deserialize(deserializer)
+			.and_then(|string| {
+				base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
+			})
+			.and_then(|bytes: Vec<u8>| {
+				let mut b = [0u8; 16];
+				b.copy_from_slice(&bytes[0..16]);
+				Ok(Uuid::from_bytes(b))
+			})
+	}
+}
 // Test serialization methods of components that are being used
 #[cfg(test)]
 mod test {

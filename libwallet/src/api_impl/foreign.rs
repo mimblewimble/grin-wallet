@@ -120,6 +120,11 @@ where
 
 		p.receiver_signature = Some(sig);
 	}
+	// Can remove amount and fee now
+	if ret_slate.is_compact() {
+		ret_slate.amount = 0;
+		ret_slate.fee = 0;
+	}
 
 	ret_slate.state = SlateState::Standard2;
 	Ok(ret_slate)
@@ -140,7 +145,7 @@ where
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	if sl.is_compact() {
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, false)?;
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
@@ -150,5 +155,9 @@ where
 		batch.commit()?;
 	}
 	sl.state = SlateState::Invoice3;
+	if sl.is_compact() {
+		sl.amount = 0;
+		sl.fee = 0;
+	}
 	Ok(sl)
 }

@@ -594,13 +594,6 @@ pub fn parse_process_invoice_args(
 	args: &ArgMatches,
 	prompt: bool,
 ) -> Result<command::ProcessInvoiceArgs, ParseError> {
-	// TODO: display and prompt for confirmation of what we're doing
-	// message
-	let message = match args.is_present("message") {
-		true => Some(args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
-
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
 	let min_c = parse_u64(min_c, "minimum_confirmations")?;
@@ -663,7 +656,6 @@ pub fn parse_process_invoice_args(
 	}
 
 	Ok(command::ProcessInvoiceArgs {
-		message: message,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,

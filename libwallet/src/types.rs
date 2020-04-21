@@ -547,6 +547,9 @@ pub struct Context {
 	/// store my inputs
 	/// Id, mmr_index (if known), amount
 	pub input_ids: Vec<(Identifier, Option<u64>, u64)>,
+	/// store amount, so we can remove from slate if not
+	/// needed by the other party
+	pub amount: u64,
 	/// store the calculated fee
 	pub fee: u64,
 	/// Payment proof sender address derivation path, if needed
@@ -580,6 +583,7 @@ impl Context {
 			initial_sec_nonce: sec_nonce.clone(),
 			input_ids: vec![],
 			output_ids: vec![],
+			amount: 0,
 			fee: 0,
 			payment_proof_derivation_index: None,
 			offset: offset.clone(),
