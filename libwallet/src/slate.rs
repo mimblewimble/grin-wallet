@@ -630,14 +630,14 @@ impl From<CbData> for CoinbaseV4 {
 impl From<Slate> for SlateV4 {
 	fn from(slate: Slate) -> SlateV4 {
 		let Slate {
-			num_participants,
+			num_participants: num_parts,
 			id,
 			state,
 			tx: _,
 			amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_height: lock_hgt,
+			ttl_cutoff_height: ttl,
 			participant_data,
 			version_info,
 			payment_proof,
@@ -650,14 +650,14 @@ impl From<Slate> for SlateV4 {
 		};
 		let sta = SlateStateV4::from(&state);
 		SlateV4 {
-			num_participants,
+			num_parts,
 			id,
 			sta,
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt,
+			ttl,
 			sigs: participant_data,
 			ver,
 			payment_proof,
@@ -680,12 +680,12 @@ impl From<&Slate> for SlateV4 {
 			version_info,
 			payment_proof,
 		} = slate;
-		let num_participants = *num_participants;
+		let num_parts = *num_participants;
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
-		let lock_height = *lock_height;
-		let ttl_cutoff_height = *ttl_cutoff_height;
+		let lock_hgt = *lock_height;
+		let ttl = *ttl_cutoff_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(version_info);
 		let payment_proof = match payment_proof {
@@ -695,14 +695,14 @@ impl From<&Slate> for SlateV4 {
 		let sta = SlateStateV4::from(state);
 
 		SlateV4 {
-			num_participants,
+			num_parts,
 			id,
 			sta,
 			coms: slate.into(),
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt,
+			ttl,
 			sigs: participant_data,
 			ver,
 			payment_proof,
@@ -882,14 +882,14 @@ impl From<&TxKernel> for TxKernelV4 {
 impl From<SlateV4> for Slate {
 	fn from(slate: SlateV4) -> Slate {
 		let SlateV4 {
-			num_participants,
+			num_parts: num_participants,
 			id,
 			sta,
 			coms: _,
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt: lock_height,
+			ttl: ttl_cutoff_height,
 			sigs: participant_data,
 			ver,
 			payment_proof,
@@ -941,7 +941,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
 	};
 	let kernel = TxKernel {
-		features: match slate.lock_height {
+		features: match slate.lock_hgt {
 			0 => KernelFeatures::Plain { fee: slate.fee },
 			n => KernelFeatures::HeightLocked {
 				fee: slate.fee,

@@ -70,7 +70,7 @@ pub struct SlateV4 {
 	/// The number of participants intended to take part in this transaction
 	#[serde(default = "default_num_participants_2")]
 	#[serde(skip_serializing_if = "num_parts_is_2")]
-	pub num_participants: u8,
+	pub num_parts: u8,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amt: u64,
@@ -83,14 +83,14 @@ pub struct SlateV4 {
 	#[serde(with = "secp_ser::string_or_u64")]
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	#[serde(default = "default_u64_0")]
-	pub lock_height: u64,
+	pub lock_hgt: u64,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
 	#[serde(with = "secp_ser::string_or_u64")]
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	#[serde(default = "default_u64_0")]
-	pub ttl_cutoff_height: u64,
+	pub ttl: u64,
 	// Structs always required
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -426,14 +426,14 @@ impl From<SlateV3> for SlateV4 {
 		};
 		SlateV4 {
 			ver,
-			num_participants: num_participants as u8,
+			num_parts: num_participants as u8,
 			id,
 			sta: SlateStateV4::Unknown,
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt: lock_height,
+			ttl: ttl_cutoff_height,
 			sigs: participant_data,
 			payment_proof,
 		}
@@ -585,14 +585,14 @@ impl TryFrom<&SlateV4> for SlateV3 {
 	type Error = Error;
 	fn try_from(slate: &SlateV4) -> Result<SlateV3, Error> {
 		let SlateV4 {
-			num_participants,
+			num_parts: num_participants,
 			id,
 			sta: _,
 			coms,
 			amt: amount,
 			fee,
-			lock_height,
-			ttl_cutoff_height,
+			lock_hgt: lock_height,
+			ttl: ttl_cutoff_height,
 			sigs: participant_data,
 			ver,
 			payment_proof,
