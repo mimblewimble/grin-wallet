@@ -179,12 +179,12 @@ fn default_part_sig_none() -> Option<Signature> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PaymentInfoV4 {
-	#[serde(with = "ser::dalek_pubkey_serde")]
+	#[serde(with = "ser::dalek_pubkey_base64")]
 	pub saddr: DalekPublicKey,
-	#[serde(with = "ser::dalek_pubkey_serde")]
+	#[serde(with = "ser::dalek_pubkey_base64")]
 	pub raddr: DalekPublicKey,
 	#[serde(default = "default_receiver_signature_none")]
-	#[serde(with = "ser::option_dalek_sig_serde")]
+	#[serde(with = "ser::option_dalek_sig_base64")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub rsig: Option<DalekSignature>,
 }
