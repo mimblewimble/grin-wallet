@@ -487,7 +487,7 @@ where
 
 	// update ttl if desired
 	if let Some(b) = args.ttl_blocks {
-		ret_slate.ttl_cutoff_height = Some(height + b);
+		ret_slate.ttl_cutoff_height = height + b;
 	}
 
 	// if this is compact mode, we need to create the transaction now
@@ -896,8 +896,8 @@ where
 {
 	// Refuse if TTL is expired
 	let last_confirmed_height = w.last_confirmed_height()?;
-	if let Some(e) = slate.ttl_cutoff_height {
-		if last_confirmed_height >= e {
+	if slate.ttl_cutoff_height != 0 {
+		if last_confirmed_height >= slate.ttl_cutoff_height {
 			return Err(ErrorKind::TransactionExpired.into());
 		}
 	}

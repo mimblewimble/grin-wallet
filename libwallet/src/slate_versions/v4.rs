@@ -19,8 +19,8 @@
 //! * `tx` field and enclosed inputs/outputs do not need to be included in the first
 //!   leg of a transaction exchange. (All inputs/outputs naturally need to be present at time
 //!   of posting).
-//! * `num_participants` becomes an Option
-//! * `num_participants` may be omitted from the slate if it is None (null),
+//! * `num_participants` becomes a u8
+//! * `num_participants` may be omitted from the slate if it is the default 2
 //!    if `num_participants` is omitted, it's value is assumed to be 2
 //! * `lock_height` becomes an Option
 //! * `lock_height` may be omitted from the slate if it is None (null),
@@ -57,22 +57,20 @@ use crate::slate_versions::v3::{
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV4 {
+	// Required Fields
 	/// Versioning info
 	#[serde(with = "ser::version_info_v4")]
 	pub ver: VersionCompatInfoV4,
-	/// The number of participants intended to take part in this transaction
-	#[serde(default = "default_num_participants_2")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
 	pub id: Uuid,
 	/// Slate state
 	#[serde(with = "ser::slate_state_v4")]
 	pub sta: SlateStateV4,
-	/// Inputs/Output commits added to slate
-	#[serde(default = "default_coms_none")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub coms: Option<Vec<CommitsV4>>,
+	// Optional fields depending on state
+	/// The number of participants intended to take part in this transaction
+	#[serde(default = "default_num_participants_2")]
+	#[serde(skip_serializing_if = "num_parts_is_2")]
+	pub num_participants: u8,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amt: u64,
@@ -82,21 +80,28 @@ pub struct SlateV4 {
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	pub fee: u64,
 	/// Lock height
-	#[serde(with = "secp_ser::opt_string_or_u64")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(default = "default_lock_height_0")]
-	pub lock_height: Option<u64>,
+	#[serde(with = "secp_ser::string_or_u64")]
+	#[serde(skip_serializing_if = "u64_is_blank")]
+	#[serde(default = "default_u64_0")]
+	pub lock_height: u64,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
-	#[serde(with = "secp_ser::opt_string_or_u64")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(default = "default_ttl_none")]
-	pub ttl_cutoff_height: Option<u64>,
+	#[serde(with = "secp_ser::string_or_u64")]
+	#[serde(skip_serializing_if = "u64_is_blank")]
+	#[serde(default = "default_u64_0")]
+	pub ttl_cutoff_height: u64,
+	// Structs always required
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
 	pub sigs: Vec<ParticipantDataV4>,
+	// Situational, but required at somepoint tx
+	/// Inputs/Output commits added to slate
+	#[serde(default = "default_coms_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub coms: Option<Vec<CommitsV4>>,
+	// Optional Structs
 	/// Payment Proof
 	#[serde(default = "default_payment_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -111,16 +116,16 @@ fn default_coms_none() -> Option<Vec<CommitsV4>> {
 	None
 }
 
-fn default_ttl_none() -> Option<u64> {
-	None
+fn default_u64_0() -> u64 {
+	0
 }
 
-fn default_num_participants_2() -> Option<usize> {
-	None
+fn num_parts_is_2(n: &u8) -> bool {
+	*n == 2
 }
 
-fn default_lock_height_0() -> Option<u64> {
-	None
+fn default_num_participants_2() -> u8 {
+	2
 }
 
 /// Slate state definition
@@ -415,15 +420,19 @@ impl From<SlateV3> for SlateV4 {
 			Some(p) => Some(PaymentInfoV4::from(&p)),
 			None => None,
 		};
+		let ttl_cutoff_height = match ttl_cutoff_height {
+			None => 0,
+			Some(n) => n,
+		};
 		SlateV4 {
 			ver,
-			num_participants: Some(num_participants),
+			num_participants: num_participants as u8,
 			id,
 			sta: SlateStateV4::Unknown,
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			lock_height: Some(lock_height),
+			lock_height,
 			ttl_cutoff_height,
 			sigs: participant_data,
 			payment_proof,
@@ -589,16 +598,13 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			payment_proof,
 		} = slate;
 		let num_participants = match *num_participants {
-			Some(p) => p,
-			None => 2,
+			0 => 2,
+			n => n,
 		};
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
-		let lock_height = match *lock_height {
-			Some(l) => l,
-			None => 0,
-		};
+		let lock_height = *lock_height;
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(ver);
 		let payment_proof = match payment_proof {
@@ -616,9 +622,13 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			}
 		};
 
-		let ttl_cutoff_height = *ttl_cutoff_height;
+		let ttl_cutoff_height = match *ttl_cutoff_height {
+			0 => None,
+			n => Some(n),
+		};
+
 		Ok(SlateV3 {
-			num_participants,
+			num_participants: num_participants as usize,
 			id,
 			tx,
 			amount,
