@@ -154,7 +154,6 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			wallet2_info.last_confirmed_height, bh
 		);
 		assert!(refreshed);
-		assert_eq!(wallet2_info.amount_currently_spendable, slate.amount);
 		Ok(())
 	})?;
 

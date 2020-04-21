@@ -82,6 +82,7 @@ where
 	);
 
 	context.fee = fee;
+	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
 	for input in inputs {
@@ -145,7 +146,7 @@ where
 		t.tx_slate_id = Some(slate_id);
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
-		t.fee = Some(slate.fee);
+		t.fee = Some(context.fee);
 		t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 			0 => None,
 			n => Some(n),
@@ -267,6 +268,8 @@ where
 	);
 
 	context.add_output(&key_id, &None, amount);
+	context.amount = amount;
+	context.fee = slate.fee;
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -635,12 +638,18 @@ pub fn repopulate_tx<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
+	update_fee: bool,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	// restore the original amount, fee
+	slate.amount = context.amount;
+	if update_fee {
+		slate.fee = context.fee;
+	}
 	let keychain = wallet.keychain(keychain_mask)?;
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {

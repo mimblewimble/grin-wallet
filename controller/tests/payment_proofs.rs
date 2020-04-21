@@ -145,7 +145,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		// Check payment proof here
 		let mut pp = sender_api.retrieve_payment_proof(m, true, None, Some(slate.id))?;
 
-		println!("{:?}", pp);
+		println!("Payment proof: {:?}", pp);
 
 		// verify, should be good
 		let res = sender_api.verify_payment_proof(m, &pp)?;
