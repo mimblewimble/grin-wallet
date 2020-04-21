@@ -518,7 +518,6 @@ where
 
 /// Arguments for the process_invoice command
 pub struct ProcessInvoiceArgs {
-	pub message: Option<String>,
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
 	pub method: String,
@@ -572,7 +571,6 @@ where
 				max_outputs: args.max_outputs as u32,
 				num_change_outputs: 1u32,
 				selection_strategy_is_use_all: args.selection_strategy == "all",
-				message: args.message.clone(),
 				ttl_blocks: args.ttl_blocks,
 				send_args: None,
 				..Default::default()
