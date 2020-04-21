@@ -661,7 +661,7 @@ impl From<Slate> for SlateV4 {
 			ttl,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		}
 	}
 }
@@ -706,7 +706,7 @@ impl From<&Slate> for SlateV4 {
 			ttl,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		}
 	}
 }
@@ -795,9 +795,9 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 		let receiver_address = *receiver_address;
 		let receiver_signature = *receiver_signature;
 		PaymentInfoV4 {
-			sender_address,
-			receiver_address,
-			receiver_signature,
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
 		}
 	}
 }
@@ -906,7 +906,7 @@ impl From<SlateV4> for Slate {
 			ttl: ttl_cutoff_height,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
 		let version_info = VersionCompatInfo::from(&ver);
@@ -1040,9 +1040,9 @@ impl From<&VersionCompatInfoV4> for VersionCompatInfo {
 impl From<&PaymentInfoV4> for PaymentInfo {
 	fn from(data: &PaymentInfoV4) -> PaymentInfo {
 		let PaymentInfoV4 {
-			sender_address,
-			receiver_address,
-			receiver_signature,
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
 		} = data;
 		let sender_address = *sender_address;
 		let receiver_address = *receiver_address;

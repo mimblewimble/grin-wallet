@@ -108,7 +108,7 @@ pub struct SlateV4 {
 	/// Payment Proof
 	#[serde(default = "default_payment_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub payment_proof: Option<PaymentInfoV4>,
+	pub proof: Option<PaymentInfoV4>,
 }
 
 fn default_payment_none() -> Option<PaymentInfoV4> {
@@ -180,13 +180,13 @@ fn default_part_sig_none() -> Option<Signature> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PaymentInfoV4 {
 	#[serde(with = "ser::dalek_pubkey_serde")]
-	pub sender_address: DalekPublicKey,
+	pub saddr: DalekPublicKey,
 	#[serde(with = "ser::dalek_pubkey_serde")]
-	pub receiver_address: DalekPublicKey,
+	pub raddr: DalekPublicKey,
 	#[serde(default = "default_receiver_signature_none")]
 	#[serde(with = "ser::option_dalek_sig_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub receiver_signature: Option<DalekSignature>,
+	pub rsig: Option<DalekSignature>,
 }
 
 fn default_receiver_signature_none() -> Option<DalekSignature> {
@@ -447,7 +447,7 @@ impl From<SlateV3> for SlateV4 {
 			lock_hgt: lock_height,
 			ttl: ttl_cutoff_height,
 			sigs: participant_data,
-			payment_proof,
+			proof: payment_proof,
 		}
 	}
 }
@@ -587,9 +587,9 @@ impl From<&PaymentInfoV3> for PaymentInfoV4 {
 			receiver_signature,
 		} = *input;
 		PaymentInfoV4 {
-			sender_address,
-			receiver_address,
-			receiver_signature,
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
 		}
 	}
 }
@@ -610,7 +610,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			ttl: ttl_cutoff_height,
 			sigs: participant_data,
 			ver,
-			payment_proof,
+			proof: payment_proof,
 		} = slate;
 		let num_participants = match *num_participants {
 			0 => 2,
@@ -829,9 +829,9 @@ impl From<&TxKernelV4> for TxKernelV3 {
 impl From<&PaymentInfoV4> for PaymentInfoV3 {
 	fn from(input: &PaymentInfoV4) -> PaymentInfoV3 {
 		let PaymentInfoV4 {
-			sender_address,
-			receiver_address,
-			receiver_signature,
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
 		} = *input;
 		PaymentInfoV3 {
 			sender_address,
