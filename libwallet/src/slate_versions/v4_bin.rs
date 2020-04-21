@@ -34,6 +34,7 @@ impl Writeable for SlateV4Bin {
 		let v4 = &self.0;
 		writer.write_u16(v4.ver.version)?;
 		writer.write_u16(v4.ver.block_header_version)?;
+		(UuidWrap(v4.id)).write(writer)?;
 		let state = match v4.sta {
 			SlateStateV4::Unknown => 0,
 			SlateStateV4::Standard1 => 1,
@@ -90,12 +91,21 @@ impl Writeable for SlateV4Bin {
 	}
 }
 
+struct UuidWrap(Uuid);
+
+impl Writeable for UuidWrap {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		writer.write_fixed_bytes(&self.0.as_bytes())
+	}
+}
+
 impl Readable for SlateV4Bin {
 	fn read(reader: &mut dyn Reader) -> Result<SlateV4Bin, grin_ser::Error> {
 		let ver = VersionCompatInfoV4 {
 			version: reader.read_u16()?,
 			block_header_version: reader.read_u16()?,
 		};
+		let id = UuidWrap::read(reader)?.0;
 		let b = reader.read_u8()?;
 		let sta = match b {
 			0 => SlateStateV4::Unknown,
@@ -149,8 +159,8 @@ impl Readable for SlateV4Bin {
 		};
 		Ok(SlateV4Bin(SlateV4 {
 			ver,
-			num_parts: 2,       //TODO
-			id: Uuid::new_v4(), //TODO
+			num_parts: 2, //TODO
+			id,
 			sta,
 			coms,
 			amt,
@@ -160,6 +170,15 @@ impl Readable for SlateV4Bin {
 			sigs,
 			proof: None, //TODO
 		}))
+	}
+}
+
+impl Readable for UuidWrap {
+	fn read(reader: &mut dyn Reader) -> Result<UuidWrap, grin_ser::Error> {
+		let bytes = reader.read_fixed_bytes(16)?;
+		let mut b = [0u8; 16];
+		b.copy_from_slice(&bytes[0..16]);
+		Ok(UuidWrap(Uuid::from_bytes(b)))
 	}
 }
 
@@ -220,6 +239,7 @@ fn slate_v4_serialize_deserialize() {
 	let b4_bin_2: SlateV4Bin = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
 	let v4_2 = b4_bin_2.0.clone();
 	assert_eq!(v4_1.ver, v4_2.ver);
+	assert_eq!(v4_1.id, v4_2.id);
 	assert_eq!(v4_1.amt, v4_2.amt);
 	assert_eq!(v4_1.fee, v4_2.fee);
 	let v4_2_coms = v4_2.coms.as_ref().unwrap().clone();
@@ -227,7 +247,6 @@ fn slate_v4_serialize_deserialize() {
 		assert_eq!(c.f, v4_2_coms[i].f);
 		assert_eq!(c.c, v4_2_coms[i].c);
 		assert_eq!(c.p, v4_2_coms[i].p);
-		println!("COMS SER {:?},{:?}", c.c, v4_2_coms[i].c);
 	}
 	assert_eq!(v4_1.sigs, v4_2.sigs);
 }
