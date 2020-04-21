@@ -62,6 +62,7 @@ pub struct SlateV4 {
 	#[serde(with = "ser::version_info_v4")]
 	pub ver: VersionCompatInfoV4,
 	/// Unique transaction ID, selected by sender
+	#[serde(with = "ser::uuid_base64")]
 	pub id: Uuid,
 	/// Slate state
 	#[serde(with = "ser::slate_state_v4")]

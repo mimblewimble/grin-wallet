@@ -463,6 +463,37 @@ pub mod slate_state_v4 {
 	}
 }
 
+/// Serializes an secp256k1 pubkey to base64
+pub mod uuid_base64 {
+	use base64;
+	use serde::{Deserialize, Deserializer, Serializer};
+	use uuid::Uuid;
+
+	///
+	pub fn serialize<S>(id: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&base64::encode(&id.as_bytes()))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de::Error;
+		String::deserialize(deserializer)
+			.and_then(|string| {
+				base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
+			})
+			.and_then(|bytes: Vec<u8>| {
+				let mut b = [0u8; 16];
+				b.copy_from_slice(&bytes[0..16]);
+				Ok(Uuid::from_bytes(b))
+			})
+	}
+}
 // Test serialization methods of components that are being used
 #[cfg(test)]
 mod test {
