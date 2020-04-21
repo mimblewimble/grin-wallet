@@ -45,7 +45,7 @@ pub fn new_tx_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
 	is_invoice: bool,
-	num_participants: usize,
+	num_participants: u8,
 	use_test_rng: bool,
 	ttl_blocks: Option<u64>,
 ) -> Result<Slate, Error>
@@ -57,7 +57,7 @@ where
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	let mut slate = Slate::blank(num_participants, is_invoice);
 	if let Some(b) = ttl_blocks {
-		slate.ttl_cutoff_height = Some(current_height + b);
+		slate.ttl_cutoff_height = current_height + b;
 	}
 	if use_test_rng {
 		{
@@ -83,7 +83,7 @@ where
 
 	// Set the lock_height explicitly to 0 here.
 	// This will generate a Plain kernel (rather than a HeightLocked kernel).
-	slate.lock_height = None;
+	slate.lock_height = 0;
 
 	Ok(slate)
 }
