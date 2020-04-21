@@ -518,6 +518,8 @@ where
 		context.initial_sec_nonce = c.initial_sec_nonce;
 		context.offset = c.offset;
 		context.is_invoice = c.is_invoice;
+		context.fee = c.fee;
+		context.amount = c.amount;
 		for o in c.output_ids.iter() {
 			context.output_ids.push(o.clone());
 		}
@@ -532,6 +534,11 @@ where
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
+	}
+
+	// Can remove amount now
+	if ret_slate.is_compact() {
+		ret_slate.amount = 0;
 	}
 
 	ret_slate.state = SlateState::Invoice2;
@@ -554,7 +561,7 @@ where
 	if sl.is_compact() && sl.tx == None {
 		// attempt to repopulate if we're the initiator
 		sl.tx = Some(Transaction::empty());
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 	}
 	let height = w.w2n_client().get_chain_tip()?.0;
 	selection::lock_tx_context(&mut *w, keychain_mask, &sl, height, &context)
@@ -576,7 +583,7 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	let parent_key_id = w.parent_key_id();
 	if sl.is_compact() {
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
@@ -587,6 +594,10 @@ where
 		batch.commit()?;
 	}
 	sl.state = SlateState::Standard3;
+	if sl.is_compact() {
+		sl.amount = 0;
+		sl.fee = 0;
+	}
 	Ok(sl)
 }
 

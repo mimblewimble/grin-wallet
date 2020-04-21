@@ -74,6 +74,8 @@ pub struct SlateV4 {
 	pub num_parts: u8,
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
+	#[serde(skip_serializing_if = "u64_is_blank")]
+	#[serde(default = "default_u64_0")]
 	pub amt: u64,
 	/// fee amount
 	#[serde(with = "secp_ser::string_or_u64")]
