@@ -65,6 +65,7 @@ pub struct SlateV4 {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub num_participants: Option<usize>,
 	/// Unique transaction ID, selected by sender
+	#[serde(with = "ser::uuid_base64")]
 	pub id: Uuid,
 	/// Slate state
 	#[serde(with = "ser::slate_state_v4")]
