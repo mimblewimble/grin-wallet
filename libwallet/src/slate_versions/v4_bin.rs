@@ -35,18 +35,15 @@ impl Writeable for SlateV4Bin {
 		writer.write_u16(v4.ver.version)?;
 		writer.write_u16(v4.ver.block_header_version)?;
 		(UuidWrap(v4.id)).write(writer)?;
-		let state = match v4.sta {
-			SlateStateV4::Unknown => 0,
-			SlateStateV4::Standard1 => 1,
-			SlateStateV4::Standard2 => 2,
-			SlateStateV4::Standard3 => 3,
-			SlateStateV4::Invoice1 => 4,
-			SlateStateV4::Invoice2 => 5,
-			SlateStateV4::Invoice3 => 6,
-		};
-		writer.write_u8(state)?;
-		writer.write_u64(v4.amt)?;
-		writer.write_u64(v4.fee)?;
+		v4.sta.write(writer)?;
+		SlateOptFields {
+			num_parts: v4.num_parts,
+			amt: v4.amt,
+			fee: v4.fee,
+			lock_hgt: v4.lock_hgt,
+			ttl: v4.ttl,
+		}
+		.write(writer)?;
 
 		// commit data
 		let coms_len = match &v4.coms {
@@ -91,7 +88,78 @@ impl Writeable for SlateV4Bin {
 	}
 }
 
+impl Writeable for SlateStateV4 {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		let b = match self {
+			SlateStateV4::Unknown => 0,
+			SlateStateV4::Standard1 => 1,
+			SlateStateV4::Standard2 => 2,
+			SlateStateV4::Standard3 => 3,
+			SlateStateV4::Invoice1 => 4,
+			SlateStateV4::Invoice2 => 5,
+			SlateStateV4::Invoice3 => 6,
+		};
+		writer.write_u8(b)
+	}
+}
+
+/// Allow serializing of Uuids not defined in crate
 struct UuidWrap(Uuid);
+
+/// Helper struct to serialize optional fields efficiently
+struct SlateOptFields {
+	/// num parts, default 2
+	pub num_parts: u8,
+	/// amt, default 0
+	pub amt: u64,
+	/// fee, default 0
+	pub fee: u64,
+	/// lock height, default 0
+	pub lock_hgt: u64,
+	/// ttl, default 0
+	pub ttl: u64,
+}
+
+impl Writeable for SlateOptFields {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		// Status byte, bits determing which optional fields are serialized
+		// 0 0 0 1  1 1 1 1
+		//       t  l f a n
+		let mut status = 0u8;
+		if self.num_parts != 2 {
+			status |= 0x01
+		};
+		if self.amt > 0 {
+			status |= 0x02
+		};
+		if self.fee > 0 {
+			status |= 0x04
+		};
+		if self.lock_hgt > 0 {
+			status |= 0x08
+		};
+		if self.ttl > 0 {
+			status |= 0x10
+		};
+		writer.write_u8(status)?;
+		if status & 0x01 > 0 {
+			writer.write_u8(self.num_parts)?;
+		}
+		if status & 0x02 > 0 {
+			writer.write_u64(self.amt)?;
+		}
+		if status & 0x04 > 0 {
+			writer.write_u64(self.fee)?;
+		}
+		if status & 0x08 > 0 {
+			writer.write_u64(self.lock_hgt)?;
+		}
+		if status & 0x10 > 0 {
+			writer.write_u64(self.ttl)?;
+		}
+		Ok(())
+	}
+}
 
 impl Writeable for UuidWrap {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
@@ -106,19 +174,9 @@ impl Readable for SlateV4Bin {
 			block_header_version: reader.read_u16()?,
 		};
 		let id = UuidWrap::read(reader)?.0;
-		let b = reader.read_u8()?;
-		let sta = match b {
-			0 => SlateStateV4::Unknown,
-			1 => SlateStateV4::Standard1,
-			2 => SlateStateV4::Standard2,
-			3 => SlateStateV4::Standard3,
-			4 => SlateStateV4::Invoice1,
-			5 => SlateStateV4::Invoice2,
-			6 => SlateStateV4::Invoice3,
-			_ => SlateStateV4::Unknown,
-		};
-		let amt = reader.read_u64()?;
-		let fee = reader.read_u64()?;
+		let sta = SlateStateV4::read(reader)?;
+
+		let opts = SlateOptFields::read(reader)?;
 
 		let coms_len = reader.read_u16()?;
 		let coms = match coms_len {
@@ -159,17 +217,55 @@ impl Readable for SlateV4Bin {
 		};
 		Ok(SlateV4Bin(SlateV4 {
 			ver,
-			num_parts: 2, //TODO
 			id,
 			sta,
-			coms,
-			amt,
-			fee,
-			lock_hgt: 0, //TODO
-			ttl: 0,      //TODO
+			num_parts: opts.num_parts,
+			amt: opts.amt,
+			fee: opts.fee,
+			lock_hgt: opts.lock_hgt,
+			ttl: opts.ttl,
 			sigs,
+			coms,
 			proof: None, //TODO
 		}))
+	}
+}
+
+impl Readable for SlateOptFields {
+	fn read(reader: &mut dyn Reader) -> Result<SlateOptFields, grin_ser::Error> {
+		let status = reader.read_u8()?;
+		let num_parts = if status & 0x01 > 0 {
+			reader.read_u8()?
+		} else {
+			2
+		};
+		let amt = if status & 0x02 > 0 {
+			reader.read_u64()?
+		} else {
+			0
+		};
+		let fee = if status & 0x04 > 0 {
+			reader.read_u64()?
+		} else {
+			0
+		};
+		let lock_hgt = if status & 0x08 > 0 {
+			reader.read_u64()?
+		} else {
+			0
+		};
+		let ttl = if status & 0x10 > 0 {
+			reader.read_u64()?
+		} else {
+			0
+		};
+		Ok(SlateOptFields {
+			num_parts,
+			amt,
+			fee,
+			lock_hgt,
+			ttl,
+		})
 	}
 }
 
@@ -179,6 +275,23 @@ impl Readable for UuidWrap {
 		let mut b = [0u8; 16];
 		b.copy_from_slice(&bytes[0..16]);
 		Ok(UuidWrap(Uuid::from_bytes(b)))
+	}
+}
+
+impl Readable for SlateStateV4 {
+	fn read(reader: &mut dyn Reader) -> Result<SlateStateV4, grin_ser::Error> {
+		let b = reader.read_u8()?;
+		let sta = match b {
+			0 => SlateStateV4::Unknown,
+			1 => SlateStateV4::Standard1,
+			2 => SlateStateV4::Standard2,
+			3 => SlateStateV4::Standard3,
+			4 => SlateStateV4::Invoice1,
+			5 => SlateStateV4::Invoice2,
+			6 => SlateStateV4::Invoice3,
+			_ => SlateStateV4::Unknown,
+		};
+		Ok(sta)
 	}
 }
 
@@ -231,6 +344,9 @@ fn slate_v4_serialize_deserialize() {
 	coms.push(com2);
 
 	v4.coms = Some(coms);
+	v4.amt = 234324899824;
+	v4.lock_hgt = 302344;
+	v4.num_parts = 2;
 
 	let v4_1 = v4.clone();
 	let v4_bin = SlateV4Bin(v4);
