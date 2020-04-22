@@ -20,6 +20,7 @@
 use crate::slate::Slate;
 use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
+use crate::slate_versions::v4_bin::SlateV4Bin;
 use crate::types::CbData;
 use crate::Error;
 use std::convert::TryFrom;
@@ -91,6 +92,15 @@ impl From<VersionedSlate> for Slate {
 			}
 		}
 	}
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+/// Binary versions, can only be parsed 1:1 into the appropriate
+/// version, and VersionedSlate can up/downgrade from there
+pub enum VersionedBinSlate {
+	/// Version 4, binary
+	V4(SlateV4Bin),
 }
 
 #[derive(Deserialize, Serialize)]

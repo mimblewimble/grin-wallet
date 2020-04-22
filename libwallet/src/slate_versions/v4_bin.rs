@@ -354,6 +354,46 @@ impl Readable for ProofWrap {
 #[derive(Debug, Clone)]
 pub struct SlateV4Bin(pub SlateV4);
 
+impl serde::Serialize for SlateV4Bin {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		let mut vec = vec![];
+		grin_ser::serialize(&mut vec, grin_ser::ProtocolVersion(4), self)
+			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		serializer.serialize_bytes(&vec)
+	}
+}
+
+impl<'de> serde::Deserialize<'de> for SlateV4Bin {
+	fn deserialize<D>(deserializer: D) -> Result<SlateV4Bin, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct SlateV4BinVisitor;
+
+		impl<'de> serde::de::Visitor<'de> for SlateV4BinVisitor {
+			type Value = SlateV4Bin;
+
+			fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+				write!(formatter, "a serialised binary V4 slate")
+			}
+
+			fn visit_bytes<E>(self, value: &[u8]) -> Result<SlateV4Bin, E>
+			where
+				E: serde::de::Error,
+			{
+				let mut reader = std::io::Cursor::new(value.to_vec());
+				let s = grin_ser::deserialize(&mut reader, grin_ser::ProtocolVersion(4))
+					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				Ok(s)
+			}
+		}
+		deserializer.deserialize_bytes(SlateV4BinVisitor)
+	}
+}
+
 impl Writeable for SlateV4Bin {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		let v4 = &self.0;
