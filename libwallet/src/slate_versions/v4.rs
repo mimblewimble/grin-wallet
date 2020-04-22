@@ -176,7 +176,7 @@ fn default_part_sig_none() -> Option<Signature> {
 	None
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfoV4 {
 	#[serde(with = "ser::dalek_pubkey_base64")]
 	pub saddr: DalekPublicKey,
