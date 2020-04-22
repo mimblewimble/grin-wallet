@@ -26,68 +26,6 @@ use crate::slate_versions::v4::{
 	CommitsV4, ParticipantDataV4, SlateStateV4, SlateV4, VersionCompatInfoV4,
 };
 
-#[derive(Debug, Clone)]
-pub struct SlateV4Bin(pub SlateV4);
-
-impl Writeable for SlateV4Bin {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		let v4 = &self.0;
-		writer.write_u16(v4.ver.version)?;
-		writer.write_u16(v4.ver.block_header_version)?;
-		(UuidWrap(v4.id)).write(writer)?;
-		v4.sta.write(writer)?;
-		SlateOptFields {
-			num_parts: v4.num_parts,
-			amt: v4.amt,
-			fee: v4.fee,
-			lock_hgt: v4.lock_hgt,
-			ttl: v4.ttl,
-		}
-		.write(writer)?;
-
-		// commit data
-		let coms_len = match &v4.coms {
-			Some(c) => c.len() as u16,
-			None => 0,
-		};
-		writer.write_u16(coms_len)?;
-		if let Some(c) = &v4.coms {
-			for o in c.iter() {
-				//0 means input
-				//1 means output with proof
-				if o.p.is_some() {
-					writer.write_u8(1)?;
-				} else {
-					writer.write_u8(0)?;
-				}
-				OutputFeatures::from(o.f).write(writer)?;
-				o.c.write(writer)?;
-				if let Some(p) = o.p.clone() {
-					p.write(writer)?;
-				}
-			}
-		}
-
-		// Signature data
-		writer.write_u8(v4.sigs.len() as u8)?;
-		for s in v4.sigs.iter() {
-			//0 means part sig is not yet included
-			//1 means part sig included
-			if s.part.is_some() {
-				writer.write_u8(1)?;
-			} else {
-				writer.write_u8(0)?;
-			}
-			s.xs.write(writer)?;
-			s.nonce.write(writer)?;
-			if let Some(s) = s.part.clone() {
-				s.write(writer)?;
-			}
-		}
-		Ok(())
-	}
-}
-
 impl Writeable for SlateStateV4 {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		let b = match self {
@@ -103,8 +41,40 @@ impl Writeable for SlateStateV4 {
 	}
 }
 
+impl Readable for SlateStateV4 {
+	fn read(reader: &mut dyn Reader) -> Result<SlateStateV4, grin_ser::Error> {
+		let b = reader.read_u8()?;
+		let sta = match b {
+			0 => SlateStateV4::Unknown,
+			1 => SlateStateV4::Standard1,
+			2 => SlateStateV4::Standard2,
+			3 => SlateStateV4::Standard3,
+			4 => SlateStateV4::Invoice1,
+			5 => SlateStateV4::Invoice2,
+			6 => SlateStateV4::Invoice3,
+			_ => SlateStateV4::Unknown,
+		};
+		Ok(sta)
+	}
+}
+
 /// Allow serializing of Uuids not defined in crate
 struct UuidWrap(Uuid);
+
+impl Writeable for UuidWrap {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		writer.write_fixed_bytes(&self.0.as_bytes())
+	}
+}
+
+impl Readable for UuidWrap {
+	fn read(reader: &mut dyn Reader) -> Result<UuidWrap, grin_ser::Error> {
+		let bytes = reader.read_fixed_bytes(16)?;
+		let mut b = [0u8; 16];
+		b.copy_from_slice(&bytes[0..16]);
+		Ok(UuidWrap(Uuid::from_bytes(b)))
+	}
+}
 
 /// Helper struct to serialize optional fields efficiently
 struct SlateOptFields {
@@ -161,76 +131,6 @@ impl Writeable for SlateOptFields {
 	}
 }
 
-impl Writeable for UuidWrap {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		writer.write_fixed_bytes(&self.0.as_bytes())
-	}
-}
-
-impl Readable for SlateV4Bin {
-	fn read(reader: &mut dyn Reader) -> Result<SlateV4Bin, grin_ser::Error> {
-		let ver = VersionCompatInfoV4 {
-			version: reader.read_u16()?,
-			block_header_version: reader.read_u16()?,
-		};
-		let id = UuidWrap::read(reader)?.0;
-		let sta = SlateStateV4::read(reader)?;
-
-		let opts = SlateOptFields::read(reader)?;
-
-		let coms_len = reader.read_u16()?;
-		let coms = match coms_len {
-			0 => None,
-			n => {
-				let mut ret = vec![];
-				for _ in 0..n {
-					let is_output = reader.read_u8()?;
-					let c = CommitsV4 {
-						f: OutputFeatures::read(reader)?.into(),
-						c: Commitment::read(reader)?,
-						p: match is_output {
-							1 => Some(RangeProof::read(reader)?),
-							0 | _ => None,
-						},
-					};
-					ret.push(c);
-				}
-				Some(ret)
-			}
-		};
-		let sigs_len = reader.read_u8()?;
-		let sigs = {
-			let mut ret = vec![];
-			for _ in 0..sigs_len as usize {
-				let has_partial = reader.read_u8()?;
-				let c = ParticipantDataV4 {
-					xs: PublicKey::read(reader)?,
-					nonce: PublicKey::read(reader)?,
-					part: match has_partial {
-						1 => Some(Signature::read(reader)?),
-						0 | _ => None,
-					},
-				};
-				ret.push(c);
-			}
-			ret
-		};
-		Ok(SlateV4Bin(SlateV4 {
-			ver,
-			id,
-			sta,
-			num_parts: opts.num_parts,
-			amt: opts.amt,
-			fee: opts.fee,
-			lock_hgt: opts.lock_hgt,
-			ttl: opts.ttl,
-			sigs,
-			coms,
-			proof: None, //TODO
-		}))
-	}
-}
-
 impl Readable for SlateOptFields {
 	fn read(reader: &mut dyn Reader) -> Result<SlateOptFields, grin_ser::Error> {
 		let status = reader.read_u8()?;
@@ -269,29 +169,144 @@ impl Readable for SlateOptFields {
 	}
 }
 
-impl Readable for UuidWrap {
-	fn read(reader: &mut dyn Reader) -> Result<UuidWrap, grin_ser::Error> {
-		let bytes = reader.read_fixed_bytes(16)?;
-		let mut b = [0u8; 16];
-		b.copy_from_slice(&bytes[0..16]);
-		Ok(UuidWrap(Uuid::from_bytes(b)))
+struct SigsWrap(Vec<ParticipantDataV4>);
+
+impl Writeable for SigsWrap {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		writer.write_u8(self.0.len() as u8)?;
+		for s in self.0.iter() {
+			//0 means part sig is not yet included
+			//1 means part sig included
+			if s.part.is_some() {
+				writer.write_u8(1)?;
+			} else {
+				writer.write_u8(0)?;
+			}
+			s.xs.write(writer)?;
+			s.nonce.write(writer)?;
+			if let Some(s) = s.part.clone() {
+				s.write(writer)?;
+			}
+		}
+		Ok(())
 	}
 }
 
-impl Readable for SlateStateV4 {
-	fn read(reader: &mut dyn Reader) -> Result<SlateStateV4, grin_ser::Error> {
-		let b = reader.read_u8()?;
-		let sta = match b {
-			0 => SlateStateV4::Unknown,
-			1 => SlateStateV4::Standard1,
-			2 => SlateStateV4::Standard2,
-			3 => SlateStateV4::Standard3,
-			4 => SlateStateV4::Invoice1,
-			5 => SlateStateV4::Invoice2,
-			6 => SlateStateV4::Invoice3,
-			_ => SlateStateV4::Unknown,
+impl Readable for SigsWrap {
+	fn read(reader: &mut dyn Reader) -> Result<SigsWrap, grin_ser::Error> {
+		let sigs_len = reader.read_u8()?;
+		let sigs = {
+			let mut ret = vec![];
+			for _ in 0..sigs_len as usize {
+				let has_partial = reader.read_u8()?;
+				let c = ParticipantDataV4 {
+					xs: PublicKey::read(reader)?,
+					nonce: PublicKey::read(reader)?,
+					part: match has_partial {
+						1 => Some(Signature::read(reader)?),
+						0 | _ => None,
+					},
+				};
+				ret.push(c);
+			}
+			ret
 		};
-		Ok(sta)
+		Ok(SigsWrap(sigs))
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct SlateV4Bin(pub SlateV4);
+
+impl Writeable for SlateV4Bin {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		let v4 = &self.0;
+		writer.write_u16(v4.ver.version)?;
+		writer.write_u16(v4.ver.block_header_version)?;
+		(UuidWrap(v4.id)).write(writer)?;
+		v4.sta.write(writer)?;
+		SlateOptFields {
+			num_parts: v4.num_parts,
+			amt: v4.amt,
+			fee: v4.fee,
+			lock_hgt: v4.lock_hgt,
+			ttl: v4.ttl,
+		}
+		.write(writer)?;
+		(SigsWrap(v4.sigs.clone())).write(writer)?;
+
+		// commit data
+		let coms_len = match &v4.coms {
+			Some(c) => c.len() as u16,
+			None => 0,
+		};
+		writer.write_u16(coms_len)?;
+		if let Some(c) = &v4.coms {
+			for o in c.iter() {
+				//0 means input
+				//1 means output with proof
+				if o.p.is_some() {
+					writer.write_u8(1)?;
+				} else {
+					writer.write_u8(0)?;
+				}
+				OutputFeatures::from(o.f).write(writer)?;
+				o.c.write(writer)?;
+				if let Some(p) = o.p.clone() {
+					p.write(writer)?;
+				}
+			}
+		}
+
+		Ok(())
+	}
+}
+
+impl Readable for SlateV4Bin {
+	fn read(reader: &mut dyn Reader) -> Result<SlateV4Bin, grin_ser::Error> {
+		let ver = VersionCompatInfoV4 {
+			version: reader.read_u16()?,
+			block_header_version: reader.read_u16()?,
+		};
+		let id = UuidWrap::read(reader)?.0;
+		let sta = SlateStateV4::read(reader)?;
+
+		let opts = SlateOptFields::read(reader)?;
+		let sigs = SigsWrap::read(reader)?.0;
+
+		let coms_len = reader.read_u16()?;
+		let coms = match coms_len {
+			0 => None,
+			n => {
+				let mut ret = vec![];
+				for _ in 0..n {
+					let is_output = reader.read_u8()?;
+					let c = CommitsV4 {
+						f: OutputFeatures::read(reader)?.into(),
+						c: Commitment::read(reader)?,
+						p: match is_output {
+							1 => Some(RangeProof::read(reader)?),
+							0 | _ => None,
+						},
+					};
+					ret.push(c);
+				}
+				Some(ret)
+			}
+		};
+		Ok(SlateV4Bin(SlateV4 {
+			ver,
+			id,
+			sta,
+			num_parts: opts.num_parts,
+			amt: opts.amt,
+			fee: opts.fee,
+			lock_hgt: opts.lock_hgt,
+			ttl: opts.ttl,
+			sigs,
+			coms,
+			proof: None, //TODO
+		}))
 	}
 }
 

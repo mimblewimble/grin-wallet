@@ -98,7 +98,7 @@ pub struct SlateV4 {
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
 	pub sigs: Vec<ParticipantDataV4>,
-	// Situational, but required at somepoint tx
+	// Situational, but required at some point in the tx
 	/// Inputs/Output commits added to slate
 	#[serde(default = "default_coms_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
