@@ -201,6 +201,11 @@ impl Slate {
 	pub fn deserialize_upgrade(slate_json: &str) -> Result<Slate, Error> {
 		let v_slate: VersionedSlate =
 			serde_json::from_str(slate_json).map_err(|_| ErrorKind::SlateVersionParse)?;
+		Slate::upgrade(v_slate)
+	}
+
+	/// Upgrade a versioned slate
+	pub fn upgrade(v_slate: VersionedSlate) -> Result<Slate, Error> {
 		let v4: SlateV4 = match v_slate {
 			VersionedSlate::V4(s) => s,
 			VersionedSlate::V3(_) => return Err(ErrorKind::SlateVersion(3).into()),

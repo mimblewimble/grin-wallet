@@ -345,7 +345,7 @@ where
 
 			match args.method.as_str() {
 				"file" => {
-					PathToSlate((&args.dest).into()).put_tx(&slate)?;
+					PathToSlate((&args.dest).into()).put_tx(&slate, false)?;
 					api.tx_lock_outputs(m, &slate)?;
 					return Ok(());
 				}
@@ -410,7 +410,7 @@ where
 		slate = api.receive_tx(&slate, Some(&g_args.account))?;
 		Ok(())
 	})?;
-	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate)?;
+	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate, false)?;
 	info!(
 		"Response file {}.response generated, and can be sent back to the transaction originator.",
 		args.input
@@ -484,7 +484,7 @@ where
 	}
 
 	if args.dest.is_some() {
-		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate)?;
+		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate, false)?;
 	}
 
 	Ok(())
@@ -510,7 +510,7 @@ where
 {
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
-		PathToSlate((&args.dest).into()).put_tx(&slate)?;
+		PathToSlate((&args.dest).into()).put_tx(&slate, false)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -595,7 +595,7 @@ where
 			match args.method.as_str() {
 				"file" => {
 					let slate_putter = PathToSlate((&args.dest).into());
-					slate_putter.put_tx(&slate)?;
+					slate_putter.put_tx(&slate, false)?;
 					api.tx_lock_outputs(m, &slate)?;
 				}
 				"self" => {

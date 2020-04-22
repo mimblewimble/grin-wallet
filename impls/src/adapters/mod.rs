@@ -55,7 +55,7 @@ pub trait SlateReceiver {
 /// Posts slates to be read later by a corresponding getter
 pub trait SlatePutter {
 	/// Send a transaction asynchronously
-	fn put_tx(&self, slate: &Slate) -> Result<(), Error>;
+	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error>;
 }
 
 /// Checks for a transaction from a corresponding SlatePutter, returns the transaction if it exists

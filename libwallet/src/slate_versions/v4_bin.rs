@@ -354,6 +354,18 @@ impl Readable for ProofWrap {
 #[derive(Debug, Clone)]
 pub struct SlateV4Bin(pub SlateV4);
 
+impl From<SlateV4> for SlateV4Bin {
+	fn from(slate: SlateV4) -> SlateV4Bin {
+		SlateV4Bin(slate)
+	}
+}
+
+impl From<SlateV4Bin> for SlateV4 {
+	fn from(slate: SlateV4Bin) -> SlateV4 {
+		slate.0
+	}
+}
+
 impl serde::Serialize for SlateV4Bin {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where

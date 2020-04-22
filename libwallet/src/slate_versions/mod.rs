@@ -22,7 +22,7 @@ use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::slate_versions::v4_bin::SlateV4Bin;
 use crate::types::CbData;
-use crate::Error;
+use crate::{Error, ErrorKind};
 use std::convert::TryFrom;
 
 pub mod ser;
@@ -101,6 +101,28 @@ impl From<VersionedSlate> for Slate {
 pub enum VersionedBinSlate {
 	/// Version 4, binary
 	V4(SlateV4Bin),
+}
+
+impl TryFrom<VersionedSlate> for VersionedBinSlate {
+	type Error = Error;
+	fn try_from(slate: VersionedSlate) -> Result<VersionedBinSlate, Error> {
+		match slate {
+			VersionedSlate::V4(s) => Ok(VersionedBinSlate::V4(SlateV4Bin(s))),
+			VersionedSlate::V3(_) => {
+				return Err(
+					ErrorKind::Compatibility("V3 Slate does not support binary".to_owned()).into(),
+				)
+			}
+		}
+	}
+}
+
+impl From<VersionedBinSlate> for VersionedSlate {
+	fn from(slate: VersionedBinSlate) -> VersionedSlate {
+		match slate {
+			VersionedBinSlate::V4(s) => VersionedSlate::V4(s.0),
+		}
+	}
 }
 
 #[derive(Deserialize, Serialize)]

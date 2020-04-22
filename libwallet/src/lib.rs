@@ -57,7 +57,7 @@ mod types;
 pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::{ParticipantData, Slate, SlateState};
 pub use crate::slate_versions::{
-	SlateVersion, VersionedCoinbase, VersionedSlate, CURRENT_SLATE_VERSION,
+	SlateVersion, VersionedBinSlate, VersionedCoinbase, VersionedSlate, CURRENT_SLATE_VERSION,
 	GRIN_BLOCK_HEADER_VERSION,
 };
 pub use api_impl::owner_updater::StatusMessage;

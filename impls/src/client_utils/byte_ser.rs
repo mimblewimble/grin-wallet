@@ -13,7 +13,8 @@
 // limitations under the License.
 
 // Simple serde byte array serializer
-use serde::{de, ser, Serialize};
+use serde::de::Visitor;
+use serde::{de, ser, Deserialize, Serialize};
 use std;
 use std::fmt::{self, Display};
 
@@ -46,7 +47,7 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-struct ByteSerializer {
+pub struct ByteSerializer {
 	output: Vec<u8>,
 }
 
@@ -123,12 +124,10 @@ impl<'a> ser::Serializer for &'a mut ByteSerializer {
 	}
 
 	fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-		use serde::ser::SerializeSeq;
-		let mut seq = self.serialize_seq(Some(v.len()))?;
 		for byte in v {
-			seq.serialize_element(byte)?;
+			self.output.push(*byte)
 		}
-		seq.end()
+		Ok(())
 	}
 
 	fn serialize_none(self) -> Result<()> {
@@ -340,5 +339,43 @@ impl<'a> ser::SerializeStructVariant for &'a mut ByteSerializer {
 
 	fn end(self) -> Result<()> {
 		unimplemented!()
+	}
+}
+
+// Simple Deserializer
+
+pub struct ByteDeserializer<'de> {
+	input: &'de [u8],
+}
+
+impl<'de> ByteDeserializer<'de> {
+	pub fn from_bytes(input: &'de [u8]) -> Self {
+		ByteDeserializer { input }
+	}
+}
+
+pub fn from_bytes<'a, T>(b: &'a [u8]) -> Result<T>
+where
+	T: Deserialize<'a>,
+{
+	let mut deserializer = ByteDeserializer::from_bytes(b);
+	let t = T::deserialize(&mut deserializer)?;
+	Ok(t)
+}
+
+impl<'de, 'a> de::Deserializer<'de> for &'a mut ByteDeserializer<'de> {
+	type Error = Error;
+
+	fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+	where
+		V: Visitor<'de>,
+	{
+		visitor.visit_bytes(self.input)
+	}
+
+	serde::forward_to_deserialize_any! {
+		bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+		bytes byte_buf option unit unit_struct newtype_struct seq tuple
+		tuple_struct map struct enum identifier ignored_any
 	}
 }
