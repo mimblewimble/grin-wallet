@@ -170,8 +170,9 @@ impl Readable for SlateOptFields {
 }
 
 struct SigsWrap(Vec<ParticipantDataV4>);
+struct SigsWrapRef<'a>(&'a Vec<ParticipantDataV4>);
 
-impl Writeable for SigsWrap {
+impl<'a> Writeable for SigsWrapRef<'a> {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		writer.write_u8(self.0.len() as u8)?;
 		for s in self.0.iter() {
@@ -215,33 +216,17 @@ impl Readable for SigsWrap {
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct SlateV4Bin(pub SlateV4);
+struct ComsWrap(Option<Vec<CommitsV4>>);
+struct ComsWrapRef<'a>(&'a Option<Vec<CommitsV4>>);
 
-impl Writeable for SlateV4Bin {
+impl<'a> Writeable for ComsWrapRef<'a> {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		let v4 = &self.0;
-		writer.write_u16(v4.ver.version)?;
-		writer.write_u16(v4.ver.block_header_version)?;
-		(UuidWrap(v4.id)).write(writer)?;
-		v4.sta.write(writer)?;
-		SlateOptFields {
-			num_parts: v4.num_parts,
-			amt: v4.amt,
-			fee: v4.fee,
-			lock_hgt: v4.lock_hgt,
-			ttl: v4.ttl,
-		}
-		.write(writer)?;
-		(SigsWrap(v4.sigs.clone())).write(writer)?;
-
-		// commit data
-		let coms_len = match &v4.coms {
+		let coms_len = match self.0 {
 			Some(c) => c.len() as u16,
 			None => 0,
 		};
 		writer.write_u16(coms_len)?;
-		if let Some(c) = &v4.coms {
+		if let Some(c) = self.0 {
 			for o in c.iter() {
 				//0 means input
 				//1 means output with proof
@@ -257,23 +242,12 @@ impl Writeable for SlateV4Bin {
 				}
 			}
 		}
-
 		Ok(())
 	}
 }
 
-impl Readable for SlateV4Bin {
-	fn read(reader: &mut dyn Reader) -> Result<SlateV4Bin, grin_ser::Error> {
-		let ver = VersionCompatInfoV4 {
-			version: reader.read_u16()?,
-			block_header_version: reader.read_u16()?,
-		};
-		let id = UuidWrap::read(reader)?.0;
-		let sta = SlateStateV4::read(reader)?;
-
-		let opts = SlateOptFields::read(reader)?;
-		let sigs = SigsWrap::read(reader)?.0;
-
+impl Readable for ComsWrap {
+	fn read(reader: &mut dyn Reader) -> Result<ComsWrap, grin_ser::Error> {
 		let coms_len = reader.read_u16()?;
 		let coms = match coms_len {
 			0 => None,
@@ -294,6 +268,48 @@ impl Readable for SlateV4Bin {
 				Some(ret)
 			}
 		};
+		Ok(ComsWrap(coms))
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct SlateV4Bin(pub SlateV4);
+
+impl Writeable for SlateV4Bin {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		let v4 = &self.0;
+		writer.write_u16(v4.ver.version)?;
+		writer.write_u16(v4.ver.block_header_version)?;
+		(UuidWrap(v4.id)).write(writer)?;
+		v4.sta.write(writer)?;
+		SlateOptFields {
+			num_parts: v4.num_parts,
+			amt: v4.amt,
+			fee: v4.fee,
+			lock_hgt: v4.lock_hgt,
+			ttl: v4.ttl,
+		}
+		.write(writer)?;
+		(SigsWrapRef(&v4.sigs)).write(writer)?;
+		(ComsWrapRef(&v4.coms)).write(writer)?;
+
+		Ok(())
+	}
+}
+
+impl Readable for SlateV4Bin {
+	fn read(reader: &mut dyn Reader) -> Result<SlateV4Bin, grin_ser::Error> {
+		let ver = VersionCompatInfoV4 {
+			version: reader.read_u16()?,
+			block_header_version: reader.read_u16()?,
+		};
+		let id = UuidWrap::read(reader)?.0;
+		let sta = SlateStateV4::read(reader)?;
+
+		let opts = SlateOptFields::read(reader)?;
+		let sigs = SigsWrap::read(reader)?.0;
+		let coms = ComsWrap::read(reader)?.0;
+
 		Ok(SlateV4Bin(SlateV4 {
 			ver,
 			id,
