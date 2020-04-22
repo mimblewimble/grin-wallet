@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Simple serde byte array serializer
+// Simple serde byte array serializer, assumes target already
+// knows how to serialize itself into binary (because that all
+// this serializer can do)
 use serde::de::Visitor;
 use serde::{de, ser, Deserialize, Serialize};
 use std;
