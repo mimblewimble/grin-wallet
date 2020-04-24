@@ -349,6 +349,11 @@ where
 					api.tx_lock_outputs(m, &slate)?;
 					return Ok(());
 				}
+				"binfile" => {
+					PathToSlate((&args.dest).into()).put_tx(&slate, true)?;
+					api.tx_lock_outputs(m, &slate)?;
+					return Ok(());
+				}
 				"self" => {
 					api.tx_lock_outputs(m, &slate)?;
 					let km = match keychain_mask.as_ref() {
@@ -401,7 +406,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
+	let (mut slate, was_bin) = PathToSlate((&args.input).into()).get_tx()?;
 	let km = match keychain_mask.as_ref() {
 		None => None,
 		Some(&m) => Some(m.to_owned()),
@@ -410,7 +415,7 @@ where
 		slate = api.receive_tx(&slate, Some(&g_args.account))?;
 		Ok(())
 	})?;
-	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate, false)?;
+	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate, was_bin)?;
 	info!(
 		"Response file {}.response generated, and can be sent back to the transaction originator.",
 		args.input
@@ -436,7 +441,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slate = PathToSlate((&args.input).into()).get_tx()?;
+	let (mut slate, was_bin) = PathToSlate((&args.input).into()).get_tx()?;
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
@@ -484,7 +489,7 @@ where
 	}
 
 	if args.dest.is_some() {
-		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate, false)?;
+		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate, was_bin)?;
 	}
 
 	Ok(())
@@ -496,6 +501,8 @@ pub struct IssueInvoiceArgs {
 	pub dest: String,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
+	/// whether to output as bin
+	pub bin: bool,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -510,7 +517,7 @@ where
 {
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
-		PathToSlate((&args.dest).into()).put_tx(&slate, false)?;
+		PathToSlate((&args.dest).into()).put_tx(&slate, args.bin)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -541,7 +548,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let slate = PathToSlate((&args.input).into()).get_tx()?;
+	let (slate, _) = PathToSlate((&args.input).into()).get_tx()?;
 	let wallet_inst = owner_api.wallet_inst.clone();
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
@@ -596,6 +603,11 @@ where
 				"file" => {
 					let slate_putter = PathToSlate((&args.dest).into());
 					slate_putter.put_tx(&slate, false)?;
+					api.tx_lock_outputs(m, &slate)?;
+				}
+				"filebin" => {
+					let slate_putter = PathToSlate((&args.dest).into());
+					slate_putter.put_tx(&slate, true)?;
 					api.tx_lock_outputs(m, &slate)?;
 				}
 				"self" => {
@@ -762,7 +774,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let slate = PathToSlate((&args.input).into()).get_tx()?;
+	let slate = PathToSlate((&args.input).into()).get_tx()?.0;
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		api.post_tx(m, slate.tx_or_err()?, args.fluff)?;

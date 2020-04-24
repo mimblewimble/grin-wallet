@@ -133,7 +133,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	}
 
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
-		slate = PathToSlate((&send_file).into()).get_tx()?;
+		slate = PathToSlate((&send_file).into()).get_tx()?.0;
 		slate = api.receive_tx(&slate, None)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, false)?;
 		Ok(())
@@ -147,7 +147,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// wallet 1 finalize
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		slate = PathToSlate((&receive_file).into()).get_tx()?;
+		slate = PathToSlate((&receive_file).into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		Ok(())
 	})?;

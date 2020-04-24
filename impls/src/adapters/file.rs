@@ -62,7 +62,7 @@ impl SlatePutter for PathToSlate {
 }
 
 impl SlateGetter for PathToSlate {
-	fn get_tx(&self) -> Result<Slate, Error> {
+	fn get_tx(&self) -> Result<(Slate, bool), Error> {
 		// try as bin first, then as json
 		let mut pub_tx_f = File::open(&self.0)?;
 		let mut data = Vec::new();
@@ -72,12 +72,12 @@ impl SlateGetter for PathToSlate {
 			debug!("Not a valid binary slate: {} - Will try JSON", e);
 		} else {
 			if let Ok(s) = bin_res {
-				return Ok(Slate::upgrade(s.into())?);
+				return Ok((Slate::upgrade(s.into())?, true));
 			}
 		}
 
 		// Otherwise try json
 		let content = String::from_utf8(data).map_err(|_| ErrorKind::SlateSer)?;
-		Ok(Slate::deserialize_upgrade(&content)?)
+		Ok((Slate::deserialize_upgrade(&content)?, false))
 	}
 }

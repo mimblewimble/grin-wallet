@@ -440,6 +440,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"invoice",
 		"-d",
 		&file_name,
+		"-b",
 		"65",
 	];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;

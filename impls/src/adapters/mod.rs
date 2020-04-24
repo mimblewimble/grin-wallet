@@ -60,8 +60,9 @@ pub trait SlatePutter {
 
 /// Checks for a transaction from a corresponding SlatePutter, returns the transaction if it exists
 pub trait SlateGetter {
-	/// Receive a transaction async. (Actually just read it from wherever and return the slate)
-	fn get_tx(&self) -> Result<Slate, Error>;
+	/// Receive a transaction async. (Actually just read it from wherever and return the slate).
+	/// Returns (Slate, whether it was in binary form)
+	fn get_tx(&self) -> Result<(Slate, bool), Error>;
 }
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs

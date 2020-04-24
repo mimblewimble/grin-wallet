@@ -140,7 +140,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = PathToSlate((&send_file).into()).get_tx()?;
+	let mut slate = PathToSlate((&send_file).into()).get_tx()?.0;
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
@@ -151,7 +151,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let mut slate = PathToSlate(receive_file.into()).get_tx()?;
+		let mut slate = PathToSlate(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
 		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
@@ -218,7 +218,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		slate = PathToSlate((&send_file).into()).get_tx()?;
+		slate = PathToSlate((&send_file).into()).get_tx()?.0;
 		slate = api.process_invoice_tx(m, &slate, args)?;
 		api.tx_lock_outputs(m, &slate)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
@@ -226,7 +226,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	})?;
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = PathToSlate((&receive_file).into()).get_tx()?;
+		slate = PathToSlate((&receive_file).into()).get_tx()?.0;
 		slate = api.finalize_invoice_tx(&slate)?;
 		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
@@ -278,7 +278,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	})?;
 
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = PathToSlate((&send_file).into()).get_tx()?;
+		slate = PathToSlate((&send_file).into()).get_tx()?.0;
 		slate = api.receive_tx(&slate, None)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
@@ -286,7 +286,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		slate = PathToSlate(receive_file.into()).get_tx()?;
+		slate = PathToSlate(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
 		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
