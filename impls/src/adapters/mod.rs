@@ -55,13 +55,14 @@ pub trait SlateReceiver {
 /// Posts slates to be read later by a corresponding getter
 pub trait SlatePutter {
 	/// Send a transaction asynchronously
-	fn put_tx(&self, slate: &Slate) -> Result<(), Error>;
+	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error>;
 }
 
 /// Checks for a transaction from a corresponding SlatePutter, returns the transaction if it exists
 pub trait SlateGetter {
-	/// Receive a transaction async. (Actually just read it from wherever and return the slate)
-	fn get_tx(&self) -> Result<Slate, Error>;
+	/// Receive a transaction async. (Actually just read it from wherever and return the slate).
+	/// Returns (Slate, whether it was in binary form)
+	fn get_tx(&self) -> Result<(Slate, bool), Error>;
 }
 
 /// select a SlateSender based on method and dest fields from, e.g., SendArgs

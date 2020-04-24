@@ -16,15 +16,17 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
-use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedSlate};
+use crate::client_utils::byte_ser;
+use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
 use crate::{SlateGetter, SlatePutter};
+use std::convert::TryFrom;
 use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct PathToSlate(pub PathBuf);
 
 impl SlatePutter for PathToSlate {
-	fn put_tx(&self, slate: &Slate) -> Result<(), Error> {
+	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
 		// * Will need to set particpant id to 1 manually if this is invoice
@@ -43,21 +45,39 @@ impl SlatePutter for PathToSlate {
 				VersionedSlate::into_version(s, SlateVersion::V4)?
 			}
 		};
-		pub_tx.write_all(
-			serde_json::to_string_pretty(&out_slate)
-				.map_err(|_| ErrorKind::SlateSer)?
-				.as_bytes(),
-		)?;
+		if as_bin {
+			let bin_slate =
+				VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;
+			pub_tx.write_all(&byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlateSer)?)?;
+		} else {
+			pub_tx.write_all(
+				serde_json::to_string_pretty(&out_slate)
+					.map_err(|_| ErrorKind::SlateSer)?
+					.as_bytes(),
+			)?;
+		}
 		pub_tx.sync_all()?;
 		Ok(())
 	}
 }
 
 impl SlateGetter for PathToSlate {
-	fn get_tx(&self) -> Result<Slate, Error> {
+	fn get_tx(&self) -> Result<(Slate, bool), Error> {
+		// try as bin first, then as json
 		let mut pub_tx_f = File::open(&self.0)?;
-		let mut content = String::new();
-		pub_tx_f.read_to_string(&mut content)?;
-		Ok(Slate::deserialize_upgrade(&content)?)
+		let mut data = Vec::new();
+		pub_tx_f.read_to_end(&mut data)?;
+		let bin_res = byte_ser::from_bytes::<VersionedBinSlate>(&data);
+		if let Err(e) = bin_res {
+			debug!("Not a valid binary slate: {} - Will try JSON", e);
+		} else {
+			if let Ok(s) = bin_res {
+				return Ok((Slate::upgrade(s.into())?, true));
+			}
+		}
+
+		// Otherwise try json
+		let content = String::from_utf8(data).map_err(|_| ErrorKind::SlateSer)?;
+		Ok((Slate::deserialize_upgrade(&content)?, false))
 	}
 }

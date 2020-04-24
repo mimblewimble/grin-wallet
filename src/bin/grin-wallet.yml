@@ -125,6 +125,7 @@ subcommands:
             possible_values:
               - http
               - file
+              - binfile
               - self
               - keybase
             default_value: http
@@ -197,6 +198,10 @@ subcommands:
             short: d
             long: dest
             takes_value: true
+        - bin:
+            help: Whether to output file as binary
+            short: b
+            long: bin
   - pay:
       about: Spend coins to pay the provided invoice transaction
       args:
@@ -224,6 +229,7 @@ subcommands:
             short: m
             long: method
             possible_values:
+              - filebin
               - file
               - http
               - self

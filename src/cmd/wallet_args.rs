@@ -562,11 +562,7 @@ pub fn parse_issue_invoice_args(
 			return Err(ParseError::ArgumentError(msg));
 		}
 	};
-	// message
-	let message = match args.is_present("message") {
-		true => Some(args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
+	let bin = args.is_present("bin");
 	// target slate version to create
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -581,10 +577,10 @@ pub fn parse_issue_invoice_args(
 	let dest = parse_required(args, "dest")?;
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
+		bin,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,
-			message,
 			target_slate_version,
 		},
 	})
@@ -648,7 +644,7 @@ pub fn parse_process_invoice_args(
 		// which requires reading the slate
 
 		let slate = match PathToSlate((&tx_file).into()).get_tx() {
-			Ok(s) => s,
+			Ok(s) => s.0,
 			Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
 		};
 
