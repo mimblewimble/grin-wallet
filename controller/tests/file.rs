@@ -306,7 +306,7 @@ fn wallet_file_exchange_json() {
 	let test_dir = "test_output/file_exchange_bin";
 	setup(test_dir);
 	// Json output
-	if let Err(e) = file_exchange_test_impl(test_dir, false) {
+	if let Err(e) = file_exchange_test_impl(test_dir, true) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	clean_output_dir(test_dir);
@@ -316,7 +316,7 @@ fn wallet_file_exchange_json() {
 fn wallet_file_exchange_bin() {
 	let test_dir = "test_output/file_exchange_json";
 	setup(test_dir);
-	if let Err(e) = file_exchange_test_impl(test_dir, true) {
+	if let Err(e) = file_exchange_test_impl(test_dir, false) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	clean_output_dir(test_dir);
