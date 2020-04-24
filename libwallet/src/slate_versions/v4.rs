@@ -14,25 +14,48 @@
 
 //! Contains V4 of the slate (grin-wallet 4.0.0)
 //! Changes from V3:
-//! * `tx` field becomes an Option
-//! * `tx` field is omitted from the slate if it is None (null)
-//! * `tx` field and enclosed inputs/outputs do not need to be included in the first
-//!   leg of a transaction exchange. (All inputs/outputs naturally need to be present at time
-//!   of posting).
-//! * `num_participants` becomes a u8
-//! * `num_participants` may be omitted from the slate if it is the default 2
-//!    if `num_participants` is omitted, it's value is assumed to be 2
-//! * `lock_height` becomes an Option
-//! * `lock_height` may be omitted from the slate if it is None (null),
-//!    if `lock_height` is omitted, it's value is assumed to be 2
-//! * `ttl_cutoff_height` may be omitted from the slate if it is None (null),
-//! * `payment_proof` may be omitted from the slate if it is None (null),
-//! * `message` is removed from `participant_info` entries
-//! * `message_sig` is removed from `participant_info` entries
-//! * `id` is removed from `participant_info` entries. Parties can identify themselves via
-//!    private keys stored in the transaction context
-//! * `part_sig` may be omitted from a `participant_info` entry if it has not yet been filled out
-//! * `receiver_signature` may be omitted from `payment_proof` if it has not yet been filled out
+//! /#### Top-Level Slate Struct
+
+//! * The `version_info` struct is removed, and is replaced with `ver`, which has the format "[version]:[block header version]"
+//! * `id` becomes a short-form base-64 encoding of the UUID binary
+//! * `sta` is added, with possible values S1|S2|S3|I1|I2|I3|NA
+//! * `num_participants` is renamed to `num_parts`
+//! * `num_parts` may be omitted from the slate. If omitted its value is assumed to be 2.
+//! * `amount` is renamed to `amt`
+//! * `amt` may be removed from the slate on the S2 phase of a transaction.
+//! * `fee` may be removed from the slate on the S2 phase of a transaction. It may also be ommited when intiating an I1 transaction, and added during the I2 phase.
+//! * `lock_height` is renamend to `lock_hgt`
+//! * `lock_hgt` may be omitted from the slate. If omitted its value is assumed to be 0 (not height locked)
+//! * `ttl_cutoff_height` is renamed to `ttl`
+//! * `ttl` may be omitted from the slate. If omitted its value is assumed to be 0 (no TTL).
+//! *  The `participant_data` struct is renamed to `sigs`
+//! * `tx` is removed
+//! *  The `coms` (commitments) array is added, from which the final transaction object can be reconstructed
+//! *  The `payment_proof` struct is renamed to `proof`
+//! * `proof` may be omitted from the slate if it is None (null),
+//!
+//! #### Participant Data (`sigs`)
+//!
+//! * `public_blind_excess` is renamed to `xs`
+//! * `public_nonce` is renamed to `nonce`
+//! * `part_sig` is renamed to `part`
+//! * `part` may be omitted if it has not yet been filled out
+//! * `xs` becomes Base64 encoded instead of a hex string
+//! * `nonce` becomes Base64 encoded instead of a hex string
+//! * `part` becomes Base64 encoded instead of a hex string
+//! * `message` is removed
+//! * `message_sig` is removed
+//! * `id` is removed. Parties can identify themselves via the keys stored in their transaction context
+//!
+//! #### Payment Proof Data (`proof`)
+//!
+//! *  The `sender_address` field is renamed to `saddr`
+//! *  The `receiver_address` field is renamed to `raddr`
+//! *  The `receiver_signature` field is renamed to `rsig`
+//! * `saddr` is Base64 encoded instead of a hex string
+//! * `raddr` is Base64 encoded instead of a hex string
+//! * `rsig` is Base64 encoded instead of a hex string
+//! * `rsig` may be omitted if it has not yet been filled out
 
 use crate::grin_core::core::transaction::KernelFeatures;
 use crate::grin_core::libtx::secp_ser;
