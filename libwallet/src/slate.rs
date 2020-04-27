@@ -434,13 +434,19 @@ impl Slate {
 		// Add our public key and nonce to the slate
 		let pub_key = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+		let mut part_sig = part_sig;
 
 		// Remove if already here and replace
 		self.participant_data = self
 			.participant_data
 			.clone()
 			.into_iter()
-			.filter(|v| v.public_nonce != pub_nonce)
+			.filter(|v| {
+				if v.public_nonce == pub_nonce && part_sig == None {
+					part_sig = v.part_sig
+				}
+				v.public_nonce != pub_nonce
+			})
 			.collect();
 
 		self.participant_data.push(ParticipantData {

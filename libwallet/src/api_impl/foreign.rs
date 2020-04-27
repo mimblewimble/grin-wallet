@@ -147,7 +147,10 @@ where
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	if sl.is_compact() {
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, false)?;
+		let mut temp_ctx = context.clone();
+		temp_ctx.sec_key = context.initial_sec_key.clone();
+		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
 	}
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
