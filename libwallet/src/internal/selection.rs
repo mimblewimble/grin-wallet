@@ -24,6 +24,7 @@ use crate::grin_core::libtx::{
 };
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
@@ -111,6 +112,7 @@ pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	slate: &Slate,
 	current_height: u64,
 	context: &Context,
+	excess_override: Option<pedersen::Commitment>,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -153,6 +155,9 @@ where
 		};
 
 		if let Ok(e) = slate.calc_excess(keychain.secp()) {
+			t.kernel_excess = Some(e)
+		}
+		if let Some(e) = excess_override {
 			t.kernel_excess = Some(e)
 		}
 		t.kernel_lookup_min_height = Some(current_height);
@@ -650,7 +655,12 @@ where
 	if update_fee {
 		slate.fee = context.fee;
 	}
+
 	let keychain = wallet.keychain(keychain_mask)?;
+
+	// restore my signature data
+	slate.add_participant_info(&keychain, &context.sec_key, &context.sec_nonce, None)?;
+
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {
 		let input = wallet.iter().find(|out| out.key_id == *id);

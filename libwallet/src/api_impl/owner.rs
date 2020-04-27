@@ -512,6 +512,11 @@ where
 		use_test_rng,
 	)?;
 
+	let keychain = w.keychain(keychain_mask)?;
+	// needs to be stored as we're removing sig data for return trip. this needs to be present
+	// when locking transaction context and updating tx log with excess later
+	context.calculated_excess = Some(ret_slate.calc_excess(keychain.secp())?);
+
 	// if self-sending, merge contexts
 	if let Ok(c) = context_res {
 		context.initial_sec_key = c.initial_sec_key;
@@ -536,9 +541,10 @@ where
 		batch.commit()?;
 	}
 
-	// Can remove amount now
+	// Can remove amount as well as other sig data now
 	if ret_slate.is_compact() {
 		ret_slate.amount = 0;
+		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce)?;
 	}
 
 	ret_slate.state = SlateState::Invoice2;
@@ -558,13 +564,24 @@ where
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
 	let mut sl = slate.clone();
+	let mut excess_override = None;
 	if sl.is_compact() && sl.tx == None {
 		// attempt to repopulate if we're the initiator
 		sl.tx = Some(Transaction::empty());
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+	} else if sl.participant_data.len() == 1 {
+		// purely for invoice workflow, payer needs the excess back temporarily for storage
+		excess_override = context.calculated_excess;
 	}
 	let height = w.w2n_client().get_chain_tip()?.0;
-	selection::lock_tx_context(&mut *w, keychain_mask, &sl, height, &context)
+	selection::lock_tx_context(
+		&mut *w,
+		keychain_mask,
+		&sl,
+		height,
+		&context,
+		excess_override,
+	)
 }
 
 /// Finalize slate

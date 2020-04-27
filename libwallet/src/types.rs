@@ -559,6 +559,9 @@ pub struct Context {
 	pub offset: Option<BlindingFactor>,
 	/// whether this was an invoice transaction
 	pub is_invoice: bool,
+	/// for invoice I2 Only, store the tx excess so we can
+	/// remove it from the slate on return
+	pub calculated_excess: Option<pedersen::Commitment>,
 }
 
 impl Context {
@@ -588,6 +591,7 @@ impl Context {
 			payment_proof_derivation_index: None,
 			offset: offset.clone(),
 			is_invoice,
+			calculated_excess: None,
 		}
 	}
 }

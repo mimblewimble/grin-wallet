@@ -240,23 +240,24 @@ impl Slate {
 			payment_proof: None,
 		}
 	}
-	/// Completes caller's part of round 2, completing signatures
-	pub fn part_data_with_secnonce<K>(
-		&self,
+	/// Removes any signature data that isn't mine, for compacting
+	/// slates for a return journey
+	pub fn remove_other_sigdata<K>(
+		&mut self,
 		keychain: &K,
 		sec_nonce: &SecretKey,
-	) -> Result<Option<ParticipantData>, Error>
+	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
-		for i in 0..self.num_participants() as usize {
-			// find my entry
-			if self.participant_data[i].public_nonce == pub_nonce {
-				return Ok(Some(self.participant_data[i].clone()));
-			}
-		}
-		Ok(None)
+		self.participant_data = self
+			.participant_data
+			.clone()
+			.into_iter()
+			.filter(|v| v.public_nonce == pub_nonce)
+			.collect();
+		Ok(())
 	}
 
 	/// Adds selected inputs and outputs to the slate's transaction
@@ -420,7 +421,7 @@ impl Slate {
 	/// and saves participant's transaction context
 	/// sec_key can be overridden to replace the blinding
 	/// factor (by whoever split the offset)
-	fn add_participant_info<K>(
+	pub fn add_participant_info<K>(
 		&mut self,
 		keychain: &K,
 		sec_key: &SecretKey,
@@ -433,6 +434,20 @@ impl Slate {
 		// Add our public key and nonce to the slate
 		let pub_key = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+		let mut part_sig = part_sig;
+
+		// Remove if already here and replace
+		self.participant_data = self
+			.participant_data
+			.clone()
+			.into_iter()
+			.filter(|v| {
+				if v.public_nonce == pub_nonce && part_sig == None {
+					part_sig = v.part_sig
+				}
+				v.public_nonce != pub_nonce
+			})
+			.collect();
 
 		self.participant_data.push(ParticipantData {
 			public_blind_excess: pub_key,
