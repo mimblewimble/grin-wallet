@@ -650,7 +650,12 @@ where
 	if update_fee {
 		slate.fee = context.fee;
 	}
+
 	let keychain = wallet.keychain(keychain_mask)?;
+
+	// restore my signature data
+	slate.add_participant_info(&keychain, &context.sec_key, &context.sec_nonce, None)?;
+
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {
 		let input = wallet.iter().find(|out| out.key_id == *id);

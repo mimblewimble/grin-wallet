@@ -585,6 +585,7 @@ where
 	if sl.is_compact() {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 	}
+	println!("SLATE TO FINALIZE: {}", sl);
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;

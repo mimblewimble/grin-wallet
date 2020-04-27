@@ -97,7 +97,7 @@ where
 
 	let height = w.last_confirmed_height()?;
 
-	tx::add_output_to_slate(
+	let context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut ret_slate,
@@ -121,9 +121,11 @@ where
 		p.receiver_signature = Some(sig);
 	}
 	// Can remove amount and fee now
+	// as well as sender's sig data
 	if ret_slate.is_compact() {
 		ret_slate.amount = 0;
 		ret_slate.fee = 0;
+		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce)?;
 	}
 
 	ret_slate.state = SlateState::Standard2;
