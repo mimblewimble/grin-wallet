@@ -19,9 +19,7 @@ use crate::libwallet::{
 };
 use crate::util;
 use grin_wallet_util::OnionV3Address;
-use prettytable;
 use std::io::prelude::Write;
-use term;
 
 /// Display outputs in a pretty way
 pub fn outputs(
@@ -60,7 +58,7 @@ pub fn outputs(
 	]);
 
 	for m in outputs {
-		let commit = format!("{}", util::to_hex(m.commit.as_ref().to_vec()));
+		let commit = util::to_hex(m.commit.as_ref().to_vec());
 		let index = match m.output.mmr_index {
 			None => "None".to_owned(),
 			Some(t) => t.to_string(),
@@ -76,7 +74,7 @@ pub fn outputs(
 		};
 
 		let num_confirmations = format!("{}", m.output.num_confirmations(cur_height));
-		let value = format!("{}", core::amount_to_hr_string(m.output.value, false));
+		let value = core::amount_to_hr_string(m.output.value, false);
 		let tx = match m.output.tx_log_entry {
 			None => "".to_owned(),
 			Some(t) => t.to_string(),
@@ -128,7 +126,7 @@ pub fn txs(
 	account: &str,
 	cur_height: u64,
 	validated: bool,
-	txs: &Vec<TxLogEntry>,
+	txs: &[TxLogEntry],
 	include_status: bool,
 	dark_background_color_scheme: bool,
 ) -> Result<(), Error> {
@@ -189,7 +187,7 @@ pub fn txs(
 		let amount_debited_str = core::amount_to_hr_string(t.amount_debited, true);
 		let amount_credited_str = core::amount_to_hr_string(t.amount_credited, true);
 		let fee = match t.fee {
-			Some(f) => format!("{}", core::amount_to_hr_string(f, true)),
+			Some(f) => core::amount_to_hr_string(f, true),
 			None => "None".to_owned(),
 		};
 		let net_diff = if t.amount_credited >= t.amount_debited {
@@ -231,44 +229,42 @@ pub fn txs(
 				bFB->kernel_excess,
 				bFb->tx_data,
 			]);
+		} else if t.confirmed {
+			table.add_row(row![
+				bFD->id,
+				bFb->entry_type,
+				bFD->slate_id,
+				bFB->creation_ts,
+				bFg->confirmed,
+				bFB->confirmation_ts,
+				bFD->num_inputs,
+				bFD->num_outputs,
+				bFG->amount_credited_str,
+				bFD->amount_debited_str,
+				bFD->fee,
+				bFG->net_diff,
+				bfG->payment_proof,
+				bFB->kernel_excess,
+				bFB->tx_data,
+			]);
 		} else {
-			if t.confirmed {
-				table.add_row(row![
-					bFD->id,
-					bFb->entry_type,
-					bFD->slate_id,
-					bFB->creation_ts,
-					bFg->confirmed,
-					bFB->confirmation_ts,
-					bFD->num_inputs,
-					bFD->num_outputs,
-					bFG->amount_credited_str,
-					bFD->amount_debited_str,
-					bFD->fee,
-					bFG->net_diff,
-					bfG->payment_proof,
-					bFB->kernel_excess,
-					bFB->tx_data,
-				]);
-			} else {
-				table.add_row(row![
-					bFD->id,
-					bFb->entry_type,
-					bFD->slate_id,
-					bFB->creation_ts,
-					bFR->confirmed,
-					bFB->confirmation_ts,
-					bFD->num_inputs,
-					bFD->num_outputs,
-					bFG->amount_credited_str,
-					bFD->amount_debited_str,
-					bFD->fee,
-					bFG->net_diff,
-					bfG->payment_proof,
-					bFB->kernel_excess,
-					bFB->tx_data,
-				]);
-			}
+			table.add_row(row![
+				bFD->id,
+				bFb->entry_type,
+				bFD->slate_id,
+				bFB->creation_ts,
+				bFR->confirmed,
+				bFB->confirmation_ts,
+				bFD->num_inputs,
+				bFD->num_outputs,
+				bFG->amount_credited_str,
+				bFD->amount_debited_str,
+				bFD->fee,
+				bFG->net_diff,
+				bfG->payment_proof,
+				bFB->kernel_excess,
+				bFB->tx_data,
+			]);
 		}
 	}
 
@@ -306,7 +302,7 @@ pub fn info(
 		]);
 		if wallet_info.amount_reverted > 0 {
 			table.add_row(row![
-				Fr->format!("Reverted"),
+				Fr->"Reverted",
 				Fr->amount_to_hr_string(wallet_info.amount_reverted, false)
 			]);
 		}
@@ -323,7 +319,7 @@ pub fn info(
 			FY->amount_to_hr_string(wallet_info.amount_awaiting_confirmation, false)
 		]);
 		table.add_row(row![
-			bFB->format!("Awaiting Finalization"),
+			bFB->"Awaiting Finalization",
 			FB->amount_to_hr_string(wallet_info.amount_awaiting_finalization, false)
 		]);
 		table.add_row(row![
@@ -345,7 +341,7 @@ pub fn info(
 		]);
 		if wallet_info.amount_reverted > 0 {
 			table.add_row(row![
-				Fr->format!("Reverted"),
+				Fr->"Reverted",
 				Fr->amount_to_hr_string(wallet_info.amount_reverted, false)
 			]);
 		}
@@ -467,7 +463,7 @@ pub fn tx_messages(tx: &TxLogEntry, dark_background_color_scheme: bool) -> Resul
 			t.reset().unwrap();
 			return Ok(());
 		}
-		Some(m) => m.clone(),
+		Some(m) => m,
 	};
 
 	if msgs.messages.is_empty() {
@@ -490,16 +486,13 @@ pub fn tx_messages(tx: &TxLogEntry, dark_background_color_scheme: bool) -> Resul
 
 	for m in msgs.messages {
 		let id = format!("{}", m.id);
-		let public_key = format!(
-			"{}",
-			util::to_hex(m.public_key.serialize_vec(&secp_lock, true).to_vec())
-		);
+		let public_key = util::to_hex(m.public_key.serialize_vec(&secp_lock, true).to_vec());
 		let message = match m.message {
-			Some(m) => format!("{}", m),
+			Some(m) => m,
 			None => "None".to_owned(),
 		};
 		let message_sig = match m.message_sig {
-			Some(s) => format!("{}", util::to_hex(s.serialize_der(&secp_lock))),
+			Some(s) => util::to_hex(s.serialize_der(&secp_lock)),
 			None => "None".to_owned(),
 		};
 		if dark_background_color_scheme {
@@ -561,10 +554,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	let amount = if tx.amount_credited >= tx.amount_debited {
 		core::amount_to_hr_string(tx.amount_credited - tx.amount_debited, true)
 	} else {
-		format!(
-			"{}",
-			core::amount_to_hr_string(tx.amount_debited - tx.amount_credited - fee, true)
-		)
+		core::amount_to_hr_string(tx.amount_debited - tx.amount_credited - fee, true)
 	};
 
 	let sender_signature = match pp.sender_signature {

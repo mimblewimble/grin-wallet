@@ -34,7 +34,6 @@ use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{Mutex, RwLock};
 use failure::ResultExt;
-use serde_json;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};

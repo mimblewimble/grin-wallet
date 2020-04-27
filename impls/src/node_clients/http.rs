@@ -198,7 +198,7 @@ impl NodeClient for HTTPNodeClient {
 		// build vec of commits for inclusion in query
 		let query_params: Vec<String> = wallet_outputs
 			.iter()
-			.map(|commit| format!("{}", util::to_hex(commit.as_ref().to_vec())))
+			.map(|commit| util::to_hex(commit.as_ref().to_vec()))
 			.collect();
 
 		// going to leave this here even though we're moving

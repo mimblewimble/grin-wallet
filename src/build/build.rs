@@ -14,7 +14,6 @@
 
 //! Build hooks to spit out version+build time info
 
-use built;
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;

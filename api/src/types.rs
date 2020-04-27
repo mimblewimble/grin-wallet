@@ -18,7 +18,6 @@ use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, to_hex};
 use failure::ResultExt;
 
-use base64;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use rand::{thread_rng, Rng};
 use ring::aead;
@@ -91,7 +90,7 @@ impl EncryptedBody {
 			aad,
 			&mut to_encrypt,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(
 				ErrorKind::APIEncryption("EncryptedBody: encryption failed".to_owned()).into(),
 			);
@@ -141,7 +140,7 @@ impl EncryptedBody {
 		let aad = aead::Aad::from(&[]);
 		let res =
 			opening_key.open_in_place(aead::Nonce::assume_unique_for_key(n), aad, &mut to_decrypt);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(
 				ErrorKind::APIEncryption("EncryptedBody: decryption failed".to_owned()).into(),
 			);

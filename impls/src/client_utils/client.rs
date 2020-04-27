@@ -20,10 +20,8 @@ use failure::{Backtrace, Context, Fail, ResultExt};
 use hyper::body;
 use hyper::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use hyper::{self, Body, Client as HyperClient, Request, Uri};
-use hyper_rustls;
 use hyper_timeout::TimeoutConnector;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -114,11 +112,7 @@ impl Client {
 	/// Helper function to easily issue an async HTTP GET request against a given
 	/// URL that returns a future. Handles request building, JSON deserialization
 	/// and response code checking.
-	pub async fn _get_async<'a, T>(
-		&self,
-		url: &'a str,
-		api_secret: Option<String>,
-	) -> Result<T, Error>
+	pub async fn _get_async<T>(&self, url: &str, api_secret: Option<String>) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de> + Send + 'static,
 	{

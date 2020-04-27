@@ -37,7 +37,6 @@ use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_util::OnionV3Address;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
-use rpassword;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -206,7 +205,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
+	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client).unwrap())
 		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	let _ = lc.set_top_level_directory(&config.data_file_dir);
@@ -254,10 +253,7 @@ pub fn parse_global_args(
 	args: &ArgMatches,
 ) -> Result<command::GlobalArgs, ParseError> {
 	let account = parse_required(args, "account")?;
-	let mut show_spent = false;
-	if args.is_present("show_spent") {
-		show_spent = true;
-	}
+	let show_spent = args.is_present("show_spent");
 	let api_secret = get_first_line(config.api_secret_path.clone());
 	let node_api_secret = get_first_line(config.node_api_secret_path.clone());
 	let password = match args.value_of("pass") {
@@ -271,7 +267,7 @@ pub fn parse_global_args(
 			let key = match config.tls_certificate_key.clone() {
 				Some(k) => k,
 				None => {
-					let msg = format!("Private key for certificate is not set");
+					let msg = "Private key for certificate is not set".to_string();
 					return Err(ParseError::ArgumentError(msg));
 				}
 			};
@@ -434,12 +430,10 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 				Some(d) => d,
 				None => "default",
 			}
+		} else if !estimate_selection_strategies {
+			parse_required(args, "dest")?
 		} else {
-			if !estimate_selection_strategies {
-				parse_required(args, "dest")?
-			} else {
-				""
-			}
+			""
 		}
 	};
 
@@ -561,7 +555,7 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 		input: tx_file.to_owned(),
 		fluff: fluff,
 		nopost: nopost,
-		dest: dest_file.to_owned(),
+		dest: dest_file,
 	})
 }
 
@@ -639,12 +633,10 @@ pub fn parse_process_invoice_args(
 				Some(d) => d,
 				None => "default",
 			}
+		} else if !estimate_selection_strategies {
+			parse_required(args, "dest")?
 		} else {
-			if !estimate_selection_strategies {
-				parse_required(args, "dest")?
-			} else {
-				""
-			}
+			""
 		}
 	};
 	if !estimate_selection_strategies
@@ -707,7 +699,7 @@ pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseEr
 	let start_height = parse_u64_or_none(args.value_of("start_height"));
 	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
 	if backwards_from_tip.is_some() && start_height.is_some() {
-		let msg = format!("backwards_from tip and start_height cannot both be present");
+		let msg = "backwards_from tip and start_height cannot both be present".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::CheckArgs {
@@ -733,7 +725,7 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		},
 	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::TxsArgs {
@@ -791,7 +783,7 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 		},
 	};
 	if (tx_id.is_none() && tx_slate_id.is_none()) || (tx_id.is_some() && tx_slate_id.is_some()) {
-		let msg = format!("'id' (-i) or 'txid' (-t) argument is required.");
+		let msg = "'id' (-i) or 'txid' (-t) argument is required.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::CancelArgs {
@@ -818,11 +810,11 @@ pub fn parse_export_proof_args(args: &ArgMatches) -> Result<command::ProofExport
 		},
 	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	if tx_id.is_none() && tx_slate_id.is_none() {
-		let msg = format!("Either 'id' (-i) or 'txid' (-t) must be provided.");
+		let msg = "Either 'id' (-i) or 'txid' (-t) must be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::ProofExportArgs {
@@ -873,11 +865,11 @@ where
 	}
 
 	if let Some(dir) = wallet_args.value_of("top_level_dir") {
-		wallet_config.data_file_dir = dir.to_string().clone();
+		wallet_config.data_file_dir = dir.to_string();
 	}
 
 	if let Some(sa) = wallet_args.value_of("api_server_address") {
-		wallet_config.check_node_api_http_addr = sa.to_string().clone();
+		wallet_config.check_node_api_http_addr = sa.to_string();
 	}
 
 	let global_wallet_args = arg_parse!(parse_global_args(&wallet_config, &wallet_args));
@@ -1147,7 +1139,7 @@ where
 			Ok(())
 		}
 		_ => {
-			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
+			let msg = "Unknown wallet command, use 'grin-wallet help' for details".to_string();
 			return Err(ErrorKind::ArgumentError(msg).into());
 		}
 	}

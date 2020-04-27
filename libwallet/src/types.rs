@@ -32,8 +32,6 @@ use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
-use serde;
-use serde_json;
 use std::collections::HashMap;
 use std::fmt;
 use std::time::Duration;
@@ -502,9 +500,8 @@ impl OutputData {
 
 	/// Mark an output as reverted
 	pub fn mark_reverted(&mut self) {
-		match self.status {
-			OutputStatus::Unspent => self.status = OutputStatus::Reverted,
-			_ => (),
+		if let OutputStatus::Unspent = self.status {
+			self.status = OutputStatus::Reverted
 		}
 	}
 }

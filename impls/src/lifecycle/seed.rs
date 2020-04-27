@@ -20,7 +20,6 @@ use std::path::MAIN_SEPARATOR;
 
 use crate::blake2;
 use rand::{thread_rng, Rng};
-use serde_json;
 
 use ring::aead;
 use ring::pbkdf2;
@@ -261,7 +260,7 @@ impl EncryptedWalletSeed {
 			aad,
 			&mut enc_bytes,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(ErrorKind::Encryption.into());
 		}
 
@@ -306,7 +305,7 @@ impl EncryptedWalletSeed {
 			aad,
 			&mut encrypted_seed,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(ErrorKind::Encryption.into());
 		}
 		for _ in 0..aead::AES_256_GCM.tag_len() {

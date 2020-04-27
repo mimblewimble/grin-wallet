@@ -44,14 +44,12 @@ pub fn info_strings() -> (String, String) {
 			built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
 			built_info::TARGET,
 			built_info::RUSTC_VERSION,
-		)
-		.to_string(),
+		),
 		format!(
 			"Built with profile \"{}\", features \"{}\".",
 			built_info::PROFILE,
 			built_info::FEATURES_STR,
-		)
-		.to_string(),
+		),
 	)
 }
 
@@ -81,7 +79,7 @@ fn real_main() -> i32 {
 	};
 
 	let mut current_dir = None;
-	let mut create_path = false;
+	let create_path = false;
 
 	if args.is_present("top_level_dir") {
 		let res = args.value_of("top_level_dir");
@@ -96,16 +94,12 @@ fn real_main() -> i32 {
 	}
 
 	// special cases for certain lifecycle commands
-	match args.subcommand() {
-		("init", Some(init_args)) => {
-			if init_args.is_present("here") {
-				current_dir = Some(env::current_dir().unwrap_or_else(|e| {
-					panic!("Error creating config file: {}", e);
-				}));
-			}
-			create_path = true;
+	if let ("init", Some(init_args)) = args.subcommand() {
+		if init_args.is_present("here") {
+			current_dir = Some(env::current_dir().unwrap_or_else(|e| {
+				panic!("Error creating config file: {}", e);
+			}));
 		}
-		_ => {}
 	}
 
 	// Load relevant config, try and load a wallet config file
@@ -129,10 +123,9 @@ fn real_main() -> i32 {
 	// Load logging config
 	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
 	// no logging to stdout if we're running cli
-	match args.subcommand() {
-		("cli", _) => l.log_to_stdout = true,
-		_ => {}
-	};
+	if let ("cli", _) = args.subcommand() {
+		l.log_to_stdout = true
+	}
 	init_logger(Some(l), None);
 	info!(
 		"Using wallet configuration file at {}",

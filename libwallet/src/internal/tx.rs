@@ -495,7 +495,7 @@ where
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		let orig_proof_info = match orig_proof_info {
-			Some(p) => p.clone(),
+			Some(p) => p,
 			None => {
 				return Err(ErrorKind::PaymentProof(
 					"Original proof info not stored in tx".to_owned(),

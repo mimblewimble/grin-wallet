@@ -36,8 +36,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
-const PROMPT: &'static str = "grin-wallet> ";
+const COLORED_PROMPT: &str = "\x1b[36mgrin-wallet>\x1b[0m ";
+const PROMPT: &str = "grin-wallet> ";
 //const HISTORY_PATH: &str = ".history";
 
 // static for keeping track of current stdin buffer contents

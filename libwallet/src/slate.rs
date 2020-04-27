@@ -37,7 +37,6 @@ use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde::ser::{Serialize, Serializer};
-use serde_json;
 use std::convert::TryFrom;
 use std::fmt;
 use std::sync::Arc;
@@ -725,8 +724,8 @@ impl Slate {
 
 		// update the tx kernel to reflect the offset excess and sig
 		assert_eq!(final_tx.kernels().len(), 1);
-		final_tx.kernels_mut()[0].excess = final_excess.clone();
-		final_tx.kernels_mut()[0].excess_sig = final_sig.clone();
+		final_tx.kernels_mut()[0].excess = final_excess;
+		final_tx.kernels_mut()[0].excess_sig = *final_sig;
 
 		// confirm the kernel verifies successfully before proceeding
 		debug!("Validating final transaction");

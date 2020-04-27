@@ -16,9 +16,6 @@
 //! JSON RPC Client functionality
 use std::{error, fmt};
 
-use hyper;
-use serde_json;
-
 /// Builds a request
 pub fn build_request<'a, 'b>(name: &'a str, params: &'b serde_json::Value) -> Request<'a, 'b> {
 	Request {
@@ -143,7 +140,7 @@ impl fmt::Display for Error {
 				write!(f, "duplicate RPC batch response ID: {}", v)
 			}
 			Error::_WrongBatchResponseId(ref v) => write!(f, "wrong RPC batch response ID: {}", v),
-			_ => f.write_str(std::error::Error::description(self)),
+			_ => f.write_str(&self.to_string()),
 		}
 	}
 }

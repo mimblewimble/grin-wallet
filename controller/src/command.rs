@@ -160,7 +160,7 @@ where
 			if let Ok(t) = api_thread {
 				if !cli_mode {
 					let r = t.join();
-					if let Err(_) = r {
+					if r.is_err() {
 						error!("Error starting listener");
 						return Err(ErrorKind::ListenerError.into());
 					}
@@ -210,7 +210,7 @@ where
 		config.owner_api_listen_addr().as_str(),
 		g_args.api_secret.clone(),
 		g_args.tls_conf.clone(),
-		config.owner_api_include_foreign.clone(),
+		config.owner_api_include_foreign,
 		Some(tor_config.clone()),
 	);
 	if let Err(e) = res {
@@ -461,7 +461,8 @@ where
 				error!("Expected slate participant data missing");
 				return Err(ErrorKind::ArgumentError(
 					"Expected Slate participant data missing".into(),
-				))?;
+				)
+				.into());
 			}
 			Some(p) => !p.is_complete(),
 		}
@@ -733,7 +734,7 @@ where
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
-		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
+		let include_status = args.id.is_none() && args.tx_slate_id.is_none();
 		display::txs(
 			&g_args.account,
 			res.height,
@@ -800,7 +801,7 @@ where
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		api.post_tx(m, slate.tx_or_err()?, args.fluff)?;
 		info!("Posted transaction");
-		return Ok(());
+		Ok(())
 	})?;
 	Ok(())
 }

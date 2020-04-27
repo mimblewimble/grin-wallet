@@ -32,7 +32,6 @@ use grin_wallet_util as util;
 
 use blake2_rfc as blake2;
 
-use failure;
 extern crate failure_derive;
 
 #[macro_use]

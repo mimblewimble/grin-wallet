@@ -29,7 +29,6 @@ use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Owner, PubAddress, Token};
-use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
 use std::convert::TryFrom;
@@ -2224,7 +2223,7 @@ where
 		mnemonic_length: u32,
 		password: String,
 	) -> Result<(), ErrorKind> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		let m = match mnemonic {
 			Some(s) => Some(ZeroingString::from(s)),
 			None => None,
@@ -2234,7 +2233,7 @@ where
 	}
 
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, ErrorKind> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		let sec_key = Owner::open_wallet(self, n, ZeroingString::from(password), true)
 			.map_err(|e| e.kind())?;
 		Ok(Token {
@@ -2243,12 +2242,12 @@ where
 	}
 
 	fn close_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		Owner::close_wallet(self, n).map_err(|e| e.kind())
 	}
 
 	fn get_mnemonic(&self, name: Option<String>, password: String) -> Result<String, ErrorKind> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		let res =
 			Owner::get_mnemonic(self, n, ZeroingString::from(password)).map_err(|e| e.kind())?;
 		Ok((&*res).to_string())
@@ -2260,13 +2259,13 @@ where
 		old: String,
 		new: String,
 	) -> Result<(), ErrorKind> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		Owner::change_password(self, n, ZeroingString::from(old), ZeroingString::from(new))
 			.map_err(|e| e.kind())
 	}
 
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		Owner::delete_wallet(self, n).map_err(|e| e.kind())
 	}
 

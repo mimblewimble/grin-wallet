@@ -30,7 +30,6 @@ use hyper::body;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -42,7 +41,6 @@ use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
 	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
 };
-use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
 
 lazy_static! {
@@ -65,11 +63,12 @@ fn check_middleware(
 			}
 			if let Some(s) = slate {
 				if bhv > 3 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
-					Err(ErrorKind::Compatibility(
+					return Err(ErrorKind::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
 						 Please upgrade the node or use a different one."
 							.into(),
-					))?;
+					)
+					.into());
 				}
 			}
 			Ok(())
@@ -98,15 +97,15 @@ where
 	let parent_key_id = w_inst.parent_key_id();
 	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 	let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
-		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 	let onion_address = OnionV3Address::from_private(&sec_key.0)
-		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr
 	);
-	tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
-		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	tor_config::output_tor_listener_config(&tor_dir, addr, &[sec_key])
+		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 	// Start TOR process
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))
@@ -114,7 +113,7 @@ where
 		.timeout(20)
 		.completion_percent(100)
 		.launch()
-		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
+		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)))?;
 	Ok(process)
 }
 
@@ -138,9 +137,9 @@ where
 			let wallet = match wallet {
 				Some(w) => w,
 				None => {
-					return Err(ErrorKind::GenericError(format!(
-						"Instantiated wallet or Owner API context must be provided"
-					))
+					return Err(ErrorKind::GenericError(
+						"Instantiated wallet or Owner API context must be provided".to_string(),
+					)
 					.into())
 				}
 			};
@@ -190,9 +189,9 @@ where
 	K: Keychain + 'static,
 {
 	let mut router = Router::new();
-	if api_secret.is_some() {
+	if let Some(api_secret) = api_secret {
 		let api_basic_auth =
-			"Basic ".to_string() + &to_base64(&("grin:".to_string() + &api_secret.unwrap()));
+			"Basic ".to_string() + &to_base64(&("grin:".to_string() + &api_secret));
 		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(
 			api_basic_auth,
 			&GRIN_OWNER_BASIC_REALM,
@@ -200,10 +199,11 @@ where
 		));
 		router.add_middleware(basic_auth_middleware);
 	}
-	let mut running_foreign = false;
-	if owner_api_include_foreign.unwrap_or(false) {
-		running_foreign = true;
-	}
+	let running_foreign = if owner_api_include_foreign.unwrap_or(false) {
+		true
+	} else {
+		false
+	};
 
 	let api_handler_v3 = OwnerAPIHandlerV3::new(
 		wallet.clone(),
@@ -388,7 +388,7 @@ impl OwnerV3Helpers {
 		val: &serde_json::Value,
 		new_key: Option<SecretKey>,
 	) {
-		if let Some(_) = val["result"]["Ok"].as_str() {
+		if val["result"]["Ok"].as_str().is_some() {
 			let mut share_key_ref = key.lock();
 			*share_key_ref = new_key;
 		}
@@ -510,19 +510,17 @@ impl OwnerV3Helpers {
 			None
 		};
 		match err_string {
-			Some(s) => {
-				return (
-					true,
-					serde_json::json!({
-						"jsonrpc": "2.0",
-						"id": val["id"],
-						"error": {
-							"message": s,
-							"code": -32099
-						}
-					}),
-				)
-			}
+			Some(s) => (
+				true,
+				serde_json::json!({
+					"jsonrpc": "2.0",
+					"id": val["id"],
+					"error": {
+						"message": s,
+						"code": -32099
+					}
+				}),
+			),
 			None => (false, val.clone()),
 		}
 	}

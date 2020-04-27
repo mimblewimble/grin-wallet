@@ -246,7 +246,7 @@ impl TorProcess {
 				let timestamp = &raw_line[..timestamp_len];
 				let line = &raw_line[timestamp_len + 1..raw_line.len() - 1];
 				debug!("{} {}", timestamp, line);
-				match line.split(' ').nth(0) {
+				match line.split(' ').next() {
 					Some("[notice]") => {
 						if let Some("Bootstrapped") = line.split(' ').nth(1) {
 							let perc = re_bootstrap
