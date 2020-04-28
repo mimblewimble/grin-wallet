@@ -208,7 +208,7 @@ where
 	fn store_tx(&self, uuid: &str, tx: &Transaction) -> Result<(), Error>;
 
 	/// Retrieves a stored transaction from a TxLogEntry
-	fn get_stored_tx(&self, entry: &TxLogEntry) -> Result<Option<Transaction>, Error>;
+	fn get_stored_tx(&self, uuid: &str) -> Result<Option<Transaction>, Error>;
 
 	/// Create a new write batch to update or remove output data
 	fn batch<'a>(

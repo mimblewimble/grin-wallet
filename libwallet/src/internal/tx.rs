@@ -360,9 +360,7 @@ where
 		Some(t) => t,
 		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into()),
 	};
-	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 	let parent_key = tx.parent_key_id.clone();
-
 	{
 		let keychain = wallet.keychain(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
@@ -389,6 +387,8 @@ where
 			sender_signature: Some(sig),
 		})
 	}
+
+	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
