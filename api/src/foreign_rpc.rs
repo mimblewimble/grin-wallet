@@ -163,7 +163,7 @@ pub trait ForeignRpc {
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBuDzJAtTJOYgRDsL76wJaXewdjHgSi+P4wTP6JNel0H5g==",
+						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBsrNb0o39ImngZw4M+ScL1t8tA/vWRSPuSuYiOWBVuW/A==",
 						"xs": "A4/gRDJD2rFzwGjvX6iRskLSteuJDqCUdebjgRcEQu4W"
 					}
 				],
