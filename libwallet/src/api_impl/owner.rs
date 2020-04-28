@@ -544,7 +544,7 @@ where
 	// Can remove amount as well as other sig data now
 	if ret_slate.is_compact() {
 		ret_slate.amount = 0;
-		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce)?;
+		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
 	}
 
 	ret_slate.state = SlateState::Invoice2;
