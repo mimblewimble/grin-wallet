@@ -246,16 +246,18 @@ impl Slate {
 		&mut self,
 		keychain: &K,
 		sec_nonce: &SecretKey,
+		sec_key: &SecretKey,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+		let pub_key = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		self.participant_data = self
 			.participant_data
 			.clone()
 			.into_iter()
-			.filter(|v| v.public_nonce == pub_nonce)
+			.filter(|v| v.public_nonce == pub_nonce && v.public_blind_excess == pub_key)
 			.collect();
 		Ok(())
 	}
@@ -355,9 +357,12 @@ impl Slate {
 			&self.msg_to_sign()?,
 		)?;
 		let pub_excess = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
+		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
 		for i in 0..self.num_participants() as usize {
 			// find my entry
-			if self.participant_data[i].public_blind_excess == pub_excess {
+			if self.participant_data[i].public_blind_excess == pub_excess
+				&& self.participant_data[i].public_nonce == pub_nonce
+			{
 				self.participant_data[i].part_sig = Some(sig_part);
 				break;
 			}
@@ -442,10 +447,13 @@ impl Slate {
 			.clone()
 			.into_iter()
 			.filter(|v| {
-				if v.public_nonce == pub_nonce && part_sig == None {
+				if v.public_nonce == pub_nonce
+					&& v.public_blind_excess == pub_key
+					&& part_sig == None
+				{
 					part_sig = v.part_sig
 				}
-				v.public_nonce != pub_nonce
+				v.public_nonce != pub_nonce || v.public_blind_excess != pub_key
 			})
 			.collect();
 
