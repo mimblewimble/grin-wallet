@@ -803,7 +803,7 @@ where
 {
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
-		let stored_tx = api.get_stored_tx(m, &txs[0])?;
+		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
 		if stored_tx.is_none() {
 			error!(
 				"Transaction with id {} does not have transaction data. Not reposting.",

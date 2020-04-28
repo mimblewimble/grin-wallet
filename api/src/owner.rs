@@ -1092,22 +1092,21 @@ where
 	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
-	///     let stored_tx = api_owner.get_stored_tx(None, &tx_log_entries[0]).unwrap();
+	///     let stored_tx = api_owner.get_stored_tx(None, tx_log_entries[0].tx_slate_id.unwrap()).unwrap();
 	///     //...
 	/// }
 	/// ```
 
-	// TODO: Should be accepting an id, not an entire entry struct
 	pub fn get_stored_tx(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		tx_log_entry: &TxLogEntry,
+		tx_id: Uuid,
 	) -> Result<Option<Transaction>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::get_stored_tx(&**w, tx_log_entry)
+		owner::get_stored_tx(&**w, &tx_id)
 	}
 
 	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet

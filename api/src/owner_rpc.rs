@@ -798,39 +798,7 @@ pub trait OwnerRpc {
 		"id": 1,
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
-			"tx": {
-				"amount_credited": "59993000000",
-				"amount_debited": "120000000000",
-				"confirmation_ts": "2019-01-15T16:01:26Z",
-				"confirmed": false,
-				"creation_ts": "2019-01-15T16:01:26Z",
-				"fee": "7000000",
-				"id": 5,
-				"messages": {
-					"messages": [
-						{
-							"id": "0",
-							"message": null,
-							"message_sig": null,
-							"public_key": "033ac2158fa0077f087de60c19d8e431753baa5b63b6e1477f05a2a6e7190d4592"
-						},
-						{
-							"id": "1",
-							"message": null,
-							"message_sig": null,
-							"public_key": "024f9bc78c984c78d6e916d3a00746aa30fa1172124c8dbc0cbddcb7b486719bc7"
-						}
-					]
-				},
-				"num_inputs": 2,
-				"num_outputs": 1,
-				"parent_key_id": "0200000000000000000000000000000000",
-				"stored_tx": "0436430c-2b02-624c-2032-570501212b00.grintx",
-				"tx_slate_id": "0436430c-2b02-624c-2032-570501212b00",
-				"tx_type": "TxSent",
-				"kernel_excess": null,
-				"kernel_lookup_min_height": null
-			}
+			"id": "0436430c-2b02-624c-2032-570501212b00"
 		}
 	}
 	# "#
@@ -847,9 +815,11 @@ pub trait OwnerRpc {
 						{
 							"excess": "000000000000000000000000000000000000000000000000000000000000000000",
 							"excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-							"features": "Plain",
-							"fee": "7000000",
-							"lock_height": "0"
+							"features": {
+								"Plain": {
+									"fee": 7000000
+								}
+							}
 						}
 					],
 					"outputs": [
@@ -868,11 +838,7 @@ pub trait OwnerRpc {
 	# , 5, true, true, false, false);
 	```
 	 */
-	fn get_stored_tx(
-		&self,
-		token: Token,
-		tx: &TxLogEntry,
-	) -> Result<Option<TransactionV4>, ErrorKind>;
+	fn get_stored_tx(&self, token: Token, id: Uuid) -> Result<Option<Transaction>, ErrorKind>;
 
 	/**
 	Networked version of [Owner::scan](struct.Owner.html#method.scan).
@@ -1743,14 +1709,8 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn get_stored_tx(
-		&self,
-		token: Token,
-		tx: &TxLogEntry,
-	) -> Result<Option<TransactionV4>, ErrorKind> {
-		Owner::get_stored_tx(self, (&token.keychain_mask).as_ref(), tx)
-			.map(|x| x.map(TransactionV4::from))
-			.map_err(|e| e.kind())
+	fn get_stored_tx(&self, token: Token, uuid: Uuid) -> Result<Option<Transaction>, ErrorKind> {
+		Owner::get_stored_tx(self, (&token.keychain_mask).as_ref(), uuid).map_err(|e| e.kind())
 	}
 
 	fn post_tx(&self, token: Token, tx: TransactionV4, fluff: bool) -> Result<(), ErrorKind> {

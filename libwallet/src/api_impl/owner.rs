@@ -648,16 +648,13 @@ where
 }
 
 /// get stored tx
-pub fn get_stored_tx<'a, T: ?Sized, C, K>(
-	w: &T,
-	entry: &TxLogEntry,
-) -> Result<Option<Transaction>, Error>
+pub fn get_stored_tx<'a, T: ?Sized, C, K>(w: &T, id: &Uuid) -> Result<Option<Transaction>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	w.get_stored_tx(entry)
+	w.get_stored_tx(&format!("{}", id))
 }
 
 /// Posts a transaction to the chain
