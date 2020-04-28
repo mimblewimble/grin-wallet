@@ -625,7 +625,6 @@ where
 	///     max_outputs: 500,
 	///     num_change_outputs: 1,
 	///     selection_strategy_is_use_all: false,
-	///     message: Some("Have some Grins. Love, Yeastplume".to_owned()),
 	///     ..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
@@ -766,7 +765,7 @@ where
 	///
 	/// // . . .
 	/// // The slate has been recieved from the invoicer, somehow
-	/// # let slate = Slate::blank(2);
+	/// # let slate = Slate::blank(2, true);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: slate.amount,
@@ -835,7 +834,6 @@ where
 	///     max_outputs: 500,
 	///     num_change_outputs: 1,
 	///     selection_strategy_is_use_all: false,
-	///     message: Some("Remember to lock this when we're happy this is sent".to_owned()),
 	///     ..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
@@ -898,7 +896,6 @@ where
 	///     max_outputs: 500,
 	///     num_change_outputs: 1,
 	///     selection_strategy_is_use_all: false,
-	///     message: Some("Finalize this tx now".to_owned()),
 	///     ..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
@@ -958,7 +955,6 @@ where
 	///     max_outputs: 500,
 	///     num_change_outputs: 1,
 	///     selection_strategy_is_use_all: false,
-	///     message: Some("Post this tx".to_owned()),
 	///     ..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(
@@ -1030,7 +1026,6 @@ where
 	///     max_outputs: 500,
 	///     num_change_outputs: 1,
 	///     selection_strategy_is_use_all: false,
-	///     message: Some("Cancel this tx".to_owned()),
 	///     ..Default::default()
 	/// };
 	/// let result = api_owner.init_send_tx(

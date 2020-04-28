@@ -306,7 +306,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
-	/// # let slate = Slate::blank(2);
+	/// # let slate = Slate::blank(2, false);
 	///
 	/// // . . .
 	/// // Obtain a sent slate somehow
@@ -378,7 +378,7 @@ where
 	/// // If result okay, send to payer, who will apply the transaction via their
 	/// // owner API, then send back the slate
 	/// // ...
-	/// # let slate = Slate::blank(2);
+	/// # let slate = Slate::blank(2, true);
 	///
 	/// let slate = api_foreign.finalize_invoice_tx(&slate);
 	/// // if okay, then post via the owner API
