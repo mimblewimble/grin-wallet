@@ -94,7 +94,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = api.finalize_tx(m, &slate)?;
 		println!("Posted TX: {}", slate);
 		stored_excess = Some(slate.tx.as_ref().unwrap().body.kernels[0].excess);
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
 
@@ -164,7 +164,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask1, None, |api, m| {
 		println!("Invoice Posted TX: {}", slate);
 		stored_excess = Some(slate.tx.as_ref().unwrap().body.kernels[0].excess);
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
 

@@ -158,7 +158,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		println!("TXS[0]: {:?}", txs[0]);
 		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
 		println!("Stored tx: {:?}", stored_tx);
-		api.post_tx(m, &stored_tx.unwrap(), false)?;
+		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;
@@ -226,7 +226,8 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
-		api.post_tx(m, &stored_tx.unwrap(), false)?;
+		slate.tx = stored_tx;
+		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;

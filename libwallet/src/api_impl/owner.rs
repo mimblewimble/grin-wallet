@@ -23,7 +23,7 @@ use crate::grin_util::Mutex;
 use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
@@ -613,7 +613,11 @@ where
 	sl.state = SlateState::Standard3;
 	if sl.is_compact() {
 		sl.amount = 0;
-		sl.fee = 0;
+		// fill in offset in case of delayed posting
+		sl.offset = match context.offset {
+			Some(o) => o,
+			None => BlindingFactor::zero(),
+		};
 	}
 	Ok(sl)
 }

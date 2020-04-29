@@ -115,6 +115,8 @@ pub struct Slate {
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
 	pub ttl_cutoff_height: u64,
+	/// Offset, needed when posting of tranasction is deferred
+	pub offset: BlindingFactor,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
 	/// is receiver, though this will change for multi-party
@@ -232,6 +234,7 @@ impl Slate {
 			fee: 0,
 			lock_height: 0,
 			ttl_cutoff_height: 0,
+			offset: BlindingFactor::zero(),
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
 				version: CURRENT_SLATE_VERSION,
@@ -667,6 +670,7 @@ impl From<Slate> for SlateV4 {
 			fee,
 			lock_height: lock_hgt,
 			ttl_cutoff_height: ttl,
+			offset,
 			participant_data,
 			version_info,
 			payment_proof,
@@ -687,6 +691,7 @@ impl From<Slate> for SlateV4 {
 			fee,
 			lock_hgt,
 			ttl,
+			offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -705,6 +710,7 @@ impl From<&Slate> for SlateV4 {
 			fee,
 			lock_height,
 			ttl_cutoff_height,
+			offset,
 			participant_data,
 			version_info,
 			payment_proof,
@@ -715,6 +721,7 @@ impl From<&Slate> for SlateV4 {
 		let fee = *fee;
 		let lock_hgt = *lock_height;
 		let ttl = *ttl_cutoff_height;
+		let offset = offset.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(version_info);
 		let payment_proof = match payment_proof {
@@ -732,6 +739,7 @@ impl From<&Slate> for SlateV4 {
 			fee,
 			lock_hgt,
 			ttl,
+			offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -932,6 +940,7 @@ impl From<SlateV4> for Slate {
 			fee,
 			lock_hgt: lock_height,
 			ttl: ttl_cutoff_height,
+			offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -952,6 +961,7 @@ impl From<SlateV4> for Slate {
 			fee,
 			lock_height,
 			ttl_cutoff_height,
+			offset,
 			participant_data,
 			version_info,
 			payment_proof,
@@ -967,6 +977,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	let secp = static_secp_instance();
 	let secp = secp.lock();
 	let mut calc_slate = Slate::blank(2, false);
+	calc_slate.fee = slate.fee;
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
 			public_blind_excess: d.xs,
@@ -1007,6 +1018,9 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 				commit: c.c,
 			}),
 		}
+	}
+	if slate.offset != BlindingFactor::zero() {
+		tx.offset = slate.offset.clone()
 	}
 	Some(tx)
 }

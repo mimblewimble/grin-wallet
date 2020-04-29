@@ -155,7 +155,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
 		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;
@@ -232,7 +232,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		Ok(())
 	})?;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
 
@@ -290,7 +290,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
 		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;

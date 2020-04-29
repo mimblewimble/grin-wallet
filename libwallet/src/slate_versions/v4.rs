@@ -30,6 +30,7 @@
 //! * `ttl` may be omitted from the slate. If omitted its value is assumed to be 0 (no TTL).
 //! *  The `participant_data` struct is renamed to `sigs`
 //! * `tx` is removed
+//! * `offset` is added
 //! *  The `coms` (commitments) array is added, from which the final transaction object can be reconstructed
 //! *  The `payment_proof` struct is renamed to `proof`
 //! * `proof` may be omitted from the slate if it is None (null),
@@ -116,6 +117,15 @@ pub struct SlateV4 {
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	#[serde(default = "default_u64_0")]
 	pub ttl: u64,
+	/// Offset, output after I3 and I4 if transaction is to be
+	/// stored for later posting
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::blind_from_hex"
+	)]
+	#[serde(default = "default_offset_zero")]
+	#[serde(skip_serializing_if = "offset_is_zero")]
+	pub offset: BlindingFactor,
 	// Structs always required
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -135,6 +145,14 @@ pub struct SlateV4 {
 
 fn default_payment_none() -> Option<PaymentInfoV4> {
 	None
+}
+
+fn default_offset_zero() -> BlindingFactor {
+	BlindingFactor::zero()
+}
+
+fn offset_is_zero(o: &BlindingFactor) -> bool {
+	*o == BlindingFactor::zero()
 }
 
 fn default_coms_none() -> Option<Vec<CommitsV4>> {
@@ -438,7 +456,7 @@ impl From<SlateV3> for SlateV4 {
 			version_info,
 			num_participants,
 			id,
-			tx: _,
+			tx,
 			amount,
 			fee,
 			height: _,
@@ -468,6 +486,7 @@ impl From<SlateV3> for SlateV4 {
 			fee,
 			lock_hgt: lock_height,
 			ttl: ttl_cutoff_height,
+			offset: tx.offset,
 			sigs: participant_data,
 			proof: payment_proof,
 		}
@@ -630,6 +649,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			fee,
 			lock_hgt: lock_height,
 			ttl: ttl_cutoff_height,
+			offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -691,7 +711,11 @@ impl From<&SlateV4> for Option<TransactionV3> {
 		let mut out_fee = 0;
 		let mut out_lock_height = 0;
 		let txv4 = TransactionV3 {
-			offset: tx.offset,
+			offset: if slate.offset != BlindingFactor::zero() {
+				tx.offset
+			} else {
+				slate.offset.clone()
+			},
 			body: TransactionBodyV3 {
 				inputs: tx
 					.body

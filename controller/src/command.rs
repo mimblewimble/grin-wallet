@@ -23,7 +23,7 @@ use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateRec
 use crate::impls::{PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, WalletLCProvider,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -373,7 +373,7 @@ where
 			}
 
 			slate = api.finalize_tx(m, &slate)?;
-			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
+			let result = api.post_tx(m, &slate, args.fluff);
 			match result {
 				Ok(_) => {
 					info!("Tx sent ok",);
@@ -472,7 +472,7 @@ where
 
 	if !args.nopost {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			let result = api.post_tx(m, slate.tx_or_err()?, args.fluff);
+			let result = api.post_tx(m, &slate, args.fluff);
 			match result {
 				Ok(_) => {
 					info!(
@@ -777,7 +777,7 @@ where
 	let slate = PathToSlate((&args.input).into()).get_tx()?.0;
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		api.post_tx(m, slate.tx_or_err()?, args.fluff)?;
+		api.post_tx(m, &slate, args.fluff)?;
 		info!("Posted transaction");
 		return Ok(());
 	})?;
@@ -820,7 +820,9 @@ where
 					);
 					return Ok(());
 				}
-				api.post_tx(m, &stored_tx.unwrap(), args.fluff)?;
+				let mut slate = Slate::blank(2, false);
+				slate.tx = Some(stored_tx.unwrap());
+				api.post_tx(m, &slate, args.fluff)?;
 				info!("Reposted transaction at {}", args.id);
 				return Ok(());
 			}

@@ -17,6 +17,7 @@
 use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
+use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
@@ -90,29 +91,34 @@ struct SlateOptFields {
 	pub lock_hgt: u64,
 	/// ttl, default 0
 	pub ttl: u64,
+	/// Transaction offset, default none
+	pub offset: BlindingFactor,
 }
 
 impl Writeable for SlateOptFields {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		// Status byte, bits determing which optional fields are serialized
-		// 0 0 0 1  1 1 1 1
-		//       t  l f a n
+		// 0 0 1 1  1 1 1 1
+		//     o t  l f a n
 		let mut status = 0u8;
 		if self.num_parts != 2 {
-			status |= 0x01
-		};
+			status |= 0x01;
+		}
 		if self.amt > 0 {
-			status |= 0x02
-		};
+			status |= 0x02;
+		}
 		if self.fee > 0 {
-			status |= 0x04
-		};
+			status |= 0x04;
+		}
 		if self.lock_hgt > 0 {
-			status |= 0x08
-		};
+			status |= 0x08;
+		}
 		if self.ttl > 0 {
-			status |= 0x10
-		};
+			status |= 0x10;
+		}
+		if self.offset != BlindingFactor::zero() {
+			status |= 0x20;
+		}
 		writer.write_u8(status)?;
 		if status & 0x01 > 0 {
 			writer.write_u8(self.num_parts)?;
@@ -128,6 +134,9 @@ impl Writeable for SlateOptFields {
 		}
 		if status & 0x10 > 0 {
 			writer.write_u64(self.ttl)?;
+		}
+		if status & 0x20 > 0 {
+			self.offset.write(writer)?;
 		}
 		Ok(())
 	}
@@ -161,12 +170,18 @@ impl Readable for SlateOptFields {
 		} else {
 			0
 		};
+		let offset = if status & 0x20 > 0 {
+			BlindingFactor::read(reader)?
+		} else {
+			BlindingFactor::zero()
+		};
 		Ok(SlateOptFields {
 			num_parts,
 			amt,
 			fee,
 			lock_hgt,
 			ttl,
+			offset,
 		})
 	}
 }
@@ -419,6 +434,7 @@ impl Writeable for SlateV4Bin {
 			fee: v4.fee,
 			lock_hgt: v4.lock_hgt,
 			ttl: v4.ttl,
+			offset: v4.offset.clone(),
 		}
 		.write(writer)?;
 		(SigsWrapRef(&v4.sigs)).write(writer)?;
@@ -453,6 +469,7 @@ impl Readable for SlateV4Bin {
 			fee: opts.fee,
 			lock_hgt: opts.lock_hgt,
 			ttl: opts.ttl,
+			offset: opts.offset,
 			sigs,
 			coms: opt_structs.coms,
 			proof: opt_structs.proof,
