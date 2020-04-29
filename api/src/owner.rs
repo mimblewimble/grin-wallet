@@ -971,7 +971,7 @@ where
 	///     // Retrieve slate back from recipient
 	///     //
 	///     let res = api_owner.finalize_tx(None, &slate);
-	///     let res = api_owner.post_tx(None, slate.tx_or_err().unwrap(), true);
+	///     let res = api_owner.post_tx(None, &slate, true);
 	/// }
 	/// ```
 

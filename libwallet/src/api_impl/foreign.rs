@@ -17,7 +17,7 @@ use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::check_ttl;
 use crate::grin_core::core::transaction::Transaction;
-use crate::grin_keychain::Keychain;
+use crate::grin_keychain::{BlindingFactor, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
@@ -162,7 +162,11 @@ where
 	sl.state = SlateState::Invoice3;
 	if sl.is_compact() {
 		sl.amount = 0;
-		sl.fee = 0;
+		// fill in offset in case of delayed posting
+		sl.offset = match context.offset {
+			Some(o) => o,
+			None => BlindingFactor::zero(),
+		};
 	}
 	Ok(sl)
 }
