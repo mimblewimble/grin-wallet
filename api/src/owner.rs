@@ -676,7 +676,7 @@ where
 				};
 
 				if sa.post_tx {
-					self.post_tx(keychain_mask, slate.tx_or_err()?, sa.fluff)?;
+					self.post_tx(keychain_mask, &slate, sa.fluff)?;
 				}
 				Ok(slate)
 			}
@@ -978,7 +978,7 @@ where
 	pub fn post_tx(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		tx: &Transaction,
+		slate: &Slate,
 		fluff: bool,
 	) -> Result<(), Error> {
 		let client = {
@@ -988,7 +988,7 @@ where
 			let _ = w.keychain(keychain_mask)?;
 			w.w2n_client().clone()
 		};
-		owner::post_tx(&client, tx, fluff)
+		owner::post_tx(&client, slate.tx_or_err()?, fluff)
 	}
 
 	/// Cancels a transaction. This entails:
