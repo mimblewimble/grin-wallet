@@ -395,7 +395,7 @@ pub trait OwnerRpc {
 				"Ok": {
 					"amt": "6000000000",
 					"fee": "8000000",
-					"id": "BDZDDCsCYkwgMlcFASErAA==",
+					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"proof": {
 						"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
 						"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
@@ -446,7 +446,7 @@ pub trait OwnerRpc {
 			"result": {
 				"Ok": {
 					"amt": "6000000000",
-					"id": "BDZDDCsCYkwgMlcFASErAA==",
+					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"sigs": [
 						{
 							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -482,7 +482,7 @@ pub trait OwnerRpc {
 				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"slate": {
 					"amt": "6000000000",
-					"id": "BDZDDCsCYkwgMlcFASErAA==",
+					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"sigs": [
 						{
 							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -526,7 +526,7 @@ pub trait OwnerRpc {
 					}
 				],
 				"fee": "8000000",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -565,7 +565,7 @@ pub trait OwnerRpc {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"slate": {
 				"ver": "4:2",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sta": "S1",
 				"amt": "60000000000",
 				"fee": "7000000",
@@ -610,7 +610,7 @@ pub trait OwnerRpc {
 			"slate":
 			{
 				"ver": "4:2",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sta": "S2",
 				"sigs": [
 					{
@@ -655,7 +655,7 @@ pub trait OwnerRpc {
 					}
 				],
 				"fee": "7000000",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"sigs": [
 					{
@@ -695,7 +695,7 @@ pub trait OwnerRpc {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"slate": {
 				"ver": "4:2",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sta": "S3",
 				"fee": "7000000",
 				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",

@@ -131,7 +131,7 @@ pub trait ForeignRpc {
 		"params": [
 			{
 				"ver": "4:2",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sta": "S1",
 				"amt": "60000000000",
 				"fee": "7000000",
@@ -159,7 +159,7 @@ pub trait ForeignRpc {
 						"p": "AH333d0e/KdXsgcHQMxgRig5DrWeFR+W/y6qU2H1Q1/Rqm6j/ryX/P4bMkjQQMgt42GAOSl2ui0RR8L7AhyHrQRPH5djk02dP0QxQXdi7tA8U84Xrtt4JFZcH0j8zsnEq8DSi9MrAs6b7kC/amDPfJwgPMJOS3efkB4SyYdXNpjPfwTjqs4m5xJiE4YFQkgArfMpXQn39F3d8YVceF6Y1F6uPNER0YVS5zOJVFjfFecaE4ONeJpMs2n03biqnFA7CA/YihRyRd8FItQTbTahg72UHmz5Tf/HhDixIZTU33EU0eJ6ei8BSSCjISI+y+uyuWQqIvjtTnSIMSXz51ey8RiFP/qxto8VwaLQIeWD/z/R6ihyCoEyWzzCMnup+y/ZsmRK2388ey4xmyU2o09n5vCTRvJNpryuGyQfhZBJNHbf41sYPlTxBeshm2AeDlOWVAlwHcH9lWLEKtl3UF6nvyZPAXcFaaSjWKcPsLLGWWn6w7I5VPDKCtrOBwMkPx2rYmUJqGVuepgXCcOsHVFpS6+lWq1FwQGTfL8+RdZwjAe+cUGXaaEKT2Tyt9U6VOrHPNvTJ5+RxfiZGksXYhw2GVqTkTZPoiHoqN7iHrw6brnNKUCjZ25+883UYxm9wR90h4Xkn/Qb7CwyQyVdg8aJW8DIk+anctdECmgyEkaxd3CdO9gtDcL1vKQMh46Fm2+CMZo4bgt/y8gBCiUXiwhBg4m6fGp3+ZrH9K5caGq2V0/NARb4VzvM2j7f3/NsnJLOL7i/sM4v5caySYxusW/C1A3p3cuhmafpPWSKvznWskjhlt5xJ+a4EuMIBJfyqCr6aaRxq1EedT5bF6HDnGcooGWJivZnRgjZKmJeluLwJY/i6waifQWG2InWH5f6qj+s9Yza"
 					}
 				],
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -197,7 +197,7 @@ pub trait ForeignRpc {
 		"id": 1,
 		"params": [{
 			"ver": "4:2",
-			"id": "BDZDDCsCYkwgMlcFASErAA==",
+			"id": "0436430c-2b02-624c-2032-570501212b00",
 			"sta": "I2",
 			"fee": "7000000",
 			"sigs": [
@@ -250,7 +250,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"fee": "7000000",
-				"id": "BDZDDCsCYkwgMlcFASErAA==",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"sigs": [
 					{
