@@ -17,7 +17,11 @@ use std::fs::File;
 use std::io::{Read, Write};
 
 use crate::client_utils::byte_ser;
-use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
+use crate::libwallet::slate_versions::v3::SlateV3;
+use crate::libwallet::slate_versions::v4::SlateV4;
+use crate::libwallet::{
+	Error, ErrorKind, Slate, SlateState, SlateVersion, VersionedBinSlate, VersionedSlate,
+};
 use crate::{SlateGetter, SlatePutter};
 use std::convert::TryFrom;
 use std::path::PathBuf;
@@ -29,20 +33,28 @@ impl SlatePutter for PathToSlate {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
-		// * Will need to set particpant id to 1 manually if this is invoice
-		// * Set slate height manually
+		// * Will need to set participant id to 1 manually if this is invoice
 		// * Reconcile unknown slate states from V3
 		let _r: crate::adapters::Reminder;
 		let out_slate = {
-			// TODO: This will need to be filled with any incompatibilities in the V4 Slate
-			if false {
-				warn!("Transaction contains features that require grin-wallet 4.0.0 or later");
-				warn!("Please ensure the other party is running grin-wallet v4.0.0 or later before sending");
-				VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?
+			// TODO: Remove post HF3
+			if slate.version_info.version == 2 || slate.version_info.version == 3 {
+				// if the slate we read in in V3 or 2 (holdover from 3.0.0), output a slate V3,
+				// which can be read by v3.x wallets
+				let v4_slate = SlateV4::from(slate.clone());
+				let mut v3_slate = SlateV3::try_from(&v4_slate)?;
+				// if responding to an invoice, manually fill in participant id to 0
+				if slate.state == SlateState::Invoice2 {
+					for mut e in v3_slate.participant_data.iter_mut() {
+						if Some(e.public_blind_excess.clone()) == slate.participant_id {
+							e.id = 1;
+						}
+					}
+				}
+				v3_slate.version_info.version = 3;
+				VersionedSlate::V3(v3_slate)
 			} else {
-				let mut s = slate.clone();
-				s.version_info.version = 4;
-				VersionedSlate::into_version(s, SlateVersion::V4)?
+				VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?
 			}
 		};
 		if as_bin {

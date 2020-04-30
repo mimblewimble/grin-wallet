@@ -58,6 +58,7 @@ pub struct SlateV3 {
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
+	#[serde(default = "default_ttl_none")]
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	pub ttl_cutoff_height: Option<u64>,
 	/// Participant data, each participant in the transaction will
@@ -70,6 +71,10 @@ pub struct SlateV3 {
 }
 
 fn default_payment_none() -> Option<PaymentInfoV3> {
+	None
+}
+
+fn default_ttl_none() -> Option<u64> {
 	None
 }
 

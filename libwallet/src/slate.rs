@@ -123,6 +123,10 @@ pub struct Slate {
 	pub participant_data: Vec<ParticipantData>,
 	/// Payment Proof
 	pub payment_proof: Option<PaymentInfo>,
+	//TODO: Remove post HF3
+	/// participant ID, only stored for compatibility with V3 slates
+	/// not serialized anywhere
+	pub participant_id: Option<PublicKey>,
 }
 
 impl fmt::Display for Slate {
@@ -242,6 +246,7 @@ impl Slate {
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
 			payment_proof: None,
+			participant_id: None,
 		}
 	}
 	/// Removes any signature data that isn't mine, for compacting
@@ -467,6 +472,7 @@ impl Slate {
 			public_nonce: pub_nonce,
 			part_sig: part_sig,
 		});
+		self.participant_id = Some(pub_key);
 		Ok(())
 	}
 
@@ -683,6 +689,7 @@ impl From<Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
+			participant_id: _participant_id,
 		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(&version_info);
@@ -723,6 +730,7 @@ impl From<&Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
+			participant_id: _participant_id,
 		} = slate;
 		let num_parts = *num_participants;
 		let id = *id;
@@ -974,6 +982,7 @@ impl From<SlateV4> for Slate {
 			participant_data,
 			version_info,
 			payment_proof,
+			participant_id: None,
 		}
 	}
 }
