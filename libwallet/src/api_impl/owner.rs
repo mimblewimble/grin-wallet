@@ -325,6 +325,10 @@ where
 		args.ttl_blocks,
 	)?;
 
+	if let Some(v) = args.target_slate_version {
+		slate.version_info.version = v;
+	};
+
 	// if we just want to estimate, don't save a context, just send the results
 	// back
 	if let Some(true) = args.estimate_only {
@@ -388,7 +392,9 @@ where
 		batch.commit()?;
 	}
 
-	slate.compact()?;
+	if slate.is_compact() {
+		slate.compact()?;
+	}
 
 	Ok(slate)
 }
@@ -428,6 +434,10 @@ where
 		use_test_rng,
 	)?;
 
+	if let Some(v) = args.target_slate_version {
+		slate.version_info.version = v;
+	};
+
 	context.offset = Some(slate.tx_or_err()?.offset.clone());
 
 	// Save the aggsig context in our DB for when we
@@ -438,7 +448,9 @@ where
 		batch.commit()?;
 	}
 
-	slate.compact()?;
+	if slate.is_compact() {
+		slate.compact()?;
+	}
 
 	Ok(slate)
 }
