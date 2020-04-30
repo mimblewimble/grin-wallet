@@ -384,6 +384,9 @@ where
 
 	context.offset = Some(slate.tx_or_err()?.offset.clone());
 
+	//TODO: Remove after HF3
+	slate.offset = slate.tx_or_err()?.offset.clone();
+
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{

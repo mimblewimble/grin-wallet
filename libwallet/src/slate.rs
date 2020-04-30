@@ -195,6 +195,7 @@ impl Slate {
 	/// This info must be stored in the context for repopulation later
 	pub fn compact(&mut self) -> Result<(), Error> {
 		self.tx = None;
+		self.offset = BlindingFactor::zero();
 		Ok(())
 	}
 
