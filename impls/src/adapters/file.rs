@@ -44,7 +44,25 @@ impl SlatePutter for PathToSlate {
 				let v4_slate = SlateV4::from(slate.clone());
 				let mut v3_slate = SlateV3::try_from(&v4_slate)?;
 				// Fill in V3 participant IDs according to state
+				if slate.state == SlateState::Invoice1 {
+					for mut e in v3_slate.participant_data.iter_mut() {
+						if Some(e.public_blind_excess.clone()) == slate.participant_id {
+							e.id = 1;
+						} else {
+							e.id = 0;
+						}
+					}
+				}
 				if slate.state == SlateState::Invoice2 {
+					for mut e in v3_slate.participant_data.iter_mut() {
+						if Some(e.public_blind_excess.clone()) == slate.participant_id {
+							e.id = 0;
+						} else {
+							e.id = 1;
+						}
+					}
+				}
+				if slate.state == SlateState::Standard1 {
 					for mut e in v3_slate.participant_data.iter_mut() {
 						if Some(e.public_blind_excess.clone()) == slate.participant_id {
 							e.id = 0;
