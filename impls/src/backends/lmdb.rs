@@ -36,7 +36,7 @@ use crate::libwallet::{
 };
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::secp::key::SecretKey;
-use crate::util::{self, secp};
+use crate::util::{self, secp, ToHex};
 
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
@@ -263,12 +263,13 @@ where
 		/*if self.config.no_commit_cache == Some(true) {
 			Ok(None)
 		} else {*/
-		Ok(Some(util::to_hex(
+		Ok(Some(
 			self.keychain(keychain_mask)?
 				.commit(amount, &id, SwitchCommitmentType::Regular)?
 				.0
-				.to_vec(), // TODO: proper support for different switch commitment schemes
-		)))
+				.to_vec()
+				.to_hex(), // TODO: proper support for different switch commitment schemes
+		))
 		/*}*/
 	}
 
@@ -357,7 +358,7 @@ where
 			.join(filename);
 		let path_buf = Path::new(&path).to_path_buf();
 		let mut stored_tx = File::create(path_buf)?;
-		let tx_hex = util::to_hex(ser::ser_vec(tx, ser::ProtocolVersion(1)).unwrap());
+		let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1)).unwrap().to_hex();
 		stored_tx.write_all(&tx_hex.as_bytes())?;
 		stored_tx.sync_all()?;
 		Ok(())

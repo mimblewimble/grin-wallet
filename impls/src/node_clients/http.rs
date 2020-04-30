@@ -27,7 +27,7 @@ use tokio::runtime::Builder;
 use crate::client_utils::Client;
 use crate::libwallet;
 use crate::util::secp::pedersen;
-use crate::util::{self, to_hex};
+use crate::util::ToHex;
 
 use super::resp_types::*;
 use crate::client_utils::json_rpc::*;
@@ -154,7 +154,7 @@ impl NodeClient for HTTPNodeClient {
 		max_height: Option<u64>,
 	) -> Result<Option<(TxKernel, u64, u64)>, libwallet::Error> {
 		let method = "get_kernel";
-		let params = json!([to_hex(excess.0.to_vec()), min_height, max_height]);
+		let params = json!([excess.0.as_ref().to_hex(), min_height, max_height]);
 		// have to handle this manually since the error needs to be parsed
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
 		let client = Client::new();
@@ -198,7 +198,7 @@ impl NodeClient for HTTPNodeClient {
 		// build vec of commits for inclusion in query
 		let query_params: Vec<String> = wallet_outputs
 			.iter()
-			.map(|commit| format!("{}", util::to_hex(commit.as_ref().to_vec())))
+			.map(|commit| format!("{}", commit.as_ref().to_hex()))
 			.collect();
 
 		// going to leave this here even though we're moving
@@ -297,7 +297,7 @@ impl NodeClient for HTTPNodeClient {
 			};
 			api_outputs.insert(
 				out.commit,
-				(util::to_hex(out.commit.0.to_vec()), height, out.mmr_index),
+				(out.commit.as_ref().to_hex(), height, out.mmr_index),
 			);
 		}
 		Ok(api_outputs)
