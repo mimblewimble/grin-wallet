@@ -241,7 +241,7 @@ pub mod ov3_serde {
 
 /// Serializes an ed25519 PublicKey to and from hex
 pub mod dalek_pubkey_serde {
-	use crate::grin_util::{from_hex, to_hex};
+	use crate::grin_util::{from_hex, ToHex};
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use serde::{Deserialize, Deserializer, Serializer};
 
@@ -250,7 +250,7 @@ pub mod dalek_pubkey_serde {
 	where
 		S: Serializer,
 	{
-		serializer.serialize_str(&to_hex(key.to_bytes().to_vec()))
+		serializer.serialize_str(&key.to_bytes().to_hex())
 	}
 
 	///
@@ -303,7 +303,7 @@ pub mod option_dalek_pubkey_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	use crate::grin_util::{from_hex, to_hex};
+	use crate::grin_util::{from_hex, ToHex};
 
 	///
 	pub fn serialize<S>(key: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
@@ -311,7 +311,7 @@ pub mod option_dalek_pubkey_serde {
 		S: Serializer,
 	{
 		match key {
-			Some(key) => serializer.serialize_str(&to_hex(key.to_bytes().to_vec())),
+			Some(key) => serializer.serialize_str(&key.to_bytes().to_hex()),
 			None => serializer.serialize_none(),
 		}
 	}
@@ -342,14 +342,14 @@ pub mod dalek_sig_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	use crate::grin_util::{from_hex, to_hex};
+	use crate::grin_util::{from_hex, ToHex};
 
 	///
-	pub fn serialize<S>(key: &DalekSignature, serializer: S) -> Result<S::Ok, S::Error>
+	pub fn serialize<S>(sig: &DalekSignature, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
 	{
-		serializer.serialize_str(&to_hex(key.to_bytes().to_vec()))
+		serializer.serialize_str(&sig.to_bytes().as_ref().to_hex())
 	}
 
 	///
@@ -373,15 +373,15 @@ pub mod option_dalek_sig_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	use crate::grin_util::{from_hex, to_hex};
+	use crate::grin_util::{from_hex, ToHex};
 
 	///
-	pub fn serialize<S>(key: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
+	pub fn serialize<S>(sig: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
 	{
-		match key {
-			Some(key) => serializer.serialize_str(&to_hex(key.to_bytes().to_vec())),
+		match sig {
+			Some(s) => serializer.serialize_str(&s.to_bytes().as_ref().to_hex()),
 			None => serializer.serialize_none(),
 		}
 	}
