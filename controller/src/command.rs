@@ -278,6 +278,8 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 	pub payment_proof_address: Option<OnionV3Address>,
 	pub ttl_blocks: Option<u64>,
+	//TODO: Remove HF3
+	pub output_v4_slate: bool,
 }
 
 pub fn send<L, C, K>(
@@ -330,9 +332,22 @@ where
 					args.target_slate_version = Some(3);
 				}
 			}
+			"file" => {
+				// For files spit out a V3 Slate if we're before HF3,
+				// Or V4 slate otherwise
+				let cur_height = {
+					libwallet::wallet_lock!(wallet_inst, w);
+					w.w2n_client().get_chain_tip()?.0
+				};
+				// TODO: Floonet HF4
+				if cur_height < 786240 && !args.output_v4_slate {
+					args.target_slate_version = Some(3);
+				}
+			}
 			_ => {}
 		}
-	} // end block to delete post HF3
+	}
+	// end block to delete post HF3
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
