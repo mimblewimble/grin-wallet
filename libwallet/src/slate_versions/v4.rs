@@ -709,12 +709,8 @@ impl From<&SlateV4> for Option<TransactionV3> {
 		};
 		let mut out_fee = 0;
 		let mut out_lock_height = 0;
-		let txv4 = TransactionV3 {
-			offset: if slate.offset != BlindingFactor::zero() {
-				tx.offset
-			} else {
-				slate.offset.clone()
-			},
+		let txv3 = TransactionV3 {
+			offset: tx.offset,
 			body: TransactionBodyV3 {
 				inputs: tx
 					.body
@@ -760,7 +756,7 @@ impl From<&SlateV4> for Option<TransactionV3> {
 					.collect(),
 			},
 		};
-		Some(txv4)
+		Some(txv3)
 	}
 }
 

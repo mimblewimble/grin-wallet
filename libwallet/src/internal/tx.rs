@@ -281,6 +281,7 @@ where
 	slate.fill_round_2(&wallet.keychain(keychain_mask)?, &sec_key, &sec_nonce)?;
 
 	// Final transaction can be built by anyone at this stage
+	trace!("Slate to finalize is: {}", slate);
 	slate.finalize(&wallet.keychain(keychain_mask)?)?;
 	Ok(())
 }

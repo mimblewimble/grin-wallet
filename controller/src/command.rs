@@ -20,10 +20,11 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _};
-use crate::impls::{PathToSlate, SlatePutter};
+use crate::impls::{HttpSlateSender, PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, WalletLCProvider,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
+	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -277,6 +278,8 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 	pub payment_proof_address: Option<OnionV3Address>,
 	pub ttl_blocks: Option<u64>,
+	//TODO: Remove HF3
+	pub output_v4_slate: bool,
 }
 
 pub fn send<L, C, K>(
@@ -292,6 +295,60 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let wallet_inst = owner_api.wallet_inst.clone();
+	// Check other version, and if it only supports 3 set the target slate
+	// version to 3 to avoid removing the transaction object
+	// TODO: This block is temporary, for the period between the release of v4.0.0 and HF3,
+	// after which this should be removable
+	let mut args = args;
+	{
+		let invalid = || {
+			ErrorKind::GenericError(format!(
+				"Invalid wallet comm type and destination. method: {}, dest: {}",
+				args.method, args.dest
+			))
+		};
+		let trailing = match args.dest.ends_with('/') {
+			true => "",
+			false => "/",
+		};
+		let url_str = format!("{}{}v2/foreign", args.dest, trailing);
+		match args.method.as_ref() {
+			"http" => {
+				let v_sender = HttpSlateSender::new(&args.dest).map_err(|_| invalid())?;
+				let other_version = v_sender.check_other_version(&url_str)?;
+				if other_version == SlateVersion::V3 {
+					args.target_slate_version = Some(3);
+				}
+			}
+			"tor" => {
+				let v_sender = HttpSlateSender::with_socks_proxy(
+					&args.dest,
+					&tor_config.as_ref().unwrap().socks_proxy_addr,
+					&tor_config.as_ref().unwrap().send_config_dir,
+				)
+				.map_err(|_| invalid())?;
+				let other_version = v_sender.check_other_version(&url_str)?;
+				if other_version == SlateVersion::V3 {
+					args.target_slate_version = Some(3);
+				}
+			}
+			"file" => {
+				// For files spit out a V3 Slate if we're before HF3,
+				// Or V4 slate otherwise
+				let cur_height = {
+					libwallet::wallet_lock!(wallet_inst, w);
+					w.w2n_client().get_chain_tip()?.0
+				};
+				// TODO: Floonet HF4
+				if cur_height < 786240 && !args.output_v4_slate {
+					args.target_slate_version = Some(3);
+				}
+			}
+			_ => {}
+		}
+	}
+	// end block to delete post HF3
+
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -503,6 +560,9 @@ pub struct IssueInvoiceArgs {
 	pub issue_args: IssueInvoiceTxArgs,
 	/// whether to output as bin
 	pub bin: bool,
+	// TODO: Remove HF3
+	/// whether to output a V4 slate
+	pub output_v4_slate: bool,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -515,6 +575,20 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	//TODO: Remove block HF3
+	let args = {
+		let mut a = args;
+		let wallet_inst = owner_api.wallet_inst.clone();
+		let cur_height = {
+			libwallet::wallet_lock!(wallet_inst, w);
+			w.w2n_client().get_chain_tip()?.0
+		};
+		// TODO: Floonet HF4
+		if cur_height < 786240 && !a.output_v4_slate && !a.bin {
+			a.issue_args.target_slate_version = Some(3);
+		}
+		a
+	};
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
 		PathToSlate((&args.dest).into()).put_tx(&slate, args.bin)?;

@@ -142,6 +142,7 @@ pub trait ForeignRpc {
 					}
 				]
 			},
+			null,
 			null
 		]
 	}
@@ -180,6 +181,8 @@ pub trait ForeignRpc {
 		&self,
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
+		//TODO: Remove post-HF3
+		message: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
@@ -295,6 +298,8 @@ where
 		&self,
 		in_slate: VersionedSlate,
 		dest_acct_name: Option<String>,
+		//TODO: Remove post HF3
+		_message: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);

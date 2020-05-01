@@ -123,6 +123,10 @@ pub struct Slate {
 	pub participant_data: Vec<ParticipantData>,
 	/// Payment Proof
 	pub payment_proof: Option<PaymentInfo>,
+	//TODO: Remove post HF3
+	/// participant ID, only stored for compatibility with V3 slates
+	/// not serialized anywhere
+	pub participant_id: Option<PublicKey>,
 }
 
 impl fmt::Display for Slate {
@@ -195,6 +199,7 @@ impl Slate {
 	/// This info must be stored in the context for repopulation later
 	pub fn compact(&mut self) -> Result<(), Error> {
 		self.tx = None;
+		self.offset = BlindingFactor::zero();
 		Ok(())
 	}
 
@@ -210,7 +215,7 @@ impl Slate {
 	pub fn upgrade(v_slate: VersionedSlate) -> Result<Slate, Error> {
 		let v4: SlateV4 = match v_slate {
 			VersionedSlate::V4(s) => s,
-			VersionedSlate::V3(_) => return Err(ErrorKind::SlateVersion(3).into()),
+			VersionedSlate::V3(s) => SlateV4::from(s),
 		};
 		Ok(v4.into())
 	}
@@ -241,6 +246,7 @@ impl Slate {
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
 			payment_proof: None,
+			participant_id: None,
 		}
 	}
 	/// Removes any signature data that isn't mine, for compacting
@@ -421,6 +427,7 @@ impl Slate {
 	fn part_sigs(&self) -> Vec<&Signature> {
 		self.participant_data
 			.iter()
+			.filter(|p| p.part_sig.is_some())
 			.map(|p| p.part_sig.as_ref().unwrap())
 			.collect()
 	}
@@ -465,6 +472,7 @@ impl Slate {
 			public_nonce: pub_nonce,
 			part_sig: part_sig,
 		});
+		self.participant_id = Some(pub_key);
 		Ok(())
 	}
 
@@ -624,14 +632,21 @@ impl Slate {
 
 		// confirm the kernel verifies successfully before proceeding
 		debug!("Validating final transaction");
+		trace!(
+			"Final tx: {}",
+			serde_json::to_string_pretty(final_tx).unwrap()
+		);
 		final_tx.kernels()[0].verify()?;
 
 		// confirm the overall transaction is valid (including the updated kernel)
 		// accounting for tx weight limits
 		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
-		final_tx.validate(Weighting::AsTransaction, verifier_cache)?;
-
-		Ok(())
+		if let Err(e) = final_tx.validate(Weighting::AsTransaction, verifier_cache) {
+			error!("Error with final tx validation: {}", e);
+			Err(e.into())
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -674,6 +689,7 @@ impl From<Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
+			participant_id: _participant_id,
 		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(&version_info);
@@ -714,6 +730,7 @@ impl From<&Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
+			participant_id: _participant_id,
 		} = slate;
 		let num_parts = *num_participants;
 		let id = *id;
@@ -965,6 +982,7 @@ impl From<SlateV4> for Slate {
 			participant_data,
 			version_info,
 			payment_proof,
+			participant_id: None,
 		}
 	}
 }
