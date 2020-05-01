@@ -33,9 +33,6 @@ impl SlatePutter for PathToSlate {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
-		// * Will need to set participant id to 1 manually if this is invoice
-		// * Reconcile unknown slate states from V3
-		let _r: crate::adapters::Reminder;
 		let out_slate = {
 			// TODO: Remove post HF3
 			if slate.version_info.version == 2 || slate.version_info.version == 3 {

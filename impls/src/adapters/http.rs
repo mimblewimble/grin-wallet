@@ -180,7 +180,6 @@ impl SlateSender for HttpSlateSender {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
 			SlateVersion::V3 => {
 				let mut slate = slate.clone();
-				let _r: crate::adapters::Reminder;
 				//TODO: Fill out with Slate V4 incompatibilities
 				// * Will need to set particpant id to 1 manually if this is invoice
 				// * Set slate height manually

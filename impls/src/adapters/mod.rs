@@ -25,13 +25,6 @@ use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::tor::config::complete_tor_address;
 use crate::util::ZeroingString;
 
-/// Little SlateV4 reminder warning helper
-#[deprecated(
-	since = "3.0.0",
-	note = "Remember to handle SlateV4 incompatibilities here"
-)]
-pub struct Reminder;
-
 /// Sends transactions to a corresponding SlateReceiver
 pub trait SlateSender {
 	/// Send a transaction slate to another listening wallet and return result
