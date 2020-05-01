@@ -567,6 +567,10 @@ pub fn parse_issue_invoice_args(
 		}
 	};
 	let bin = args.is_present("bin");
+
+	// TODO: Remove HF3
+	let output_v4_slate = args.is_present("v4");
+
 	// target slate version to create
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -582,6 +586,7 @@ pub fn parse_issue_invoice_args(
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
 		bin,
+		output_v4_slate,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,

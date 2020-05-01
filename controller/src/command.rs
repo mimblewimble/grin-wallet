@@ -560,6 +560,9 @@ pub struct IssueInvoiceArgs {
 	pub issue_args: IssueInvoiceTxArgs,
 	/// whether to output as bin
 	pub bin: bool,
+	// TODO: Remove HF3
+	/// whether to output a V4 slate
+	pub output_v4_slate: bool,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -572,6 +575,20 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	//TODO: Remove block HF3
+	let args = {
+		let mut a = args;
+		let wallet_inst = owner_api.wallet_inst.clone();
+		let cur_height = {
+			libwallet::wallet_lock!(wallet_inst, w);
+			w.w2n_client().get_chain_tip()?.0
+		};
+		// TODO: Floonet HF4
+		if cur_height < 786240 && !a.output_v4_slate {
+			a.issue_args.target_slate_version = Some(3);
+		}
+		a
+	};
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let slate = api.issue_invoice_tx(m, args.issue_args)?;
 		PathToSlate((&args.dest).into()).put_tx(&slate, args.bin)?;
