@@ -584,7 +584,7 @@ where
 			w.w2n_client().get_chain_tip()?.0
 		};
 		// TODO: Floonet HF4
-		if cur_height < 786240 && !a.output_v4_slate {
+		if cur_height < 786240 && !a.output_v4_slate && !a.bin {
 			a.issue_args.target_slate_version = Some(3);
 		}
 		a
