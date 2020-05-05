@@ -24,16 +24,17 @@
 //! * `amount` is renamed to `amt`
 //! * `amt` may be removed from the slate on the S2 phase of a transaction.
 //! * `fee` may be removed from the slate on the S2 phase of a transaction. It may also be ommited when intiating an I1 transaction, and added during the I2 phase.
-//! * `lock_height` is renamend to `lock_hgt`
-//! * `lock_hgt` may be omitted from the slate. If omitted its value is assumed to be 0 (not height locked)
+//! * `lock_height` is removed
+//! * `feat` is added to the slate denoting the Kernel feature set. May be omitted from the slate if kernel is plain (0)
 //! * `ttl_cutoff_height` is renamed to `ttl`
 //! * `ttl` may be omitted from the slate. If omitted its value is assumed to be 0 (no TTL).
 //! *  The `participant_data` struct is renamed to `sigs`
 //! * `tx` is removed
-//! * `offset` is added
 //! *  The `coms` (commitments) array is added, from which the final transaction object can be reconstructed
 //! *  The `payment_proof` struct is renamed to `proof`
+//! * The feat_args struct is added, which may be populated for non-Plain kernels
 //! * `proof` may be omitted from the slate if it is None (null),
+//! * `offset` is added, which may be optionally included during S3 and I3 to ensure the transaction can be re-built entirely from the slate information. Used for delayed transaction posting.
 //!
 //! #### Participant Data (`sigs`)
 //!
@@ -105,11 +106,10 @@ pub struct SlateV4 {
 	#[serde(default = "default_u64")]
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	pub fee: u64,
-	/// Lock height
-	#[serde(with = "secp_ser::string_or_u64")]
-	#[serde(skip_serializing_if = "u64_is_blank")]
-	#[serde(default = "default_u64_0")]
-	pub lock_hgt: u64,
+	/// kernel features, if any
+	#[serde(skip_serializing_if = "u8_is_blank")]
+	#[serde(default = "default_u8_0")]
+	pub feat: u8,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	#[serde(with = "secp_ser::string_or_u64")]
@@ -140,6 +140,10 @@ pub struct SlateV4 {
 	#[serde(default = "default_payment_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub proof: Option<PaymentInfoV4>,
+	/// Kernel features arguments
+	#[serde(default = "default_kernel_features_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub feat_args: Option<KernelFeaturesArgsV4>,
 }
 
 fn default_payment_none() -> Option<PaymentInfoV4> {
@@ -170,6 +174,10 @@ fn default_num_participants_2() -> u8 {
 	2
 }
 
+fn default_kernel_features_none() -> Option<KernelFeaturesArgsV4> {
+	None
+}
+
 /// Slate state definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SlateStateV4 {
@@ -187,6 +195,13 @@ pub enum SlateStateV4 {
 	Invoice2,
 	/// Invoice flow, ready for tranasction posting
 	Invoice3,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+/// Kernel features arguments definition
+pub struct KernelFeaturesArgsV4 {
+	/// Lock height, for HeightLocked
+	pub lock_hgt: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -437,6 +452,13 @@ fn u64_is_blank(u: &u64) -> bool {
 	*u == 0
 }
 
+fn default_u8_0() -> u8 {
+	0
+}
+
+fn u8_is_blank(u: &u8) -> bool {
+	*u == 0
+}
 /// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoinbaseV4 {
@@ -475,6 +497,10 @@ impl From<SlateV3> for SlateV4 {
 			None => 0,
 			Some(n) => n,
 		};
+		let (feat, feat_args) = match lock_height {
+			0 => (0, None),
+			n => (1, Some(KernelFeaturesArgsV4 { lock_hgt: n })),
+		};
 		SlateV4 {
 			ver,
 			num_parts: num_participants as u8,
@@ -483,11 +509,12 @@ impl From<SlateV3> for SlateV4 {
 			coms: (&slate).into(),
 			amt: amount,
 			fee,
-			lock_hgt: lock_height,
+			feat,
 			ttl: ttl_cutoff_height,
 			offset: tx.offset,
 			sigs: participant_data,
 			proof: payment_proof,
+			feat_args,
 		}
 	}
 }
@@ -646,12 +673,13 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			coms,
 			amt: amount,
 			fee,
-			lock_hgt: lock_height,
+			feat,
 			ttl: ttl_cutoff_height,
 			offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
+			feat_args,
 		} = slate;
 		let num_participants = match *num_participants {
 			0 => 2,
@@ -660,7 +688,14 @@ impl TryFrom<&SlateV4> for SlateV3 {
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
-		let lock_height = *lock_height;
+		let lock_height = match feat {
+			0 => 0,
+			1 => match feat_args {
+				None => return Err(ErrorKind::KernelFeaturesMissing("lock_hgt".to_owned()).into()),
+				Some(h) => h.lock_hgt,
+			},
+			n => return Err(ErrorKind::UnknownKernelFeatures(*n).into()),
+		};
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(ver);
 		let payment_proof = match payment_proof {

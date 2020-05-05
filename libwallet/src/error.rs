@@ -262,6 +262,14 @@ pub enum ErrorKind {
 	#[fail(display = "Transaction Expired")]
 	TransactionExpired,
 
+	/// Kernel features args don't exist
+	#[fail(display = "Kernel Features Arg {} missing", _0)]
+	KernelFeaturesMissing(String),
+
+	/// Unknown Kernel Feature
+	#[fail(display = "Unknown Kernel Feature: {}", _0)]
+	UnknownKernelFeatures(u8),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),
