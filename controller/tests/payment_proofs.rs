@@ -111,9 +111,9 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 			slate_i.payment_proof.as_ref().unwrap().sender_address
 		);
 
-		// Check we are creating a tx with the expected lock_height of 0.
+		// Check we are creating a tx with kernel features 0
 		// We will check this produces a Plain kernel later.
-		assert_eq!(0, slate.lock_height);
+		assert_eq!(0, slate.kernel_features);
 
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(m, &slate)?;

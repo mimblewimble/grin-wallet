@@ -26,7 +26,8 @@ use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
-	CommitsV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4, SlateV4, VersionCompatInfoV4,
+	CommitsV4, KernelFeaturesArgsV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4, SlateV4,
+	VersionCompatInfoV4,
 };
 
 impl Writeable for SlateStateV4 {
@@ -87,8 +88,8 @@ struct SlateOptFields {
 	pub amt: u64,
 	/// fee, default 0
 	pub fee: u64,
-	/// lock height, default 0
-	pub lock_hgt: u64,
+	/// kernel features, default 0
+	pub feat: u8,
 	/// ttl, default 0
 	pub ttl: u64,
 	/// Transaction offset, default none
@@ -99,7 +100,7 @@ impl Writeable for SlateOptFields {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		// Status byte, bits determing which optional fields are serialized
 		// 0 0 1 1  1 1 1 1
-		//     o t  l f a n
+		//     o t  f f a n
 		let mut status = 0u8;
 		if self.num_parts != 2 {
 			status |= 0x01;
@@ -110,7 +111,7 @@ impl Writeable for SlateOptFields {
 		if self.fee > 0 {
 			status |= 0x04;
 		}
-		if self.lock_hgt > 0 {
+		if self.feat > 0 {
 			status |= 0x08;
 		}
 		if self.ttl > 0 {
@@ -130,7 +131,7 @@ impl Writeable for SlateOptFields {
 			writer.write_u64(self.fee)?;
 		}
 		if status & 0x08 > 0 {
-			writer.write_u64(self.lock_hgt)?;
+			writer.write_u8(self.feat)?;
 		}
 		if status & 0x10 > 0 {
 			writer.write_u64(self.ttl)?;
@@ -160,8 +161,8 @@ impl Readable for SlateOptFields {
 		} else {
 			0
 		};
-		let lock_hgt = if status & 0x08 > 0 {
-			reader.read_u64()?
+		let feat = if status & 0x08 > 0 {
+			reader.read_u8()?
 		} else {
 			0
 		};
@@ -179,7 +180,7 @@ impl Readable for SlateOptFields {
 			num_parts,
 			amt,
 			fee,
-			lock_hgt,
+			feat,
 			ttl,
 			offset,
 		})
@@ -432,7 +433,7 @@ impl Writeable for SlateV4Bin {
 			num_parts: v4.num_parts,
 			amt: v4.amt,
 			fee: v4.fee,
-			lock_hgt: v4.lock_hgt,
+			feat: v4.feat,
 			ttl: v4.ttl,
 			offset: v4.offset.clone(),
 		}
@@ -443,6 +444,14 @@ impl Writeable for SlateV4Bin {
 			proof: &v4.proof,
 		}
 		.write(writer)?;
+		// Write lock height for height locked kernels
+		if v4.feat == 1 {
+			let lock_hgt = match &v4.feat_args {
+				Some(l) => l.lock_hgt,
+				None => 0,
+			};
+			writer.write_u64(lock_hgt)?;
+		}
 		Ok(())
 	}
 }
@@ -460,6 +469,14 @@ impl Readable for SlateV4Bin {
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
+		let feat_args = if opts.feat == 1 {
+			Some(KernelFeaturesArgsV4 {
+				lock_hgt: reader.read_u64()?,
+			})
+		} else {
+			None
+		};
+
 		Ok(SlateV4Bin(SlateV4 {
 			ver,
 			id,
@@ -467,12 +484,13 @@ impl Readable for SlateV4Bin {
 			num_parts: opts.num_parts,
 			amt: opts.amt,
 			fee: opts.fee,
-			lock_hgt: opts.lock_hgt,
+			feat: opts.feat,
 			ttl: opts.ttl,
 			offset: opts.offset,
 			sigs,
 			coms: opt_structs.coms,
 			proof: opt_structs.proof,
+			feat_args,
 		}))
 	}
 }
@@ -528,8 +546,9 @@ fn slate_v4_serialize_deserialize() {
 
 	v4.coms = Some(coms);
 	v4.amt = 234324899824;
-	v4.lock_hgt = 302344;
+	v4.feat = 1;
 	v4.num_parts = 2;
+	v4.feat_args = Some(KernelFeaturesArgsV4 { lock_hgt: 23092039 });
 	let v4_1 = v4.clone();
 	let v4_1_copy = v4.clone();
 
