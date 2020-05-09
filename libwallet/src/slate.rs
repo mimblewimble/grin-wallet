@@ -996,6 +996,10 @@ impl From<&TxKernel> for TxKernelV4 {
 			KernelFeatures::HeightLocked { fee, lock_height } => {
 				(CompatKernelFeatures::HeightLocked, fee, lock_height)
 			}
+			KernelFeatures::NoRecentDuplicate {
+				fee,
+				relative_height,
+			} => xxx,
 		};
 		TxKernelV4 {
 			features,
