@@ -17,7 +17,7 @@ use crate::core::global;
 use crate::libwallet::{
 	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
 };
-use crate::util;
+use crate::util::{static_secp_instance, ToHex};
 use grin_wallet_util::OnionV3Address;
 use prettytable;
 use std::io::prelude::Write;
@@ -60,7 +60,7 @@ pub fn outputs(
 	]);
 
 	for m in outputs {
-		let commit = format!("{}", util::to_hex(m.commit.as_ref().to_vec()));
+		let commit = format!("{}", m.commit.as_ref().to_hex());
 		let index = match m.output.mmr_index {
 			None => "None".to_owned(),
 			Some(t) => t.to_string(),
@@ -205,7 +205,7 @@ pub fn txs(
 			None => "None".to_owned(),
 		};
 		let kernel_excess = match t.kernel_excess {
-			Some(e) => util::to_hex(e.0.to_vec()),
+			Some(e) => e.0.as_ref().to_hex(),
 			None => "None".to_owned(),
 		};
 		let payment_proof = match t.payment_proof {
@@ -485,21 +485,18 @@ pub fn tx_messages(tx: &TxLogEntry, dark_background_color_scheme: bool) -> Resul
 		bMG->"Signature",
 	]);
 
-	let secp = util::static_secp_instance();
+	let secp = static_secp_instance();
 	let secp_lock = secp.lock();
 
 	for m in msgs.messages {
 		let id = format!("{}", m.id);
-		let public_key = format!(
-			"{}",
-			util::to_hex(m.public_key.serialize_vec(&secp_lock, true).to_vec())
-		);
+		let public_key = format!("{}", m.public_key.serialize_vec(&secp_lock, true).to_hex());
 		let message = match m.message {
 			Some(m) => format!("{}", m),
 			None => "None".to_owned(),
 		};
 		let message_sig = match m.message_sig {
-			Some(s) => format!("{}", util::to_hex(s.serialize_der(&secp_lock))),
+			Some(s) => format!("{}", s.serialize_der(&secp_lock).to_hex()),
 			None => "None".to_owned(),
 		};
 		if dark_background_color_scheme {
@@ -551,7 +548,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	t.fg(term::color::WHITE).unwrap();
 	writeln!(t).unwrap();
 	let receiver_signature = match pp.receiver_signature {
-		Some(s) => util::to_hex(s.to_bytes().to_vec()),
+		Some(s) => s.to_bytes().as_ref().to_hex(),
 		None => "None".to_owned(),
 	};
 	let fee = match tx.fee {
@@ -568,11 +565,11 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	};
 
 	let sender_signature = match pp.sender_signature {
-		Some(s) => util::to_hex(s.to_bytes().to_vec()),
+		Some(s) => s.to_bytes().as_ref().to_hex(),
 		None => "None".to_owned(),
 	};
 	let kernel_excess = match tx.kernel_excess {
-		Some(e) => util::to_hex(e.0.to_vec()),
+		Some(e) => e.0.as_ref().to_hex(),
 		None => "None".to_owned(),
 	};
 

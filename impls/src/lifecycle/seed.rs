@@ -26,7 +26,7 @@ use ring::aead;
 use ring::pbkdf2;
 
 use crate::keychain::{mnemonic, Keychain};
-use crate::util;
+use crate::util::{self, ToHex};
 use crate::{Error, ErrorKind};
 use failure::ResultExt;
 
@@ -55,7 +55,7 @@ impl WalletSeed {
 	}
 
 	pub fn _to_hex(&self) -> String {
-		util::to_hex(self.0.to_vec())
+		self.0.to_vec().to_hex()
 	}
 
 	pub fn to_mnemonic(&self) -> Result<String, Error> {
@@ -266,9 +266,9 @@ impl EncryptedWalletSeed {
 		}
 
 		Ok(EncryptedWalletSeed {
-			encrypted_seed: util::to_hex(enc_bytes.to_vec()),
-			salt: util::to_hex(salt.to_vec()),
-			nonce: util::to_hex(nonce.to_vec()),
+			encrypted_seed: enc_bytes.to_hex(),
+			salt: salt.to_hex(),
+			nonce: nonce.to_hex(),
 		})
 	}
 

@@ -15,7 +15,7 @@ use crate::core::libtx::secp_ser;
 use crate::libwallet::dalek_ser;
 use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::{from_hex, to_hex};
+use crate::util::{from_hex, ToHex};
 use failure::ResultExt;
 
 use base64;
@@ -98,7 +98,7 @@ impl EncryptedBody {
 		}
 
 		Ok(EncryptedBody {
-			nonce: to_hex(nonce.to_vec()),
+			nonce: nonce.to_hex(),
 			body_enc: base64::encode(&to_encrypt),
 		})
 	}
