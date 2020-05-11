@@ -25,7 +25,7 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
-use crate::grin_util::ZeroingString;
+use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate::ParticipantMessages;
 use crate::slate_versions::ser as dalek_ser;
 use chrono::prelude::*;
@@ -437,7 +437,7 @@ impl ser::Writeable for OutputData {
 }
 
 impl ser::Readable for OutputData {
-	fn read(reader: &mut dyn ser::Reader) -> Result<OutputData, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<OutputData, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
@@ -633,7 +633,7 @@ impl ser::Writeable for Context {
 }
 
 impl ser::Readable for Context {
-	fn read(reader: &mut dyn ser::Reader) -> Result<Context, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<Context, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
@@ -823,7 +823,7 @@ impl ser::Writeable for TxLogEntry {
 }
 
 impl ser::Readable for TxLogEntry {
-	fn read(reader: &mut dyn ser::Reader) -> Result<TxLogEntry, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<TxLogEntry, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
@@ -896,7 +896,7 @@ impl ser::Writeable for StoredProofInfo {
 }
 
 impl ser::Readable for StoredProofInfo {
-	fn read(reader: &mut dyn ser::Reader) -> Result<StoredProofInfo, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<StoredProofInfo, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
@@ -918,7 +918,7 @@ impl ser::Writeable for AcctPathMapping {
 }
 
 impl ser::Readable for AcctPathMapping {
-	fn read(reader: &mut dyn ser::Reader) -> Result<AcctPathMapping, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<AcctPathMapping, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
@@ -951,7 +951,7 @@ impl ser::Writeable for ScannedBlockInfo {
 }
 
 impl ser::Readable for ScannedBlockInfo {
-	fn read(reader: &mut dyn ser::Reader) -> Result<ScannedBlockInfo, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<ScannedBlockInfo, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
@@ -988,7 +988,7 @@ impl ser::Writeable for WalletInitStatus {
 }
 
 impl ser::Readable for WalletInitStatus {
-	fn read(reader: &mut dyn ser::Reader) -> Result<WalletInitStatus, ser::Error> {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<WalletInitStatus, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}

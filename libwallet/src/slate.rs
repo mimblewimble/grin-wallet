@@ -29,6 +29,7 @@ use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
+use crate::grin_util::ToHex;
 use crate::grin_util::{self, secp, RwLock};
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -143,7 +144,7 @@ impl fmt::Display for ParticipantMessageData {
 		writeln!(
 			f,
 			"Public Key: {}",
-			&grin_util::to_hex(self.public_key.serialize_vec(&static_secp, true).to_vec())
+			&self.public_key.serialize_vec(&static_secp, true).to_hex()
 		)?;
 		let message = match self.message.clone() {
 			None => "None".to_owned(),
@@ -152,7 +153,7 @@ impl fmt::Display for ParticipantMessageData {
 		writeln!(f, "Message: {}", message)?;
 		let message_sig = match self.message_sig {
 			None => "None".to_owned(),
-			Some(m) => grin_util::to_hex(m.to_raw_data().to_vec()),
+			Some(m) => m.to_raw_data().as_ref().to_hex(),
 		};
 		writeln!(f, "Message Signature: {}", message_sig)
 	}
