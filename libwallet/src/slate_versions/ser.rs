@@ -426,12 +426,12 @@ pub mod option_dalek_sig_base64 {
 	use serde::{Deserialize, Deserializer, Serializer};
 
 	///
-	pub fn serialize<S>(key: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
+	pub fn serialize<S>(sig: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
 	{
-		match key {
-			Some(key) => serializer.serialize_str(&base64::encode(&key.to_bytes().to_vec())),
+		match sig {
+			Some(s) => serializer.serialize_str(&base64::encode(&s.to_bytes().to_vec())),
 			None => serializer.serialize_none(),
 		}
 	}
