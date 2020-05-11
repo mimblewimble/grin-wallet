@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 
 use crate::client_utils::byte_ser;
+use crate::core::ser::{self, Readable, Reader, Writeable, Writer};
 use crate::libwallet::{
 	dalek_ser, Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate,
 };
@@ -28,7 +29,7 @@ use crate::{SlateGetter, SlatePutter};
 
 /// Basic Slatepack definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SlatePack {
+pub struct Slatepack {
 	// Required Fields
 	/// Versioning info
 	#[serde(with = "slatepack_version")]
@@ -36,12 +37,13 @@ pub struct SlatePack {
 	/// Delivery Mode, 0 = plain_text, 1 = encrypted
 	pub mode: u8,
 	/// Sender address
-	//TODO: Unknown format for now, just us a string for now
-	pub sender: String,
+	#[serde(with = "dalek_ser::option_dalek_pubkey_base64")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub sender: Option<DalekPublicKey>,
 	/// Header, used if encryption enabled, mode == 1
 	#[serde(default = "default_header_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub header: Option<SlatePackHeader>,
+	pub header: Option<SlatepackHeader>,
 	/// Binary payload, can be encrypted or plaintext
 	#[serde(
 		serialize_with = "dalek_ser::as_base64",
@@ -50,21 +52,62 @@ pub struct SlatePack {
 	pub payload: Vec<u8>,
 }
 
-fn default_header_none() -> Option<SlatePackHeader> {
+fn default_header_none() -> Option<SlatepackHeader> {
 	None
 }
 
-impl Default for SlatePack {
+impl Default for Slatepack {
 	fn default() -> Self {
 		Self {
 			slatepack: SlatepackVersion { major: 0, minor: 1 },
 			mode: 0,
-			sender: String::from("0"),
+			sender: None,
 			header: None,
 			payload: vec![],
 		}
 	}
 }
+
+impl Writeable for &Slatepack {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		self.slatepack.write(writer)?;
+		writer.write_u8(self.mode)?;
+		// Write 1 or 0 depending on whether sender is present. Can add
+		// more fields in later versions
+		match self.sender {
+			None => writer.write_u8(0)?,
+			Some(p) => {
+				writer.write_u8(1)?;
+				writer.write_fixed_bytes(p.to_bytes())?;
+			}
+		};
+		(SlatepackHeaderWrapRef(&self.header)).write(writer)?;
+		writer.write_bytes(self.payload.clone())?;
+		Ok(())
+	}
+}
+
+/*impl Readable for Slatepack {
+	fn read<R: Reader>(reader: &mut R) -> Result<Slatepack, ser::Error> {
+		let slatepack = SlatepackVersion::read(reader)?;
+		let mode = reader.read_u8()?;
+		if mode > 1 {
+			return Err(serde::de::Error::custom("Unknown Mode"))?;
+		}
+		let sender_present = reader.read_u8()?;
+
+		let sender = match sender_present {
+			0 => {
+				None
+			},
+			1 => {
+				let s = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
+				Some(s)
+			},
+			n => return Err(serde::de::Error::custom("Unknown Sender Flag"))?;
+		};
+	}
+}*/
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct SlatepackVersion {
@@ -74,7 +117,22 @@ pub struct SlatepackVersion {
 	pub minor: u8,
 }
 
-/// Serializes version field
+impl Writeable for SlatepackVersion {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_u8(self.major)?;
+		writer.write_u8(self.minor)
+	}
+}
+
+impl Readable for SlatepackVersion {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlatepackVersion, ser::Error> {
+		let major = reader.read_u8()?;
+		let minor = reader.read_u8()?;
+		Ok(SlatepackVersion { major, minor })
+	}
+}
+
+/// Serializes version field JSON
 pub mod slatepack_version {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
@@ -115,23 +173,57 @@ pub mod slatepack_version {
 
 /// Header struct definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SlatePackHeader {
+pub struct SlatepackHeader {
 	/// List of recipients, entry for each
 	recipients_list: Vec<RecipientListEntry>,
 	/// MAC on all "header" data up to the MAC
-	//TODO: Real form
-	mac: String,
+	//TODO: check length
+	mac: [u8; 32],
+}
+
+struct SlatepackHeaderWrapRef<'a>(&'a Option<SlatepackHeader>);
+
+impl<'a> Writeable for SlatepackHeaderWrapRef<'a> {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		if let Some(h) = self.0 {
+			// write number of entries
+			writer.write_u8(h.recipients_list.len() as u8)?;
+			for r in h.recipients_list.iter() {
+				r.write(writer)?;
+			}
+			// Mac
+			writer.write_fixed_bytes(&h.mac)?;
+		}
+		Ok(())
+	}
 }
 
 /// Header struct definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RecipientListEntry {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
-	/// Unique for each msg_key
-	ephemeral_pubkey: DalekPublicKey,
-	/// Equivalent to file_key in age
-	//TODO: Real form
-	msg_key: Vec<u8>,
+	/// Ephemeral public key
+	epk: DalekPublicKey,
+	/// Ephemeral message key, equivalent to file_key in age
+	/// TODO: Check length
+	emk: [u8; 32],
+}
+
+impl Writeable for RecipientListEntry {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_fixed_bytes(self.epk.to_bytes())?;
+		writer.write_fixed_bytes(&self.emk)
+	}
+}
+
+impl Readable for RecipientListEntry {
+	fn read<R: Reader>(reader: &mut R) -> Result<RecipientListEntry, ser::Error> {
+		let epk = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
+		let emk_bytes = reader.read_fixed_bytes(32)?;
+		let mut emk = [0u8; 32];
+		emk.copy_from_slice(&emk_bytes[0..32]);
+		Ok(RecipientListEntry { epk, emk })
+	}
 }
 
 #[derive(Clone)]
@@ -142,7 +234,7 @@ impl SlatePutter for PathToSlatePack {
 		let mut pub_tx = File::create(&self.0)?;
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;
-		let mut slatepack = SlatePack::default();
+		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlateSer)?;
 		/*if as_bin {
 			let bin_slate =

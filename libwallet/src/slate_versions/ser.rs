@@ -310,6 +310,44 @@ pub mod dalek_pubkey_base64 {
 }
 
 /// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
+pub mod option_dalek_pubkey_base64 {
+	use base64;
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(key: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => serializer.serialize_str(&base64::encode(&key.to_bytes())),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekPublicKey>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|res| match res {
+			Some(string) => base64::decode(&string)
+				.map_err(|err| Error::custom(err.to_string()))
+				.and_then(|bytes: Vec<u8>| {
+					let mut b = [0u8; 32];
+					b.copy_from_slice(&bytes[0..32]);
+					DalekPublicKey::from_bytes(&b)
+						.map(Some)
+						.map_err(|err| Error::custom(err.to_string()))
+				}),
+			None => Ok(None),
+		})
+	}
+}
+
+/// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
 pub mod option_dalek_pubkey_serde {
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use serde::de::Error;
