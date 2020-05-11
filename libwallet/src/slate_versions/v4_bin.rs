@@ -46,7 +46,7 @@ impl Writeable for SlateStateV4 {
 }
 
 impl Readable for SlateStateV4 {
-	fn read(reader: &mut dyn Reader) -> Result<SlateStateV4, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlateStateV4, grin_ser::Error> {
 		let b = reader.read_u8()?;
 		let sta = match b {
 			0 => SlateStateV4::Unknown,
@@ -72,7 +72,7 @@ impl Writeable for UuidWrap {
 }
 
 impl Readable for UuidWrap {
-	fn read(reader: &mut dyn Reader) -> Result<UuidWrap, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<UuidWrap, grin_ser::Error> {
 		let bytes = reader.read_fixed_bytes(16)?;
 		let mut b = [0u8; 16];
 		b.copy_from_slice(&bytes[0..16]);
@@ -144,7 +144,7 @@ impl Writeable for SlateOptFields {
 }
 
 impl Readable for SlateOptFields {
-	fn read(reader: &mut dyn Reader) -> Result<SlateOptFields, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlateOptFields, grin_ser::Error> {
 		let status = reader.read_u8()?;
 		let num_parts = if status & 0x01 > 0 {
 			reader.read_u8()?
@@ -212,7 +212,7 @@ impl<'a> Writeable for SigsWrapRef<'a> {
 }
 
 impl Readable for SigsWrap {
-	fn read(reader: &mut dyn Reader) -> Result<SigsWrap, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<SigsWrap, grin_ser::Error> {
 		let sigs_len = reader.read_u8()?;
 		let sigs = {
 			let mut ret = vec![];
@@ -274,7 +274,7 @@ impl<'a> Writeable for SlateOptStructsRef<'a> {
 }
 
 impl Readable for SlateOptStructs {
-	fn read(reader: &mut dyn Reader) -> Result<SlateOptStructs, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlateOptStructs, grin_ser::Error> {
 		let status = reader.read_u8()?;
 		let coms = if status & 0x01 > 0 {
 			Some(ComsWrap::read(reader)?.0)
@@ -315,7 +315,7 @@ impl<'a> Writeable for ComsWrapRef<'a> {
 }
 
 impl Readable for ComsWrap {
-	fn read(reader: &mut dyn Reader) -> Result<ComsWrap, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<ComsWrap, grin_ser::Error> {
 		let coms_len = reader.read_u16()?;
 		let coms = {
 			let mut ret = vec![];
@@ -356,7 +356,7 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 }
 
 impl Readable for ProofWrap {
-	fn read(reader: &mut dyn Reader) -> Result<ProofWrap, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<ProofWrap, grin_ser::Error> {
 		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let rsig = match reader.read_u8()? {
@@ -457,7 +457,7 @@ impl Writeable for SlateV4Bin {
 }
 
 impl Readable for SlateV4Bin {
-	fn read(reader: &mut dyn Reader) -> Result<SlateV4Bin, grin_ser::Error> {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlateV4Bin, grin_ser::Error> {
 		let ver = VersionCompatInfoV4 {
 			version: reader.read_u16()?,
 			block_header_version: reader.read_u16()?,
