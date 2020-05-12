@@ -15,4 +15,5 @@
 mod armor;
 mod types;
 
+pub use self::armor::SlatepackArmor;
 pub use self::types::{Slatepack, SlatepackBin};

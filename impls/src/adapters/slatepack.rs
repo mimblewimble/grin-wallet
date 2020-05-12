@@ -19,8 +19,8 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use crate::libwallet::{
-	Error, ErrorKind, Slate, SlateVersion, Slatepack, SlatepackBin, VersionedBinSlate,
-	VersionedSlate,
+	Error, ErrorKind, Slate, SlateVersion, Slatepack, SlatepackArmor, SlatepackBin,
+	VersionedBinSlate, VersionedSlate,
 };
 use crate::{SlateGetter, SlatePutter};
 use grin_wallet_util::byte_ser;
@@ -84,5 +84,39 @@ impl SlateGetter for PathToSlatepack {
 		}
 
 		Ok((Slate::deserialize_upgrade(&content)?, false))
+	}
+}
+
+#[derive(Clone)]
+pub struct PathToSlatepackArmored(pub PathBuf);
+
+impl SlatePutter for PathToSlatepackArmored {
+	fn put_tx(&self, slate: &Slate, _as_bin: bool) -> Result<(), Error> {
+		let mut pub_tx = File::create(&self.0)?;
+		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
+		let bin_slate =
+			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+		let mut slatepack = Slatepack::default();
+		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+		let armored = SlatepackArmor::encode(&slatepack)?;
+		pub_tx.write_all(armored.as_bytes())?;
+		pub_tx.sync_all()?;
+		Ok(())
+	}
+}
+
+impl SlateGetter for PathToSlatepackArmored {
+	fn get_tx(&self) -> Result<(Slate, bool), Error> {
+		// try as bin first, then as json
+		let mut pub_tx_f = File::open(&self.0)?;
+		let mut data = Vec::new();
+		pub_tx_f.read_to_end(&mut data)?;
+		let slatepack = SlatepackArmor::decode(&String::from_utf8(data).unwrap())?;
+		let slate_bin =
+			byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload).map_err(|e| {
+				error!("Error reading slate from armored slatepack: {}", e);
+				ErrorKind::SlatepackDeser
+			})?;
+		Ok((Slate::upgrade(slate_bin.into())?, true))
 	}
 }

@@ -41,61 +41,68 @@ lazy_static! {
 	static ref WHITESPACE_LIST: [u8; 5] = [b'>', b'\n', b'\r', b'\t', b' '];
 }
 
-pub fn remove_armor(data: &str) -> Result<Slatepack, Error> {
-	// Convert the armored slate to bytes for parsing
-	let armor_bytes: Vec<u8> = data.as_bytes().to_vec();
-	// Collect the bytes up to the first period, this is the header
-	let header_bytes = &armor_bytes
-		.iter()
-		.take_while(|byte| **byte != b'.')
-		.cloned()
-		.collect::<Vec<u8>>();
-	// Verify the header...
-	check_header(&header_bytes)?;
-	// Get the length of the header
-	let header_len = *&header_bytes.len() + 1;
-	// Skip the length of the header to read for the payload until the next period
-	let payload_bytes = &armor_bytes[header_len as usize..]
-		.iter()
-		.take_while(|byte| **byte != b'.')
-		.cloned()
-		.collect::<Vec<u8>>();
-	// Get length of the payload to check the footer framing
-	let payload_len = *&payload_bytes.len();
-	// Get footer bytes and verify them
-	let consumed_bytes = header_len + payload_len + 1;
-	let footer_bytes = &armor_bytes[consumed_bytes as usize..]
-		.iter()
-		.take_while(|byte| **byte != b'.')
-		.cloned()
-		.collect::<Vec<u8>>();
-	check_footer(&footer_bytes)?;
-	// Clean up the payload bytes to be deserialized
-	let clean_payload = &payload_bytes
-		.iter()
-		.filter(|byte| !WHITESPACE_LIST.contains(byte))
-		.cloned()
-		.collect::<Vec<u8>>();
-	// Decode payload from base58
-	let base_decode = bs58::decode(&clean_payload).into_vec().unwrap();
-	let error_code = &base_decode[0..4];
-	let slate_bytes = &base_decode[4..];
-	// Make sure the error check code is valid for the slate data
-	error_check(&error_code.to_vec(), &slate_bytes.to_vec())?;
-	// Return slate as binary or string
-	let slatepack_bin = byte_ser::from_bytes::<SlatepackBin>(&slate_bytes).map_err(|e| {
-		error!("Error reading JSON Slatepack: {}", e);
-		ErrorKind::SlatepackDeser
-	})?;
-	Ok(slatepack_bin.0)
-}
+/// Wrapper for associated functions
+pub struct SlatepackArmor;
 
-pub fn armor_slatepack(slatepack: &Slatepack) -> Result<String, Error> {
-	let slatepack_bytes = byte_ser::to_bytes(&SlatepackBin(slatepack.clone()))
-		.map_err(|_| ErrorKind::SlatepackSer)?;
-	let encoded_slatepack = base58check(&slatepack_bytes)?;
-	let formatted_slatepack = format_slatepack(&encoded_slatepack)?;
-	Ok(format!("{}{}{}", HEADER, formatted_slatepack, FOOTER))
+impl SlatepackArmor {
+	/// Decode an armored Slatepack
+	pub fn decode(data: &str) -> Result<Slatepack, Error> {
+		// Convert the armored slate to bytes for parsing
+		let armor_bytes: Vec<u8> = data.as_bytes().to_vec();
+		// Collect the bytes up to the first period, this is the header
+		let header_bytes = &armor_bytes
+			.iter()
+			.take_while(|byte| **byte != b'.')
+			.cloned()
+			.collect::<Vec<u8>>();
+		// Verify the header...
+		check_header(&header_bytes)?;
+		// Get the length of the header
+		let header_len = *&header_bytes.len() + 1;
+		// Skip the length of the header to read for the payload until the next period
+		let payload_bytes = &armor_bytes[header_len as usize..]
+			.iter()
+			.take_while(|byte| **byte != b'.')
+			.cloned()
+			.collect::<Vec<u8>>();
+		// Get length of the payload to check the footer framing
+		let payload_len = *&payload_bytes.len();
+		// Get footer bytes and verify them
+		let consumed_bytes = header_len + payload_len + 1;
+		let footer_bytes = &armor_bytes[consumed_bytes as usize..]
+			.iter()
+			.take_while(|byte| **byte != b'.')
+			.cloned()
+			.collect::<Vec<u8>>();
+		check_footer(&footer_bytes)?;
+		// Clean up the payload bytes to be deserialized
+		let clean_payload = &payload_bytes
+			.iter()
+			.filter(|byte| !WHITESPACE_LIST.contains(byte))
+			.cloned()
+			.collect::<Vec<u8>>();
+		// Decode payload from base58
+		let base_decode = bs58::decode(&clean_payload).into_vec().unwrap();
+		let error_code = &base_decode[0..4];
+		let slate_bytes = &base_decode[4..];
+		// Make sure the error check code is valid for the slate data
+		error_check(&error_code.to_vec(), &slate_bytes.to_vec())?;
+		// Return slate as binary or string
+		let slatepack_bin = byte_ser::from_bytes::<SlatepackBin>(&slate_bytes).map_err(|e| {
+			error!("Error reading JSON Slatepack: {}", e);
+			ErrorKind::SlatepackDeser
+		})?;
+		Ok(slatepack_bin.0)
+	}
+
+	/// Encode an armored slatepack
+	pub fn encode(slatepack: &Slatepack) -> Result<String, Error> {
+		let slatepack_bytes = byte_ser::to_bytes(&SlatepackBin(slatepack.clone()))
+			.map_err(|_| ErrorKind::SlatepackSer)?;
+		let encoded_slatepack = base58check(&slatepack_bytes)?;
+		let formatted_slatepack = format_slatepack(&encoded_slatepack)?;
+		Ok(format!("{}{}{}", HEADER, formatted_slatepack, FOOTER))
+	}
 }
 
 // Takes an error check code and a slate binary and verifies that the code was generated from slate
