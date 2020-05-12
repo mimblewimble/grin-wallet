@@ -15,9 +15,9 @@
 /// Slatepack Types + Serialization implementation
 use ed25519_dalek::PublicKey as DalekPublicKey;
 
-use crate::client_utils::byte_ser;
-use crate::core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::libwallet::dalek_ser;
+use crate::dalek_ser;
+use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
+use crate::util::byte_ser;
 
 /// Basic Slatepack definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -83,6 +83,7 @@ impl Slatepack {
 	}
 }
 
+/// Wrapper for outputting slate as binary
 #[derive(Debug, Clone)]
 pub struct SlatepackBin(pub Slatepack);
 

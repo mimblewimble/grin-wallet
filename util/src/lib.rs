@@ -27,6 +27,9 @@ mod ov3;
 pub use ov3::OnionV3Address;
 pub use ov3::OnionV3Error as OnionV3AddressError;
 
+#[allow(missing_docs)]
+pub mod byte_ser;
+
 pub use grin_api;
 pub use grin_chain;
 pub use grin_core;

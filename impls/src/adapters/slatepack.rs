@@ -18,9 +18,12 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use crate::client_utils::byte_ser;
-use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
-use crate::{SlateGetter, SlatePutter, Slatepack, SlatepackBin};
+use crate::libwallet::{
+	Error, ErrorKind, Slate, SlateVersion, Slatepack, SlatepackBin, VersionedBinSlate,
+	VersionedSlate,
+};
+use crate::{SlateGetter, SlatePutter};
+use grin_wallet_util::byte_ser;
 
 #[derive(Clone)]
 pub struct PathToSlatepack(pub PathBuf);

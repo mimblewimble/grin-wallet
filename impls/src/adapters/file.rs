@@ -16,13 +16,13 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
-use crate::client_utils::byte_ser;
 use crate::libwallet::slate_versions::v3::SlateV3;
 use crate::libwallet::slate_versions::v4::SlateV4;
 use crate::libwallet::{
 	Error, ErrorKind, Slate, SlateState, SlateVersion, VersionedBinSlate, VersionedSlate,
 };
 use crate::{SlateGetter, SlatePutter};
+use grin_wallet_util::byte_ser;
 use std::convert::TryFrom;
 use std::path::PathBuf;
 

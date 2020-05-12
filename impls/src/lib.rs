@@ -40,7 +40,6 @@ mod client_utils;
 mod error;
 mod lifecycle;
 mod node_clients;
-mod slatepack;
 pub mod test_framework;
 pub mod tor;
 
@@ -52,7 +51,6 @@ pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};
 pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::node_clients::HTTPNodeClient;
-pub use crate::slatepack::{Slatepack, SlatepackBin};
 
 use crate::keychain::{ExtKeychain, Keychain};
 
