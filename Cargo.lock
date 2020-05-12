@@ -266,6 +266,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bs58"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "476e9cd489f9e121e02ffa6014a8ef220ecb15c05ed23fc34cca13925dc283fb"
+
+[[package]]
 name = "built"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1300,6 +1306,7 @@ version = "4.0.0-alpha.1"
 dependencies = [
  "base64 0.9.3",
  "blake2-rfc",
+ "bs58",
  "byteorder",
  "chrono",
  "ed25519-dalek",
@@ -1310,9 +1317,11 @@ dependencies = [
  "lazy_static",
  "log",
  "rand 0.5.6",
+ "regex",
  "serde",
  "serde_derive",
  "serde_json",
+ "sha2 0.8.1",
  "strum",
  "strum_macros",
  "uuid",
