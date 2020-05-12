@@ -68,46 +68,153 @@ impl Default for Slatepack {
 	}
 }
 
-impl Writeable for &Slatepack {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
-		self.slatepack.write(writer)?;
-		writer.write_u8(self.mode)?;
-		// Write 1 or 0 depending on whether sender is present. Can add
-		// more fields in later versions
-		match self.sender {
-			None => writer.write_u8(0)?,
-			Some(p) => {
-				writer.write_u8(1)?;
-				writer.write_fixed_bytes(p.to_bytes())?;
-			}
-		};
-		(SlatepackHeaderWrapRef(&self.header)).write(writer)?;
-		writer.write_bytes(self.payload.clone())?;
-		Ok(())
+impl Slatepack {
+	/// return length of optional fields
+	pub fn opt_fields_len(&self) -> Result<usize, ser::Error> {
+		let mut retval = 0;
+		if self.sender.is_some() {
+			retval += 4;
+		}
+		Ok(retval)
+	}
+	/// return the length of the header
+	pub fn header_len(&self) -> Result<usize, ser::Error> {
+		match self.header.as_ref() {
+			None => Ok(0),
+			Some(h) => h.len(),
+		}
 	}
 }
 
-/*impl Readable for Slatepack {
-	fn read<R: Reader>(reader: &mut R) -> Result<Slatepack, ser::Error> {
+#[derive(Debug, Clone)]
+pub struct SlatepackBin(pub Slatepack);
+
+impl serde::Serialize for SlatepackBin {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		let mut vec = vec![];
+		ser::serialize(&mut vec, ser::ProtocolVersion(4), self)
+			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		serializer.serialize_bytes(&vec)
+	}
+}
+
+impl<'de> serde::Deserialize<'de> for SlatepackBin {
+	fn deserialize<D>(deserializer: D) -> Result<SlatepackBin, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct SlatepackBinVisitor;
+
+		impl<'de> serde::de::Visitor<'de> for SlatepackBinVisitor {
+			type Value = SlatepackBin;
+
+			fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+				write!(formatter, "a serialised binary Slatepack")
+			}
+
+			fn visit_bytes<E>(self, value: &[u8]) -> Result<SlatepackBin, E>
+			where
+				E: serde::de::Error,
+			{
+				let mut reader = std::io::Cursor::new(value.to_vec());
+				let s = ser::deserialize(&mut reader, ser::ProtocolVersion(4))
+					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				Ok(s)
+			}
+		}
+
+		deserializer.deserialize_bytes(SlatepackBinVisitor)
+	}
+}
+
+impl Writeable for SlatepackBin {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		let sp = self.0.clone();
+		// Version (2)
+		sp.slatepack.write(writer)?;
+		// Mode (1)
+		writer.write_u8(sp.mode)?;
+		// 16 bits of optional content flags (2), most reserved for future use
+		let mut opt_flags: u16 = 0;
+		if sp.sender.is_some() {
+			opt_flags |= 0x01;
+		}
+		writer.write_u16(opt_flags)?;
+
+		// Bytes to skip from here (Start of optional fields other than header) to get to header (4)
+		writer.write_u32(sp.opt_fields_len()? as u32)?;
+
+		// write optional fields
+		if let Some(s) = sp.sender {
+			writer.write_fixed_bytes(s.to_bytes())?;
+		};
+
+		// Write Length of header
+		writer.write_u32(sp.header_len()? as u32)?;
+
+		// write header
+		if let Some(h) = &sp.header {
+			h.write(writer)?;
+		}
+
+		// Now write payload (length prefixed)
+		writer.write_bytes(sp.payload.clone())
+	}
+}
+
+impl Readable for SlatepackBin {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlatepackBin, ser::Error> {
+		// Version (2)
 		let slatepack = SlatepackVersion::read(reader)?;
+		// Mode (1)
 		let mode = reader.read_u8()?;
 		if mode > 1 {
-			return Err(serde::de::Error::custom("Unknown Mode"))?;
+			return Err(ser::Error::UnexpectedData {
+				expected: vec![0, 1],
+				received: vec![mode],
+			});
 		}
-		let sender_present = reader.read_u8()?;
+		// optional content flags (2)
+		let opt_flags = reader.read_u16()?;
+		// start of header
+		let mut bytes_to_header = reader.read_u32()?;
 
-		let sender = match sender_present {
-			0 => {
-				None
-			},
-			1 => {
-				let s = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
-				Some(s)
-			},
-			n => return Err(serde::de::Error::custom("Unknown Sender Flag"))?;
+		let sender = if opt_flags & 0x01 > 0 {
+			bytes_to_header -= 32;
+			Some(DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap())
+		} else {
+			None
 		};
+
+		// skip over any unknown future fields until header
+		while bytes_to_header > 0 {
+			let _ = reader.read_u8()?;
+			bytes_to_header -= 1;
+		}
+
+		// read length of header
+		let header_len = reader.read_u32()?;
+
+		let header = if header_len > 0 {
+			Some(SlatepackHeader::read(reader)?)
+		} else {
+			None
+		};
+
+		let payload = reader.read_bytes_len_prefix()?;
+
+		Ok(SlatepackBin(Slatepack {
+			slatepack,
+			mode,
+			sender,
+			header,
+			payload,
+		}))
 	}
-}*/
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct SlatepackVersion {
@@ -181,20 +288,42 @@ pub struct SlatepackHeader {
 	mac: [u8; 32],
 }
 
-struct SlatepackHeaderWrapRef<'a>(&'a Option<SlatepackHeader>);
+impl SlatepackHeader {
+	/// return length
+	pub fn len(&self) -> Result<usize, ser::Error> {
+		Ok(byte_ser::to_bytes(self)
+			.map_err(|_| ser::Error::CorruptedData)?
+			.len())
+	}
+}
 
-impl<'a> Writeable for SlatepackHeaderWrapRef<'a> {
+impl Writeable for &SlatepackHeader {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
-		if let Some(h) = self.0 {
-			// write number of entries
-			writer.write_u8(h.recipients_list.len() as u8)?;
-			for r in h.recipients_list.iter() {
-				r.write(writer)?;
-			}
-			// Mac
-			writer.write_fixed_bytes(&h.mac)?;
+		// write number of entries
+		writer.write_u8(self.recipients_list.len() as u8)?;
+		for r in self.recipients_list.iter() {
+			r.write(writer)?;
 		}
-		Ok(())
+		// Mac
+		writer.write_fixed_bytes(&self.mac)
+	}
+}
+
+impl Readable for SlatepackHeader {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlatepackHeader, ser::Error> {
+		let num_entries = reader.read_u8()?;
+		let mut ret_val = SlatepackHeader {
+			recipients_list: vec![],
+			mac: [0; 32],
+		};
+		for _ in 0..num_entries {
+			ret_val
+				.recipients_list
+				.push(RecipientListEntry::read(reader)?);
+		}
+		let mac_bytes = reader.read_fixed_bytes(32)?;
+		ret_val.mac.copy_from_slice(&mac_bytes[0..32]);
+		Ok(ret_val)
 	}
 }
 
@@ -230,23 +359,23 @@ impl Readable for RecipientListEntry {
 pub struct PathToSlatePack(pub PathBuf);
 
 impl SlatePutter for PathToSlatePack {
-	fn put_tx(&self, slate: &Slate, _as_bin: bool) -> Result<(), Error> {
+	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlateSer)?;
-		/*if as_bin {
-			let bin_slate =
-				VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;
-			pub_tx.write_all(&byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlateSer)?)?;
-		} else {*/
-		pub_tx.write_all(
-			serde_json::to_string_pretty(&slatepack)
-				.map_err(|_| ErrorKind::SlateSer)?
-				.as_bytes(),
-		)?;
-		/*}*/
+		if as_bin {
+			pub_tx.write_all(
+				&byte_ser::to_bytes(&SlatepackBin(slatepack)).map_err(|_| ErrorKind::SlateSer)?,
+			)?;
+		} else {
+			pub_tx.write_all(
+				serde_json::to_string_pretty(&slatepack)
+					.map_err(|_| ErrorKind::SlateSer)?
+					.as_bytes(),
+			)?;
+		}
 		pub_tx.sync_all()?;
 		Ok(())
 	}
@@ -255,20 +384,33 @@ impl SlatePutter for PathToSlatePack {
 impl SlateGetter for PathToSlatePack {
 	fn get_tx(&self) -> Result<(Slate, bool), Error> {
 		// try as bin first, then as json
-		let mut pub_tx_f = File::open(&self.0)?;
-		let mut data = Vec::new();
-		pub_tx_f.read_to_end(&mut data)?;
-		let bin_res = byte_ser::from_bytes::<VersionedBinSlate>(&data);
-		if let Err(e) = bin_res {
-			debug!("Not a valid binary slate: {} - Will try JSON", e);
-		} else {
-			if let Ok(s) = bin_res {
-				return Ok((Slate::upgrade(s.into())?, true));
+		{
+			let mut pub_tx_f = File::open(&self.0)?;
+			let mut data = Vec::new();
+			pub_tx_f.read_to_end(&mut data)?;
+			let bin_res = byte_ser::from_bytes::<SlatepackBin>(&data);
+			if let Err(e) = bin_res {
+				debug!("Not a valid binary slate: {} - Will try JSON", e);
+			} else {
+				if let Ok(s) = bin_res {
+					let slate = byte_ser::from_bytes::<VersionedBinSlate>(&s.0.payload);
+					if let Ok(s) = slate {
+						return Ok((Slate::upgrade(s.into())?, true));
+					}
+				}
 			}
 		}
 
 		// Otherwise try json
 		let content = String::from_utf8(data).map_err(|_| ErrorKind::SlateSer)?;
+		println!("{:?}", content);
+		let slatepack: Slatepack =
+			serde_json::from_str(&content).map_err(|_| ErrorKind::SlateSer)?;
+		let slate = byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload);
+		if let Ok(s) = slate {
+			return Ok((Slate::upgrade(s.into())?, true));
+		}
+
 		Ok((Slate::deserialize_upgrade(&content)?, false))
 	}
 }

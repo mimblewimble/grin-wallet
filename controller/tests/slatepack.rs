@@ -36,7 +36,7 @@ use common::{clean_output_dir, create_wallet_proxy, setup};
 /// self send impl
 fn slatepack_exchange_test_impl(
 	test_dir: &'static str,
-	as_bin: bool,
+	use_bin: bool,
 ) -> Result<(), libwallet::Error> {
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
@@ -124,33 +124,32 @@ fn slatepack_exchange_test_impl(
 		};
 		let slate = api.init_send_tx(m, args)?;
 		// output tx file
-		PathToSlatePack((&send_file).into()).put_tx(&slate, as_bin)?;
+		PathToSlatePack((&send_file).into()).put_tx(&slate, use_bin)?;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
 
-	/*
 	// Get some mining done
 	{
 		wallet_inst!(wallet2, w);
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = PathToSlate((&send_file).into()).get_tx()?.0;
+	let mut slate = PathToSlatePack((&send_file).into()).get_tx()?.0;
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		slate = api.receive_tx(&slate, None)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatePack((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let mut slate = PathToSlate(receive_file.into()).get_tx()?.0;
+		let mut slate = PathToSlatePack(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatePack((&final_file).into()).put_tx(&slate, use_bin)?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
@@ -176,7 +175,7 @@ fn slatepack_exchange_test_impl(
 		assert_eq!(wallet2_info.total, 2 * reward);
 		Ok(())
 	})?;
-
+	/*
 	// Now other types of exchange, for reference
 	// Invoice transaction
 	let (send_file, receive_file, final_file) = match use_bin {
@@ -200,7 +199,7 @@ fn slatepack_exchange_test_impl(
 			..Default::default()
 		};
 		slate = api.issue_invoice_tx(m, args)?;
-		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&send_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 
@@ -214,17 +213,17 @@ fn slatepack_exchange_test_impl(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		slate = PathToSlate((&send_file).into()).get_tx()?.0;
+		slate = PathToSlatepack((&send_file).into()).get_tx()?.0;
 		slate = api.process_invoice_tx(m, &slate, args)?;
 		api.tx_lock_outputs(m, &slate)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = PathToSlate((&receive_file).into()).get_tx()?.0;
+		slate = PathToSlatepack((&receive_file).into()).get_tx()?.0;
 		slate = api.finalize_invoice_tx(&slate)?;
-		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&final_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -268,24 +267,24 @@ fn slatepack_exchange_test_impl(
 			..Default::default()
 		};
 		let slate = api.init_send_tx(m, args)?;
-		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&send_file).into()).put_tx(&slate, use_bin)?;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
 
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = PathToSlate((&send_file).into()).get_tx()?.0;
+		slate = PathToSlatepack((&send_file).into()).get_tx()?.0;
 		slate = api.receive_tx(&slate, None)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		slate = PathToSlate(receive_file.into()).get_tx()?.0;
+		slate = PathToSlatepack(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&final_file).into()).put_tx(&slate, use_bin)?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
@@ -300,11 +299,22 @@ fn slatepack_exchange_test_impl(
 }
 
 #[test]
-fn slatepack_exchange() {
-	let test_dir = "test_output/slatepack_exchange";
+fn slatepack_exchange_json() {
+	let test_dir = "test_output/slatepack_exchange_json";
 	setup(test_dir);
 	// Json output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, false) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	//clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_exchange_bin() {
+	let test_dir = "test_output/slatepack_exchange_bin";
+	setup(test_dir);
+	// Bin output
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	//clean_output_dir(test_dir);
