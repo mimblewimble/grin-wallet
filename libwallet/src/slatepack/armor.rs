@@ -96,12 +96,12 @@ impl SlatepackArmor {
 	}
 
 	/// Encode an armored slatepack
-	pub fn encode(slatepack: &Slatepack) -> Result<String, Error> {
+	pub fn encode(slatepack: &Slatepack, num_cols: usize) -> Result<String, Error> {
 		let slatepack_bytes = byte_ser::to_bytes(&SlatepackBin(slatepack.clone()))
 			.map_err(|_| ErrorKind::SlatepackSer)?;
 		let encoded_slatepack = base58check(&slatepack_bytes)?;
-		let formatted_slatepack = format_slatepack(&encoded_slatepack)?;
-		Ok(format!("{}{}{}", HEADER, formatted_slatepack, FOOTER))
+		let formatted_slatepack = format_slatepack(&encoded_slatepack, num_cols)?;
+		Ok(format!("{}{}{}\n", HEADER, formatted_slatepack, FOOTER))
 	}
 }
 
@@ -154,13 +154,17 @@ fn base58check(slate: &[u8]) -> Result<String, Error> {
 }
 
 // Adds human readable formatting to the slate payload for armoring
-fn format_slatepack(slatepack: &str) -> Result<String, Error> {
+fn format_slatepack(slatepack: &str, num_cols: usize) -> Result<String, Error> {
 	let formatter = slatepack
 		.chars()
 		.enumerate()
 		.flat_map(|(i, c)| {
 			if i != 0 && i % WORD_LENGTH == 0 {
-				Some(' ')
+				if num_cols != 0 && i % (WORD_LENGTH * num_cols) == WORD_LENGTH * 2 {
+					Some('\n')
+				} else {
+					Some(' ')
+				}
 			} else {
 				None
 			}

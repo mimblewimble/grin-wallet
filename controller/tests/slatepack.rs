@@ -22,7 +22,7 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::OnionV3Address;
 
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{PathToSlatepack, SlateGetter as _, SlatePutter as _};
+use impls::{PathToSlatepack, PathToSlatepackArmored, SlateGetter as _, SlatePutter as _};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -39,10 +39,20 @@ fn output_slatepack(
 	armored: bool,
 	use_bin: bool,
 ) -> Result<(), libwallet::Error> {
-	PathToSlatepack((file).into()).put_tx(&slate, use_bin)
+	if armored {
+		let file = format!("{}.armored", file);
+		PathToSlatepackArmored((&file).into()).put_tx(&slate, use_bin)
+	} else {
+		PathToSlatepack((file).into()).put_tx(&slate, use_bin)
+	}
 }
 fn slate_from_packed(file: &str, armored: bool) -> Result<Slate, libwallet::Error> {
-	Ok(PathToSlatepack((file).into()).get_tx()?.0)
+	if armored {
+		let file = format!("{}.armored", file);
+		Ok(PathToSlatepackArmored((file).into()).get_tx()?.0)
+	} else {
+		Ok(PathToSlatepack((file).into()).get_tx()?.0)
+	}
 }
 
 /// self send impl
@@ -116,14 +126,14 @@ fn slatepack_exchange_test_impl(
 
 	let (send_file, receive_file, final_file) = match use_bin {
 		false => (
-			format!("{}/standard_I1.slatepack", test_dir),
-			format!("{}/standard_I2.slatepack", test_dir),
-			format!("{}/standard_I3.slatepack", test_dir),
+			format!("{}/standard_S1.slatepack", test_dir),
+			format!("{}/standard_S2.slatepack", test_dir),
+			format!("{}/standard_S3.slatepack", test_dir),
 		),
 		true => (
-			format!("{}/standard_I1.slatepackbin", test_dir),
-			format!("{}/standard_I2.slatepackbin", test_dir),
-			format!("{}/standard_I3.slatepackbin", test_dir),
+			format!("{}/standard_S1.slatepackbin", test_dir),
+			format!("{}/standard_S2.slatepackbin", test_dir),
+			format!("{}/standard_S3.slatepackbin", test_dir),
 		),
 	};
 
@@ -321,7 +331,7 @@ fn slatepack_exchange_json() {
 	let test_dir = "test_output/slatepack_exchange_json";
 	setup(test_dir);
 	// Json output
-	if let Err(e) = slatepack_exchange_test_impl(test_dir, false) {
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	//clean_output_dir(test_dir);
@@ -332,7 +342,18 @@ fn slatepack_exchange_bin() {
 	let test_dir = "test_output/slatepack_exchange_bin";
 	setup(test_dir);
 	// Bin output
-	if let Err(e) = slatepack_exchange_test_impl(test_dir, true) {
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, false) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	//clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_exchange_armored() {
+	let test_dir = "test_output/slatepack_exchange_armored";
+	setup(test_dir);
+	// Bin output
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	//clean_output_dir(test_dir);

@@ -98,7 +98,7 @@ impl SlatePutter for PathToSlatepackArmored {
 			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
-		let armored = SlatepackArmor::encode(&slatepack)?;
+		let armored = SlatepackArmor::encode(&slatepack, 3)?;
 		pub_tx.write_all(armored.as_bytes())?;
 		pub_tx.sync_all()?;
 		Ok(())
