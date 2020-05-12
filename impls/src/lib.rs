@@ -45,7 +45,7 @@ pub mod tor;
 
 pub use crate::adapters::{
 	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate,
-	PathToSlatePack, SlateGetter, SlatePutter, SlateReceiver, SlateSender,
+	PathToSlatepack, SlateGetter, SlatePutter, SlateReceiver, SlateSender,
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::{Error, ErrorKind};

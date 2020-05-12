@@ -22,7 +22,7 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::OnionV3Address;
 
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{PathToSlatePack, SlateGetter as _, SlatePutter as _};
+use impls::{PathToSlatepack, SlateGetter as _, SlatePutter as _};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -101,11 +101,18 @@ fn slatepack_exchange_test_impl(
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let (send_file, receive_file, final_file) = (
-		format!("{}/standard_S1.slatepack", test_dir),
-		format!("{}/standard_S2.slatepack", test_dir),
-		format!("{}/standard_S3.slatepack", test_dir),
-	);
+	let (send_file, receive_file, final_file) = match use_bin {
+		false => (
+			format!("{}/standard_I1.slatepack", test_dir),
+			format!("{}/standard_I2.slatepack", test_dir),
+			format!("{}/standard_I3.slatepack", test_dir),
+		),
+		true => (
+			format!("{}/standard_I1.slatepackbin", test_dir),
+			format!("{}/standard_I2.slatepackbin", test_dir),
+			format!("{}/standard_I3.slatepackbin", test_dir),
+		),
+	};
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
@@ -124,7 +131,7 @@ fn slatepack_exchange_test_impl(
 		};
 		let slate = api.init_send_tx(m, args)?;
 		// output tx file
-		PathToSlatePack((&send_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&send_file).into()).put_tx(&slate, use_bin)?;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
@@ -135,21 +142,21 @@ fn slatepack_exchange_test_impl(
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = PathToSlatePack((&send_file).into()).get_tx()?.0;
+	let mut slate = PathToSlatepack((&send_file).into()).get_tx()?.0;
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		slate = api.receive_tx(&slate, None)?;
-		PathToSlatePack((&receive_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let mut slate = PathToSlatePack(receive_file.into()).get_tx()?.0;
+		let mut slate = PathToSlatepack(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		PathToSlatePack((&final_file).into()).put_tx(&slate, use_bin)?;
+		PathToSlatepack((&final_file).into()).put_tx(&slate, use_bin)?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
@@ -175,19 +182,19 @@ fn slatepack_exchange_test_impl(
 		assert_eq!(wallet2_info.total, 2 * reward);
 		Ok(())
 	})?;
-	/*
+
 	// Now other types of exchange, for reference
 	// Invoice transaction
 	let (send_file, receive_file, final_file) = match use_bin {
 		false => (
-			format!("{}/invoice_I1.tx", test_dir),
-			format!("{}/invoice_I2.tx", test_dir),
-			format!("{}/invoice_I3.tx", test_dir),
+			format!("{}/invoice_I1.slatepack", test_dir),
+			format!("{}/invoice_I2.slatepack", test_dir),
+			format!("{}/invoice_I3.slatepack", test_dir),
 		),
 		true => (
-			format!("{}/invoice_I1.txbin", test_dir),
-			format!("{}/invoice_I2.txbin", test_dir),
-			format!("{}/invoice_I3.txbin", test_dir),
+			format!("{}/invoice_I1.slatepackbin", test_dir),
+			format!("{}/invoice_I2.slatepackbin", test_dir),
+			format!("{}/invoice_I3.slatepackbin", test_dir),
 		),
 	};
 
@@ -235,14 +242,14 @@ fn slatepack_exchange_test_impl(
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 	let (send_file, receive_file, final_file) = match use_bin {
 		false => (
-			format!("{}/standard_pp_S1.tx", test_dir),
-			format!("{}/standard_pp_S2.tx", test_dir),
-			format!("{}/standard_pp_S3.tx", test_dir),
+			format!("{}/standard_pp_S1.slatepack", test_dir),
+			format!("{}/standard_pp_S2.slatepack", test_dir),
+			format!("{}/standard_pp_S3.slatepack", test_dir),
 		),
 		true => (
-			format!("{}/standard_pp_S1.txbin", test_dir),
-			format!("{}/standard_pp_S2.txbin", test_dir),
-			format!("{}/standard_pp_S3.txbin", test_dir),
+			format!("{}/standard_pp_S1.slatepackbin", test_dir),
+			format!("{}/standard_pp_S2.slatepackbin", test_dir),
+			format!("{}/standard_pp_S3.slatepackbin", test_dir),
 		),
 	};
 	let mut slate = Slate::blank(2, true);
@@ -289,8 +296,6 @@ fn slatepack_exchange_test_impl(
 		bh += 1;
 		Ok(())
 	})?;
-
-	*/
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

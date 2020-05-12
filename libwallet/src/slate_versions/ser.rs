@@ -13,7 +13,6 @@
 // limitations under the License.
 //! Sane serialization & deserialization of cryptographic structs into hex
 
-use crate::grin_util::from_hex;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::PublicKey;
 use base64;
@@ -27,15 +26,14 @@ where
 {
 	serializer.serialize_str(&base64::encode(&bytes))
 }
-///
-/// Creates a Vec from a hex string
+
+/// Creates a Vec from a base string
 pub fn bytes_from_base64<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
 	D: Deserializer<'de>,
 {
 	use serde::de::Error;
 	String::deserialize(deserializer)
-		.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))
 }
 
@@ -342,7 +340,10 @@ pub mod option_dalek_pubkey_base64 {
 						.map(Some)
 						.map_err(|err| Error::custom(err.to_string()))
 				}),
-			None => Ok(None),
+			None => {
+				println!("None fine");
+				Ok(None)
+			}
 		})
 	}
 }

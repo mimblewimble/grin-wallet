@@ -37,6 +37,7 @@ pub struct Slatepack {
 	/// Delivery Mode, 0 = plain_text, 1 = encrypted
 	pub mode: u8,
 	/// Sender address
+	#[serde(default = "default_sender_none")]
 	#[serde(with = "dalek_ser::option_dalek_pubkey_base64")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub sender: Option<DalekPublicKey>,
@@ -53,6 +54,10 @@ pub struct Slatepack {
 }
 
 fn default_header_none() -> Option<SlatepackHeader> {
+	None
+}
+
+fn default_sender_none() -> Option<DalekPublicKey> {
 	None
 }
 
@@ -356,18 +361,20 @@ impl Readable for RecipientListEntry {
 }
 
 #[derive(Clone)]
-pub struct PathToSlatePack(pub PathBuf);
+pub struct PathToSlatepack(pub PathBuf);
 
-impl SlatePutter for PathToSlatePack {
+impl SlatePutter for PathToSlatepack {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let mut pub_tx = File::create(&self.0)?;
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
-		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;
+		let bin_slate =
+			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
-		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlateSer)?;
+		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		if as_bin {
 			pub_tx.write_all(
-				&byte_ser::to_bytes(&SlatepackBin(slatepack)).map_err(|_| ErrorKind::SlateSer)?,
+				&byte_ser::to_bytes(&SlatepackBin(slatepack))
+					.map_err(|_| ErrorKind::SlatepackSer)?,
 			)?;
 		} else {
 			pub_tx.write_all(
@@ -381,31 +388,31 @@ impl SlatePutter for PathToSlatePack {
 	}
 }
 
-impl SlateGetter for PathToSlatePack {
+impl SlateGetter for PathToSlatepack {
 	fn get_tx(&self) -> Result<(Slate, bool), Error> {
 		// try as bin first, then as json
-		{
-			let mut pub_tx_f = File::open(&self.0)?;
-			let mut data = Vec::new();
-			pub_tx_f.read_to_end(&mut data)?;
-			let bin_res = byte_ser::from_bytes::<SlatepackBin>(&data);
-			if let Err(e) = bin_res {
-				debug!("Not a valid binary slate: {} - Will try JSON", e);
-			} else {
-				if let Ok(s) = bin_res {
-					let slate = byte_ser::from_bytes::<VersionedBinSlate>(&s.0.payload);
-					if let Ok(s) = slate {
-						return Ok((Slate::upgrade(s.into())?, true));
-					}
+		let mut pub_tx_f = File::open(&self.0)?;
+		let mut data = Vec::new();
+		pub_tx_f.read_to_end(&mut data)?;
+		let bin_res = byte_ser::from_bytes::<SlatepackBin>(&data);
+		if let Err(e) = bin_res {
+			debug!("Not a valid binary slatepack: {} - Will try JSON", e);
+		} else {
+			if let Ok(s) = bin_res {
+				let slate = byte_ser::from_bytes::<VersionedBinSlate>(&s.0.payload);
+				if let Ok(s) = slate {
+					return Ok((Slate::upgrade(s.into())?, true));
 				}
 			}
 		}
 
 		// Otherwise try json
-		let content = String::from_utf8(data).map_err(|_| ErrorKind::SlateSer)?;
+		let content = String::from_utf8(data).map_err(|_| ErrorKind::SlatepackDeser)?;
 		println!("{:?}", content);
-		let slatepack: Slatepack =
-			serde_json::from_str(&content).map_err(|_| ErrorKind::SlateSer)?;
+		let slatepack: Slatepack = serde_json::from_str(&content).map_err(|e| {
+			error!("Error reading JSON Slatepack: {}", e);
+			ErrorKind::SlatepackDeser
+		})?;
 		let slate = byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload);
 		if let Ok(s) = slate {
 			return Ok((Slate::upgrade(s.into())?, true));

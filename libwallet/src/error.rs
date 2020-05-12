@@ -202,6 +202,14 @@ pub enum ErrorKind {
 	#[fail(display = "Can't Deserialize slate")]
 	SlateDeser,
 
+	/// Can't serialize slate pack
+	#[fail(display = "Can't Serialize slatepack")]
+	SlatepackSer,
+
+	/// Can't deserialize slate
+	#[fail(display = "Can't Deserialize slatepack")]
+	SlatepackDeser,
+
 	/// Unknown slate version
 	#[fail(display = "Unknown Slate Version: {}", _0)]
 	SlateVersion(u16),
