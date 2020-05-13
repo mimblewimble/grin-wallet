@@ -18,7 +18,7 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, KernelFeatures, Output, OutputFeatures, Transaction, TransactionBody, TxKernel,
+	Input, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction, TransactionBody, TxKernel,
 	Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
@@ -999,7 +999,11 @@ impl From<&TxKernel> for TxKernelV4 {
 			KernelFeatures::NoRecentDuplicate {
 				fee,
 				relative_height,
-			} => xxx,
+			} => (
+				CompatKernelFeatures::NoRecentDuplicate,
+				fee,
+				relative_height.into(),
+			),
 		};
 		TxKernelV4 {
 			features,
@@ -1261,6 +1265,11 @@ impl From<&TxKernelV4> for TxKernel {
 			CompatKernelFeatures::Plain => KernelFeatures::Plain { fee },
 			CompatKernelFeatures::Coinbase => KernelFeatures::Coinbase,
 			CompatKernelFeatures::HeightLocked => KernelFeatures::HeightLocked { fee, lock_height },
+			CompatKernelFeatures::NoRecentDuplicate => KernelFeatures::NoRecentDuplicate {
+				fee,
+				relative_height: NRDRelativeHeight::new(lock_height)
+					.expect("a valid NRD relative height"),
+			},
 		};
 		TxKernel {
 			features,
@@ -1275,4 +1284,5 @@ pub enum CompatKernelFeatures {
 	Plain,
 	Coinbase,
 	HeightLocked,
+	NoRecentDuplicate,
 }
