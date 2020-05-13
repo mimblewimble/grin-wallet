@@ -21,7 +21,7 @@ use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
-use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
+use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
@@ -554,9 +554,6 @@ pub struct Context {
 	pub fee: u64,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
-	/// Store calculated transaction offset, for repopulating
-	/// compact slates
-	pub offset: Option<BlindingFactor>,
 	/// whether this was an invoice transaction
 	pub is_invoice: bool,
 	/// for invoice I2 Only, store the tx excess so we can
@@ -571,7 +568,6 @@ impl Context {
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
-		offset: Option<BlindingFactor>,
 		is_invoice: bool,
 	) -> Context {
 		let sec_nonce = match use_test_rng {
@@ -589,7 +585,6 @@ impl Context {
 			amount: 0,
 			fee: 0,
 			payment_proof_derivation_index: None,
-			offset: offset.clone(),
 			is_invoice,
 			calculated_excess: None,
 		}

@@ -55,6 +55,10 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	//TODO: Revise HF3. If we're sending V4 slates, only include
+	// change outputs in excess sum
+	let include_inputs_in_sum = if slate.is_compact() { false } else { true };
+
 	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
 		wallet,
 		keychain_mask,
@@ -65,6 +69,7 @@ where
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
+		include_inputs_in_sum,
 	)?;
 
 	// Update the fee on the slate so we account for this when building the tx.
@@ -78,7 +83,6 @@ where
 		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
-		None,
 		is_invoice,
 	);
 
@@ -268,7 +272,6 @@ where
 			.unwrap(),
 		&parent_key_id,
 		use_test_rng,
-		None,
 		is_invoice,
 	);
 
@@ -323,6 +326,7 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
+	include_inputs_in_sum: bool,
 ) -> Result<
 	(
 		Vec<Box<build::Append<K, B>>>,
@@ -350,8 +354,15 @@ where
 	)?;
 
 	// build transaction skeleton with inputs and change
-	let (parts, change_amounts_derivations) =
-		inputs_and_change(&coins, wallet, keychain_mask, amount, fee, change_outputs)?;
+	let (parts, change_amounts_derivations) = inputs_and_change(
+		&coins,
+		wallet,
+		keychain_mask,
+		amount,
+		fee,
+		change_outputs,
+		include_inputs_in_sum,
+	)?;
 
 	Ok((parts, coins, change_amounts_derivations, fee))
 }
@@ -472,6 +483,7 @@ pub fn inputs_and_change<'a, T: ?Sized, C, K, B>(
 	amount: u64,
 	fee: u64,
 	num_change_outputs: usize,
+	include_inputs_in_sum: bool,
 ) -> Result<
 	(
 		Vec<Box<build::Append<K, B>>>,
@@ -496,11 +508,13 @@ where
 	let change = total - amount - fee;
 
 	// build inputs using the appropriate derived key_ids
-	for coin in coins {
-		if coin.is_coinbase {
-			parts.push(build::coinbase_input(coin.value, coin.key_id.clone()));
-		} else {
-			parts.push(build::input(coin.value, coin.key_id.clone()));
+	if include_inputs_in_sum {
+		for coin in coins {
+			if coin.is_coinbase {
+				parts.push(build::coinbase_input(coin.value, coin.key_id.clone()));
+			} else {
+				parts.push(build::input(coin.value, coin.key_id.clone()));
+			}
 		}
 	}
 
@@ -680,8 +694,6 @@ where
 	}
 	let _ = slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), parts)?;
 	// restore the original offset
-	if let Some(o) = &context.offset {
-		slate.tx_or_err_mut()?.offset = o.clone();
-	}
+	slate.tx_or_err_mut()?.offset = slate.offset.clone();
 	Ok(())
 }

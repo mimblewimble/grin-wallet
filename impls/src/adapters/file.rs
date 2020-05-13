@@ -31,6 +31,14 @@ pub struct PathToSlate(pub PathBuf);
 
 impl SlatePutter for PathToSlate {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
+		// output raw slate for testing
+		{
+			let mut raw_path = self.0.clone();
+			raw_path.set_extension("raw");
+			let mut raw_slate = File::create(&raw_path)?;
+			raw_slate.write_all(&format!("{:?}", slate).as_bytes())?;
+			raw_slate.sync_all()?;
+		}
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
 		let out_slate = {

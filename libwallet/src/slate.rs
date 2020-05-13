@@ -215,7 +215,6 @@ impl Slate {
 	/// This info must be stored in the context for repopulation later
 	pub fn compact(&mut self) -> Result<(), Error> {
 		self.tx = None;
-		self.offset = BlindingFactor::zero();
 		Ok(())
 	}
 
@@ -332,7 +331,12 @@ impl Slate {
 		K: Keychain,
 	{
 		// Whoever does this first generates the offset
-		if self.participant_data.len() == 0 {
+		// TODO: Remove HF3
+		if self.participant_data.len() == 0 && !self.is_compact() {
+			self.generate_offset(keychain, sec_key, use_test_rng)?;
+		}
+		// Always choose my part of the offset, and subtract from my excess
+		if self.is_compact() {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
 		self.add_participant_info(keychain, &sec_key, &sec_nonce, None)?;
@@ -502,7 +506,7 @@ impl Slate {
 	/// For now, we'll have the transaction initiator be responsible for it
 	/// Return offset private key for the participant to use later in the
 	/// transaction
-	fn generate_offset<K>(
+	pub fn generate_offset<K>(
 		&mut self,
 		keychain: &K,
 		sec_key: &mut SecretKey,
@@ -514,7 +518,7 @@ impl Slate {
 		// Generate a random kernel offset here
 		// and subtract it from the blind_sum so we create
 		// the aggsig context with the "split" key
-		self.tx_or_err_mut()?.offset = match use_test_rng {
+		let my_offset = match use_test_rng {
 			false => {
 				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()))
 			}
@@ -525,12 +529,25 @@ impl Slate {
 			}
 		};
 
-		let blind_offset = keychain.blind_sum(
+		if self.is_compact() {
+			let total_offset = keychain.blind_sum(
+				&BlindSum::new()
+					.add_blinding_factor(self.offset.clone())
+					.add_blinding_factor(my_offset.clone()),
+			)?;
+			self.offset = total_offset;
+		} else {
+			//TODO: Remove HF3
+			self.tx_or_err_mut()?.offset = my_offset.clone();
+		};
+
+		let adjusted_offset = keychain.blind_sum(
 			&BlindSum::new()
 				.add_blinding_factor(BlindingFactor::from_secret_key(sec_key.clone()))
-				.sub_blinding_factor(self.tx_or_err()?.offset.clone()),
+				.sub_blinding_factor(my_offset),
 		)?;
-		*sec_key = blind_offset.secret_key(&keychain.secp())?;
+		*sec_key = adjusted_offset.secret_key(&keychain.secp())?;
+
 		Ok(())
 	}
 

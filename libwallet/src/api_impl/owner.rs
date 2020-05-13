@@ -23,7 +23,7 @@ use crate::grin_util::Mutex;
 use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
+use crate::grin_keychain::{BlindSum, BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
@@ -382,11 +382,6 @@ where
 		context.payment_proof_derivation_index = Some(deriv_path);
 	}
 
-	context.offset = Some(slate.tx_or_err()?.offset.clone());
-
-	//TODO: Remove after HF3
-	slate.offset = slate.tx_or_err()?.offset.clone();
-
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
@@ -427,7 +422,7 @@ where
 
 	let mut slate = tx::new_tx_slate(&mut *w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
-	let mut context = tx::add_output_to_slate(
+	let context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut slate,
@@ -440,11 +435,6 @@ where
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.version = v;
 	};
-
-	context.offset = Some(slate.tx_or_err()?.offset.clone());
-
-	//TODO: Remove after HF3
-	slate.offset = slate.tx_or_err()?.offset.clone();
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -539,7 +529,6 @@ where
 	if let Ok(c) = context_res {
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
-		context.offset = c.offset;
 		context.is_invoice = c.is_invoice;
 		context.fee = c.fee;
 		context.amount = c.amount;
@@ -617,9 +606,48 @@ where
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	let parent_key_id = w.parent_key_id();
+
+	// since we're now actually inserting our inputs, pick an offset and adjust
+	// our contribution to the excess by offset amount
+	// TODO: Post HF3, this should allow for inputs to be picked at this stage
+	// as opposed to locking them prior to this stage, as the excess to this point
+	// will just be the change output
+	if sl.is_compact() {
+		let k = w.keychain(keychain_mask)?;
+		// my excess currently only contains change outputs (if any),
+		//sl.generate_offset(&k, &mut context.sec_key, false)?;
+		// Offset has been created and adjusted
+		// Now subtract sum total of all my inputs from the offset
+		// TODO: Handle Unwrap
+		let input_bfs: Vec<BlindingFactor> = context
+			.get_inputs()
+			.iter()
+			.map(|i| {
+				k.derive_key(i.2, &i.0, SwitchCommitmentType::Regular)
+					.unwrap()
+			})
+			.map(|sk| BlindingFactor::from_secret_key(sk))
+			.collect();
+		let mut sum = BlindSum::new().add_blinding_factor(sl.offset.clone());
+		for b in input_bfs {
+			sum = sum.sub_blinding_factor(b.clone());
+		}
+		let new_offset = k.blind_sum(&sum)?;
+		sl.offset = new_offset.clone();
+		sl.tx_or_err_mut()?.offset = new_offset;
+
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_private_context(sl.id.as_bytes(), &context)?;
+		batch.commit()?;
+	}
+
 	if sl.is_compact() {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 	}
+
+	println!("{}", sl);
+	println!("{:?}", sl);
+
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
@@ -631,11 +659,6 @@ where
 	sl.state = SlateState::Standard3;
 	if sl.is_compact() {
 		sl.amount = 0;
-		// fill in offset in case of delayed posting
-		sl.offset = match context.offset {
-			Some(o) => o,
-			None => BlindingFactor::zero(),
-		};
 	}
 	Ok(sl)
 }
