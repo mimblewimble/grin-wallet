@@ -57,7 +57,7 @@ where
 {
 	//TODO: Revise HF3. If we're sending V4 slates, only include
 	// change outputs in excess sum
-	let include_inputs_in_sum = if slate.is_compact() { false } else { true };
+	let include_inputs_in_sum = !slate.is_compact();
 
 	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
 		wallet,
