@@ -23,7 +23,7 @@ use crate::grin_util::Mutex;
 use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_keychain::{BlindSum, BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
+use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
@@ -540,6 +540,13 @@ where
 		}
 	}
 
+	// adjust offset with inputs, repopulate inputs (initiator needs them for now)
+	// TODO: Revisit post-HF3
+	if ret_slate.is_compact() {
+		tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut ret_slate)?;
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, false)?;
+	}
+
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
 	{
@@ -612,41 +619,11 @@ where
 	// TODO: Post HF3, this should allow for inputs to be picked at this stage
 	// as opposed to locking them prior to this stage, as the excess to this point
 	// will just be the change output
-	if sl.is_compact() {
-		let k = w.keychain(keychain_mask)?;
-		// my excess currently only contains change outputs (if any),
-		//sl.generate_offset(&k, &mut context.sec_key, false)?;
-		// Offset has been created and adjusted
-		// Now subtract sum total of all my inputs from the offset
-		// TODO: Handle Unwrap
-		let input_bfs: Vec<BlindingFactor> = context
-			.get_inputs()
-			.iter()
-			.map(|i| {
-				k.derive_key(i.2, &i.0, SwitchCommitmentType::Regular)
-					.unwrap()
-			})
-			.map(|sk| BlindingFactor::from_secret_key(sk))
-			.collect();
-		let mut sum = BlindSum::new().add_blinding_factor(sl.offset.clone());
-		for b in input_bfs {
-			sum = sum.sub_blinding_factor(b.clone());
-		}
-		let new_offset = k.blind_sum(&sum)?;
-		sl.offset = new_offset.clone();
-		sl.tx_or_err_mut()?.offset = new_offset;
-
-		let mut batch = w.batch(keychain_mask)?;
-		batch.save_private_context(sl.id.as_bytes(), &context)?;
-		batch.commit()?;
-	}
 
 	if sl.is_compact() {
+		tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 	}
-
-	println!("{}", sl);
-	println!("{:?}", sl);
 
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
