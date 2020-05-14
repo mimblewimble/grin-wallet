@@ -539,6 +539,7 @@ impl Slate {
 		} else {
 			//TODO: Remove HF3
 			self.tx_or_err_mut()?.offset = my_offset.clone();
+			self.offset = my_offset.clone();
 		};
 
 		let adjusted_offset = keychain.blind_sum(

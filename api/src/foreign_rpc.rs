@@ -135,9 +135,10 @@ pub trait ForeignRpc {
 				"sta": "S1",
 				"amt": "60000000000",
 				"fee": "7000000",
+				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"sigs": [
 					{
-						"xs": "AzrCFY+gB38IfeYMGdjkMXU7qltjtuFHfwWipucZDUWS",
+						"xs": "AwFS0tcuLbp8YIatSaIZ2f8N/g/Zk9yuoi4FjCEAM86T",
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP"
 					}
 				]
@@ -161,11 +162,12 @@ pub trait ForeignRpc {
 					}
 				],
 				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"offset": "a4052c9200000001a6052c9200000002ed564fab50b75fc5ea32ce052fc9bebf",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBsrNb0o39ImngZw4M+ScL1t8tA/vWRSPuSuYiOWBVuW/A==",
-						"xs": "A4/gRDJD2rFzwGjvX6iRskLSteuJDqCUdebjgRcEQu4W"
+						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBsFiJtL7+KpZhceAUs9zF+T6CiXy18Hr2cIYcJ9XmH+ag==",
+						"xs": "A6ZTwAjgK+rW7OC8F/8UHcRBH5NW+xZBLlx7x6fcv3PU"
 					}
 				],
 				"sta": "S2",
@@ -203,11 +205,12 @@ pub trait ForeignRpc {
 			"id": "0436430c-2b02-624c-2032-570501212b00",
 			"sta": "I2",
 			"fee": "7000000",
+			"offset": "750dbf4fd43b7f4cfd68d2698a522f3ff6e6a00ad9895b33f1ec46493b837b49",
 			"sigs": [
 				{
-					"xs": "Ap8S+fjFSJoYkE3nzUbcM4S3k2nUy8F810spnajCz3RF",
+					"xs": "AwFS0tcuLbp8YIatSaIZ2f8N/g/Zk9yuoi4FjCEAM86T",
 					"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-					"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBsYQNae1fM7ybQkQikD1dHT6bkUFDvL47ftMtjxX8zM4w=="
+					"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBva2TTaoX235HfE7tkK/tQNEReJbfjE9YYbYwmpSYeAdA=="
 				}
 			],
 			"coms": [
@@ -254,16 +257,16 @@ pub trait ForeignRpc {
 				],
 				"fee": "7000000",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"offset": "750dbf4fd43b7f4cfd68d2698a522f3ff6e6a00ad9895b33f1ec46493b837b49",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBsYQNae1fM7ybQkQikD1dHT6bkUFDvL47ftMtjxX8zM4w==",
-						"xs": "Ap8S+fjFSJoYkE3nzUbcM4S3k2nUy8F810spnajCz3RF"
+						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBva2TTaoX235HfE7tkK/tQNEReJbfjE9YYbYwmpSYeAdA==",
+						"xs": "AwFS0tcuLbp8YIatSaIZ2f8N/g/Zk9yuoi4FjCEAM86T"
 					},
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBvJ6iGyWdYeTeF32e+KtHXfqw7HKZAJp/6mEBD5Y/LmwA==",
+						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBs1/f5VJx8q5z119Yxw0e+2mzOEx7xQfVfpnlbed+IIdA==",
 						"xs": "Azu+KkGeounWgQqNZlUucJ0Xg8pQdZpE269j/HnAFkxM"
 					}
 				],
