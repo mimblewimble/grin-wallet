@@ -725,7 +725,7 @@ impl From<Slate> for SlateV4 {
 			fee,
 			kernel_features,
 			ttl_cutoff_height: ttl,
-			offset,
+			offset: off,
 			participant_data,
 			version_info,
 			payment_proof,
@@ -752,7 +752,7 @@ impl From<Slate> for SlateV4 {
 			fee,
 			feat: kernel_features,
 			ttl,
-			offset,
+			off,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -785,7 +785,7 @@ impl From<&Slate> for SlateV4 {
 		let fee = *fee;
 		let feat = *kernel_features;
 		let ttl = *ttl;
-		let offset = offset.clone();
+		let off = offset.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(version_info);
 		let payment_proof = match payment_proof {
@@ -806,7 +806,7 @@ impl From<&Slate> for SlateV4 {
 			fee,
 			feat,
 			ttl,
-			offset,
+			off,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -1016,7 +1016,7 @@ impl From<SlateV4> for Slate {
 			fee,
 			feat: kernel_features,
 			ttl: ttl_cutoff_height,
-			offset,
+			off: offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,
@@ -1106,8 +1106,8 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 			}),
 		}
 	}
-	if slate.offset != BlindingFactor::zero() {
-		tx.offset = slate.offset.clone()
+	if slate.off != BlindingFactor::zero() {
+		tx.offset = slate.off.clone()
 	}
 	Some(tx)
 }

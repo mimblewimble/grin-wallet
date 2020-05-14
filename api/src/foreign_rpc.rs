@@ -135,7 +135,7 @@ pub trait ForeignRpc {
 				"sta": "S1",
 				"amt": "60000000000",
 				"fee": "7000000",
-				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
 				"sigs": [
 					{
 						"xs": "AwFS0tcuLbp8YIatSaIZ2f8N/g/Zk9yuoi4FjCEAM86T",
@@ -162,7 +162,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"offset": "a4052c9200000001a6052c9200000002ed564fab50b75fc5ea32ce052fc9bebf",
+				"off": "pAUskgAAAAGmBSySAAAAAu1WT6tQt1/F6jLOBS/Jvr8=",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -205,7 +205,7 @@ pub trait ForeignRpc {
 			"id": "0436430c-2b02-624c-2032-570501212b00",
 			"sta": "I2",
 			"fee": "7000000",
-			"offset": "750dbf4fd43b7f4cfd68d2698a522f3ff6e6a00ad9895b33f1ec46493b837b49",
+			"off": "dQ2/T9Q7f0z9aNJpilIvP/bmoArZiVsz8exGSTuDe0k=",
 			"sigs": [
 				{
 					"xs": "AwFS0tcuLbp8YIatSaIZ2f8N/g/Zk9yuoi4FjCEAM86T",
@@ -257,7 +257,7 @@ pub trait ForeignRpc {
 				],
 				"fee": "7000000",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"offset": "750dbf4fd43b7f4cfd68d2698a522f3ff6e6a00ad9895b33f1ec46493b837b49",
+				"off": "dQ2/T9Q7f0z9aNJpilIvP/bmoArZiVsz8exGSTuDe0k=",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",

@@ -34,7 +34,8 @@
 //! *  The `payment_proof` struct is renamed to `proof`
 //! * The feat_args struct is added, which may be populated for non-Plain kernels
 //! * `proof` may be omitted from the slate if it is None (null),
-//! * `offset` is added, which may be optionally included during S3 and I3 to ensure the transaction can be re-built entirely from the slate information. Used for delayed transaction posting.
+//! * `off` (offset) is added, and will be modified by every participant in the transaction with a random
+//! value - the value of their inputs
 //!
 //! #### Participant Data (`sigs`)
 //!
@@ -91,6 +92,15 @@ pub struct SlateV4 {
 	/// Slate state
 	#[serde(with = "ser::slate_state_v4")]
 	pub sta: SlateStateV4,
+	/// Offset, modified by each participant inserting inputs
+	/// as the transaction progresses
+	#[serde(
+		serialize_with = "ser::as_base64",
+		deserialize_with = "ser::blindingfactor_from_base64"
+	)]
+	#[serde(default = "default_offset_zero")]
+	#[serde(skip_serializing_if = "offset_is_zero")]
+	pub off: BlindingFactor,
 	// Optional fields depending on state
 	/// The number of participants intended to take part in this transaction
 	#[serde(default = "default_num_participants_2")]
@@ -116,15 +126,6 @@ pub struct SlateV4 {
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	#[serde(default = "default_u64_0")]
 	pub ttl: u64,
-	/// Offset, output after I3 and I4 if transaction is to be
-	/// stored for later posting
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::blind_from_hex"
-	)]
-	#[serde(default = "default_offset_zero")]
-	#[serde(skip_serializing_if = "offset_is_zero")]
-	pub offset: BlindingFactor,
 	// Structs always required
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -511,7 +512,7 @@ impl From<SlateV3> for SlateV4 {
 			fee,
 			feat,
 			ttl: ttl_cutoff_height,
-			offset: tx.offset,
+			off: tx.offset,
 			sigs: participant_data,
 			proof: payment_proof,
 			feat_args,
@@ -675,7 +676,7 @@ impl TryFrom<&SlateV4> for SlateV3 {
 			fee,
 			feat,
 			ttl: ttl_cutoff_height,
-			offset,
+			off: offset,
 			sigs: participant_data,
 			ver,
 			proof: payment_proof,

@@ -13,6 +13,7 @@
 // limitations under the License.
 //! Sane serialization & deserialization of cryptographic structs into hex
 
+use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::PublicKey;
 use base64;
@@ -27,7 +28,19 @@ where
 	serializer.serialize_str(&base64::encode(&bytes))
 }
 
-/// Creates a RangeProof from a hex string
+/// Creates a BlindingFactor from a base64 string
+pub fn blindingfactor_from_base64<'de, D>(deserializer: D) -> Result<BlindingFactor, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	use serde::de::Error;
+
+	let val = String::deserialize(deserializer)
+		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))?;
+	Ok(BlindingFactor::from_slice(&val))
+}
+
+/// Creates a RangeProof from a base64 string
 pub fn rangeproof_from_base64<'de, D>(deserializer: D) -> Result<RangeProof, D::Error>
 where
 	D: Deserializer<'de>,

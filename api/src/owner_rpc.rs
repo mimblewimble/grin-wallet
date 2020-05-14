@@ -396,7 +396,7 @@ pub trait OwnerRpc {
 					"amt": "6000000000",
 					"fee": "8000000",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
-					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
+					"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
 					"proof": {
 						"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
 						"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
@@ -448,7 +448,7 @@ pub trait OwnerRpc {
 				"Ok": {
 					"amt": "6000000000",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
-					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
+					"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
 					"sigs": [
 						{
 							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -485,7 +485,7 @@ pub trait OwnerRpc {
 				"slate": {
 					"amt": "6000000000",
 					"id": "0436430c-2b02-624c-2032-570501212b00",
-					"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
+					"off": "QNjHljmHml/Ot7ogVQDjr3a0M8mBzgN/SLj6NuVh8IM=",
 					"sigs": [
 						{
 							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -530,7 +530,7 @@ pub trait OwnerRpc {
 				],
 				"fee": "8000000",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"offset": "9b6e26e78b49c7136ce70334dd83acb89c78f6c54cfab64ba62e598837241d36",
+				"off": "CkRYNMTRYXJonCcMMoSQZz8qlEXOyLnKGeS9dhyGDbk=",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -616,7 +616,7 @@ pub trait OwnerRpc {
 				"ver": "4:2",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sta": "S2",
-				"offset": "a4052c9200000001a6052c9200000002ed564fab50b75fc5ea32ce052fc9bebf",
+				"off": "pAUskgAAAAGmBSySAAAAAu1WT6tQt1/F6jLOBS/Jvr8=",
 				"sigs": [
 					{
 						"xs": "Azu+KkGeounWgQqNZlUucJ0Xg8pQdZpE269j/HnAFkxM",
@@ -661,7 +661,7 @@ pub trait OwnerRpc {
 				],
 				"fee": "7000000",
 				"id": "0436430c-2b02-624c-2032-570501212b00",
-				"offset": "750dbf4fd43b7f4cfd68d2698a522f3ff6e6a00ad9895b33f1ec46493b837b49",
+				"off": "dQ2/T9Q7f0z9aNJpilIvP/bmoArZiVsz8exGSTuDe0k=",
 				"sigs": [
 					{
 						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
@@ -703,20 +703,20 @@ pub trait OwnerRpc {
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sta": "S3",
 				"fee": "7000000",
-				"offset": "d202964900000000d302964900000000d402964900000000d502964900000000",
-				"sigs": [
-					{
-						"xs": "Ak+bx4yYTHjW6RbToAdGqjD6EXISTI28DL3ct7SGcZvH",
-						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBupxt1hhcK4GXmXAPoaaSAflsxt+5yiBaDvfDX7gdV9rA=="
-					},
-					{
-						"xs": "AzrCFY+gB38IfeYMGdjkMXU7qltjtuFHfwWipucZDUWS",
-						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-						"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBs4ZBrvqQei/BwFGx9zICeU//ttQi4yhRalxrLvQek1+A=="
-					}
-				],
-				"coms": [
+				"off": "dQ2/T9Q7f0z9aNJpilIvP/bmoArZiVsz8exGSTuDe0k=",
+					"sigs": [
+						{
+							"xs": "Azu+KkGeounWgQqNZlUucJ0Xg8pQdZpE269j/HnAFkxM",
+							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
+							"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBs1/f5VJx8q5z119Yxw0e+2mzOEx7xQfVfpnlbed+IIdA=="
+						},
+						{
+							"xs": "AwFS0tcuLbp8YIatSaIZ2f8N/g/Zk9yuoi4FjCEAM86T",
+							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
+							"part": "jwfd1en1F5z/GUhgNBge12UFuqrVPl2ZQGQSe1bFhBva2TTaoX235HfE7tkK/tQNEReJbfjE9YYbYwmpSYeAdA=="
+						}
+					],
+					"coms": [
 					{
 						"f": 1,
 						"c": "CH3zIwTF1K6LKvC8MecAAZ1yKRDvh91O7DGXuAsgfjBF"
