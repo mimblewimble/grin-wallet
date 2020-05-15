@@ -22,7 +22,7 @@ use crate::grin_core::libtx::{
 	proof::{ProofBuild, ProofBuilder},
 	tx_fee,
 };
-use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
+use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
@@ -75,12 +75,7 @@ where
 	// Update the fee on the slate so we account for this when building the tx.
 	slate.fee = fee;
 
-	let blinding = match elems.len() {
-		// in the event of no change, keep our blinding factor at zero.
-		// it will be adjusted when we add inputs
-		0 => BlindingFactor::zero(),
-		_ => slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?,
-	};
+	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	// Create our own private context
 	let mut context = Context::new(

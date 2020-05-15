@@ -300,6 +300,9 @@ impl Slate {
 		B: ProofBuild,
 	{
 		self.update_kernel()?;
+		if elems.is_empty() {
+			return Ok(BlindingFactor::zero());
+		}
 		let (tx, blind) =
 			build::partial_transaction(self.tx_or_err()?.clone(), elems, keychain, builder)?;
 		self.tx = Some(tx);
@@ -332,7 +335,7 @@ impl Slate {
 	{
 		// Whoever does this first generates the offset
 		// TODO: Remove HF3
-		if self.participant_data.len() == 0 && !self.is_compact() {
+		if self.participant_data.is_empty() && !self.is_compact() {
 			self.generate_offset(keychain, sec_key, use_test_rng)?;
 		}
 		// Always choose my part of the offset, and subtract from my excess
@@ -1106,9 +1109,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 			}),
 		}
 	}
-	if slate.off != BlindingFactor::zero() {
-		tx.offset = slate.off.clone()
-	}
+	tx.offset = slate.off.clone();
 	Some(tx)
 }
 

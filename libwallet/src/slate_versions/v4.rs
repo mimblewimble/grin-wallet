@@ -35,7 +35,7 @@
 //! * The feat_args struct is added, which may be populated for non-Plain kernels
 //! * `proof` may be omitted from the slate if it is None (null),
 //! * `off` (offset) is added, and will be modified by every participant in the transaction with a random
-//! value - the value of their inputs
+//! value - the value of their inputs' blinding factors
 //!
 //! #### Participant Data (`sigs`)
 //!
