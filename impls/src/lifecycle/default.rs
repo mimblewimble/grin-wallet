@@ -78,7 +78,7 @@ where
 		logging_config: Option<LoggingConfig>,
 		tor_config: Option<TorConfig>,
 	) -> Result<(), Error> {
-		let mut default_config = GlobalWalletConfig::for_chain(chain_type);
+		let mut default_config = GlobalWalletConfig::for_chain(&chain_type);
 		let logging = match logging_config {
 			Some(l) => Some(l),
 			None => match default_config.members.as_ref() {

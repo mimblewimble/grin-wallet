@@ -21,7 +21,7 @@ use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
 use crate::core::core::verifier_cache::LruVerifierCache;
 use crate::core::core::{Transaction, TxKernel};
-use crate::core::global::{set_mining_mode, ChainTypes};
+use crate::core::global::{set_local_chain_type, ChainTypes};
 use crate::core::pow;
 use crate::keychain::Keychain;
 use crate::libwallet;
@@ -93,7 +93,7 @@ where
 {
 	/// Create a new client that will communicate with the given grin node
 	pub fn new(chain_dir: &str) -> Self {
-		set_mining_mode(ChainTypes::AutomatedTesting);
+		set_local_chain_type(ChainTypes::AutomatedTesting);
 		let genesis_block = pow::mine_genesis_block().unwrap();
 		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
 		let dir_name = format!("{}/.grin", chain_dir);
@@ -136,6 +136,10 @@ where
 	/// Run the incoming message queue and respond more or less
 	/// synchronously
 	pub fn run(&mut self) -> Result<(), libwallet::Error> {
+		// We run the wallet_proxy within a spawned thread in tests.
+		// We set the local chain_type here within the thread.
+		set_local_chain_type(ChainTypes::AutomatedTesting);
+
 		self.running.store(true, Ordering::Relaxed);
 		loop {
 			thread::sleep(Duration::from_millis(10));

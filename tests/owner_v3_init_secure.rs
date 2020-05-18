@@ -27,6 +27,7 @@ use std::thread;
 use std::time::Duration;
 
 use grin_wallet_impls::DefaultLCProvider;
+use grin_wallet_util::grin_core::global;
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use grin_wallet_util::grin_util::secp::key::SecretKey;
 use grin_wallet_util::grin_util::{from_hex, static_secp_instance};
@@ -36,11 +37,13 @@ use serde_json;
 mod common;
 use common::{
 	clean_output_dir, derive_ecdh_key, execute_command, initial_setup_wallet, instantiate_wallet,
-	send_request, send_request_enc, setup, RetrieveSummaryInfoResp,
+	send_request, send_request_enc, setup, setup_global_chain_type, RetrieveSummaryInfoResp,
 };
 
 #[test]
 fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
+	setup_global_chain_type();
+
 	let test_dir = "target/test_output/owner_v3_init_secure";
 	setup(test_dir);
 
