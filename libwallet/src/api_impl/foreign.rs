@@ -17,7 +17,7 @@ use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::check_ttl;
 use crate::grin_core::core::transaction::Transaction;
-use crate::grin_keychain::{BlindingFactor, Keychain};
+use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
@@ -96,6 +96,7 @@ where
 	}
 
 	let height = w.last_confirmed_height()?;
+	let keychain = w.keychain(keychain_mask)?;
 
 	let context = tx::add_output_to_slate(
 		&mut *w,
@@ -107,7 +108,6 @@ where
 		use_test_rng,
 	)?;
 
-	let keychain = w.keychain(keychain_mask)?;
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
@@ -162,11 +162,6 @@ where
 	sl.state = SlateState::Invoice3;
 	if sl.is_compact() {
 		sl.amount = 0;
-		// fill in offset in case of delayed posting
-		sl.offset = match context.offset {
-			Some(o) => o,
-			None => BlindingFactor::zero(),
-		};
 	}
 	Ok(sl)
 }

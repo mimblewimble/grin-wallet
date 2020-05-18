@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{BlindSum, BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
@@ -394,6 +394,47 @@ where
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
 	batch.commit()?;
+	Ok(())
+}
+
+/// Update the transaction's offset by subtracting the inputs
+/// stored in the context
+pub fn sub_inputs_from_offset<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	context: &Context,
+	slate: &mut Slate,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let k = wallet.keychain(keychain_mask)?;
+	// Offset has been created and adjusted
+	// Now subtract sum total of all my inputs from the offset
+	let new_offset = k.blind_sum(
+		&context
+			.get_inputs()
+			.iter()
+			.map(
+				|i| match k.derive_key(i.2, &i.0, SwitchCommitmentType::Regular) {
+					Ok(k) => BlindingFactor::from_secret_key(k),
+					Err(e) => {
+						error!("Error deriving key for offset: {}", e);
+						BlindingFactor::zero()
+					}
+				},
+			)
+			.fold(
+				BlindSum::new().add_blinding_factor(slate.offset.clone()),
+				|acc, x| acc.sub_blinding_factor(x.clone()),
+			),
+	)?;
+
+	slate.offset = new_offset.clone();
+	slate.tx_or_err_mut()?.offset = new_offset;
+
 	Ok(())
 }
 

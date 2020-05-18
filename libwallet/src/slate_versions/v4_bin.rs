@@ -92,15 +92,13 @@ struct SlateOptFields {
 	pub feat: u8,
 	/// ttl, default 0
 	pub ttl: u64,
-	/// Transaction offset, default none
-	pub offset: BlindingFactor,
 }
 
 impl Writeable for SlateOptFields {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		// Status byte, bits determing which optional fields are serialized
-		// 0 0 1 1  1 1 1 1
-		//     o t  f f a n
+		// 0 0 0 1  1 1 1 1
+		//       t  f f a n
 		let mut status = 0u8;
 		if self.num_parts != 2 {
 			status |= 0x01;
@@ -117,9 +115,6 @@ impl Writeable for SlateOptFields {
 		if self.ttl > 0 {
 			status |= 0x10;
 		}
-		if self.offset != BlindingFactor::zero() {
-			status |= 0x20;
-		}
 		writer.write_u8(status)?;
 		if status & 0x01 > 0 {
 			writer.write_u8(self.num_parts)?;
@@ -135,9 +130,6 @@ impl Writeable for SlateOptFields {
 		}
 		if status & 0x10 > 0 {
 			writer.write_u64(self.ttl)?;
-		}
-		if status & 0x20 > 0 {
-			self.offset.write(writer)?;
 		}
 		Ok(())
 	}
@@ -171,18 +163,12 @@ impl Readable for SlateOptFields {
 		} else {
 			0
 		};
-		let offset = if status & 0x20 > 0 {
-			BlindingFactor::read(reader)?
-		} else {
-			BlindingFactor::zero()
-		};
 		Ok(SlateOptFields {
 			num_parts,
 			amt,
 			fee,
 			feat,
 			ttl,
-			offset,
 		})
 	}
 }
@@ -429,13 +415,13 @@ impl Writeable for SlateV4Bin {
 		writer.write_u16(v4.ver.block_header_version)?;
 		(UuidWrap(v4.id)).write(writer)?;
 		v4.sta.write(writer)?;
+		v4.off.write(writer)?;
 		SlateOptFields {
 			num_parts: v4.num_parts,
 			amt: v4.amt,
 			fee: v4.fee,
 			feat: v4.feat,
 			ttl: v4.ttl,
-			offset: v4.offset.clone(),
 		}
 		.write(writer)?;
 		(SigsWrapRef(&v4.sigs)).write(writer)?;
@@ -464,6 +450,7 @@ impl Readable for SlateV4Bin {
 		};
 		let id = UuidWrap::read(reader)?.0;
 		let sta = SlateStateV4::read(reader)?;
+		let off = BlindingFactor::read(reader)?;
 
 		let opts = SlateOptFields::read(reader)?;
 		let sigs = SigsWrap::read(reader)?.0;
@@ -481,12 +468,12 @@ impl Readable for SlateV4Bin {
 			ver,
 			id,
 			sta,
+			off,
 			num_parts: opts.num_parts,
 			amt: opts.amt,
 			fee: opts.fee,
 			feat: opts.feat,
 			ttl: opts.ttl,
-			offset: opts.offset,
 			sigs,
 			coms: opt_structs.coms,
 			proof: opt_structs.proof,
