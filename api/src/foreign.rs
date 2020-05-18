@@ -102,6 +102,7 @@ where
 	/// ```
 	/// use grin_wallet_util::grin_keychain as keychain;
 	/// use grin_wallet_util::grin_util as util;
+	/// use grin_wallet_util::grin_core;
 	/// use grin_wallet_api as api;
 	/// use grin_wallet_config as config;
 	/// use grin_wallet_impls as impls;
@@ -113,10 +114,14 @@ where
 	/// use std::sync::Arc;
 	/// use util::{Mutex, ZeroingString};
 	///
+	/// use grin_core::global;
+	///
 	/// use api::Foreign;
 	/// use config::WalletConfig;
 	/// use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
 	/// use libwallet::WalletInst;
+	///
+	/// global::init_global_chain_type(global::ChainTypes::Mainnet);
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -406,9 +411,11 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use grin_wallet_config as config;
 		use grin_wallet_impls as impls;
 		use grin_wallet_libwallet as libwallet;
+		use grin_wallet_util::grin_core;
 		use grin_wallet_util::grin_keychain as keychain;
 		use grin_wallet_util::grin_util as util;
 
+		use grin_core::global;
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
 
@@ -419,6 +426,8 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use config::WalletConfig;
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletInst};
+
+		global::init_global_chain_type(global::ChainTypes::Mainnet);
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

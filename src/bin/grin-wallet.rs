@@ -141,7 +141,7 @@ fn real_main() -> i32 {
 
 	log_build_info();
 
-	global::set_mining_mode(
+	global::init_global_chain_type(
 		config
 			.members
 			.as_ref()

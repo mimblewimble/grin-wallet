@@ -20,7 +20,6 @@ extern crate log;
 extern crate grin_wallet;
 
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use grin_wallet_util::grin_core::global::{self, ChainTypes};
 
 use clap::App;
 use std::thread;
@@ -33,14 +32,14 @@ use grin_wallet_util::grin_util as util;
 
 #[macro_use]
 mod common;
-use common::{execute_command, initial_setup_wallet, instantiate_wallet};
+use common::{execute_command, initial_setup_wallet, instantiate_wallet, setup_global_chain_type};
 
 // Development testing helper for tor/socks investigation.
 // Not (yet) to be run as part of automated testing
 
 fn setup_no_clean() {
 	util::init_test_logger();
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	setup_global_chain_type();
 }
 
 #[ignore]

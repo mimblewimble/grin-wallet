@@ -33,7 +33,7 @@ fn simple_server_wallet() {
 	init_test_logger();
 	info!("starting simple_server_wallet");
 	let _test_name_dir = "test_servers";
-	core::global::set_mining_mode(core::global::ChainTypes::AutomatedTesting);
+	core::global::set_local_chain_type(core::global::ChainTypes::AutomatedTesting);
 
 	// Run a separate coinbase wallet for coinbase transactions
 	let coinbase_dir = "coinbase_wallet_api";
@@ -142,7 +142,7 @@ fn simple_server_wallet() {
 fn test_p2p() {
 	init_test_logger();
 	info!("starting test_p2p");
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let _test_name_dir = "test_servers";
 

@@ -40,11 +40,13 @@ mod common;
 use common::{
 	clean_output_dir, derive_ecdh_key, execute_command, execute_command_no_setup,
 	initial_setup_wallet, instantiate_wallet, send_request, send_request_enc, setup,
-	RetrieveSummaryInfoResp,
+	setup_global_chain_type, RetrieveSummaryInfoResp,
 };
 
 #[test]
 fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
+	setup_global_chain_type();
+
 	let test_dir = "target/test_output/owner_v3_lifecycle";
 	setup(test_dir);
 
