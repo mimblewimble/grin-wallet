@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{BlindSum, BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
@@ -44,7 +44,8 @@ lazy_static! {
 pub fn new_tx_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
-	num_participants: usize,
+	is_invoice: bool,
+	num_participants: u8,
 	use_test_rng: bool,
 	ttl_blocks: Option<u64>,
 ) -> Result<Slate, Error>
@@ -54,9 +55,9 @@ where
 	K: Keychain + 'a,
 {
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
-	let mut slate = Slate::blank(num_participants);
+	let mut slate = Slate::blank(num_participants, is_invoice);
 	if let Some(b) = ttl_blocks {
-		slate.ttl_cutoff_height = Some(current_height + b);
+		slate.ttl_cutoff_height = current_height + b;
 	}
 	if use_test_rng {
 		{
@@ -67,7 +68,6 @@ where
 		*SLATE_COUNTER.lock() += 1;
 	}
 	slate.amount = amount;
-	slate.height = current_height;
 
 	if valid_header_version(current_height, HeaderVersion(1)) {
 		slate.version_info.block_header_version = 1;
@@ -81,9 +81,9 @@ where
 		slate.version_info.block_header_version = 3;
 	}
 
-	// Set the lock_height explicitly to 0 here.
+	// Set the features explicitly to 0 here.
 	// This will generate a Plain kernel (rather than a HeightLocked kernel).
-	slate.lock_height = 0;
+	slate.kernel_features = 0;
 
 	Ok(slate)
 }
@@ -140,14 +140,13 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
+	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	message: Option<String>,
-	is_initator: bool,
+	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
@@ -170,11 +169,13 @@ where
 		&wallet.keychain(keychain_mask)?,
 		keychain_mask,
 		slate,
+		current_height,
 		minimum_confirmations,
 		max_outputs,
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
+		!is_initiator,
 		use_test_rng,
 	)?;
 
@@ -185,18 +186,17 @@ where
 		&wallet.keychain(keychain_mask)?,
 		&mut context.sec_key,
 		&context.sec_nonce,
-		participant_id,
-		message,
 		use_test_rng,
 	)?;
 
-	if !is_initator {
+	context.initial_sec_key = context.sec_key.clone();
+
+	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(
 			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
-			participant_id,
 		)?;
 	}
 
@@ -208,9 +208,8 @@ pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
+	current_height: u64,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	message: Option<String>,
 	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
@@ -219,33 +218,36 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let keychain = wallet.keychain(keychain_mask)?;
 	// create an output using the amount in the slate
-	let (_, mut context) = selection::build_recipient_output(
+	let (_, mut context, mut tx) = selection::build_recipient_output(
 		wallet,
 		keychain_mask,
 		slate,
+		current_height,
 		parent_key_id.clone(),
+		is_initiator,
 		use_test_rng,
 	)?;
 
 	// fill public keys
 	slate.fill_round_1(
-		&wallet.keychain(keychain_mask)?,
+		&keychain,
 		&mut context.sec_key,
 		&context.sec_nonce,
-		1,
-		message,
 		use_test_rng,
 	)?;
 
+	context.initial_sec_key = context.sec_key.clone();
+
 	if !is_initiator {
 		// perform partial sig
-		slate.fill_round_2(
-			&wallet.keychain(keychain_mask)?,
-			&context.sec_key,
-			&context.sec_nonce,
-			participant_id,
-		)?;
+		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
+		// update excess in stored transaction
+		let mut batch = wallet.batch(keychain_mask)?;
+		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
+		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+		batch.commit()?;
 	}
 
 	Ok(context)
@@ -256,7 +258,6 @@ pub fn complete_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	participant_id: usize,
 	context: &Context,
 ) -> Result<(), Error>
 where
@@ -264,14 +265,23 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	slate.fill_round_2(
-		&wallet.keychain(keychain_mask)?,
-		&context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-	)?;
+	// when self sending invoice tx, use initiator nonce to finalize
+	let (sec_key, sec_nonce) = {
+		if context.initial_sec_key != context.sec_key
+			&& context.initial_sec_nonce != context.sec_nonce
+		{
+			(
+				context.initial_sec_key.clone(),
+				context.initial_sec_nonce.clone(),
+			)
+		} else {
+			(context.sec_key.clone(), context.sec_nonce.clone())
+		}
+	};
+	slate.fill_round_2(&wallet.keychain(keychain_mask)?, &sec_key, &sec_nonce)?;
 
 	// Final transaction can be built by anyone at this stage
+	trace!("Slate to finalize is: {}", slate);
 	slate.finalize(&wallet.keychain(keychain_mask)?)?;
 	Ok(())
 }
@@ -351,9 +361,11 @@ where
 		Some(t) => t,
 		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into()),
 	};
-	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 	let parent_key = tx.parent_key_id.clone();
-	tx.kernel_excess = Some(slate.tx_or_err()?.body.kernels[0].excess);
+	{
+		let keychain = wallet.keychain(keychain_mask)?;
+		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
+	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		let derivation_index = match context.payment_proof_derivation_index {
@@ -362,7 +374,7 @@ where
 		};
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
-		let excess = slate.calc_excess(&keychain)?;
+		let excess = slate.calc_excess(keychain.secp())?;
 		let sender_key =
 			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
@@ -377,34 +389,52 @@ where
 		})
 	}
 
+	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
+
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
 	batch.commit()?;
 	Ok(())
 }
 
-/// Update the transaction participant messages
-pub fn update_message<'a, T: ?Sized, C, K>(
+/// Update the transaction's offset by subtracting the inputs
+/// stored in the context
+pub fn sub_inputs_from_offset<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
+	context: &Context,
+	slate: &mut Slate,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, false)?;
-	if tx_vec.is_empty() {
-		return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into());
-	}
-	let mut batch = wallet.batch(keychain_mask)?;
-	for mut tx in tx_vec.into_iter() {
-		tx.messages = Some(slate.participant_messages());
-		let parent_key = tx.parent_key_id.clone();
-		batch.save_tx_log_entry(tx, &parent_key)?;
-	}
-	batch.commit()?;
+	let k = wallet.keychain(keychain_mask)?;
+	// Offset has been created and adjusted
+	// Now subtract sum total of all my inputs from the offset
+	let new_offset = k.blind_sum(
+		&context
+			.get_inputs()
+			.iter()
+			.map(
+				|i| match k.derive_key(i.2, &i.0, SwitchCommitmentType::Regular) {
+					Ok(k) => BlindingFactor::from_secret_key(k),
+					Err(e) => {
+						error!("Error deriving key for offset: {}", e);
+						BlindingFactor::zero()
+					}
+				},
+			)
+			.fold(
+				BlindSum::new().add_blinding_factor(slate.offset.clone()),
+				|acc, x| acc.sub_blinding_factor(x.clone()),
+			),
+	)?;
+
+	slate.offset = new_offset.clone();
+	slate.tx_or_err_mut()?.offset = new_offset;
+
 	Ok(())
 }
 
@@ -531,7 +561,7 @@ where
 		}
 		let msg = payment_proof_message(
 			slate.amount,
-			&slate.calc_excess(&keychain)?,
+			&slate.calc_excess(&keychain.secp())?,
 			orig_sender_address.to_ed25519()?,
 		)?;
 		let sig = match p.receiver_signature {

@@ -200,9 +200,9 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		};
 		let mut slate = api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		api.tx_lock_outputs(m, &slate)?;
 		slate = api.finalize_tx(m, &slate)?;
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
 

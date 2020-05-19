@@ -24,31 +24,6 @@ use grin_wallet_util::OnionV3Address;
 
 use ed25519_dalek::Signature as DalekSignature;
 
-/// Send TX API Args
-// TODO: This is here to ensure the legacy V1 API remains intact
-// remove this when v1 api is removed
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SendTXArgs {
-	/// amount to send
-	pub amount: u64,
-	/// minimum confirmations
-	pub minimum_confirmations: u64,
-	/// payment method
-	pub method: String,
-	/// destination url
-	pub dest: String,
-	/// Max number of outputs
-	pub max_outputs: usize,
-	/// Number of change outputs to generate
-	pub num_change_outputs: usize,
-	/// whether to use all outputs (combine)
-	pub selection_strategy_is_use_all: bool,
-	/// Optional message, that will be signed
-	pub message: Option<String>,
-	/// Optional slate version to target when sending
-	pub target_slate_version: Option<u16>,
-}
-
 /// V2 Init / Send TX API Args
 #[derive(Clone, Serialize, Deserialize)]
 pub struct InitTxArgs {
@@ -80,12 +55,6 @@ pub struct InitTxArgs {
 	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
 	/// value outputs.
 	pub selection_strategy_is_use_all: bool,
-	/// An optional participant message to include alongside the sender's public
-	/// ParticipantData within the slate. This message will include a signature created with the
-	/// sender's private excess value, and will be publically verifiable. Note this message is for
-	/// the convenience of the participants during the exchange; it is not included in the final
-	/// transaction sent to the chain. The message will be truncated to 256 characters.
-	pub message: Option<String>,
 	/// Optionally set the output target slate version (acceptable
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
@@ -133,7 +102,6 @@ impl Default for InitTxArgs {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			message: None,
 			target_slate_version: None,
 			ttl_blocks: None,
 			estimate_only: Some(false),
@@ -153,8 +121,6 @@ pub struct IssueInvoiceTxArgs {
 	/// The invoice amount in nanogrins. (`1 G = 1_000_000_000nG`)
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
-	/// Optional message, that will be signed
-	pub message: Option<String>,
 	/// Optionally set the output target slate version (acceptable
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
@@ -166,7 +132,6 @@ impl Default for IssueInvoiceTxArgs {
 		IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount: 0,
-			message: None,
 			target_slate_version: None,
 		}
 	}

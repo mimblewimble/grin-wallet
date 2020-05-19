@@ -186,6 +186,10 @@ pub enum ErrorKind {
 	#[fail(display = "Committed Error")]
 	Committed(committed::Error),
 
+	/// Error from summing commitments
+	#[fail(display = "Committed Error: {}", _0)]
+	Commit(String),
+
 	/// Can't parse slate version
 	#[fail(display = "Can't parse slate version")]
 	SlateVersionParse,
@@ -257,6 +261,14 @@ pub enum ErrorKind {
 	/// Transaction has expired it's TTL
 	#[fail(display = "Transaction Expired")]
 	TransactionExpired,
+
+	/// Kernel features args don't exist
+	#[fail(display = "Kernel Features Arg {} missing", _0)]
+	KernelFeaturesMissing(String),
+
+	/// Unknown Kernel Feature
+	#[fail(display = "Unknown Kernel Feature: {}", _0)]
+	UnknownKernelFeatures(u8),
 
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]

@@ -125,6 +125,7 @@ subcommands:
             possible_values:
               - http
               - file
+              - binfile
               - self
               - keybase
             default_value: http
@@ -147,11 +148,6 @@ subcommands:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
             long: fluff
-        - message:
-            help: Optional participant message to include
-            short: g
-            long: message
-            takes_value: true
         - stored_tx:
             help: If present, use the previously stored Unconfirmed transaction with given id
             short: t
@@ -162,14 +158,14 @@ subcommands:
             short: b
             long: ttl_blocks
             takes_value: true
+        #TODO: Remove HF3
+        - v4:
+            help: Output a V4 slate prior to HF3 block
+            long: v4
+            takes_value: false
   - receive:
       about: Processes a transaction file to accept a transfer from a sender
       args:
-        - message:
-            help: Optional participant message to include
-            short: g
-            long: message
-            takes_value: true
         - input:
             help: Partial transaction to process, expects the sender's transaction file.
             short: i
@@ -202,16 +198,20 @@ subcommands:
         - amount:
             help: Number of coins to invoice  with optional fraction, e.g. 12.423
             index: 1
-        - message:
-            help: Optional participant message to include
-            short: g
-            long: message
-            takes_value: true
         - dest:
             help: Name of destination slate output file
             short: d
             long: dest
             takes_value: true
+        - bin:
+            help: Whether to output file as binary
+            short: b
+            long: bin
+        #TODO: Remove HF3
+        - v4:
+            help: Output a V4 slate prior to HF3 block
+            long: v4
+            takes_value: false
   - pay:
       about: Spend coins to pay the provided invoice transaction
       args:
@@ -239,6 +239,7 @@ subcommands:
             short: m
             long: method
             possible_values:
+              - filebin
               - file
               - http
               - self
@@ -248,11 +249,6 @@ subcommands:
             help: Send the transaction to the provided server (start with http://) or save as file.
             short: d
             long: dest
-            takes_value: true
-        - message:
-            help: Optional participant message to include
-            short: g
-            long: message
             takes_value: true
         - input:
             help: Partial transaction to process, expects the invoicer's transaction file.

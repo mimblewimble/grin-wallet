@@ -161,10 +161,6 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 		println!("* The resulting transaction will be saved to the file '{}', which you can manually send back to the invoice creator.", dest);
 	}
 	println!();
-	println!("The invoice slate's participant info is:");
-	for m in slate.participant_messages().messages {
-		println!("{}", m);
-	}
 	println!("Please review the above information carefully before proceeding");
 	println!();
 	loop {
@@ -408,12 +404,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		}
 	};
 
-	// message
-	let message = match args.is_present("message") {
-		true => Some(args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
-
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
 	let min_c = parse_u64(min_c, "minimum_confirmations")?;
@@ -469,6 +459,9 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// max_outputs
 	let max_outputs = 500;
 
+	// TODO: Remove HF3
+	let output_v4_slate = args.is_present("v4");
+
 	// target slate version to create/send
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -505,7 +498,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	Ok(command::SendArgs {
 		amount: amount,
-		message: message,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
@@ -517,16 +509,11 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		payment_proof_address,
 		ttl_blocks,
 		target_slate_version: target_slate_version,
+		output_v4_slate,
 	})
 }
 
 pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
-	// message
-	let message = match receive_args.is_present("message") {
-		true => Some(receive_args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
-
 	// input
 	let tx_file = parse_required(receive_args, "input")?;
 
@@ -538,7 +525,6 @@ pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveA
 
 	Ok(command::ReceiveArgs {
 		input: tx_file.to_owned(),
-		message: message,
 	})
 }
 
@@ -580,11 +566,11 @@ pub fn parse_issue_invoice_args(
 			return Err(ParseError::ArgumentError(msg));
 		}
 	};
-	// message
-	let message = match args.is_present("message") {
-		true => Some(args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
+	let bin = args.is_present("bin");
+
+	// TODO: Remove HF3
+	let output_v4_slate = args.is_present("v4");
+
 	// target slate version to create
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -599,10 +585,11 @@ pub fn parse_issue_invoice_args(
 	let dest = parse_required(args, "dest")?;
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
+		bin,
+		output_v4_slate,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,
-			message,
 			target_slate_version,
 		},
 	})
@@ -612,13 +599,6 @@ pub fn parse_process_invoice_args(
 	args: &ArgMatches,
 	prompt: bool,
 ) -> Result<command::ProcessInvoiceArgs, ParseError> {
-	// TODO: display and prompt for confirmation of what we're doing
-	// message
-	let message = match args.is_present("message") {
-		true => Some(args.value_of("message").unwrap().to_owned()),
-		false => None,
-	};
-
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
 	let min_c = parse_u64(min_c, "minimum_confirmations")?;
@@ -673,7 +653,7 @@ pub fn parse_process_invoice_args(
 		// which requires reading the slate
 
 		let slate = match PathToSlate((&tx_file).into()).get_tx() {
-			Ok(s) => s,
+			Ok(s) => s.0,
 			Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
 		};
 
@@ -681,7 +661,6 @@ pub fn parse_process_invoice_args(
 	}
 
 	Ok(command::ProcessInvoiceArgs {
-		message: message,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,

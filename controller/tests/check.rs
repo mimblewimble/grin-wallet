@@ -190,8 +190,8 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let slate = api.init_send_tx(m, args)?;
 		// output tx file
 		let send_file = format!("{}/part_tx_1.tx", test_dir);
-		PathToSlate(send_file.into()).put_tx(&slate)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		PathToSlate(send_file.into()).put_tx(&slate, false)?;
+		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
 

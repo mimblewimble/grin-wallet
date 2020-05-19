@@ -99,7 +99,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let send_file = format!("{}/part_tx_1.tx", test_dir);
 	let receive_file = format!("{}/part_tx_2.tx", test_dir);
 
-	let mut slate = Slate::blank(2);
+	let mut slate = Slate::blank(2, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -118,8 +118,8 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 			..Default::default()
 		};
 		let slate = api.init_send_tx(m, args)?;
-		PathToSlate((&send_file).into()).put_tx(&slate)?;
-		api.tx_lock_outputs(m, &slate, 0)?;
+		PathToSlate((&send_file).into()).put_tx(&slate, false)?;
+		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
 
@@ -133,9 +133,9 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	}
 
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
-		slate = PathToSlate((&send_file).into()).get_tx()?;
-		slate = api.receive_tx(&slate, None, None)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate)?;
+		slate = PathToSlate((&send_file).into()).get_tx()?.0;
+		slate = api.receive_tx(&slate, None)?;
+		PathToSlate((&receive_file).into()).put_tx(&slate, false)?;
 		Ok(())
 	})?;
 
@@ -147,7 +147,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// wallet 1 finalize
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		slate = PathToSlate((&receive_file).into()).get_tx()?;
+		slate = PathToSlate((&receive_file).into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		Ok(())
 	})?;
@@ -155,8 +155,10 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// Now repost from cached
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
-		let stored_tx = api.get_stored_tx(m, &txs[0])?;
-		api.post_tx(m, &stored_tx.unwrap(), false)?;
+		println!("TXS[0]: {:?}", txs[0]);
+		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
+		println!("Stored tx: {:?}", stored_tx);
+		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;
@@ -196,7 +198,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = Slate::blank(2);
+	let mut slate = Slate::blank(2, false);
 	let amount = 60_000_000_000;
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
@@ -212,7 +214,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
+		sender_api.tx_lock_outputs(m, &slate)?;
 		slate = sender_api.finalize_tx(m, &slate)?;
 		Ok(())
 	})?;
@@ -223,8 +225,9 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// Now repost from cached
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
-		let stored_tx = api.get_stored_tx(m, &txs[0])?;
-		api.post_tx(m, &stored_tx.unwrap(), false)?;
+		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
+		slate.tx = stored_tx;
+		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;

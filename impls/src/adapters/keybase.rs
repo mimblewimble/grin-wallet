@@ -395,16 +395,11 @@ impl SlateReceiver for KeybaseAllChannels {
 							slate.amount as f64 / 1_000_000_000.0,
 							tx_uuid,
 						);
-						if let Err(e) = slate.verify_messages() {
-							error!("Error validating participant messages: {}", e);
-							return Err(e);
-						}
 						let res = {
 							foreign::receive_tx(
 								&mut **wallet_inst,
 								Some(mask.as_ref().unwrap()),
 								&slate,
-								None,
 								None,
 								false,
 							)

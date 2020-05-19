@@ -65,7 +65,7 @@ impl HttpSlateSender {
 	}
 
 	/// Check version of the listening wallet
-	fn check_other_version(&self, url: &str) -> Result<SlateVersion, Error> {
+	pub fn check_other_version(&self, url: &str) -> Result<SlateVersion, Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -143,10 +143,6 @@ impl HttpSlateSender {
 	}
 }
 
-#[deprecated(
-	since = "3.0.0",
-	note = "Remember to handle SlateV4 incompatibilities here"
-)]
 impl SlateSender for HttpSlateSender {
 	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
@@ -184,13 +180,14 @@ impl SlateSender for HttpSlateSender {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
 			SlateVersion::V3 => {
 				let mut slate = slate.clone();
-				let _r: crate::adapters::Reminder;
 				//TODO: Fill out with Slate V4 incompatibilities
+				// * Will need to set particpant id to 1 manually if this is invoice
+				// * Set slate height manually
+				// * Reconcile unknown slate states from V3
 				if false {
 					return Err(ErrorKind::ClientCallback("feature x requested, but other wallet does not support feature x. Please urge other user to upgrade, or re-send tx without feature x".into()).into());
 				}
 				slate.version_info.version = 3;
-				slate.version_info.orig_version = 3;
 				VersionedSlate::into_version(slate, SlateVersion::V3)?
 			}
 		};
@@ -208,7 +205,10 @@ impl SlateSender for HttpSlateSender {
 		trace!("Sending receive_tx request: {}", req);
 
 		let res: String = self.post(&url_str, None, req).map_err(|e| {
-			let report = format!("Posting transaction slate (is recipient listening?): {}", e);
+			let report = format!(
+				"Sending transaction slate to other wallet (is recipient listening?): {}",
+				e
+			);
 			error!("{}", report);
 			ErrorKind::ClientCallback(report)
 		})?;
@@ -227,7 +227,10 @@ impl SlateSender for HttpSlateSender {
 		let slate_value = res["result"]["Ok"].clone();
 		trace!("slate_value: {}", slate_value);
 		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
-			.map_err(|_| ErrorKind::SlateDeser)?;
+			.map_err(|e| {
+				error!("Error deserializing response slate: {}", e);
+				ErrorKind::SlateDeser
+			})?;
 
 		Ok(slate)
 	}

@@ -77,7 +77,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let amount = 60_000_000_000;
-	let mut slate = Slate::blank(1);
+	let mut slate = Slate::blank(1, false);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
@@ -93,7 +93,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
+		sender_api.tx_lock_outputs(m, &slate)?;
 
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;
 		let tx = txs[0].clone();
@@ -127,7 +127,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	})?;
 
 	// try again, except try and send off the transaction for completion beyond the expiry
-	let mut slate = Slate::blank(1);
+	let mut slate = Slate::blank(1, false);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
@@ -141,7 +141,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			..Default::default()
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
-		sender_api.tx_lock_outputs(m, &slate_i, 0)?;
+		sender_api.tx_lock_outputs(m, &slate_i)?;
 		slate = slate_i;
 
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, Some(slate.id))?;

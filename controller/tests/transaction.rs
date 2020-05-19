@@ -22,7 +22,7 @@ use grin_wallet_util::grin_core as core;
 
 use self::core::core::transaction;
 use self::core::global;
-use self::libwallet::{InitTxArgs, OutputStatus, Slate};
+use self::libwallet::{InitTxArgs, OutputStatus, Slate, SlateState};
 use impls::test_framework::{self, LocalWalletClient};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -97,7 +97,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// assert wallet contents
 	// and a single use api for a send command
 	let amount = 60_000_000_000;
-	let mut slate = Slate::blank(1);
+	let mut slate = Slate::blank(1, false);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
@@ -111,13 +111,17 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 
+		assert_eq!(slate_i.state, SlateState::Standard1);
+
 		// Check we are creating a tx with the expected lock_height of 0.
 		// We will check this produces a Plain kernel later.
-		assert_eq!(0, slate.lock_height);
+		assert_eq!(0, slate.kernel_features);
 
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
+		assert_eq!(slate.state, SlateState::Standard2);
+		sender_api.tx_lock_outputs(m, &slate)?;
 		slate = sender_api.finalize_tx(m, &slate)?;
+		assert_eq!(slate.state, SlateState::Standard3);
 
 		// Check we have a single kernel and that it is a Plain kernel (no lock_height).
 		assert_eq!(slate.tx_or_err()?.kernels().len(), 1);
@@ -175,7 +179,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// post transaction
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.post_tx(m, slate.tx_or_err()?, false)?;
+		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
 
@@ -299,7 +303,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
+		sender_api.tx_lock_outputs(m, &slate)?;
 		slate = sender_api.finalize_tx(m, &slate)?;
 		Ok(())
 	})?;
@@ -313,8 +317,9 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			.iter()
 			.find(|t| t.tx_slate_id == Some(slate.id))
 			.unwrap();
-		let stored_tx = sender_api.get_stored_tx(m, &tx)?;
-		sender_api.post_tx(m, &stored_tx.unwrap(), false)?;
+		let stored_tx = sender_api.get_stored_tx(m, tx.tx_slate_id.unwrap())?;
+		slate.tx = stored_tx;
+		sender_api.post_tx(m, &slate, false)?;
 		let (_, wallet1_info) = sender_api.retrieve_summary_info(m, true, 1)?;
 		// should be mined now
 		assert_eq!(
@@ -395,7 +400,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 
 	let amount = 30_000_000_000;
-	let mut slate = Slate::blank(1);
+	let mut slate = Slate::blank(1, false);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
@@ -410,7 +415,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-		sender_api.tx_lock_outputs(m, &slate, 0)?;
+		sender_api.tx_lock_outputs(m, &slate)?;
 		slate = sender_api.finalize_tx(m, &slate)?;
 		Ok(())
 	})?;

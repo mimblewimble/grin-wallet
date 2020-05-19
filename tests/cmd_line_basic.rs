@@ -165,16 +165,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let very_long_message = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef\
-	                         This part should all be truncated";
-
 	// Update info and check
 	let arg_vec = vec!["grin-wallet", "-p", "password", "-a", "mining", "info"];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
@@ -193,8 +183,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"file",
 		"-d",
 		&file_name,
-		"-g",
-		very_long_message,
 		"10",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
@@ -208,8 +196,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"receive",
 		"-i",
 		&file_name,
-		"-g",
-		"Thanks, Yeast!",
 	];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
@@ -300,8 +286,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"file",
 		"-d",
 		&file_name,
-		"-g",
-		"Love, Yeast, Smallest",
 		"-s",
 		"smallest",
 		"10",
@@ -317,8 +301,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"receive",
 		"-i",
 		&file_name,
-		"-g",
-		"Thanks, Yeast!",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone())?;
 
@@ -370,8 +352,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"self",
 		"-d",
 		"mining",
-		"-g",
-		"Self love",
 		"-o",
 		"3",
 		"-s",
@@ -416,8 +396,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"file",
 		"-d",
 		&file_name,
-		"-g",
-		"Ain't sending",
 		"10",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
@@ -437,8 +415,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"file",
 		"-d",
 		&file_name,
-		"-g",
-		"Ain't sending 2",
 		"10",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
@@ -464,8 +440,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"invoice",
 		"-d",
 		&file_name,
-		"-g",
-		"Please give me your precious grins. Love, Yeast",
+		"-b",
 		"65",
 	];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
@@ -483,8 +458,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		&file_name,
 		"-d",
 		&output_file_name,
-		"-g",
-		"Here you go",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 

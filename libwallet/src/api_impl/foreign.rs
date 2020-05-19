@@ -16,17 +16,17 @@
 use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::check_ttl;
+use crate::grin_core::core::transaction::Transaction;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
-use crate::internal::{tx, updater};
+use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
-	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, TxLogEntryType, VersionInfo,
-	WalletBackend,
+	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, SlateState, TxLogEntryType,
+	VersionInfo, WalletBackend,
 };
 
 const FOREIGN_API_VERSION: u16 = 2;
-const USER_MESSAGE_MAX_LEN: usize = 256;
 
 /// Return the version info
 pub fn check_version() -> VersionInfo {
@@ -51,18 +51,12 @@ where
 	updater::build_coinbase(&mut *w, keychain_mask, block_fees, test_mode)
 }
 
-/// verify slate messages
-pub fn verify_slate_messages(slate: &Slate) -> Result<(), Error> {
-	slate.verify_messages()
-}
-
 /// Receive a tx as recipient
 pub fn receive_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
-	message: Option<String>,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -96,28 +90,25 @@ where
 		}
 	}
 
-	let message = match message {
-		Some(mut m) => {
-			m.truncate(USER_MESSAGE_MAX_LEN);
-			Some(m)
-		}
-		None => None,
-	};
+	// if this is compact mode, we need to create the transaction now
+	if ret_slate.is_compact() {
+		ret_slate.tx = Some(Transaction::empty());
+	}
 
-	tx::add_output_to_slate(
+	let height = w.last_confirmed_height()?;
+	let keychain = w.keychain(keychain_mask)?;
+
+	let context = tx::add_output_to_slate(
 		&mut *w,
 		keychain_mask,
 		&mut ret_slate,
+		height,
 		&parent_key_id,
-		1,
-		message,
 		false,
 		use_test_rng,
 	)?;
-	tx::update_message(&mut *w, keychain_mask, &ret_slate)?;
 
-	let keychain = w.keychain(keychain_mask)?;
-	let excess = ret_slate.calc_excess(&keychain)?;
+	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
 		let sig = tx::create_payment_proof_signature(
@@ -129,7 +120,15 @@ where
 
 		p.receiver_signature = Some(sig);
 	}
+	// Can remove amount and fee now
+	// as well as sender's sig data
+	if ret_slate.is_compact() {
+		ret_slate.amount = 0;
+		ret_slate.fee = 0;
+		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
+	}
 
+	ret_slate.state = SlateState::Standard2;
 	Ok(ret_slate)
 }
 
@@ -146,14 +145,23 @@ where
 {
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes(), 1)?;
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, 1, &context)?;
+	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	if sl.is_compact() {
+		let mut temp_ctx = context.clone();
+		temp_ctx.sec_key = context.initial_sec_key.clone();
+		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
+	}
+	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
-	tx::update_message(&mut *w, keychain_mask, &sl)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
-		batch.delete_private_context(sl.id.as_bytes(), 1)?;
+		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
+	}
+	sl.state = SlateState::Invoice3;
+	if sl.is_compact() {
+		sl.amount = 0;
 	}
 	Ok(sl)
 }
