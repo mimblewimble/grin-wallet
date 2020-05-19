@@ -13,11 +13,15 @@
 // limitations under the License.
 
 /// Slatepack Types + Serialization implementation
-use ed25519_dalek::PublicKey as DalekPublicKey;
+use x25519_dalek::PublicKey as xDalekPublicKey;
+use x25519_dalek::StaticSecret;
 
 use crate::dalek_ser;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use crate::util::byte_ser;
+use crate::Error;
+
+use std::io::{Read, Write};
 
 /// Basic Slatepack definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,9 +34,9 @@ pub struct Slatepack {
 	pub mode: u8,
 	/// Sender address
 	#[serde(default = "default_sender_none")]
-	#[serde(with = "dalek_ser::option_dalek_pubkey_base64")]
+	#[serde(with = "dalek_ser::option_xdalek_pubkey_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub sender: Option<DalekPublicKey>,
+	pub sender: Option<xDalekPublicKey>,
 	/// Header, used if encryption enabled, mode == 1
 	#[serde(default = "default_header_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -49,7 +53,7 @@ fn default_header_none() -> Option<SlatepackHeader> {
 	None
 }
 
-fn default_sender_none() -> Option<DalekPublicKey> {
+fn default_sender_none() -> Option<xDalekPublicKey> {
 	None
 }
 
@@ -80,6 +84,56 @@ impl Slatepack {
 			None => Ok(0),
 			Some(h) => h.len(),
 		}
+	}
+	/// age encrypt the payload with the given public key
+	pub fn try_encrypt_payload(&mut self, recipients: Vec<xDalekPublicKey>) -> Result<(), Error> {
+		if recipients.is_empty() {
+			return Ok(());
+		}
+		let rec_keys: Result<Vec<_>, _> = recipients
+			.into_iter()
+			.map(|pk| {
+				let key = age::keys::RecipientKey::X25519(pk);
+				println!("Public key on send: {:?}", key);
+				Ok(key)
+			})
+			.collect();
+
+		let keys = match rec_keys {
+			Ok(k) => k,
+			Err(e) => return Err(e),
+		};
+
+		let encryptor = age::Encryptor::with_recipients(keys);
+		let mut encrypted = vec![];
+		let mut writer = encryptor.wrap_output(&mut encrypted, age::Format::Binary)?;
+		writer.write_all(&self.payload)?;
+		writer.finish()?;
+		self.payload = encrypted.to_vec();
+		self.mode = 1;
+		Ok(())
+	}
+
+	/// As above, decrypt if needed
+	pub fn try_decrypt_payload(&mut self, dec_key: Option<&StaticSecret>) -> Result<(), Error> {
+		if self.mode == 0 {
+			return Ok(());
+		}
+		let dec_key = match dec_key {
+			Some(k) => k,
+			None => return Ok(()),
+		};
+		let key = age::keys::SecretKey::X25519(dec_key.clone());
+		println!("Public key on decrypt: {:?}", key.to_public());
+		let decryptor = match age::Decryptor::new(&self.payload[..])? {
+			age::Decryptor::Recipients(d) => d,
+			_ => unreachable!(),
+		};
+		let mut decrypted = vec![];
+		let mut reader = decryptor.decrypt(&[key.into()])?;
+		reader.read_to_end(&mut decrypted)?;
+		self.payload = decrypted.to_vec();
+		Ok(())
 	}
 }
 
@@ -147,7 +201,7 @@ impl Writeable for SlatepackBin {
 
 		// write optional fields
 		if let Some(s) = sp.sender {
-			writer.write_fixed_bytes(s.to_bytes())?;
+			writer.write_fixed_bytes(s.as_bytes())?;
 		};
 
 		// Write Length of header
@@ -182,7 +236,10 @@ impl Readable for SlatepackBin {
 
 		let sender = if opt_flags & 0x01 > 0 {
 			bytes_to_header -= 32;
-			Some(DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap())
+			let bytes = reader.read_fixed_bytes(32)?;
+			let mut b = [0u8; 32];
+			b.copy_from_slice(&bytes[0..32]);
+			Some(xDalekPublicKey::from(b))
 		} else {
 			None
 		};
@@ -328,9 +385,9 @@ impl Readable for SlatepackHeader {
 /// Header struct definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RecipientListEntry {
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(with = "dalek_ser::dalek_xpubkey_serde")]
 	/// Ephemeral public key
-	epk: DalekPublicKey,
+	epk: xDalekPublicKey,
 	/// Ephemeral message key, equivalent to file_key in age
 	/// TODO: Check length
 	emk: [u8; 32],
@@ -338,14 +395,17 @@ pub struct RecipientListEntry {
 
 impl Writeable for RecipientListEntry {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
-		writer.write_fixed_bytes(self.epk.to_bytes())?;
+		writer.write_fixed_bytes(self.epk.as_bytes())?;
 		writer.write_fixed_bytes(&self.emk)
 	}
 }
 
 impl Readable for RecipientListEntry {
 	fn read<R: Reader>(reader: &mut R) -> Result<RecipientListEntry, ser::Error> {
-		let epk = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
+		let bytes = reader.read_fixed_bytes(32)?;
+		let mut b = [0u8; 32];
+		b.copy_from_slice(&bytes[0..32]);
+		let epk = xDalekPublicKey::from(b);
 		let emk_bytes = reader.read_fixed_bytes(32)?;
 		let mut emk = [0u8; 32];
 		emk.copy_from_slice(&emk_bytes[0..32]);

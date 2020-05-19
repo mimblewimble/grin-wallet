@@ -20,7 +20,7 @@ use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::Mutex;
-use crate::util::OnionV3Address;
+use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
@@ -91,6 +91,36 @@ where
 	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
 	let addr = OnionV3Address::from_private(&sec_addr_key.0)?;
 	Ok(addr.to_ed25519()?)
+}
+
+/// Retrieve the decryption key for the current parent key
+/// the given index
+/// set active account
+pub fn get_secret_key<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	index: u32,
+) -> Result<DalekSecretKey, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
+	let k = w.keychain(keychain_mask)?;
+	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
+	let d_skey = match DalekSecretKey::from_bytes(&sec_addr_key.0) {
+		Ok(k) => k,
+		Err(e) => {
+			return Err(OnionV3AddressError::InvalidPrivateKey(format!(
+				"Unable to create secret key: {}",
+				e
+			))
+			.into());
+		}
+	};
+	Ok(d_skey)
 }
 
 /// retrieve outputs

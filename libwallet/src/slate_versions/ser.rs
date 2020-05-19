@@ -289,6 +289,36 @@ pub mod dalek_pubkey_serde {
 	}
 }
 
+/// Serializes an x25519 PublicKey to and from hex
+pub mod dalek_xpubkey_serde {
+	use crate::grin_util::{from_hex, ToHex};
+	use serde::{Deserialize, Deserializer, Serializer};
+	use x25519_dalek::PublicKey as xDalekPublicKey;
+
+	///
+	pub fn serialize<S>(key: &xDalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&key.as_bytes().to_hex())
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<xDalekPublicKey, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de::Error;
+		String::deserialize(deserializer)
+			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
+			.and_then(|bytes: Vec<u8>| {
+				let mut b = [0u8; 32];
+				b.copy_from_slice(&bytes[0..32]);
+				Ok(xDalekPublicKey::from(b))
+			})
+	}
+}
+
 /// Serializes an ed25519 PublicKey to and from base64
 pub mod dalek_pubkey_base64 {
 	use base64;
@@ -393,6 +423,43 @@ pub mod option_dalek_pubkey_serde {
 					DalekPublicKey::from_bytes(&b)
 						.map(Some)
 						.map_err(|err| Error::custom(err.to_string()))
+				}),
+			None => Ok(None),
+		})
+	}
+}
+
+/// Serializes an Option<x25519_dalek::PublicKey> to and from hex
+pub mod option_xdalek_pubkey_serde {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+	use x25519_dalek::PublicKey as xDalekPublicKey;
+
+	use crate::grin_util::{from_hex, ToHex};
+
+	///
+	pub fn serialize<S>(key: &Option<xDalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => serializer.serialize_str(&key.as_bytes().to_hex()),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<xDalekPublicKey>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|res| match res {
+			Some(string) => from_hex(&string)
+				.map_err(|err| Error::custom(err.to_string()))
+				.and_then(|bytes: Vec<u8>| {
+					let mut b = [0u8; 32];
+					b.copy_from_slice(&bytes[0..32]);
+					Ok(Some(xDalekPublicKey::from(b)))
 				}),
 			None => Ok(None),
 		})

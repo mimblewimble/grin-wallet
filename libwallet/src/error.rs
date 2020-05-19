@@ -282,6 +282,14 @@ pub enum ErrorKind {
 	#[fail(display = "Invalid Slatepack Data: {}", _0)]
 	InvalidSlatepackData(String),
 
+	/// Slatepack Encryption
+	#[fail(display = "Couldn't encrypt Slatepack: {}", _0)]
+	SlatepackEncryption(String),
+
+	/// age error
+	#[fail(display = "Age error: {}", _0)]
+	Age(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),
@@ -408,5 +416,13 @@ impl From<grin_store::Error> for Error {
 impl From<util::OnionV3AddressError> for Error {
 	fn from(error: util::OnionV3AddressError) -> Error {
 		Error::from(ErrorKind::OnionV3Address(error))
+	}
+}
+
+impl From<age::Error> for Error {
+	fn from(error: age::Error) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
 	}
 }

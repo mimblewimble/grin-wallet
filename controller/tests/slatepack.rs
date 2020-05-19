@@ -29,6 +29,9 @@ use std::time::Duration;
 
 use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
 
+use x25519_dalek::PublicKey as xDalekPublicKey;
+use x25519_dalek::StaticSecret;
+
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
@@ -38,20 +41,30 @@ fn output_slatepack(
 	file: &str,
 	armored: bool,
 	use_bin: bool,
+	recipients: Vec<xDalekPublicKey>,
 ) -> Result<(), libwallet::Error> {
 	if armored {
 		let file = format!("{}.armored", file);
-		PathToSlatepackArmored((&file).into()).put_tx(&slate, use_bin)
+		PathToSlatepackArmored::new((&file).into(), recipients, None).put_tx(&slate, use_bin)
 	} else {
-		PathToSlatepack((file).into()).put_tx(&slate, use_bin)
+		PathToSlatepack::new((file).into(), recipients, None).put_tx(&slate, use_bin)
 	}
 }
-fn slate_from_packed(file: &str, armored: bool) -> Result<Slate, libwallet::Error> {
+
+fn slate_from_packed(
+	file: &str,
+	armored: bool,
+	dec_key: Option<&StaticSecret>,
+) -> Result<Slate, libwallet::Error> {
 	if armored {
 		let file = format!("{}.armored", file);
-		Ok(PathToSlatepackArmored((file).into()).get_tx()?.0)
+		Ok(PathToSlatepackArmored::new((file).into(), vec![], dec_key)
+			.get_tx()?
+			.0)
 	} else {
-		Ok(PathToSlatepack((file).into()).get_tx()?.0)
+		Ok(PathToSlatepack::new((file).into(), vec![], dec_key)
+			.get_tx()?
+			.0)
 	}
 }
 
@@ -60,6 +73,7 @@ fn slatepack_exchange_test_impl(
 	test_dir: &'static str,
 	use_bin: bool,
 	use_armored: bool,
+	use_encryption: bool,
 ) -> Result<(), libwallet::Error> {
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
@@ -124,6 +138,41 @@ fn slatepack_exchange_test_impl(
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
+	// send from wallet 1 to wallet 2
+	let (recipients_1, dec_key_1) = match use_encryption {
+		true => {
+			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
+			let mut sec_key = StaticSecret::from([0u8; 32]);
+			wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+				let ed25519_sec_key = api.get_secret_key(m, 0)?;
+				let mut b = [0u8; 32];
+				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
+				sec_key = StaticSecret::from(b);
+				rec_address = xDalekPublicKey::from(&sec_key);
+				Ok(())
+			})?;
+			(vec![rec_address], Some(sec_key))
+		}
+		false => (vec![], None),
+	};
+
+	let (recipients_2, dec_key_2) = match use_encryption {
+		true => {
+			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
+			let mut sec_key = StaticSecret::from([0u8; 32]);
+			wallet::controller::owner_single_use(Some(wallet2.clone()), mask1, None, |api, m| {
+				let ed25519_sec_key = api.get_secret_key(m, 0)?;
+				let mut b = [0u8; 32];
+				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
+				sec_key = StaticSecret::from(b);
+				rec_address = xDalekPublicKey::from(&sec_key);
+				Ok(())
+			})?;
+			(vec![rec_address], Some(sec_key))
+		}
+		false => (vec![], None),
+	};
+
 	let (send_file, receive_file, final_file) = match use_bin {
 		false => (
 			format!("{}/standard_S1.slatepack", test_dir),
@@ -154,7 +203,13 @@ fn slatepack_exchange_test_impl(
 		};
 		let slate = api.init_send_tx(m, args)?;
 		// output tx file
-		output_slatepack(&slate, &send_file, use_armored, use_bin)?;
+		output_slatepack(
+			&slate,
+			&send_file,
+			use_armored,
+			use_bin,
+			recipients_2.clone(),
+		)?;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
@@ -165,21 +220,27 @@ fn slatepack_exchange_test_impl(
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = slate_from_packed(&send_file, use_armored)?;
+	let mut slate = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		slate = api.receive_tx(&slate, None)?;
-		output_slatepack(&slate, &receive_file, use_armored, use_bin)?;
+		output_slatepack(
+			&slate,
+			&receive_file,
+			use_armored,
+			use_bin,
+			recipients_1.clone(),
+		)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let mut slate = slate_from_packed(&receive_file, use_armored)?;
+		let mut slate = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		output_slatepack(&slate, &final_file, use_armored, use_bin)?;
+		output_slatepack(&slate, &final_file, use_armored, use_bin, vec![])?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
@@ -229,7 +290,13 @@ fn slatepack_exchange_test_impl(
 			..Default::default()
 		};
 		slate = api.issue_invoice_tx(m, args)?;
-		output_slatepack(&slate, &send_file, use_armored, use_bin)?;
+		output_slatepack(
+			&slate,
+			&send_file,
+			use_armored,
+			use_bin,
+			recipients_1.clone(),
+		)?;
 		Ok(())
 	})?;
 
@@ -243,17 +310,23 @@ fn slatepack_exchange_test_impl(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		slate = slate_from_packed(&send_file, use_armored)?;
+		slate = slate_from_packed(&send_file, use_armored, (&dec_key_1).as_ref())?;
 		slate = api.process_invoice_tx(m, &slate, args)?;
 		api.tx_lock_outputs(m, &slate)?;
-		output_slatepack(&slate, &receive_file, use_armored, use_bin)?;
+		output_slatepack(
+			&slate,
+			&receive_file,
+			use_armored,
+			use_bin,
+			recipients_2.clone(),
+		)?;
 		Ok(())
 	})?;
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = slate_from_packed(&receive_file, use_armored)?;
+		slate = slate_from_packed(&receive_file, use_armored, (&dec_key_2).as_ref())?;
 		slate = api.finalize_invoice_tx(&slate)?;
-		output_slatepack(&slate, &final_file, use_armored, use_bin)?;
+		output_slatepack(&slate, &final_file, use_armored, use_bin, vec![])?;
 		Ok(())
 	})?;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -275,6 +348,7 @@ fn slatepack_exchange_test_impl(
 			format!("{}/standard_pp_S3.slatepackbin", test_dir),
 		),
 	};
+
 	let mut slate = Slate::blank(2, true);
 	let mut address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
@@ -297,24 +371,36 @@ fn slatepack_exchange_test_impl(
 			..Default::default()
 		};
 		let slate = api.init_send_tx(m, args)?;
-		output_slatepack(&slate, &send_file, use_armored, use_bin)?;
+		output_slatepack(
+			&slate,
+			&send_file,
+			use_armored,
+			use_bin,
+			recipients_2.clone(),
+		)?;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
 
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = slate_from_packed(&send_file, use_armored)?;
+		slate = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
 		slate = api.receive_tx(&slate, None)?;
-		output_slatepack(&slate, &receive_file, use_armored, use_bin)?;
+		output_slatepack(
+			&slate,
+			&receive_file,
+			use_armored,
+			use_bin,
+			recipients_1.clone(),
+		)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		slate = slate_from_packed(&receive_file, use_armored)?;
+		slate = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		output_slatepack(&slate, &final_file, use_armored, use_bin)?;
+		output_slatepack(&slate, &final_file, use_armored, use_bin, vec![])?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
@@ -331,7 +417,7 @@ fn slatepack_exchange_json() {
 	let test_dir = "test_output/slatepack_exchange_json";
 	setup(test_dir);
 	// Json output
-	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false) {
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false, false) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	//clean_output_dir(test_dir);
@@ -342,7 +428,7 @@ fn slatepack_exchange_bin() {
 	let test_dir = "test_output/slatepack_exchange_bin";
 	setup(test_dir);
 	// Bin output
-	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, false) {
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, false, false) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	//clean_output_dir(test_dir);
@@ -353,7 +439,40 @@ fn slatepack_exchange_armored() {
 	let test_dir = "test_output/slatepack_exchange_armored";
 	setup(test_dir);
 	// Bin output
-	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true) {
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, false) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	//clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_exchange_json_enc() {
+	let test_dir = "test_output/slatepack_exchange_json_enc";
+	setup(test_dir);
+	// Json output
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false, true) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	//clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_exchange_bin_enc() {
+	let test_dir = "test_output/slatepack_exchange_bin_enc";
+	setup(test_dir);
+	// Bin output
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, false, true) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	//clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_exchange_armored_enc() {
+	let test_dir = "test_output/slatepack_exchange_armored_enc";
+	setup(test_dir);
+	// Bin output
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, true) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	//clean_output_dir(test_dir);
