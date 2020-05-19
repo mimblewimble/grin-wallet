@@ -202,6 +202,14 @@ pub enum ErrorKind {
 	#[fail(display = "Can't Deserialize slate")]
 	SlateDeser,
 
+	/// Can't serialize slate pack
+	#[fail(display = "Can't Serialize slatepack")]
+	SlatepackSer,
+
+	/// Can't deserialize slate
+	#[fail(display = "Can't Deserialize slatepack")]
+	SlatepackDeser,
+
 	/// Unknown slate version
 	#[fail(display = "Unknown Slate Version: {}", _0)]
 	SlateVersion(u16),
@@ -269,6 +277,10 @@ pub enum ErrorKind {
 	/// Unknown Kernel Feature
 	#[fail(display = "Unknown Kernel Feature: {}", _0)]
 	UnknownKernelFeatures(u8),
+
+	/// Invalid Slatepack Data
+	#[fail(display = "Invalid Slatepack Data: {}", _0)]
+	InvalidSlatepackData(String),
 
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]

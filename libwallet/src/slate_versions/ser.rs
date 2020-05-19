@@ -28,13 +28,22 @@ where
 	serializer.serialize_str(&base64::encode(&bytes))
 }
 
+/// Creates a Vec from a base string
+pub fn bytes_from_base64<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	use serde::de::Error;
+	String::deserialize(deserializer)
+		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))
+}
+
 /// Creates a BlindingFactor from a base64 string
 pub fn blindingfactor_from_base64<'de, D>(deserializer: D) -> Result<BlindingFactor, D::Error>
 where
 	D: Deserializer<'de>,
 {
 	use serde::de::Error;
-
 	let val = String::deserialize(deserializer)
 		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))?;
 	Ok(BlindingFactor::from_slice(&val))
@@ -307,6 +316,47 @@ pub mod dalek_pubkey_base64 {
 			.and_then(|bytes: Vec<u8>| {
 				DalekPublicKey::from_bytes(&bytes).map_err(|err| Error::custom(err.to_string()))
 			})
+	}
+}
+
+/// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
+pub mod option_dalek_pubkey_base64 {
+	use base64;
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(key: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => serializer.serialize_str(&base64::encode(&key.to_bytes())),
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekPublicKey>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|res| match res {
+			Some(string) => base64::decode(&string)
+				.map_err(|err| Error::custom(err.to_string()))
+				.and_then(|bytes: Vec<u8>| {
+					let mut b = [0u8; 32];
+					b.copy_from_slice(&bytes[0..32]);
+					DalekPublicKey::from_bytes(&b)
+						.map(Some)
+						.map_err(|err| Error::custom(err.to_string()))
+				}),
+			None => {
+				println!("None fine");
+				Ok(None)
+			}
+		})
 	}
 }
 
