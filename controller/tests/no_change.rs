@@ -92,7 +92,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(m, &slate)?;
 		slate = api.finalize_tx(m, &slate)?;
-		println!("Posted TX: {}", slate);
+		println!("Posted Slate: {:?}", slate);
 		stored_excess = Some(slate.tx.as_ref().unwrap().body.kernels[0].excess);
 		api.post_tx(m, &slate, false)?;
 		Ok(())
