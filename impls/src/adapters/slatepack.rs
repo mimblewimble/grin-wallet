@@ -28,37 +28,32 @@ use crate::libwallet::{
 use crate::{SlateGetter, SlatePutter};
 use grin_wallet_util::byte_ser;
 
-pub struct PathToSlatepack<'a> {
+pub struct SlatepackArgs<'a> {
 	pub pathbuf: PathBuf,
+	pub sender: Option<xDalekPublicKey>,
 	pub recipients: Vec<xDalekPublicKey>,
 	pub dec_key: Option<&'a StaticSecret>,
 }
 
+pub struct PathToSlatepack<'a>(SlatepackArgs<'a>);
+
 impl<'a> PathToSlatepack<'a> {
 	/// Create with pathbuf and recipients
-	pub fn new(
-		pathbuf: PathBuf,
-		recipients: Vec<xDalekPublicKey>,
-		dec_key: Option<&'a StaticSecret>,
-	) -> Self {
-		Self {
-			pathbuf,
-			recipients,
-			dec_key,
-		}
+	pub fn new(args: SlatepackArgs<'a>) -> Self {
+		Self(args)
 	}
 }
 
 impl<'a> SlatePutter for PathToSlatepack<'a> {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
-		let mut pub_tx = File::create(&self.pathbuf)?;
+		let mut pub_tx = File::create(&self.0.pathbuf)?;
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		let bin_slate =
 			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
-
-		slatepack.try_encrypt_payload(self.recipients.clone())?;
+		slatepack.sender = self.0.sender;
+		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 
 		if as_bin {
 			pub_tx.write_all(
@@ -80,7 +75,7 @@ impl<'a> SlatePutter for PathToSlatepack<'a> {
 impl<'a> SlateGetter for PathToSlatepack<'a> {
 	fn get_tx(&self) -> Result<(Slate, bool), Error> {
 		// try as bin first, then as json
-		let mut pub_tx_f = File::open(&self.pathbuf)?;
+		let mut pub_tx_f = File::open(&self.0.pathbuf)?;
 		let mut data = Vec::new();
 		pub_tx_f.read_to_end(&mut data)?;
 		let bin_res = byte_ser::from_bytes::<SlatepackBin>(&data);
@@ -103,7 +98,7 @@ impl<'a> SlateGetter for PathToSlatepack<'a> {
 			ErrorKind::SlatepackDeser
 		})?;
 
-		slatepack.try_decrypt_payload(self.dec_key)?;
+		slatepack.try_decrypt_payload(self.0.dec_key)?;
 
 		let slate = byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload);
 		if let Ok(s) = slate {
@@ -114,36 +109,24 @@ impl<'a> SlateGetter for PathToSlatepack<'a> {
 	}
 }
 
-pub struct PathToSlatepackArmored<'a> {
-	pub pathbuf: PathBuf,
-	pub recipients: Vec<xDalekPublicKey>,
-	pub dec_key: Option<&'a StaticSecret>,
-}
+pub struct PathToSlatepackArmored<'a>(SlatepackArgs<'a>);
 
 impl<'a> PathToSlatepackArmored<'a> {
 	/// Create with pathbuf and recipients
-	pub fn new(
-		pathbuf: PathBuf,
-		recipients: Vec<xDalekPublicKey>,
-		dec_key: Option<&'a StaticSecret>,
-	) -> Self {
-		Self {
-			pathbuf,
-			recipients,
-			dec_key,
-		}
+	pub fn new(args: SlatepackArgs<'a>) -> Self {
+		Self(args)
 	}
 }
 
 impl<'a> SlatePutter for PathToSlatepackArmored<'a> {
 	fn put_tx(&self, slate: &Slate, _as_bin: bool) -> Result<(), Error> {
-		let mut pub_tx = File::create(&self.pathbuf)?;
+		let mut pub_tx = File::create(&self.0.pathbuf)?;
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		let bin_slate =
 			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
-		slatepack.try_encrypt_payload(self.recipients.clone())?;
+		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		let armored = SlatepackArmor::encode(&slatepack, 3)?;
 		pub_tx.write_all(armored.as_bytes())?;
 		pub_tx.sync_all()?;
@@ -154,11 +137,11 @@ impl<'a> SlatePutter for PathToSlatepackArmored<'a> {
 impl<'a> SlateGetter for PathToSlatepackArmored<'a> {
 	fn get_tx(&self) -> Result<(Slate, bool), Error> {
 		// try as bin first, then as json
-		let mut pub_tx_f = File::open(&self.pathbuf)?;
+		let mut pub_tx_f = File::open(&self.0.pathbuf)?;
 		let mut data = Vec::new();
 		pub_tx_f.read_to_end(&mut data)?;
 		let mut slatepack = SlatepackArmor::decode(&String::from_utf8(data).unwrap())?;
-		slatepack.try_decrypt_payload(self.dec_key)?;
+		slatepack.try_decrypt_payload(self.0.dec_key)?;
 		let slate_bin =
 			byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload).map_err(|e| {
 				error!("Error reading slate from armored slatepack: {}", e);

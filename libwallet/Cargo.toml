@@ -37,3 +37,6 @@ secrecy = "0.6"
 
 grin_wallet_util = { path = "../util", version = "4.0.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "4.0.0-alpha.1" }
+
+[dev-dependencies]
+byteorder = "1.3"

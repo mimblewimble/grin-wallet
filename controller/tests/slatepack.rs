@@ -22,7 +22,9 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::OnionV3Address;
 
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{PathToSlatepack, PathToSlatepackArmored, SlateGetter as _, SlatePutter as _};
+use impls::{
+	PathToSlatepack, PathToSlatepackArmored, SlateGetter as _, SlatePutter as _, SlatepackArgs,
+};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -41,13 +43,26 @@ fn output_slatepack(
 	file: &str,
 	armored: bool,
 	use_bin: bool,
+	sender: Option<xDalekPublicKey>,
 	recipients: Vec<xDalekPublicKey>,
 ) -> Result<(), libwallet::Error> {
 	if armored {
 		let file = format!("{}.armored", file);
-		PathToSlatepackArmored::new((&file).into(), recipients, None).put_tx(&slate, use_bin)
+		let args = SlatepackArgs {
+			pathbuf: file.into(),
+			sender,
+			recipients,
+			dec_key: None,
+		};
+		PathToSlatepackArmored::new(args).put_tx(&slate, use_bin)
 	} else {
-		PathToSlatepack::new((file).into(), recipients, None).put_tx(&slate, use_bin)
+		let args = SlatepackArgs {
+			pathbuf: file.into(),
+			sender,
+			recipients,
+			dec_key: None,
+		};
+		PathToSlatepack::new(args).put_tx(&slate, use_bin)
 	}
 }
 
@@ -58,13 +73,21 @@ fn slate_from_packed(
 ) -> Result<Slate, libwallet::Error> {
 	if armored {
 		let file = format!("{}.armored", file);
-		Ok(PathToSlatepackArmored::new((file).into(), vec![], dec_key)
-			.get_tx()?
-			.0)
+		let args = SlatepackArgs {
+			pathbuf: file.into(),
+			sender: None,
+			recipients: vec![],
+			dec_key,
+		};
+		Ok(PathToSlatepackArmored::new(args).get_tx()?.0)
 	} else {
-		Ok(PathToSlatepack::new((file).into(), vec![], dec_key)
-			.get_tx()?
-			.0)
+		let args = SlatepackArgs {
+			pathbuf: file.into(),
+			sender: None,
+			recipients: vec![],
+			dec_key,
+		};
+		Ok(PathToSlatepack::new(args).get_tx()?.0)
 	}
 }
 
@@ -139,7 +162,7 @@ fn slatepack_exchange_test_impl(
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// send from wallet 1 to wallet 2
-	let (recipients_1, dec_key_1) = match use_encryption {
+	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
 		true => {
 			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
 			let mut sec_key = StaticSecret::from([0u8; 32]);
@@ -151,12 +174,12 @@ fn slatepack_exchange_test_impl(
 				rec_address = xDalekPublicKey::from(&sec_key);
 				Ok(())
 			})?;
-			(vec![rec_address], Some(sec_key))
+			(vec![rec_address], Some(sec_key), Some(rec_address.clone()))
 		}
-		false => (vec![], None),
+		false => (vec![], None, None),
 	};
 
-	let (recipients_2, dec_key_2) = match use_encryption {
+	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
 		true => {
 			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
 			let mut sec_key = StaticSecret::from([0u8; 32]);
@@ -168,9 +191,9 @@ fn slatepack_exchange_test_impl(
 				rec_address = xDalekPublicKey::from(&sec_key);
 				Ok(())
 			})?;
-			(vec![rec_address], Some(sec_key))
+			(vec![rec_address], Some(sec_key), Some(rec_address.clone()))
 		}
-		false => (vec![], None),
+		false => (vec![], None, None),
 	};
 
 	let (send_file, receive_file, final_file) = match use_bin {
@@ -208,6 +231,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
+			sender_1,
 			recipients_2.clone(),
 		)?;
 		api.tx_lock_outputs(m, &slate)?;
@@ -230,6 +254,7 @@ fn slatepack_exchange_test_impl(
 			&receive_file,
 			use_armored,
 			use_bin,
+			None,
 			recipients_1.clone(),
 		)?;
 		Ok(())
@@ -240,7 +265,7 @@ fn slatepack_exchange_test_impl(
 		let mut slate = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		output_slatepack(&slate, &final_file, use_armored, use_bin, vec![])?;
+		output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
@@ -295,6 +320,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
+			None,
 			recipients_1.clone(),
 		)?;
 		Ok(())
@@ -318,6 +344,7 @@ fn slatepack_exchange_test_impl(
 			&receive_file,
 			use_armored,
 			use_bin,
+			None,
 			recipients_2.clone(),
 		)?;
 		Ok(())
@@ -326,7 +353,7 @@ fn slatepack_exchange_test_impl(
 		// Wallet 2 receives the invoice transaction
 		slate = slate_from_packed(&receive_file, use_armored, (&dec_key_2).as_ref())?;
 		slate = api.finalize_invoice_tx(&slate)?;
-		output_slatepack(&slate, &final_file, use_armored, use_bin, vec![])?;
+		output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 		Ok(())
 	})?;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -376,6 +403,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
+			None,
 			recipients_2.clone(),
 		)?;
 		api.tx_lock_outputs(m, &slate)?;
@@ -390,6 +418,7 @@ fn slatepack_exchange_test_impl(
 			&receive_file,
 			use_armored,
 			use_bin,
+			None,
 			recipients_1.clone(),
 		)?;
 		Ok(())
@@ -400,7 +429,7 @@ fn slatepack_exchange_test_impl(
 		slate = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
-		output_slatepack(&slate, &final_file, use_armored, use_bin, vec![])?;
+		output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
 		Ok(())
