@@ -96,7 +96,6 @@ impl Slatepack {
 			.into_iter()
 			.map(|pk| {
 				let key = age::keys::RecipientKey::X25519(pk);
-				println!("Public key on send: {:?}", key);
 				Ok(key)
 			})
 			.collect();
@@ -126,7 +125,6 @@ impl Slatepack {
 			None => return Ok(()),
 		};
 		let key = age::keys::SecretKey::X25519(dec_key.clone());
-		println!("Public key on decrypt: {:?}", key.to_public());
 		let decryptor = match age::Decryptor::new(&self.payload[..])? {
 			age::Decryptor::Recipients(d) => d,
 			_ => unreachable!(),

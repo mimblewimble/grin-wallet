@@ -46,7 +46,7 @@ pub struct SlatepackArmor;
 
 impl SlatepackArmor {
 	/// Decode an armored Slatepack
-	pub fn decode(data: &str) -> Result<Slatepack, Error> {
+	pub fn decode(data: &str) -> Result<Vec<u8>, Error> {
 		// Convert the armored slate to bytes for parsing
 		let armor_bytes: Vec<u8> = data.as_bytes().to_vec();
 		// Collect the bytes up to the first period, this is the header
@@ -84,15 +84,15 @@ impl SlatepackArmor {
 		// Decode payload from base58
 		let base_decode = bs58::decode(&clean_payload).into_vec().unwrap();
 		let error_code = &base_decode[0..4];
-		let slate_bytes = &base_decode[4..];
+		let slatepack_bytes = &base_decode[4..];
 		// Make sure the error check code is valid for the slate data
-		error_check(&error_code.to_vec(), &slate_bytes.to_vec())?;
+		error_check(&error_code.to_vec(), &slatepack_bytes.to_vec())?;
 		// Return slate as binary or string
-		let slatepack_bin = byte_ser::from_bytes::<SlatepackBin>(&slate_bytes).map_err(|e| {
+		/*let slatepack_bin = byte_ser::from_bytes::<SlatepackBin>(&slate_bytes).map_err(|e| {
 			error!("Error reading JSON Slatepack: {}", e);
 			ErrorKind::SlatepackDeser
-		})?;
-		Ok(slatepack_bin.0)
+		})?;*/
+		Ok(slatepack_bytes.to_vec())
 	}
 
 	/// Encode an armored slatepack
