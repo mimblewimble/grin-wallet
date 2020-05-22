@@ -847,6 +847,8 @@ where
 	///     // ...
 	///     // Lock our outputs if we're happy the slate was (or is being) sent
 	///     api_owner.tx_lock_outputs(None, &slate);
+	/// } else {
+	/// 	panic!("if we get here we never actually test tx_lock_outputs");
 	/// }
 	/// ```
 
@@ -2079,6 +2081,8 @@ where
 	///     if let Ok(_) = valid {
 	///       //...
 	///     }
+	/// } else {
+	///		panic!("if we get here we never actually test verify_payment_proof");
 	/// }
 	/// ```
 
@@ -2150,7 +2154,11 @@ macro_rules! doctest_helper_setup_doc_env {
 				>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
-		lc.open_wallet(None, pw, false, false);
+		let res = lc.open_wallet(None, pw, false, false);
+		println!(
+			"open_wallet fails in *every* test that uses this setup code: {:?}",
+			res
+			);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
 }
