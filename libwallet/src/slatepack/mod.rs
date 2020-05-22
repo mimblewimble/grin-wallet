@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2020 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Utilities and re-exports
+mod armor;
+mod types;
 
-#![deny(non_upper_case_globals)]
-#![deny(non_camel_case_types)]
-#![deny(non_snake_case)]
-#![deny(unused_mut)]
-#![warn(missing_docs)]
-
-#[macro_use]
-extern crate serde_derive;
-
-mod ov3;
-pub use ov3::OnionV3Address;
-pub use ov3::OnionV3Error as OnionV3AddressError;
-
-#[allow(missing_docs)]
-pub mod byte_ser;
-
-pub use grin_api;
-pub use grin_chain;
-pub use grin_core;
-pub use grin_keychain;
-pub use grin_store;
-pub use grin_util;
+pub use self::armor::SlatepackArmor;
+pub use self::types::{Slatepack, SlatepackBin};

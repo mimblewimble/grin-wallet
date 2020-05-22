@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::SecretKey as DalekSecretKey;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -1915,6 +1916,16 @@ where
 		derivation_index: u32,
 	) -> Result<DalekPublicKey, Error> {
 		owner::get_public_proof_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
+	}
+
+	// TODO: Doc
+	/// get public proof a
+	pub fn get_secret_key(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		derivation_index: u32,
+	) -> Result<DalekSecretKey, Error> {
+		owner::get_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
 
 	/// Helper function to convert an Onion v3 address to a payment proof address (essentially
