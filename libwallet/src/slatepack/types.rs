@@ -13,20 +13,22 @@
 // limitations under the License.
 
 /// Slatepack Types + Serialization implementation
-use x25519_dalek::PublicKey as xDalekPublicKey;
 use x25519_dalek::StaticSecret;
 
 use crate::dalek_ser;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use crate::Error;
 
+use super::SlatepackAddress;
+
+use std::convert::TryInto;
 use std::io::{Read, Write};
 
 pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
 pub const SLATEPACK_MINOR_VERSION: u8 = 0;
 
 /// Basic Slatepack definition
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Slatepack {
 	// Required Fields
 	/// Versioning info
@@ -38,9 +40,8 @@ pub struct Slatepack {
 	// Optional Fields
 	/// Optional Sender address
 	#[serde(default = "default_sender_none")]
-	#[serde(with = "dalek_ser::option_xdalek_pubkey_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub sender: Option<xDalekPublicKey>,
+	pub sender: Option<SlatepackAddress>,
 
 	// Payload
 	/// Binary payload, can be encrypted or plaintext
@@ -51,7 +52,7 @@ pub struct Slatepack {
 	pub payload: Vec<u8>,
 }
 
-fn default_sender_none() -> Option<xDalekPublicKey> {
+fn default_sender_none() -> Option<SlatepackAddress> {
 	None
 }
 
@@ -73,21 +74,22 @@ impl Slatepack {
 	/// return length of optional fields
 	pub fn opt_fields_len(&self) -> Result<usize, ser::Error> {
 		let mut retval = 0;
-		if self.sender.is_some() {
-			retval += 32;
+		if let Some(s) = self.sender.as_ref() {
+			retval += s.encoded_len().unwrap();
 		}
 		Ok(retval)
 	}
 
 	/// age encrypt the payload with the given public key
-	pub fn try_encrypt_payload(&mut self, recipients: Vec<xDalekPublicKey>) -> Result<(), Error> {
+	pub fn try_encrypt_payload(&mut self, recipients: Vec<SlatepackAddress>) -> Result<(), Error> {
 		if recipients.is_empty() {
 			return Ok(());
 		}
 		let rec_keys: Result<Vec<_>, _> = recipients
 			.into_iter()
-			.map(|pk| {
-				let key = age::keys::RecipientKey::X25519(pk);
+			.map(|addr| {
+				println!("Pub Key on encrypt: {:?}", addr.pub_key);
+				let key = age::keys::RecipientKey::X25519((&addr).try_into()?);
 				Ok(key)
 			})
 			.collect();
@@ -117,6 +119,7 @@ impl Slatepack {
 			None => return Ok(()),
 		};
 		let key = age::keys::SecretKey::X25519(dec_key.clone());
+		println!("Pub Key on decrypt: {:?}", key.to_public());
 		let decryptor = match age::Decryptor::new(&self.payload[..])? {
 			age::Decryptor::Recipients(d) => d,
 			_ => unreachable!(),
@@ -213,7 +216,7 @@ impl Writeable for SlatepackBin {
 
 		// write optional fields
 		if let Some(s) = sp.sender {
-			writer.write_fixed_bytes(s.as_bytes())?;
+			s.write(writer)?;
 		};
 
 		// Now write payload (length prefixed)
@@ -240,11 +243,16 @@ impl Readable for SlatepackBin {
 		let mut bytes_to_payload = reader.read_u32()?;
 
 		let sender = if opt_flags & 0x01 > 0 {
-			bytes_to_payload -= 32;
-			let bytes = reader.read_fixed_bytes(32)?;
-			let mut b = [0u8; 32];
-			b.copy_from_slice(&bytes[0..32]);
-			Some(xDalekPublicKey::from(b))
+			let addr = SlatepackAddress::read(reader)?;
+			let len = match addr.encoded_len() {
+				Ok(e) => e as u32,
+				Err(e) => {
+					error!("Cannot parse Slatepack address: {}", e);
+					return Err(ser::Error::CorruptedData);
+				}
+			};
+			bytes_to_payload -= len;
+			Some(addr)
 		} else {
 			None
 		};
@@ -328,30 +336,6 @@ pub mod slatepack_version {
 	}
 }
 
-/// Header struct definition
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RecipientListEntry {
-	#[serde(with = "dalek_ser::dalek_xpubkey_serde")]
-	/// Public Address
-	pub pub_address: xDalekPublicKey,
-}
-
-impl Writeable for RecipientListEntry {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
-		writer.write_fixed_bytes(self.pub_address.as_bytes())
-	}
-}
-
-impl Readable for RecipientListEntry {
-	fn read<R: Reader>(reader: &mut R) -> Result<RecipientListEntry, ser::Error> {
-		let bytes = reader.read_fixed_bytes(32)?;
-		let mut b = [0u8; 32];
-		b.copy_from_slice(&bytes[0..32]);
-		let pub_address = xDalekPublicKey::from(b);
-		Ok(RecipientListEntry { pub_address })
-	}
-}
-
 #[test]
 fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use grin_wallet_util::byte_ser;
@@ -377,7 +361,6 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 #[test]
 fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use grin_wallet_util::byte_ser;
-	use rand::{thread_rng, Rng};
 	let slatepack = SlatepackVersion { major: 1, minor: 0 };
 	let mut payload: Vec<u8> = Vec::with_capacity(243);
 	for _ in 0..payload.capacity() {
@@ -385,9 +368,7 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 	}
 
 	// includes optional fields
-	let bytes: [u8; 32] = thread_rng().gen();
-	let sender_secret = StaticSecret::from(bytes);
-	let sender = Some(xDalekPublicKey::from(&sender_secret));
+	let sender = Some(SlatepackAddress::random());
 	let sp = Slatepack {
 		slatepack,
 		mode: 1,
@@ -396,12 +377,7 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
 	let deser = byte_ser::from_bytes::<SlatepackBin>(&ser)?.0;
-	assert_eq!(sp.slatepack, deser.slatepack);
-	assert_eq!(sp.mode, deser.mode);
-	assert_eq!(
-		sp.sender.unwrap().as_bytes(),
-		deser.sender.unwrap().as_bytes()
-	);
+	assert_eq!(sp, deser);
 
 	Ok(())
 }
@@ -413,19 +389,18 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use grin_wallet_util::byte_ser;
 	use rand::{thread_rng, Rng};
 	use std::io::Cursor;
+
 	let slatepack = SlatepackVersion { major: 1, minor: 0 };
 	let payload_size = 1234;
 	let mut payload: Vec<u8> = Vec::with_capacity(payload_size);
 	for _ in 0..payload.capacity() {
 		payload.push(rand::random());
 	}
+	let sender = Some(SlatepackAddress::random());
 
-	let bytes: [u8; 32] = thread_rng().gen();
-	let sender_secret = StaticSecret::from(bytes);
-	let sender = Some(xDalekPublicKey::from(&sender_secret));
 	println!(
-		"sender key len: {}",
-		sender.as_ref().unwrap().as_bytes().len()
+		"sender len: {}",
+		sender.as_ref().unwrap().encoded_len().unwrap()
 	);
 
 	let sp = Slatepack {
@@ -445,14 +420,14 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	// opt fields len (bytes to payload) 4
 	// bytes 5-8 are opt fields len
 
-	// sender 32
+	// sender 68
 
 	let mut opt_fields_len_bytes = [0u8; 4];
 	opt_fields_len_bytes.copy_from_slice(&ser[5..9]);
 	let mut rdr = Cursor::new(opt_fields_len_bytes.to_vec());
 	let opt_fields_len = rdr.read_u32::<BigEndian>().unwrap();
 	// check this matches what we expect below
-	assert_eq!(opt_fields_len, 32);
+	assert_eq!(opt_fields_len, 69);
 
 	let end_head_pos = opt_fields_len as usize + 8 + 1;
 
@@ -481,11 +456,6 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	}
 
 	let deser = byte_ser::from_bytes::<SlatepackBin>(&new_bytes)?.0;
-	assert_eq!(sp.slatepack, deser.slatepack);
-	assert_eq!(sp.mode, deser.mode);
-	assert_eq!(
-		sp.sender.unwrap().as_bytes(),
-		deser.sender.unwrap().as_bytes()
-	);
+	assert_eq!(sp, deser);
 	Ok(())
 }

@@ -290,6 +290,10 @@ pub enum ErrorKind {
 	#[fail(display = "Age error: {}", _0)]
 	Age(String),
 
+	/// Slatepack address parsing error
+	#[fail(display = "SlatepackAddress error: {}", _0)]
+	SlatepackAddress(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),
@@ -423,6 +427,14 @@ impl From<age::Error> for Error {
 	fn from(error: age::Error) -> Error {
 		Error {
 			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
+	}
+}
+
+impl From<bech32::Error> for Error {
+	fn from(error: bech32::Error) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::SlatepackAddress(format!("{}", error))),
 		}
 	}
 }

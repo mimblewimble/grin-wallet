@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod address;
 mod armor;
 mod types;
 
+pub use self::address::SlatepackAddress;
 pub use self::armor::SlatepackArmor;
 pub use self::types::{Slatepack, SlatepackBin};

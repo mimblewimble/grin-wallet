@@ -18,12 +18,11 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use x25519_dalek::PublicKey as xDalekPublicKey;
 use x25519_dalek::StaticSecret;
 
 use crate::libwallet::{
-	Error, ErrorKind, Slate, SlateVersion, Slatepack, SlatepackArmor, SlatepackBin,
-	VersionedBinSlate, VersionedSlate,
+	Error, ErrorKind, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor,
+	SlatepackBin, VersionedBinSlate, VersionedSlate,
 };
 use crate::{SlateGetter, SlatePutter};
 use grin_wallet_util::byte_ser;
@@ -31,8 +30,8 @@ use grin_wallet_util::byte_ser;
 #[derive(Clone)]
 pub struct SlatepackArgs<'a> {
 	pub pathbuf: PathBuf,
-	pub sender: Option<xDalekPublicKey>,
-	pub recipients: Vec<xDalekPublicKey>,
+	pub sender: Option<SlatepackAddress>,
+	pub recipients: Vec<SlatepackAddress>,
 	pub dec_key: Option<&'a StaticSecret>,
 }
 
@@ -81,7 +80,7 @@ impl<'a> PathToSlatepack<'a> {
 			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
-		slatepack.sender = self.0.sender;
+		slatepack.sender = self.0.sender.clone();
 		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		Ok(slatepack)
 	}

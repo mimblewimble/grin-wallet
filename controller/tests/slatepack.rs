@@ -29,8 +29,9 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack};
+use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress};
 
+use ed25519_dalek::PublicKey as edDalekPublicKey;
 use x25519_dalek::PublicKey as xDalekPublicKey;
 use x25519_dalek::StaticSecret;
 
@@ -43,8 +44,8 @@ fn output_slatepack(
 	file: &str,
 	armored: bool,
 	use_bin: bool,
-	sender: Option<xDalekPublicKey>,
-	recipients: Vec<xDalekPublicKey>,
+	sender: Option<SlatepackAddress>,
+	recipients: Vec<SlatepackAddress>,
 ) -> Result<(), libwallet::Error> {
 	if armored {
 		let file = format!("{}.armored", file);
@@ -165,34 +166,46 @@ fn slatepack_exchange_test_impl(
 
 	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
 		true => {
-			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
+			let mut rec_address = SlatepackAddress::random();
 			let mut sec_key = StaticSecret::from([0u8; 32]);
 			wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 				let ed25519_sec_key = api.get_secret_key(m, 0)?;
+				let pub_key = edDalekPublicKey::from(&ed25519_sec_key);
+				rec_address = SlatepackAddress::new(&pub_key);
 				let mut b = [0u8; 32];
 				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
 				sec_key = StaticSecret::from(b);
-				rec_address = xDalekPublicKey::from(&sec_key);
 				Ok(())
 			})?;
-			(vec![rec_address], Some(sec_key), Some(rec_address.clone()))
+			(
+				vec![rec_address.clone()],
+				Some(sec_key),
+				Some(rec_address.clone()),
+			)
 		}
 		false => (vec![], None, None),
 	};
 
 	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
 		true => {
-			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
+			let mut rec_address = SlatepackAddress::random();
 			let mut sec_key = StaticSecret::from([0u8; 32]);
 			wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 				let ed25519_sec_key = api.get_secret_key(m, 0)?;
+				let pub_key = edDalekPublicKey::from(&ed25519_sec_key);
+				println!("SENDER ED PUB: {:?}", pub_key);
+				rec_address = SlatepackAddress::new(&pub_key);
 				let mut b = [0u8; 32];
 				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
 				sec_key = StaticSecret::from(b);
-				rec_address = xDalekPublicKey::from(&sec_key);
+				println!("SENDER 2 REAL PUB: {:?}", xDalekPublicKey::from(&sec_key));
 				Ok(())
 			})?;
-			(vec![rec_address], Some(sec_key), Some(rec_address.clone()))
+			(
+				vec![rec_address.clone()],
+				Some(sec_key),
+				Some(rec_address.clone()),
+			)
 		}
 		false => (vec![], None, None),
 	};
@@ -232,7 +245,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
-			sender_1,
+			sender_1.clone(),
 			recipients_2.clone(),
 		)?;
 		api.tx_lock_outputs(m, &slate)?;
@@ -257,8 +270,8 @@ fn slatepack_exchange_test_impl(
 			use_armored,
 			use_bin,
 			// re-encrypt for sender!
-			sender_2,
-			match slatepack.sender {
+			sender_2.clone(),
+			match slatepack.sender.clone() {
 				Some(s) => vec![s.clone()],
 				None => vec![],
 			},
@@ -326,7 +339,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
-			sender_2,
+			sender_2.clone(),
 			recipients_1.clone(),
 		)?;
 		Ok(())
@@ -352,8 +365,8 @@ fn slatepack_exchange_test_impl(
 			&receive_file,
 			use_armored,
 			use_bin,
-			sender_1,
-			match slatepack.sender {
+			sender_1.clone(),
+			match slatepack.sender.clone() {
 				Some(s) => vec![s.clone()],
 				None => vec![],
 			},

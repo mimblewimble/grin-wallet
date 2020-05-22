@@ -34,6 +34,7 @@ bs58 = "0.3"
 age = "0.4"
 curve25519-dalek = "2.0.0"
 secrecy = "0.6"
+bech32 = "0.7"
 
 grin_wallet_util = { path = "../util", version = "4.0.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "4.0.0-alpha.1" }
