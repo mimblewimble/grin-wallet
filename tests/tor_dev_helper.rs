@@ -20,7 +20,6 @@ extern crate log;
 extern crate grin_wallet;
 
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
-use grin_wallet_util::grin_core::global::{self, ChainTypes};
 
 use clap::App;
 use std::thread;

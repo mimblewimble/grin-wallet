@@ -32,7 +32,6 @@ use grin_wallet_libwallet::Slate;
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
-use grin_wallet_util::grin_core::global;
 use grin_wallet_util::grin_keychain as keychain;
 use grin_wallet_util::OnionV3Address;
 use linefeed::terminal::Signal;
