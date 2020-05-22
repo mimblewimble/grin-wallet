@@ -202,6 +202,14 @@ pub enum ErrorKind {
 	#[fail(display = "Can't Deserialize slate")]
 	SlateDeser,
 
+	/// Can't serialize slate pack
+	#[fail(display = "Can't Serialize slatepack")]
+	SlatepackSer,
+
+	/// Can't deserialize slate
+	#[fail(display = "Can't Deserialize slatepack")]
+	SlatepackDeser,
+
 	/// Unknown slate version
 	#[fail(display = "Unknown Slate Version: {}", _0)]
 	SlateVersion(u16),
@@ -269,6 +277,18 @@ pub enum ErrorKind {
 	/// Unknown Kernel Feature
 	#[fail(display = "Unknown Kernel Feature: {}", _0)]
 	UnknownKernelFeatures(u8),
+
+	/// Invalid Slatepack Data
+	#[fail(display = "Invalid Slatepack Data: {}", _0)]
+	InvalidSlatepackData(String),
+
+	/// Slatepack Encryption
+	#[fail(display = "Couldn't encrypt Slatepack: {}", _0)]
+	SlatepackEncryption(String),
+
+	/// age error
+	#[fail(display = "Age error: {}", _0)]
+	Age(String),
 
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
@@ -396,5 +416,13 @@ impl From<grin_store::Error> for Error {
 impl From<util::OnionV3AddressError> for Error {
 	fn from(error: util::OnionV3AddressError) -> Error {
 		Error::from(ErrorKind::OnionV3Address(error))
+	}
+}
+
+impl From<age::Error> for Error {
+	fn from(error: age::Error) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
 	}
 }
