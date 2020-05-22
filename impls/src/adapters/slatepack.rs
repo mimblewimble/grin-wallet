@@ -65,6 +65,7 @@ impl<'a> PathToSlatepack<'a> {
 			error!("Error reading JSON Slatepack: {}", e);
 			ErrorKind::SlatepackDeser
 		})?;
+		slatepack.ver_check_warn();
 		Ok(slatepack)
 	}
 

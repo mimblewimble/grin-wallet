@@ -22,6 +22,9 @@ use crate::Error;
 
 use std::io::{Read, Write};
 
+pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
+pub const SLATEPACK_MINOR_VERSION: u8 = 0;
+
 /// Basic Slatepack definition
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Slatepack {
@@ -29,7 +32,7 @@ pub struct Slatepack {
 	/// Versioning info
 	#[serde(with = "slatepack_version")]
 	pub slatepack: SlatepackVersion,
-	/// Delivery Mode, 0 = plain_text, 1 = encrypted
+	/// Delivery Mode, 0 = plain_text, 1 = age encrypted
 	pub mode: u8,
 
 	// Optional Fields
@@ -38,10 +41,6 @@ pub struct Slatepack {
 	#[serde(with = "dalek_ser::option_xdalek_pubkey_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub sender: Option<xDalekPublicKey>,
-	/// Optional recipient list, for future multi-party use
-	#[serde(default = "default_recipients_empty")]
-	#[serde(skip_serializing_if = "Vec::is_empty")]
-	pub recipients: Vec<RecipientListEntry>,
 
 	// Payload
 	/// Binary payload, can be encrypted or plaintext
@@ -52,10 +51,6 @@ pub struct Slatepack {
 	pub payload: Vec<u8>,
 }
 
-fn default_recipients_empty() -> Vec<RecipientListEntry> {
-	vec![]
-}
-
 fn default_sender_none() -> Option<xDalekPublicKey> {
 	None
 }
@@ -63,10 +58,12 @@ fn default_sender_none() -> Option<xDalekPublicKey> {
 impl Default for Slatepack {
 	fn default() -> Self {
 		Self {
-			slatepack: SlatepackVersion { major: 0, minor: 1 },
+			slatepack: SlatepackVersion {
+				major: SLATEPACK_MAJOR_VERSION,
+				minor: SLATEPACK_MINOR_VERSION,
+			},
 			mode: 0,
 			sender: None,
-			recipients: vec![],
 			payload: vec![],
 		}
 	}
@@ -77,11 +74,6 @@ impl Slatepack {
 	pub fn opt_fields_len(&self) -> Result<usize, ser::Error> {
 		let mut retval = 0;
 		if self.sender.is_some() {
-			retval += 32;
-		}
-		// 16 bit recipient list length
-		retval += 2;
-		for _ in self.recipients.iter() {
 			retval += 32;
 		}
 		Ok(retval)
@@ -134,6 +126,25 @@ impl Slatepack {
 		reader.read_to_end(&mut decrypted)?;
 		self.payload = decrypted.to_vec();
 		Ok(())
+	}
+
+	/// version check warning
+	// TODO: API?
+	pub fn ver_check_warn(&self) {
+		if self.slatepack.major > SLATEPACK_MAJOR_VERSION
+			|| (self.slatepack.major == SLATEPACK_MAJOR_VERSION
+				&& self.slatepack.minor < SLATEPACK_MINOR_VERSION)
+		{
+			warn!("Incoming Slatepack's version is greater than what this wallet recognizes");
+			warn!("You may need to upgrade if it contains unsupported features");
+			warn!(
+				"Incoming: {}.{}, This wallet: {}.{}",
+				self.slatepack.major,
+				self.slatepack.minor,
+				SLATEPACK_MAJOR_VERSION,
+				SLATEPACK_MINOR_VERSION
+			);
+		}
 	}
 }
 
@@ -195,9 +206,6 @@ impl Writeable for SlatepackBin {
 		if sp.sender.is_some() {
 			opt_flags |= 0x01;
 		}
-		if !sp.recipients.is_empty() {
-			opt_flags |= 0x02;
-		}
 		writer.write_u16(opt_flags)?;
 
 		// Bytes to skip from here (Start of optional fields) to get to payload
@@ -207,14 +215,6 @@ impl Writeable for SlatepackBin {
 		if let Some(s) = sp.sender {
 			writer.write_fixed_bytes(s.as_bytes())?;
 		};
-
-		// write number of recipient addresses
-		writer.write_u16(sp.recipients.len() as u16)?;
-
-		// write recipient addresses
-		for p in sp.recipients.iter() {
-			writer.write_fixed_bytes(p.pub_address.as_bytes())?;
-		}
 
 		// Now write payload (length prefixed)
 		writer.write_bytes(sp.payload.clone())
@@ -249,24 +249,6 @@ impl Readable for SlatepackBin {
 			None
 		};
 
-		let recipients = if opt_flags & 0x02 > 0 {
-			let num_recipients = reader.read_u16()?;
-			bytes_to_payload -= 2;
-			let mut ret = vec![];
-			for _ in 0..num_recipients {
-				let bytes = reader.read_fixed_bytes(32)?;
-				let mut b = [0u8; 32];
-				b.copy_from_slice(&bytes[0..32]);
-				ret.push(RecipientListEntry {
-					pub_address: xDalekPublicKey::from(b),
-				});
-				bytes_to_payload -= 32;
-			}
-			ret
-		} else {
-			vec![]
-		};
-
 		// skip over any unknown future fields until header
 		while bytes_to_payload > 0 {
 			let _ = reader.read_u8()?;
@@ -279,7 +261,6 @@ impl Readable for SlatepackBin {
 			slatepack,
 			mode,
 			sender,
-			recipients,
 			payload,
 		}))
 	}
@@ -383,7 +364,6 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		slatepack,
 		mode: 1,
 		sender: None,
-		recipients: vec![],
 		payload,
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
@@ -391,7 +371,6 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	assert_eq!(sp.slatepack, deser.slatepack);
 	assert_eq!(sp.mode, deser.mode);
 	assert!(sp.sender.is_none());
-	assert!(sp.recipients.is_empty());
 	Ok(())
 }
 
@@ -405,15 +384,14 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 		payload.push(rand::random());
 	}
 
-	// no recipients
+	// includes optional fields
 	let bytes: [u8; 32] = thread_rng().gen();
 	let sender_secret = StaticSecret::from(bytes);
 	let sender = Some(xDalekPublicKey::from(&sender_secret));
-	let mut sp = Slatepack {
+	let sp = Slatepack {
 		slatepack,
 		mode: 1,
 		sender,
-		recipients: vec![],
 		payload,
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
@@ -424,34 +402,7 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 		sp.sender.unwrap().as_bytes(),
 		deser.sender.unwrap().as_bytes()
 	);
-	assert!(sp.recipients.is_empty());
 
-	// some recipients
-	let mut orig_recipients = vec![];
-	for _ in 0..10 {
-		let bytes: [u8; 32] = thread_rng().gen();
-		let sec = StaticSecret::from(bytes);
-		orig_recipients.push(RecipientListEntry {
-			pub_address: xDalekPublicKey::from(&sec),
-		});
-	}
-	sp.recipients = orig_recipients.clone();
-
-	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
-	let deser = byte_ser::from_bytes::<SlatepackBin>(&ser)?.0;
-	assert_eq!(sp.slatepack, deser.slatepack);
-	assert_eq!(sp.mode, deser.mode);
-	assert_eq!(
-		sp.sender.unwrap().as_bytes(),
-		deser.sender.unwrap().as_bytes()
-	);
-	assert_eq!(sp.recipients.len(), orig_recipients.len());
-	for i in 0..sp.recipients.len() {
-		assert_eq!(
-			sp.recipients[i].pub_address.as_bytes(),
-			orig_recipients[i].pub_address.as_bytes()
-		);
-	}
 	Ok(())
 }
 
@@ -469,25 +420,18 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		payload.push(rand::random());
 	}
 
-	// no recipients
 	let bytes: [u8; 32] = thread_rng().gen();
 	let sender_secret = StaticSecret::from(bytes);
 	let sender = Some(xDalekPublicKey::from(&sender_secret));
-	// some recipients
-	let mut orig_recipients = vec![];
-	for _ in 0..2 {
-		let bytes: [u8; 32] = thread_rng().gen();
-		let sec = StaticSecret::from(bytes);
-		orig_recipients.push(RecipientListEntry {
-			pub_address: xDalekPublicKey::from(&sec),
-		});
-	}
+	println!(
+		"sender key len: {}",
+		sender.as_ref().unwrap().as_bytes().len()
+	);
 
 	let sp = Slatepack {
 		slatepack,
 		mode: 1,
 		sender,
-		recipients: orig_recipients.clone(),
 		payload: payload.clone(),
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
@@ -502,17 +446,15 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	// bytes 5-8 are opt fields len
 
 	// sender 32
-	// num recipients 2
-	// Recipients 64
 
 	let mut opt_fields_len_bytes = [0u8; 4];
 	opt_fields_len_bytes.copy_from_slice(&ser[5..9]);
 	let mut rdr = Cursor::new(opt_fields_len_bytes.to_vec());
 	let opt_fields_len = rdr.read_u32::<BigEndian>().unwrap();
 	// check this matches what we expect below
-	assert_eq!(opt_fields_len, 98);
+	assert_eq!(opt_fields_len, 32);
 
-	let end_head_pos = opt_fields_len as usize + 8;
+	let end_head_pos = opt_fields_len as usize + 8 + 1;
 
 	for i in 0..end_head_pos {
 		new_bytes.push(ser[i]);
@@ -524,7 +466,7 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		//push payload length prefix
 		new_bytes.push(ser[end_head_pos + i]);
 	}
-	for i in 0..payload_size + 1 {
+	for i in 0..payload_size {
 		new_bytes.push(ser[end_head_pos + 8 + i]);
 	}
 
@@ -545,12 +487,5 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		sp.sender.unwrap().as_bytes(),
 		deser.sender.unwrap().as_bytes()
 	);
-	assert_eq!(sp.recipients.len(), orig_recipients.len());
-	for i in 0..sp.recipients.len() {
-		assert_eq!(
-			sp.recipients[i].pub_address.as_bytes(),
-			orig_recipients[i].pub_address.as_bytes()
-		);
-	}
 	Ok(())
 }
