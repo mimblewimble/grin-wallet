@@ -2126,6 +2126,11 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		use uuid::Uuid;
 
+		// don't run on windows CI, which gives very inconsistent results
+		if cfg!(windows) {
+			return;
+		}
+
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
 			.path()
