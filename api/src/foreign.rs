@@ -121,7 +121,7 @@ where
 	/// use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
 	/// use libwallet::WalletInst;
 	///
-	/// global::init_global_chain_type(global::ChainTypes::Mainnet);
+	/// global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -427,7 +427,8 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletInst};
 
-		global::init_global_chain_type(global::ChainTypes::Mainnet);
+		// Set our local chain_type for testing.
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir
