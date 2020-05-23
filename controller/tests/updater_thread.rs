@@ -29,7 +29,7 @@ use std::time::Duration;
 
 #[macro_use]
 mod common;
-use common::{clean_output_dir, create_wallet_proxy, setup};
+use common::{clean_output_dir, create_wallet_proxy, setup, setup_global_chain_type};
 
 /// updater thread test impl
 fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
@@ -110,6 +110,10 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 
 #[test]
 fn updater_thread() {
+	// The "updater" kicks off a new thread so we need to ensure the global chain_type
+	// is set for this to work correctly.
+	setup_global_chain_type();
+
 	let test_dir = "test_output/updater_thread";
 	setup(test_dir);
 	if let Err(e) = updater_thread_test_impl(test_dir) {

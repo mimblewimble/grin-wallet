@@ -54,7 +54,6 @@ pub struct GlobalArgs {
 	pub api_secret: Option<String>,
 	pub node_api_secret: Option<String>,
 	pub show_spent: bool,
-	pub chain_type: global::ChainTypes,
 	pub password: Option<ZeroingString>,
 	pub tls_conf: Option<TLSConfig>,
 }
@@ -71,7 +70,7 @@ pub struct InitArgs {
 
 pub fn init<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
-	g_args: &GlobalArgs,
+	_g_args: &GlobalArgs,
 	args: InitArgs,
 ) -> Result<(), Error>
 where
@@ -79,15 +78,12 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	// Assume global chain type has already been initialized.
+	let chain_type = global::get_chain_type();
+
 	let mut w_lock = owner_api.wallet_inst.lock();
 	let p = w_lock.lc_provider()?;
-	p.create_config(
-		&g_args.chain_type,
-		WALLET_CONFIG_FILE_NAME,
-		None,
-		None,
-		None,
-	)?;
+	p.create_config(&chain_type, WALLET_CONFIG_FILE_NAME, None, None, None)?;
 	p.create_wallet(
 		None,
 		args.recovery_phrase,

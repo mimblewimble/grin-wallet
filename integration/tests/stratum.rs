@@ -38,7 +38,7 @@ use std::{thread, time};
 #[test]
 fn basic_stratum_server() {
 	util::init_test_logger();
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "stratum_server";
 	framework::clean_all_output(test_name_dir);
