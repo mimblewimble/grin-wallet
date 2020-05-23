@@ -427,6 +427,11 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
 		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletInst};
 
+		// don't run on windows CI, which gives very inconsistent results
+		if cfg!(windows) {
+			return;
+			}
+
 		// Set our local chain_type for testing.
 		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 
