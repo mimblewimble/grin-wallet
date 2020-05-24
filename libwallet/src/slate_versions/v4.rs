@@ -783,6 +783,14 @@ impl From<&SlateV4> for Option<TransactionV3> {
 								out_lock_height = lock_height;
 								CompatKernelFeatures::HeightLocked
 							}
+							KernelFeatures::NoRecentDuplicate {
+								fee,
+								relative_height,
+							} => {
+								out_fee = fee;
+								out_lock_height = relative_height.into();
+								CompatKernelFeatures::NoRecentDuplicate
+							}
 						},
 						fee: out_fee,
 						lock_height: out_lock_height,
