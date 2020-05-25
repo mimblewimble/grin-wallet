@@ -14,8 +14,10 @@
 
 mod address;
 mod armor;
+mod packer;
 mod types;
 
 pub use self::address::SlatepackAddress;
 pub use self::armor::SlatepackArmor;
+pub use self::packer::{Slatepacker, SlatepackerArgs};
 pub use self::types::{Slatepack, SlatepackBin};

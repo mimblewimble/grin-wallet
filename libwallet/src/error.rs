@@ -207,8 +207,8 @@ pub enum ErrorKind {
 	SlatepackSer,
 
 	/// Can't deserialize slate
-	#[fail(display = "Can't Deserialize slatepack")]
-	SlatepackDeser,
+	#[fail(display = "Can't Deserialize slatepack: {}", _0)]
+	SlatepackDeser(String),
 
 	/// Unknown slate version
 	#[fail(display = "Unknown Slate Version: {}", _0)]

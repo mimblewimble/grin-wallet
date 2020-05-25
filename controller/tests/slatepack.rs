@@ -22,14 +22,15 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::OnionV3Address;
 
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{
-	PathToSlatepack, PathToSlatepackArmored, SlateGetter as _, SlatePutter as _, SlatepackArgs,
-};
+use impls::{PathToSlatepack, SlatePutter as _};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress};
+use grin_wallet_libwallet::{
+	InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress, Slatepacker,
+	SlatepackerArgs,
+};
 
 use ed25519_dalek::PublicKey as edDalekPublicKey;
 use ed25519_dalek::SecretKey as edDalekSecretKey;
@@ -46,24 +47,16 @@ fn output_slatepack(
 	sender: Option<SlatepackAddress>,
 	recipients: Vec<SlatepackAddress>,
 ) -> Result<(), libwallet::Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender,
+		recipients,
+		dec_key: None,
+	});
+	let mut file = file.into();
 	if armored {
-		let file = format!("{}.armored", file);
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender,
-			recipients,
-			dec_key: None,
-		};
-		PathToSlatepackArmored::new(args).put_tx(&slate, use_bin)
-	} else {
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender,
-			recipients,
-			dec_key: None,
-		};
-		PathToSlatepack::new(args).put_tx(&slate, use_bin)
+		file = format!("{}.armored", file);
 	}
+	PathToSlatepack::new(file.into(), &packer, armored).put_tx(&slate, use_bin)
 }
 
 fn slate_from_packed(
@@ -71,26 +64,17 @@ fn slate_from_packed(
 	armored: bool,
 	dec_key: Option<&edDalekSecretKey>,
 ) -> Result<(Slatepack, Slate), libwallet::Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key,
+	});
+	let mut file = file.into();
 	if armored {
-		let file = format!("{}.armored", file);
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender: None,
-			recipients: vec![],
-			dec_key,
-		};
-		let pts = PathToSlatepackArmored::new(args);
-		Ok((pts.get_slatepack()?, pts.get_tx()?.0))
-	} else {
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender: None,
-			recipients: vec![],
-			dec_key,
-		};
-		let pts = PathToSlatepack::new(args);
-		Ok((pts.get_slatepack()?, pts.get_tx()?.0))
+		file = format!("{}.armored", file);
 	}
+	let slatepack = PathToSlatepack::new(file.into(), &packer, armored).get_slatepack()?;
+	Ok((slatepack.clone(), packer.get_slate(&slatepack)?))
 }
 
 /// self send impl
