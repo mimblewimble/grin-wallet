@@ -101,7 +101,6 @@ impl From<&SlatepackAddress> for OnionV3Address {
 impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 	type Error = Error;
 	fn try_from(addr: &SlatepackAddress) -> Result<Self, Self::Error> {
-		//println!("Slatepack ed25519 key: {:?}", addr.pub_key);
 		let cep =
 			curve25519_dalek::edwards::CompressedEdwardsY::from_slice(addr.pub_key.as_bytes());
 		let ep = match cep.decompress() {
@@ -113,7 +112,6 @@ impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 			}
 		};
 		let res = xDalekPublicKey::from(ep.to_montgomery().to_bytes());
-		//println!("CONVERTED TO: {:?}", res);
 		Ok(res)
 	}
 }
