@@ -32,8 +32,7 @@ use std::time::Duration;
 use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress};
 
 use ed25519_dalek::PublicKey as edDalekPublicKey;
-use x25519_dalek::PublicKey as xDalekPublicKey;
-use x25519_dalek::StaticSecret;
+use ed25519_dalek::SecretKey as edDalekSecretKey;
 
 #[macro_use]
 mod common;
@@ -70,7 +69,7 @@ fn output_slatepack(
 fn slate_from_packed(
 	file: &str,
 	armored: bool,
-	dec_key: Option<&StaticSecret>,
+	dec_key: Option<&edDalekSecretKey>,
 ) -> Result<(Slatepack, Slate), libwallet::Error> {
 	if armored {
 		let file = format!("{}.armored", file);
@@ -167,14 +166,11 @@ fn slatepack_exchange_test_impl(
 	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
 		true => {
 			let mut rec_address = SlatepackAddress::random();
-			let mut sec_key = StaticSecret::from([0u8; 32]);
+			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
 			wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-				let ed25519_sec_key = api.get_secret_key(m, 0)?;
-				let pub_key = edDalekPublicKey::from(&ed25519_sec_key);
+				sec_key = api.get_secret_key(m, 0)?;
+				let pub_key = edDalekPublicKey::from(&sec_key);
 				rec_address = SlatepackAddress::new(&pub_key);
-				let mut b = [0u8; 32];
-				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
-				sec_key = StaticSecret::from(b);
 				Ok(())
 			})?;
 			(
@@ -189,16 +185,11 @@ fn slatepack_exchange_test_impl(
 	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
 		true => {
 			let mut rec_address = SlatepackAddress::random();
-			let mut sec_key = StaticSecret::from([0u8; 32]);
+			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
 			wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-				let ed25519_sec_key = api.get_secret_key(m, 0)?;
-				let pub_key = edDalekPublicKey::from(&ed25519_sec_key);
-				println!("SENDER ED PUB: {:?}", pub_key);
+				sec_key = api.get_secret_key(m, 0)?;
+				let pub_key = edDalekPublicKey::from(&sec_key);
 				rec_address = SlatepackAddress::new(&pub_key);
-				let mut b = [0u8; 32];
-				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
-				sec_key = StaticSecret::from(b);
-				println!("SENDER 2 REAL PUB: {:?}", xDalekPublicKey::from(&sec_key));
 				Ok(())
 			})?;
 			(

@@ -13,6 +13,8 @@
 // limitations under the License.
 
 /// Slatepack Types + Serialization implementation
+use ed25519_dalek::SecretKey as edSecretKey;
+use sha2::{Digest, Sha512};
 use x25519_dalek::StaticSecret;
 
 use crate::dalek_ser;
@@ -88,7 +90,6 @@ impl Slatepack {
 		let rec_keys: Result<Vec<_>, _> = recipients
 			.into_iter()
 			.map(|addr| {
-				println!("Pub Key on encrypt: {:?}", addr.pub_key);
 				let key = age::keys::RecipientKey::X25519((&addr).try_into()?);
 				Ok(key)
 			})
@@ -110,7 +111,7 @@ impl Slatepack {
 	}
 
 	/// As above, decrypt if needed
-	pub fn try_decrypt_payload(&mut self, dec_key: Option<&StaticSecret>) -> Result<(), Error> {
+	pub fn try_decrypt_payload(&mut self, dec_key: Option<&edSecretKey>) -> Result<(), Error> {
 		if self.mode == 0 {
 			return Ok(());
 		}
@@ -118,8 +119,16 @@ impl Slatepack {
 			Some(k) => k,
 			None => return Ok(()),
 		};
-		let key = age::keys::SecretKey::X25519(dec_key.clone());
-		println!("Pub Key on decrypt: {:?}", key.to_public());
+		let mut b = [0u8; 32];
+		b.copy_from_slice(&dec_key.as_bytes()[0..32]);
+		let mut hasher = Sha512::new();
+		hasher.input(b);
+		let result = hasher.result();
+		b.copy_from_slice(&result[0..32]);
+
+		let x_dec_secret = StaticSecret::from(b);
+		let key = age::keys::SecretKey::X25519(x_dec_secret);
+
 		let decryptor = match age::Decryptor::new(&self.payload[..])? {
 			age::Decryptor::Recipients(d) => d,
 			_ => unreachable!(),

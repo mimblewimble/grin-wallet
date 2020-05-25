@@ -38,5 +38,4 @@ grin_wallet_libwallet = { path = "../libwallet", version = "4.0.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "4.0.0-alpha.1" }
 
 [dev-dependencies]
-x25519-dalek = "0.6"
 ed25519-dalek = "1.0.0-pre.1"

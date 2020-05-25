@@ -101,7 +101,7 @@ impl From<&SlatepackAddress> for OnionV3Address {
 impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 	type Error = Error;
 	fn try_from(addr: &SlatepackAddress) -> Result<Self, Self::Error> {
-		println!("Slatepack ed25519 key: {:?}", addr.pub_key);
+		//println!("Slatepack ed25519 key: {:?}", addr.pub_key);
 		let cep =
 			curve25519_dalek::edwards::CompressedEdwardsY::from_slice(addr.pub_key.as_bytes());
 		let ep = match cep.decompress() {
@@ -113,7 +113,7 @@ impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 			}
 		};
 		let res = xDalekPublicKey::from(ep.to_montgomery().to_bytes());
-		println!("CONVERTED TO: {:?}", res);
+		//println!("CONVERTED TO: {:?}", res);
 		Ok(res)
 	}
 }
@@ -211,10 +211,40 @@ impl Readable for SlatepackAddress {
 
 #[test]
 fn slatepack_address() -> Result<(), Error> {
-	let addr = SlatepackAddress::random();
+	use rand::{thread_rng, Rng};
+	let sec_key_bytes: [u8; 32] = thread_rng().gen();
+
+	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
+	let addr = SlatepackAddress::new(&ed_pub_key);
+	let x_pub_key = xDalekPublicKey::try_from(&addr)?;
+
+	let x_dec_secret = x25519_dalek::StaticSecret::from(sec_key_bytes);
+	let x_pub_key_direct = xDalekPublicKey::from(&x_dec_secret);
+
+	println!("ed sec key: {:?}", ed_sec_key);
+	println!("ed pub key: {:?}", ed_pub_key);
+	println!("x pub key from addr: {:?}", x_pub_key);
+	println!("x pub key direct: {:?}", x_pub_key_direct);
+
 	let encoded = String::try_from(&addr).unwrap();
 	println!("Encoded bech32: {}", encoded);
 	let parsed_addr = SlatepackAddress::try_from(encoded.as_str()).unwrap();
 	assert_eq!(addr, parsed_addr);
+
+	// ensure ed25519 pub keys and x25519 pubkeys are equivalent on decryption
+	let mut slatepack = super::Slatepack::default();
+	let mut payload: Vec<u8> = Vec::with_capacity(243);
+	for _ in 0..payload.capacity() {
+		payload.push(rand::random());
+	}
+	slatepack.payload = payload;
+	let orig_sp = slatepack.clone();
+
+	slatepack.try_encrypt_payload(vec![addr.clone()])?;
+	slatepack.try_decrypt_payload(Some(&ed_sec_key))?;
+
+	assert_eq!(orig_sp.payload, slatepack.payload);
+
 	Ok(())
 }

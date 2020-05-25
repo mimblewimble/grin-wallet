@@ -18,7 +18,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use x25519_dalek::StaticSecret;
+use ed25519_dalek::SecretKey as edSecretKey;
 
 use crate::libwallet::{
 	Error, ErrorKind, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor,
@@ -32,7 +32,7 @@ pub struct SlatepackArgs<'a> {
 	pub pathbuf: PathBuf,
 	pub sender: Option<SlatepackAddress>,
 	pub recipients: Vec<SlatepackAddress>,
-	pub dec_key: Option<&'a StaticSecret>,
+	pub dec_key: Option<&'a edSecretKey>,
 }
 
 pub struct PathToSlatepack<'a>(SlatepackArgs<'a>);
