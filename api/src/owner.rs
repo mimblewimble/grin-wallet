@@ -109,11 +109,13 @@ where
 	/// ```
 	/// use grin_wallet_util::grin_keychain as keychain;
 	/// use grin_wallet_util::grin_util as util;
+	/// use grin_wallet_util::grin_core;
 	/// use grin_wallet_api as api;
 	/// use grin_wallet_config as config;
 	/// use grin_wallet_impls as impls;
 	/// use grin_wallet_libwallet as libwallet;
 	///
+	/// use grin_core::global;
 	/// use keychain::ExtKeychain;
 	/// use tempfile::tempdir;
 	///
@@ -124,6 +126,8 @@ where
 	/// use config::WalletConfig;
 	/// use impls::{DefaultWalletImpl, DefaultLCProvider, HTTPNodeClient};
 	/// use libwallet::WalletInst;
+	///
+	/// global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 	///
 	/// let mut wallet_config = WalletConfig::default();
 	/// # let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
@@ -2113,6 +2117,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		use grin_wallet_util::grin_keychain as keychain;
 		use grin_wallet_util::grin_util as util;
 
+		use grin_core::global;
+
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
 
@@ -2125,6 +2131,14 @@ macro_rules! doctest_helper_setup_doc_env {
 		use libwallet::{BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate, WalletInst};
 
 		use uuid::Uuid;
+
+		// don't run on windows CI, which gives very inconsistent results
+		if cfg!(windows) {
+			return;
+			}
+
+		// Set our local chain_type for testing.
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 
 		let dir = tempdir().map_err(|e| format!("{:#?}", e)).unwrap();
 		let dir = dir

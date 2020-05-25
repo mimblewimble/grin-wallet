@@ -32,7 +32,7 @@ use std::{thread, time};
 #[ignore]
 fn test_dandelion_timeout() {
 	let test_name_dir = "test_dandelion_timeout";
-	core::global::set_mining_mode(core::global::ChainTypes::AutomatedTesting);
+	core::global::set_local_chain_type(core::global::ChainTypes::AutomatedTesting);
 	framework::clean_all_output(test_name_dir);
 	let mut log_config = util::LoggingConfig::default();
 	//log_config.stdout_log_level = util::LogLevel::Trace;

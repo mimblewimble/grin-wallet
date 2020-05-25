@@ -52,7 +52,7 @@ use crate::framework::{
 #[test]
 fn basic_genesis_mine() {
 	util::init_test_logger();
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "genesis_mine";
 	framework::clean_all_output(test_name_dir);
@@ -84,7 +84,7 @@ fn basic_genesis_mine() {
 #[test]
 fn simulate_seeding() {
 	util::init_test_logger();
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "simulate_seeding";
 	framework::clean_all_output(test_name_dir);
@@ -151,7 +151,7 @@ fn simulate_seeding() {
 #[ignore]
 #[test]
 fn simulate_parallel_mining() {
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "simulate_parallel_mining";
 	// framework::clean_all_output(test_name_dir);
@@ -208,7 +208,7 @@ fn simulate_block_propagation() {
 
 	// we actually set the chain_type in the ServerConfig below
 	// TODO - avoid needing to set it in two places?
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "grin-prop";
 	framework::clean_all_output(test_name_dir);
@@ -268,7 +268,7 @@ fn simulate_full_sync() {
 	util::init_test_logger();
 
 	// we actually set the chain_type in the ServerConfig below
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "grin-sync";
 	framework::clean_all_output(test_name_dir);
@@ -324,7 +324,7 @@ fn simulate_fast_sync() {
 	util::init_test_logger();
 
 	// we actually set the chain_type in the ServerConfig below
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "grin-fast";
 	framework::clean_all_output(test_name_dir);
@@ -417,7 +417,7 @@ fn simulate_long_fork() {
 	println!("starting simulate_long_fork");
 
 	// we actually set the chain_type in the ServerConfig below
-	global::set_mining_mode(ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let test_name_dir = "grin-long-fork";
 	framework::clean_all_output(test_name_dir);
@@ -903,7 +903,7 @@ pub fn create_wallet(
 #[test]
 fn replicate_tx_fluff_failure() {
 	util::init_test_logger();
-	global::set_mining_mode(ChainTypes::UserTesting);
+	global::set_local_chain_type(ChainTypes::UserTesting);
 	framework::clean_all_output("tx_fluff");
 
 	// Create Wallet 1 (Mining Input) and start it listening
