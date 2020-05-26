@@ -61,7 +61,9 @@ pub use crate::slate_versions::{
 	SlateVersion, VersionedBinSlate, VersionedCoinbase, VersionedSlate, CURRENT_SLATE_VERSION,
 	GRIN_BLOCK_HEADER_VERSION,
 };
-pub use crate::slatepack::{Slatepack, SlatepackArmor, SlatepackBin};
+pub use crate::slatepack::{
+	Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin, Slatepacker, SlatepackerArgs,
+};
 pub use api_impl::owner_updater::StatusMessage;
 pub use api_impl::types::{
 	BlockFees, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, NodeHeightResult,

@@ -29,7 +29,7 @@ use std::str;
 use super::types::{Slatepack, SlatepackBin};
 
 // Framing and formatting for slate armor
-static HEADER: &str = "BEGINSLATEPACK. ";
+pub static HEADER: &str = "BEGINSLATEPACK. ";
 static FOOTER: &str = ". ENDSLATEPACK.";
 const WORD_LENGTH: usize = 15;
 

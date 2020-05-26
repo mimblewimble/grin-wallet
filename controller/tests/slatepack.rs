@@ -22,17 +22,18 @@ use grin_wallet_util::grin_core as core;
 use grin_wallet_util::OnionV3Address;
 
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{
-	PathToSlatepack, PathToSlatepackArmored, SlateGetter as _, SlatePutter as _, SlatepackArgs,
-};
+use impls::{PathToSlatepack, SlatePutter as _};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack};
+use grin_wallet_libwallet::{
+	InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress, Slatepacker,
+	SlatepackerArgs,
+};
 
-use x25519_dalek::PublicKey as xDalekPublicKey;
-use x25519_dalek::StaticSecret;
+use ed25519_dalek::PublicKey as edDalekPublicKey;
+use ed25519_dalek::SecretKey as edDalekSecretKey;
 
 #[macro_use]
 mod common;
@@ -43,54 +44,37 @@ fn output_slatepack(
 	file: &str,
 	armored: bool,
 	use_bin: bool,
-	sender: Option<xDalekPublicKey>,
-	recipients: Vec<xDalekPublicKey>,
+	sender: Option<SlatepackAddress>,
+	recipients: Vec<SlatepackAddress>,
 ) -> Result<(), libwallet::Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender,
+		recipients,
+		dec_key: None,
+	});
+	let mut file = file.into();
 	if armored {
-		let file = format!("{}.armored", file);
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender,
-			recipients,
-			dec_key: None,
-		};
-		PathToSlatepackArmored::new(args).put_tx(&slate, use_bin)
-	} else {
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender,
-			recipients,
-			dec_key: None,
-		};
-		PathToSlatepack::new(args).put_tx(&slate, use_bin)
+		file = format!("{}.armored", file);
 	}
+	PathToSlatepack::new(file.into(), &packer, armored).put_tx(&slate, use_bin)
 }
 
 fn slate_from_packed(
 	file: &str,
 	armored: bool,
-	dec_key: Option<&StaticSecret>,
+	dec_key: Option<&edDalekSecretKey>,
 ) -> Result<(Slatepack, Slate), libwallet::Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key,
+	});
+	let mut file = file.into();
 	if armored {
-		let file = format!("{}.armored", file);
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender: None,
-			recipients: vec![],
-			dec_key,
-		};
-		let pts = PathToSlatepackArmored::new(args);
-		Ok((pts.get_slatepack()?, pts.get_tx()?.0))
-	} else {
-		let args = SlatepackArgs {
-			pathbuf: file.into(),
-			sender: None,
-			recipients: vec![],
-			dec_key,
-		};
-		let pts = PathToSlatepack::new(args);
-		Ok((pts.get_slatepack()?, pts.get_tx()?.0))
+		file = format!("{}.armored", file);
 	}
+	let slatepack = PathToSlatepack::new(file.into(), &packer, armored).get_slatepack()?;
+	Ok((slatepack.clone(), packer.get_slate(&slatepack)?))
 }
 
 /// self send impl
@@ -165,34 +149,38 @@ fn slatepack_exchange_test_impl(
 
 	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
 		true => {
-			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
-			let mut sec_key = StaticSecret::from([0u8; 32]);
+			let mut rec_address = SlatepackAddress::random();
+			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
 			wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-				let ed25519_sec_key = api.get_secret_key(m, 0)?;
-				let mut b = [0u8; 32];
-				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
-				sec_key = StaticSecret::from(b);
-				rec_address = xDalekPublicKey::from(&sec_key);
+				sec_key = api.get_secret_key(m, 0)?;
+				let pub_key = edDalekPublicKey::from(&sec_key);
+				rec_address = SlatepackAddress::new(&pub_key);
 				Ok(())
 			})?;
-			(vec![rec_address], Some(sec_key), Some(rec_address.clone()))
+			(
+				vec![rec_address.clone()],
+				Some(sec_key),
+				Some(rec_address.clone()),
+			)
 		}
 		false => (vec![], None, None),
 	};
 
 	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
 		true => {
-			let mut rec_address = xDalekPublicKey::from([0u8; 32]);
-			let mut sec_key = StaticSecret::from([0u8; 32]);
+			let mut rec_address = SlatepackAddress::random();
+			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
 			wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-				let ed25519_sec_key = api.get_secret_key(m, 0)?;
-				let mut b = [0u8; 32];
-				b.copy_from_slice(&ed25519_sec_key.as_ref()[0..32]);
-				sec_key = StaticSecret::from(b);
-				rec_address = xDalekPublicKey::from(&sec_key);
+				sec_key = api.get_secret_key(m, 0)?;
+				let pub_key = edDalekPublicKey::from(&sec_key);
+				rec_address = SlatepackAddress::new(&pub_key);
 				Ok(())
 			})?;
-			(vec![rec_address], Some(sec_key), Some(rec_address.clone()))
+			(
+				vec![rec_address.clone()],
+				Some(sec_key),
+				Some(rec_address.clone()),
+			)
 		}
 		false => (vec![], None, None),
 	};
@@ -232,7 +220,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
-			sender_1,
+			sender_1.clone(),
 			recipients_2.clone(),
 		)?;
 		api.tx_lock_outputs(m, &slate)?;
@@ -257,8 +245,8 @@ fn slatepack_exchange_test_impl(
 			use_armored,
 			use_bin,
 			// re-encrypt for sender!
-			sender_2,
-			match slatepack.sender {
+			sender_2.clone(),
+			match slatepack.sender.clone() {
 				Some(s) => vec![s.clone()],
 				None => vec![],
 			},
@@ -326,7 +314,7 @@ fn slatepack_exchange_test_impl(
 			&send_file,
 			use_armored,
 			use_bin,
-			sender_2,
+			sender_2.clone(),
 			recipients_1.clone(),
 		)?;
 		Ok(())
@@ -352,8 +340,8 @@ fn slatepack_exchange_test_impl(
 			&receive_file,
 			use_armored,
 			use_bin,
-			sender_1,
-			match slatepack.sender {
+			sender_1.clone(),
+			match slatepack.sender.clone() {
 				Some(s) => vec![s.clone()],
 				None => vec![],
 			},

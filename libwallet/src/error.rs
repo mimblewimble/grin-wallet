@@ -207,8 +207,8 @@ pub enum ErrorKind {
 	SlatepackSer,
 
 	/// Can't deserialize slate
-	#[fail(display = "Can't Deserialize slatepack")]
-	SlatepackDeser,
+	#[fail(display = "Can't Deserialize slatepack: {}", _0)]
+	SlatepackDeser(String),
 
 	/// Unknown slate version
 	#[fail(display = "Unknown Slate Version: {}", _0)]
@@ -289,6 +289,10 @@ pub enum ErrorKind {
 	/// age error
 	#[fail(display = "Age error: {}", _0)]
 	Age(String),
+
+	/// Slatepack address parsing error
+	#[fail(display = "SlatepackAddress error: {}", _0)]
+	SlatepackAddress(String),
 
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
@@ -423,6 +427,14 @@ impl From<age::Error> for Error {
 	fn from(error: age::Error) -> Error {
 		Error {
 			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
+	}
+}
+
+impl From<bech32::Error> for Error {
+	fn from(error: bech32::Error) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::SlatepackAddress(format!("{}", error))),
 		}
 	}
 }

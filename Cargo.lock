@@ -1444,6 +1444,7 @@ version = "4.0.0-alpha.1"
 dependencies = [
  "chrono",
  "easy-jsonrpc-mw",
+ "ed25519-dalek",
  "failure",
  "failure_derive",
  "futures 0.3.5",
@@ -1465,7 +1466,6 @@ dependencies = [
  "tokio",
  "url 1.7.2",
  "uuid",
- "x25519-dalek",
 ]
 
 [[package]]
@@ -1509,6 +1509,7 @@ version = "4.0.0-alpha.1"
 dependencies = [
  "age",
  "base64 0.9.3",
+ "bech32",
  "blake2-rfc",
  "bs58",
  "byteorder",

@@ -20,7 +20,7 @@ mod slatepack;
 pub use self::file::PathToSlate;
 pub use self::http::{HttpSlateSender, SchemeNotHttp};
 pub use self::keybase::{KeybaseAllChannels, KeybaseChannel};
-pub use self::slatepack::{PathToSlatepack, PathToSlatepackArmored, SlatepackArgs};
+pub use self::slatepack::PathToSlatepack;
 
 use crate::config::{TorConfig, WalletConfig};
 use crate::libwallet::{Error, ErrorKind, Slate};
