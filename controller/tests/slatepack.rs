@@ -444,6 +444,71 @@ fn slatepack_exchange_test_impl(
 	Ok(())
 }
 
+/// Exercise slate encryption/decryption via the API,
+/// Since doctests don't cover encryption
+fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	// Create a new proxy to simulate server and wallet responses
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
+
+	// Create a new wallet test client, and set its queues to communicate with the
+	// proxy
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let mask1 = (&mask1_i).as_ref();
+
+	// Set the wallet proxy listener running
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	// few values to keep things shorter
+	let reward = core::consensus::REWARD;
+
+	// Get some mining done
+	let bh = 6u64;
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let args = InitTxArgs {
+			src_acct_name: Some("mining".to_owned()),
+			amount: reward * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let slate = api.init_send_tx(m, args)?;
+		// create an encrypted slatepack (just encrypted for self)
+		let enc_addr = api.get_slatepack_address(m, 0)?;
+		let slatepack = api.create_slatepack(m, &slate, Some(0), 3, vec![enc_addr])?;
+		println!("{}", slatepack);
+		let slatepack_raw = api.decode_slatepack(slatepack.clone())?;
+		println!("{}", slatepack_raw);
+		let decoded_slate = api.slate_from_slatepack(m, slatepack, vec![0])?;
+		println!("{}", decoded_slate);
+		Ok(())
+	})?;
+
+	// let logging finish
+	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
+	Ok(())
+}
+
 #[test]
 fn slatepack_exchange_json() {
 	let test_dir = "test_output/slatepack_exchange_json";
@@ -505,6 +570,17 @@ fn slatepack_exchange_armored_enc() {
 	setup(test_dir);
 	// Bin output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, true) {
+		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_api() {
+	let test_dir = "test_output/slatepack_api";
+	setup(test_dir);
+	// Json output
+	if let Err(e) = slatepack_api_impl(test_dir) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	clean_output_dir(test_dir);
