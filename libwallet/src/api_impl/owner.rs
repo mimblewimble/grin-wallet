@@ -29,8 +29,8 @@ use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	PaymentProof, ScannedBlockInfo, SlatepackAddress, TxLogEntryType, WalletInitStatus, WalletInst,
-	WalletLCProvider,
+	PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs,
+	TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -122,6 +122,93 @@ where
 		}
 	};
 	Ok(d_skey)
+}
+
+/// Create a slatepack from the given slate
+pub fn create_slatepack<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	sender_index: Option<u32>,
+	num_cols: usize,
+	recipients: Vec<SlatepackAddress>,
+) -> Result<String, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let sender = match sender_index {
+		Some(i) => Some(get_slatepack_address(wallet_inst, keychain_mask, i)?),
+		None => None,
+	};
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender,
+		recipients,
+		dec_key: None,
+	});
+	let slatepack = packer.create_slatepack(slate)?;
+	packer.armor_slatepack(&slatepack, num_cols)
+}
+
+/// Unpack a slate from the given slatepack,
+/// optionally decrypting
+pub fn slate_from_slatepack<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slatepack: String,
+	secret_indices: Vec<u32>,
+) -> Result<Slate, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if secret_indices.is_empty() {
+		let packer = Slatepacker::new(SlatepackerArgs {
+			sender: None,
+			recipients: vec![],
+			dec_key: None,
+		});
+		let slatepack = packer.deser_slatepack(slatepack.as_bytes().to_vec())?;
+		return packer.get_slate(&slatepack);
+	} else {
+		for index in secret_indices {
+			let dec_key = Some(get_slatepack_secret_key(
+				wallet_inst.clone(),
+				keychain_mask,
+				index,
+			)?);
+			let packer = Slatepacker::new(SlatepackerArgs {
+				sender: None,
+				recipients: vec![],
+				dec_key: (&dec_key).as_ref(),
+			});
+			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec());
+			let slatepack = match res {
+				Ok(sp) => sp,
+				Err(_) => {
+					continue;
+				}
+			};
+			return packer.get_slate(&slatepack);
+		}
+		return Err(ErrorKind::SlatepackDecryption(
+			"Could not decrypt slatepack with any provided index on the address derivation path"
+				.into(),
+		)
+		.into());
+	}
+}
+
+/// Decode a slatepack, to allow viewing
+pub fn decode_slatepack(slatepack: String) -> Result<Slatepack, Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	packer.deser_slatepack(slatepack.as_bytes().to_vec())
 }
 
 /// retrieve outputs

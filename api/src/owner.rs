@@ -27,8 +27,8 @@ use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, Status
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlatepackAddress, TxLogEntry,
-	WalletInfo, WalletInst, WalletLCProvider,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
+	TxLogEntry, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
@@ -1955,6 +1955,165 @@ where
 	) -> Result<DalekSecretKey, Error> {
 		owner::get_slatepack_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
+
+	/// Create a slatepack from a given slate, optionally encoding the slate with the provided
+	/// recipient public keys
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender
+	/// * `num_cols` - Number of columns to include per line of the slatepack
+	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
+	/// slate). If an empty vec, the payload will remain unencrypted
+	///
+	/// # Returns
+	/// * Ok with a String representing an armored slatepack if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let args = InitTxArgs {
+	///     src_acct_name: None,
+	///     amount: 2_000_000_000,
+	///     minimum_confirmations: 10,
+	///     max_outputs: 500,
+	///     num_change_outputs: 1,
+	///     selection_strategy_is_use_all: false,
+	///     ..Default::default()
+	/// };
+	/// let result = api_owner.init_send_tx(
+	///     None,
+	///     args,
+	/// );
+	///
+	/// if let Ok(slate) = result {
+	///     // Create a slatepack from our slate
+	///     let slatepack = api_owner.create_slatepack(
+	///        None,
+	///        &slate,
+	///        Some(0),
+	///        3,
+	///        vec![],
+	///     );
+	/// }
+	///
+	/// ```
+
+	pub fn create_slatepack(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		sender_index: Option<u32>,
+		num_cols: usize,
+		recipients: Vec<SlatepackAddress>,
+	) -> Result<String, Error> {
+		owner::create_slatepack(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			slate,
+			sender_index,
+			num_cols,
+			recipients,
+		)
+	}
+
+	/// Extract the slate from the given slatepack. If the slatepack payload is encrypted, attempting to
+	/// decrypt with keys at the given address derivation path indices.
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `slatepack` - A string representing an armored slatepack
+	/// * `secret_indices` - Indices along this wallet's deriviation path with which to attempt
+	/// decryption. This function will attempt to use secret keys at each index along this path
+	/// to attempt to decrypt the payload, returning an error if none of the keys match.
+	///
+	/// # Returns
+	/// * Ok with a [Slate](../grin_wallet_libwallet/slate/struct.Slate.html) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// // ... receive a slatepack from somewhere
+	/// # let slatepack_string = String::from("");
+	///   let res = api_owner.slate_from_slatepack(
+	///    None,
+	///    slatepack_string,
+	///    vec![0, 1, 2],
+	///   );
+	/// ```
+
+	pub fn slate_from_slatepack(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slatepack: String,
+		secret_indices: Vec<u32>,
+	) -> Result<Slate, Error> {
+		owner::slate_from_slatepack(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			slatepack,
+			secret_indices,
+		)
+	}
+
+	/// Decode an armored slatepack, returning a Slatepack object that can be
+	/// viewed, manipulated, output as json, etc
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
+	/// * `slatepack` - A string representing an armored slatepack
+	///
+	/// # Returns
+	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let slatepack_string = String::from("");
+	/// // .. receive a slatepack from somewhere
+	/// let res = api_owner.decode_slatepack(
+	///    slatepack_string
+	/// );
+	///
+	/// ```
+
+	pub fn decode_slatepack(&self, slatepack: String) -> Result<Slatepack, Error> {
+		owner::decode_slatepack(slatepack)
+	}
+
+	// PAYMENT PROOFS
 
 	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
 	/// from a completed transaction within the wallet.

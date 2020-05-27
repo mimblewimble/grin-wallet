@@ -57,7 +57,7 @@ impl<'a> SlatePutter for PathToSlatepack<'a> {
 		let mut pub_tx = File::create(&self.pathbuf)?;
 		if as_bin {
 			if self.armor_output {
-				let armored = self.packer.armor_slatepack(&slatepack)?;
+				let armored = self.packer.armor_slatepack(&slatepack, 3)?;
 				pub_tx.write_all(armored.as_bytes())?;
 			} else {
 				pub_tx.write_all(
