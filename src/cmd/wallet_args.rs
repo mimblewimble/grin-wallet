@@ -28,8 +28,8 @@ use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
-use grin_wallet_libwallet::Slate;
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_libwallet::{Slate, SlatepackAddress};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
@@ -469,11 +469,11 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 				// if the destination address is a TOR address, we don't need the address
 				// separately
 				match OnionV3Address::try_from(dest) {
-					Ok(a) => Some(a),
+					Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
 					Err(_) => {
 						let addr = parse_required(args, "proof_address")?;
 						match OnionV3Address::try_from(addr) {
-							Ok(a) => Some(a),
+							Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
 							Err(e) => {
 								let msg = format!("Invalid proof address: {:?}", e);
 								return Err(ParseError::ArgumentError(msg));

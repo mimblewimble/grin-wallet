@@ -20,7 +20,7 @@ use crate::grin_util::secp::pedersen;
 use crate::slate_versions::ser as dalek_ser;
 use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
-use grin_wallet_util::OnionV3Address;
+use crate::SlatepackAddress;
 
 use ed25519_dalek::Signature as DalekSignature;
 
@@ -64,9 +64,8 @@ pub struct InitTxArgs {
 	#[serde(default)]
 	pub ttl_blocks: Option<u64>,
 	/// If set, require a payment proof for the particular recipient
-	#[serde(with = "dalek_ser::option_ov3_serde")]
 	#[serde(default)]
-	pub payment_proof_recipient_address: Option<OnionV3Address>,
+	pub payment_proof_recipient_address: Option<SlatepackAddress>,
 	/// If true, just return an estimate of the resulting slate, containing fees and amounts
 	/// locked without actually locking outputs or creating the transaction. Note if this is set to
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
@@ -203,15 +202,13 @@ pub struct PaymentProof {
 		deserialize_with = "secp_ser::commitment_from_hex"
 	)]
 	pub excess: pedersen::Commitment,
-	/// Recipient Wallet Address (Onion V3)
-	#[serde(with = "dalek_ser::ov3_serde")]
-	pub recipient_address: OnionV3Address,
+	/// Recipient Wallet Address
+	pub recipient_address: SlatepackAddress,
 	/// Recipient Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub recipient_sig: DalekSignature,
-	/// Sender Wallet Address (Onion V3)
-	#[serde(with = "dalek_ser::ov3_serde")]
-	pub sender_address: OnionV3Address,
+	/// Sender Wallet Address
+	pub sender_address: SlatepackAddress,
 	/// Sender Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,

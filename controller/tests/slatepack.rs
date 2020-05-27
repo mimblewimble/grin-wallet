@@ -19,7 +19,6 @@ extern crate grin_wallet_impls as impls;
 
 use grin_wallet_libwallet as libwallet;
 use grin_wallet_util::grin_core as core;
-use grin_wallet_util::OnionV3Address;
 
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlatepack, SlatePutter as _};
@@ -379,11 +378,9 @@ fn slatepack_exchange_test_impl(
 	let mut slate = Slate::blank(2, true);
 	let mut address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		address = Some(api.get_public_proof_address(m, 0)?);
+		address = Some(api.get_slatepack_address(m, 0)?);
 		Ok(())
 	})?;
-
-	let address = OnionV3Address::from_bytes(address.as_ref().unwrap().to_bytes());
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		// send to send
@@ -394,7 +391,7 @@ fn slatepack_exchange_test_impl(
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			payment_proof_recipient_address: Some(address.clone()),
+			payment_proof_recipient_address: address.clone(),
 			..Default::default()
 		};
 		let slate = api.init_send_tx(m, args)?;

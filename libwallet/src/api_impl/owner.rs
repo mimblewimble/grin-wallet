@@ -29,12 +29,14 @@ use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	PaymentProof, ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
+	PaymentProof, ScannedBlockInfo, SlatepackAddress, TxLogEntryType, WalletInitStatus, WalletInst,
+	WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 
+use std::convert::TryFrom;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -79,7 +81,7 @@ pub fn get_public_proof_address<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	index: u32,
-) -> Result<DalekPublicKey, Error>
+) -> Result<SlatepackAddress, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -89,8 +91,7 @@ where
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
 	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
-	let addr = OnionV3Address::from_private(&sec_addr_key.0)?;
-	Ok(addr.to_ed25519()?)
+	SlatepackAddress::try_from(&sec_addr_key)
 }
 
 /// Retrieve the decryption key for the current parent key
@@ -316,9 +317,9 @@ where
 	Ok(PaymentProof {
 		amount: amount,
 		excess: excess,
-		recipient_address: OnionV3Address::from_bytes(proof.receiver_address.to_bytes()),
+		recipient_address: SlatepackAddress::new(&proof.receiver_address),
 		recipient_sig: r_sig,
-		sender_address: OnionV3Address::from_bytes(proof.sender_address.to_bytes()),
+		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
 	})
 }
@@ -405,7 +406,7 @@ where
 
 		slate.payment_proof = Some(PaymentInfo {
 			sender_address: sender_address.to_ed25519()?,
-			receiver_address: a.to_ed25519()?,
+			receiver_address: a.pub_key,
 			receiver_signature: None,
 		});
 
@@ -993,7 +994,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let sender_pubkey = proof.sender_address.to_ed25519()?;
+	let sender_pubkey = proof.sender_address.pub_key;
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, sender_pubkey)?;
 
 	let (mut client, parent_key_id, keychain) = {
@@ -1025,12 +1026,12 @@ where
 	};
 
 	// Check Sigs
-	let recipient_pubkey = proof.recipient_address.to_ed25519()?;
+	let recipient_pubkey = proof.recipient_address.pub_key;
 	if recipient_pubkey.verify(&msg, &proof.recipient_sig).is_err() {
 		return Err(ErrorKind::PaymentProof("Invalid recipient signature".to_owned()).into());
 	};
 
-	let sender_pubkey = proof.sender_address.to_ed25519()?;
+	let sender_pubkey = proof.sender_address.pub_key;
 	if sender_pubkey.verify(&msg, &proof.sender_sig).is_err() {
 		return Err(ErrorKind::PaymentProof("Invalid sender signature".to_owned()).into());
 	};

@@ -15,7 +15,6 @@
 //! Owner API External Definition
 
 use chrono::prelude::*;
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use uuid::Uuid;
 
@@ -28,14 +27,12 @@ use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, Status
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, TxLogEntry, WalletInfo, WalletInst,
-	WalletLCProvider,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlatepackAddress, TxLogEntry,
+	WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_util::OnionV3Address;
-use std::convert::TryFrom;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -1854,10 +1851,10 @@ where
 		Ok(q.split_off(index))
 	}
 
-	/// Retrieve the public proof "addresses" associated with the active account at the
+	/// Retrieve the public slatepack address associated with the active account at the
 	/// given derivation path.
 	///
-	/// In this case, an "address" means a Dalek ed25519 public key corresponding to
+	/// In this case, an "address" means a Slatepack Address corresponding to
 	/// a private key derived as follows:
 	///
 	/// e.g. The default parent account is at
@@ -1887,7 +1884,7 @@ where
 	/// * `derivation_index` - The index along the derivation path to retrieve an address for
 	///
 	/// # Returns
-	/// * Ok with a DalekPublicKey representing the address
+	/// * Ok with a SlatepackAddress representing the address
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -1910,11 +1907,11 @@ where
 	///
 	/// ```
 
-	pub fn get_public_proof_address(
+	pub fn get_slatepack_address(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		derivation_index: u32,
-	) -> Result<DalekPublicKey, Error> {
+	) -> Result<SlatepackAddress, Error> {
 		owner::get_public_proof_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
 
@@ -1926,46 +1923,6 @@ where
 		derivation_index: u32,
 	) -> Result<DalekSecretKey, Error> {
 		owner::get_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
-	}
-
-	/// Helper function to convert an Onion v3 address to a payment proof address (essentially
-	/// exctacting and verifying the public key)
-	///
-	/// # Arguments
-	///
-	/// * `address_v3` - An V3 Onion address
-	///
-	/// # Returns
-	/// * Ok(DalekPublicKey) representing the public key associated with the address, if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
-	/// or the address provided is invalid
-	///
-	/// # Example
-	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
-	/// ```
-	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
-	///
-	/// use grin_core::global::ChainTypes;
-	///
-	/// use std::time::Duration;
-	///
-	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
-	///
-	/// let res = api_owner.proof_address_from_onion_v3(
-	///  "2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid"
-	/// );
-	///
-	/// if let Ok(_) = res {
-	///   // ...
-	/// }
-	///
-	/// let res = api_owner.stop_updater();
-	/// ```
-
-	pub fn proof_address_from_onion_v3(&self, address_v3: &str) -> Result<DalekPublicKey, Error> {
-		let addr = OnionV3Address::try_from(address_v3)?;
-		Ok(addr.to_ed25519()?)
 	}
 
 	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
@@ -2094,8 +2051,9 @@ where
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
 	}
 
-	/// Return my participant data
-	// TODO: This will be removed once state is added to slate
+	/// Return whether this transaction is marked as invoice in the context
+	// TODO: Remove post HF3
+	// This will be removed once state is added to slate
 	pub fn context_is_invoice(
 		&self,
 		keychain_mask: Option<&SecretKey>,

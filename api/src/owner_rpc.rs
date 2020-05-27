@@ -21,13 +21,13 @@ use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, SlateVersion, StatusMessage, TxLogEntry,
-	VersionedSlate, WalletInfo, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, SlateVersion, SlatepackAddress, StatusMessage,
+	TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, Mutex, ZeroingString};
-use crate::{ECDHPubkey, Owner, PubAddress, Token};
+use crate::{ECDHPubkey, Owner, Token};
 use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
@@ -378,7 +378,7 @@ pub trait OwnerRpc {
 					"num_change_outputs": 1,
 					"selection_strategy_is_use_all": true,
 					"target_slate_version": null,
-					"payment_proof_recipient_address": "pa7wkkdgs5bkteha7lykl7ff2wztgdrxxo442xdcq2lnaphe5aidd4id",
+					"payment_proof_recipient_address": "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7",
 					"ttl_blocks": null,
 					"send_args": null
 				}
@@ -1389,13 +1389,13 @@ pub trait OwnerRpc {
 	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, ErrorKind>;
 
 	/**
-	Networked version of [Owner::get_public_proof_address](struct.Owner.html#method.get_public_proof_address).
+	Networked version of [Owner::get_slatepack_address](struct.Owner.html#method.get_slatepack_address).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "get_public_proof_address",
+		"method": "get_slatepack_address",
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"derivation_index": 0
@@ -1409,7 +1409,7 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
+			"Ok": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu"
 		}
 	}
 	# "#
@@ -1417,41 +1417,11 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn get_public_proof_address(
+	fn get_slatepack_address(
 		&self,
 		token: Token,
 		derivation_index: u32,
-	) -> Result<PubAddress, ErrorKind>;
-
-	/**
-	Networked version of [Owner::proof_address_from_onion_v3](struct.Owner.html#method.proof_address_from_onion_v3).
-	```
-	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
-	# r#"
-	{
-		"jsonrpc": "2.0",
-		"method": "proof_address_from_onion_v3",
-		"params": {
-			"address_v3": "2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid"
-		},
-		"id": 1
-	}
-	# "#
-	# ,
-	# r#"
-	{
-		"id": 1,
-		"jsonrpc": "2.0",
-		"result": {
-			"Ok": "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb"
-		}
-	}
-	# "#
-	# , 0, false, false, false, false);
-	```
-	*/
-
-	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind>;
+	) -> Result<SlatepackAddress, ErrorKind>;
 
 	/**
 	Networked version of [Owner::retrieve_payment_proof](struct.Owner.html#method.retrieve_payment_proof).
@@ -1479,9 +1449,9 @@ pub trait OwnerRpc {
 			"Ok": {
 				"amount": "60000000000",
 				"excess": "091f151170bfac881479bfb56c7012c52cd4ce4198ad661586374dd499925922fb",
-				"recipient_address": "pa7wkkdgs5bkteha7lykl7ff2wztgdrxxo442xdcq2lnaphe5aidd4id",
+				"recipient_address": "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7",
 				"recipient_sig": "b9b1885a3f33297df32e1aa4db23220bd305da8ed92ff6873faf3ab2c116fea25e9d0e34bd4f567f022b88a37400821ffbcaec71c9a8c3a327c4626611886d0d",
-				"sender_address": "glg5mojiqvhywjriwhooiytn3tptlvlmw7h567lezssyek3y2tjzznad",
+				"sender_address": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu",
 				"sender_sig": "611b92331e395c3d29871ac35b1fce78ec595e28ccbe8cc55452da40775e8e46d35a2e84eaffd986935da3275e34d46a8d777d02dabcf4339704c2a621da9700"
 			}
 		}
@@ -1512,9 +1482,9 @@ pub trait OwnerRpc {
 			"proof": {
 				"amount": "60000000000",
 				"excess": "091f151170bfac881479bfb56c7012c52cd4ce4198ad661586374dd499925922fb",
-				"recipient_address": "pa7wkkdgs5bkteha7lykl7ff2wztgdrxxo442xdcq2lnaphe5aidd4id",
+				"recipient_address": "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7",
 				"recipient_sig": "b9b1885a3f33297df32e1aa4db23220bd305da8ed92ff6873faf3ab2c116fea25e9d0e34bd4f567f022b88a37400821ffbcaec71c9a8c3a327c4626611886d0d",
-				"sender_address": "glg5mojiqvhywjriwhooiytn3tptlvlmw7h567lezssyek3y2tjzznad",
+				"sender_address": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu",
 				"sender_sig": "611b92331e395c3d29871ac35b1fce78ec595e28ccbe8cc55452da40775e8e46d35a2e84eaffd986935da3275e34d46a8d777d02dabcf4339704c2a621da9700"
 			}
 		},
@@ -1862,18 +1832,13 @@ where
 		Owner::get_updater_messages(self, count as usize).map_err(|e| e.kind())
 	}
 
-	fn get_public_proof_address(
+	fn get_slatepack_address(
 		&self,
 		token: Token,
 		derivation_index: u32,
-	) -> Result<PubAddress, ErrorKind> {
-		let address = Owner::get_public_proof_address(
-			self,
-			(&token.keychain_mask).as_ref(),
-			derivation_index,
-		)
-		.map_err(|e| e.kind())?;
-		Ok(PubAddress { address })
+	) -> Result<SlatepackAddress, ErrorKind> {
+		Owner::get_slatepack_address(self, (&token.keychain_mask).as_ref(), derivation_index)
+			.map_err(|e| e.kind())
 	}
 
 	fn retrieve_payment_proof(
@@ -1900,12 +1865,6 @@ where
 	) -> Result<(bool, bool), ErrorKind> {
 		Owner::verify_payment_proof(self, (&token.keychain_mask).as_ref(), &proof)
 			.map_err(|e| e.kind())
-	}
-
-	fn proof_address_from_onion_v3(&self, address_v3: String) -> Result<PubAddress, ErrorKind> {
-		let address =
-			Owner::proof_address_from_onion_v3(self, &address_v3).map_err(|e| e.kind())?;
-		Ok(PubAddress { address })
 	}
 
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind> {
@@ -2055,7 +2014,8 @@ pub fn run_doctest_owner(
 		let proof_address = match payment_proof {
 			true => {
 				let address = "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810";
-				Some(OnionV3Address::try_from(address).unwrap())
+				let address = OnionV3Address::try_from(address).unwrap();
+				Some(SlatepackAddress::try_from(address).unwrap())
 			}
 			false => None,
 		};
