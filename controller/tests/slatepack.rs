@@ -494,11 +494,11 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let slate = api.init_send_tx(m, args)?;
 		// create an encrypted slatepack (just encrypted for self)
 		let enc_addr = api.get_slatepack_address(m, 0)?;
-		let slatepack = api.create_slatepack(m, &slate, Some(0), 3, vec![enc_addr])?;
+		let slatepack = api.create_slatepack_message(m, &slate, Some(0), 3, vec![enc_addr])?;
 		println!("{}", slatepack);
-		let slatepack_raw = api.decode_slatepack(slatepack.clone())?;
+		let slatepack_raw = api.decode_slatepack_message(slatepack.clone())?;
 		println!("{}", slatepack_raw);
-		let decoded_slate = api.slate_from_slatepack(m, slatepack, vec![0])?;
+		let decoded_slate = api.slate_from_slatepack_message(m, slatepack, vec![0])?;
 		println!("{}", decoded_slate);
 		Ok(())
 	})?;

@@ -124,8 +124,8 @@ where
 	Ok(d_skey)
 }
 
-/// Create a slatepack from the given slate
-pub fn create_slatepack<'a, L, C, K>(
+/// Create a slatepack message from the given slate
+pub fn create_slatepack_message<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
@@ -151,9 +151,9 @@ where
 	packer.armor_slatepack(&slatepack, num_cols)
 }
 
-/// Unpack a slate from the given slatepack,
+/// Unpack a slate from the given slatepack message,
 /// optionally decrypting
-pub fn slate_from_slatepack<'a, L, C, K>(
+pub fn slate_from_slatepack_message<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
@@ -201,8 +201,8 @@ where
 	}
 }
 
-/// Decode a slatepack, to allow viewing
-pub fn decode_slatepack(slatepack: String) -> Result<Slatepack, Error> {
+/// Decode a slatepack message, to allow viewing
+pub fn decode_slatepack_message(slatepack: String) -> Result<Slatepack, Error> {
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
 		recipients: vec![],

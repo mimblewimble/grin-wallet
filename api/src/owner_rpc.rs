@@ -1459,13 +1459,13 @@ pub trait OwnerRpc {
 	) -> Result<Ed25519SecretKey, ErrorKind>;
 
 	/**
-	Networked version of [Owner::create_slatepack](struct.Owner.html#method.create_slatepack).
+	Networked version of [Owner::create_slatepack_message](struct.Owner.html#method.create_slatepack_message).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "create_slatepack",
+		"method": "create_slatepack_message",
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"sender_index": 0,
@@ -1507,7 +1507,7 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn create_slatepack(
+	fn create_slatepack_message(
 		&self,
 		token: Token,
 		slate: VersionedSlate,
@@ -1517,17 +1517,17 @@ pub trait OwnerRpc {
 	) -> Result<String, ErrorKind>;
 
 	/**
-	Networked version of [Owner::slate_from_slatepack](struct.Owner.html#method.slate_from_slatepack).
+	Networked version of [Owner::slate_from_slatepack_message](struct.Owner.html#method.slate_from_slatepack_message).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "slate_from_slatepack",
+		"method": "slate_from_slatepack_message",
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"secret_indices": [0],
-			"slatepack": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
+			"message": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
 		},
 		"id": 1
 	}
@@ -1563,23 +1563,23 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn slate_from_slatepack(
+	fn slate_from_slatepack_message(
 		&self,
 		token: Token,
-		slatepack: String,
+		message: String,
 		secret_indices: Vec<u32>,
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
-	Networked version of [Owner::decode_slatepack](struct.Owner.html#method.decode_slatepack).
+	Networked version of [Owner::decode_slatepack_message](struct.Owner.html#method.decode_slatepack_message).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "decode_slatepack",
+		"method": "decode_slatepack_message",
 		"params": {
-			"slatepack": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
+			"message": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
 		},
 		"id": 1
 	}
@@ -1603,7 +1603,7 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn decode_slatepack(&self, slatepack: String) -> Result<Slatepack, ErrorKind>;
+	fn decode_slatepack_message(&self, message: String) -> Result<Slatepack, ErrorKind>;
 
 	/**
 	Networked version of [Owner::retrieve_payment_proof](struct.Owner.html#method.retrieve_payment_proof).
@@ -2037,7 +2037,7 @@ where
 		Ok(Ed25519SecretKey { key })
 	}
 
-	fn create_slatepack(
+	fn create_slatepack_message(
 		&self,
 		token: Token,
 		slate: VersionedSlate,
@@ -2045,7 +2045,7 @@ where
 		num_cols: u32,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, ErrorKind> {
-		Owner::create_slatepack(
+		Owner::create_slatepack_message(
 			self,
 			(&token.keychain_mask).as_ref(),
 			&Slate::from(slate),
@@ -2056,16 +2056,16 @@ where
 		.map_err(|e| e.kind())
 	}
 
-	fn slate_from_slatepack(
+	fn slate_from_slatepack_message(
 		&self,
 		token: Token,
-		slatepack: String,
+		message: String,
 		secret_indices: Vec<u32>,
 	) -> Result<VersionedSlate, ErrorKind> {
-		let slate = Owner::slate_from_slatepack(
+		let slate = Owner::slate_from_slatepack_message(
 			self,
 			(&token.keychain_mask).as_ref(),
-			slatepack,
+			message,
 			secret_indices,
 		)
 		.map_err(|e| e.kind())?;
@@ -2073,8 +2073,8 @@ where
 		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
 
-	fn decode_slatepack(&self, slatepack: String) -> Result<Slatepack, ErrorKind> {
-		Owner::decode_slatepack(self, slatepack).map_err(|e| e.kind())
+	fn decode_slatepack_message(&self, message: String) -> Result<Slatepack, ErrorKind> {
+		Owner::decode_slatepack_message(self, message).map_err(|e| e.kind())
 	}
 
 	fn retrieve_payment_proof(

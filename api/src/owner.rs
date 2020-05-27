@@ -2000,7 +2000,7 @@ where
 	///
 	/// if let Ok(slate) = result {
 	///     // Create a slatepack from our slate
-	///     let slatepack = api_owner.create_slatepack(
+	///     let slatepack = api_owner.create_slatepack_message(
 	///        None,
 	///        &slate,
 	///        Some(0),
@@ -2011,7 +2011,7 @@ where
 	///
 	/// ```
 
-	pub fn create_slatepack(
+	pub fn create_slatepack_message(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
@@ -2019,7 +2019,7 @@ where
 		num_cols: usize,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
-		owner::create_slatepack(
+		owner::create_slatepack_message(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			slate,
@@ -2057,20 +2057,20 @@ where
 	/// # let api_owner = Owner::new(wallet.clone(), None);
 	/// // ... receive a slatepack from somewhere
 	/// # let slatepack_string = String::from("");
-	///   let res = api_owner.slate_from_slatepack(
+	///   let res = api_owner.slate_from_slatepack_message(
 	///    None,
 	///    slatepack_string,
 	///    vec![0, 1, 2],
 	///   );
 	/// ```
 
-	pub fn slate_from_slatepack(
+	pub fn slate_from_slatepack_message(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slatepack: String,
 		secret_indices: Vec<u32>,
 	) -> Result<Slate, Error> {
-		owner::slate_from_slatepack(
+		owner::slate_from_slatepack_message(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			slatepack,
@@ -2103,14 +2103,14 @@ where
 	/// # let api_owner = Owner::new(wallet.clone(), None);
 	/// # let slatepack_string = String::from("");
 	/// // .. receive a slatepack from somewhere
-	/// let res = api_owner.decode_slatepack(
+	/// let res = api_owner.decode_slatepack_message(
 	///    slatepack_string
 	/// );
 	///
 	/// ```
 
-	pub fn decode_slatepack(&self, slatepack: String) -> Result<Slatepack, Error> {
-		owner::decode_slatepack(slatepack)
+	pub fn decode_slatepack_message(&self, slatepack: String) -> Result<Slatepack, Error> {
+		owner::decode_slatepack_message(slatepack)
 	}
 
 	// PAYMENT PROOFS
