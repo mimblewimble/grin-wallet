@@ -1917,7 +1917,7 @@ where
 		owner::get_slatepack_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
 
-	/// Retrieve the private slatepack key at the given derivation index. Currently
+	/// Retrieve the private ed25519 slatepack key at the given derivation index. Currently
 	/// used to decrypt encrypted slatepack messages.
 	///
 	/// # Arguments
@@ -1926,7 +1926,7 @@ where
 	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key
 	///
 	/// # Returns
-	/// * Ok with a SecretKey if successful
+	/// * Ok with an ed25519_dalek::SecretKey if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -1953,7 +1953,7 @@ where
 		keychain_mask: Option<&SecretKey>,
 		derivation_index: u32,
 	) -> Result<DalekSecretKey, Error> {
-		owner::get_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
+		owner::get_slatepack_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
 
 	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)

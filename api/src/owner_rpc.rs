@@ -27,7 +27,7 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{static_secp_instance, Mutex, ZeroingString};
-use crate::{ECDHPubkey, Owner, Token};
+use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
 use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
@@ -1424,6 +1424,41 @@ pub trait OwnerRpc {
 	) -> Result<SlatepackAddress, ErrorKind>;
 
 	/**
+	Networked version of [Owner::get_slatepack_secret_key](struct.Owner.html#method.get_slatepack_secret_key).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_slatepack_secret_key",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"derivation_index": 0
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26f"
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	*/
+
+	fn get_slatepack_secret_key(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<Ed25519SecretKey, ErrorKind>;
+
+	/**
 	Networked version of [Owner::retrieve_payment_proof](struct.Owner.html#method.retrieve_payment_proof).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -1839,6 +1874,20 @@ where
 	) -> Result<SlatepackAddress, ErrorKind> {
 		Owner::get_slatepack_address(self, (&token.keychain_mask).as_ref(), derivation_index)
 			.map_err(|e| e.kind())
+	}
+
+	fn get_slatepack_secret_key(
+		&self,
+		token: Token,
+		derivation_index: u32,
+	) -> Result<Ed25519SecretKey, ErrorKind> {
+		let key = Owner::get_slatepack_secret_key(
+			self,
+			(&token.keychain_mask).as_ref(),
+			derivation_index,
+		)
+		.map_err(|e| e.kind())?;
+		Ok(Ed25519SecretKey { key })
 	}
 
 	fn retrieve_payment_proof(

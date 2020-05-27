@@ -262,6 +262,34 @@ pub mod ov3_serde {
 }
 
 /// Serializes an ed25519 PublicKey to and from hex
+pub mod dalek_seckey_serde {
+	use crate::grin_util::{from_hex, ToHex};
+	use ed25519_dalek::SecretKey as DalekSecretKey;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(key: &DalekSecretKey, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&key.to_bytes().to_hex())
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekSecretKey, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de::Error;
+		String::deserialize(deserializer)
+			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
+			.and_then(|bytes: Vec<u8>| {
+				DalekSecretKey::from_bytes(&bytes).map_err(|err| Error::custom(err.to_string()))
+			})
+	}
+}
+
+/// Serializes an ed25519 PublicKey to and from hex
 pub mod dalek_pubkey_serde {
 	use crate::grin_util::{from_hex, ToHex};
 	use ed25519_dalek::PublicKey as DalekPublicKey;

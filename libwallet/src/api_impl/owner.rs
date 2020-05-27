@@ -97,7 +97,7 @@ where
 /// Retrieve the decryption key for the current parent key
 /// the given index
 /// set active account
-pub fn get_secret_key<'a, L, C, K>(
+pub fn get_slatepack_secret_key<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	index: u32,
