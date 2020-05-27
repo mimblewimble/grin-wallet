@@ -1963,7 +1963,6 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender
-	/// * `num_cols` - Number of columns to include per line of the slatepack
 	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
 	/// slate). If an empty vec, the payload will remain unencrypted
 	///
@@ -2004,7 +2003,6 @@ where
 	///        None,
 	///        &slate,
 	///        Some(0),
-	///        3,
 	///        vec![],
 	///     );
 	/// }
@@ -2016,7 +2014,6 @@ where
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
 		sender_index: Option<u32>,
-		num_cols: usize,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
 		owner::create_slatepack_message(
@@ -2024,7 +2021,6 @@ where
 			keychain_mask,
 			slate,
 			sender_index,
-			num_cols,
 			recipients,
 		)
 	}

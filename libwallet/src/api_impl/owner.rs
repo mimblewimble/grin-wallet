@@ -130,7 +130,6 @@ pub fn create_slatepack_message<'a, L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	sender_index: Option<u32>,
-	num_cols: usize,
 	recipients: Vec<SlatepackAddress>,
 ) -> Result<String, Error>
 where
@@ -148,7 +147,7 @@ where
 		dec_key: None,
 	});
 	let slatepack = packer.create_slatepack(slate)?;
-	packer.armor_slatepack(&slatepack, num_cols)
+	packer.armor_slatepack(&slatepack)
 }
 
 /// Unpack a slate from the given slatepack message,

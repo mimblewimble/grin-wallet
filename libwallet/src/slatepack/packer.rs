@@ -107,8 +107,8 @@ impl<'a> Slatepacker<'a> {
 	}
 
 	/// Armor a slatepack
-	pub fn armor_slatepack(&self, slatepack: &Slatepack, num_cols: usize) -> Result<String, Error> {
-		SlatepackArmor::encode(&slatepack, num_cols)
+	pub fn armor_slatepack(&self, slatepack: &Slatepack) -> Result<String, Error> {
+		SlatepackArmor::encode(&slatepack)
 	}
 
 	/// Return/upgrade slate from slatepack
