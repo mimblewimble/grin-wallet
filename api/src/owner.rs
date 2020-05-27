@@ -1851,6 +1851,8 @@ where
 		Ok(q.split_off(index))
 	}
 
+	// SLATEPACK
+
 	/// Retrieve the public slatepack address associated with the active account at the
 	/// given derivation path.
 	///
@@ -1899,7 +1901,7 @@ where
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None);
 	///
-	/// let res = api_owner.get_public_proof_address(None, 0);
+	/// let res = api_owner.get_slatepack_address(None, 0);
 	///
 	/// if let Ok(_) = res {
 	///   // ...
@@ -1912,12 +1914,41 @@ where
 		keychain_mask: Option<&SecretKey>,
 		derivation_index: u32,
 	) -> Result<SlatepackAddress, Error> {
-		owner::get_public_proof_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
+		owner::get_slatepack_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
 
-	// TODO: Doc
-	/// get public proof a
-	pub fn get_secret_key(
+	/// Retrieve the private slatepack key at the given derivation index. Currently
+	/// used to decrypt encrypted slatepack messages.
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key
+	///
+	/// # Returns
+	/// * Ok with a SecretKey if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	///
+	/// let res = api_owner.get_slatepack_secret_key(None, 0);
+	///
+	/// if let Ok(_) = res {
+	///   // ...
+	/// }
+	///
+	/// ```
+	pub fn get_slatepack_secret_key(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		derivation_index: u32,

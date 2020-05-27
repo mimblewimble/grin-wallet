@@ -74,10 +74,10 @@ where
 	w.set_parent_key_id_by_name(label)
 }
 
-/// Retrieve the payment proof address for the current parent key at
+/// Retrieve the slatepack address for the current parent key at
 /// the given index
 /// set active account
-pub fn get_public_proof_address<'a, L, C, K>(
+pub fn get_slatepack_address<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	index: u32,

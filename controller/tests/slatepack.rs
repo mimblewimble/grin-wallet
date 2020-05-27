@@ -151,7 +151,7 @@ fn slatepack_exchange_test_impl(
 			let mut rec_address = SlatepackAddress::random();
 			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
 			wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-				sec_key = api.get_secret_key(m, 0)?;
+				sec_key = api.get_slatepack_secret_key(m, 0)?;
 				let pub_key = edDalekPublicKey::from(&sec_key);
 				rec_address = SlatepackAddress::new(&pub_key);
 				Ok(())
@@ -170,7 +170,7 @@ fn slatepack_exchange_test_impl(
 			let mut rec_address = SlatepackAddress::random();
 			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
 			wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-				sec_key = api.get_secret_key(m, 0)?;
+				sec_key = api.get_slatepack_secret_key(m, 0)?;
 				let pub_key = edDalekPublicKey::from(&sec_key);
 				rec_address = SlatepackAddress::new(&pub_key);
 				Ok(())
