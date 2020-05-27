@@ -21,8 +21,8 @@ use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, SlateVersion, SlatepackAddress, StatusMessage,
-	TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack, SlatepackAddress,
+	StatusMessage, TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -1459,6 +1459,153 @@ pub trait OwnerRpc {
 	) -> Result<Ed25519SecretKey, ErrorKind>;
 
 	/**
+	Networked version of [Owner::create_slatepack](struct.Owner.html#method.create_slatepack).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "create_slatepack",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"sender_index": 0,
+			"num_cols": 3,
+			"recipients": [],
+			"slate": {
+				"amt": "6000000000",
+				"fee": "8000000",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
+				"proof": {
+					"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
+					"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
+				},
+				"sigs": [
+					{
+						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
+						"xs": "Ajh4zoRXJ/Ok7HbKPz20s4otBdY2uMNjIQi4V/7WPJbe"
+					}
+				],
+				"sta": "S1",
+				"ver": "4:2"
+			}
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	*/
+
+	fn create_slatepack(
+		&self,
+		token: Token,
+		slate: VersionedSlate,
+		sender_index: Option<u32>,
+		num_cols: u32,
+		recipients: Vec<SlatepackAddress>,
+	) -> Result<String, ErrorKind>;
+
+	/**
+	Networked version of [Owner::slate_from_slatepack](struct.Owner.html#method.slate_from_slatepack).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "slate_from_slatepack",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"secret_indices": [0],
+			"slatepack": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": {
+				"amt": "6000000000",
+				"fee": "8000000",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
+				"proof": {
+					"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
+					"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
+				},
+				"sigs": [
+					{
+						"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
+						"xs": "Ajh4zoRXJ/Ok7HbKPz20s4otBdY2uMNjIQi4V/7WPJbe"
+					}
+				],
+				"sta": "S1",
+				"ver": "4:2"
+			}
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	*/
+
+	fn slate_from_slatepack(
+		&self,
+		token: Token,
+		slatepack: String,
+		secret_indices: Vec<u32>,
+	) -> Result<VersionedSlate, ErrorKind>;
+
+	/**
+	Networked version of [Owner::decode_slatepack](struct.Owner.html#method.decode_slatepack).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "decode_slatepack",
+		"params": {
+			"slatepack": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": {
+				"mode": 0,
+				"payload": "AAQAAgQ2QwwrAmJMIDJXBQEhKwAB0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAAGAAAAAWWgvAAAAAAAAHoSAAEAAjh4zoRXJ/Ok7HbKPz20s4otBdY2uMNjIQi4V/7WPJbeAxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QePAjLN1jkohU+LJiix3ORibdzfNdVst8/ffWTMpYIreNTTeD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BAA",
+				"sender": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu",
+				"slatepack": "1.0"
+			}
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	*/
+
+	fn decode_slatepack(&self, slatepack: String) -> Result<Slatepack, ErrorKind>;
+
+	/**
 	Networked version of [Owner::retrieve_payment_proof](struct.Owner.html#method.retrieve_payment_proof).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -1888,6 +2035,46 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		Ok(Ed25519SecretKey { key })
+	}
+
+	fn create_slatepack(
+		&self,
+		token: Token,
+		slate: VersionedSlate,
+		sender_index: Option<u32>,
+		num_cols: u32,
+		recipients: Vec<SlatepackAddress>,
+	) -> Result<String, ErrorKind> {
+		Owner::create_slatepack(
+			self,
+			(&token.keychain_mask).as_ref(),
+			&Slate::from(slate),
+			sender_index,
+			num_cols as usize,
+			recipients,
+		)
+		.map_err(|e| e.kind())
+	}
+
+	fn slate_from_slatepack(
+		&self,
+		token: Token,
+		slatepack: String,
+		secret_indices: Vec<u32>,
+	) -> Result<VersionedSlate, ErrorKind> {
+		let slate = Owner::slate_from_slatepack(
+			self,
+			(&token.keychain_mask).as_ref(),
+			slatepack,
+			secret_indices,
+		)
+		.map_err(|e| e.kind())?;
+		let version = SlateVersion::V4;
+		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
+	}
+
+	fn decode_slatepack(&self, slatepack: String) -> Result<Slatepack, ErrorKind> {
+		Owner::decode_slatepack(self, slatepack).map_err(|e| e.kind())
 	}
 
 	fn retrieve_payment_proof(
