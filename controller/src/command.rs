@@ -322,10 +322,10 @@ where
 					&tor_config.as_ref().unwrap().send_config_dir,
 				)
 				.map_err(|_| invalid())?;
-				let other_version = v_sender.check_other_version(&url_str)?;
-				if other_version == SlateVersion::V3 {
-					args.target_slate_version = Some(3);
-				}
+				//let other_version = v_sender.check_other_version(&url_str)?;
+				//if other_version == SlateVersion::V3 {
+				args.target_slate_version = Some(3);
+				//}
 			}
 			"file" => {
 				// For files spit out a V3 Slate if we're before HF3,

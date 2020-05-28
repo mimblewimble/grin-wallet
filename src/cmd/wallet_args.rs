@@ -25,7 +25,7 @@ use grin_wallet_api::Owner;
 use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::tor::config::is_tor_address;
+use grin_wallet_impls::tor::config::{complete_tor_address, is_tor_address};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
@@ -405,7 +405,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let estimate_selection_strategies = args.is_present("estimate_selection_strategies");
 
 	// method
-	let method = parse_required(args, "method")?;
+	let mut method = parse_required(args, "method")?;
 
 	// dest
 	let dest = {
@@ -421,6 +421,17 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 				""
 			}
 		}
+	};
+
+	// will test if this is a tor address and fill out
+	// the http://[].onion if missing
+	// TODO: This is weird considered what happen before
+	let dest = match complete_tor_address(dest) {
+		Ok(d) => {
+			method = "tor";
+			d
+		}
+		Err(_) => dest.into(),
 	};
 
 	if !estimate_selection_strategies
@@ -468,7 +479,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			true => {
 				// if the destination address is a TOR address, we don't need the address
 				// separately
-				match OnionV3Address::try_from(dest) {
+				match OnionV3Address::try_from(dest.as_str()) {
 					Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
 					Err(_) => {
 						let addr = parse_required(args, "proof_address")?;
