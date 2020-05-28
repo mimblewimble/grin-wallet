@@ -29,12 +29,14 @@ use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	PaymentProof, ScannedBlockInfo, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
+	PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs,
+	TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 
+use std::convert::TryFrom;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -72,14 +74,14 @@ where
 	w.set_parent_key_id_by_name(label)
 }
 
-/// Retrieve the payment proof address for the current parent key at
+/// Retrieve the slatepack address for the current parent key at
 /// the given index
 /// set active account
-pub fn get_public_proof_address<'a, L, C, K>(
+pub fn get_slatepack_address<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	index: u32,
-) -> Result<DalekPublicKey, Error>
+) -> Result<SlatepackAddress, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -89,14 +91,13 @@ where
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
 	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
-	let addr = OnionV3Address::from_private(&sec_addr_key.0)?;
-	Ok(addr.to_ed25519()?)
+	SlatepackAddress::try_from(&sec_addr_key)
 }
 
 /// Retrieve the decryption key for the current parent key
 /// the given index
 /// set active account
-pub fn get_secret_key<'a, L, C, K>(
+pub fn get_slatepack_secret_key<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	index: u32,
@@ -121,6 +122,92 @@ where
 		}
 	};
 	Ok(d_skey)
+}
+
+/// Create a slatepack message from the given slate
+pub fn create_slatepack_message<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	sender_index: Option<u32>,
+	recipients: Vec<SlatepackAddress>,
+) -> Result<String, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let sender = match sender_index {
+		Some(i) => Some(get_slatepack_address(wallet_inst, keychain_mask, i)?),
+		None => None,
+	};
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender,
+		recipients,
+		dec_key: None,
+	});
+	let slatepack = packer.create_slatepack(slate)?;
+	packer.armor_slatepack(&slatepack)
+}
+
+/// Unpack a slate from the given slatepack message,
+/// optionally decrypting
+pub fn slate_from_slatepack_message<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slatepack: String,
+	secret_indices: Vec<u32>,
+) -> Result<Slate, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if secret_indices.is_empty() {
+		let packer = Slatepacker::new(SlatepackerArgs {
+			sender: None,
+			recipients: vec![],
+			dec_key: None,
+		});
+		let slatepack = packer.deser_slatepack(slatepack.as_bytes().to_vec())?;
+		return packer.get_slate(&slatepack);
+	} else {
+		for index in secret_indices {
+			let dec_key = Some(get_slatepack_secret_key(
+				wallet_inst.clone(),
+				keychain_mask,
+				index,
+			)?);
+			let packer = Slatepacker::new(SlatepackerArgs {
+				sender: None,
+				recipients: vec![],
+				dec_key: (&dec_key).as_ref(),
+			});
+			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec());
+			let slatepack = match res {
+				Ok(sp) => sp,
+				Err(_) => {
+					continue;
+				}
+			};
+			return packer.get_slate(&slatepack);
+		}
+		return Err(ErrorKind::SlatepackDecryption(
+			"Could not decrypt slatepack with any provided index on the address derivation path"
+				.into(),
+		)
+		.into());
+	}
+}
+
+/// Decode a slatepack message, to allow viewing
+pub fn decode_slatepack_message(slatepack: String) -> Result<Slatepack, Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	packer.deser_slatepack(slatepack.as_bytes().to_vec())
 }
 
 /// retrieve outputs
@@ -316,9 +403,9 @@ where
 	Ok(PaymentProof {
 		amount: amount,
 		excess: excess,
-		recipient_address: OnionV3Address::from_bytes(proof.receiver_address.to_bytes()),
+		recipient_address: SlatepackAddress::new(&proof.receiver_address),
 		recipient_sig: r_sig,
-		sender_address: OnionV3Address::from_bytes(proof.sender_address.to_bytes()),
+		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
 	})
 }
@@ -405,7 +492,7 @@ where
 
 		slate.payment_proof = Some(PaymentInfo {
 			sender_address: sender_address.to_ed25519()?,
-			receiver_address: a.to_ed25519()?,
+			receiver_address: a.pub_key,
 			receiver_signature: None,
 		});
 
@@ -993,7 +1080,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let sender_pubkey = proof.sender_address.to_ed25519()?;
+	let sender_pubkey = proof.sender_address.pub_key;
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, sender_pubkey)?;
 
 	let (mut client, parent_key_id, keychain) = {
@@ -1025,12 +1112,12 @@ where
 	};
 
 	// Check Sigs
-	let recipient_pubkey = proof.recipient_address.to_ed25519()?;
+	let recipient_pubkey = proof.recipient_address.pub_key;
 	if recipient_pubkey.verify(&msg, &proof.recipient_sig).is_err() {
 		return Err(ErrorKind::PaymentProof("Invalid recipient signature".to_owned()).into());
 	};
 
-	let sender_pubkey = proof.sender_address.to_ed25519()?;
+	let sender_pubkey = proof.sender_address.pub_key;
 	if sender_pubkey.verify(&msg, &proof.sender_sig).is_err() {
 		return Err(ErrorKind::PaymentProof("Invalid sender signature".to_owned()).into());
 	};

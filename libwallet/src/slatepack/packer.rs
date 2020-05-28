@@ -49,6 +49,10 @@ impl<'a> Slatepacker<'a> {
 	/// return slatepack
 	pub fn deser_slatepack(&self, data: Vec<u8>) -> Result<Slatepack, Error> {
 		// check if data is armored, if so, remove and continue
+		if data.len() < super::armor::HEADER.len() {
+			let msg = format!("Data too short");
+			return Err(ErrorKind::SlatepackDeser(msg).into());
+		}
 		let test_header = Vec::from_iter(data[0..super::armor::HEADER.len()].iter().cloned());
 		let data = match String::from_utf8(test_header) {
 			Ok(s) => {

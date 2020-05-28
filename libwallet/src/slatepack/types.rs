@@ -24,6 +24,7 @@ use crate::Error;
 use super::SlatepackAddress;
 
 use std::convert::TryInto;
+use std::fmt;
 use std::io::{Read, Write};
 
 pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
@@ -56,6 +57,12 @@ pub struct Slatepack {
 
 fn default_sender_none() -> Option<SlatepackAddress> {
 	None
+}
+
+impl fmt::Display for Slatepack {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}", serde_json::to_string_pretty(&self).unwrap())
+	}
 }
 
 impl Default for Slatepack {

@@ -15,7 +15,6 @@
 //! Owner API External Definition
 
 use chrono::prelude::*;
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use uuid::Uuid;
 
@@ -28,14 +27,12 @@ use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, Status
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, TxLogEntry, WalletInfo, WalletInst,
-	WalletLCProvider,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
+	TxLogEntry, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_util::OnionV3Address;
-use std::convert::TryFrom;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -1854,10 +1851,12 @@ where
 		Ok(q.split_off(index))
 	}
 
-	/// Retrieve the public proof "addresses" associated with the active account at the
+	// SLATEPACK
+
+	/// Retrieve the public slatepack address associated with the active account at the
 	/// given derivation path.
 	///
-	/// In this case, an "address" means a Dalek ed25519 public key corresponding to
+	/// In this case, an "address" means a Slatepack Address corresponding to
 	/// a private key derived as follows:
 	///
 	/// e.g. The default parent account is at
@@ -1887,7 +1886,7 @@ where
 	/// * `derivation_index` - The index along the derivation path to retrieve an address for
 	///
 	/// # Returns
-	/// * Ok with a DalekPublicKey representing the address
+	/// * Ok with a SlatepackAddress representing the address
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -1902,7 +1901,7 @@ where
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None);
 	///
-	/// let res = api_owner.get_public_proof_address(None, 0);
+	/// let res = api_owner.get_slatepack_address(None, 0);
 	///
 	/// if let Ok(_) = res {
 	///   // ...
@@ -1910,35 +1909,25 @@ where
 	///
 	/// ```
 
-	pub fn get_public_proof_address(
+	pub fn get_slatepack_address(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		derivation_index: u32,
-	) -> Result<DalekPublicKey, Error> {
-		owner::get_public_proof_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
+	) -> Result<SlatepackAddress, Error> {
+		owner::get_slatepack_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
 
-	// TODO: Doc
-	/// get public proof a
-	pub fn get_secret_key(
-		&self,
-		keychain_mask: Option<&SecretKey>,
-		derivation_index: u32,
-	) -> Result<DalekSecretKey, Error> {
-		owner::get_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
-	}
-
-	/// Helper function to convert an Onion v3 address to a payment proof address (essentially
-	/// exctacting and verifying the public key)
+	/// Retrieve the private ed25519 slatepack key at the given derivation index. Currently
+	/// used to decrypt encrypted slatepack messages.
 	///
 	/// # Arguments
 	///
-	/// * `address_v3` - An V3 Onion address
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key
 	///
 	/// # Returns
-	/// * Ok(DalekPublicKey) representing the public key associated with the address, if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
-	/// or the address provided is invalid
+	/// * Ok with an ed25519_dalek::SecretKey if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1952,21 +1941,175 @@ where
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None);
 	///
-	/// let res = api_owner.proof_address_from_onion_v3(
-	///  "2a6at2obto3uvkpkitqp4wxcg6u36qf534eucbskqciturczzc5suyid"
-	/// );
+	/// let res = api_owner.get_slatepack_secret_key(None, 0);
 	///
 	/// if let Ok(_) = res {
 	///   // ...
 	/// }
 	///
-	/// let res = api_owner.stop_updater();
+	/// ```
+	pub fn get_slatepack_secret_key(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		derivation_index: u32,
+	) -> Result<DalekSecretKey, Error> {
+		owner::get_slatepack_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
+	}
+
+	/// Create a slatepack from a given slate, optionally encoding the slate with the provided
+	/// recipient public keys
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender
+	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
+	/// slate). If an empty vec, the payload will remain unencrypted
+	///
+	/// # Returns
+	/// * Ok with a String representing an armored slatepack if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let args = InitTxArgs {
+	///     src_acct_name: None,
+	///     amount: 2_000_000_000,
+	///     minimum_confirmations: 10,
+	///     max_outputs: 500,
+	///     num_change_outputs: 1,
+	///     selection_strategy_is_use_all: false,
+	///     ..Default::default()
+	/// };
+	/// let result = api_owner.init_send_tx(
+	///     None,
+	///     args,
+	/// );
+	///
+	/// if let Ok(slate) = result {
+	///     // Create a slatepack from our slate
+	///     let slatepack = api_owner.create_slatepack_message(
+	///        None,
+	///        &slate,
+	///        Some(0),
+	///        vec![],
+	///     );
+	/// }
+	///
 	/// ```
 
-	pub fn proof_address_from_onion_v3(&self, address_v3: &str) -> Result<DalekPublicKey, Error> {
-		let addr = OnionV3Address::try_from(address_v3)?;
-		Ok(addr.to_ed25519()?)
+	pub fn create_slatepack_message(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		sender_index: Option<u32>,
+		recipients: Vec<SlatepackAddress>,
+	) -> Result<String, Error> {
+		owner::create_slatepack_message(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			slate,
+			sender_index,
+			recipients,
+		)
 	}
+
+	/// Extract the slate from the given slatepack. If the slatepack payload is encrypted, attempting to
+	/// decrypt with keys at the given address derivation path indices.
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// * `slatepack` - A string representing an armored slatepack
+	/// * `secret_indices` - Indices along this wallet's deriviation path with which to attempt
+	/// decryption. This function will attempt to use secret keys at each index along this path
+	/// to attempt to decrypt the payload, returning an error if none of the keys match.
+	///
+	/// # Returns
+	/// * Ok with a [Slate](../grin_wallet_libwallet/slate/struct.Slate.html) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// // ... receive a slatepack from somewhere
+	/// # let slatepack_string = String::from("");
+	///   let res = api_owner.slate_from_slatepack_message(
+	///    None,
+	///    slatepack_string,
+	///    vec![0, 1, 2],
+	///   );
+	/// ```
+
+	pub fn slate_from_slatepack_message(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slatepack: String,
+		secret_indices: Vec<u32>,
+	) -> Result<Slate, Error> {
+		owner::slate_from_slatepack_message(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			slatepack,
+			secret_indices,
+		)
+	}
+
+	/// Decode an armored slatepack, returning a Slatepack object that can be
+	/// viewed, manipulated, output as json, etc
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
+	/// * `slatepack` - A string representing an armored slatepack
+	///
+	/// # Returns
+	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// use grin_core::global::ChainTypes;
+	///
+	/// use std::time::Duration;
+	///
+	/// // Set up as above
+	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let slatepack_string = String::from("");
+	/// // .. receive a slatepack from somewhere
+	/// let res = api_owner.decode_slatepack_message(
+	///    slatepack_string
+	/// );
+	///
+	/// ```
+
+	pub fn decode_slatepack_message(&self, slatepack: String) -> Result<Slatepack, Error> {
+		owner::decode_slatepack_message(slatepack)
+	}
+
+	// PAYMENT PROOFS
 
 	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
 	/// from a completed transaction within the wallet.
@@ -2094,8 +2237,9 @@ where
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
 	}
 
-	/// Return my participant data
-	// TODO: This will be removed once state is added to slate
+	/// Return whether this transaction is marked as invoice in the context
+	// TODO: Remove post HF3
+	// This will be removed once state is added to slate
 	pub fn context_is_invoice(
 		&self,
 		keychain_mask: Option<&SecretKey>,

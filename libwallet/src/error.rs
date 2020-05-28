@@ -286,6 +286,10 @@ pub enum ErrorKind {
 	#[fail(display = "Couldn't encrypt Slatepack: {}", _0)]
 	SlatepackEncryption(String),
 
+	/// Slatepack Decryption
+	#[fail(display = "Couldn't decrypt Slatepack: {}", _0)]
+	SlatepackDecryption(String),
+
 	/// age error
 	#[fail(display = "Age error: {}", _0)]
 	Age(String),

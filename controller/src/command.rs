@@ -24,12 +24,11 @@ use crate::impls::{HttpSlateSender, PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
-	WalletLCProvider,
+	SlatepackAddress, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
-use grin_wallet_util::OnionV3Address;
 use serde_json as json;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -272,7 +271,7 @@ pub struct SendArgs {
 	pub fluff: bool,
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
-	pub payment_proof_address: Option<OnionV3Address>,
+	pub payment_proof_address: Option<SlatepackAddress>,
 	pub ttl_blocks: Option<u64>,
 	//TODO: Remove HF3
 	pub output_v4_slate: bool,
@@ -997,12 +996,11 @@ where
 {
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		// Just address at derivation index 0 for now
-		let pub_key = api.get_public_proof_address(m, 0)?;
-		let addr = OnionV3Address::from_bytes(pub_key.to_bytes());
+		let address = api.get_slatepack_address(m, 0)?;
 		println!();
 		println!("Address for account - {}", g_args.account);
 		println!("-------------------------------------");
-		println!("{}", addr);
+		println!("{}", address);
 		println!();
 		Ok(())
 	})?;

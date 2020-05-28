@@ -21,6 +21,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use x25519_dalek::PublicKey as xDalekPublicKey;
 
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
+use crate::grin_util::secp::key::SecretKey;
 use crate::util::OnionV3Address;
 use crate::{Error, ErrorKind};
 
@@ -98,6 +99,13 @@ impl From<&SlatepackAddress> for OnionV3Address {
 	}
 }
 
+impl TryFrom<OnionV3Address> for SlatepackAddress {
+	type Error = Error;
+	fn try_from(addr: OnionV3Address) -> Result<SlatepackAddress, Error> {
+		Ok(SlatepackAddress::new(&addr.to_ed25519()?))
+	}
+}
+
 impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 	type Error = Error;
 	fn try_from(addr: &SlatepackAddress) -> Result<Self, Self::Error> {
@@ -113,6 +121,24 @@ impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 		};
 		let res = xDalekPublicKey::from(ep.to_montgomery().to_bytes());
 		Ok(res)
+	}
+}
+
+impl TryFrom<&SecretKey> for SlatepackAddress {
+	type Error = Error;
+	fn try_from(key: &SecretKey) -> Result<Self, Self::Error> {
+		let d_skey = match edDalekSecretKey::from_bytes(&key.0) {
+			Ok(k) => k,
+			Err(e) => {
+				return Err(ErrorKind::ED25519Key(format!(
+					"Can't create slatepack address from SecretKey: {}",
+					e
+				))
+				.into());
+			}
+		};
+		let d_pub_key: edDalekPublicKey = (&d_skey).into();
+		Ok(Self::new(&d_pub_key))
 	}
 }
 
