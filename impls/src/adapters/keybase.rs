@@ -292,7 +292,7 @@ fn poll(nseconds: u64, channel: &str) -> Option<Slate> {
 
 impl SlateSender for KeybaseChannel {
 	/// Send a slate to a keybase username then wait for a response for TTL seconds.
-	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+	fn send_tx(&mut self, slate: &Slate) -> Result<Slate, Error> {
 		let id = slate.id;
 
 		// Send original slate to recipient with the SLATE_NEW topic

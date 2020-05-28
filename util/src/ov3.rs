@@ -75,7 +75,7 @@ impl OnionV3Address {
 	}
 
 	/// Return as onion v3 address string
-	fn to_ov3_str(&self) -> String {
+	pub fn to_ov3_str(&self) -> String {
 		// calculate checksum
 		let mut hasher = Sha3_256::new();
 		hasher.input(b".onion checksum");
@@ -90,6 +90,11 @@ impl OnionV3Address {
 
 		let ret = BASE32.encode(&address_bytes);
 		ret.to_lowercase()
+	}
+
+	/// return as http url
+	pub fn to_http_str(&self) -> String {
+		format!("http://{}.onion", self.to_ov3_str())
 	}
 }
 

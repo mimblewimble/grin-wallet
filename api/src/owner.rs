@@ -668,7 +668,7 @@ where
 					}
 				};
 				let tor_config_lock = self.tor_config.lock();
-				let comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
+				let mut comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
 					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
 				slate = comm_adapter.send_tx(&slate)?;
 				self.tx_lock_outputs(keychain_mask, &slate)?;

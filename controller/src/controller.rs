@@ -18,8 +18,8 @@ use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, T
 use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
-	GRIN_BLOCK_HEADER_VERSION,
+	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
+	WalletLCProvider, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
@@ -32,6 +32,7 @@ use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -82,7 +83,7 @@ fn init_tor_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
-) -> Result<tor_process::TorProcess, Error>
+) -> Result<(tor_process::TorProcess, SlatepackAddress), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
@@ -101,6 +102,7 @@ where
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let onion_address = OnionV3Address::from_private(&sec_key.0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr
@@ -115,7 +117,7 @@ where
 		.completion_percent(100)
 		.launch()
 		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
-	Ok(process)
+	Ok((process, sp_address))
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
@@ -260,17 +262,17 @@ where
 		let _ = lc.wallet_inst()?;
 	}
 	// need to keep in scope while the main listener is running
-	let _tor_process = match use_tor {
+	let (_tor_process, address) = match use_tor {
 		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {
-			Ok(tp) => Some(tp),
+			Ok((tp, addr)) => (Some(tp), Some(addr)),
 			Err(e) => {
 				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
 				warn!("Tor Error: {}", e);
 				warn!("Listener will be available via HTTP only");
-				None
+				(None, None)
 			}
 		},
-		false => None,
+		false => (None, None),
 	};
 
 	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
@@ -290,6 +292,9 @@ where
 			))?;
 
 	warn!("HTTP Foreign listener started.");
+	if let Some(a) = address {
+		warn!("Slatepack Address is: {}", a);
+	}
 
 	api_thread
 		.join()

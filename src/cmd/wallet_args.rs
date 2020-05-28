@@ -349,13 +349,10 @@ pub fn parse_listen_args(
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
-	let method = parse_required(args, "method")?;
 	if args.is_present("no_tor") {
 		tor_config.use_tor_listener = false;
 	}
-	Ok(command::ListenArgs {
-		method: method.to_owned(),
-	})
+	Ok(command::ListenArgs {})
 }
 
 pub fn parse_owner_api_args(
@@ -404,37 +401,11 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// estimate_selection_strategies
 	let estimate_selection_strategies = args.is_present("estimate_selection_strategies");
 
-	// method
-	let method = parse_required(args, "method")?;
-
 	// dest
-	let dest = {
-		if method == "self" {
-			match args.value_of("dest") {
-				Some(d) => d,
-				None => "default",
-			}
-		} else {
-			if !estimate_selection_strategies {
-				parse_required(args, "dest")?
-			} else {
-				""
-			}
-		}
+	let dest = match args.value_of("dest") {
+		Some(d) => d,
+		None => "default",
 	};
-
-	if !estimate_selection_strategies
-		&& method == "http"
-		&& !dest.starts_with("http://")
-		&& !dest.starts_with("https://")
-		&& is_tor_address(&dest).is_err()
-	{
-		let msg = format!(
-			"HTTP Destination should start with http://: or https://: {}",
-			dest,
-		);
-		return Err(ParseError::ArgumentError(msg));
-	}
 
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
@@ -491,7 +462,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
-		method: method.to_owned(),
 		dest: dest.to_owned(),
 		change_outputs: change_outputs,
 		fluff: fluff,

@@ -118,18 +118,6 @@ subcommands:
             long: change_outputs
             default_value: "1"
             takes_value: true
-        - method:
-            help: Method for sending this transaction
-            short: m
-            long: method
-            possible_values:
-              - http
-              - file
-              - binfile
-              - self
-              - keybase
-            default_value: http
-            takes_value: true
         - dest:
             help: Send the transaction to the provided server (start with http://) or save as file.
             short: d
