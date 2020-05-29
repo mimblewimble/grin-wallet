@@ -18,8 +18,8 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction, TransactionBody, TxKernel,
-	Weighting,
+	Input, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction, TransactionBody,
+	TxKernel, Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
@@ -114,7 +114,11 @@ pub struct Slate {
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
 	pub ttl_cutoff_height: u64,
-	/// Kernel Features flag, if any
+	/// Kernel Features flag -
+	/// 	0: plain
+	/// 	1: coinbase (invalid)
+	/// 	2: height_locked
+	/// 	3: NRD
 	pub kernel_features: u8,
 	/// Offset, needed when posting of tranasction is deferred
 	pub offset: BlindingFactor,
@@ -160,7 +164,7 @@ pub enum SlateState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Kernel features arguments definition
 pub struct KernelFeaturesArgs {
-	/// Lock height, for HeightLocked
+	/// Lock height, for HeightLocked (also NRD relative lock height)
 	pub lock_height: u64,
 }
 
@@ -346,12 +350,17 @@ impl Slate {
 		Ok(())
 	}
 
-	// Construct the appropriate kernel features based on our fee and lock_height.
-	// If lock_height is 0 then its a plain kernel, otherwise its a height locked kernel.
+	// Build kernel features based on variant and associated data.
+	// 0: plain
+	// 1: coinbase (invalid)
+	// 2: height_locked (with associated lock_height)
+	// 3: NRD (with associated relative_height)
+	// Any other value is invalid.
 	fn kernel_features(&self) -> Result<KernelFeatures, Error> {
 		match self.kernel_features {
 			0 => Ok(KernelFeatures::Plain { fee: self.fee }),
-			1 => Ok(KernelFeatures::HeightLocked {
+			1 => Err(ErrorKind::InvalidKernelFeatures(1).into()),
+			2 => Ok(KernelFeatures::HeightLocked {
 				fee: self.fee,
 				lock_height: match &self.kernel_features_args {
 					Some(a) => a.lock_height,
@@ -360,7 +369,16 @@ impl Slate {
 					}
 				},
 			}),
-			n => return Err(ErrorKind::UnknownKernelFeatures(n).into()),
+			3 => Ok(KernelFeatures::NoRecentDuplicate {
+				fee: self.fee,
+				relative_height: match &self.kernel_features_args {
+					Some(a) => NRDRelativeHeight::new(a.lock_height)?,
+					None => {
+						return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
+					}
+				},
+			}),
+			n => Err(ErrorKind::UnknownKernelFeatures(n).into()),
 		}
 	}
 

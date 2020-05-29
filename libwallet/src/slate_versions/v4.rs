@@ -689,14 +689,27 @@ impl TryFrom<&SlateV4> for SlateV3 {
 		let id = *id;
 		let amount = *amount;
 		let fee = *fee;
+
+		// Match on kernel feature variant:
+		// 0: plain
+		// 1: coinbase (invalid)
+		// 2: height locked (with associated lock_height)
+		// 3: NRD (with associated relative_height)
+		// Anything else is unknown.
 		let lock_height = match feat {
 			0 => 0,
-			1 => match feat_args {
+			1 => return Err(ErrorKind::InvalidKernelFeatures(1).into()),
+			2 => match feat_args {
+				None => return Err(ErrorKind::KernelFeaturesMissing("lock_hgt".to_owned()).into()),
+				Some(h) => h.lock_hgt,
+			},
+			3 => match feat_args {
 				None => return Err(ErrorKind::KernelFeaturesMissing("lock_hgt".to_owned()).into()),
 				Some(h) => h.lock_hgt,
 			},
 			n => return Err(ErrorKind::UnknownKernelFeatures(*n).into()),
 		};
+
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV3::from(data));
 		let version_info = VersionCompatInfoV3::from(ver);
 		let payment_proof = match payment_proof {
