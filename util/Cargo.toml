@@ -43,12 +43,12 @@ grin_api = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 grin_store = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
-#grin_core = { path = "../../grin/core"}
-#grin_keychain = { path = "../../grin/keychain"}
-#grin_chain = { path = "../../grin/chain"}
-#grin_util = { path = "../../grin/util"}
-#grin_api = { path = "../../grin/api"}
-#grin_store = { path = "../../grin/store"}
+# grin_core = { path = "../../grin/core"}
+# grin_keychain = { path = "../../grin/keychain"}
+# grin_chain = { path = "../../grin/chain"}
+# grin_util = { path = "../../grin/util"}
+# grin_api = { path = "../../grin/api"}
+# grin_store = { path = "../../grin/store"}
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"

@@ -278,6 +278,10 @@ pub enum ErrorKind {
 	#[fail(display = "Unknown Kernel Feature: {}", _0)]
 	UnknownKernelFeatures(u8),
 
+	/// Invalid Kernel Feature
+	#[fail(display = "Invalid Kernel Feature: {}", _0)]
+	InvalidKernelFeatures(u8),
+
 	/// Invalid Slatepack Data
 	#[fail(display = "Invalid Slatepack Data: {}", _0)]
 	InvalidSlatepackData(String),
