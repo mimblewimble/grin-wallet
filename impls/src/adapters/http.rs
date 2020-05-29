@@ -100,15 +100,12 @@ impl HttpSlateSender {
 	/// Check version of the listening wallet
 	pub fn check_other_version(&mut self, url: &str) -> Result<SlateVersion, Error> {
 		self.launch_tor()?;
-		println!("LAUNCHED");
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
 			"id": 1,
 			"params": []
 		});
-		println!("(Version check) URL is: {}", url);
-		println!("POSTING");
 
 		let res: String = self.post(url, None, req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
@@ -174,9 +171,6 @@ impl HttpSlateSender {
 			client.use_socks = true;
 			client.socks_proxy_addr = self.socks_proxy_addr;
 		}
-		println!("SOCKS PROXY ADDR: {:?}", client.socks_proxy_addr);
-		println!("URL: {:?}", url);
-		println!("api_secret: {:?}", api_secret);
 		let req = client.create_post_request(url, api_secret, &input)?;
 		let res = client.send_request(req)?;
 		Ok(res)
@@ -193,7 +187,6 @@ impl SlateSender for HttpSlateSender {
 
 		self.launch_tor()?;
 
-		println!("URL String is: {}", url_str);
 		let slate_send = match self.check_other_version(&url_str)? {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
 			SlateVersion::V3 => {

@@ -676,9 +676,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c695eeca1e7173472a32221542ae469b3e9aac3a4fc81f7696bcad82029493db"
+checksum = "ab6bffe714b6bb07e42f201352c34f51fefd355ace793f9e638ebd52d23f98d2"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -1176,7 +1176,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "bytes 0.5.4",
  "easy-jsonrpc-mw",
@@ -1209,7 +1209,7 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "bit-vec",
  "bitflags 1.2.1",
@@ -1232,7 +1232,7 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1258,7 +1258,7 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1280,7 +1280,7 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "bitflags 1.2.1",
  "chrono",
@@ -1301,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1335,7 +1335,7 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "byteorder",
  "croaring-mw",
@@ -1355,7 +1355,7 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "4.0.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#b570ac9925f908223cfb3c9ee1b2f7257d3a647e"
+source = "git+https://github.com/mimblewimble/grin#e7d2c71ca6c90695ecc5f1e9dc1cd3eab6050718"
 dependencies = [
  "backtrace",
  "base64 0.9.3",
@@ -1729,9 +1729,8 @@ dependencies = [
 
 [[package]]
 name = "hyper-socks2"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b950dc6d3ea74cbb1f4c4ad217c20ca3e846b3f39468baef13d222c80a386bd6"
+version = "0.4.3"
+source = "git+https://github.com/yeastplume/hyper-socks2#08c3e5f6e8fb642110abe61e8a381195ac60cb6c"
 dependencies = [
  "async-socks5",
  "futures 0.3.5",
@@ -1824,9 +1823,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.39"
+version = "0.3.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa5a448de267e7358beaf4a5d849518fe9a0c13fce7afd44b06e68550e5562a7"
+checksum = "ce10c23ad2ea25ceca0093bd3192229da4c5b3c0f2de499c1ecac0d98d452177"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -2606,9 +2605,9 @@ checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
 
 [[package]]
 name = "podio"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "780fb4b6698bbf9cf2444ea5d22411cef2953f0824b98f33cf454ec5615645bd"
+checksum = "b18befed8bc2b61abc79a457295e7e838417326da1586050b919414073977f19"
 
 [[package]]
 name = "poly1305"
@@ -2938,9 +2937,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.3.7"
+version = "1.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6020f034922e3194c711b82a627453881bc4682166cabb07134a10c26ba7692"
+checksum = "9c3780fcf44b193bc4d09f36d2a3c87b251da4a046c87795a0d35f4f927ad8e6"
 dependencies = [
  "aho-corasick",
  "memchr 2.3.3",
@@ -2950,9 +2949,9 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.6.17"
+version = "0.6.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fe5bd57d1d7414c6b5ed48563a2c855d995ff777729dcd91c369ec7fea395ae"
+checksum = "26412eb97c6b088a6997e05f69403a802a92d520de2f8e63c2b65f9e0f47c4e8"
 
 [[package]]
 name = "remove_dir_all"
@@ -3961,9 +3960,9 @@ checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.62"
+version = "0.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3c7d40d09cdbf0f4895ae58cf57d92e1e57a9dd8ed2e8390514b54a47cc5551"
+checksum = "4c2dc4aa152834bc334f506c1a06b866416a8b6697d5c9f75b9a689c8486def0"
 dependencies = [
  "cfg-if",
  "wasm-bindgen-macro",
@@ -3971,9 +3970,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.62"
+version = "0.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3972e137ebf830900db522d6c8fd74d1900dcfc733462e9a12e942b00b4ac94"
+checksum = "ded84f06e0ed21499f6184df0e0cb3494727b0c5da89534e0fcc55c51d812101"
 dependencies = [
  "bumpalo",
  "lazy_static",
@@ -3986,9 +3985,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.62"
+version = "0.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cd85aa2c579e8892442954685f0d801f9129de24fa2136b2c6a539c76b65776"
+checksum = "838e423688dac18d73e31edce74ddfac468e37b1506ad163ffaf0a46f703ffe3"
 dependencies = [
  "quote 1.0.6",
  "wasm-bindgen-macro-support",
@@ -3996,9 +3995,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.62"
+version = "0.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eb197bd3a47553334907ffd2f16507b4f4f01bbec3ac921a7719e0decdfe72a"
+checksum = "3156052d8ec77142051a533cdd686cba889537b213f948cd1d20869926e68e92"
 dependencies = [
  "proc-macro2 1.0.17",
  "quote 1.0.6",
@@ -4009,15 +4008,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.62"
+version = "0.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a91c2916119c17a8e316507afaaa2dd94b47646048014bbdf6bef098c1bb58ad"
+checksum = "c9ba19973a58daf4db6f352eda73dc0e289493cd29fb2632eb172085b6521acd"
 
 [[package]]
 name = "web-sys"
-version = "0.3.39"
+version = "0.3.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bc359e5dd3b46cb9687a051d50a2fdd228e4ba7cf6fcf861a5365c3d671a642"
+checksum = "7b72fe77fd39e4bd3eaa4412fd299a0be6b3dfe9d2597e2f1c20beb968f41d17"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

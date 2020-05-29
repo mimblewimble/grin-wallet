@@ -296,7 +296,6 @@ where
 					Ok(mut sender) => {
 						let url_str = format!("{}{}v2/foreign", tor_addr.to_http_str(), trailing);
 						if let Ok(v) = sender.check_other_version(&url_str) {
-							println!("OTHER VERSION IS: {:?}", v);
 							if v == SlateVersion::V3 {
 								args.target_slate_version = Some(3);
 							}
