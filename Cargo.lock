@@ -1730,8 +1730,7 @@ dependencies = [
 [[package]]
 name = "hyper-socks2"
 version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b04745c5e7e8f4f93209f411644659055ce99f1973bd615015e3a7321ec2771"
+source = "git+https://github.com/yeastplume/hyper-socks2#08c3e5f6e8fb642110abe61e8a381195ac60cb6c"
 dependencies = [
  "async-socks5",
  "futures 0.3.5",
