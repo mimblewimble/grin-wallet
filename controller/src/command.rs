@@ -19,8 +19,8 @@ use crate::apiwallet::Owner;
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
-use crate::impls::{create_sender, SlateGetter as _, SlateSender as _};
 use crate::impls::{HttpSlateSender, PathToSlate, PathToSlatepack, SlatePutter};
+use crate::impls::{SlateGetter as _, SlateSender as _};
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
@@ -408,6 +408,7 @@ where
 				})
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
+			return Ok(());
 		} else {
 			let init_args = InitTxArgs {
 				src_acct_name: None,
@@ -608,7 +609,7 @@ where
 	// create a directory to which files will be output
 	let slate_dir = format!("{}/{}", tld, "slatepack");
 	let _ = std::fs::create_dir_all(slate_dir.clone());
-	let out_file_name = format!("{}/{}.S1.slatepack", slate_dir, slate.id);
+	let out_file_name = format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state);
 
 	// TODO: Remove HF3
 	if is_pre_fork || file_only {
@@ -656,7 +657,7 @@ where
 }
 
 // Parse a slate and slatepack from a message
-fn parse_slatepack<L, C, K>(
+pub fn parse_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	filename: Option<String>,
@@ -842,7 +843,7 @@ where
 			Some(&m) => Some(m.to_owned()),
 		};
 		controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-			slate = api.finalize_tx(&slate)?;
+			slate = api.finalize_tx(&slate, false)?;
 			Ok(())
 		})?;
 	} else {
@@ -892,9 +893,6 @@ pub struct IssueInvoiceArgs {
 	pub dest: String,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
-	/// whether to output as bin
-	pub bin: bool,
-	// TODO: Remove HF3
 	/// whether to output a V4 slate
 	pub output_v4_slate: bool,
 }
@@ -910,24 +908,46 @@ where
 	K: keychain::Keychain + 'static,
 {
 	//TODO: Remove block HF3
-	let args = {
-		let mut a = args;
-		let wallet_inst = owner_api.wallet_inst.clone();
+	let is_pre_fork = {
 		let cur_height = {
+			let wallet_inst = owner_api.wallet_inst.clone();
 			libwallet::wallet_lock!(wallet_inst, w);
 			w.w2n_client().get_chain_tip()?.0
 		};
-		// TODO: Floonet HF4
-		if cur_height < 786240 && !a.output_v4_slate && !a.bin {
-			a.issue_args.target_slate_version = Some(3);
+		match global::get_chain_type() {
+			global::ChainTypes::Mainnet => {
+				if cur_height < 786240 && !&args.output_v4_slate {
+					true
+				} else {
+					false
+				}
+			}
+			global::ChainTypes::Floonet => {
+				if cur_height < 552960 && !&args.output_v4_slate {
+					true
+				} else {
+					false
+				}
+			}
+			_ => false,
 		}
-		a
 	};
+
+	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		let slate = api.issue_invoice_tx(m, args.issue_args)?;
-		PathToSlate((&args.dest).into()).put_tx(&slate, args.bin)?;
+		slate = api.issue_invoice_tx(m, args.issue_args.clone())?;
 		Ok(())
 	})?;
+
+	output_slatepack(
+		owner_api,
+		keychain_mask,
+		&slate,
+		args.dest.as_str(),
+		true,
+		false,
+		is_pre_fork,
+	)?;
 	Ok(())
 }
 
@@ -935,10 +955,9 @@ where
 pub struct ProcessInvoiceArgs {
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
-	pub method: String,
-	pub dest: String,
+	pub ret_address: Option<SlatepackAddress>,
 	pub max_outputs: usize,
-	pub input: String,
+	pub slate: Slate,
 	pub estimate_selection_strategies: bool,
 	pub ttl_blocks: Option<u64>,
 }
@@ -956,8 +975,12 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (slate, _) = PathToSlate((&args.input).into()).get_tx()?;
-	let wallet_inst = owner_api.wallet_inst.clone();
+	let mut slate = args.slate.clone();
+	let dest = match args.ret_address.clone() {
+		Some(a) => String::try_from(&a).unwrap(),
+		None => String::from(""),
+	};
+
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -978,6 +1001,7 @@ where
 				})
 				.collect();
 			display::estimate(slate.amount, strategies, dark_scheme);
+			return Ok(());
 		} else {
 			let init_args = InitTxArgs {
 				src_acct_name: None,
@@ -991,12 +1015,11 @@ where
 				..Default::default()
 			};
 			let result = api.process_invoice_tx(m, &slate, init_args);
-			let mut slate = match result {
+			slate = match result {
 				Ok(s) => {
 					info!(
-						"Invoice processed: {} grin to {} (strategy '{}')",
+						"Invoice processed: {} grin (strategy '{}')",
 						core::amount_to_hr_string(slate.amount, false),
-						args.dest,
 						args.selection_strategy,
 					);
 					s
@@ -1006,38 +1029,31 @@ where
 					return Err(e);
 				}
 			};
-
-			match args.method.as_str() {
-				"file" => {
-					let slate_putter = PathToSlate((&args.dest).into());
-					slate_putter.put_tx(&slate, false)?;
-					api.tx_lock_outputs(m, &slate)?;
-				}
-				"filebin" => {
-					let slate_putter = PathToSlate((&args.dest).into());
-					slate_putter.put_tx(&slate, true)?;
-					api.tx_lock_outputs(m, &slate)?;
-				}
-				"self" => {
-					api.tx_lock_outputs(m, &slate)?;
-					let km = match keychain_mask.as_ref() {
-						None => None,
-						Some(&m) => Some(m.to_owned()),
-					};
-					controller::foreign_single_use(wallet_inst, km, |api| {
-						slate = api.finalize_tx(&slate)?;
-						Ok(())
-					})?;
-				}
-				method => {
-					let mut sender = create_sender(method, &args.dest, tor_config)?;
-					slate = sender.send_tx(&slate, false)?;
-					api.tx_lock_outputs(m, &slate)?;
-				}
-			}
 		}
 		Ok(())
 	})?;
+
+	if let Ok(false) = send_tx_sync(
+		owner_api,
+		keychain_mask,
+		&slate,
+		&dest,
+		false,
+		tor_config,
+		None,
+		true,
+	) {
+		output_slatepack(
+			owner_api,
+			keychain_mask,
+			&slate,
+			&dest,
+			true,
+			false,
+			slate.version_info.version < 4,
+		)?;
+	}
+
 	Ok(())
 }
 /// Info command args

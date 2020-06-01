@@ -138,6 +138,7 @@ pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
+	post_automatically: bool,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -168,6 +169,8 @@ where
 		}
 	} else {
 		sl = owner_finalize(w, keychain_mask, slate)?;
+	}
+	if post_automatically {
 		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
 	}
 	Ok(sl)

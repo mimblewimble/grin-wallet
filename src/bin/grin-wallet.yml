@@ -181,11 +181,7 @@ subcommands:
             short: d
             long: dest
             takes_value: true
-        - bin:
-            help: Whether to output file as binary
-            short: b
-            long: bin
-        #TODO: Remove HF3
+       #TODO: Remove HF3
         - v4:
             help: Output a V4 slate prior to HF3 block
             long: v4
@@ -212,17 +208,6 @@ subcommands:
             help: Estimates all possible Coin/Output selection strategies.
             short: e
             long: estimate-selection
-        - method:
-            help: Method for sending the processed invoice back to the invoice creator
-            short: m
-            long: method
-            possible_values:
-              - filebin
-              - file
-              - http
-              - self
-            default_value: file
-            takes_value: true
         - dest:
             help: Send the transaction to the provided server (start with http://) or save as file.
             short: d

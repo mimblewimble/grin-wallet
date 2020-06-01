@@ -351,7 +351,7 @@ fn slatepack_exchange_test_impl(
 		// Wallet 2 receives the invoice transaction
 		let res = slate_from_packed(&receive_file, use_armored, (&dec_key_2).as_ref())?;
 		slate = res.1;
-		slate = api.finalize_tx(&slate)?;
+		slate = api.finalize_tx(&slate, false)?;
 		output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 		Ok(())
 	})?;
