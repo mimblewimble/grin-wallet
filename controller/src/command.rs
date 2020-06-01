@@ -19,8 +19,10 @@ use crate::apiwallet::Owner;
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
-use crate::impls::{create_sender, KeybaseAllChannels, SlateGetter as _, SlateReceiver as _};
-use crate::impls::{HttpSlateSender, PathToSlate, SlatePutter};
+use crate::impls::{
+	create_sender, tor, HttpSlateSender, KeybaseAllChannels, PathToSlate, SlateGetter as _,
+	SlatePutter, SlateReceiver as _, TOR_CONFIG_PATH,
+};
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
@@ -32,6 +34,7 @@ use crate::{controller, display};
 use serde_json as json;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::path::MAIN_SEPARATOR;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
@@ -316,16 +319,48 @@ where
 				}
 			}
 			"tor" => {
-				let v_sender = HttpSlateSender::with_socks_proxy(
-					&args.dest,
-					&tor_config.as_ref().unwrap().socks_proxy_addr,
-					&tor_config.as_ref().unwrap().send_config_dir,
-				)
-				.map_err(|_| invalid())?;
-				//let other_version = v_sender.check_other_version(&url_str)?;
-				//if other_version == SlateVersion::V3 {
-				args.target_slate_version = Some(3);
-				//}
+				// Start Tor
+				{
+					let tor_config = tor_config.clone().unwrap();
+					let tor_dir = format!(
+						"{}{}{}",
+						tor_config.send_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
+					);
+					warn!(
+						"Starting TOR Process for send at {:?}",
+						tor_config.socks_proxy_addr
+					);
+					tor::config::output_tor_sender_config(&tor_dir, &tor_config.socks_proxy_addr)
+						.map_err(|e| {
+						ErrorKind::LibWallet(
+							libwallet::ErrorKind::TorConfig(format!("{:?}", e)),
+							format!("{:?}", e),
+						)
+					})?;
+					// Start TOR process
+					let mut tor = tor::process::TorProcess::new();
+					tor.torrc_path(&format!("{}/torrc", tor_dir))
+						.working_dir(&tor_config.send_config_dir)
+						.timeout(20)
+						.completion_percent(100)
+						.launch()
+						.map_err(|e| {
+							ErrorKind::LibWallet(
+								libwallet::ErrorKind::TorProcess(format!("{:?}", e)),
+								format!("{:?}", e),
+							)
+						})?;
+					let v_sender = HttpSlateSender::with_socks_proxy(
+						&args.dest,
+						&tor_config.socks_proxy_addr,
+						&tor_config.send_config_dir,
+					)
+					.map_err(|_| invalid())?;
+					let other_version = v_sender.check_other_version(&url_str)?;
+					if other_version == SlateVersion::V3 {
+						args.target_slate_version = Some(3);
+					}
+				}
 			}
 			"file" => {
 				// For files spit out a V3 Slate if we're before HF3,

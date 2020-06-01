@@ -25,7 +25,7 @@ use std::path::MAIN_SEPARATOR;
 use crate::tor::config as tor_config;
 use crate::tor::process as tor_process;
 
-const TOR_CONFIG_PATH: &str = "tor/sender";
+pub const TOR_CONFIG_PATH: &str = "tor/sender";
 
 #[derive(Clone)]
 pub struct HttpSlateSender {

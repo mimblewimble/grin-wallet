@@ -43,6 +43,7 @@ mod node_clients;
 pub mod test_framework;
 pub mod tor;
 
+pub use crate::adapters::http::TOR_CONFIG_PATH;
 pub use crate::adapters::{
 	create_sender, HttpSlateSender, KeybaseAllChannels, KeybaseChannel, PathToSlate,
 	PathToSlatepack, SlateGetter, SlatePutter, SlateReceiver, SlateSender,
