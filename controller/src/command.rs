@@ -458,6 +458,7 @@ where
 			&slate,
 			args.dest.as_str(),
 			true,
+			false,
 			is_pre_fork,
 		)?;
 	}
@@ -577,6 +578,7 @@ pub fn output_slatepack<L, C, K>(
 	slate: &Slate,
 	dest: &str,
 	lock: bool,
+	file_only: bool,
 	is_pre_fork: bool,
 ) -> Result<(), libwallet::Error>
 where
@@ -609,14 +611,16 @@ where
 	let out_file_name = format!("{}/{}.S1.slatepack", slate_dir, slate.id);
 
 	// TODO: Remove HF3
-	if is_pre_fork {
+	if is_pre_fork || file_only {
 		PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
 		println!();
 		println!("Transaction file was output to:");
 		println!();
 		println!("{}", out_file_name);
 		println!();
-		println!("Please send this file to the other party manually");
+		if !file_only {
+			println!("Please send this file to the other party manually");
+		}
 		return Ok(());
 	}
 
@@ -651,27 +655,20 @@ where
 	Ok(())
 }
 
-/// Receive command argument
-#[derive(Clone)]
-pub struct ReceiveArgs {
-	pub input_file: Option<String>,
-	pub input_slatepack_message: Option<String>,
-}
-
-pub fn receive<L, C, K>(
+// Parse a slate and slatepack from a message
+fn parse_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
-	args: ReceiveArgs,
-	tor_config: Option<TorConfig>,
-) -> Result<(), Error>
+	filename: Option<String>,
+	message: Option<String>,
+) -> Result<(Slate, Option<SlatepackAddress>), Error>
 where
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
 	let mut ret_address = None;
-	let slate = match args.input_file {
+	let slate = match filename {
 		Some(f) => {
 			// first try regular slate - remove HF3
 			let mut sl = match PathToSlate((&f).into()).get_tx() {
@@ -698,12 +695,12 @@ where
 		None => None,
 	};
 
-	let mut slate = match slate {
+	let slate = match slate {
 		Some(s) => s,
 		None => {
 			// try and parse directly from input_slatepack_message
 			let mut slate = Slate::blank(2, false);
-			match args.input_slatepack_message {
+			match message {
 				Some(message) => {
 					controller::owner_single_use(
 						None,
@@ -726,6 +723,34 @@ where
 			slate
 		}
 	};
+	Ok((slate, ret_address))
+}
+
+/// Receive command argument
+#[derive(Clone)]
+pub struct ReceiveArgs {
+	pub input_file: Option<String>,
+	pub input_slatepack_message: Option<String>,
+}
+
+pub fn receive<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	g_args: &GlobalArgs,
+	args: ReceiveArgs,
+	tor_config: Option<TorConfig>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let (mut slate, ret_address) = parse_slatepack(
+		owner_api,
+		keychain_mask,
+		args.input_file,
+		args.input_slatepack_message,
+	)?;
 
 	let km = match keychain_mask.as_ref() {
 		None => None,
@@ -760,6 +785,7 @@ where
 			&slate,
 			&dest,
 			false,
+			false,
 			slate.version_info.version < 4,
 		)?;
 	} else {
@@ -774,11 +800,12 @@ where
 }
 
 /// Finalize command args
+#[derive(Clone)]
 pub struct FinalizeArgs {
-	pub input: String,
+	pub input_file: Option<String>,
+	pub input_slatepack_message: Option<String>,
 	pub fluff: bool,
 	pub nopost: bool,
-	pub dest: Option<String>,
 }
 
 pub fn finalize<L, C, K>(
@@ -791,7 +818,12 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (mut slate, was_bin) = PathToSlate((&args.input).into()).get_tx()?;
+	let (mut slate, _ret_address) = parse_slatepack(
+		owner_api,
+		keychain_mask,
+		args.input_file.clone(),
+		args.input_slatepack_message.clone(),
+	)?;
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
@@ -820,7 +852,7 @@ where
 		})?;
 	}
 
-	if !args.nopost {
+	if !&args.nopost {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 			let result = api.post_tx(m, &slate, args.fluff);
 			match result {
@@ -828,6 +860,7 @@ where
 					info!(
 						"Transaction sent successfully, check the wallet again for confirmation."
 					);
+					println!("Transaction posted");
 					Ok(())
 				}
 				Err(e) => {
@@ -838,9 +871,17 @@ where
 		})?;
 	}
 
-	if args.dest.is_some() {
-		PathToSlate((&args.dest.unwrap()).into()).put_tx(&slate, was_bin)?;
-	}
+	println!("Transaction finalized successfully");
+
+	output_slatepack(
+		owner_api,
+		keychain_mask,
+		&slate,
+		"",
+		false,
+		true,
+		slate.version_info.version < 4,
+	)?;
 
 	Ok(())
 }

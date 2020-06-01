@@ -28,7 +28,7 @@ use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
-use grin_wallet_libwallet::{Slate, SlatepackAddress};
+use grin_wallet_libwallet::{Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
@@ -134,6 +134,38 @@ where
 		}
 	}
 	Ok(phrase)
+}
+
+fn prompt_slatepack() -> Result<String, ParseError> {
+	let interface = Arc::new(Interface::new("slatepack_input")?);
+	let mut message = String::from("");
+	interface.set_report_signal(Signal::Interrupt, true);
+	interface.set_prompt("")?;
+	loop {
+		println!("Please paste your encoded slatepack message:");
+		let res = interface.read_line()?;
+		match res {
+			ReadResult::Eof => break,
+			ReadResult::Signal(sig) => {
+				if sig == Signal::Interrupt {
+					interface.cancel_read_line()?;
+					return Err(ParseError::CancelledError);
+				}
+			}
+			ReadResult::Input(line) => {
+				if SlatepackArmor::decode(&line).is_ok() {
+					message = line;
+					break;
+				} else {
+					println!();
+					println!("Input is not a valid slatepack.");
+					println!();
+					interface.set_buffer(&line)?;
+				}
+			}
+		}
+	}
+	Ok(message)
 }
 
 fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
@@ -489,32 +521,44 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 		false => None,
 	};
 
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
 	Ok(command::ReceiveArgs {
 		input_file,
-		input_slatepack_message: None,
+		input_slatepack_message,
 	})
 }
 
 pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, ParseError> {
 	let fluff = args.is_present("fluff");
 	let nopost = args.is_present("nopost");
-	let tx_file = parse_required(args, "input")?;
 
-	if !Path::new(&tx_file).is_file() {
-		let msg = format!("File {} not found.", tx_file);
-		return Err(ParseError::ArgumentError(msg));
-	}
-
-	let dest_file = match args.is_present("dest") {
-		true => Some(args.value_of("dest").unwrap().to_owned()),
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
 		false => None,
 	};
 
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
 	Ok(command::FinalizeArgs {
-		input: tx_file.to_owned(),
+		input_file,
+		input_slatepack_message,
 		fluff: fluff,
 		nopost: nopost,
-		dest: dest_file.to_owned(),
 	})
 }
 
