@@ -15,7 +15,8 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
-use crate::api_impl::owner::check_ttl;
+use crate::api_impl::owner::finalize_tx as owner_finalize;
+use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::grin_core::core::transaction::Transaction;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -133,7 +134,7 @@ where
 }
 
 /// Receive an tx that this wallet has issued
-pub fn finalize_invoice_tx<'a, T: ?Sized, C, K>(
+pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
@@ -144,24 +145,30 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
-	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
-	if sl.is_compact() {
-		let mut temp_ctx = context.clone();
-		temp_ctx.sec_key = context.initial_sec_key.clone();
-		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
-	}
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
-	{
-		let mut batch = w.batch(keychain_mask)?;
-		batch.delete_private_context(sl.id.as_bytes())?;
-		batch.commit()?;
-	}
-	sl.state = SlateState::Invoice3;
-	if sl.is_compact() {
-		sl.amount = 0;
+	let is_invoice = context.is_invoice;
+	if is_invoice {
+		check_ttl(w, &sl)?;
+		if sl.is_compact() {
+			let mut temp_ctx = context.clone();
+			temp_ctx.sec_key = context.initial_sec_key.clone();
+			temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
+			selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
+		}
+		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
+		{
+			let mut batch = w.batch(keychain_mask)?;
+			batch.delete_private_context(sl.id.as_bytes())?;
+			batch.commit()?;
+		}
+		sl.state = SlateState::Invoice3;
+		if sl.is_compact() {
+			sl.amount = 0;
+		}
+	} else {
+		sl = owner_finalize(w, keychain_mask, slate)?;
+		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
 	}
 	Ok(sl)
 }

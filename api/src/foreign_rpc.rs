@@ -189,7 +189,7 @@ pub trait ForeignRpc {
 
 	/**
 
-	Networked version of [Foreign::finalize_invoice_tx](struct.Foreign.html#method.finalize_invoice_tx).
+	Networked version of [Foreign::finalize_tx](struct.Foreign.html#method.finalize_tx).
 
 	# Json rpc example
 
@@ -198,7 +198,7 @@ pub trait ForeignRpc {
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "finalize_invoice_tx",
+		"method": "finalize_tx",
 		"id": 1,
 		"params": [{
 			"ver": "4:2",
@@ -279,7 +279,7 @@ pub trait ForeignRpc {
 	# ,false, 5, false, true);
 	```
 	*/
-	fn finalize_invoice_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
+	fn finalize_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
 }
 
 impl<'a, L, C, K> ForeignRpc for Foreign<'a, L, C, K>
@@ -315,10 +315,9 @@ where
 		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
-	fn finalize_invoice_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
+	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
-		let out_slate =
-			Foreign::finalize_invoice_tx(self, &Slate::from(in_slate)).map_err(|e| e.kind())?;
+		let out_slate = Foreign::finalize_tx(self, &Slate::from(in_slate)).map_err(|e| e.kind())?;
 		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 }

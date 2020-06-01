@@ -474,18 +474,24 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	})
 }
 
-pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
-	// input
-	let tx_file = parse_required(receive_args, "input")?;
-
-	// validate input
-	if !Path::new(&tx_file).is_file() {
-		let msg = format!("File {} not found.", &tx_file);
-		return Err(ParseError::ArgumentError(msg));
-	}
+pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
+	// input file
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
+		false => None,
+	};
 
 	Ok(command::ReceiveArgs {
-		input: tx_file.to_owned(),
+		input_file,
+		input_slatepack_message: None,
 	})
 }
 
@@ -1003,7 +1009,13 @@ where
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(owner_api, km, &global_wallet_args, a)
+			command::receive(
+				owner_api,
+				km,
+				&global_wallet_args,
+				a,
+				Some(tor_config.clone()),
+			)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));

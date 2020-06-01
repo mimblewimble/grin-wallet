@@ -178,7 +178,7 @@ impl HttpSlateSender {
 }
 
 impl SlateSender for HttpSlateSender {
-	fn send_tx(&mut self, slate: &Slate) -> Result<Slate, Error> {
+	fn send_tx(&mut self, slate: &Slate, finalize: bool) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
 			true => "",
 			false => "/",
@@ -203,16 +203,27 @@ impl SlateSender for HttpSlateSender {
 			}
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
-		let req = json!({
-			"jsonrpc": "2.0",
-			"method": "receive_tx",
-			"id": 1,
-			"params": [
-						slate_send,
-						null,
-						null
-					]
-		});
+		let req = match finalize {
+			false => json!({
+				"jsonrpc": "2.0",
+				"method": "receive_tx",
+				"id": 1,
+				"params": [
+							slate_send,
+							null,
+							null
+						]
+			}),
+			true => json!({
+				"jsonrpc": "2.0",
+				"method": "finalize_tx",
+				"id": 1,
+				"params": [
+							slate_send
+						]
+			}),
+		};
+
 		trace!("Sending receive_tx request: {}", req);
 
 		let res: String = self.post(&url_str, None, req).map_err(|e| {

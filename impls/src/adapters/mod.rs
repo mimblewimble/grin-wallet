@@ -31,7 +31,7 @@ use crate::util::ZeroingString;
 pub trait SlateSender {
 	/// Send a transaction slate to another listening wallet and return result
 	/// TODO: Probably need a slate wrapper type
-	fn send_tx(&mut self, slate: &Slate) -> Result<Slate, Error>;
+	fn send_tx(&mut self, slate: &Slate, finalize: bool) -> Result<Slate, Error>;
 }
 
 pub trait SlateReceiver {

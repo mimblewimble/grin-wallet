@@ -20,11 +20,11 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::{create_sender, SlateGetter as _, SlateSender as _};
-use crate::impls::{HttpSlateSender, PathToSlate, SlatePutter};
+use crate::impls::{HttpSlateSender, PathToSlate, PathToSlatepack, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
-	SlatepackAddress, WalletLCProvider,
+	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -238,6 +238,7 @@ where
 }
 
 /// Arguments for the send command
+#[derive(Clone)]
 pub struct SendArgs {
 	pub amount: u64,
 	pub minimum_confirmations: u64,
@@ -386,6 +387,7 @@ where
 		}
 	} // end pre HF3 Block
 
+	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -421,7 +423,7 @@ where
 				..Default::default()
 			};
 			let result = api.init_send_tx(m, init_args);
-			let mut slate = match result {
+			slate = match result {
 				Ok(s) => {
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
@@ -436,149 +438,224 @@ where
 					return Err(e);
 				}
 			};
-
-			let mut send_sync =
-				|mut sender: HttpSlateSender, method_str: &str| match sender.send_tx(&slate) {
-					Ok(s) => {
-						slate = s;
-						api.tx_lock_outputs(m, &slate)?;
-						slate = api.finalize_tx(m, &slate)?;
-						let result = api.post_tx(m, &slate, args.fluff);
-						match result {
-							Ok(_) => {
-								info!("Tx sent ok",);
-								return Ok(());
-							}
-							Err(e) => {
-								error!("Tx sent fail: {}", e);
-								return Err(e);
-							}
-						}
-					}
-					Err(e) => {
-						debug!(
-							"Send ({}): Could not send Slate via {}: {}",
-							method_str, method_str, e
-						);
-						return Err(e);
-					}
-				};
-
-			// First, try TOR
-			match SlatepackAddress::try_from(args.dest.as_str()) {
-				Ok(address) => {
-					let tor_addr = OnionV3Address::try_from(&address).unwrap();
-					// Try sending to the destination via TOR
-					let sender = match tor_sender {
-						None => {
-							match HttpSlateSender::with_socks_proxy(
-								&tor_addr.to_http_str(),
-								&tor_config.as_ref().unwrap().socks_proxy_addr,
-								&tor_config.as_ref().unwrap().send_config_dir,
-							) {
-								Ok(s) => Some(s),
-								Err(e) => {
-									debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-									None
-								}
-							}
-						}
-						Some(s) => Some(s),
-					};
-					if let Some(s) = sender {
-						println!("Attempting to send transaction via TOR");
-						match send_sync(s, "TOR") {
-							Ok(_) => return Ok(()),
-							Err(e) => {
-								debug!("Unable to send via TOR: {}", e);
-								println!("Unable to send transaction via TOR. Attempting alternate methods.");
-							}
-						}
-					}
-				}
-				Err(e) => {
-					debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
-				}
-			}
-
-			// Try Fallback to HTTP for deprecation period
-			match HttpSlateSender::new(&args.dest) {
-				Ok(sender) => {
-					println!("Attempting to send transaction via HTTP (deprecated)");
-					match send_sync(sender, "HTTP") {
-						Ok(_) => return Ok(()),
-						Err(e) => {
-							debug!("Unable to send via TOR: {}", e);
-							println!("Unable to send transaction via HTTP. Will output Slatepack.");
-						}
-					}
-				}
-				Err(e) => {
-					debug!("Send (HTTP): Cannot create HTTP Slate sender {:?}", e);
-				}
-			}
-
-			// Otherwise output slatepack
-			// create a directory to which files will be output
-			let slate_dir = format!("{}/{}", api.get_top_level_directory()?, "slatepack");
-			let _ = std::fs::create_dir_all(slate_dir.clone());
-			let out_file_name = format!("{}/{}.S1.slatepack", slate_dir, slate.id);
-			// TODO: Remove HF3
-			if is_pre_fork {
-				PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
-				api.tx_lock_outputs(m, &slate)?;
-				println!();
-				println!("Transaction file was output to:");
-				println!();
-				println!("{}", out_file_name);
-				println!();
-				println!("Please send this file to the recipient manually, and complete the transaction using the `grin-wallet finalize` command.");
-				return Ok(());
-			}
-			// Output the slatepack file to stdout and to a file
-			let address = match SlatepackAddress::try_from(args.dest.as_str()) {
-				Ok(a) => Some(a),
-				Err(_) => None,
-			};
-			// encrypt for recipient by default
-			let recipients = match address.clone() {
-				Some(a) => vec![a],
-				None => vec![],
-			};
-			let message = api.create_slatepack_message(m, &slate, Some(0), recipients)?;
-			let mut output = File::create(out_file_name.clone())?;
-			output.write_all(&message.as_bytes())?;
-			output.sync_all()?;
-
-			api.tx_lock_outputs(m, &slate)?;
-
-			println!();
-			println!("Slatepack data follows. Please provide this output to the recipient, then finalize the result with 'grin-wallet finalize'");
-			println!();
-			println!("--- CUT BELOW THIS LINE ---");
-			println!();
-			println!("{}", message);
-			println!("--- CUT ABOVE THIS LINE ---");
-			println!();
-			println!("Slatepack data was also output to");
-			println!();
-			println!("{}", out_file_name);
-			println!();
-			if address.is_some() {
-				println!("The slatepack data is encrypted for the recipient only");
-			} else {
-				println!("The slatepack data is NOT encrypted");
-			}
-			println!();
 		}
 		Ok(())
 	})?;
+
+	if let Ok(false) = send_tx_sync(
+		owner_api,
+		keychain_mask,
+		&slate,
+		&args.dest,
+		args.fluff,
+		tor_config,
+		tor_sender,
+		false,
+	) {
+		output_slatepack(
+			owner_api,
+			keychain_mask,
+			&slate,
+			args.dest.as_str(),
+			true,
+			is_pre_fork,
+		)?;
+	}
+
+	Ok(())
+}
+
+// attempt to send slate synchronously, starting with TOR and downgrading to HTTP
+pub fn send_tx_sync<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: &str,
+	fluff: bool,
+	tor_config: Option<TorConfig>,
+	tor_sender: Option<HttpSlateSender>,
+	send_finalize: bool,
+) -> Result<bool, libwallet::Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
+		.send_tx(&slate, send_finalize)
+	{
+		Ok(s) => controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+			if !send_finalize {
+				api.tx_lock_outputs(m, &s)?;
+				let ret_slate = api.finalize_tx(m, &s)?;
+				let result = api.post_tx(m, &ret_slate, fluff);
+				match result {
+					Ok(_) => {
+						info!("Tx sent ok",);
+						return Ok(());
+					}
+					Err(e) => {
+						error!("Tx sent fail: {}", e);
+						return Err(e);
+					}
+				}
+			} else {
+				return Ok(());
+			}
+		}),
+		Err(e) => {
+			debug!(
+				"Send ({}): Could not send Slate via {}: {}",
+				method_str, method_str, e
+			);
+			return Err(e);
+		}
+	};
+
+	// First, try TOR
+	match SlatepackAddress::try_from(dest) {
+		Ok(address) => {
+			let tor_addr = OnionV3Address::try_from(&address).unwrap();
+			// Try sending to the destination via TOR
+			let sender = match tor_sender {
+				None => {
+					match HttpSlateSender::with_socks_proxy(
+						&tor_addr.to_http_str(),
+						&tor_config.as_ref().unwrap().socks_proxy_addr,
+						&tor_config.as_ref().unwrap().send_config_dir,
+					) {
+						Ok(s) => Some(s),
+						Err(e) => {
+							debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
+							None
+						}
+					}
+				}
+				Some(s) => Some(s),
+			};
+			if let Some(s) = sender {
+				println!("Attempting to send transaction via TOR");
+				match send_sync(s, "TOR") {
+					Ok(_) => return Ok(true),
+					Err(e) => {
+						debug!("Unable to send via TOR: {}", e);
+						println!(
+							"Unable to send transaction via TOR. Attempting alternate methods."
+						);
+					}
+				}
+			}
+		}
+		Err(e) => {
+			debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
+		}
+	}
+
+	// Try Fallback to HTTP for deprecation period
+	match HttpSlateSender::new(&dest) {
+		Ok(sender) => {
+			println!("Attempting to send transaction via HTTP (deprecated)");
+			match send_sync(sender, "HTTP") {
+				Ok(_) => return Ok(true),
+				Err(e) => {
+					debug!("Unable to send via TOR: {}", e);
+					println!("Unable to send transaction via HTTP. Will output Slatepack.");
+					return Ok(false);
+				}
+			}
+		}
+		Err(e) => {
+			debug!("Send (HTTP): Cannot create HTTP Slate sender {:?}", e);
+			return Ok(false);
+		}
+	}
+}
+
+pub fn output_slatepack<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: &str,
+	lock: bool,
+	is_pre_fork: bool,
+) -> Result<(), libwallet::Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	// Output the slatepack file to stdout and to a file
+	let mut message = String::from("");
+	let mut address = None;
+	let mut tld = String::from("");
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		address = match SlatepackAddress::try_from(dest) {
+			Ok(a) => Some(a),
+			Err(_) => None,
+		};
+		// encrypt for recipient by default
+		let recipients = match address.clone() {
+			Some(a) => vec![a],
+			None => vec![],
+		};
+		message = api.create_slatepack_message(m, &slate, Some(0), recipients)?;
+		tld = api.get_top_level_directory()?;
+		Ok(())
+	})?;
+
+	// create a directory to which files will be output
+	let slate_dir = format!("{}/{}", tld, "slatepack");
+	let _ = std::fs::create_dir_all(slate_dir.clone());
+	let out_file_name = format!("{}/{}.S1.slatepack", slate_dir, slate.id);
+
+	// TODO: Remove HF3
+	if is_pre_fork {
+		PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
+		println!();
+		println!("Transaction file was output to:");
+		println!();
+		println!("{}", out_file_name);
+		println!();
+		println!("Please send this file to the other party manually");
+		return Ok(());
+	}
+
+	let mut output = File::create(out_file_name.clone())?;
+	output.write_all(&message.as_bytes())?;
+	output.sync_all()?;
+
+	println!();
+	println!("Slatepack data follows. Please provide this output to the other party");
+	println!();
+	println!("--- CUT BELOW THIS LINE ---");
+	println!();
+	println!("{}", message);
+	println!("--- CUT ABOVE THIS LINE ---");
+	println!();
+	println!("Slatepack data was also output to");
+	println!();
+	println!("{}", out_file_name);
+	println!();
+	if address.is_some() {
+		println!("The slatepack data is encrypted for the recipient only");
+	} else {
+		println!("The slatepack data is NOT encrypted");
+	}
+	println!();
+	if lock {
+		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+			api.tx_lock_outputs(m, &slate)?;
+			Ok(())
+		})?;
+	}
 	Ok(())
 }
 
 /// Receive command argument
+#[derive(Clone)]
 pub struct ReceiveArgs {
-	pub input: String,
+	pub input_file: Option<String>,
+	pub input_slatepack_message: Option<String>,
 }
 
 pub fn receive<L, C, K>(
@@ -586,26 +663,113 @@ pub fn receive<L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
+	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (mut slate, was_bin) = PathToSlate((&args.input).into()).get_tx()?;
+	let mut ret_address = None;
+	let slate = match args.input_file {
+		Some(f) => {
+			// first try regular slate - remove HF3
+			let mut sl = match PathToSlate((&f).into()).get_tx() {
+				Ok(s) => Some(s.0), //pre HF3, regular slate
+				Err(_) => None,
+			};
+			// otherwise, get slate from slatepack
+			if sl.is_none() {
+				controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+					let dec_key = api.get_slatepack_secret_key(m, 0)?;
+					let packer = Slatepacker::new(SlatepackerArgs {
+						sender: None,
+						recipients: vec![],
+						dec_key: Some(&dec_key),
+					});
+					let pts = PathToSlatepack::new(f.into(), &packer, true);
+					sl = Some(pts.get_tx()?.0);
+					ret_address = pts.get_slatepack()?.sender;
+					Ok(())
+				})?;
+			}
+			sl
+		}
+		None => None,
+	};
+
+	let mut slate = match slate {
+		Some(s) => s,
+		None => {
+			// try and parse directly from input_slatepack_message
+			let mut slate = Slate::blank(2, false);
+			match args.input_slatepack_message {
+				Some(message) => {
+					controller::owner_single_use(
+						None,
+						keychain_mask,
+						Some(owner_api),
+						|api, m| {
+							slate =
+								api.slate_from_slatepack_message(m, message.clone(), vec![0])?;
+							let slatepack = api.decode_slatepack_message(message)?;
+							ret_address = slatepack.sender;
+							Ok(())
+						},
+					)?;
+				}
+				None => {
+					let msg = "No slate provided via file or direct input";
+					return Err(ErrorKind::GenericError(msg.into()).into());
+				}
+			}
+			slate
+		}
+	};
+
 	let km = match keychain_mask.as_ref() {
 		None => None,
 		Some(&m) => Some(m.to_owned()),
 	};
+
 	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
 		slate = api.receive_tx(&slate, Some(&g_args.account))?;
 		Ok(())
 	})?;
-	PathToSlate(format!("{}.response", args.input).into()).put_tx(&slate, was_bin)?;
-	info!(
-		"Response file {}.response generated, and can be sent back to the transaction originator.",
-		args.input
-	);
+
+	let dest = match ret_address {
+		Some(a) => String::try_from(&a).unwrap(),
+		None => String::from(""),
+	};
+
+	let sent_sync = send_tx_sync(
+		owner_api,
+		keychain_mask,
+		&slate,
+		&dest,
+		false,
+		tor_config,
+		None,
+		true,
+	)?;
+
+	if !sent_sync {
+		output_slatepack(
+			owner_api,
+			keychain_mask,
+			&slate,
+			&dest,
+			false,
+			slate.version_info.version < 4,
+		)?;
+	} else {
+		println!();
+		println!(
+			"Transaction recieved and sent back to sender at {} for finalization.",
+			dest
+		);
+		println!();
+	}
 	Ok(())
 }
 
@@ -646,7 +810,7 @@ where
 			Some(&m) => Some(m.to_owned()),
 		};
 		controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-			slate = api.finalize_invoice_tx(&slate)?;
+			slate = api.finalize_tx(&slate)?;
 			Ok(())
 		})?;
 	} else {
@@ -820,13 +984,13 @@ where
 						Some(&m) => Some(m.to_owned()),
 					};
 					controller::foreign_single_use(wallet_inst, km, |api| {
-						slate = api.finalize_invoice_tx(&slate)?;
+						slate = api.finalize_tx(&slate)?;
 						Ok(())
 					})?;
 				}
 				method => {
 					let mut sender = create_sender(method, &args.dest, tor_config)?;
-					slate = sender.send_tx(&slate)?;
+					slate = sender.send_tx(&slate, false)?;
 					api.tx_lock_outputs(m, &slate)?;
 				}
 			}
