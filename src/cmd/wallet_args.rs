@@ -25,7 +25,6 @@ use grin_wallet_api::Owner;
 use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_impls::{PathToSlate, SlateGetter as _};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
@@ -436,23 +435,25 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let payment_proof_address = {
 		match args.is_present("request_payment_proof") {
-			true => {
-				// if the destination address is a TOR address, we don't need the address
-				// separately
-				match OnionV3Address::try_from(dest) {
-					Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
-					Err(_) => {
-						let addr = parse_required(args, "proof_address")?;
-						match OnionV3Address::try_from(addr) {
-							Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
-							Err(e) => {
-								let msg = format!("Invalid proof address: {:?}", e);
-								return Err(ParseError::ArgumentError(msg));
-							}
+			true => match OnionV3Address::try_from(dest) {
+				Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
+				Err(_) => {
+					let addr = match parse_required(args, "dest") {
+						Ok(a) => a,
+						Err(_) => {
+							let msg = format!("Destination Slatepack address must be provided (-d) if payment proof is requested");
+							return Err(ParseError::ArgumentError(msg));
+						}
+					};
+					match SlatepackAddress::try_from(addr) {
+						Ok(a) => Some(a),
+						Err(e) => {
+							let msg = format!("Invalid slatepack address: {:?}", e);
+							return Err(ParseError::ArgumentError(msg));
 						}
 					}
 				}
-			}
+			},
 			false => None,
 		}
 	};

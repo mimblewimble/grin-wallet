@@ -522,12 +522,16 @@ where
 			// create a directory to which files will be output
 			let slate_dir = format!("{}/{}", api.get_top_level_directory()?, "slatepack");
 			let _ = std::fs::create_dir_all(slate_dir.clone());
-			let out_file_name = format!("{}/{}_S1.slatepack", slate_dir, slate.id);
+			let out_file_name = format!("{}/{}.S1.slatepack", slate_dir, slate.id);
 			// TODO: Remove HF3
 			if is_pre_fork {
 				PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
 				api.tx_lock_outputs(m, &slate)?;
-				println!("Transaction file was output to {}", out_file_name);
+				println!();
+				println!("Transaction file was output to:");
+				println!();
+				println!("{}", out_file_name);
+				println!();
 				println!("Please send this file to the recipient manually, and complete the transaction using the `grin-wallet finalize` command.");
 				return Ok(());
 			}
@@ -556,10 +560,12 @@ where
 			println!("{}", message);
 			println!("--- CUT ABOVE THIS LINE ---");
 			println!();
-			println!("Slatepack data was also output to {}", out_file_name);
+			println!("Slatepack data was also output to");
+			println!();
+			println!("{}", out_file_name);
 			println!();
 			if address.is_some() {
-				println!("The slatepack data was encrypted for the recipient only");
+				println!("The slatepack data is encrypted for the recipient only");
 			} else {
 				println!("The slatepack data is NOT encrypted");
 			}
