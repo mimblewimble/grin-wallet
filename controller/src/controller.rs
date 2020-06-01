@@ -169,6 +169,7 @@ where
 		wallet,
 		keychain_mask,
 		Some(check_middleware),
+		false,
 	))?;
 	Ok(())
 }
@@ -185,6 +186,7 @@ pub fn owner_listener<L, C, K>(
 	tls_config: Option<TLSConfig>,
 	owner_api_include_foreign: Option<bool>,
 	tor_config: Option<TorConfig>,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -221,7 +223,7 @@ where
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
@@ -249,6 +251,7 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	use_tor: bool,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -275,7 +278,7 @@ where
 		false => (None, None),
 	};
 
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
+	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
 	let mut router = Router::new();
 
 	router
@@ -674,6 +677,8 @@ where
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	/// Keychain mask
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+	/// run in doctest mode
+	pub test_mode: bool,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -686,10 +691,12 @@ where
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+		test_mode: bool,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
 			keychain_mask,
+			test_mode,
 		}
 	}
 
@@ -712,8 +719,9 @@ where
 		req: Request<Body>,
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		test_mode: bool,
 	) -> Result<Response<Body>, Error> {
-		let api = Foreign::new(wallet, mask, Some(check_middleware));
+		let api = Foreign::new(wallet, mask, Some(check_middleware), test_mode);
 		let res = Self::call_api(req, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -728,9 +736,10 @@ where
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
 		let mask = self.keychain_mask.lock().clone();
 		let wallet = self.wallet.clone();
+		let test_mode = self.test_mode;
 
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet).await {
+			match Self::handle_post_request(req, mask, wallet, test_mode).await {
 				Ok(v) => Ok(v),
 				Err(e) => {
 					error!("Request Error: {:?}", e);

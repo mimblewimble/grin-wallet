@@ -73,6 +73,7 @@ pub fn init<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	_g_args: &GlobalArgs,
 	args: InitArgs,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -90,7 +91,7 @@ where
 		args.recovery_phrase,
 		args.list_length,
 		args.password.clone(),
-		false,
+		test_mode,
 	)?;
 
 	let m = p.get_mnemonic(None, args.password)?;
@@ -127,6 +128,7 @@ pub fn listen<L, C, K>(
 	_args: &ListenArgs,
 	g_args: &GlobalArgs,
 	cli_mode: bool,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -146,6 +148,7 @@ where
 				&config.api_listen_addr(),
 				g_args.tls_conf.clone(),
 				tor_config.use_tor_listener,
+				test_mode,
 			);
 			if let Err(e) = res {
 				error!("Error starting listener: {}", e);
@@ -169,6 +172,7 @@ pub fn owner_api<L, C, K>(
 	config: &WalletConfig,
 	tor_config: &TorConfig,
 	g_args: &GlobalArgs,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + Send + Sync + 'static,
@@ -186,6 +190,7 @@ where
 		g_args.tls_conf.clone(),
 		config.owner_api_include_foreign.clone(),
 		Some(tor_config.clone()),
+		test_mode,
 	);
 	if let Err(e) = res {
 		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
@@ -483,6 +488,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let test_mode = owner_api.doctest_mode;
 	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_finalize)
 	{
@@ -521,19 +527,29 @@ where
 			// Try sending to the destination via TOR
 			let sender = match tor_sender {
 				None => {
-					match HttpSlateSender::with_socks_proxy(
-						&tor_addr.to_http_str(),
-						&tor_config.as_ref().unwrap().socks_proxy_addr,
-						&tor_config.as_ref().unwrap().send_config_dir,
-					) {
-						Ok(s) => Some(s),
-						Err(e) => {
-							debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-							None
+					if test_mode {
+						None
+					} else {
+						match HttpSlateSender::with_socks_proxy(
+							&tor_addr.to_http_str(),
+							&tor_config.as_ref().unwrap().socks_proxy_addr,
+							&tor_config.as_ref().unwrap().send_config_dir,
+						) {
+							Ok(s) => Some(s),
+							Err(e) => {
+								debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
+								None
+							}
 						}
 					}
 				}
-				Some(s) => Some(s),
+				Some(s) => {
+					if test_mode {
+						None
+					} else {
+						Some(s)
+					}
+				}
 			};
 			if let Some(s) = sender {
 				println!("Attempting to send transaction via TOR");
@@ -625,6 +641,7 @@ where
 		return Ok(());
 	}
 
+	println!("{}", out_file_name);
 	let mut output = File::create(out_file_name.clone())?;
 	output.write_all(&message.as_bytes())?;
 	output.sync_all()?;
@@ -944,7 +961,7 @@ where
 		keychain_mask,
 		&slate,
 		args.dest.as_str(),
-		true,
+		false,
 		false,
 		is_pre_fork,
 	)?;

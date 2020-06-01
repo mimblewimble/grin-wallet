@@ -133,7 +133,7 @@ where
 	Ok(ret_slate)
 }
 
-/// Receive an tx that this wallet has issued
+/// Receive a tx that this wallet has issued
 pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,

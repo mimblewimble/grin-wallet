@@ -1001,6 +1001,12 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let km = (&keychain_mask).as_ref();
+
+	if test_mode {
+		owner_api.doctest_mode = true;
+		owner_api.doctest_retain_tld = true;
+	}
+
 	match wallet_args.subcommand() {
 		("init", Some(args)) => {
 			let a = arg_parse!(parse_init_args(
@@ -1010,7 +1016,7 @@ where
 				&args,
 				test_mode,
 			));
-			command::init(owner_api, &global_wallet_args, a)
+			command::init(owner_api, &global_wallet_args, a, test_mode)
 		}
 		("recover", Some(_)) => {
 			let a = arg_parse!(parse_recover_args(&global_wallet_args,));
@@ -1028,6 +1034,7 @@ where
 				&a,
 				&global_wallet_args.clone(),
 				cli_mode,
+				test_mode,
 			)
 		}
 		("owner_api", Some(args)) => {
@@ -1035,7 +1042,7 @@ where
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
 			arg_parse!(parse_owner_api_args(&mut c, &args));
-			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g)
+			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g, test_mode)
 		}
 		("web", Some(_)) => command::owner_api(
 			owner_api,
@@ -1043,6 +1050,7 @@ where
 			wallet_config,
 			tor_config,
 			global_wallet_args,
+			test_mode,
 		),
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));

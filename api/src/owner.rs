@@ -63,6 +63,8 @@ where
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
+	/// retail TLD during doctest
+	pub doctest_retain_tld: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 	/// Update thread
@@ -189,6 +191,7 @@ where
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
+			doctest_retain_tld: false,
 			shared_key: Arc::new(Mutex::new(None)),
 			updater,
 			updater_running,
@@ -1277,7 +1280,7 @@ where
 	pub fn get_top_level_directory(&self) -> Result<String, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		if self.doctest_mode {
+		if self.doctest_mode && !self.doctest_retain_tld {
 			Ok("/doctest/dir".to_owned())
 		} else {
 			lc.get_top_level_directory()

@@ -76,11 +76,23 @@ impl WalletSeed {
 		Ok(result)
 	}
 
-	pub fn init_new(seed_length: usize) -> WalletSeed {
+	pub fn init_new(
+		seed_length: usize,
+		test_mode: bool,
+		password: Option<util::ZeroingString>,
+	) -> WalletSeed {
 		let mut seed: Vec<u8> = vec![];
 		let mut rng = thread_rng();
-		for _ in 0..seed_length {
-			seed.push(rng.gen());
+		if !test_mode {
+			for _ in 0..seed_length {
+				seed.push(rng.gen());
+			}
+		} else {
+			// Hash password and use for test seed so we have a way of keeping test wallets unique
+			// but predictable
+			seed = blake2::blake2b::blake2b(32, b"", password.unwrap().as_bytes())
+				.as_bytes()
+				.to_vec();
 		}
 		WalletSeed(seed)
 	}
@@ -167,7 +179,7 @@ impl WalletSeed {
 
 		let seed = match recovery_phrase {
 			Some(p) => WalletSeed::from_mnemonic(p)?,
-			None => WalletSeed::init_new(seed_length),
+			None => WalletSeed::init_new(seed_length, test_mode, Some(password.clone())),
 		};
 
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
@@ -324,7 +336,7 @@ mod tests {
 	#[test]
 	fn wallet_seed_encrypt() {
 		let password = ZeroingString::from("passwoid");
-		let wallet_seed = WalletSeed::init_new(32);
+		let wallet_seed = WalletSeed::init_new(32, false, None);
 		let mut enc_wallet_seed =
 			EncryptedWalletSeed::from_seed(&wallet_seed, password.clone()).unwrap();
 		println!("EWS: {:?}", enc_wallet_seed);

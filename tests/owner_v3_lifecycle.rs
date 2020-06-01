@@ -409,9 +409,9 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let req = serde_json::json!({
 		"jsonrpc": "2.0",
 		"id": 1,
-		"method": "finalize_invoice_tx",
+		"method": "finalize_tx",
 		"params": {
-			"slate": VersionedSlate::into_version(slate, SlateVersion::V3)?,
+			"slate": VersionedSlate::into_version(slate, SlateVersion::V4)?,
 		}
 	});
 	let res =

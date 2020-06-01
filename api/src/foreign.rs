@@ -38,8 +38,10 @@ pub enum ForeignCheckMiddlewareFn {
 	VerifySlateMessages,
 	/// receive_tx
 	ReceiveTx,
-	/// finalize_invoice_tx
+	/// finalize_invoice_tx (delete HF3)
 	FinalizeInvoiceTx,
+	/// finalize_tx
+	FinalizeTx,
 }
 
 /// Main interface into all wallet API functions.
@@ -167,10 +169,11 @@ where
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
+		doctest_mode: bool,
 	) -> Self {
 		Foreign {
 			wallet_inst,
-			doctest_mode: false,
+			doctest_mode,
 			middleware,
 			keychain_mask,
 		}
@@ -342,14 +345,14 @@ where
 		)
 	}
 
-	/// Finalizes an invoice transaction initiated by this wallet's Owner api.
+	/// Finalizes a (standard or invoice) transaction initiated by this wallet's Owner api.
 	/// This step assumes the paying party has completed round 1 and 2 of slate
-	/// creation, and added their partial signatures. The invoicer will verify
+	/// creation, and added their partial signatures. This wallet will verify
 	/// and add their partial sig, then create the finalized transaction,
 	/// ready to post to a node.
 	///
-	/// Note that this function DOES NOT POST the transaction to a node
-	/// for validation. This is done in separately via the
+	/// This function posts to the node if the `post_automatically`
+	/// argument is sent to true. Posting can be done in separately via the
 	/// [`post_tx`](struct.Owner.html#method.post_tx) function.
 	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
@@ -357,7 +360,8 @@ where
 	///
 	/// # Arguments
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
-	/// payer should have filled in round 1 and 2.
+	/// * `post_automatically` - If true, post the finalized transaction to the configured listening
+	/// node
 	///
 	/// # Returns
 	/// * Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html)) if successful,
@@ -385,7 +389,7 @@ where
 	/// // ...
 	/// # let slate = Slate::blank(2, true);
 	///
-	/// let slate = api_foreign.finalize_tx(&slate);
+	/// let slate = api_foreign.finalize_tx(&slate, true);
 	/// // if okay, then post via the owner API
 	/// ```
 
@@ -399,6 +403,10 @@ where
 				Some(slate),
 			)?;
 		}
+		let post_automatically = match self.doctest_mode {
+			true => false,
+			false => post_automatically,
+		};
 		foreign::finalize_tx(
 			&mut **w,
 			(&self.keychain_mask).as_ref(),

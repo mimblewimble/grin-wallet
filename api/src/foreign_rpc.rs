@@ -280,6 +280,9 @@ pub trait ForeignRpc {
 	```
 	*/
 	fn finalize_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
+
+	/// For backwards-compatibility. Remove HF3
+	fn finalize_invoice_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
 }
 
 impl<'a, L, C, K> ForeignRpc for Foreign<'a, L, C, K>
@@ -319,6 +322,14 @@ where
 		let version = in_slate.version();
 		let out_slate =
 			Foreign::finalize_tx(self, &Slate::from(in_slate), true).map_err(|e| e.kind())?;
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+	}
+
+	//TODO: Delete HF3
+	fn finalize_invoice_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
+		let version = in_slate.version();
+		let out_slate =
+			Foreign::finalize_tx(self, &Slate::from(in_slate), false).map_err(|e| e.kind())?;
 		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 }
@@ -513,8 +524,8 @@ pub fn run_doctest_foreign(
 	}
 
 	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1, mask1, Some(test_check_middleware)),
-		true => Foreign::new(wallet2, mask2, Some(test_check_middleware)),
+		false => Foreign::new(wallet1, mask1, Some(test_check_middleware), true),
+		true => Foreign::new(wallet2, mask2, Some(test_check_middleware), true),
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;
