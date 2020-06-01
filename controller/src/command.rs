@@ -20,11 +20,11 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::{create_sender, SlateGetter as _, SlateSender as _};
-use crate::impls::{HttpSlateSender, PathToSlate, PathToSlatepack, SlatePutter};
+use crate::impls::{HttpSlateSender, PathToSlate, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
+	SlatepackAddress, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -124,7 +124,7 @@ pub fn listen<L, C, K>(
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
 	tor_config: &TorConfig,
-	args: &ListenArgs,
+	_args: &ListenArgs,
 	g_args: &GlobalArgs,
 	cli_mode: bool,
 ) -> Result<(), Error>
@@ -276,76 +276,10 @@ where
 	//TODO: Remove block post HF3
 	// All this block does is determine whether the slate should be
 	// output as a V3 Slate for the receiver
+	let mut tor_sender = None;
+	let is_pre_fork;
 	{
-		let trailing = match args.dest.ends_with('/') {
-			true => "",
-			false => "/",
-		};
-		let mut address_found = false;
-		// For sync methods, derive intended endpoint from dest
-		match SlatepackAddress::try_from(args.dest.as_str()) {
-			Ok(address) => {
-				let tor_addr = OnionV3Address::try_from(&address).unwrap();
-				// Try pinging the destination via TOR
-				debug!("Version ping: TOR address is: {}", tor_addr);
-				match HttpSlateSender::with_socks_proxy(
-					&tor_addr.to_http_str(),
-					&tor_config.as_ref().unwrap().socks_proxy_addr,
-					&tor_config.as_ref().unwrap().send_config_dir,
-				) {
-					Ok(mut sender) => {
-						let url_str = format!("{}{}v2/foreign", tor_addr.to_http_str(), trailing);
-						if let Ok(v) = sender.check_other_version(&url_str) {
-							if v == SlateVersion::V3 {
-								args.target_slate_version = Some(3);
-							}
-							address_found = true;
-						}
-					}
-					Err(e) => {
-						debug!(
-							"Version ping: Couldn't create slate sender for TOR: {:?}",
-							e
-						);
-					}
-				}
-			}
-			Err(e) => {
-				debug!("Version ping: Address is not SlatepackAddress: {:?}", e);
-			}
-		}
-
-		// now try http
-		if !address_found {
-			// Try pinging the destination via TOR
-			match HttpSlateSender::new(&args.dest) {
-				Ok(mut sender) => {
-					let url_str = format!("{}{}v2/foreign", args.dest, trailing);
-					match sender.check_other_version(&url_str) {
-						Ok(v) => {
-							if v == SlateVersion::V3 {
-								args.target_slate_version = Some(3);
-							}
-							address_found = true;
-						}
-						Err(e) => {
-							debug!("Version ping: Couldn't get other version for HTTP: {:?}", e);
-						}
-					}
-				}
-				Err(e) => {
-					debug!(
-						"Version ping: Couldn't create slate sender for HTTP: {:?}",
-						e
-					);
-				}
-			}
-		}
-
-		if !address_found {
-			// otherwise, determine slate format based on block height
-			// For files spit out a V3 Slate if we're before HF3,
-			// Or V4 slate otherwise
+		is_pre_fork = {
 			let cur_height = {
 				libwallet::wallet_lock!(wallet_inst, w);
 				w.w2n_client().get_chain_tip()?.0
@@ -353,20 +287,104 @@ where
 			match global::get_chain_type() {
 				global::ChainTypes::Mainnet => {
 					if cur_height < 786240 && !args.output_v4_slate {
-						args.target_slate_version = Some(3);
+						true
+					} else {
+						false
 					}
 				}
 				global::ChainTypes::Floonet => {
 					if cur_height < 552960 && !args.output_v4_slate {
-						args.target_slate_version = Some(3);
+						true
+					} else {
+						false
 					}
 				}
-				_ => {}
+				_ => false,
+			}
+		};
+
+		if is_pre_fork {
+			let trailing = match args.dest.ends_with('/') {
+				true => "",
+				false => "/",
+			};
+
+			let mut address_found = false;
+			// For sync methods, derive intended endpoint from dest
+			match SlatepackAddress::try_from(args.dest.as_str()) {
+				Ok(address) => {
+					let tor_addr = OnionV3Address::try_from(&address).unwrap();
+					// Try pinging the destination via TOR
+					debug!("Version ping: TOR address is: {}", tor_addr);
+					match HttpSlateSender::with_socks_proxy(
+						&tor_addr.to_http_str(),
+						&tor_config.as_ref().unwrap().socks_proxy_addr,
+						&tor_config.as_ref().unwrap().send_config_dir,
+					) {
+						Ok(mut sender) => {
+							let url_str =
+								format!("{}{}v2/foreign", tor_addr.to_http_str(), trailing);
+							if let Ok(v) = sender.check_other_version(&url_str) {
+								if v == SlateVersion::V3 {
+									args.target_slate_version = Some(3);
+								}
+								address_found = true;
+							}
+							tor_sender = Some(sender);
+						}
+						Err(e) => {
+							debug!(
+								"Version ping: Couldn't create slate sender for TOR: {:?}",
+								e
+							);
+						}
+					}
+				}
+				Err(e) => {
+					debug!("Version ping: Address is not SlatepackAddress: {:?}", e);
+				}
+			}
+
+			// now try http
+			if !address_found {
+				// Try pinging the destination via TOR
+				match HttpSlateSender::new(&args.dest) {
+					Ok(mut sender) => {
+						let url_str = format!("{}{}v2/foreign", args.dest, trailing);
+						match sender.check_other_version(&url_str) {
+							Ok(v) => {
+								if v == SlateVersion::V3 {
+									args.target_slate_version = Some(3);
+								}
+								address_found = true;
+							}
+							Err(e) => {
+								debug!(
+									"Version ping: Couldn't get other version for HTTP: {:?}",
+									e
+								);
+							}
+						}
+					}
+					Err(e) => {
+						debug!(
+							"Version ping: Couldn't create slate sender for HTTP: {:?}",
+							e
+						);
+					}
+				}
+			}
+
+			if !address_found {
+				// otherwise, determine slate format based on block height
+				// For files spit out a V3 Slate if we're before HF3,
+				// Or V4 slate otherwise
+				if is_pre_fork {
+					args.target_slate_version = Some(3);
+				}
 			}
 		}
-	}
-
-	return Ok(());
+	} // end pre HF3 Block
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
@@ -419,50 +437,8 @@ where
 				}
 			};
 
-			// First, try TOR
-			match SlatepackAddress::try_from(args.dest.as_str()) {
-				Ok(address) => {
-					let tor_addr = OnionV3Address::try_from(&address).unwrap();
-					// Try pinging the destination via TOR
-					match HttpSlateSender::with_socks_proxy(
-						&tor_addr.to_http_str(),
-						&tor_config.as_ref().unwrap().socks_proxy_addr,
-						&tor_config.as_ref().unwrap().send_config_dir,
-					) {
-						Ok(mut sender) => match sender.send_tx(&slate) {
-							Ok(s) => {
-								slate = s;
-								api.tx_lock_outputs(m, &slate)?;
-								slate = api.finalize_tx(m, &slate)?;
-								let result = api.post_tx(m, &slate, args.fluff);
-								match result {
-									Ok(_) => {
-										info!("Tx sent ok",);
-										return Ok(());
-									}
-									Err(e) => {
-										error!("Tx sent fail: {}", e);
-										return Err(e);
-									}
-								}
-							}
-							Err(e) => {
-								debug!("Send (TOR): Could not send Slate via TOR {}", e);
-							}
-						},
-						Err(e) => {
-							debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-						}
-					}
-				}
-				Err(e) => {
-					debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
-				}
-			}
-
-			// Now try Fallback to HTTP for now
-			match HttpSlateSender::new(&args.dest) {
-				Ok(mut sender) => match sender.send_tx(&slate) {
+			let mut send_sync =
+				|mut sender: HttpSlateSender, method_str: &str| match sender.send_tx(&slate) {
 					Ok(s) => {
 						slate = s;
 						api.tx_lock_outputs(m, &slate)?;
@@ -480,22 +456,114 @@ where
 						}
 					}
 					Err(e) => {
-						debug!("Send (HTTP): Could not send Slate via HTTP {}", e);
+						debug!(
+							"Send ({}): Could not send Slate via {}: {}",
+							method_str, method_str, e
+						);
+						return Err(e);
 					}
-				},
+				};
+
+			// First, try TOR
+			match SlatepackAddress::try_from(args.dest.as_str()) {
+				Ok(address) => {
+					let tor_addr = OnionV3Address::try_from(&address).unwrap();
+					// Try sending to the destination via TOR
+					let sender = match tor_sender {
+						None => {
+							match HttpSlateSender::with_socks_proxy(
+								&tor_addr.to_http_str(),
+								&tor_config.as_ref().unwrap().socks_proxy_addr,
+								&tor_config.as_ref().unwrap().send_config_dir,
+							) {
+								Ok(s) => Some(s),
+								Err(e) => {
+									debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
+									None
+								}
+							}
+						}
+						Some(s) => Some(s),
+					};
+					if let Some(s) = sender {
+						println!("Attempting to send transaction via TOR");
+						match send_sync(s, "TOR") {
+							Ok(_) => return Ok(()),
+							Err(e) => {
+								debug!("Unable to send via TOR: {}", e);
+								println!("Unable to send transaction via TOR. Attempting alternate methods.");
+							}
+						}
+					}
+				}
+				Err(e) => {
+					debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
+				}
+			}
+
+			// Try Fallback to HTTP for deprecation period
+			match HttpSlateSender::new(&args.dest) {
+				Ok(sender) => {
+					println!("Attempting to send transaction via HTTP (deprecated)");
+					match send_sync(sender, "HTTP") {
+						Ok(_) => return Ok(()),
+						Err(e) => {
+							debug!("Unable to send via TOR: {}", e);
+							println!("Unable to send transaction via HTTP. Will output Slatepack.");
+						}
+					}
+				}
 				Err(e) => {
 					debug!("Send (HTTP): Cannot create HTTP Slate sender {:?}", e);
 				}
 			}
 
-			// Otherwise, output as slatepack
-			let slatepack_message = api.create_slatepack_message(m, &slate, Some(0), vec![])?;
-			println!("{}", slatepack_message);
+			// Otherwise output slatepack
+			// create a directory to which files will be output
+			let slate_dir = format!("{}/{}", api.get_top_level_directory()?, "slatepack");
+			let _ = std::fs::create_dir_all(slate_dir.clone());
+			let out_file_name = format!("{}/{}_S1.slatepack", slate_dir, slate.id);
+			// TODO: Remove HF3
+			if is_pre_fork {
+				PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
+				api.tx_lock_outputs(m, &slate)?;
+				println!("Transaction file was output to {}", out_file_name);
+				println!("Please send this file to the recipient manually, and complete the transaction using the `grin-wallet finalize` command.");
+				return Ok(());
+			}
+			// Output the slatepack file to stdout and to a file
+			let address = match SlatepackAddress::try_from(args.dest.as_str()) {
+				Ok(a) => Some(a),
+				Err(_) => None,
+			};
+			// encrypt for recipient by default
+			let recipients = match address.clone() {
+				Some(a) => vec![a],
+				None => vec![],
+			};
+			let message = api.create_slatepack_message(m, &slate, Some(0), recipients)?;
+			let mut output = File::create(out_file_name.clone())?;
+			output.write_all(&message.as_bytes())?;
+			output.sync_all()?;
 
-			//let sp = PathToSlatepack::new(("temp.slatepack").into(), &packer, true);
-			//PathToSlatepack((&args.dest).into()).put_tx(&slate, false)?;
 			api.tx_lock_outputs(m, &slate)?;
-			return Ok(());
+
+			println!();
+			println!("Slatepack data follows. Please provide this output to the recipient, then finalize the result with 'grin-wallet finalize'");
+			println!();
+			println!("--- CUT BELOW THIS LINE ---");
+			println!();
+			println!("{}", message);
+			println!("--- CUT ABOVE THIS LINE ---");
+			println!();
+			println!("Slatepack data was also output to {}", out_file_name);
+			println!();
+			if address.is_some() {
+				println!("The slatepack data was encrypted for the recipient only");
+			} else {
+				println!("The slatepack data is NOT encrypted");
+			}
+			println!();
 		}
 		Ok(())
 	})?;

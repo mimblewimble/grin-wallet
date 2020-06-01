@@ -76,7 +76,7 @@ impl HttpSlateSender {
 				"{}{}{}",
 				&self.tor_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
 			);
-			warn!(
+			info!(
 				"Starting TOR Process for send at {:?}",
 				self.socks_proxy_addr
 			);
@@ -115,8 +115,8 @@ impl HttpSlateSender {
 				report = "Other wallet is incompatible and requires an upgrade. \
 				          Please urge the other wallet owner to upgrade and try the transaction again."
 					.to_string();
+				error!("{}", report);
 			}
-			error!("{}", report);
 			ErrorKind::ClientCallback(report)
 		})?;
 
@@ -220,7 +220,6 @@ impl SlateSender for HttpSlateSender {
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e
 			);
-			error!("{}", report);
 			ErrorKind::ClientCallback(report)
 		})?;
 
