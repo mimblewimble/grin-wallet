@@ -245,10 +245,7 @@ impl SlateSender for HttpSlateSender {
 			return Err(ErrorKind::ClientCallback(report).into());
 		}
 
-		let slate_value = match finalize {
-			false => res["result"]["Ok"][1].clone(),
-			true => res["result"]["Ok"].clone(),
-		};
+		let slate_value = res["result"]["Ok"].clone();
 
 		trace!("slate_value: {}", slate_value);
 		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())

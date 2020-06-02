@@ -392,27 +392,24 @@ pub trait OwnerRpc {
 		"id": 1,
 			"jsonrpc": "2.0",
 			"result": {
-				"Ok": [
-					false,
-					{
-						"amt": "6000000000",
-						"fee": "8000000",
-						"id": "0436430c-2b02-624c-2032-570501212b00",
-						"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
-						"proof": {
-							"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
-							"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
-						},
-						"sigs": [
-							{
-								"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
-								"xs": "Ajh4zoRXJ/Ok7HbKPz20s4otBdY2uMNjIQi4V/7WPJbe"
-							}
-						],
-						"sta": "S1",
-						"ver": "4:2"
-					}
-				]
+				"Ok": {
+					"amt": "6000000000",
+					"fee": "8000000",
+					"id": "0436430c-2b02-624c-2032-570501212b00",
+					"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
+					"proof": {
+						"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
+						"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
+					},
+					"sigs": [
+						{
+							"nonce": "AxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QeP",
+							"xs": "Ajh4zoRXJ/Ok7HbKPz20s4otBdY2uMNjIQi4V/7WPJbe"
+						}
+					],
+					"sta": "S1",
+					"ver": "4:2"
+				}
 			}
 		}
 		# "#
@@ -420,11 +417,7 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	fn init_send_tx(
-		&self,
-		token: Token,
-		args: InitTxArgs,
-	) -> Result<(bool, VersionedSlate), ErrorKind>;
+	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
 		Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
@@ -560,7 +553,7 @@ pub trait OwnerRpc {
 		token: Token,
 		slate: VersionedSlate,
 		args: InitTxArgs,
-	) -> Result<(bool, VersionedSlate), ErrorKind>;
+	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
 	Networked version of [Owner::tx_lock_outputs](struct.Owner.html#method.tx_lock_outputs).
@@ -1804,18 +1797,11 @@ where
 		.map_err(|e| e.kind())
 	}
 
-	fn init_send_tx(
-		&self,
-		token: Token,
-		args: InitTxArgs,
-	) -> Result<(bool, VersionedSlate), ErrorKind> {
-		let (sent_sync, slate) = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
+	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind> {
+		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok((
-			sent_sync,
-			VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?,
-		))
+		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn issue_invoice_tx(
@@ -1834,8 +1820,8 @@ where
 		token: Token,
 		in_slate: VersionedSlate,
 		args: InitTxArgs,
-	) -> Result<(bool, VersionedSlate), ErrorKind> {
-		let (sent_sync, out_slate) = Owner::process_invoice_tx(
+	) -> Result<VersionedSlate, ErrorKind> {
+		let out_slate = Owner::process_invoice_tx(
 			self,
 			(&token.keychain_mask).as_ref(),
 			&Slate::from(in_slate),
@@ -1843,10 +1829,7 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
-		Ok((
-			sent_sync,
-			VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?,
-		))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(

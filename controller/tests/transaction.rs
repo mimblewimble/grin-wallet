@@ -109,7 +109,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let (_, slate_i) = sender_api.init_send_tx(m, args)?;
+		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		assert_eq!(slate_i.state, SlateState::Standard1);
 
@@ -267,7 +267,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			estimate_only: Some(true),
 			..Default::default()
 		};
-		let (_, est) = sender_api.init_send_tx(m, init_args)?;
+		let est = sender_api.init_send_tx(m, init_args)?;
 		assert_eq!(est.amount, 600_000_000_000);
 		assert_eq!(est.fee, 4_000_000);
 
@@ -281,7 +281,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			estimate_only: Some(true),
 			..Default::default()
 		};
-		let (_, est) = sender_api.init_send_tx(m, init_args)?;
+		let est = sender_api.init_send_tx(m, init_args)?;
 		assert_eq!(est.amount, 180_000_000_000);
 		assert_eq!(est.fee, 6_000_000);
 
@@ -301,7 +301,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let (_, slate_i) = sender_api.init_send_tx(m, args)?;
+		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(m, &slate)?;
 		slate = sender_api.finalize_tx(m, &slate)?;
@@ -413,7 +413,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 
-		let (_, slate_i) = sender_api.init_send_tx(m, args)?;
+		let slate_i = sender_api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		sender_api.tx_lock_outputs(m, &slate)?;
 		slate = sender_api.finalize_tx(m, &slate)?;

@@ -97,7 +97,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 			payment_proof_recipient_address: address.clone(),
 			..Default::default()
 		};
-		let (_, slate_i) = sender_api.init_send_tx(m, args)?;
+		let slate_i = sender_api.init_send_tx(m, args)?;
 
 		assert_eq!(
 			slate_i.payment_proof.as_ref().unwrap().receiver_address,

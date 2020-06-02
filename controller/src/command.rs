@@ -410,7 +410,7 @@ where
 						estimate_only: Some(true),
 						..Default::default()
 					};
-					let (_, slate) = api.init_send_tx(m, init_args).unwrap();
+					let slate = api.init_send_tx(m, init_args).unwrap();
 					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
@@ -432,7 +432,7 @@ where
 			};
 			let result = api.init_send_tx(m, init_args);
 			slate = match result {
-				Ok((_, s)) => {
+				Ok(s) => {
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
 						core::amount_to_hr_string(args.amount, false),
@@ -569,12 +569,6 @@ where
 		println!("The slatepack data is NOT encrypted");
 	}
 	println!();
-	if lock {
-		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			api.tx_lock_outputs(m, &slate)?;
-			Ok(())
-		})?;
-	}
 	Ok(())
 }
 
@@ -682,7 +676,7 @@ where
 	};
 
 	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-		slate = api.receive_tx(&slate, Some(&g_args.account), None)?.1;
+		slate = api.receive_tx(&slate, Some(&g_args.account), None)?;
 		Ok(())
 	})?;
 
@@ -922,7 +916,7 @@ where
 						estimate_only: Some(true),
 						..Default::default()
 					};
-					let (_, slate) = api.init_send_tx(m, init_args).unwrap();
+					let slate = api.init_send_tx(m, init_args).unwrap();
 					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
@@ -942,7 +936,7 @@ where
 			};
 			let result = api.process_invoice_tx(m, &slate, init_args);
 			slate = match result {
-				Ok((_, s)) => {
+				Ok(s) => {
 					info!(
 						"Invoice processed: {} grin (strategy '{}')",
 						core::amount_to_hr_string(slate.amount, false),

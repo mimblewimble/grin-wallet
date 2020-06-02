@@ -165,7 +165,7 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_foreign = Foreign::new(wallet.clone(), None, None);
+	/// let api_foreign = Foreign::new(wallet.clone(), None, None, false);
 	/// // .. perform wallet operations
 	///
 	/// ```
@@ -208,7 +208,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
 	///
 	/// let version_info = api_foreign.check_version();
 	/// // check and proceed accordingly
@@ -260,7 +260,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
 	///
 	/// let block_fees = BlockFees {
 	///     fees: 800000,
@@ -316,6 +316,9 @@ where
 	/// excess value).
 	/// * `dest_acct_name` - The name of the account into which the slate should be received. If
 	/// `None`, the default account is used.
+	/// * `r_addr` - If included, attempt to send the slate back to the sender using the slatepack sync
+	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
+	/// sync_send was successful (it should be S3 if the synced send sent successfully).
 	///
 	/// # Returns
 	/// * a result containing:
@@ -332,12 +335,12 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
 	/// # let slate = Slate::blank(2, false);
 	///
 	/// // . . .
 	/// // Obtain a sent slate somehow
-	/// let result = api_foreign.receive_tx(&slate, None);
+	/// let result = api_foreign.receive_tx(&slate, None, None);
 	///
 	/// if let Ok(slate) = result {
 	///     // Send back to recipient somehow
@@ -350,7 +353,7 @@ where
 		slate: &Slate,
 		dest_acct_name: Option<&str>,
 		r_addr: Option<String>,
-	) -> Result<(bool, Slate), Error> {
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -379,11 +382,11 @@ where
 					self.doctest_mode,
 				);
 				match res {
-					Ok(s) => return Ok((true, s.unwrap())),
-					Err(_) => return Ok((false, ret_slate)),
+					Ok(s) => return Ok(s.unwrap()),
+					Err(_) => return Ok(ret_slate),
 				}
 			}
-			None => Ok((false, ret_slate)),
+			None => Ok(ret_slate),
 		}
 	}
 
@@ -416,7 +419,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_owner = Owner::new(wallet.clone(), None);
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
 	///
 	/// // . . .
 	/// // Issue the invoice tx via the owner API

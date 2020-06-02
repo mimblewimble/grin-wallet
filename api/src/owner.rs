@@ -592,9 +592,10 @@ where
 	///
 	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
 	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
-	/// function will attempt to perform a synchronous send to the recipient specified in the `dest`
-	/// field according to the `method` field, and will also finalize and post the transaction if
-	/// the `finalize` field is set.
+	/// function will attempt to send the slate back to the sender using the slatepack sync
+	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
+	/// sync_send was successful (it should be S2 if the sync sent successfully). It will also post
+	/// the transction if the `post_tx` field is set.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
@@ -652,7 +653,7 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		args: InitTxArgs,
-	) -> Result<(bool, Slate), Error> {
+	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
@@ -681,7 +682,7 @@ where
 							match result {
 								Ok(_) => {
 									info!("Tx sent ok",);
-									return Ok((true, ret_slate));
+									return Ok(ret_slate);
 								}
 								Err(e) => {
 									error!("Tx sent fail: {}", e);
@@ -689,14 +690,14 @@ where
 								}
 							}
 						} else {
-							return Ok((false, slate));
+							return Ok(slate);
 						}
 					}
-					Ok(None) => Ok((false, slate)),
-					Err(_) => Ok((false, slate)),
+					Ok(None) => Ok(slate),
+					Err(_) => Ok(slate),
 				}
 			}
-			None => Ok((false, slate)),
+			None => Ok(slate),
 		}
 	}
 
@@ -756,6 +757,12 @@ where
 	/// it is up to the caller to present the request for payment to the user
 	/// and verify that payment should go ahead.
 	///
+	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
+	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
+	/// function will attempt to send the slate back to the initiator using the slatepack sync
+	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
+	/// sync_send was successful (it should be I3 if the sync sent successfully).
+	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
@@ -805,7 +812,7 @@ where
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
 		args: InitTxArgs,
-	) -> Result<(bool, Slate), Error> {
+	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let send_args = args.send_args.clone();
@@ -824,11 +831,11 @@ where
 					self.doctest_mode,
 				);
 				match res {
-					Ok(s) => Ok((true, s.unwrap())),
-					Err(_) => Ok((false, slate)),
+					Ok(s) => Ok(s.unwrap()),
+					Err(_) => Ok(slate),
 				}
 			}
-			None => Ok((false, slate)),
+			None => Ok(slate),
 		}
 	}
 

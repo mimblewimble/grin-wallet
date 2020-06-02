@@ -184,7 +184,7 @@ pub trait ForeignRpc {
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
 		dest: Option<String>,
-	) -> Result<(bool, VersionedSlate), ErrorKind>;
+	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
 
@@ -304,20 +304,17 @@ where
 		in_slate: VersionedSlate,
 		dest_acct_name: Option<String>,
 		dest: Option<String>,
-	) -> Result<(bool, VersionedSlate), ErrorKind> {
+	) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
-		let (sent_sync, out_slate) = Foreign::receive_tx(
+		let out_slate = Foreign::receive_tx(
 			self,
 			&slate_from,
 			dest_acct_name.as_ref().map(String::as_str),
 			dest,
 		)
 		.map_err(|e| e.kind())?;
-		Ok((
-			sent_sync,
-			VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?,
-		))
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {

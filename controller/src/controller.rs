@@ -60,12 +60,12 @@ fn check_middleware(
 		// allow coinbases to be built regardless
 		ForeignCheckMiddlewareFn::BuildCoinbase => Ok(()),
 		_ => {
-			let mut bhv = 2;
+			let mut bhv = 3;
 			if let Some(n) = node_version_info {
 				bhv = n.block_header_version;
 			}
 			if let Some(s) = slate {
-				if bhv > 3 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
+				if bhv > 4 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
 					Err(ErrorKind::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
 						 Please upgrade the node or use a different one."

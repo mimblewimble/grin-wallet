@@ -186,6 +186,8 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"10",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	let arg_vec = vec!["grin-wallet", "-a", "mining", "-p", "password1", "txs"];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 	let arg_vec = vec![
 		"grin-wallet",
