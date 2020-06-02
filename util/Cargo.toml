@@ -18,12 +18,12 @@ data-encoding = "2"
 sha3 = "0.8"
 
 # For Release
-grin_core = "3.1.0"
-grin_keychain = "3.1.0"
-grin_chain = "3.1.0"
-grin_util = "3.1.0"
-grin_api = "3.1.0"
-grin_store = "3.1.0"
+grin_core = "3.1.1"
+grin_keychain = "3.1.1"
+grin_chain = "3.1.1"
+grin_util = "3.1.1"
+grin_api = "3.1.1"
+grin_store = "3.1.1"
 
 # For beta release
 
