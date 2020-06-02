@@ -212,7 +212,7 @@ where
 	let api_handler_v3 = OwnerAPIHandlerV3::new(
 		wallet.clone(),
 		keychain_mask.clone(),
-		tor_config,
+		tor_config.clone(),
 		running_foreign,
 	);
 
@@ -223,7 +223,8 @@ where
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
+		let foreign_api_handler_v2 =
+			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
@@ -252,6 +253,7 @@ pub fn foreign_listener<L, C, K>(
 	tls_config: Option<TLSConfig>,
 	use_tor: bool,
 	test_mode: bool,
+	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -278,7 +280,8 @@ where
 		false => (None, None),
 	};
 
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
+	let api_handler_v2 =
+		ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
 	let mut router = Router::new();
 
 	router
@@ -679,6 +682,8 @@ where
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	/// run in doctest mode
 	pub test_mode: bool,
+	/// tor config
+	pub tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -692,11 +697,13 @@ where
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
+		tor_config: Mutex<Option<TorConfig>>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
 			keychain_mask,
 			test_mode,
+			tor_config,
 		}
 	}
 
@@ -720,8 +727,10 @@ where
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		test_mode: bool,
+		tor_config: Option<TorConfig>,
 	) -> Result<Response<Body>, Error> {
 		let api = Foreign::new(wallet, mask, Some(check_middleware), test_mode);
+		api.set_tor_config(tor_config);
 		let res = Self::call_api(req, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -737,9 +746,10 @@ where
 		let mask = self.keychain_mask.lock().clone();
 		let wallet = self.wallet.clone();
 		let test_mode = self.test_mode;
+		let tor_config = self.tor_config.lock().clone();
 
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet, test_mode).await {
+			match Self::handle_post_request(req, mask, wallet, test_mode, tor_config).await {
 				Ok(v) => Ok(v),
 				Err(e) => {
 					error!("Request Error: {:?}", e);

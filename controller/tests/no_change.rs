@@ -88,7 +88,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: false,
 			..Default::default()
 		};
-		slate = api.init_send_tx(m, args)?;
+		slate = api.init_send_tx(m, args)?.1;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(m, &slate)?;
 		slate = api.finalize_tx(m, &slate)?;
@@ -150,7 +150,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: false,
 			..Default::default()
 		};
-		slate = api.process_invoice_tx(m, &slate, args)?;
+		slate = api.process_invoice_tx(m, &slate, args)?.1;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;

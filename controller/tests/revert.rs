@@ -166,7 +166,7 @@ fn revert(
 			selection_strategy_is_use_all: false,
 			..Default::default()
 		};
-		let slate = api.init_send_tx(m, args)?;
+		let (_, slate) = api.init_send_tx(m, args)?;
 		// output tx file
 		let send_file = format!("{}/part_tx_1.tx", test_dir);
 		PathToSlate(send_file.into()).put_tx(&slate, false)?;

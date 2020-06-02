@@ -19,8 +19,8 @@ use crate::apiwallet::Owner;
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
+use crate::impls::SlateGetter as _;
 use crate::impls::{HttpSlateSender, PathToSlate, PathToSlatepack, SlatePutter};
-use crate::impls::{SlateGetter as _, SlateSender as _};
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
@@ -149,6 +149,7 @@ where
 				g_args.tls_conf.clone(),
 				tor_config.use_tor_listener,
 				test_mode,
+				Some(tor_config.clone()),
 			);
 			if let Err(e) = res {
 				error!("Error starting listener: {}", e);
@@ -408,7 +409,7 @@ where
 						estimate_only: Some(true),
 						..Default::default()
 					};
-					let slate = api.init_send_tx(m, init_args).unwrap();
+					let (_, slate) = api.init_send_tx(m, init_args).unwrap();
 					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
@@ -430,7 +431,7 @@ where
 			};
 			let result = api.init_send_tx(m, init_args);
 			slate = match result {
-				Ok(s) => {
+				Ok((_, s)) => {
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
 						core::amount_to_hr_string(args.amount, false),
@@ -488,105 +489,26 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let test_mode = owner_api.doctest_mode;
-	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
-		.send_tx(&slate, send_finalize)
-	{
-		Ok(s) => controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			if !send_finalize {
-				api.tx_lock_outputs(m, &s)?;
-				let ret_slate = api.finalize_tx(m, &s)?;
-				let result = api.post_tx(m, &ret_slate, fluff);
-				match result {
-					Ok(_) => {
-						info!("Tx sent ok",);
-						return Ok(());
-					}
-					Err(e) => {
-						error!("Tx sent fail: {}", e);
-						return Err(e);
-					}
-				}
-			} else {
-				return Ok(());
-			}
-		}),
-		Err(e) => {
-			debug!(
-				"Send ({}): Could not send Slate via {}: {}",
-				method_str, method_str, e
-			);
-			return Err(e);
+	let mut sent = false;
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let res = Owner::try_slatepack_sync_workflow(
+			Some(api),
+			m,
+			&slate,
+			dest,
+			fluff,
+			tor_config,
+			tor_sender,
+			send_finalize,
+			true,
+		);
+		match res {
+			Ok(_) => sent = true,
+			Err(_) => sent = false,
 		}
-	};
-
-	// First, try TOR
-	match SlatepackAddress::try_from(dest) {
-		Ok(address) => {
-			let tor_addr = OnionV3Address::try_from(&address).unwrap();
-			// Try sending to the destination via TOR
-			let sender = match tor_sender {
-				None => {
-					if test_mode {
-						None
-					} else {
-						match HttpSlateSender::with_socks_proxy(
-							&tor_addr.to_http_str(),
-							&tor_config.as_ref().unwrap().socks_proxy_addr,
-							&tor_config.as_ref().unwrap().send_config_dir,
-						) {
-							Ok(s) => Some(s),
-							Err(e) => {
-								debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-								None
-							}
-						}
-					}
-				}
-				Some(s) => {
-					if test_mode {
-						None
-					} else {
-						Some(s)
-					}
-				}
-			};
-			if let Some(s) = sender {
-				println!("Attempting to send transaction via TOR");
-				match send_sync(s, "TOR") {
-					Ok(_) => return Ok(true),
-					Err(e) => {
-						debug!("Unable to send via TOR: {}", e);
-						println!(
-							"Unable to send transaction via TOR. Attempting alternate methods."
-						);
-					}
-				}
-			}
-		}
-		Err(e) => {
-			debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
-		}
-	}
-
-	// Try Fallback to HTTP for deprecation period
-	match HttpSlateSender::new(&dest) {
-		Ok(sender) => {
-			println!("Attempting to send transaction via HTTP (deprecated)");
-			match send_sync(sender, "HTTP") {
-				Ok(_) => return Ok(true),
-				Err(e) => {
-					debug!("Unable to send via TOR: {}", e);
-					println!("Unable to send transaction via HTTP. Will output Slatepack.");
-					return Ok(false);
-				}
-			}
-		}
-		Err(e) => {
-			debug!("Send (HTTP): Cannot create HTTP Slate sender {:?}", e);
-			return Ok(false);
-		}
-	}
+		Ok(())
+	})?;
+	Ok(sent)
 }
 
 pub fn output_slatepack<L, C, K>(
@@ -776,7 +698,7 @@ where
 	};
 
 	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-		slate = api.receive_tx(&slate, Some(&g_args.account))?;
+		slate = api.receive_tx(&slate, Some(&g_args.account), None)?.1;
 		Ok(())
 	})?;
 
@@ -1013,7 +935,7 @@ where
 						estimate_only: Some(true),
 						..Default::default()
 					};
-					let slate = api.init_send_tx(m, init_args).unwrap();
+					let (_, slate) = api.init_send_tx(m, init_args).unwrap();
 					(strategy, slate.amount, slate.fee)
 				})
 				.collect();
@@ -1033,7 +955,7 @@ where
 			};
 			let result = api.process_invoice_tx(m, &slate, init_args);
 			slate = match result {
-				Ok(s) => {
+				Ok((_, s)) => {
 					info!(
 						"Invoice processed: {} grin (strategy '{}')",
 						core::amount_to_hr_string(slate.amount, false),

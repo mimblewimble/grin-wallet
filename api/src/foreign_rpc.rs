@@ -185,7 +185,8 @@ pub trait ForeignRpc {
 		dest_acct_name: Option<String>,
 		//TODO: Remove post-HF3
 		message: Option<String>,
-	) -> Result<VersionedSlate, ErrorKind>;
+		dest: Option<String>,
+	) -> Result<(bool, VersionedSlate), ErrorKind>;
 
 	/**
 
@@ -306,16 +307,21 @@ where
 		dest_acct_name: Option<String>,
 		//TODO: Remove post HF3
 		_message: Option<String>,
-	) -> Result<VersionedSlate, ErrorKind> {
+		dest: Option<String>,
+	) -> Result<(bool, VersionedSlate), ErrorKind> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
-		let out_slate = Foreign::receive_tx(
+		let (sent_sync, out_slate) = Foreign::receive_tx(
 			self,
 			&slate_from,
 			dest_acct_name.as_ref().map(String::as_str),
+			dest,
 		)
 		.map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok((
+			sent_sync,
+			VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?,
+		))
 	}
 
 	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {

@@ -198,7 +198,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let mut slate = api.init_send_tx(m, args)?;
+		let (_, mut slate) = api.init_send_tx(m, args)?;
 		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		api.tx_lock_outputs(m, &slate)?;
 		slate = api.finalize_tx(m, &slate)?;

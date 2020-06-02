@@ -80,12 +80,8 @@ pub struct InitTxArgs {
 /// in one go
 #[derive(Clone, Serialize, Deserialize)]
 pub struct InitTxSendArgs {
-	/// The transaction method. Can currently be 'http' or 'keybase'.
-	pub method: String,
 	/// The destination, contents will depend on the particular method
 	pub dest: String,
-	/// Whether to finalize the result immediately if the send was successful
-	pub finalize: bool,
 	/// Whether to post the transasction if the send and finalize were successful
 	pub post_tx: bool,
 	/// Whether to use dandelion when posting. If false, skip the dandelion relay

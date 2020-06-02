@@ -119,7 +119,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		slate = api.process_invoice_tx(m, &slate, args)?;
+		slate = api.process_invoice_tx(m, &slate, args)?.1;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;
@@ -190,7 +190,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			..Default::default()
 		};
 		println!("Self invoice slate init: {}", slate);
-		slate = api.process_invoice_tx(m, &slate, args)?;
+		slate = api.process_invoice_tx(m, &slate, args)?.1;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
 	})?;

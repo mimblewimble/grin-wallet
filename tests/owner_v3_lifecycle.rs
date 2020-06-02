@@ -397,9 +397,8 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			};
 			let res = api.process_invoice_tx(m, &slate, args);
 			assert!(res.is_ok());
-			slate = res.unwrap();
+			slate = res.unwrap().1;
 			api.tx_lock_outputs(m, &slate)?;
-
 			Ok(())
 		},
 	)?;

@@ -212,7 +212,7 @@ fn slatepack_exchange_test_impl(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api.init_send_tx(m, args)?;
+		let (_, slate) = api.init_send_tx(m, args)?;
 		// output tx file
 		output_slatepack(
 			&slate,
@@ -237,7 +237,7 @@ fn slatepack_exchange_test_impl(
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?.1;
 		output_slatepack(
 			&slate,
 			&receive_file,
@@ -332,7 +332,7 @@ fn slatepack_exchange_test_impl(
 		let res = slate_from_packed(&send_file, use_armored, (&dec_key_1).as_ref())?;
 		slatepack = res.0;
 		slate = res.1;
-		slate = api.process_invoice_tx(m, &slate, args)?;
+		slate = api.process_invoice_tx(m, &slate, args)?.1;
 		api.tx_lock_outputs(m, &slate)?;
 		output_slatepack(
 			&slate,
@@ -394,7 +394,7 @@ fn slatepack_exchange_test_impl(
 			payment_proof_recipient_address: address.clone(),
 			..Default::default()
 		};
-		let slate = api.init_send_tx(m, args)?;
+		let (_, slate) = api.init_send_tx(m, args)?;
 		output_slatepack(
 			&slate,
 			&send_file,
@@ -411,7 +411,7 @@ fn slatepack_exchange_test_impl(
 		let res = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
 		slatepack = res.0;
 		slate = res.1;
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?.1;
 		output_slatepack(
 			&slate,
 			&receive_file,
@@ -491,7 +491,7 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api.init_send_tx(m, args)?;
+		let (_, slate) = api.init_send_tx(m, args)?;
 		// create an encrypted slatepack (just encrypted for self)
 		let enc_addr = api.get_slatepack_address(m, 0)?;
 		let slatepack = api.create_slatepack_message(m, &slate, Some(0), vec![enc_addr])?;

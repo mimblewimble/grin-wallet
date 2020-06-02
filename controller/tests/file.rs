@@ -126,7 +126,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api.init_send_tx(m, args)?;
+		let (_, slate) = api.init_send_tx(m, args)?;
 		// output tx file
 		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
 		api.tx_lock_outputs(m, &slate)?;
@@ -143,7 +143,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?.1;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
@@ -218,7 +218,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 			..Default::default()
 		};
 		slate = PathToSlate((&send_file).into()).get_tx()?.0;
-		slate = api.process_invoice_tx(m, &slate, args)?;
+		slate = api.process_invoice_tx(m, &slate, args)?.1;
 		api.tx_lock_outputs(m, &slate)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
@@ -268,7 +268,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 			payment_proof_recipient_address: address.clone(),
 			..Default::default()
 		};
-		let slate = api.init_send_tx(m, args)?;
+		let (_, slate) = api.init_send_tx(m, args)?;
 		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
 		api.tx_lock_outputs(m, &slate)?;
 		Ok(())
@@ -276,7 +276,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		slate = PathToSlate((&send_file).into()).get_tx()?.0;
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?.1;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;

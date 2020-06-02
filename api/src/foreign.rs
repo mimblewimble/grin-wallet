@@ -14,14 +14,16 @@
 
 //! Foreign API External Definition
 
+use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
-	WalletLCProvider,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, VersionInfo,
+	WalletInst, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
+use crate::Owner;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -72,6 +74,9 @@ where
 	middleware: Option<ForeignCheckMiddleware>,
 	/// Stored keychain mask (in case the stored wallet seed is tokenized)
 	keychain_mask: Option<SecretKey>,
+	/// Optional TOR configuration, holding address of sender and
+	/// data directory
+	tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<'a, L, C, K> Foreign<'a, L, C, K>
@@ -176,7 +181,21 @@ where
 			doctest_mode,
 			middleware,
 			keychain_mask,
+			tor_config: Mutex::new(None),
 		}
+	}
+
+	/// Set the TOR configuration for this instance of the ForeignAPI, used during
+	/// `recieve_tx` when a return address is specified
+	///
+	/// # Arguments
+	/// * `tor_config` - The optional [TorConfig](#) to use
+	/// # Returns
+	/// * Nothing
+
+	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
+		let mut lock = self.tor_config.lock();
+		*lock = tor_config;
 	}
 
 	/// Return the version capabilities of the running ForeignApi Node
@@ -326,7 +345,12 @@ where
 	/// }
 	/// ```
 
-	pub fn receive_tx(&self, slate: &Slate, dest_acct_name: Option<&str>) -> Result<Slate, Error> {
+	pub fn receive_tx(
+		&self,
+		slate: &Slate,
+		dest_acct_name: Option<&str>,
+		r_addr: Option<String>,
+	) -> Result<(bool, Slate), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -336,13 +360,36 @@ where
 				Some(slate),
 			)?;
 		}
-		foreign::receive_tx(
+		let ret_slate = foreign::receive_tx(
 			&mut **w,
 			(&self.keychain_mask).as_ref(),
 			slate,
 			dest_acct_name,
 			self.doctest_mode,
-		)
+		)?;
+		match r_addr {
+			Some(a) => {
+				let tor_config_lock = self.tor_config.lock();
+				/*let owner = Owner::new(self.wallet_inst.clone(), None);
+				let res = Owner::<L, C, K>::try_slatepack_sync_workflow(
+					None,
+					None,
+					&ret_slate,
+					&a,
+					true,
+					tor_config_lock.clone(),
+					None,
+					true,
+					false,
+				);
+				match res {
+					Ok(s) => Ok((true, s.unwrap())),
+					Err(_) => Ok((false, ret_slate)),
+				}*/
+				Ok((false, ret_slate))
+			}
+			None => Ok((false, ret_slate)),
+		}
 	}
 
 	/// Finalizes a (standard or invoice) transaction initiated by this wallet's Owner api.
