@@ -220,6 +220,39 @@ fn prompt_pay_invoice(slate: &Slate, dest: &str) -> Result<bool, ParseError> {
 	}
 }
 
+fn prompt_deprecate_http() -> Result<bool, ParseError> {
+	let interface = Arc::new(Interface::new("http")?);
+	interface.set_report_signal(Signal::Interrupt, true);
+	interface.set_prompt("To proceed, type 'UNDERSTOOD' > ")?;
+	println!();
+	println!("Http(s) is being deprecated in favour of the Slatepack Workflow");
+	println!("This sending method is planned for removal as of the last scheduled Hardfork in Grin 5.0.0");
+	println!("Please see https://github.com/mimblewimble/grin-rfcs/pull/55 for details");
+	loop {
+		let res = interface.read_line()?;
+		match res {
+			ReadResult::Eof => return Ok(false),
+			ReadResult::Signal(sig) => {
+				if sig == Signal::Interrupt {
+					interface.cancel_read_line()?;
+					return Err(ParseError::CancelledError);
+				}
+			}
+			ReadResult::Input(line) => match line.trim() {
+				"Q" | "q" => return Err(ParseError::CancelledError),
+				result => {
+					if result == "UNDERSTOOD" {
+						return Ok(true);
+					} else {
+						println!("Please enter the phrase 'UNDERSTOOD' (without quotes) to continue or Q to quit");
+						println!();
+					}
+				}
+			},
+		}
+	}
+}
+
 // instantiate wallet (needed by most functions)
 
 pub fn inst_wallet<L, C, K>(
@@ -437,6 +470,10 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		Some(d) => d,
 		None => "default",
 	};
+
+	if dest.to_uppercase().starts_with("HTTP") {
+		prompt_deprecate_http()?;
+	}
 
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
