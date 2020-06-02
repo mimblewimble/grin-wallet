@@ -18,12 +18,12 @@ use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, VersionInfo,
-	WalletInst, WalletLCProvider,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
+	WalletLCProvider,
 };
+use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
-use crate::Owner;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -370,23 +370,18 @@ where
 		match r_addr {
 			Some(a) => {
 				let tor_config_lock = self.tor_config.lock();
-				/*let owner = Owner::new(self.wallet_inst.clone(), None);
-				let res = Owner::<L, C, K>::try_slatepack_sync_workflow(
-					None,
-					None,
+				let res = try_slatepack_sync_workflow(
 					&ret_slate,
 					&a,
-					true,
 					tor_config_lock.clone(),
 					None,
 					true,
-					false,
+					self.doctest_mode,
 				);
 				match res {
-					Ok(s) => Ok((true, s.unwrap())),
-					Err(_) => Ok((false, ret_slate)),
-				}*/
-				Ok((false, ret_slate))
+					Ok(s) => return Ok((true, s.unwrap())),
+					Err(_) => return Ok((false, ret_slate)),
+				}
 			}
 			None => Ok((false, ret_slate)),
 		}

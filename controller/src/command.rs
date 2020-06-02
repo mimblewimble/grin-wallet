@@ -15,7 +15,7 @@
 //! Grin wallet command-line function implementations
 
 use crate::api::TLSConfig;
-use crate::apiwallet::Owner;
+use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
@@ -267,6 +267,7 @@ pub fn send<L, C, K>(
 	tor_config: Option<TorConfig>,
 	args: SendArgs,
 	dark_scheme: bool,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -449,66 +450,41 @@ where
 		Ok(())
 	})?;
 
-	if let Ok(false) = send_tx_sync(
-		owner_api,
-		keychain_mask,
-		&slate,
-		&args.dest,
-		args.fluff,
-		tor_config,
-		tor_sender,
-		false,
-	) {
-		output_slatepack(
-			owner_api,
-			keychain_mask,
-			&slate,
-			args.dest.as_str(),
-			true,
-			false,
-			is_pre_fork,
-		)?;
-	}
+	let res =
+		try_slatepack_sync_workflow(&slate, &args.dest, tor_config, tor_sender, false, test_mode);
 
-	Ok(())
-}
-
-// attempt to send slate synchronously, starting with TOR and downgrading to HTTP
-pub fn send_tx_sync<L, C, K>(
-	owner_api: &mut Owner<L, C, K>,
-	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
-	dest: &str,
-	fluff: bool,
-	tor_config: Option<TorConfig>,
-	tor_sender: Option<HttpSlateSender>,
-	send_finalize: bool,
-) -> Result<bool, libwallet::Error>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: keychain::Keychain + 'static,
-{
-	let mut sent = false;
-	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		let res = Owner::try_slatepack_sync_workflow(
-			Some(api),
-			m,
-			&slate,
-			dest,
-			fluff,
-			tor_config,
-			tor_sender,
-			send_finalize,
-			true,
-		);
-		match res {
-			Ok(_) => sent = true,
-			Err(_) => sent = false,
+	match res {
+		Ok(Some(s)) => {
+			controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+				api.tx_lock_outputs(m, &s)?;
+				let ret_slate = api.finalize_tx(m, &s)?;
+				let result = api.post_tx(m, &ret_slate, args.fluff);
+				match result {
+					Ok(_) => {
+						println!("Tx sent successfully",);
+						Ok(())
+					}
+					Err(e) => {
+						error!("Tx sent fail: {}", e);
+						Err(e.into())
+					}
+				}
+			})?;
 		}
-		Ok(())
-	})?;
-	Ok(sent)
+		Ok(None) => {
+			output_slatepack(
+				owner_api,
+				keychain_mask,
+				&slate,
+				args.dest.as_str(),
+				true,
+				false,
+				is_pre_fork,
+			)?;
+		}
+		Err(e) => return Err(e.into()),
+	}
+	Ok(())
 }
 
 pub fn output_slatepack<L, C, K>(
@@ -548,6 +524,13 @@ where
 	let slate_dir = format!("{}/{}", tld, "slatepack");
 	let _ = std::fs::create_dir_all(slate_dir.clone());
 	let out_file_name = format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state);
+
+	if lock {
+		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+			api.tx_lock_outputs(m, &slate)?;
+			Ok(())
+		})?;
+	}
 
 	// TODO: Remove HF3
 	if is_pre_fork || file_only {
@@ -679,6 +662,7 @@ pub fn receive<L, C, K>(
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 	tor_config: Option<TorConfig>,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K>,
@@ -707,36 +691,32 @@ where
 		None => String::from(""),
 	};
 
-	let sent_sync = send_tx_sync(
-		owner_api,
-		keychain_mask,
-		&slate,
-		&dest,
-		false,
-		tor_config,
-		None,
-		true,
-	)?;
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
 
-	if !sent_sync {
-		output_slatepack(
-			owner_api,
-			keychain_mask,
-			&slate,
-			&dest,
-			false,
-			false,
-			slate.version_info.version < 4,
-		)?;
-	} else {
-		println!();
-		println!(
-			"Transaction recieved and sent back to sender at {} for finalization.",
-			dest
-		);
-		println!();
+	match res {
+		Ok(Some(_)) => {
+			println!();
+			println!(
+				"Transaction recieved and sent back to sender at {} for finalization.",
+				dest
+			);
+			println!();
+			Ok(())
+		}
+		Ok(None) => {
+			output_slatepack(
+				owner_api,
+				keychain_mask,
+				&slate,
+				&dest,
+				false,
+				false,
+				slate.version_info.version < 4,
+			)?;
+			Ok(())
+		}
+		Err(e) => Err(e.into()),
 	}
-	Ok(())
 }
 
 /// Finalize command args
@@ -872,9 +852,15 @@ where
 		}
 	};
 
+	let mut issue_args = args.issue_args.clone();
+
+	if is_pre_fork {
+		issue_args.target_slate_version = Some(3);
+	}
+
 	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		slate = api.issue_invoice_tx(m, args.issue_args.clone())?;
+		slate = api.issue_invoice_tx(m, issue_args)?;
 		Ok(())
 	})?;
 
@@ -908,6 +894,7 @@ pub fn process_invoice<L, C, K>(
 	tor_config: Option<TorConfig>,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -972,29 +959,34 @@ where
 		Ok(())
 	})?;
 
-	if let Ok(false) = send_tx_sync(
-		owner_api,
-		keychain_mask,
-		&slate,
-		&dest,
-		false,
-		tor_config,
-		None,
-		true,
-	) {
-		output_slatepack(
-			owner_api,
-			keychain_mask,
-			&slate,
-			&dest,
-			true,
-			false,
-			slate.version_info.version < 4,
-		)?;
-	}
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
 
-	Ok(())
+	match res {
+		Ok(Some(_)) => {
+			println!();
+			println!(
+				"Transaction paid and sent back to initiator at {} for finalization.",
+				dest
+			);
+			println!();
+			Ok(())
+		}
+		Ok(None) => {
+			output_slatepack(
+				owner_api,
+				keychain_mask,
+				&slate,
+				&dest,
+				true,
+				false,
+				slate.version_info.version < 4,
+			)?;
+			Ok(())
+		}
+		Err(e) => Err(e.into()),
+	}
 }
+
 /// Info command args
 pub struct InfoArgs {
 	pub minimum_confirmations: u64,
@@ -1122,8 +1114,10 @@ where
 }
 
 /// Post
+#[derive(Clone)]
 pub struct PostArgs {
-	pub input: String,
+	pub input_file: Option<String>,
+	pub input_slatepack_message: Option<String>,
 	pub fluff: bool,
 }
 
@@ -1137,10 +1131,16 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let slate = PathToSlate((&args.input).into()).get_tx()?.0;
+	let (slate, _ret_address) = parse_slatepack(
+		owner_api,
+		keychain_mask,
+		args.input_file,
+		args.input_slatepack_message,
+	)?;
 
+	let fluff = args.fluff;
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		api.post_tx(m, &slate, args.fluff)?;
+		api.post_tx(m, &slate, fluff)?;
 		info!("Posted transaction");
 		return Ok(());
 	})?;

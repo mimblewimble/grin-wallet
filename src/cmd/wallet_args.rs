@@ -740,12 +740,31 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 }
 
 pub fn parse_post_args(args: &ArgMatches) -> Result<command::PostArgs, ParseError> {
-	let tx_file = parse_required(args, "input")?;
 	let fluff = args.is_present("fluff");
 
+	// input file
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
+		false => None,
+	};
+
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
 	Ok(command::PostArgs {
-		input: tx_file.to_owned(),
-		fluff: fluff,
+		input_file,
+		input_slatepack_message,
+		fluff,
 	})
 }
 
@@ -1064,6 +1083,7 @@ where
 				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
+				test_mode,
 			)
 		}
 		("receive", Some(args)) => {
@@ -1074,6 +1094,7 @@ where
 				&global_wallet_args,
 				a,
 				Some(tor_config.clone()),
+				test_mode,
 			)
 		}
 		("finalize", Some(args)) => {
@@ -1097,6 +1118,7 @@ where
 				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
+				test_mode,
 			)
 		}
 		("info", Some(args)) => {

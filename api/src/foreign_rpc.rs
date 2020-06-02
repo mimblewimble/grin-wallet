@@ -183,8 +183,6 @@ pub trait ForeignRpc {
 		&self,
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
-		//TODO: Remove post-HF3
-		message: Option<String>,
 		dest: Option<String>,
 	) -> Result<(bool, VersionedSlate), ErrorKind>;
 
@@ -305,8 +303,6 @@ where
 		&self,
 		in_slate: VersionedSlate,
 		dest_acct_name: Option<String>,
-		//TODO: Remove post HF3
-		_message: Option<String>,
 		dest: Option<String>,
 	) -> Result<(bool, VersionedSlate), ErrorKind> {
 		let version = in_slate.version();
