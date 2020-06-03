@@ -292,7 +292,7 @@ impl Client {
 			let auth = format!("{}:{}", addr.ip(), addr.port());
 
 			let https = hyper_rustls::HttpsConnector::new();
-			let socks = hyper_socks2::SocksConnector {
+			let socks = hyper_socks2_mw::SocksConnector {
 				proxy_addr: hyper::Uri::builder()
 					.scheme("socks5")
 					.authority(auth.as_str())
