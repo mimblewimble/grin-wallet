@@ -161,6 +161,21 @@ pub enum SlateState {
 	Invoice3,
 }
 
+impl fmt::Display for SlateState {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let res = match self {
+			SlateState::Unknown => "UN",
+			SlateState::Standard1 => "S1",
+			SlateState::Standard2 => "S2",
+			SlateState::Standard3 => "S3",
+			SlateState::Invoice1 => "I1",
+			SlateState::Invoice2 => "I2",
+			SlateState::Invoice3 => "I3",
+		};
+		write!(f, "{}", res)
+	}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Kernel features arguments definition
 pub struct KernelFeaturesArgs {

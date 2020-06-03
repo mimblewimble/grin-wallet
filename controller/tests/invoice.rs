@@ -128,7 +128,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// wallet 2 finalizes and posts
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&slate)?;
+		slate = api.finalize_tx(&slate, false)?;
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Invoice3);
@@ -200,7 +200,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// wallet 1 finalizes and posts
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
-		slate = api.finalize_invoice_tx(&slate)?;
+		slate = api.finalize_tx(&slate, false)?;
 		Ok(())
 	})?;
 

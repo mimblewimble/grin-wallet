@@ -21,6 +21,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::path::MAIN_SEPARATOR;
+use std::sync::Arc;
 
 use crate::tor::config as tor_config;
 use crate::tor::process as tor_process;
@@ -33,6 +34,7 @@ pub struct HttpSlateSender {
 	use_socks: bool,
 	socks_proxy_addr: Option<SocketAddr>,
 	tor_config_dir: String,
+	process: Option<Arc<tor_process::TorProcess>>,
 }
 
 impl HttpSlateSender {
@@ -46,6 +48,7 @@ impl HttpSlateSender {
 				use_socks: false,
 				socks_proxy_addr: None,
 				tor_config_dir: String::from(""),
+				process: None,
 			})
 		}
 	}
@@ -64,8 +67,39 @@ impl HttpSlateSender {
 		Ok(ret)
 	}
 
+	/// launch TOR process
+	pub fn launch_tor(&mut self) -> Result<(), Error> {
+		// set up tor send process if needed
+		let mut tor = tor_process::TorProcess::new();
+		if self.use_socks && self.process.is_none() {
+			let tor_dir = format!(
+				"{}{}{}",
+				&self.tor_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
+			);
+			info!(
+				"Starting TOR Process for send at {:?}",
+				self.socks_proxy_addr
+			);
+			tor_config::output_tor_sender_config(
+				&tor_dir,
+				&self.socks_proxy_addr.unwrap().to_string(),
+			)
+			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
+			// Start TOR process
+			tor.torrc_path(&format!("{}/torrc", &tor_dir))
+				.working_dir(&tor_dir)
+				.timeout(20)
+				.completion_percent(100)
+				.launch()
+				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)))?;
+			self.process = Some(Arc::new(tor));
+		}
+		Ok(())
+	}
+
 	/// Check version of the listening wallet
-	pub fn check_other_version(&self, url: &str) -> Result<SlateVersion, Error> {
+	pub fn check_other_version(&mut self, url: &str) -> Result<SlateVersion, Error> {
+		self.launch_tor()?;
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -81,8 +115,8 @@ impl HttpSlateSender {
 				report = "Other wallet is incompatible and requires an upgrade. \
 				          Please urge the other wallet owner to upgrade and try the transaction again."
 					.to_string();
+				error!("{}", report);
 			}
-			error!("{}", report);
 			ErrorKind::ClientCallback(report)
 		})?;
 
@@ -144,37 +178,14 @@ impl HttpSlateSender {
 }
 
 impl SlateSender for HttpSlateSender {
-	fn send_tx(&self, slate: &Slate) -> Result<Slate, Error> {
+	fn send_tx(&mut self, slate: &Slate, finalize: bool) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
 			true => "",
 			false => "/",
 		};
 		let url_str = format!("{}{}v2/foreign", self.base_url, trailing);
 
-		// set up tor send process if needed
-		let mut tor = tor_process::TorProcess::new();
-		if self.use_socks {
-			let tor_dir = format!(
-				"{}{}{}",
-				&self.tor_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
-			);
-			warn!(
-				"Starting TOR Process for send at {:?}",
-				self.socks_proxy_addr
-			);
-			tor_config::output_tor_sender_config(
-				&tor_dir,
-				&self.socks_proxy_addr.unwrap().to_string(),
-			)
-			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
-			// Start TOR process
-			tor.torrc_path(&format!("{}/torrc", &tor_dir))
-				.working_dir(&tor_dir)
-				.timeout(20)
-				.completion_percent(100)
-				.launch()
-				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)))?;
-		}
+		self.launch_tor()?;
 
 		let slate_send = match self.check_other_version(&url_str)? {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
@@ -192,16 +203,27 @@ impl SlateSender for HttpSlateSender {
 			}
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
-		let req = json!({
-			"jsonrpc": "2.0",
-			"method": "receive_tx",
-			"id": 1,
-			"params": [
-						slate_send,
-						null,
-						null
-					]
-		});
+		let req = match finalize {
+			false => json!({
+				"jsonrpc": "2.0",
+				"method": "receive_tx",
+				"id": 1,
+				"params": [
+							slate_send,
+							null,
+							null
+						]
+			}),
+			true => json!({
+				"jsonrpc": "2.0",
+				"method": "finalize_tx",
+				"id": 1,
+				"params": [
+							slate_send
+						]
+			}),
+		};
+
 		trace!("Sending receive_tx request: {}", req);
 
 		let res: String = self.post(&url_str, None, req).map_err(|e| {
@@ -209,7 +231,6 @@ impl SlateSender for HttpSlateSender {
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e
 			);
-			error!("{}", report);
 			ErrorKind::ClientCallback(report)
 		})?;
 
@@ -225,6 +246,7 @@ impl SlateSender for HttpSlateSender {
 		}
 
 		let slate_value = res["result"]["Ok"].clone();
+
 		trace!("slate_value: {}", slate_value);
 		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
 			.map_err(|e| {

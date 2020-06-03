@@ -33,7 +33,8 @@ hyper-timeout = "0.3"
 #Socks/Tor
 byteorder = "1"
 hyper = "0.13"
-hyper-socks2 = "0.4"
+#hyper-socks2 = "0.4"
+hyper-socks2 = { git = "https://github.com/yeastplume/hyper-socks2", branch = "master" }
 ed25519-dalek = "1.0.0-pre.1"
 x25519-dalek = "0.6"
 data-encoding = "2"

@@ -25,11 +25,9 @@ use grin_wallet_api::Owner;
 use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
-use grin_wallet_impls::tor::config::is_tor_address;
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
-use grin_wallet_impls::{PathToSlate, SlateGetter as _};
+use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
-use grin_wallet_libwallet::{Slate, SlatepackAddress};
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
@@ -137,7 +135,39 @@ where
 	Ok(phrase)
 }
 
-fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, ParseError> {
+fn prompt_slatepack() -> Result<String, ParseError> {
+	let interface = Arc::new(Interface::new("slatepack_input")?);
+	let mut message = String::from("");
+	interface.set_report_signal(Signal::Interrupt, true);
+	interface.set_prompt("")?;
+	loop {
+		println!("Please paste your encoded slatepack message:");
+		let res = interface.read_line()?;
+		match res {
+			ReadResult::Eof => break,
+			ReadResult::Signal(sig) => {
+				if sig == Signal::Interrupt {
+					interface.cancel_read_line()?;
+					return Err(ParseError::CancelledError);
+				}
+			}
+			ReadResult::Input(line) => {
+				if SlatepackArmor::decode(&line).is_ok() {
+					message = line;
+					break;
+				} else {
+					println!();
+					println!("Input is not a valid slatepack.");
+					println!();
+					interface.set_buffer(&line)?;
+				}
+			}
+		}
+	}
+	Ok(message)
+}
+
+fn prompt_pay_invoice(slate: &Slate, dest: &str) -> Result<bool, ParseError> {
 	let interface = Arc::new(Interface::new("pay")?);
 	let amount = amount_to_hr_string(slate.amount, false);
 	interface.set_report_signal(Signal::Interrupt, true);
@@ -154,10 +184,11 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 		"* {} of your wallet funds will be added to the transaction to pay this invoice.",
 		amount
 	);
-	if method == "http" {
-		println!("* The resulting transaction will IMMEDIATELY be sent to the wallet listening at: '{}'.", dest);
+	if dest.len() > 0 {
+		println!("* The wallet will IMMEDIATELY attempt to send the resulting transaction to the wallet listening at: '{}'.", dest);
+		println!("* If other wallet is not listening, the resulting transaction will output as a slatepack which you can manually send back to the invoice creator.");
 	} else {
-		println!("* The resulting transaction will be saved to the file '{}', which you can manually send back to the invoice creator.", dest);
+		println!("* The resulting transaction will output as a slatepack which you can manually send back to the invoice creator.");
 	}
 	println!();
 	println!("Please review the above information carefully before proceeding");
@@ -185,6 +216,39 @@ fn prompt_pay_invoice(slate: &Slate, method: &str, dest: &str) -> Result<bool, P
 					}
 				}
 			}
+		}
+	}
+}
+
+fn prompt_deprecate_http() -> Result<bool, ParseError> {
+	let interface = Arc::new(Interface::new("http")?);
+	interface.set_report_signal(Signal::Interrupt, true);
+	interface.set_prompt("To proceed, type 'UNDERSTOOD' > ")?;
+	println!();
+	println!("Http(s) is being deprecated in favour of the Slatepack Workflow");
+	println!("This sending method is planned for removal as of the last scheduled Hardfork in Grin 5.0.0");
+	println!("Please see https://github.com/mimblewimble/grin-rfcs/pull/55 for details");
+	loop {
+		let res = interface.read_line()?;
+		match res {
+			ReadResult::Eof => return Ok(false),
+			ReadResult::Signal(sig) => {
+				if sig == Signal::Interrupt {
+					interface.cancel_read_line()?;
+					return Err(ParseError::CancelledError);
+				}
+			}
+			ReadResult::Input(line) => match line.trim() {
+				"Q" | "q" => return Err(ParseError::CancelledError),
+				result => {
+					if result == "UNDERSTOOD" {
+						return Ok(true);
+					} else {
+						println!("Please enter the phrase 'UNDERSTOOD' (without quotes) to continue or Q to quit");
+						println!();
+					}
+				}
+			},
 		}
 	}
 }
@@ -349,13 +413,10 @@ pub fn parse_listen_args(
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
-	let method = parse_required(args, "method")?;
 	if args.is_present("no_tor") {
 		tor_config.use_tor_listener = false;
 	}
-	Ok(command::ListenArgs {
-		method: method.to_owned(),
-	})
+	Ok(command::ListenArgs {})
 }
 
 pub fn parse_owner_api_args(
@@ -404,36 +465,14 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// estimate_selection_strategies
 	let estimate_selection_strategies = args.is_present("estimate_selection_strategies");
 
-	// method
-	let method = parse_required(args, "method")?;
-
 	// dest
-	let dest = {
-		if method == "self" {
-			match args.value_of("dest") {
-				Some(d) => d,
-				None => "default",
-			}
-		} else {
-			if !estimate_selection_strategies {
-				parse_required(args, "dest")?
-			} else {
-				""
-			}
-		}
+	let dest = match args.value_of("dest") {
+		Some(d) => d,
+		None => "default",
 	};
 
-	if !estimate_selection_strategies
-		&& method == "http"
-		&& !dest.starts_with("http://")
-		&& !dest.starts_with("https://")
-		&& is_tor_address(&dest).is_err()
-	{
-		let msg = format!(
-			"HTTP Destination should start with http://: or https://: {}",
-			dest,
-		);
-		return Err(ParseError::ArgumentError(msg));
+	if dest.to_uppercase().starts_with("HTTP") {
+		prompt_deprecate_http()?;
 	}
 
 	// change_outputs
@@ -465,23 +504,25 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let payment_proof_address = {
 		match args.is_present("request_payment_proof") {
-			true => {
-				// if the destination address is a TOR address, we don't need the address
-				// separately
-				match OnionV3Address::try_from(dest) {
-					Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
-					Err(_) => {
-						let addr = parse_required(args, "proof_address")?;
-						match OnionV3Address::try_from(addr) {
-							Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
-							Err(e) => {
-								let msg = format!("Invalid proof address: {:?}", e);
-								return Err(ParseError::ArgumentError(msg));
-							}
+			true => match OnionV3Address::try_from(dest) {
+				Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
+				Err(_) => {
+					let addr = match parse_required(args, "dest") {
+						Ok(a) => a,
+						Err(_) => {
+							let msg = format!("Destination Slatepack address must be provided (-d) if payment proof is requested");
+							return Err(ParseError::ArgumentError(msg));
+						}
+					};
+					match SlatepackAddress::try_from(addr) {
+						Ok(a) => Some(a),
+						Err(e) => {
+							let msg = format!("Invalid slatepack address: {:?}", e);
+							return Err(ParseError::ArgumentError(msg));
 						}
 					}
 				}
-			}
+			},
 			false => None,
 		}
 	};
@@ -491,7 +532,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
-		method: method.to_owned(),
 		dest: dest.to_owned(),
 		change_outputs: change_outputs,
 		fluff: fluff,
@@ -503,41 +543,59 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	})
 }
 
-pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
-	// input
-	let tx_file = parse_required(receive_args, "input")?;
+pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
+	// input file
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
+		false => None,
+	};
 
-	// validate input
-	if !Path::new(&tx_file).is_file() {
-		let msg = format!("File {} not found.", &tx_file);
-		return Err(ParseError::ArgumentError(msg));
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
 	}
 
 	Ok(command::ReceiveArgs {
-		input: tx_file.to_owned(),
+		input_file,
+		input_slatepack_message,
 	})
 }
 
 pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, ParseError> {
 	let fluff = args.is_present("fluff");
 	let nopost = args.is_present("nopost");
-	let tx_file = parse_required(args, "input")?;
 
-	if !Path::new(&tx_file).is_file() {
-		let msg = format!("File {} not found.", tx_file);
-		return Err(ParseError::ArgumentError(msg));
-	}
-
-	let dest_file = match args.is_present("dest") {
-		true => Some(args.value_of("dest").unwrap().to_owned()),
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
 		false => None,
 	};
 
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
 	Ok(command::FinalizeArgs {
-		input: tx_file.to_owned(),
+		input_file,
+		input_slatepack_message,
 		fluff: fluff,
 		nopost: nopost,
-		dest: dest_file.to_owned(),
 	})
 }
 
@@ -556,7 +614,6 @@ pub fn parse_issue_invoice_args(
 			return Err(ParseError::ArgumentError(msg));
 		}
 	};
-	let bin = args.is_present("bin");
 
 	// TODO: Remove HF3
 	let output_v4_slate = args.is_present("v4");
@@ -571,11 +628,15 @@ pub fn parse_issue_invoice_args(
 			false => None,
 		}
 	};
-	// dest (output file)
-	let dest = parse_required(args, "dest")?;
+
+	// dest, for encryption
+	let dest = match args.value_of("dest") {
+		Some(d) => d,
+		None => "default",
+	};
+
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
-		bin,
 		output_v4_slate,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
@@ -585,9 +646,50 @@ pub fn parse_issue_invoice_args(
 	})
 }
 
+fn get_slate<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: &ArgMatches,
+) -> Result<(Slate, Option<SlatepackAddress>), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ErrorKind::GenericError(msg).into());
+			}
+			Some(file)
+		}
+		false => None,
+	};
+
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack().map_err(|e| {
+			let msg = format!("{}", e);
+			ErrorKind::GenericError(msg)
+		})?)
+	}
+
+	command::parse_slatepack(
+		owner_api,
+		keychain_mask,
+		input_file,
+		input_slatepack_message,
+	)
+}
+
 pub fn parse_process_invoice_args(
 	args: &ArgMatches,
 	prompt: bool,
+	slate: Slate,
+	ret_address: Option<SlatepackAddress>,
 ) -> Result<command::ProcessInvoiceArgs, ParseError> {
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
@@ -599,65 +701,28 @@ pub fn parse_process_invoice_args(
 	// estimate_selection_strategies
 	let estimate_selection_strategies = args.is_present("estimate_selection_strategies");
 
-	// method
-	let method = parse_required(args, "method")?;
-
-	// dest
-	let dest = {
-		if method == "self" {
-			match args.value_of("dest") {
-				Some(d) => d,
-				None => "default",
-			}
-		} else {
-			if !estimate_selection_strategies {
-				parse_required(args, "dest")?
-			} else {
-				""
-			}
-		}
-	};
-	if !estimate_selection_strategies
-		&& method == "http"
-		&& !dest.starts_with("http://")
-		&& !dest.starts_with("https://")
-	{
-		let msg = format!(
-			"HTTP Destination should start with http://: or https://: {}",
-			dest,
-		);
-		return Err(ParseError::ArgumentError(msg));
-	}
-
 	// ttl_blocks
 	let ttl_blocks = parse_u64_or_none(args.value_of("ttl_blocks"));
 
 	// max_outputs
 	let max_outputs = 500;
 
-	// file input only
-	let tx_file = parse_required(args, "input")?;
-
 	if prompt {
-		// Now we need to prompt the user whether they want to do this,
-		// which requires reading the slate
-
-		let slate = match PathToSlate((&tx_file).into()).get_tx() {
-			Ok(s) => s.0,
-			Err(e) => return Err(ParseError::ArgumentError(format!("{}", e))),
+		let dest = match ret_address.clone() {
+			Some(a) => String::try_from(&a).unwrap(),
+			None => String::from(""),
 		};
-
-		prompt_pay_invoice(&slate, method, dest)?;
+		// Now we need to prompt the user whether they want to do this,
+		prompt_pay_invoice(&slate, &dest)?;
 	}
 
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
-		method: method.to_owned(),
-		dest: dest.to_owned(),
-		max_outputs: max_outputs,
-		input: tx_file.to_owned(),
+		ret_address,
+		slate,
+		max_outputs,
 		ttl_blocks,
 	})
 }
@@ -712,12 +777,31 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 }
 
 pub fn parse_post_args(args: &ArgMatches) -> Result<command::PostArgs, ParseError> {
-	let tx_file = parse_required(args, "input")?;
 	let fluff = args.is_present("fluff");
 
+	// input file
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
+		false => None,
+	};
+
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
 	Ok(command::PostArgs {
-		input: tx_file.to_owned(),
-		fluff: fluff,
+		input_file,
+		input_slatepack_message,
+		fluff,
 	})
 }
 
@@ -973,6 +1057,12 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let km = (&keychain_mask).as_ref();
+
+	if test_mode {
+		owner_api.doctest_mode = true;
+		owner_api.doctest_retain_tld = true;
+	}
+
 	match wallet_args.subcommand() {
 		("init", Some(args)) => {
 			let a = arg_parse!(parse_init_args(
@@ -982,7 +1072,7 @@ where
 				&args,
 				test_mode,
 			));
-			command::init(owner_api, &global_wallet_args, a)
+			command::init(owner_api, &global_wallet_args, a, test_mode)
 		}
 		("recover", Some(_)) => {
 			let a = arg_parse!(parse_recover_args(&global_wallet_args,));
@@ -1000,6 +1090,7 @@ where
 				&a,
 				&global_wallet_args.clone(),
 				cli_mode,
+				test_mode,
 			)
 		}
 		("owner_api", Some(args)) => {
@@ -1007,7 +1098,7 @@ where
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
 			arg_parse!(parse_owner_api_args(&mut c, &args));
-			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g)
+			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g, test_mode)
 		}
 		("web", Some(_)) => command::owner_api(
 			owner_api,
@@ -1015,6 +1106,7 @@ where
 			wallet_config,
 			tor_config,
 			global_wallet_args,
+			test_mode,
 		),
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
@@ -1028,11 +1120,19 @@ where
 				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
+				test_mode,
 			)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(owner_api, km, &global_wallet_args, a)
+			command::receive(
+				owner_api,
+				km,
+				&global_wallet_args,
+				a,
+				Some(tor_config.clone()),
+				test_mode,
+			)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
@@ -1043,13 +1143,19 @@ where
 			command::issue_invoice_tx(owner_api, km, a)
 		}
 		("pay", Some(args)) => {
-			let a = arg_parse!(parse_process_invoice_args(&args, !test_mode));
+			// get slate first
+			let (slate, address) = get_slate(owner_api, km, args)?;
+
+			let a = arg_parse!(parse_process_invoice_args(
+				&args, !test_mode, slate, address
+			));
 			command::process_invoice(
 				owner_api,
 				km,
 				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
+				test_mode,
 			)
 		}
 		("info", Some(args)) => {

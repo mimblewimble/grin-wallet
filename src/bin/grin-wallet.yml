@@ -118,32 +118,15 @@ subcommands:
             long: change_outputs
             default_value: "1"
             takes_value: true
-        - method:
-            help: Method for sending this transaction
-            short: m
-            long: method
-            possible_values:
-              - http
-              - file
-              - binfile
-              - self
-              - keybase
-            default_value: http
-            takes_value: true
         - dest:
             help: Send the transaction to the provided server (start with http://) or save as file.
             short: d
             long: dest
             takes_value: true
         - request_payment_proof:
-            help: Request a payment proof from the recipient. If sending to a tor address, the address will be filled automatically.
+            help: Request a payment proof from the recipient. If present, the destination must be provided as a slatepack address.
             short: y
             long: request_payment_proof
-        - proof_address:
-            help: Recipient proof address. If not using TOR, must be provided seprarately by the recipient
-            short: z
-            long: proof_address
-            takes_value: true
         - fluff:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
@@ -187,11 +170,6 @@ subcommands:
             help: Do not post the transaction.
             short: n
             long: nopost
-        - dest:
-            help: Specify file to save the finalized slate.
-            short: d
-            long: dest
-            takes_value: true
   - invoice:
       about: Initialize an invoice transaction.
       args:
@@ -203,11 +181,7 @@ subcommands:
             short: d
             long: dest
             takes_value: true
-        - bin:
-            help: Whether to output file as binary
-            short: b
-            long: bin
-        #TODO: Remove HF3
+       #TODO: Remove HF3
         - v4:
             help: Output a V4 slate prior to HF3 block
             long: v4
@@ -234,17 +208,6 @@ subcommands:
             help: Estimates all possible Coin/Output selection strategies.
             short: e
             long: estimate-selection
-        - method:
-            help: Method for sending the processed invoice back to the invoice creator
-            short: m
-            long: method
-            possible_values:
-              - filebin
-              - file
-              - http
-              - self
-            default_value: file
-            takes_value: true
         - dest:
             help: Send the transaction to the provided server (start with http://) or save as file.
             short: d

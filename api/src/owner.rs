@@ -21,18 +21,21 @@ use uuid::Uuid;
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::Transaction;
 use crate::core::global;
-use crate::impls::create_sender;
+use crate::impls::HttpSlateSender;
+use crate::impls::SlateSender as _;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
-	AcctPathMapping, Error, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
-	TxLogEntry, WalletInfo, WalletInst, WalletLCProvider,
+	AcctPathMapping, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
+	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxLogEntry, WalletInfo,
+	WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use grin_wallet_util::OnionV3Address;
+use std::convert::TryFrom;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -63,6 +66,8 @@ where
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
+	/// retail TLD during doctest
+	pub doctest_retain_tld: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
 	/// Update thread
@@ -189,6 +194,7 @@ where
 		Owner {
 			wallet_inst,
 			doctest_mode: false,
+			doctest_retain_tld: false,
 			shared_key: Arc::new(Mutex::new(None)),
 			updater,
 			updater_running,
@@ -586,9 +592,10 @@ where
 	///
 	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
 	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
-	/// function will attempt to perform a synchronous send to the recipient specified in the `dest`
-	/// field according to the `method` field, and will also finalize and post the transaction if
-	/// the `finalize` field is set.
+	/// function will attempt to send the slate back to the sender using the slatepack sync
+	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
+	/// sync_send was successful (it should be S2 if the sync sent successfully). It will also post
+	/// the transction if the `post_tx` field is set.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
@@ -648,39 +655,47 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
-		let mut slate = {
+		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			owner::init_send_tx(&mut **w, keychain_mask, args, self.doctest_mode)?
 		};
-		// Helper functionality. If send arguments exist, attempt to send
+		// Helper functionality. If send arguments exist, attempt to send sync and
+		// finalize
 		match send_args {
 			Some(sa) => {
-				//TODO: in case of keybase, the response might take 60s and leave the service hanging
-				match sa.method.as_ref() {
-					"http" | "keybase" => {}
-					_ => {
-						error!("unsupported payment method: {}", sa.method);
-						return Err(ErrorKind::ClientCallback(
-							"unsupported payment method".to_owned(),
-						)
-						.into());
-					}
-				};
 				let tor_config_lock = self.tor_config.lock();
-				let comm_adapter = create_sender(&sa.method, &sa.dest, tor_config_lock.clone())
-					.map_err(|e| ErrorKind::GenericError(format!("{}", e)))?;
-				slate = comm_adapter.send_tx(&slate)?;
-				self.tx_lock_outputs(keychain_mask, &slate)?;
-				let slate = match sa.finalize {
-					true => self.finalize_tx(keychain_mask, &slate)?,
-					false => slate,
-				};
-
-				if sa.post_tx {
-					self.post_tx(keychain_mask, &slate, sa.fluff)?;
+				let res = try_slatepack_sync_workflow(
+					&slate,
+					&sa.dest,
+					tor_config_lock.clone(),
+					None,
+					false,
+					self.doctest_mode,
+				);
+				match res {
+					Ok(Some(s)) => {
+						if sa.post_tx {
+							self.tx_lock_outputs(keychain_mask, &s)?;
+							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
+							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
+							match result {
+								Ok(_) => {
+									info!("Tx sent ok",);
+									return Ok(ret_slate);
+								}
+								Err(e) => {
+									error!("Tx sent fail: {}", e);
+									return Err(e);
+								}
+							}
+						} else {
+							return Ok(slate);
+						}
+					}
+					Ok(None) => Ok(slate),
+					Err(_) => Ok(slate),
 				}
-				Ok(slate)
 			}
 			None => Ok(slate),
 		}
@@ -742,6 +757,12 @@ where
 	/// it is up to the caller to present the request for payment to the user
 	/// and verify that payment should go ahead.
 	///
+	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
+	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
+	/// function will attempt to send the slate back to the initiator using the slatepack sync
+	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
+	/// sync_send was successful (it should be I3 if the sync sent successfully).
+	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
@@ -794,7 +815,28 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)
+		let send_args = args.send_args.clone();
+		let slate =
+			owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)?;
+		// Helper functionality. If send arguments exist, attempt to send
+		match send_args {
+			Some(sa) => {
+				let tor_config_lock = self.tor_config.lock();
+				let res = try_slatepack_sync_workflow(
+					&slate,
+					&sa.dest,
+					tor_config_lock.clone(),
+					None,
+					true,
+					self.doctest_mode,
+				);
+				match res {
+					Ok(s) => Ok(s.unwrap()),
+					Err(_) => Ok(slate),
+				}
+			}
+			None => Ok(slate),
+		}
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given
@@ -1277,7 +1319,7 @@ where
 	pub fn get_top_level_directory(&self) -> Result<String, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		if self.doctest_mode {
+		if self.doctest_mode && !self.doctest_retain_tld {
 			Ok("/doctest/dir".to_owned())
 		} else {
 			lc.get_top_level_directory()
@@ -2246,6 +2288,99 @@ where
 		slate: &Slate,
 	) -> Result<bool, Error> {
 		owner::context_is_invoice(self.wallet_inst.clone(), keychain_mask, slate)
+	}
+}
+
+/// attempt to send slate synchronously, starting with TOR and downgrading to HTTP
+pub fn try_slatepack_sync_workflow(
+	slate: &Slate,
+	dest: &str,
+	tor_config: Option<TorConfig>,
+	tor_sender: Option<HttpSlateSender>,
+	send_to_finalize: bool,
+	test_mode: bool,
+) -> Result<Option<Slate>, libwallet::Error> {
+	let mut ret_slate = Slate::blank(2, false);
+	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
+		.send_tx(&slate, send_to_finalize)
+	{
+		Ok(s) => {
+			ret_slate = s;
+			return Ok(());
+		}
+		Err(e) => {
+			debug!(
+				"Send ({}): Could not send Slate via {}: {}",
+				method_str, method_str, e
+			);
+			return Err(e);
+		}
+	};
+
+	// First, try TOR
+	match SlatepackAddress::try_from(dest) {
+		Ok(address) => {
+			let tor_addr = OnionV3Address::try_from(&address).unwrap();
+			// Try sending to the destination via TOR
+			let sender = match tor_sender {
+				None => {
+					if test_mode {
+						None
+					} else {
+						match HttpSlateSender::with_socks_proxy(
+							&tor_addr.to_http_str(),
+							&tor_config.as_ref().unwrap().socks_proxy_addr,
+							&tor_config.as_ref().unwrap().send_config_dir,
+						) {
+							Ok(s) => Some(s),
+							Err(e) => {
+								debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
+								None
+							}
+						}
+					}
+				}
+				Some(s) => {
+					if test_mode {
+						None
+					} else {
+						Some(s)
+					}
+				}
+			};
+			if let Some(s) = sender {
+				warn!("Attempting to send transaction via TOR");
+				match send_sync(s, "TOR") {
+					Ok(_) => return Ok(Some(ret_slate)),
+					Err(e) => {
+						debug!("Unable to send via TOR: {}", e);
+						warn!("Unable to send transaction via TOR. Attempting alternate methods.");
+					}
+				}
+			}
+		}
+		Err(e) => {
+			debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
+		}
+	}
+
+	// Try Fallback to HTTP for deprecation period
+	match HttpSlateSender::new(&dest) {
+		Ok(sender) => {
+			println!("Attempting to send transaction via HTTP (deprecated)");
+			match send_sync(sender, "HTTP") {
+				Ok(_) => return Ok(Some(ret_slate)),
+				Err(e) => {
+					debug!("Unable to send via HTTP: {}", e);
+					warn!("Unable to send transaction via HTTP. Will output Slatepack.");
+					return Ok(None);
+				}
+			}
+		}
+		Err(e) => {
+			debug!("Send (HTTP): Cannot create HTTP Slate sender {:?}", e);
+			return Ok(None);
+		}
 	}
 }
 

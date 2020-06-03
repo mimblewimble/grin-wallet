@@ -134,7 +134,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
 		slate = PathToSlate((&send_file).into()).get_tx()?.0;
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, false)?;
 		Ok(())
 	})?;

@@ -237,7 +237,7 @@ fn slatepack_exchange_test_impl(
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?;
 		output_slatepack(
 			&slate,
 			&receive_file,
@@ -351,7 +351,7 @@ fn slatepack_exchange_test_impl(
 		// Wallet 2 receives the invoice transaction
 		let res = slate_from_packed(&receive_file, use_armored, (&dec_key_2).as_ref())?;
 		slate = res.1;
-		slate = api.finalize_invoice_tx(&slate)?;
+		slate = api.finalize_tx(&slate, false)?;
 		output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 		Ok(())
 	})?;
@@ -411,7 +411,7 @@ fn slatepack_exchange_test_impl(
 		let res = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
 		slatepack = res.0;
 		slate = res.1;
-		slate = api.receive_tx(&slate, None)?;
+		slate = api.receive_tx(&slate, None, None)?;
 		output_slatepack(
 			&slate,
 			&receive_file,

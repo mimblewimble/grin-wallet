@@ -18,8 +18,8 @@ use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, T
 use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider,
-	GRIN_BLOCK_HEADER_VERSION,
+	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
+	WalletLCProvider, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
@@ -32,6 +32,7 @@ use hyper::{Body, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -59,12 +60,12 @@ fn check_middleware(
 		// allow coinbases to be built regardless
 		ForeignCheckMiddlewareFn::BuildCoinbase => Ok(()),
 		_ => {
-			let mut bhv = 2;
+			let mut bhv = 3;
 			if let Some(n) = node_version_info {
 				bhv = n.block_header_version;
 			}
 			if let Some(s) = slate {
-				if bhv > 3 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
+				if bhv > 4 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
 					Err(ErrorKind::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
 						 Please upgrade the node or use a different one."
@@ -82,7 +83,7 @@ fn init_tor_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
-) -> Result<tor_process::TorProcess, Error>
+) -> Result<(tor_process::TorProcess, SlatepackAddress), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
@@ -101,6 +102,7 @@ where
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let onion_address = OnionV3Address::from_private(&sec_key.0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr
@@ -115,7 +117,7 @@ where
 		.completion_percent(100)
 		.launch()
 		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
-	Ok(process)
+	Ok((process, sp_address))
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
@@ -167,6 +169,7 @@ where
 		wallet,
 		keychain_mask,
 		Some(check_middleware),
+		false,
 	))?;
 	Ok(())
 }
@@ -183,6 +186,7 @@ pub fn owner_listener<L, C, K>(
 	tls_config: Option<TLSConfig>,
 	owner_api_include_foreign: Option<bool>,
 	tor_config: Option<TorConfig>,
+	test_mode: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -208,7 +212,7 @@ where
 	let api_handler_v3 = OwnerAPIHandlerV3::new(
 		wallet.clone(),
 		keychain_mask.clone(),
-		tor_config,
+		tor_config.clone(),
 		running_foreign,
 	);
 
@@ -219,7 +223,8 @@ where
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
+		let foreign_api_handler_v2 =
+			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
@@ -247,6 +252,8 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	use_tor: bool,
+	test_mode: bool,
+	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -260,20 +267,21 @@ where
 		let _ = lc.wallet_inst()?;
 	}
 	// need to keep in scope while the main listener is running
-	let _tor_process = match use_tor {
+	let (_tor_process, address) = match use_tor {
 		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {
-			Ok(tp) => Some(tp),
+			Ok((tp, addr)) => (Some(tp), Some(addr)),
 			Err(e) => {
 				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
 				warn!("Tor Error: {}", e);
 				warn!("Listener will be available via HTTP only");
-				None
+				(None, None)
 			}
 		},
-		false => None,
+		false => (None, None),
 	};
 
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask);
+	let api_handler_v2 =
+		ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
 	let mut router = Router::new();
 
 	router
@@ -290,6 +298,9 @@ where
 			))?;
 
 	warn!("HTTP Foreign listener started.");
+	if let Some(a) = address {
+		warn!("Slatepack Address is: {}", a);
+	}
 
 	api_thread
 		.join()
@@ -669,6 +680,10 @@ where
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	/// Keychain mask
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+	/// run in doctest mode
+	pub test_mode: bool,
+	/// tor config
+	pub tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -681,10 +696,14 @@ where
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+		test_mode: bool,
+		tor_config: Mutex<Option<TorConfig>>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
 			keychain_mask,
+			test_mode,
+			tor_config,
 		}
 	}
 
@@ -707,8 +726,11 @@ where
 		req: Request<Body>,
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		test_mode: bool,
+		tor_config: Option<TorConfig>,
 	) -> Result<Response<Body>, Error> {
-		let api = Foreign::new(wallet, mask, Some(check_middleware));
+		let api = Foreign::new(wallet, mask, Some(check_middleware), test_mode);
+		api.set_tor_config(tor_config);
 		let res = Self::call_api(req, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -723,9 +745,11 @@ where
 	fn post(&self, req: Request<Body>) -> ResponseFuture {
 		let mask = self.keychain_mask.lock().clone();
 		let wallet = self.wallet.clone();
+		let test_mode = self.test_mode;
+		let tor_config = self.tor_config.lock().clone();
 
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet).await {
+			match Self::handle_post_request(req, mask, wallet, test_mode, tor_config).await {
 				Ok(v) => Ok(v),
 				Err(e) => {
 					error!("Request Error: {:?}", e);

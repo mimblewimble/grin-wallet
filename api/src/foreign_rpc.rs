@@ -183,13 +183,12 @@ pub trait ForeignRpc {
 		&self,
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
-		//TODO: Remove post-HF3
-		message: Option<String>,
+		dest: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
 
-	Networked version of [Foreign::finalize_invoice_tx](struct.Foreign.html#method.finalize_invoice_tx).
+	Networked version of [Foreign::finalize_tx](struct.Foreign.html#method.finalize_tx).
 
 	# Json rpc example
 
@@ -198,7 +197,7 @@ pub trait ForeignRpc {
 	# r#"
 	{
 		"jsonrpc": "2.0",
-		"method": "finalize_invoice_tx",
+		"method": "finalize_tx",
 		"id": 1,
 		"params": [{
 			"ver": "4:2",
@@ -279,6 +278,9 @@ pub trait ForeignRpc {
 	# ,false, 5, false, true);
 	```
 	*/
+	fn finalize_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
+
+	/// For backwards-compatibility. Remove HF3
 	fn finalize_invoice_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
 }
 
@@ -301,8 +303,7 @@ where
 		&self,
 		in_slate: VersionedSlate,
 		dest_acct_name: Option<String>,
-		//TODO: Remove post HF3
-		_message: Option<String>,
+		dest: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
@@ -310,15 +311,24 @@ where
 			self,
 			&slate_from,
 			dest_acct_name.as_ref().map(String::as_str),
+			dest,
 		)
 		.map_err(|e| e.kind())?;
 		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
+	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
+		let version = in_slate.version();
+		let out_slate =
+			Foreign::finalize_tx(self, &Slate::from(in_slate), true).map_err(|e| e.kind())?;
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+	}
+
+	//TODO: Delete HF3
 	fn finalize_invoice_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
 		let version = in_slate.version();
 		let out_slate =
-			Foreign::finalize_invoice_tx(self, &Slate::from(in_slate)).map_err(|e| e.kind())?;
+			Foreign::finalize_tx(self, &Slate::from(in_slate), false).map_err(|e| e.kind())?;
 		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 }
@@ -513,8 +523,8 @@ pub fn run_doctest_foreign(
 	}
 
 	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1, mask1, Some(test_check_middleware)),
-		true => Foreign::new(wallet2, mask2, Some(test_check_middleware)),
+		false => Foreign::new(wallet1, mask1, Some(test_check_middleware), true),
+		true => Foreign::new(wallet2, mask2, Some(test_check_middleware), true),
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;

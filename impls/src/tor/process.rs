@@ -284,7 +284,7 @@ impl TorProcess {
 impl Drop for TorProcess {
 	// kill the child
 	fn drop(&mut self) {
-		trace!("DROPPING TOR PROCESS");
+		debug!("Dropping TOR process");
 		self.kill().unwrap_or(());
 	}
 }
