@@ -10,10 +10,10 @@ workspace = ".."
 edition = "2018"
 
 [dependencies]
-rand = "0.5"
+rand = "0.6"
 serde = "1"
 serde_derive = "1"
-ed25519-dalek = "1.0.0-pre.1"
+ed25519-dalek = "1.0.0-pre.3"
 data-encoding = "2"
 sha3 = "0.8"
 
@@ -51,4 +51,4 @@ grin_store = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 # grin_store = { path = "../../grin/store"}
 
 [dev-dependencies]
-pretty_assertions = "0.5.1"
+pretty_assertions = "0.6"
