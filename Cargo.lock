@@ -1487,7 +1487,7 @@ dependencies = [
  "http 0.1.21",
  "hyper",
  "hyper-rustls 0.19.1",
- "hyper-socks2",
+ "hyper-socks2-mw",
  "hyper-timeout",
  "log",
  "rand 0.5.6",
@@ -1728,9 +1728,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyper-socks2"
-version = "0.4.3"
-source = "git+https://github.com/yeastplume/hyper-socks2#08c3e5f6e8fb642110abe61e8a381195ac60cb6c"
+name = "hyper-socks2-mw"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d7267805b50714db2ebe2904b1e70158ba6ba8eafdaf7c9d7735aca3273c4f8"
 dependencies = [
  "async-socks5",
  "futures 0.3.5",
