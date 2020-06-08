@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use byteorder::{BigEndian, ReadBytesExt};
 /// Slatepack Types + Serialization implementation
 use ed25519_dalek::SecretKey as edSecretKey;
 use sha2::{Digest, Sha512};
@@ -19,13 +20,14 @@ use x25519_dalek::StaticSecret;
 
 use crate::dalek_ser;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::Error;
+use crate::{Error, ErrorKind};
+use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
 
 use std::convert::TryInto;
 use std::fmt;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 
 pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
 pub const SLATEPACK_MINOR_VERSION: u8 = 0;
@@ -46,7 +48,14 @@ pub struct Slatepack {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub sender: Option<SlatepackAddress>,
 
-	// Payload
+	// Encrypted metadata, to be serialized into payload only
+	// shouldn't be accessed directly
+	/// Encrypted metadata
+	#[serde(default = "default_enc_metadata")]
+	#[serde(skip_serializing_if = "enc_metadata_is_empty")]
+	encrypted_meta: SlatepackEncMetadata,
+
+	// Payload (e.g. slate), including encrypted metadata, if present
 	/// Binary payload, can be encrypted or plaintext
 	#[serde(
 		serialize_with = "dalek_ser::as_base64",
@@ -57,6 +66,17 @@ pub struct Slatepack {
 
 fn default_sender_none() -> Option<SlatepackAddress> {
 	None
+}
+
+fn default_enc_metadata() -> SlatepackEncMetadata {
+	SlatepackEncMetadata {
+		sender: None,
+		recipients: vec![],
+	}
+}
+
+fn enc_metadata_is_empty(data: &SlatepackEncMetadata) -> bool {
+	data.sender.is_none() && data.recipients.is_empty()
 }
 
 impl fmt::Display for Slatepack {
@@ -74,6 +94,7 @@ impl Default for Slatepack {
 			},
 			mode: 0,
 			sender: None,
+			encrypted_meta: default_enc_metadata(),
 			payload: vec![],
 		}
 	}
@@ -94,6 +115,16 @@ impl Slatepack {
 		if recipients.is_empty() {
 			return Ok(());
 		}
+
+		// Move our sender to the encrypted metadata field
+		self.encrypted_meta.sender = self.sender.clone();
+		self.sender = None;
+
+		// Create encrypted metadata, which will be length prefixed
+		let bin_meta = SlatepackEncMetadataBin(self.encrypted_meta.clone());
+		let mut to_encrypt = byte_ser::to_bytes(&bin_meta).map_err(|_| ErrorKind::SlatepackSer)?;
+		to_encrypt.append(&mut self.payload);
+
 		let rec_keys: Result<Vec<_>, _> = recipients
 			.into_iter()
 			.map(|addr| {
@@ -110,7 +141,7 @@ impl Slatepack {
 		let encryptor = age::Encryptor::with_recipients(keys);
 		let mut encrypted = vec![];
 		let mut writer = encryptor.wrap_output(&mut encrypted, age::Format::Binary)?;
-		writer.write_all(&self.payload)?;
+		writer.write_all(&to_encrypt)?;
 		writer.finish()?;
 		self.payload = encrypted.to_vec();
 		self.mode = 1;
@@ -143,7 +174,18 @@ impl Slatepack {
 		let mut decrypted = vec![];
 		let mut reader = decryptor.decrypt(&[key.into()])?;
 		reader.read_to_end(&mut decrypted)?;
-		self.payload = decrypted.to_vec();
+		// Parse encrypted metadata from payload, first 4 bytes of decrypted payload
+		// will be encrypted metadata length
+		let mut len_bytes = [0u8; 4];
+		len_bytes.copy_from_slice(&decrypted[0..4]);
+		let meta_len = Cursor::new(len_bytes).read_u32::<BigEndian>()?;
+		self.payload = decrypted.split_off(meta_len as usize + 4);
+		let meta = byte_ser::from_bytes::<SlatepackEncMetadataBin>(&decrypted)
+			.map_err(|_| ErrorKind::SlatepackSer)?
+			.0;
+		self.sender = meta.sender;
+		self.mode = 0;
+
 		Ok(())
 	}
 
@@ -235,6 +277,8 @@ impl Writeable for SlatepackBin {
 			s.write(writer)?;
 		};
 
+		// write encrypted meta
+
 		// Now write payload (length prefixed)
 		writer.write_bytes(sp.payload.clone())
 	}
@@ -285,6 +329,7 @@ impl Readable for SlatepackBin {
 			slatepack,
 			mode,
 			sender,
+			encrypted_meta: default_enc_metadata(),
 			payload,
 		}))
 	}
@@ -352,6 +397,187 @@ pub mod slatepack_version {
 	}
 }
 
+/// Encapsulates encrypted metadata fields
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub struct SlatepackEncMetadata {
+	/// Encrypted Sender address, if desired
+	#[serde(default = "default_sender_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	sender: Option<SlatepackAddress>,
+	/// Recipients list, if desired (mostly for future multiparty needs)
+	#[serde(default = "default_recipients_empty")]
+	#[serde(skip_serializing_if = "recipients_empty")]
+	recipients: Vec<SlatepackAddress>,
+}
+
+fn recipients_empty(value: &Vec<SlatepackAddress>) -> bool {
+	value.is_empty()
+}
+
+fn default_recipients_empty() -> Vec<SlatepackAddress> {
+	vec![]
+}
+
+impl SlatepackEncMetadata {
+	// return length in bytes for encoding (without the 4 byte length header)
+	pub fn encoded_len(&self) -> Result<usize, Error> {
+		let mut length = 2; //opt flags
+		if let Some(s) = &self.sender {
+			length += s.encoded_len()?;
+		}
+		if !self.recipients.is_empty() {
+			length += 1;
+			for r in self.recipients.iter() {
+				length += r.encoded_len()?;
+			}
+		}
+		Ok(length)
+	}
+}
+
+/// Wrapper for outputting encrypted metadata as binary
+#[derive(Debug, Clone)]
+pub struct SlatepackEncMetadataBin(pub SlatepackEncMetadata);
+
+impl serde::Serialize for SlatepackEncMetadataBin {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		let mut vec = vec![];
+		ser::serialize(&mut vec, ser::ProtocolVersion(4), self)
+			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		serializer.serialize_bytes(&vec)
+	}
+}
+
+impl<'de> serde::Deserialize<'de> for SlatepackEncMetadataBin {
+	fn deserialize<D>(deserializer: D) -> Result<SlatepackEncMetadataBin, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct SlatepackEncMetadataBinVisitor;
+
+		impl<'de> serde::de::Visitor<'de> for SlatepackEncMetadataBinVisitor {
+			type Value = SlatepackEncMetadataBin;
+
+			fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+				write!(formatter, "a serialised binary Slatepack Metadata")
+			}
+
+			fn visit_bytes<E>(self, value: &[u8]) -> Result<SlatepackEncMetadataBin, E>
+			where
+				E: serde::de::Error,
+			{
+				let mut reader = std::io::Cursor::new(value.to_vec());
+				let s = ser::deserialize(&mut reader, ser::ProtocolVersion(4))
+					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				Ok(s)
+			}
+		}
+
+		deserializer.deserialize_bytes(SlatepackEncMetadataBinVisitor)
+	}
+}
+
+impl Writeable for SlatepackEncMetadataBin {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		let inner = &self.0;
+		// write entire metadata length
+		writer.write_u32(inner.encoded_len().map_err(|e| {
+			error!("Cannot write encrypted metadata length: {}", e);
+			ser::Error::CorruptedData
+		})? as u32)?;
+
+		// 16 bits of optional content flags (2), most reserved for future use
+		let mut opt_flags: u16 = 0;
+		if inner.sender.is_some() {
+			opt_flags |= 0x01;
+		}
+		if !inner.recipients.is_empty() {
+			opt_flags |= 0x02;
+		}
+		writer.write_u16(opt_flags)?;
+
+		if let Some(s) = &inner.sender {
+			s.write(writer)?;
+		};
+
+		// Recipients List
+		if !inner.recipients.is_empty() {
+			let len = inner.recipients.len();
+			// write number of recipients
+			if len > 255 {
+				return Err(ser::Error::UnexpectedData {
+					expected: vec![255],
+					received: vec![len as u8],
+				});
+			}
+			writer.write_u8(len as u8)?;
+			for r in inner.recipients.iter() {
+				r.write(writer)?;
+			}
+		}
+		Ok(())
+	}
+}
+
+impl Readable for SlatepackEncMetadataBin {
+	fn read<R: Reader>(reader: &mut R) -> Result<SlatepackEncMetadataBin, ser::Error> {
+		// length header, always present
+		let mut bytes_remaining = reader.read_u32()?;
+
+		// optional content flags (2)
+		let opt_flags = reader.read_u16()?;
+		bytes_remaining -= 2;
+
+		let sender = if opt_flags & 0x01 > 0 {
+			let addr = SlatepackAddress::read(reader)?;
+			let len = match addr.encoded_len() {
+				Ok(e) => e as u32,
+				Err(e) => {
+					error!("Cannot parse Slatepack address: {}", e);
+					return Err(ser::Error::CorruptedData);
+				}
+			};
+			bytes_remaining -= len;
+			Some(addr)
+		} else {
+			None
+		};
+
+		let mut recipients = vec![];
+		if opt_flags & 0x02 > 0 {
+			// number of recipients
+			let count = reader.read_u8()?;
+			bytes_remaining -= 1;
+			for _ in 0..count {
+				let addr = SlatepackAddress::read(reader)?;
+				let len = match addr.encoded_len() {
+					Ok(e) => e as u32,
+					Err(e) => {
+						error!("Cannot parse Slatepack address: {}", e);
+						return Err(ser::Error::CorruptedData);
+					}
+				};
+				bytes_remaining -= len;
+				recipients.push(addr);
+			}
+		}
+
+		// bleed off any unknown data beyond this
+		while bytes_remaining > 0 {
+			let _ = reader.read_u8()?;
+			bytes_remaining -= 1;
+		}
+
+		Ok(SlatepackEncMetadataBin(SlatepackEncMetadata {
+			sender,
+			recipients,
+		}))
+	}
+}
+
 #[test]
 fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use grin_wallet_util::byte_ser;
@@ -364,6 +590,7 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		slatepack,
 		mode: 1,
 		sender: None,
+		encrypted_meta: default_enc_metadata(),
 		payload,
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
@@ -383,12 +610,15 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 		payload.push(rand::random());
 	}
 
+	let encrypted_meta = default_enc_metadata();
+
 	// includes optional fields
 	let sender = Some(SlatepackAddress::random());
 	let sp = Slatepack {
 		slatepack,
 		mode: 1,
 		sender,
+		encrypted_meta,
 		payload,
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
@@ -419,10 +649,13 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		sender.as_ref().unwrap().encoded_len().unwrap()
 	);
 
+	let encrypted_meta = default_enc_metadata();
+
 	let sp = Slatepack {
 		slatepack,
 		mode: 1,
 		sender,
+		encrypted_meta,
 		payload: payload.clone(),
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
@@ -473,5 +706,52 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 
 	let deser = byte_ser::from_bytes::<SlatepackBin>(&new_bytes)?.0;
 	assert_eq!(sp, deser);
+	Ok(())
+}
+
+// test encryption and encrypted metadata, which only gets written
+// if mode == 1
+#[test]
+fn slatepack_encrypted_meta() -> Result<(), Error> {
+	use crate::{Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
+	use ed25519_dalek::PublicKey as edDalekPublicKey;
+	use ed25519_dalek::SecretKey as edDalekSecretKey;
+	use rand::{thread_rng, Rng};
+	use std::convert::TryFrom;
+	let sec_key_bytes: [u8; 32] = thread_rng().gen();
+
+	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
+	let addr = SlatepackAddress::new(&ed_pub_key);
+
+	let encoded = String::try_from(&addr).unwrap();
+	let parsed_addr = SlatepackAddress::try_from(encoded.as_str()).unwrap();
+	assert_eq!(addr, parsed_addr);
+
+	let mut slatepack = super::Slatepack::default();
+	slatepack.sender = Some(SlatepackAddress::random());
+	/*encrypted_meta.recipients.push(SlatepackAddress::random());
+	encrypted_meta.recipients.push(SlatepackAddress::random());
+	encrypted_meta.recipients.push(SlatepackAddress::random());*/
+
+	let v_slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V4)?;
+	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+
+	let orig_sp = slatepack.clone();
+
+	slatepack.try_encrypt_payload(vec![addr.clone()])?;
+
+	// sender should have been moved to encrypted meta
+	assert!(slatepack.sender.is_none());
+
+	let ser = byte_ser::to_bytes(&SlatepackBin(slatepack)).unwrap();
+	let mut slatepack = byte_ser::from_bytes::<SlatepackBin>(&ser).unwrap().0;
+
+	slatepack.try_decrypt_payload(Some(&ed_sec_key))?;
+	assert!(slatepack.sender.is_some());
+
+	assert_eq!(orig_sp, slatepack);
+
 	Ok(())
 }

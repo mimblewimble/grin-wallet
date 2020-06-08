@@ -536,7 +536,7 @@ fn slatepack_exchange_armored() {
 	let test_dir = "test_output/slatepack_exchange_armored";
 	setup(test_dir);
 	// Bin output
-	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, false) {
+	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, true) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	clean_output_dir(test_dir);
