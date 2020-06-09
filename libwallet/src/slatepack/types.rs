@@ -237,7 +237,7 @@ impl Slatepack {
 	pub fn ver_check_warn(&self) {
 		if self.slatepack.major > SLATEPACK_MAJOR_VERSION
 			|| (self.slatepack.major == SLATEPACK_MAJOR_VERSION
-				&& self.slatepack.minor < SLATEPACK_MINOR_VERSION)
+				&& self.slatepack.minor > SLATEPACK_MINOR_VERSION)
 		{
 			warn!("Incoming Slatepack's version is greater than what this wallet recognizes");
 			warn!("You may need to upgrade if it contains unsupported features");
