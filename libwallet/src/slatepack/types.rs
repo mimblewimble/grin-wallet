@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// Slatepack Types + Serialization implementation
 use ed25519_dalek::SecretKey as edSecretKey;
 use sha2::{Digest, Sha512};
@@ -62,6 +62,11 @@ pub struct Slatepack {
 		deserialize_with = "dalek_ser::bytes_from_base64"
 	)]
 	pub payload: Vec<u8>,
+
+	/// Test mode
+	#[serde(default = "default_future_test_mode")]
+	#[serde(skip)]
+	pub future_test_mode: bool,
 }
 
 fn default_sender_none() -> Option<SlatepackAddress> {
@@ -73,6 +78,10 @@ fn default_enc_metadata() -> SlatepackEncMetadata {
 		sender: None,
 		recipients: vec![],
 	}
+}
+
+fn default_future_test_mode() -> bool {
+	false
 }
 
 fn enc_metadata_is_empty(data: &SlatepackEncMetadata) -> bool {
@@ -96,6 +105,7 @@ impl Default for Slatepack {
 			sender: None,
 			encrypted_meta: default_enc_metadata(),
 			payload: vec![],
+			future_test_mode: false,
 		}
 	}
 }
@@ -108,6 +118,23 @@ impl Slatepack {
 			retval += s.encoded_len().unwrap();
 		}
 		Ok(retval)
+	}
+
+	// test function that pads the encrypted meta payload with unknown data
+	fn pad_test_data(data: &mut Vec<u8>) {
+		let extra_bytes = 139;
+		let mut len_bytes = [0u8; 4];
+		len_bytes.copy_from_slice(&data[0..4]);
+		let mut meta_len = Cursor::new(len_bytes).read_u32::<BigEndian>().unwrap();
+		meta_len += extra_bytes;
+		let mut len_bytes = vec![];
+		len_bytes.write_u32::<BigEndian>(meta_len).unwrap();
+		for i in 0..4 {
+			data[i] = len_bytes[i];
+		}
+		for _ in 0..extra_bytes {
+			data.push(rand::random())
+		}
 	}
 
 	/// age encrypt the payload with the given public key
@@ -123,6 +150,11 @@ impl Slatepack {
 		// Create encrypted metadata, which will be length prefixed
 		let bin_meta = SlatepackEncMetadataBin(self.encrypted_meta.clone());
 		let mut to_encrypt = byte_ser::to_bytes(&bin_meta).map_err(|_| ErrorKind::SlatepackSer)?;
+
+		if self.future_test_mode {
+			Slatepack::pad_test_data(&mut to_encrypt);
+		}
+
 		to_encrypt.append(&mut self.payload);
 
 		let rec_keys: Result<Vec<_>, _> = recipients
@@ -184,9 +216,20 @@ impl Slatepack {
 			.map_err(|_| ErrorKind::SlatepackSer)?
 			.0;
 		self.sender = meta.sender;
+		self.encrypted_meta.recipients = meta.recipients;
 		self.mode = 0;
 
 		Ok(())
+	}
+
+	/// add a recipient to encrypted metadata
+	pub fn add_recipient(&mut self, address: SlatepackAddress) {
+		self.encrypted_meta.recipients.push(address)
+	}
+
+	/// retrieve recipiens
+	pub fn recipients(&self) -> &Vec<SlatepackAddress> {
+		&self.encrypted_meta.recipients
 	}
 
 	/// version check warning
@@ -331,6 +374,7 @@ impl Readable for SlatepackBin {
 			sender,
 			encrypted_meta: default_enc_metadata(),
 			payload,
+			future_test_mode: false,
 		}))
 	}
 }
@@ -581,17 +625,13 @@ impl Readable for SlatepackEncMetadataBin {
 #[test]
 fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use grin_wallet_util::byte_ser;
-	let slatepack = SlatepackVersion { major: 1, minor: 0 };
 	let mut payload: Vec<u8> = Vec::with_capacity(243);
 	for _ in 0..payload.capacity() {
 		payload.push(rand::random());
 	}
 	let sp = Slatepack {
-		slatepack,
-		mode: 1,
-		sender: None,
-		encrypted_meta: default_enc_metadata(),
 		payload,
+		..Slatepack::default()
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
 	let deser = byte_ser::from_bytes::<SlatepackBin>(&ser)?.0;
@@ -604,22 +644,17 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 #[test]
 fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use grin_wallet_util::byte_ser;
-	let slatepack = SlatepackVersion { major: 1, minor: 0 };
 	let mut payload: Vec<u8> = Vec::with_capacity(243);
 	for _ in 0..payload.capacity() {
 		payload.push(rand::random());
 	}
 
-	let encrypted_meta = default_enc_metadata();
-
 	// includes optional fields
 	let sender = Some(SlatepackAddress::random());
 	let sp = Slatepack {
-		slatepack,
-		mode: 1,
 		sender,
-		encrypted_meta,
 		payload,
+		..Slatepack::default()
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
 	let deser = byte_ser::from_bytes::<SlatepackBin>(&ser)?.0;
@@ -636,7 +671,6 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	use rand::{thread_rng, Rng};
 	use std::io::Cursor;
 
-	let slatepack = SlatepackVersion { major: 1, minor: 0 };
 	let payload_size = 1234;
 	let mut payload: Vec<u8> = Vec::with_capacity(payload_size);
 	for _ in 0..payload.capacity() {
@@ -649,14 +683,10 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 		sender.as_ref().unwrap().encoded_len().unwrap()
 	);
 
-	let encrypted_meta = default_enc_metadata();
-
 	let sp = Slatepack {
-		slatepack,
-		mode: 1,
 		sender,
-		encrypted_meta,
 		payload: payload.clone(),
+		..Slatepack::default()
 	};
 	let ser = byte_ser::to_bytes(&SlatepackBin(sp.clone()))?;
 
@@ -730,15 +760,62 @@ fn slatepack_encrypted_meta() -> Result<(), Error> {
 
 	let mut slatepack = super::Slatepack::default();
 	slatepack.sender = Some(SlatepackAddress::random());
-	/*encrypted_meta.recipients.push(SlatepackAddress::random());
-	encrypted_meta.recipients.push(SlatepackAddress::random());
-	encrypted_meta.recipients.push(SlatepackAddress::random());*/
+	slatepack.add_recipient(SlatepackAddress::random());
+	slatepack.add_recipient(SlatepackAddress::random());
 
 	let v_slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V4)?;
 	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 
 	let orig_sp = slatepack.clone();
+
+	slatepack.try_encrypt_payload(vec![addr.clone()])?;
+
+	// sender should have been moved to encrypted meta
+	assert!(slatepack.sender.is_none());
+
+	let ser = byte_ser::to_bytes(&SlatepackBin(slatepack)).unwrap();
+	let mut slatepack = byte_ser::from_bytes::<SlatepackBin>(&ser).unwrap().0;
+
+	slatepack.try_decrypt_payload(Some(&ed_sec_key))?;
+	assert!(slatepack.sender.is_some());
+
+	assert_eq!(orig_sp, slatepack);
+
+	Ok(())
+}
+
+// Ensure adding unknown (future) bytes to the encrypted
+// metadata won't break parsing
+#[test]
+fn slatepack_encrypted_meta_future() -> Result<(), Error> {
+	use crate::{Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
+	use ed25519_dalek::PublicKey as edDalekPublicKey;
+	use ed25519_dalek::SecretKey as edDalekSecretKey;
+	use rand::{thread_rng, Rng};
+	use std::convert::TryFrom;
+	let sec_key_bytes: [u8; 32] = thread_rng().gen();
+
+	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
+	let addr = SlatepackAddress::new(&ed_pub_key);
+
+	let encoded = String::try_from(&addr).unwrap();
+	let parsed_addr = SlatepackAddress::try_from(encoded.as_str()).unwrap();
+	assert_eq!(addr, parsed_addr);
+
+	let mut slatepack = Slatepack::default();
+	slatepack.sender = Some(SlatepackAddress::random());
+	slatepack.add_recipient(SlatepackAddress::random());
+	slatepack.add_recipient(SlatepackAddress::random());
+
+	let v_slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V4)?;
+	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+
+	let orig_sp = slatepack.clone();
+
+	slatepack.future_test_mode = true;
 
 	slatepack.try_encrypt_payload(vec![addr.clone()])?;
 
