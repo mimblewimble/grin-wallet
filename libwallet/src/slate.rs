@@ -372,29 +372,34 @@ impl Slate {
 	// 3: NRD (with associated relative_height)
 	// Any other value is invalid.
 	fn kernel_features(&self) -> Result<KernelFeatures, Error> {
-		match self.kernel_features {
-			0 => Ok(KernelFeatures::Plain { fee: self.fee }),
-			1 => Err(ErrorKind::InvalidKernelFeatures(1).into()),
-			2 => Ok(KernelFeatures::HeightLocked {
-				fee: self.fee,
-				lock_height: match &self.kernel_features_args {
-					Some(a) => a.lock_height,
-					None => {
-						return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
-					}
-				},
-			}),
-			3 => Ok(KernelFeatures::NoRecentDuplicate {
-				fee: self.fee,
-				relative_height: match &self.kernel_features_args {
-					Some(a) => NRDRelativeHeight::new(a.lock_height)?,
-					None => {
-						return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
-					}
-				},
-			}),
-			n => Err(ErrorKind::UnknownKernelFeatures(n).into()),
-		}
+		// match self.kernel_features {
+		// 	0 => Ok(KernelFeatures::Plain { fee: self.fee }),
+		// 	1 => Err(ErrorKind::InvalidKernelFeatures(1).into()),
+		// 	2 => Ok(KernelFeatures::HeightLocked {
+		// 		fee: self.fee,
+		// 		lock_height: match &self.kernel_features_args {
+		// 			Some(a) => a.lock_height,
+		// 			None => {
+		// 				return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
+		// 			}
+		// 		},
+		// 	}),
+		// 	3 => Ok(KernelFeatures::NoRecentDuplicate {
+		// 		fee: self.fee,
+		// 		relative_height: match &self.kernel_features_args {
+		// 			Some(a) => NRDRelativeHeight::new(a.lock_height)?,
+		// 			None => {
+		// 				return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
+		// 			}
+		// 		},
+		// 	}),
+		// 	n => Err(ErrorKind::UnknownKernelFeatures(n).into()),
+		// }
+
+		Ok(KernelFeatures::NoRecentDuplicate {
+			fee: self.fee,
+			relative_height: NRDRelativeHeight::new(60)?,
+		})
 	}
 
 	// This is the msg that we will sign as part of the tx kernel.
