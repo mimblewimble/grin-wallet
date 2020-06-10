@@ -569,6 +569,32 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 	})
 }
 
+pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
+	// input file
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
+		false => None,
+	};
+
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
+	Ok(command::ReceiveArgs {
+		input_file,
+		input_slatepack_message,
+	})
+}
+
 pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, ParseError> {
 	let fluff = args.is_present("fluff");
 	let nopost = args.is_present("nopost");
@@ -1133,6 +1159,10 @@ where
 				Some(tor_config.clone()),
 				test_mode,
 			)
+		}
+		("unpack", Some(args)) => {
+			let a = arg_parse!(parse_unpack_args(&args));
+			command::unpack(owner_api, km, a)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));

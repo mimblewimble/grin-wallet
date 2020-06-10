@@ -47,7 +47,7 @@ impl<'a> Slatepacker<'a> {
 	}
 
 	/// return slatepack
-	pub fn deser_slatepack(&self, data: Vec<u8>) -> Result<Slatepack, Error> {
+	pub fn deser_slatepack(&self, data: Vec<u8>, decrypt: bool) -> Result<Slatepack, Error> {
 		// check if data is armored, if so, remove and continue
 		if data.len() < super::armor::HEADER.len() {
 			let msg = format!("Data too short");
@@ -90,7 +90,9 @@ impl<'a> Slatepacker<'a> {
 		};
 
 		slatepack.ver_check_warn();
-		slatepack.try_decrypt_payload(self.0.dec_key)?;
+		if decrypt {
+			slatepack.try_decrypt_payload(self.0.dec_key)?;
+		}
 		Ok(slatepack)
 	}
 

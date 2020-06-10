@@ -72,7 +72,7 @@ fn slate_from_packed(
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	let slatepack = PathToSlatepack::new(file.into(), &packer, armored).get_slatepack()?;
+	let slatepack = PathToSlatepack::new(file.into(), &packer, armored).get_slatepack(true)?;
 	Ok((slatepack.clone(), packer.get_slate(&slatepack)?))
 }
 
@@ -496,7 +496,7 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let enc_addr = api.get_slatepack_address(m, 0)?;
 		let slatepack = api.create_slatepack_message(m, &slate, Some(0), vec![enc_addr])?;
 		println!("{}", slatepack);
-		let slatepack_raw = api.decode_slatepack_message(slatepack.clone())?;
+		let slatepack_raw = api.decode_slatepack_message(slatepack.clone(), true)?;
 		println!("{}", slatepack_raw);
 		let decoded_slate = api.slate_from_slatepack_message(m, slatepack, vec![0])?;
 		println!("{}", decoded_slate);

@@ -169,7 +169,7 @@ where
 			recipients: vec![],
 			dec_key: None,
 		});
-		let slatepack = packer.deser_slatepack(slatepack.as_bytes().to_vec())?;
+		let slatepack = packer.deser_slatepack(slatepack.as_bytes().to_vec(), true)?;
 		return packer.get_slate(&slatepack);
 	} else {
 		for index in secret_indices {
@@ -183,7 +183,7 @@ where
 				recipients: vec![],
 				dec_key: (&dec_key).as_ref(),
 			});
-			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec());
+			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec(), true);
 			let slatepack = match res {
 				Ok(sp) => sp,
 				Err(_) => {
@@ -201,13 +201,13 @@ where
 }
 
 /// Decode a slatepack message, to allow viewing
-pub fn decode_slatepack_message(slatepack: String) -> Result<Slatepack, Error> {
+pub fn decode_slatepack_message(slatepack: String, decrypt: bool) -> Result<Slatepack, Error> {
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
 		recipients: vec![],
 		dec_key: None,
 	});
-	packer.deser_slatepack(slatepack.as_bytes().to_vec())
+	packer.deser_slatepack(slatepack.as_bytes().to_vec(), decrypt)
 }
 
 /// retrieve outputs
