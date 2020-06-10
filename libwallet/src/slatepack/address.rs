@@ -29,7 +29,7 @@ use std::convert::TryFrom;
 use std::fmt::{self, Display};
 
 /// Definition of a Slatepack address
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SlatepackAddress {
 	/// Human-readable prefix
 	pub hrp: String,
