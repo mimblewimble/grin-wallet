@@ -129,9 +129,7 @@ impl Slatepack {
 		meta_len += extra_bytes;
 		let mut len_bytes = vec![];
 		len_bytes.write_u32::<BigEndian>(meta_len).unwrap();
-		for i in 0..4 {
-			data[i] = len_bytes[i];
-		}
+		data[..4].clone_from_slice(&len_bytes[..4]);
 		for _ in 0..extra_bytes {
 			data.push(rand::random())
 		}
@@ -227,7 +225,7 @@ impl Slatepack {
 		self.encrypted_meta.recipients.push(address)
 	}
 
-	/// retrieve recipiens
+	/// retrieve recipients
 	pub fn recipients(&self) -> &Vec<SlatepackAddress> {
 		&self.encrypted_meta.recipients
 	}
@@ -320,7 +318,8 @@ impl Writeable for SlatepackBin {
 			s.write(writer)?;
 		};
 
-		// write encrypted meta
+		// encrypted metadata is only included in the payload
+		// on encryption, and is not serialised here
 
 		// Now write payload (length prefixed)
 		writer.write_bytes(sp.payload.clone())
@@ -470,7 +469,7 @@ impl SlatepackEncMetadata {
 			length += s.encoded_len()?;
 		}
 		if !self.recipients.is_empty() {
-			length += 1;
+			length += 2;
 			for r in self.recipients.iter() {
 				length += r.encoded_len()?;
 			}
@@ -551,13 +550,11 @@ impl Writeable for SlatepackEncMetadataBin {
 		if !inner.recipients.is_empty() {
 			let len = inner.recipients.len();
 			// write number of recipients
-			if len > 255 {
-				return Err(ser::Error::UnexpectedData {
-					expected: vec![255],
-					received: vec![len as u8],
-				});
+			if len as u16 > std::u16::MAX {
+				error!("Too many recipients: {}", len);
+				return Err(ser::Error::CorruptedData);
 			}
-			writer.write_u8(len as u8)?;
+			writer.write_u16(len as u16)?;
 			for r in inner.recipients.iter() {
 				r.write(writer)?;
 			}
@@ -593,8 +590,8 @@ impl Readable for SlatepackEncMetadataBin {
 		let mut recipients = vec![];
 		if opt_flags & 0x02 > 0 {
 			// number of recipients
-			let count = reader.read_u8()?;
-			bytes_remaining -= 1;
+			let count = reader.read_u16()?;
+			bytes_remaining -= 2;
 			for _ in 0..count {
 				let addr = SlatepackAddress::read(reader)?;
 				let len = match addr.encoded_len() {
