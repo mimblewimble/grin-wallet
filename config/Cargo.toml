@@ -10,13 +10,13 @@ workspace = ".."
 edition = "2018"
 
 [dependencies]
-rand = "0.5"
+rand = "0.6"
 serde = "1"
 serde_derive = "1"
-toml = "0.4"
-dirs = "1.0.3"
+toml = "0.5"
+dirs = "2.0"
 
 grin_wallet_util = { path = "../util", version = "4.0.0-beta.1" }
 
 [dev-dependencies]
-pretty_assertions = "0.5.1"
+pretty_assertions = "0.6"

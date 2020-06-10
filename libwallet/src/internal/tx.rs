@@ -36,7 +36,7 @@ use ed25519_dalek::Signature as DalekSignature;
 
 // static for incrementing test UUIDs
 lazy_static! {
-	static ref SLATE_COUNTER: Mutex<u8> = { Mutex::new(0) };
+	static ref SLATE_COUNTER: Mutex<u8> = Mutex::new(0);
 }
 
 /// Creates a new slate for a transaction, can be called by anyone involved in

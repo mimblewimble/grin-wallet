@@ -205,7 +205,10 @@ pub fn txs(
 			None => "None".to_owned(),
 		};
 		let kernel_excess = match t.kernel_excess {
-			Some(e) => e.0.as_ref().to_hex(),
+			Some(e) => {
+				let excess: &[u8] = e.0.as_ref();
+				excess.to_hex()
+			}
 			None => "None".to_owned(),
 		};
 		let payment_proof = match t.payment_proof {
@@ -473,7 +476,11 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	t.fg(term::color::WHITE).unwrap();
 	writeln!(t).unwrap();
 	let receiver_signature = match pp.receiver_signature {
-		Some(s) => s.to_bytes().as_ref().to_hex(),
+		Some(s) => {
+			let sig_bytes = s.to_bytes();
+			let sig_ref: &[u8] = sig_bytes.as_ref();
+			sig_ref.to_hex()
+		}
 		None => "None".to_owned(),
 	};
 	let fee = match tx.fee {
@@ -490,11 +497,18 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	};
 
 	let sender_signature = match pp.sender_signature {
-		Some(s) => s.to_bytes().as_ref().to_hex(),
+		Some(s) => {
+			let sig_bytes = s.to_bytes();
+			let sig_ref: &[u8] = sig_bytes.as_ref();
+			sig_ref.to_hex()
+		}
 		None => "None".to_owned(),
 	};
 	let kernel_excess = match tx.kernel_excess {
-		Some(e) => e.0.as_ref().to_hex(),
+		Some(e) => {
+			let excess: &[u8] = e.0.as_ref();
+			excess.to_hex()
+		}
 		None => "None".to_owned(),
 	};
 

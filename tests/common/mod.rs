@@ -365,7 +365,7 @@ where
 	}
 
 	let res = serde_json::from_str(&res).unwrap();
-	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
+	let res = easy_jsonrpc_mw::Response::from_json_response(res).unwrap();
 	let res = res.outputs.get(&id).unwrap().clone().unwrap();
 	if res["Err"] != json!(null) {
 		Ok(Err(WalletAPIReturnError {
@@ -418,7 +418,7 @@ where
 			code: res["error"]["code"].as_i64().unwrap() as i32,
 		}));
 	}
-	let res = easy_jsonrpc::Response::from_json_response(res).unwrap();
+	let res = easy_jsonrpc_mw::Response::from_json_response(res).unwrap();
 	let res = res
 		.outputs
 		.get(&(internal_request_id as u64))
