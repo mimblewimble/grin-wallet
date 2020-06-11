@@ -241,6 +241,7 @@ impl Readable for SlatepackAddress {
 #[test]
 fn slatepack_address() -> Result<(), Error> {
 	use rand::{thread_rng, Rng};
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
 	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
