@@ -45,8 +45,8 @@ impl SlatepackAddress {
 	/// new with default hrp
 	pub fn new(pub_key: &edDalekPublicKey) -> Self {
 		let hrp = match global::get_chain_type() {
-			global::ChainTypes::Mainnet => "grin1",
-			_ => "tgrin1",
+			global::ChainTypes::Mainnet => "grin",
+			_ => "tgrin",
 		};
 		Self {
 			hrp: String::from(hrp),
