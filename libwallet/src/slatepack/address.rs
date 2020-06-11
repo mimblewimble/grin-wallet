@@ -20,6 +20,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use x25519_dalek::PublicKey as xDalekPublicKey;
 
+use crate::grin_core::global;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use crate::grin_util::secp::key::SecretKey;
 use crate::util::OnionV3Address;
@@ -43,8 +44,12 @@ pub struct SlatepackAddress {
 impl SlatepackAddress {
 	/// new with default hrp
 	pub fn new(pub_key: &edDalekPublicKey) -> Self {
+		let hrp = match global::get_chain_type() {
+			global::ChainTypes::Mainnet => "grin1",
+			_ => "tgrin1",
+		};
 		Self {
-			hrp: String::from("slatepack"),
+			hrp: String::from(hrp),
 			pub_key: pub_key.clone(),
 		}
 	}
