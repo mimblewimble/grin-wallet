@@ -2123,6 +2123,7 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
 	/// * `slatepack` - A string representing an armored slatepack
+	/// * `decrypt` - If true and the slatepack message content is encrypted, attempt to decrypt
 	///
 	/// # Returns
 	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful
@@ -2142,13 +2143,18 @@ where
 	/// # let slatepack_string = String::from("");
 	/// // .. receive a slatepack from somewhere
 	/// let res = api_owner.decode_slatepack_message(
-	///    slatepack_string
+	///    slatepack_string,
+	///    false,
 	/// );
 	///
 	/// ```
 
-	pub fn decode_slatepack_message(&self, slatepack: String) -> Result<Slatepack, Error> {
-		owner::decode_slatepack_message(slatepack)
+	pub fn decode_slatepack_message(
+		&self,
+		slatepack: String,
+		decrypt: bool,
+	) -> Result<Slatepack, Error> {
+		owner::decode_slatepack_message(slatepack, decrypt)
 	}
 
 	// PAYMENT PROOFS

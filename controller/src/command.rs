@@ -23,7 +23,7 @@ use crate::impls::SlateGetter as _;
 use crate::impls::{HttpSlateSender, PathToSlate, PathToSlatepack, SlatePutter};
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
@@ -603,7 +603,7 @@ where
 					});
 					let pts = PathToSlatepack::new(f.into(), &packer, true);
 					sl = Some(pts.get_tx()?.0);
-					ret_address = pts.get_slatepack()?.sender;
+					ret_address = pts.get_slatepack(true)?.sender;
 					Ok(())
 				})?;
 			}
@@ -626,7 +626,7 @@ where
 						|api, m| {
 							slate =
 								api.slate_from_slatepack_message(m, message.clone(), vec![0])?;
-							let slatepack = api.decode_slatepack_message(message)?;
+							let slatepack = api.decode_slatepack_message(message, true)?;
 							ret_address = slatepack.sender;
 							Ok(())
 						},
@@ -711,6 +711,84 @@ where
 		}
 		Err(e) => Err(e.into()),
 	}
+}
+
+pub fn unpack<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: ReceiveArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let mut slatepack = match args.input_file {
+		Some(f) => {
+			let packer = Slatepacker::new(SlatepackerArgs {
+				sender: None,
+				recipients: vec![],
+				dec_key: None,
+			});
+			PathToSlatepack::new(f.into(), &packer, true).get_slatepack(false)?
+		}
+		None => match args.input_slatepack_message {
+			Some(mes) => {
+				let mut sp = Slatepack::default();
+				controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, _| {
+					sp = api.decode_slatepack_message(mes, false)?;
+					Ok(())
+				})?;
+				sp
+			}
+			None => {
+				return Err(ErrorKind::ArgumentError("Invalid Slatepack Input".into()).into());
+			}
+		},
+	};
+	println!();
+	println!("SLATEPACK CONTENTS");
+	println!("------------------");
+	println!("{}", slatepack);
+	println!("------------------");
+
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+
+	if slatepack.mode == 1 {
+		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+			let dec_key = api.get_slatepack_secret_key(m, 0)?;
+			match slatepack.try_decrypt_payload(Some(&dec_key)) {
+				Ok(_) => {
+					println!("Slatepack is encrypted for this wallet");
+					println!();
+					println!("DECRYPTED SLATEPACK");
+					println!("-------------------");
+					println!("{}", slatepack);
+					let slate = packer.get_slate(&slatepack)?;
+					println!();
+					println!("DECRYPTED SLATE");
+					println!("---------------");
+					println!("{}", slate);
+				}
+				Err(_) => {
+					println!("Slatepack payload cannot be decrypted by this wallet");
+				}
+			}
+			Ok(())
+		})?;
+	} else {
+		let slate = packer.get_slate(&slatepack)?;
+		println!("Slatepack is not encrypted");
+		println!();
+		println!("SLATE");
+		println!("-----");
+		println!("{}", slate);
+	}
+	Ok(())
 }
 
 /// Finalize command args
