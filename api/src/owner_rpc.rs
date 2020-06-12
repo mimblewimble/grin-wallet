@@ -378,7 +378,7 @@ pub trait OwnerRpc {
 					"num_change_outputs": 1,
 					"selection_strategy_is_use_all": true,
 					"target_slate_version": null,
-					"payment_proof_recipient_address": "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7",
+					"payment_proof_recipient_address": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
 					"ttl_blocks": null,
 					"send_args": null
 				}
@@ -398,7 +398,7 @@ pub trait OwnerRpc {
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"off": "0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAA=",
 					"proof": {
-						"raddr": "eD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BA=",
+						"raddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM=",
 						"saddr": "Ms3WOSiFT4smKLHc5GJt3N811Wy3z999ZMylgit41NM="
 					},
 					"sigs": [
@@ -1409,7 +1409,7 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu"
+			"Ok": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp"
 		}
 	}
 	# "#
@@ -1498,7 +1498,7 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w BR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU BDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew NEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ 4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq nzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod kYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY bou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP nbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw YZAs71HiVeg7. ENDSLATEPACK.\n"
+			"Ok": "BEGINSLATEPACK. t9EcGgrKr1GFCQB SK2jPCxME6Hgpqx bntpQm3zKFycoPY nW4UeoL4KQ7ExNK At6EQsvpz6MjUs8 6WG8KHEbMfqufJQ ZJTw2gkcdJmJjiJ f29oGgYqqXDZox4 ujPSjrtoxCN4h3e i1sZ8dYsm3dPeXL 7VQLsYNjAefciqj ZJXPm4Pqd7VDdd4 okGBGBu3YJvYzT6 arAxeCEx66us31h AJLcDweFwyWBkW5 J1DLiYAjt5ftFTo CjpfW9KjiLq2LM5 jepXWEHJPSDAYVK 4macDZUhRbJiG6E hrQcPrJBVC716mb Hw5E1PFrE6on5wq oEmrS4j9vaB5nw8 Z9ZyXvPc2LN7tER yt6pSHZeY9EpYdY zv4bthzfRfF8ePT TMeMpV2gpgyRXQa CPD2TR. ENDSLATEPACK.\n"
 		}
 	}
 	# "#
@@ -1577,7 +1577,7 @@ pub trait OwnerRpc {
 		"jsonrpc": "2.0",
 		"method": "decode_slatepack_message",
 		"params": {
-			"message": "BEGINSLATEPACK. 8GQrdcwdLKJD28F 3a9siP7ZhZgAh7w\nBR2EiZHza5WMWmZ Cc8zBUemrrYRjhq j3VBwA8vYnvXXKU\nBDmQBN2yKgmR8mX UzvXHezfznA61d7 qFZYChhz94vd8Ew\nNEPLz7jmcVN2C3w wrfHbeiLubYozP2 uhLouFiYRrbe3fQ\n4uhWGfT3sQYXScT dAeo29EaZJpfauh j8VL5jsxST2SPHq\nnzXFC2w9yYVjt7D ju7GSgHEp5aHz9R xstGbHjbsb4JQod\nkYLuELta1ohUwDD pvjhyJmsbLcsPei k5AQhZsJ8RJGBtY\nbou6cU7tZeFJvor 4LB9CBfFB3pmVWD vSLd5RPS75dcnHP\nnbXD8mSDZ8hJS2Q A9wgvppWzuWztJ2 dLUU8f9tLJgsRBw\nYZAs71HiVeg7. ENDSLATEPACK.\n",
+			"message": "BEGINSLATEPACK. t9EcGgrKr1GFCQB SK2jPCxME6Hgpqx bntpQm3zKFycoPY nW4UeoL4KQ7ExNK At6EQsvpz6MjUs8 6WG8KHEbMfqufJQ ZJTw2gkcdJmJjiJ f29oGgYqqXDZox4 ujPSjrtoxCN4h3e i1sZ8dYsm3dPeXL 7VQLsYNjAefciqj ZJXPm4Pqd7VDdd4 okGBGBu3YJvYzT6 arAxeCEx66us31h AJLcDweFwyWBkW5 J1DLiYAjt5ftFTo CjpfW9KjiLq2LM5 jepXWEHJPSDAYVK 4macDZUhRbJiG6E hrQcPrJBVC716mb Hw5E1PFrE6on5wq oEmrS4j9vaB5nw8 Z9ZyXvPc2LN7tER yt6pSHZeY9EpYdY zv4bthzfRfF8ePT TMeMpV2gpgyRXQa CPD2TR. ENDSLATEPACK.\n",
 			"decrypt" : false
 		},
 		"id": 1
@@ -1592,7 +1592,7 @@ pub trait OwnerRpc {
 			"Ok": {
 				"mode": 0,
 				"payload": "AAQAAgQ2QwwrAmJMIDJXBQEhKwAB0gKWSQAAAADTApZJAAAAANQClkkAAAAA1QKWSQAAAAAGAAAAAWWgvAAAAAAAAHoSAAEAAjh4zoRXJ/Ok7HbKPz20s4otBdY2uMNjIQi4V/7WPJbeAxuExVZ7EmRAmV0+1aq6BWXXHhg0YEgZ/5wX9enV3QePAjLN1jkohU+LJiix3ORibdzfNdVst8/ffWTMpYIreNTTeD9lKGaXQqmQ4Prwpfyl1bMzDje7uc1cYoaW0Dzk6BAA",
-				"sender": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu",
+				"sender": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
 				"slatepack": "1.0"
 			}
 		}
@@ -1634,9 +1634,9 @@ pub trait OwnerRpc {
 			"Ok": {
 				"amount": "60000000000",
 				"excess": "091f151170bfac881479bfb56c7012c52cd4ce4198ad661586374dd499925922fb",
-				"recipient_address": "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7",
+				"recipient_address": "tgrin10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqq6t83r",
 				"recipient_sig": "b9b1885a3f33297df32e1aa4db23220bd305da8ed92ff6873faf3ab2c116fea25e9d0e34bd4f567f022b88a37400821ffbcaec71c9a8c3a327c4626611886d0d",
-				"sender_address": "slatepack1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfskdvkdu",
+				"sender_address": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
 				"sender_sig": "611b92331e395c3d29871ac35b1fce78ec595e28ccbe8cc55452da40775e8e46d35a2e84eaffd986935da3275e34d46a8d777d02dabcf4339704c2a621da9700"
 			}
 		}

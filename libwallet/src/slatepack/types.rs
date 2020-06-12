@@ -640,7 +640,9 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 
 #[test]
 fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
+	use crate::grin_core::global;
 	use grin_wallet_util::byte_ser;
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 	let mut payload: Vec<u8> = Vec::with_capacity(243);
 	for _ in 0..payload.capacity() {
 		payload.push(rand::random());
@@ -663,11 +665,12 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 // ensure that a slatepack with unknown data in the optional fields can be read
 #[test]
 fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
+	use crate::grin_core::global;
 	use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 	use grin_wallet_util::byte_ser;
 	use rand::{thread_rng, Rng};
 	use std::io::Cursor;
-
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 	let payload_size = 1234;
 	let mut payload: Vec<u8> = Vec::with_capacity(payload_size);
 	for _ in 0..payload.capacity() {
@@ -696,14 +699,14 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 	// opt fields len (bytes to payload) 4
 	// bytes 5-8 are opt fields len
 
-	// sender 68
+	// sender 64
 
 	let mut opt_fields_len_bytes = [0u8; 4];
 	opt_fields_len_bytes.copy_from_slice(&ser[5..9]);
 	let mut rdr = Cursor::new(opt_fields_len_bytes.to_vec());
 	let opt_fields_len = rdr.read_u32::<BigEndian>().unwrap();
 	// check this matches what we expect below
-	assert_eq!(opt_fields_len, 69);
+	assert_eq!(opt_fields_len, 65);
 
 	let end_head_pos = opt_fields_len as usize + 8 + 1;
 
@@ -740,11 +743,14 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 // if mode == 1
 #[test]
 fn slatepack_encrypted_meta() -> Result<(), Error> {
+	use crate::grin_core::global;
 	use crate::{Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
 	use ed25519_dalek::PublicKey as edDalekPublicKey;
 	use ed25519_dalek::SecretKey as edDalekSecretKey;
 	use rand::{thread_rng, Rng};
 	use std::convert::TryFrom;
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
 	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
@@ -786,11 +792,14 @@ fn slatepack_encrypted_meta() -> Result<(), Error> {
 // metadata won't break parsing
 #[test]
 fn slatepack_encrypted_meta_future() -> Result<(), Error> {
+	use crate::grin_core::global;
 	use crate::{Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
 	use ed25519_dalek::PublicKey as edDalekPublicKey;
 	use ed25519_dalek::SecretKey as edDalekSecretKey;
 	use rand::{thread_rng, Rng};
 	use std::convert::TryFrom;
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
 	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
