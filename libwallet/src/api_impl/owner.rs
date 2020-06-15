@@ -201,13 +201,49 @@ where
 }
 
 /// Decode a slatepack message, to allow viewing
-pub fn decode_slatepack_message(slatepack: String, decrypt: bool) -> Result<Slatepack, Error> {
+/// Will decrypt if possible, otherwise will return
+/// undecrypted slatepack
+pub fn decode_slatepack_message<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slatepack: String,
+	secret_indices: Vec<u32>,
+) -> Result<Slatepack, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
 		recipients: vec![],
 		dec_key: None,
 	});
-	packer.deser_slatepack(slatepack.as_bytes().to_vec(), decrypt)
+	if secret_indices.is_empty() {
+		packer.deser_slatepack(slatepack.as_bytes().to_vec(), false)
+	} else {
+		for index in secret_indices {
+			let dec_key = Some(get_slatepack_secret_key(
+				wallet_inst.clone(),
+				keychain_mask,
+				index,
+			)?);
+			let packer = Slatepacker::new(SlatepackerArgs {
+				sender: None,
+				recipients: vec![],
+				dec_key: (&dec_key).as_ref(),
+			});
+			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec(), true);
+			let slatepack = match res {
+				Ok(sp) => sp,
+				Err(_) => {
+					continue;
+				}
+			};
+			return Ok(slatepack);
+		}
+		packer.deser_slatepack(slatepack.as_bytes().to_vec(), false)
+	}
 }
 
 /// retrieve outputs
