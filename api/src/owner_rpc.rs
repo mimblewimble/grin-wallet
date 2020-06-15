@@ -1577,8 +1577,9 @@ pub trait OwnerRpc {
 		"jsonrpc": "2.0",
 		"method": "decode_slatepack_message",
 		"params": {
-			"message": "BEGINSLATEPACK. t9EcGgrKr1GFCQB SK2jPCxME6Hgpqx bntpQm3zKFycoPY nW4UeoL4KQ7ExNK At6EQsvpz6MjUs8 6WG8KHEbMfqufJQ ZJTw2gkcdJmJjiJ f29oGgYqqXDZox4 ujPSjrtoxCN4h3e i1sZ8dYsm3dPeXL 7VQLsYNjAefciqj ZJXPm4Pqd7VDdd4 okGBGBu3YJvYzT6 arAxeCEx66us31h AJLcDweFwyWBkW5 J1DLiYAjt5ftFTo CjpfW9KjiLq2LM5 jepXWEHJPSDAYVK 4macDZUhRbJiG6E hrQcPrJBVC716mb Hw5E1PFrE6on5wq oEmrS4j9vaB5nw8 Z9ZyXvPc2LN7tER yt6pSHZeY9EpYdY zv4bthzfRfF8ePT TMeMpV2gpgyRXQa CPD2TR. ENDSLATEPACK.\n",
-			"decrypt" : false
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"secret_indices": [0],
+			"message": "BEGINSLATEPACK. t9EcGgrKr1GFCQB SK2jPCxME6Hgpqx bntpQm3zKFycoPY nW4UeoL4KQ7ExNK At6EQsvpz6MjUs8 6WG8KHEbMfqufJQ ZJTw2gkcdJmJjiJ f29oGgYqqXDZox4 ujPSjrtoxCN4h3e i1sZ8dYsm3dPeXL 7VQLsYNjAefciqj ZJXPm4Pqd7VDdd4 okGBGBu3YJvYzT6 arAxeCEx66us31h AJLcDweFwyWBkW5 J1DLiYAjt5ftFTo CjpfW9KjiLq2LM5 jepXWEHJPSDAYVK 4macDZUhRbJiG6E hrQcPrJBVC716mb Hw5E1PFrE6on5wq oEmrS4j9vaB5nw8 Z9ZyXvPc2LN7tER yt6pSHZeY9EpYdY zv4bthzfRfF8ePT TMeMpV2gpgyRXQa CPD2TR. ENDSLATEPACK.\n"
 		},
 		"id": 1
 	}
@@ -1604,8 +1605,9 @@ pub trait OwnerRpc {
 
 	fn decode_slatepack_message(
 		&self,
+		token: Token,
 		message: String,
-		decrypt: bool,
+		secret_indices: Vec<u32>,
 	) -> Result<Slatepack, ErrorKind>;
 
 	/**
@@ -2077,10 +2079,17 @@ where
 
 	fn decode_slatepack_message(
 		&self,
+		token: Token,
 		message: String,
-		decrypt: bool,
+		secret_indices: Vec<u32>,
 	) -> Result<Slatepack, ErrorKind> {
-		Owner::decode_slatepack_message(self, message, decrypt).map_err(|e| e.kind())
+		Owner::decode_slatepack_message(
+			self,
+			(&token.keychain_mask).as_ref(),
+			message,
+			secret_indices,
+		)
+		.map_err(|e| e.kind())
 	}
 
 	fn retrieve_payment_proof(

@@ -626,7 +626,8 @@ where
 						|api, m| {
 							slate =
 								api.slate_from_slatepack_message(m, message.clone(), vec![0])?;
-							let slatepack = api.decode_slatepack_message(message, true)?;
+							let slatepack =
+								api.decode_slatepack_message(m, message.clone(), vec![0])?;
 							ret_address = slatepack.sender;
 							Ok(())
 						},
@@ -735,8 +736,8 @@ where
 		None => match args.input_slatepack_message {
 			Some(mes) => {
 				let mut sp = Slatepack::default();
-				controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, _| {
-					sp = api.decode_slatepack_message(mes, false)?;
+				controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+					sp = api.decode_slatepack_message(m, mes, vec![])?;
 					Ok(())
 				})?;
 				sp

@@ -2117,13 +2117,16 @@ where
 	}
 
 	/// Decode an armored slatepack, returning a Slatepack object that can be
-	/// viewed, manipulated, output as json, etc
+	/// viewed, manipulated, output as json, etc. The resulting slatepack will be
+	/// decrypted by this wallet if possible
 	///
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
 	/// * `slatepack` - A string representing an armored slatepack
-	/// * `decrypt` - If true and the slatepack message content is encrypted, attempt to decrypt
+	/// * `secret_indices` - Indices along this wallet's deriviation path with which to attempt
+	/// decryption. If this wallet can't decrypt this slatepack, the payload of the returned
+	/// Slatepack will remain encrypted.
 	///
 	/// # Returns
 	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful
@@ -2143,18 +2146,25 @@ where
 	/// # let slatepack_string = String::from("");
 	/// // .. receive a slatepack from somewhere
 	/// let res = api_owner.decode_slatepack_message(
+	///    None,
 	///    slatepack_string,
-	///    false,
+	///    vec![0, 1, 2],
 	/// );
 	///
 	/// ```
 
 	pub fn decode_slatepack_message(
 		&self,
+		keychain_mask: Option<&SecretKey>,
 		slatepack: String,
-		decrypt: bool,
+		secret_indices: Vec<u32>,
 	) -> Result<Slatepack, Error> {
-		owner::decode_slatepack_message(slatepack, decrypt)
+		owner::decode_slatepack_message(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			slatepack,
+			secret_indices,
+		)
 	}
 
 	// PAYMENT PROOFS
