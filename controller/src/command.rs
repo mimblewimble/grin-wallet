@@ -493,7 +493,7 @@ pub fn output_slatepack<L, C, K>(
 	slate: &Slate,
 	dest: &str,
 	lock: bool,
-	file_only: bool,
+	finalizing: bool,
 	is_pre_fork: bool,
 ) -> Result<(), libwallet::Error>
 where
@@ -533,14 +533,14 @@ where
 	}
 
 	// TODO: Remove HF3
-	if is_pre_fork || file_only {
+	if is_pre_fork {
 		PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
 		println!();
 		println!("Transaction file was output to:");
 		println!();
 		println!("{}", out_file_name);
 		println!();
-		if !file_only {
+		if !finalizing {
 			println!("Please send this file to the other party manually");
 		}
 		return Ok(());
@@ -552,7 +552,11 @@ where
 	output.sync_all()?;
 
 	println!();
-	println!("Slatepack data follows. Please provide this output to the other party");
+	if !finalizing {
+		println!("Slatepack data follows. Please provide this output to the other party");
+	} else {
+		println!("Slatepack data follows.");
+	}
 	println!();
 	println!("--- CUT BELOW THIS LINE ---");
 	println!();
