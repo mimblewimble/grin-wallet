@@ -500,7 +500,7 @@ impl From<SlateV3> for SlateV4 {
 		};
 		let (feat, feat_args) = match lock_height {
 			0 => (0, None),
-			n => (1, Some(KernelFeaturesArgsV4 { lock_hgt: n })),
+			n => (2, Some(KernelFeaturesArgsV4 { lock_hgt: n })),
 		};
 		SlateV4 {
 			ver,
