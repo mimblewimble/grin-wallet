@@ -31,7 +31,6 @@ use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLC
 use grin_wallet_util::grin_core as core;
 use grin_wallet_util::grin_core::core::amount_to_hr_string;
 use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::OnionV3Address;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
@@ -503,27 +502,15 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	};
 
 	let payment_proof_address = {
-		match args.is_present("request_payment_proof") {
-			true => match OnionV3Address::try_from(dest) {
-				Ok(a) => Some(SlatepackAddress::try_from(a).unwrap()),
+		match args.is_present("no_payment_proof") {
+			false => match SlatepackAddress::try_from(dest) {
+				Ok(a) => Some(a),
 				Err(_) => {
-					let addr = match parse_required(args, "dest") {
-						Ok(a) => a,
-						Err(_) => {
-							let msg = format!("Destination Slatepack address must be provided (-d) if payment proof is requested");
-							return Err(ParseError::ArgumentError(msg));
-						}
-					};
-					match SlatepackAddress::try_from(addr) {
-						Ok(a) => Some(a),
-						Err(e) => {
-							let msg = format!("Invalid slatepack address: {:?}", e);
-							return Err(ParseError::ArgumentError(msg));
-						}
-					}
+					println!("No recipient Slatepack address. No payment proof will be requested.");
+					None
 				}
 			},
-			false => None,
+			true => None,
 		}
 	};
 

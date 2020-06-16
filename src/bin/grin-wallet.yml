@@ -123,10 +123,10 @@ subcommands:
             short: d
             long: dest
             takes_value: true
-        - request_payment_proof:
-            help: Request a payment proof from the recipient. If present, the destination must be provided as a slatepack address.
-            short: y
-            long: request_payment_proof
+        - no_payment_proof:
+            help: Don't request a payment proof, even if the Recipient's Slatepack address is provided in the -dest argument
+            short: n
+            long: no_payment_proof
         - fluff:
             help: Fluff the transaction (ignore Dandelion relay protocol)
             short: f
@@ -322,7 +322,7 @@ subcommands:
   - recover:
       about: Displays a recovery phrase for the wallet. (use `init -r` to perform recovery)
   - address:
-      about: Display the wallet's payment proof address
+      about: Display the wallet's Slatepack address
   - scan:
       about: Checks a wallet's outputs against a live node, repairing and restoring missing outputs if required
       args:
