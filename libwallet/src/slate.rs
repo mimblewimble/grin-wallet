@@ -120,7 +120,7 @@ pub struct Slate {
 	/// 	2: height_locked
 	/// 	3: NRD
 	pub kernel_features: u8,
-	/// Offset, needed when posting of transaction is deferred
+	/// Offset, needed when posting of transasction is deferred
 	pub offset: BlindingFactor,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
