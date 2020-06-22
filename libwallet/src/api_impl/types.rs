@@ -86,6 +86,8 @@ pub struct InitTxSendArgs {
 	pub post_tx: bool,
 	/// Whether to use dandelion when posting. If false, skip the dandelion relay
 	pub fluff: bool,
+	/// If set, skip the Slatepack TOR send attempt
+	pub skip_tor: bool,
 }
 
 impl Default for InitTxArgs {

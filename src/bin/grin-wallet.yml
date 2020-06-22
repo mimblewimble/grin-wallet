@@ -141,6 +141,10 @@ subcommands:
             short: b
             long: ttl_blocks
             takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
         #TODO: Remove HF3
         - v4:
             help: Output a V4 slate prior to HF3 block
@@ -162,6 +166,10 @@ subcommands:
             short: i
             long: input
             takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
   - finalize:
       about: Processes a Slatepack Message to finalize a transfer.
       args:
@@ -231,6 +239,10 @@ subcommands:
             short: b
             long: ttl_blocks
             takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
   - outputs:
       about: Raw wallet output info (list of outputs)
   - txs:
