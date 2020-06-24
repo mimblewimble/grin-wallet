@@ -19,7 +19,6 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
-use crate::core::core::Transaction;
 use crate::core::global;
 use crate::impls::HttpSlateSender;
 use crate::impls::SlateSender as _;
@@ -1129,18 +1128,24 @@ where
 	}
 
 	/// Retrieves the stored transaction associated with a TxLogEntry. Can be used even after the
-	/// transaction has completed.
+	/// transaction has completed. Either the Transaction Log ID or the Slate UUID must be supplied.
+	/// If both are supplied, the Transaction Log ID is preferred.
 	///
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
-	/// * `tx_log_entry` - A [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
+	/// * `tx_id` - The id of the transaction in the wallet's Transaction Log. Either this or
+	/// `slate_id` must be provided.
+	/// * `slate_id` - The UUID of the Transaction Slate to find. Either this or `tx_id` must be
+	/// provided
 	///
 	/// # Returns
-	/// * Ok with the stored  [`Transaction`](../grin_core/core/transaction/struct.Transaction.html)
-	/// if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * Ok(Some([Slate](../grin_wallet_libwallet/slate/struct.Slate.html)) containing the stored
+	/// transaction, if successful. Note that this Slate will not contain all of the fields used by
+	/// the original Slate that resulted in the transaction.
+	/// * Ok(None) if the stored Transaction isn't found.
+	/// * [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1156,7 +1161,7 @@ where
 	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
-	///     let stored_tx = api_owner.get_stored_tx(None, tx_log_entries[0].tx_slate_id.unwrap()).unwrap();
+	///     let stored_tx = api_owner.get_stored_tx(None, Some(tx_log_entries[0].id), None).unwrap();
 	///     //...
 	/// }
 	/// ```
@@ -1164,13 +1169,14 @@ where
 	pub fn get_stored_tx(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		tx_id: Uuid,
-	) -> Result<Option<Transaction>, Error> {
+		tx_id: Option<u32>,
+		slate_id: Option<&Uuid>,
+	) -> Result<Option<Slate>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::get_stored_tx(&**w, &tx_id)
+		owner::get_stored_tx(&**w, tx_id, slate_id)
 	}
 
 	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet

@@ -16,7 +16,6 @@
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
-use crate::core::core::Transaction;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
@@ -805,7 +804,8 @@ pub trait OwnerRpc {
 		"id": 1,
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
-			"id": "0436430c-2b02-624c-2032-570501212b00"
+			"id": null,
+			"slate_id": "0436430c-2b02-624c-2032-570501212b00"
 		}
 	}
 	# "#
@@ -816,28 +816,17 @@ pub trait OwnerRpc {
 		"id": 1,
 		"result": {
 			"Ok": {
-				"body": {
-					"inputs": [],
-					"kernels": [
-						{
-							"excess": "000000000000000000000000000000000000000000000000000000000000000000",
-							"excess_sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-							"features": {
-								"Plain": {
-									"fee": 7000000
-								}
-							}
-						}
-					],
-					"outputs": [
-						{
-							"commit": "099b48cfb1f80a2347dc89818449e68e76a3c6817a532a8e9ef2b4a5ccf4363850",
-							"features": "Plain",
-							"proof": "29701ceae262cac77b79b868c883a292e61e6de8192b868edcd1300b0973d91396b156ace6bd673402a303de10ddd8a5e6b7f17ba6557a574a672bd04cc273ab04ed8e2ca80bac483345c0ec843f521814ce1301ec9adc38956a12b4d948acce71295a4f52bcdeb8a1c9f2d6b2da5d731262a5e9c0276ef904df9ef8d48001420cd59f75a2f1ae5c7a1c7c6b9f140e7613e52ef9e249f29f9340b7efb80699e460164324616f98fd4cde3db52497c919e95222fffeacb7e65deca7e368a80ce713c19de7da5369726228ee336f5bd494538c12ccbffeb1b9bfd5fc8906d1c64245b516f103fa96d9c56975837652c1e0fa5803d7ccf1147d8f927e36da717f7ad79471dbe192f5f50f87a79fc3fe030dba569b634b92d2cf307993cce545633af263897cd7e6ebf4dcafb176d07358bdc38d03e45a49dfa9c8c6517cd68d167ffbf6c3b4de0e2dd21909cbad4c467b84e5700be473a39ac59c669d7c155c4bcab9b8026eea3431c779cd277e4922d2b9742e1f6678cbe869ec3b5b7ef4132ddb6cdd06cf27dbeb28be72b949fa897610e48e3a0d789fd2eea75abc97b3dc7e00e5c8b3d24e40c6f24112adb72352b89a2bef0599345338e9e76202a3c46efa6370952b2aca41aadbae0ea32531acafcdab6dd066d769ebf50cf4f3c0a59d2d5fa79600a207b9417c623f76ad05e8cccfcd4038f9448bc40f127ca7c0d372e46074e334fe49f5a956ec0056f4da601e6af80eb1a6c4951054869e665b296d8c14f344ca2dc5fdd5df4a3652536365a1615ad9b422165c77bf8fe65a835c8e0c41e070014eb66ef8c525204e990b3a3d663c1e42221b496895c37a2f0c1bf05e91235409c3fe3d89a9a79d6c78609ab18a463311911f71fa37bb73b15fcd38143d1404fd2ce81004dc7ff89cf1115dcc0c35ce1c1bf9941586fb959770f2618ccb7118a7"
-						}
-					]
-				},
-				"offset": "0000000000000000000000000000000000000000000000000000000000000000"
+				"coms": [
+					{
+						"c": "CZtIz7H4CiNH3ImBhEnmjnajxoF6UyqOnvK0pcz0NjhQ",
+						"p": "KXAc6uJiysd7ebhoyIOikuYebegZK4aO3NEwCwlz2ROWsVas5r1nNAKjA94Q3dil5rfxe6ZVeldKZyvQTMJzqwTtjiyoC6xIM0XA7IQ/UhgUzhMB7JrcOJVqErTZSKzOcSlaT1K83rihyfLWstpdcxJipenAJ275BN+e+NSAAUIM1Z91ovGuXHocfGufFA52E+Uu+eJJ8p+TQLfvuAaZ5GAWQyRhb5j9TN49tSSXyRnpUiL//qy35l3sp+NoqAznE8Gd59pTaXJiKO4zb1vUlFOMEsy//rG5v9X8iQbRxkJFtRbxA/qW2cVpdYN2UsHg+lgD18zxFH2Pkn422nF/eteUcdvhkvX1D4enn8P+Aw26VptjS5LSzzB5k8zlRWM68mOJfNfm6/Tcr7F20HNYvcONA+RaSd+pyMZRfNaNFn/79sO03g4t0hkJy61MRnuE5XAL5HOjmsWcZp18FVxLyrm4Am7qNDHHec0nfkki0rl0Lh9meMvoaew7W370Ey3bbN0Gzyfb6yi+crlJ+ol2EOSOOg14n9Lup1q8l7PcfgDlyLPSTkDG8kESrbcjUriaK+8FmTRTOOnnYgKjxG76Y3CVKyrKQarbrg6jJTGsr82rbdBm12nr9Qz088ClnS1fp5YAoge5QXxiP3atBejMz81AOPlEi8QPEnynwNNy5GB04zT+SfWpVuwAVvTaYB5q+A6xpsSVEFSGnmZbKW2MFPNEyi3F/dXfSjZSU2NloWFa2bQiFlx3v4/mWoNcjgxB4HABTrZu+MUlIE6ZCzo9ZjweQiIbSWiVw3ovDBvwXpEjVAnD/j2JqaedbHhgmrGKRjMRkR9x+je7c7FfzTgUPRQE/SzoEATcf/ic8RFdzAw1zhwb+ZQVhvuVl3DyYYzLcRin"
+					}
+				],
+				"fee": "7000000",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"sigs": [],
+				"sta": "S3",
+				"ver": "4:3"
 			}
 		}
 	}
@@ -845,7 +834,12 @@ pub trait OwnerRpc {
 	# , 5, true, true, false, false);
 	```
 	 */
-	fn get_stored_tx(&self, token: Token, id: Uuid) -> Result<Option<Transaction>, ErrorKind>;
+	fn get_stored_tx(
+		&self,
+		token: Token,
+		id: Option<u32>,
+		slate_id: Option<Uuid>,
+	) -> Result<Option<VersionedSlate>, ErrorKind>;
 
 	/**
 	Networked version of [Owner::scan](struct.Owner.html#method.scan).
@@ -1873,8 +1867,28 @@ where
 			.map_err(|e| e.kind())
 	}
 
-	fn get_stored_tx(&self, token: Token, uuid: Uuid) -> Result<Option<Transaction>, ErrorKind> {
-		Owner::get_stored_tx(self, (&token.keychain_mask).as_ref(), uuid).map_err(|e| e.kind())
+	fn get_stored_tx(
+		&self,
+		token: Token,
+		id: Option<u32>,
+		slate_id: Option<Uuid>,
+	) -> Result<Option<VersionedSlate>, ErrorKind> {
+		let out_slate = Owner::get_stored_tx(
+			self,
+			(&token.keychain_mask).as_ref(),
+			id,
+			(&slate_id).as_ref(),
+		)
+		.map_err(|e| e.kind())?;
+		match out_slate {
+			Some(s) => {
+				let version = SlateVersion::V4;
+				Ok(Some(
+					VersionedSlate::into_version(s, version).map_err(|e| e.kind())?,
+				))
+			}
+			None => Ok(None),
+		}
 	}
 
 	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), ErrorKind> {

@@ -302,6 +302,10 @@ pub enum ErrorKind {
 	#[fail(display = "SlatepackAddress error: {}", _0)]
 	SlatepackAddress(String),
 
+	/// Retrieving Stored Tx
+	#[fail(display = "Stored Tx error: {}", _0)]
+	StoredTx(String),
+
 	/// Other
 	#[fail(display = "Generic error: {}", _0)]
 	GenericError(String),

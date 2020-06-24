@@ -57,6 +57,7 @@ mod types;
 
 pub use crate::error::{Error, ErrorKind};
 pub use crate::slate::{ParticipantData, Slate, SlateState};
+pub use crate::slate_versions::v4::sig_is_blank;
 pub use crate::slate_versions::{
 	SlateVersion, VersionedBinSlate, VersionedCoinbase, VersionedSlate, CURRENT_SLATE_VERSION,
 	GRIN_BLOCK_HEADER_VERSION,

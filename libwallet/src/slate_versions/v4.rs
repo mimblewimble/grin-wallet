@@ -436,7 +436,7 @@ fn default_sig() -> secp::Signature {
 	Signature::from_raw_data(&[0; 64]).unwrap()
 }
 
-fn sig_is_blank(s: &secp::Signature) -> bool {
+pub fn sig_is_blank(s: &secp::Signature) -> bool {
 	for b in s.to_raw_data().iter() {
 		if *b != 0 {
 			return false;

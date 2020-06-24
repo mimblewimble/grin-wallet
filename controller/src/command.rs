@@ -1269,15 +1269,17 @@ where
 	K: keychain::Keychain + 'static,
 {
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let stored_tx_slate = match api.get_stored_tx(m, Some(args.id), None)? {
+			None => {
+				error!(
+					"Transaction with id {} does not have transaction data. Not reposting.",
+					args.id
+				);
+				return Ok(());
+			}
+			Some(s) => s,
+		};
 		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
-		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
-		if stored_tx.is_none() {
-			error!(
-				"Transaction with id {} does not have transaction data. Not reposting.",
-				args.id
-			);
-			return Ok(());
-		}
 		match args.dump_file {
 			None => {
 				if txs[0].confirmed {
@@ -1287,15 +1289,26 @@ where
 					);
 					return Ok(());
 				}
-				let mut slate = Slate::blank(2, false);
-				slate.tx = Some(stored_tx.unwrap());
-				api.post_tx(m, &slate, args.fluff)?;
-				info!("Reposted transaction at {}", args.id);
+				if libwallet::sig_is_blank(
+					&stored_tx_slate.tx.as_ref().unwrap().kernels()[0].excess_sig,
+				) {
+					error!("Transaction at {} has not been finalized.", args.id);
+					return Ok(());
+				}
+
+				match api.post_tx(m, &stored_tx_slate, args.fluff) {
+					Ok(_) => info!("Reposted transaction at {}", args.id),
+					Err(e) => error!("Could not repost transaction at {}. Reason: {}", args.id, e),
+				}
 				return Ok(());
 			}
 			Some(f) => {
 				let mut tx_file = File::create(f.clone())?;
-				tx_file.write_all(json::to_string(&stored_tx).unwrap().as_bytes())?;
+				tx_file.write_all(
+					json::to_string(&stored_tx_slate.tx.unwrap())
+						.unwrap()
+						.as_bytes(),
+				)?;
 				tx_file.sync_all()?;
 				info!("Dumped transaction data for tx {} to {}", args.id, f);
 				return Ok(());
