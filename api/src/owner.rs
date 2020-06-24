@@ -662,13 +662,25 @@ where
 		};
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
+		let skip_tor = match send_args.as_ref() {
+			None => false,
+			Some(sa) => sa.skip_tor,
+		};
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
+				let tc = tor_config_lock.clone();
+				let tc = match tc {
+					Some(mut c) => {
+						c.skip_send_attempt = Some(skip_tor);
+						Some(c)
+					}
+					None => None,
+				};
 				let res = try_slatepack_sync_workflow(
 					&slate,
 					&sa.dest,
-					tor_config_lock.clone(),
+					tc,
 					None,
 					false,
 					self.doctest_mode,
@@ -822,10 +834,18 @@ where
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
+				let tc = tor_config_lock.clone();
+				let tc = match tc {
+					Some(mut c) => {
+						c.skip_send_attempt = Some(sa.skip_tor);
+						Some(c)
+					}
+					None => None,
+				};
 				let res = try_slatepack_sync_workflow(
 					&slate,
 					&sa.dest,
-					tor_config_lock.clone(),
+					tc,
 					None,
 					true,
 					self.doctest_mode,
@@ -2316,6 +2336,11 @@ pub fn try_slatepack_sync_workflow(
 	send_to_finalize: bool,
 	test_mode: bool,
 ) -> Result<Option<Slate>, libwallet::Error> {
+	if let Some(tc) = &tor_config {
+		if tc.skip_send_attempt == Some(true) {
+			return Ok(None);
+		}
+	}
 	let mut ret_slate = Slate::blank(2, false);
 	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_to_finalize)

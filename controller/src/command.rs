@@ -257,6 +257,7 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 	pub payment_proof_address: Option<SlatepackAddress>,
 	pub ttl_blocks: Option<u64>,
+	pub skip_tor: bool,
 	//TODO: Remove HF3
 	pub output_v4_slate: bool,
 }
@@ -449,6 +450,14 @@ where
 		}
 		Ok(())
 	})?;
+
+	let tor_config = match tor_config {
+		Some(mut c) => {
+			c.skip_send_attempt = Some(args.skip_tor);
+			Some(c)
+		}
+		None => None,
+	};
 
 	let res =
 		try_slatepack_sync_workflow(&slate, &args.dest, tor_config, tor_sender, false, test_mode);
@@ -653,6 +662,7 @@ where
 pub struct ReceiveArgs {
 	pub input_file: Option<String>,
 	pub input_slatepack_message: Option<String>,
+	pub skip_tor: bool,
 }
 
 pub fn receive<L, C, K>(
@@ -678,6 +688,14 @@ where
 	let km = match keychain_mask.as_ref() {
 		None => None,
 		Some(&m) => Some(m.to_owned()),
+	};
+
+	let tor_config = match tor_config {
+		Some(mut c) => {
+			c.skip_send_attempt = Some(args.skip_tor);
+			Some(c)
+		}
+		None => None,
 	};
 
 	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
@@ -962,6 +980,7 @@ pub struct ProcessInvoiceArgs {
 	pub slate: Slate,
 	pub estimate_selection_strategies: bool,
 	pub ttl_blocks: Option<u64>,
+	pub skip_tor: bool,
 }
 
 /// Process invoice
@@ -1035,6 +1054,14 @@ where
 		}
 		Ok(())
 	})?;
+
+	let tor_config = match tor_config {
+		Some(mut c) => {
+			c.skip_send_attempt = Some(args.skip_tor);
+			Some(c)
+		}
+		None => None,
+	};
 
 	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
 

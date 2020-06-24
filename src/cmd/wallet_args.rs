@@ -506,7 +506,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			false => match SlatepackAddress::try_from(dest) {
 				Ok(a) => Some(a),
 				Err(_) => {
-					println!("No recipient Slatepack address. No payment proof will be requested.");
+					println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
 					None
 				}
 			},
@@ -527,6 +527,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		ttl_blocks,
 		target_slate_version: target_slate_version,
 		output_v4_slate,
+		skip_tor: args.is_present("manual"),
 	})
 }
 
@@ -553,6 +554,7 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
+		skip_tor: args.is_present("manual"),
 	})
 }
 
@@ -579,6 +581,7 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
+		skip_tor: args.is_present("manual"),
 	})
 }
 
@@ -737,6 +740,7 @@ pub fn parse_process_invoice_args(
 		slate,
 		max_outputs,
 		ttl_blocks,
+		skip_tor: args.is_present("manual"),
 	})
 }
 
