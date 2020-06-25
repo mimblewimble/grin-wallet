@@ -258,6 +258,7 @@ pub struct SendArgs {
 	pub payment_proof_address: Option<SlatepackAddress>,
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: bool,
+	pub outfile: Option<String>,
 	//TODO: Remove HF3
 	pub output_v4_slate: bool,
 }
@@ -486,6 +487,7 @@ where
 				keychain_mask,
 				&slate,
 				args.dest.as_str(),
+				args.outfile,
 				true,
 				false,
 				is_pre_fork,
@@ -501,6 +503,7 @@ pub fn output_slatepack<L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest: &str,
+	out_file_override: Option<String>,
 	lock: bool,
 	finalizing: bool,
 	is_pre_fork: bool,
@@ -532,7 +535,10 @@ where
 	// create a directory to which files will be output
 	let slate_dir = format!("{}/{}", tld, "slatepack");
 	let _ = std::fs::create_dir_all(slate_dir.clone());
-	let out_file_name = format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state);
+	let out_file_name = match out_file_override {
+		None => format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state),
+		Some(f) => f,
+	};
 
 	if lock {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
@@ -663,6 +669,7 @@ pub struct ReceiveArgs {
 	pub input_file: Option<String>,
 	pub input_slatepack_message: Option<String>,
 	pub skip_tor: bool,
+	pub outfile: Option<String>,
 }
 
 pub fn receive<L, C, K>(
@@ -726,6 +733,7 @@ where
 				keychain_mask,
 				&slate,
 				&dest,
+				args.outfile,
 				false,
 				false,
 				slate.version_info.version < 4,
@@ -821,6 +829,7 @@ pub struct FinalizeArgs {
 	pub input_slatepack_message: Option<String>,
 	pub fluff: bool,
 	pub nopost: bool,
+	pub outfile: Option<String>,
 }
 
 pub fn finalize<L, C, K>(
@@ -893,6 +902,7 @@ where
 		keychain_mask,
 		&slate,
 		"",
+		args.outfile,
 		false,
 		true,
 		slate.version_info.version < 4,
@@ -903,12 +913,14 @@ where
 
 /// Issue Invoice Args
 pub struct IssueInvoiceArgs {
-	/// output file
+	/// Slatepack address
 	pub dest: String,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
 	/// whether to output a V4 slate
 	pub output_v4_slate: bool,
+	/// output file override
+	pub outfile: Option<String>,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -964,6 +976,7 @@ where
 		keychain_mask,
 		&slate,
 		args.dest.as_str(),
+		args.outfile,
 		false,
 		false,
 		is_pre_fork,
@@ -981,6 +994,7 @@ pub struct ProcessInvoiceArgs {
 	pub estimate_selection_strategies: bool,
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: bool,
+	pub outfile: Option<String>,
 }
 
 /// Process invoice
@@ -1081,6 +1095,7 @@ where
 				keychain_mask,
 				&slate,
 				&dest,
+				args.outfile,
 				true,
 				false,
 				slate.version_info.version < 4,

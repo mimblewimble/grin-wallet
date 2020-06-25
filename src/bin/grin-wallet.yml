@@ -145,6 +145,11 @@ subcommands:
             help: If present, don't attempt to send the resulting Slatepack via TOR
             short: m
             long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
         #TODO: Remove HF3
         - v4:
             help: Output a V4 slate prior to HF3 block
@@ -170,6 +175,11 @@ subcommands:
             help: If present, don't attempt to send the resulting Slatepack via TOR
             short: m
             long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
   - finalize:
       about: Processes a Slatepack Message to finalize a transfer.
       args:
@@ -186,6 +196,11 @@ subcommands:
             help: Do not post the transaction.
             short: n
             long: nopost
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
   - invoice:
       about: Initialize an invoice transaction, outputting a Slatepack Message with the result
       args:
@@ -196,6 +211,11 @@ subcommands:
             help: Intended recipient's Slatepack Address
             short: d
             long: dest
+            takes_value: true
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
             takes_value: true
        #TODO: Remove HF3
         - v4:
@@ -243,6 +263,11 @@ subcommands:
             help: If present, don't attempt to send the resulting Slatepack via TOR
             short: m
             long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
   - outputs:
       about: Raw wallet output info (list of outputs)
   - txs:
