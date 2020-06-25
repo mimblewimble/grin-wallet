@@ -317,9 +317,10 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			.iter()
 			.find(|t| t.tx_slate_id == Some(slate.id))
 			.unwrap();
-		let stored_tx = sender_api.get_stored_tx(m, tx.tx_slate_id.unwrap())?;
-		slate.tx = stored_tx;
-		sender_api.post_tx(m, &slate, false)?;
+		let stored_tx_slate = sender_api
+			.get_stored_tx(m, None, Some(&tx.tx_slate_id.unwrap()))?
+			.unwrap();
+		sender_api.post_tx(m, &stored_tx_slate, false)?;
 		let (_, wallet1_info) = sender_api.retrieve_summary_info(m, true, 1)?;
 		// should be mined now
 		assert_eq!(

@@ -823,13 +823,50 @@ where
 }
 
 /// get stored tx
-pub fn get_stored_tx<'a, T: ?Sized, C, K>(w: &T, id: &Uuid) -> Result<Option<Transaction>, Error>
+pub fn get_stored_tx<'a, T: ?Sized, C, K>(
+	w: &T,
+	tx_id: Option<u32>,
+	slate_id: Option<&Uuid>,
+) -> Result<Option<Slate>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	w.get_stored_tx(&format!("{}", id))
+	let mut uuid = None;
+	if let Some(i) = tx_id {
+		let tx = w.tx_log_iter().find(|t| t.id == i);
+		if let Some(t) = tx {
+			uuid = t.tx_slate_id;
+		}
+	}
+	if uuid.is_none() {
+		if let Some(sid) = slate_id {
+			uuid = Some(sid.to_owned());
+		}
+	}
+	let id = match uuid {
+		Some(u) => u,
+		None => {
+			return Err(ErrorKind::StoredTx(
+				"Both the provided Transaction Id and Slate UUID are invalid.".to_owned(),
+			)
+			.into());
+		}
+	};
+	let tx_res = w.get_stored_tx(&format!("{}", id))?;
+	match tx_res {
+		Some(tx) => {
+			let mut slate = Slate::blank(2, false);
+			slate.tx = Some(tx.clone());
+			slate.fee = tx.fee();
+			slate.id = id.clone();
+			slate.offset = tx.offset;
+			slate.state = SlateState::Standard3;
+			Ok(Some(slate))
+		}
+		None => Ok(None),
+	}
 }
 
 /// Posts a transaction to the chain

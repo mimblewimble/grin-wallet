@@ -156,7 +156,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
 		println!("TXS[0]: {:?}", txs[0]);
-		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
+		let stored_tx = api.get_stored_tx(m, None, Some(&txs[0].tx_slate_id.unwrap()))?;
 		println!("Stored tx: {:?}", stored_tx);
 		api.post_tx(m, &slate, false)?;
 		bh += 1;
@@ -225,9 +225,8 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// Now repost from cached
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, Some(slate.id))?;
-		let stored_tx = api.get_stored_tx(m, txs[0].tx_slate_id.unwrap())?;
-		slate.tx = stored_tx;
-		api.post_tx(m, &slate, false)?;
+		let stored_tx_slate = api.get_stored_tx(m, Some(txs[0].id), None)?.unwrap();
+		api.post_tx(m, &stored_tx_slate, false)?;
 		bh += 1;
 		Ok(())
 	})?;
