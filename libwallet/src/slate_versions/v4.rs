@@ -95,8 +95,8 @@ pub struct SlateV4 {
 	/// Offset, modified by each participant inserting inputs
 	/// as the transaction progresses
 	#[serde(
-		serialize_with = "ser::as_base64",
-		deserialize_with = "ser::blindingfactor_from_base64"
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::blind_from_hex"
 	)]
 	#[serde(default = "default_offset_zero")]
 	#[serde(skip_serializing_if = "offset_is_zero")]
@@ -216,15 +216,15 @@ pub struct VersionCompatInfoV4 {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ParticipantDataV4 {
 	/// Public key corresponding to private blinding factor
-	#[serde(with = "ser::pubkey_base64")]
+	#[serde(with = "secp_ser::pubkey_serde")]
 	pub xs: PublicKey,
 	/// Public key corresponding to private nonce
-	#[serde(with = "ser::pubkey_base64")]
+	#[serde(with = "secp_ser::pubkey_serde")]
 	pub nonce: PublicKey,
 	/// Public partial signature
 	#[serde(default = "default_part_sig_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(with = "ser::option_sig_base64")]
+	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part: Option<Signature>,
 }
 
@@ -234,12 +234,12 @@ fn default_part_sig_none() -> Option<Signature> {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfoV4 {
-	#[serde(with = "ser::dalek_pubkey_base64")]
+	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub saddr: DalekPublicKey,
-	#[serde(with = "ser::dalek_pubkey_base64")]
+	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub raddr: DalekPublicKey,
 	#[serde(default = "default_receiver_signature_none")]
-	#[serde(with = "ser::option_dalek_sig_base64")]
+	#[serde(with = "ser::option_dalek_sig_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub rsig: Option<DalekSignature>,
 }
@@ -256,13 +256,13 @@ pub struct CommitsV4 {
 	pub f: OutputFeaturesV4,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
-		serialize_with = "ser::as_base64",
-		deserialize_with = "ser::commitment_from_base64"
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
 	)]
 	pub c: Commitment,
 	/// A proof that the commitment is in the right range
 	/// Only applies for transaction outputs
-	#[serde(with = "ser::option_rangeproof_base64")]
+	#[serde(with = "ser::option_rangeproof_hex")]
 	#[serde(default = "default_range_proof")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub p: Option<RangeProof>,
@@ -353,14 +353,14 @@ pub struct OutputV4 {
 	pub features: OutputFeaturesV4,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
-		serialize_with = "ser::as_base64",
-		deserialize_with = "ser::commitment_from_base64"
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
 	)]
 	pub com: Commitment,
 	/// A proof that the commitment is in the right range
 	#[serde(
-		serialize_with = "ser::as_base64",
-		deserialize_with = "ser::rangeproof_from_base64"
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::rangeproof_from_hex"
 	)]
 	pub prf: RangeProof,
 }
