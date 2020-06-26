@@ -17,7 +17,6 @@
 //! /#### Top-Level Slate Struct
 
 //! * The `version_info` struct is removed, and is replaced with `ver`, which has the format "[version]:[block header version]"
-//! * `id` becomes a short-form base-64 encoding of the UUID binary
 //! * `sta` is added, with possible values S1|S2|S3|I1|I2|I3|NA
 //! * `num_participants` is renamed to `num_parts`
 //! * `num_parts` may be omitted from the slate. If omitted its value is assumed to be 2.
@@ -43,9 +42,6 @@
 //! * `public_nonce` is renamed to `nonce`
 //! * `part_sig` is renamed to `part`
 //! * `part` may be omitted if it has not yet been filled out
-//! * `xs` becomes Base64 encoded instead of a hex string
-//! * `nonce` becomes Base64 encoded instead of a hex string
-//! * `part` becomes Base64 encoded instead of a hex string
 //! * `message` is removed
 //! * `message_sig` is removed
 //! * `id` is removed. Parties can identify themselves via the keys stored in their transaction context
@@ -55,9 +51,6 @@
 //! *  The `sender_address` field is renamed to `saddr`
 //! *  The `receiver_address` field is renamed to `raddr`
 //! *  The `receiver_signature` field is renamed to `rsig`
-//! * `saddr` is Base64 encoded instead of a hex string
-//! * `raddr` is Base64 encoded instead of a hex string
-//! * `rsig` is Base64 encoded instead of a hex string
 //! * `rsig` may be omitted if it has not yet been filled out
 
 use crate::grin_core::core::transaction::KernelFeatures;
