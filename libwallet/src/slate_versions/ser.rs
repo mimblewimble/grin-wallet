@@ -13,10 +13,6 @@
 // limitations under the License.
 //! Sane serialization & deserialization of cryptographic structs into hex
 
-use crate::grin_keychain::BlindingFactor;
-use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-use crate::grin_util::secp::PublicKey;
-use base64;
 use serde::{Deserialize, Deserializer, Serializer};
 
 /// Seralizes a byte string into base64
@@ -38,139 +34,10 @@ where
 		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))
 }
 
-/// Creates a BlindingFactor from a base64 string
-pub fn blindingfactor_from_base64<'de, D>(deserializer: D) -> Result<BlindingFactor, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	use serde::de::Error;
-	let val = String::deserialize(deserializer)
-		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))?;
-	Ok(BlindingFactor::from_slice(&val))
-}
-
-/// Creates a RangeProof from a base64 string
-pub fn rangeproof_from_base64<'de, D>(deserializer: D) -> Result<RangeProof, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	use serde::de::{Error, IntoDeserializer};
-
-	let val = String::deserialize(deserializer)
-		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))?;
-	RangeProof::deserialize(val.into_deserializer())
-}
-
-/// Creates a RangeProof from a hex string
-pub fn commitment_from_base64<'de, D>(deserializer: D) -> Result<Commitment, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	use serde::de::{Error, IntoDeserializer};
-
-	let val = String::deserialize(deserializer)
-		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))?;
-	Commitment::deserialize(val.into_deserializer())
-}
-
-/// Creates a PublicKey from a hex string
-pub fn pubkey_from_base64<'de, D>(deserializer: D) -> Result<PublicKey, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	use serde::de::{Error, IntoDeserializer};
-
-	let val = String::deserialize(deserializer)
-		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))?;
-	PublicKey::deserialize(val.into_deserializer())
-}
-
-/// Serializes an secp256k1 pubkey to base64
-pub mod pubkey_base64 {
-	use crate::grin_util::secp::PublicKey;
-	use crate::grin_util::static_secp_instance;
-	use base64;
-	use serde::{Deserialize, Deserializer, Serializer};
-
-	///
-	pub fn serialize<S>(key: &PublicKey, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		let static_secp = static_secp_instance();
-		let static_secp = static_secp.lock();
-		serializer.serialize_str(&base64::encode(
-			&key.serialize_vec(&static_secp, true).to_vec(),
-		))
-	}
-
-	///
-	pub fn deserialize<'de, D>(deserializer: D) -> Result<PublicKey, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		use serde::de::Error;
-		let static_secp = static_secp_instance();
-		let static_secp = static_secp.lock();
-		String::deserialize(deserializer)
-			.and_then(|string| {
-				base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
-			})
-			.and_then(|bytes: Vec<u8>| {
-				PublicKey::from_slice(&static_secp, &bytes)
-					.map_err(|err| Error::custom(err.to_string()))
-			})
-	}
-}
-
 /// Serializes an Option<secp::Signature> to and from hex
-pub mod option_sig_base64 {
-	use crate::grin_util::{secp, static_secp_instance};
-	use base64;
-	use serde::de::Error;
-	use serde::{Deserialize, Deserializer, Serializer};
-
-	///
-	pub fn serialize<S>(sig: &Option<secp::Signature>, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		let static_secp = static_secp_instance();
-		let static_secp = static_secp.lock();
-		match sig {
-			Some(sig) => serializer.serialize_str(&base64::encode(
-				&sig.serialize_compact(&static_secp).to_vec(),
-			)),
-			None => serializer.serialize_none(),
-		}
-	}
-
-	///
-	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<secp::Signature>, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		let static_secp = static_secp_instance();
-		let static_secp = static_secp.lock();
-		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => base64::decode(&string)
-				.map_err(|err| Error::custom(err.to_string()))
-				.and_then(|bytes: Vec<u8>| {
-					let mut b = [0u8; 64];
-					b.copy_from_slice(&bytes[0..64]);
-					secp::Signature::from_compact(&static_secp, &b)
-						.map(Some)
-						.map_err(|err| Error::custom(err.to_string()))
-				}),
-			None => Ok(None),
-		})
-	}
-}
-
-/// Serializes an Option<secp::Signature> to and from hex
-pub mod option_rangeproof_base64 {
+pub mod option_rangeproof_hex {
 	use crate::grin_util::secp::pedersen::RangeProof;
-	use base64;
+	use crate::grin_util::{from_hex, ToHex};
 	use serde::de::{Error, IntoDeserializer};
 	use serde::{Deserialize, Deserializer, Serializer};
 
@@ -180,7 +47,7 @@ pub mod option_rangeproof_base64 {
 		S: Serializer,
 	{
 		match proof {
-			Some(p) => serializer.serialize_str(&base64::encode(&p)),
+			Some(p) => serializer.serialize_str(&p.to_hex()),
 			None => serializer.serialize_none(),
 		}
 	}
@@ -191,7 +58,7 @@ pub mod option_rangeproof_base64 {
 		D: Deserializer<'de>,
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => base64::decode(&string)
+			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|val| Ok(Some(RangeProof::deserialize(val.into_deserializer())?))),
 			None => Ok(None),
