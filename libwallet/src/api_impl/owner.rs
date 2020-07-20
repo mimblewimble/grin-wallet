@@ -76,7 +76,6 @@ where
 
 /// Retrieve the slatepack address for the current parent key at
 /// the given index
-/// set active account
 pub fn get_slatepack_address<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
@@ -96,7 +95,6 @@ where
 
 /// Retrieve the decryption key for the current parent key
 /// the given index
-/// set active account
 pub fn get_slatepack_secret_key<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
