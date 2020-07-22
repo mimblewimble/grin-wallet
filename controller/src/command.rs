@@ -20,16 +20,15 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::SlateGetter as _;
-use crate::impls::{HttpSlateSender, PathToSlate, PathToSlatepack, SlatePutter};
+use crate::impls::{PathToSlate, PathToSlatepack};
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateVersion, Slatepack,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
-use grin_wallet_util::OnionV3Address;
 use serde_json as json;
 use std::convert::TryFrom;
 use std::fs::File;
@@ -259,8 +258,6 @@ pub struct SendArgs {
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
-	//TODO: Remove HF3
-	pub output_v4_slate: bool,
 }
 
 pub fn send<L, C, K>(
@@ -276,126 +273,6 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let wallet_inst = owner_api.wallet_inst.clone();
-	// Check other version, and if it only supports 3 set the target slate
-	// version to 3 to avoid removing the transaction object
-	// TODO: This block is temporary, for the period between the release of v4.0.0 and HF3,
-	// after which this should be removable
-	let mut args = args;
-
-	//TODO: Remove block post HF3
-	// All this block does is determine whether the slate should be
-	// output as a V3 Slate for the receiver
-	let mut tor_sender = None;
-	let is_pre_fork;
-	{
-		is_pre_fork = {
-			let cur_height = {
-				libwallet::wallet_lock!(wallet_inst, w);
-				w.w2n_client().get_chain_tip()?.0
-			};
-			match global::get_chain_type() {
-				global::ChainTypes::Mainnet => {
-					if cur_height < 786240 && !args.output_v4_slate {
-						true
-					} else {
-						false
-					}
-				}
-				global::ChainTypes::Floonet => {
-					if cur_height < 552960 && !args.output_v4_slate {
-						true
-					} else {
-						false
-					}
-				}
-				_ => false,
-			}
-		};
-
-		if is_pre_fork {
-			let trailing = match args.dest.ends_with('/') {
-				true => "",
-				false => "/",
-			};
-
-			let mut address_found = false;
-			// For sync methods, derive intended endpoint from dest
-			match SlatepackAddress::try_from(args.dest.as_str()) {
-				Ok(address) => {
-					let tor_addr = OnionV3Address::try_from(&address).unwrap();
-					// Try pinging the destination via TOR
-					debug!("Version ping: TOR address is: {}", tor_addr);
-					match HttpSlateSender::with_socks_proxy(
-						&tor_addr.to_http_str(),
-						&tor_config.as_ref().unwrap().socks_proxy_addr,
-						&tor_config.as_ref().unwrap().send_config_dir,
-					) {
-						Ok(mut sender) => {
-							let url_str =
-								format!("{}{}v2/foreign", tor_addr.to_http_str(), trailing);
-							if let Ok(v) = sender.check_other_version(&url_str) {
-								if v == SlateVersion::V3 {
-									args.target_slate_version = Some(3);
-								}
-								address_found = true;
-							}
-							tor_sender = Some(sender);
-						}
-						Err(e) => {
-							debug!(
-								"Version ping: Couldn't create slate sender for TOR: {:?}",
-								e
-							);
-						}
-					}
-				}
-				Err(e) => {
-					debug!("Version ping: Address is not SlatepackAddress: {:?}", e);
-				}
-			}
-
-			// now try http
-			if !address_found {
-				// Try pinging the destination via TOR
-				match HttpSlateSender::new(&args.dest) {
-					Ok(mut sender) => {
-						let url_str = format!("{}{}v2/foreign", args.dest, trailing);
-						match sender.check_other_version(&url_str) {
-							Ok(v) => {
-								if v == SlateVersion::V3 {
-									args.target_slate_version = Some(3);
-								}
-								address_found = true;
-							}
-							Err(e) => {
-								debug!(
-									"Version ping: Couldn't get other version for HTTP: {:?}",
-									e
-								);
-							}
-						}
-					}
-					Err(e) => {
-						debug!(
-							"Version ping: Couldn't create slate sender for HTTP: {:?}",
-							e
-						);
-					}
-				}
-			}
-
-			if !address_found {
-				// otherwise, determine slate format based on block height
-				// For files spit out a V3 Slate if we're before HF3,
-				// Or V4 slate otherwise
-				if is_pre_fork {
-					args.target_slate_version = Some(3);
-				}
-			}
-		}
-	} // end pre HF3 Block
-
 	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
@@ -460,8 +337,7 @@ where
 		None => None,
 	};
 
-	let res =
-		try_slatepack_sync_workflow(&slate, &args.dest, tor_config, tor_sender, false, test_mode);
+	let res = try_slatepack_sync_workflow(&slate, &args.dest, tor_config, None, false, test_mode);
 
 	match res {
 		Ok(Some(s)) => {
@@ -490,7 +366,6 @@ where
 				args.outfile,
 				true,
 				false,
-				is_pre_fork,
 			)?;
 		}
 		Err(e) => return Err(e.into()),
@@ -506,7 +381,6 @@ pub fn output_slatepack<L, C, K>(
 	out_file_override: Option<String>,
 	lock: bool,
 	finalizing: bool,
-	is_pre_fork: bool,
 ) -> Result<(), libwallet::Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -545,20 +419,6 @@ where
 			api.tx_lock_outputs(m, &slate)?;
 			Ok(())
 		})?;
-	}
-
-	// TODO: Remove HF3
-	if is_pre_fork {
-		PathToSlate((&out_file_name).into()).put_tx(&slate, false)?;
-		println!();
-		println!("Transaction file was output to:");
-		println!();
-		println!("{}", out_file_name);
-		println!();
-		if !finalizing {
-			println!("Please send this file to the other party manually");
-		}
-		return Ok(());
 	}
 
 	println!("{}", out_file_name);
@@ -736,7 +596,6 @@ where
 				args.outfile,
 				false,
 				false,
-				slate.version_info.version < 4,
 			)?;
 			Ok(())
 		}
@@ -905,7 +764,6 @@ where
 		args.outfile,
 		false,
 		true,
-		slate.version_info.version < 4,
 	)?;
 
 	Ok(())
@@ -917,8 +775,6 @@ pub struct IssueInvoiceArgs {
 	pub dest: String,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
-	/// whether to output a V4 slate
-	pub output_v4_slate: bool,
 	/// output file override
 	pub outfile: Option<String>,
 }
@@ -933,37 +789,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	//TODO: Remove block HF3
-	let is_pre_fork = {
-		let cur_height = {
-			let wallet_inst = owner_api.wallet_inst.clone();
-			libwallet::wallet_lock!(wallet_inst, w);
-			w.w2n_client().get_chain_tip()?.0
-		};
-		match global::get_chain_type() {
-			global::ChainTypes::Mainnet => {
-				if cur_height < 786240 && !&args.output_v4_slate {
-					true
-				} else {
-					false
-				}
-			}
-			global::ChainTypes::Floonet => {
-				if cur_height < 552960 && !&args.output_v4_slate {
-					true
-				} else {
-					false
-				}
-			}
-			_ => false,
-		}
-	};
-
-	let mut issue_args = args.issue_args.clone();
-
-	if is_pre_fork {
-		issue_args.target_slate_version = Some(3);
-	}
+	let issue_args = args.issue_args.clone();
 
 	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
@@ -979,7 +805,6 @@ where
 		args.outfile,
 		false,
 		false,
-		is_pre_fork,
 	)?;
 	Ok(())
 }
@@ -1098,7 +923,6 @@ where
 				args.outfile,
 				true,
 				false,
-				slate.version_info.version < 4,
 			)?;
 			Ok(())
 		}

@@ -249,7 +249,6 @@ impl Slate {
 	pub fn upgrade(v_slate: VersionedSlate) -> Result<Slate, Error> {
 		let v4: SlateV4 = match v_slate {
 			VersionedSlate::V4(s) => s,
-			VersionedSlate::V3(s) => SlateV4::from(s),
 		};
 		Ok(v4.into())
 	}
