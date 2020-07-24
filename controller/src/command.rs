@@ -19,11 +19,11 @@ use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
+use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
-use crate::impls::{PathToSlate, PathToSlatepack};
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, Slatepack,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
@@ -466,26 +466,20 @@ where
 	let mut ret_address = None;
 	let slate = match filename {
 		Some(f) => {
-			// first try regular slate - remove HF3
-			let mut sl = match PathToSlate((&f).into()).get_tx() {
-				Ok(s) => Some(s.0), //pre HF3, regular slate
-				Err(_) => None,
-			};
 			// otherwise, get slate from slatepack
-			if sl.is_none() {
-				controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-					let dec_key = api.get_slatepack_secret_key(m, 0)?;
-					let packer = Slatepacker::new(SlatepackerArgs {
-						sender: None,
-						recipients: vec![],
-						dec_key: Some(&dec_key),
-					});
-					let pts = PathToSlatepack::new(f.into(), &packer, true);
-					sl = Some(pts.get_tx()?.0);
-					ret_address = pts.get_slatepack(true)?.sender;
-					Ok(())
-				})?;
-			}
+			let mut sl = None;
+			controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+				let dec_key = api.get_slatepack_secret_key(m, 0)?;
+				let packer = Slatepacker::new(SlatepackerArgs {
+					sender: None,
+					recipients: vec![],
+					dec_key: Some(&dec_key),
+				});
+				let pts = PathToSlatepack::new(f.into(), &packer, true);
+				sl = Some(pts.get_tx()?.0);
+				ret_address = pts.get_slatepack(true)?.sender;
+				Ok(())
+			})?;
 			sl
 		}
 		None => None,
@@ -710,14 +704,8 @@ where
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
-	// based on the slate contents
-	// for now, we can tell this is an invoice transaction
-	// if the receipient (participant 1) hasn't completed sigs
-	let mut is_invoice = false;
-	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		is_invoice = api.context_is_invoice(m, &slate)?;
-		Ok(())
-	})?;
+	// based on the slate state
+	let is_invoice = slate.state == SlateState::Invoice2;
 
 	if is_invoice {
 		let km = match keychain_mask.as_ref() {

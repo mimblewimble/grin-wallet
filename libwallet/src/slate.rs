@@ -130,10 +130,6 @@ pub struct Slate {
 	pub payment_proof: Option<PaymentInfo>,
 	/// Kernel features arguments
 	pub kernel_features_args: Option<KernelFeaturesArgs>,
-	//TODO: Remove post HF3
-	/// participant ID, only stored for compatibility with V3 slates
-	/// not serialized anywhere
-	pub participant_id: Option<PublicKey>,
 }
 
 impl fmt::Display for Slate {
@@ -216,10 +212,6 @@ impl Slate {
 			None => Err(ErrorKind::SlateTransactionRequired.into()),
 		}
 	}
-	/// Whether the slate started life as a compact slate
-	pub fn is_compact(&self) -> bool {
-		self.version_info.version >= 4
-	}
 
 	/// number of participants
 	pub fn num_participants(&self) -> u8 {
@@ -279,7 +271,6 @@ impl Slate {
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
 			payment_proof: None,
-			participant_id: None,
 			kernel_features_args: None,
 		}
 	}
@@ -351,15 +342,8 @@ impl Slate {
 	where
 		K: Keychain,
 	{
-		// Whoever does this first generates the offset
-		// TODO: Remove HF3
-		if self.participant_data.is_empty() && !self.is_compact() {
-			self.generate_offset(keychain, sec_key, use_test_rng)?;
-		}
 		// Always choose my part of the offset, and subtract from my excess
-		if self.is_compact() {
-			self.generate_offset(keychain, sec_key, use_test_rng)?;
-		}
+		self.generate_offset(keychain, sec_key, use_test_rng)?;
 		self.add_participant_info(keychain, &sec_key, &sec_nonce, None)?;
 		Ok(())
 	}
@@ -413,9 +397,8 @@ impl Slate {
 		K: Keychain,
 	{
 		// TODO: Note we're unable to verify fees in this instance
-		if !self.is_compact() {
-			self.check_fees()?;
-		}
+		// Left here is a reminder that we no longer check fees
+		// self.check_fees()?;
 
 		self.verify_part_sigs(keychain.secp())?;
 		let sig_part = aggsig::calculate_partial_sig(
@@ -533,7 +516,6 @@ impl Slate {
 			public_nonce: pub_nonce,
 			part_sig: part_sig,
 		});
-		self.participant_id = Some(pub_key);
 		Ok(())
 	}
 
@@ -564,18 +546,12 @@ impl Slate {
 			}
 		};
 
-		if self.is_compact() {
-			let total_offset = keychain.blind_sum(
-				&BlindSum::new()
-					.add_blinding_factor(self.offset.clone())
-					.add_blinding_factor(my_offset.clone()),
-			)?;
-			self.offset = total_offset;
-		} else {
-			//TODO: Remove HF3
-			self.tx_or_err_mut()?.offset = my_offset.clone();
-			self.offset = my_offset.clone();
-		};
+		let total_offset = keychain.blind_sum(
+			&BlindSum::new()
+				.add_blinding_factor(self.offset.clone())
+				.add_blinding_factor(my_offset.clone()),
+		)?;
+		self.offset = total_offset;
 
 		let adjusted_offset = keychain.blind_sum(
 			&BlindSum::new()
@@ -764,7 +740,6 @@ impl From<Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
-			participant_id: _participant_id,
 			kernel_features_args,
 		} = slate.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
@@ -811,7 +786,6 @@ impl From<&Slate> for SlateV4 {
 			participant_data,
 			version_info,
 			payment_proof,
-			participant_id: _participant_id,
 			kernel_features_args,
 		} = slate;
 		let num_parts = *num_parts;
@@ -1089,7 +1063,6 @@ impl From<SlateV4> for Slate {
 			participant_data,
 			version_info,
 			payment_proof,
-			participant_id: None,
 			kernel_features_args,
 		}
 	}

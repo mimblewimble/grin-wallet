@@ -543,9 +543,7 @@ where
 		batch.commit()?;
 	}
 
-	if slate.is_compact() {
-		slate.compact()?;
-	}
+	slate.compact()?;
 
 	Ok(slate)
 }
@@ -597,9 +595,7 @@ where
 		batch.commit()?;
 	}
 
-	if slate.is_compact() {
-		slate.compact()?;
-	}
+	slate.compact()?;
 
 	Ok(slate)
 }
@@ -652,9 +648,7 @@ where
 	}
 
 	// if this is compact mode, we need to create the transaction now
-	if ret_slate.is_compact() {
-		ret_slate.tx = Some(Transaction::empty());
-	}
+	ret_slate.tx = Some(Transaction::empty());
 
 	// if self sending, make sure to store 'initiator' keys
 	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
@@ -693,12 +687,8 @@ where
 		}
 	}
 
-	// adjust offset with inputs, repopulate inputs (initiator needs them for now)
-	// TODO: Revisit post-HF3
-	if ret_slate.is_compact() {
-		tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut ret_slate)?;
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, false)?;
-	}
+	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut ret_slate)?;
+	selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, false)?;
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -709,10 +699,8 @@ where
 	}
 
 	// Can remove amount as well as other sig data now
-	if ret_slate.is_compact() {
-		ret_slate.amount = 0;
-		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
-	}
+	ret_slate.amount = 0;
+	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
 
 	ret_slate.state = SlateState::Invoice2;
 	Ok(ret_slate)
@@ -730,21 +718,18 @@ where
 	K: Keychain + 'a,
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
-	let mut sl = slate.clone();
 	let mut excess_override = None;
-	if sl.is_compact() && sl.tx == None {
-		// attempt to repopulate if we're the initiator
-		sl.tx = Some(Transaction::empty());
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
-	} else if sl.participant_data.len() == 1 {
+
+	if slate.participant_data.len() == 1 {
 		// purely for invoice workflow, payer needs the excess back temporarily for storage
 		excess_override = context.calculated_excess;
 	}
+
 	let height = w.w2n_client().get_chain_tip()?.0;
 	selection::lock_tx_context(
 		&mut *w,
 		keychain_mask,
-		&sl,
+		&slate,
 		height,
 		&context,
 		excess_override,
@@ -773,10 +758,8 @@ where
 	// as opposed to locking them prior to this stage, as the excess to this point
 	// will just be the change output
 
-	if sl.is_compact() {
-		tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
-	}
+	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;
+	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
@@ -787,9 +770,8 @@ where
 		batch.commit()?;
 	}
 	sl.state = SlateState::Standard3;
-	if sl.is_compact() {
-		sl.amount = 0;
-	}
+	sl.amount = 0;
+
 	Ok(sl)
 }
 

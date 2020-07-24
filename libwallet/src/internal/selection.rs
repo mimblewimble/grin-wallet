@@ -55,10 +55,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	//TODO: Revise HF3. If we're sending V4 slates, only include
-	// change outputs in excess sum
-	let include_inputs_in_sum = !slate.is_compact();
-
 	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
 		wallet,
 		keychain_mask,
@@ -69,7 +65,7 @@ where
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
-		include_inputs_in_sum,
+		false,
 	)?;
 
 	// Update the fee on the slate so we account for this when building the tx.
