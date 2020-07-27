@@ -532,7 +532,7 @@ fn slatepack_exchange_bin() {
 }
 
 #[test]
-fn slatepack_exchange_armored() {
+fn slatepack_exchange_armored_1() {
 	let test_dir = "test_output/slatepack_exchange_armored";
 	setup(test_dir);
 	// Bin output

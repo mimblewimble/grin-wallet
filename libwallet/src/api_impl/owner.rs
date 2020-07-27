@@ -720,6 +720,13 @@ where
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
 	let mut excess_override = None;
 
+	let mut sl = slate.clone();
+
+	if sl.tx == None {
+		sl.tx = Some(Transaction::empty());
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+	}
+
 	if slate.participant_data.len() == 1 {
 		// purely for invoice workflow, payer needs the excess back temporarily for storage
 		excess_override = context.calculated_excess;
@@ -729,7 +736,7 @@ where
 	selection::lock_tx_context(
 		&mut *w,
 		keychain_mask,
-		&slate,
+		&sl,
 		height,
 		&context,
 		excess_override,
