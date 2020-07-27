@@ -222,10 +222,10 @@ where
 		batch.commit()?;
 		t
 	};
-	wallet.store_tx(
-		&format!("{}", tx_entry.tx_slate_id.unwrap()),
-		slate.tx_or_err()?,
-	)?;
+	let res = slate.tx_or_err();
+	if let Ok(tx_res) = res {
+		wallet.store_tx(&format!("{}", tx_entry.tx_slate_id.unwrap()), tx_res)?;
+	}
 	Ok(())
 }
 

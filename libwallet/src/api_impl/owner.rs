@@ -543,6 +543,8 @@ where
 		batch.commit()?;
 	}
 
+	slate.compact()?;
+
 	Ok(slate)
 }
 
@@ -592,6 +594,8 @@ where
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
+
+	slate.compact()?;
 
 	Ok(slate)
 }

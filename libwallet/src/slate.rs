@@ -236,6 +236,13 @@ impl Slate {
 		};
 		Ok(v4.into())
 	}
+	/// Compact the slate for initial sending, storing the excess + offset explicit
+	/// and removing my input/output data
+	/// This info must be stored in the context for repopulation later
+	pub fn compact(&mut self) -> Result<(), Error> {
+		self.tx = None;
+		Ok(())
+	}
 
 	/// Create a new slate
 	pub fn blank(num_participants: u8, is_invoice: bool) -> Slate {
