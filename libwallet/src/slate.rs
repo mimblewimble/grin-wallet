@@ -221,14 +221,6 @@ impl Slate {
 		}
 	}
 
-	/// Compact the slate for initial sending, storing the excess + offset explicit
-	/// and removing my input/output data
-	/// This info must be stored in the context for repopulation later
-	pub fn compact(&mut self) -> Result<(), Error> {
-		self.tx = None;
-		Ok(())
-	}
-
 	/// Recieve a slate, upgrade it to the latest version internally
 	/// Throw error if this can't be done
 	pub fn deserialize_upgrade(slate_json: &str) -> Result<Slate, Error> {
