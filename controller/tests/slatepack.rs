@@ -409,7 +409,7 @@ fn slatepack_exchange_test_impl(
 
 	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
 		let res = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
-		//slatepack = res.0;
+		let slatepack = res.0;
 		slate = res.1;
 		slate = api.receive_tx(&slate, None, None)?;
 		output_slatepack(
@@ -532,7 +532,7 @@ fn slatepack_exchange_bin() {
 }
 
 #[test]
-fn slatepack_exchange_armored_1() {
+fn slatepack_exchange_armored() {
 	let test_dir = "test_output/slatepack_exchange_armored";
 	setup(test_dir);
 	// Bin output
