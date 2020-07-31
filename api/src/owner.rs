@@ -2320,17 +2320,6 @@ where
 	) -> Result<(bool, bool), Error> {
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
 	}
-
-	/// Return whether this transaction is marked as invoice in the context
-	// TODO: Remove post HF3
-	// This will be removed once state is added to slate
-	pub fn context_is_invoice(
-		&self,
-		keychain_mask: Option<&SecretKey>,
-		slate: &Slate,
-	) -> Result<bool, Error> {
-		owner::context_is_invoice(self.wallet_inst.clone(), keychain_mask, slate)
-	}
 }
 
 /// attempt to send slate synchronously, starting with TOR and downgrading to HTTP

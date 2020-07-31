@@ -148,9 +148,6 @@ impl HttpSlateSender {
 		if supported_slate_versions.contains(&"V4".to_owned()) {
 			return Ok(SlateVersion::V4);
 		}
-		if supported_slate_versions.contains(&"V3".to_owned()) {
-			return Ok(SlateVersion::V3);
-		}
 
 		let report = "Unable to negotiate slate format with other wallet.".to_string();
 		error!("{}", report);
@@ -189,18 +186,6 @@ impl SlateSender for HttpSlateSender {
 
 		let slate_send = match self.check_other_version(&url_str)? {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
-			SlateVersion::V3 => {
-				let mut slate = slate.clone();
-				//TODO: Fill out with Slate V4 incompatibilities
-				// * Will need to set particpant id to 1 manually if this is invoice
-				// * Set slate height manually
-				// * Reconcile unknown slate states from V3
-				if false {
-					return Err(ErrorKind::ClientCallback("feature x requested, but other wallet does not support feature x. Please urge other user to upgrade, or re-send tx without feature x".into()).into());
-				}
-				slate.version_info.version = 3;
-				VersionedSlate::into_version(slate, SlateVersion::V3)?
-			}
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = match finalize {

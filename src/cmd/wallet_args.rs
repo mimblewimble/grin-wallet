@@ -502,9 +502,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// max_outputs
 	let max_outputs = 500;
 
-	// TODO: Remove HF3
-	let output_v4_slate = args.is_present("v4");
-
 	// target slate version to create/send
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -543,7 +540,6 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		payment_proof_address,
 		ttl_blocks,
 		target_slate_version: target_slate_version,
-		output_v4_slate,
 		outfile,
 		skip_tor: args.is_present("manual"),
 	})
@@ -658,9 +654,6 @@ pub fn parse_issue_invoice_args(
 		}
 	};
 
-	// TODO: Remove HF3
-	let output_v4_slate = args.is_present("v4");
-
 	// target slate version to create
 	let target_slate_version = {
 		match args.is_present("slate_version") {
@@ -682,7 +675,6 @@ pub fn parse_issue_invoice_args(
 
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
-		output_v4_slate,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,

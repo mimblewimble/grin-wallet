@@ -40,8 +40,6 @@ pub enum ForeignCheckMiddlewareFn {
 	VerifySlateMessages,
 	/// receive_tx
 	ReceiveTx,
-	/// finalize_invoice_tx (delete HF3)
-	FinalizeInvoiceTx,
 	/// finalize_tx
 	FinalizeTx,
 }
@@ -441,13 +439,6 @@ where
 	pub fn finalize_tx(&self, slate: &Slate, post_automatically: bool) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		if let Some(m) = self.middleware.as_ref() {
-			m(
-				ForeignCheckMiddlewareFn::FinalizeInvoiceTx,
-				w.w2n_client().get_version_info(),
-				Some(slate),
-			)?;
-		}
 		let post_automatically = match self.doctest_mode {
 			true => false,
 			false => post_automatically,

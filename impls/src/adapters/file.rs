@@ -16,11 +16,7 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
-use crate::libwallet::slate_versions::v3::SlateV3;
-use crate::libwallet::slate_versions::v4::SlateV4;
-use crate::libwallet::{
-	Error, ErrorKind, Slate, SlateState, SlateVersion, VersionedBinSlate, VersionedSlate,
-};
+use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
 use crate::{SlateGetter, SlatePutter};
 use grin_wallet_util::byte_ser;
 use std::convert::TryFrom;
@@ -41,56 +37,7 @@ impl SlatePutter for PathToSlate {
 		}*/
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
-		let out_slate = {
-			// TODO: Remove post HF3
-			if slate.version_info.version == 2 || slate.version_info.version == 3 {
-				// if the slate we read in in V3 or 2 (holdover from 3.0.0), output a slate V3,
-				// which can be read by v3.x wallets
-				let v4_slate = SlateV4::from(slate.clone());
-				let mut v3_slate = SlateV3::try_from(&v4_slate)?;
-				// Fill in V3 participant IDs according to state
-				if slate.state == SlateState::Invoice1 {
-					for mut e in v3_slate.participant_data.iter_mut() {
-						if Some(e.public_blind_excess.clone()) == slate.participant_id {
-							e.id = 1;
-						} else {
-							e.id = 0;
-						}
-					}
-				}
-				if slate.state == SlateState::Invoice2 {
-					for mut e in v3_slate.participant_data.iter_mut() {
-						if Some(e.public_blind_excess.clone()) == slate.participant_id {
-							e.id = 0;
-						} else {
-							e.id = 1;
-						}
-					}
-				}
-				if slate.state == SlateState::Standard1 {
-					for mut e in v3_slate.participant_data.iter_mut() {
-						if Some(e.public_blind_excess.clone()) == slate.participant_id {
-							e.id = 0;
-						} else {
-							e.id = 1;
-						}
-					}
-				}
-				if slate.state == SlateState::Standard2 {
-					for mut e in v3_slate.participant_data.iter_mut() {
-						if Some(e.public_blind_excess.clone()) == slate.participant_id {
-							e.id = 1;
-						} else {
-							e.id = 0;
-						}
-					}
-				}
-				v3_slate.version_info.version = 3;
-				VersionedSlate::V3(v3_slate)
-			} else {
-				VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?
-			}
-		};
+		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		if as_bin {
 			let bin_slate =
 				VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;

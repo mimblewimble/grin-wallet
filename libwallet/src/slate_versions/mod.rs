@@ -14,21 +14,18 @@
 
 //! This module contains old slate versions and conversions to the newest slate version
 //! Used for serialization and deserialization of slates in a backwards compatible way.
-//! Versions earlier than V2 are removed for the 2.0.0 release, but versioning code
+//! Versions earlier than V3 are removed for the 4.0.0 release, but versioning code
 //! remains for future needs
 
 use crate::slate::Slate;
-use crate::slate_versions::v3::{CoinbaseV3, SlateV3};
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::slate_versions::v4_bin::SlateV4Bin;
 use crate::types::CbData;
-use crate::{Error, ErrorKind};
+use crate::Error;
 use std::convert::TryFrom;
 
 pub mod ser;
 
-#[allow(missing_docs)]
-pub mod v3;
 #[allow(missing_docs)]
 pub mod v4;
 #[allow(missing_docs)]
@@ -45,8 +42,6 @@ pub const GRIN_BLOCK_HEADER_VERSION: u16 = 3;
 pub enum SlateVersion {
 	/// V4 (most current)
 	V4,
-	/// V3 (3.0.0 - 4.0.0)
-	V3,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,8 +51,6 @@ pub enum SlateVersion {
 pub enum VersionedSlate {
 	/// Current (4.0.0 Onwards )
 	V4(SlateV4),
-	/// V2 (2.0.0 - 3.0.0)
-	V3(SlateV3),
 }
 
 impl VersionedSlate {
@@ -65,7 +58,6 @@ impl VersionedSlate {
 	pub fn version(&self) -> SlateVersion {
 		match *self {
 			VersionedSlate::V4(_) => SlateVersion::V4,
-			VersionedSlate::V3(_) => SlateVersion::V3,
 		}
 	}
 
@@ -73,11 +65,6 @@ impl VersionedSlate {
 	pub fn into_version(slate: Slate, version: SlateVersion) -> Result<VersionedSlate, Error> {
 		match version {
 			SlateVersion::V4 => Ok(VersionedSlate::V4(slate.into())),
-			SlateVersion::V3 => {
-				let s = SlateV4::from(slate);
-				let s = SlateV3::try_from(&s)?;
-				Ok(VersionedSlate::V3(s))
-			}
 		}
 	}
 }
@@ -86,10 +73,6 @@ impl From<VersionedSlate> for Slate {
 	fn from(slate: VersionedSlate) -> Slate {
 		match slate {
 			VersionedSlate::V4(s) => Slate::from(s),
-			VersionedSlate::V3(s) => {
-				let s = SlateV4::from(s);
-				Slate::from(s)
-			}
 		}
 	}
 }
@@ -108,11 +91,6 @@ impl TryFrom<VersionedSlate> for VersionedBinSlate {
 	fn try_from(slate: VersionedSlate) -> Result<VersionedBinSlate, Error> {
 		match slate {
 			VersionedSlate::V4(s) => Ok(VersionedBinSlate::V4(SlateV4Bin(s))),
-			VersionedSlate::V3(_) => {
-				return Err(
-					ErrorKind::Compatibility("V3 Slate does not support binary".to_owned()).into(),
-				)
-			}
 		}
 	}
 }
@@ -132,8 +110,6 @@ impl From<VersionedBinSlate> for VersionedSlate {
 pub enum VersionedCoinbase {
 	/// Current supported coinbase version.
 	V4(CoinbaseV4),
-	/// Previous supported coinbase version.
-	V3(CoinbaseV3),
 }
 
 impl VersionedCoinbase {
@@ -141,7 +117,6 @@ impl VersionedCoinbase {
 	pub fn into_version(cb: CbData, version: SlateVersion) -> VersionedCoinbase {
 		match version {
 			SlateVersion::V4 => VersionedCoinbase::V4(cb.into()),
-			SlateVersion::V3 => VersionedCoinbase::V3(cb.into()),
 		}
 	}
 }

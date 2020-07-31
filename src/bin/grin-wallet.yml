@@ -150,11 +150,6 @@ subcommands:
             short: u
             long: outfile
             takes_value: true
-        #TODO: Remove HF3
-        - v4:
-            help: Output a V4 slate prior to HF3 block
-            long: v4
-            takes_value: false
   - unpack:
       about: Unpack and display an armored Slatepack Message, decrypting if possible
       args:
@@ -217,11 +212,6 @@ subcommands:
             short: u
             long: outfile
             takes_value: true
-       #TODO: Remove HF3
-        - v4:
-            help: Output a V4 slate prior to HF3 block
-            long: v4
-            takes_value: false
   - pay:
       about: Spend coins to pay the provided invoice transaction
       args:
