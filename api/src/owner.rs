@@ -701,7 +701,9 @@ where
 								}
 							}
 						} else {
-							return Ok(slate);
+							self.tx_lock_outputs(keychain_mask, &s)?;
+							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
+							return Ok(ret_slate);
 						}
 					}
 					Ok(None) => Ok(slate),
