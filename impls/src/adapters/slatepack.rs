@@ -47,7 +47,7 @@ impl<'a> PathToSlatepack<'a> {
 
 	pub fn get_slatepack(&self, decrypt: bool) -> Result<Slatepack, Error> {
 		let data = self.get_slatepack_file_contents()?;
-		self.packer.deser_slatepack(data, decrypt)
+		self.packer.deser_slatepack(&data, decrypt)
 	}
 }
 
@@ -80,7 +80,7 @@ impl<'a> SlatePutter for PathToSlatepack<'a> {
 impl<'a> SlateGetter for PathToSlatepack<'a> {
 	fn get_tx(&self) -> Result<(Slate, bool), Error> {
 		let data = self.get_slatepack_file_contents()?;
-		let slatepack = self.packer.deser_slatepack(data, true)?;
+		let slatepack = self.packer.deser_slatepack(&data, true)?;
 		Ok((self.packer.get_slate(&slatepack)?, true))
 	}
 }

@@ -294,7 +294,7 @@ pub struct TransactionBodyV4 {
 	pub kers: Vec<TxKernelV4>,
 }
 
-fn inputs_are_empty(v: &Vec<InputV4>) -> bool {
+fn inputs_are_empty(v: &[InputV4]) -> bool {
 	v.len() == 0
 }
 
@@ -302,7 +302,7 @@ fn default_inputs() -> Vec<InputV4> {
 	vec![]
 }
 
-fn outputs_are_empty(v: &Vec<OutputV4>) -> bool {
+fn outputs_are_empty(v: &[OutputV4]) -> bool {
 	v.len() == 0
 }
 

@@ -226,7 +226,7 @@ impl Slatepack {
 	}
 
 	/// retrieve recipients
-	pub fn recipients(&self) -> &Vec<SlatepackAddress> {
+	pub fn recipients(&self) -> &[SlatepackAddress] {
 		&self.encrypted_meta.recipients
 	}
 
@@ -453,7 +453,7 @@ pub struct SlatepackEncMetadata {
 	recipients: Vec<SlatepackAddress>,
 }
 
-fn recipients_empty(value: &Vec<SlatepackAddress>) -> bool {
+fn recipients_empty(value: &[SlatepackAddress]) -> bool {
 	value.is_empty()
 }
 

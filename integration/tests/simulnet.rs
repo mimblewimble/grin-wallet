@@ -574,7 +574,7 @@ fn long_fork_test_mining(blocks: u64, n: u16, s: &servers::Server) {
 	);
 }
 
-fn long_fork_test_case_1(s: &Vec<servers::Server>) {
+fn long_fork_test_case_1(s: &[servers::Server]) {
 	println!("\ntest case 1 start");
 
 	// Mine state_sync_threshold-7 blocks on s0
@@ -621,7 +621,7 @@ fn long_fork_test_case_1(s: &Vec<servers::Server>) {
 	println!("test case 1 passed")
 }
 
-fn long_fork_test_case_2(s: &Vec<servers::Server>) {
+fn long_fork_test_case_2(s: &[servers::Server]) {
 	println!("\ntest case 2 start");
 
 	// Mine 20 blocks on s0
@@ -670,7 +670,7 @@ fn long_fork_test_case_2(s: &Vec<servers::Server>) {
 	println!("test case 2 passed")
 }
 
-fn long_fork_test_case_3(s: &Vec<servers::Server>) {
+fn long_fork_test_case_3(s: &[servers::Server]) {
 	println!("\ntest case 3 start");
 
 	// Mine cut_through_horizon+1 blocks on s4
@@ -736,7 +736,7 @@ fn long_fork_test_case_3(s: &Vec<servers::Server>) {
 	println!("test case 3 passed")
 }
 
-fn long_fork_test_case_4(s: &Vec<servers::Server>) {
+fn long_fork_test_case_4(s: &[servers::Server]) {
 	println!("\ntest case 4 start");
 
 	let _ = s[1].chain.compact();
@@ -783,7 +783,7 @@ fn long_fork_test_case_4(s: &Vec<servers::Server>) {
 	println!("test case 4 passed")
 }
 
-fn long_fork_test_case_5(s: &Vec<servers::Server>) {
+fn long_fork_test_case_5(s: &[servers::Server]) {
 	println!("\ntest case 5 start");
 
 	let _ = s[1].chain.compact();
@@ -831,7 +831,7 @@ fn long_fork_test_case_5(s: &Vec<servers::Server>) {
 }
 
 #[allow(dead_code)]
-fn long_fork_test_case_6(s: &Vec<servers::Server>) {
+fn long_fork_test_case_6(s: &[servers::Server]) {
 	println!("\ntest case 6 start");
 
 	let _ = s[1].chain.compact();
