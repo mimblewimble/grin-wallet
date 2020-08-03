@@ -47,11 +47,9 @@ pub struct SlatepackArmor;
 
 impl SlatepackArmor {
 	/// Decode an armored Slatepack
-	pub fn decode(data: &str) -> Result<Vec<u8>, Error> {
-		// Convert the armored slate to bytes for parsing
-		let armor_bytes: Vec<u8> = data.as_bytes().to_vec();
+	pub fn decode(armor_bytes: &[u8]) -> Result<Vec<u8>, Error> {
 		// Collect the bytes up to the first period, this is the header
-		let header_bytes = &armor_bytes
+		let header_bytes = armor_bytes
 			.iter()
 			.take_while(|byte| **byte != b'.')
 			.cloned()
@@ -59,40 +57,38 @@ impl SlatepackArmor {
 		// Verify the header...
 		check_header(&header_bytes)?;
 		// Get the length of the header
-		let header_len = *&header_bytes.len() + 1;
+		let header_len = header_bytes.len() + 1;
 		// Skip the length of the header to read for the payload until the next period
-		let payload_bytes = &armor_bytes[header_len as usize..]
+		let payload_bytes = armor_bytes[header_len as usize..]
 			.iter()
 			.take_while(|byte| **byte != b'.')
 			.cloned()
 			.collect::<Vec<u8>>();
 		// Get length of the payload to check the footer framing
-		let payload_len = *&payload_bytes.len();
+		let payload_len = payload_bytes.len();
 		// Get footer bytes and verify them
 		let consumed_bytes = header_len + payload_len + 1;
-		let footer_bytes = &armor_bytes[consumed_bytes as usize..]
+		let footer_bytes = armor_bytes[consumed_bytes as usize..]
 			.iter()
 			.take_while(|byte| **byte != b'.')
 			.cloned()
 			.collect::<Vec<u8>>();
 		check_footer(&footer_bytes)?;
 		// Clean up the payload bytes to be deserialized
-		let clean_payload = &payload_bytes
+		let clean_payload = payload_bytes
 			.iter()
 			.filter(|byte| !WHITESPACE_LIST.contains(byte))
 			.cloned()
 			.collect::<Vec<u8>>();
 		// Decode payload from base58
-		let base_decode = bs58::decode(&clean_payload).into_vec().unwrap();
+		let base_decode = bs58::decode(&clean_payload)
+			.into_vec()
+			.map_err(|_| ErrorKind::SlatepackDeser("Bad bytes".into()))?;
 		let error_code = &base_decode[0..4];
 		let slatepack_bytes = &base_decode[4..];
 		// Make sure the error check code is valid for the slate data
-		error_check(&error_code.to_vec(), &slatepack_bytes.to_vec())?;
+		error_check(error_code, slatepack_bytes)?;
 		// Return slate as binary or string
-		/*let slatepack_bin = byte_ser::from_bytes::<SlatepackBin>(&slate_bytes).map_err(|e| {
-			error!("Error reading JSON Slatepack: {}", e);
-			ErrorKind::SlatepackDeser
-		})?;*/
 		Ok(slatepack_bytes.to_vec())
 	}
 
@@ -107,8 +103,8 @@ impl SlatepackArmor {
 }
 
 // Takes an error check code and a slate binary and verifies that the code was generated from slate
-fn error_check(error_code: &Vec<u8>, slate_bytes: &Vec<u8>) -> Result<(), Error> {
-	let new_check = generate_check(&slate_bytes)?;
+fn error_check(error_code: &[u8], slate_bytes: &[u8]) -> Result<(), Error> {
+	let new_check = generate_check(slate_bytes)?;
 	if error_code.iter().eq(new_check.iter()) {
 		Ok(())
 	} else {
@@ -120,8 +116,9 @@ fn error_check(error_code: &Vec<u8>, slate_bytes: &Vec<u8>) -> Result<(), Error>
 }
 
 // Checks header framing bytes and returns an error if they are invalid
-fn check_header(header: &Vec<u8>) -> Result<(), Error> {
-	let framing = str::from_utf8(&header).unwrap();
+fn check_header(header: &[u8]) -> Result<(), Error> {
+	let framing =
+		str::from_utf8(header).map_err(|_| ErrorKind::SlatepackDeser("Bad bytes".into()))?;
 	if HEADER_REGEX.is_match(framing) {
 		Ok(())
 	} else {
@@ -130,8 +127,9 @@ fn check_header(header: &Vec<u8>) -> Result<(), Error> {
 }
 
 // Checks footer framing bytes and returns an error if they are invalid
-fn check_footer(footer: &Vec<u8>) -> Result<(), Error> {
-	let framing = str::from_utf8(&footer).unwrap();
+fn check_footer(footer: &[u8]) -> Result<(), Error> {
+	let framing =
+		str::from_utf8(footer).map_err(|_| ErrorKind::SlatepackDeser("Bad bytes".into()))?;
 	if FOOTER_REGEX.is_match(framing) {
 		Ok(())
 	} else {
@@ -177,7 +175,7 @@ fn format_slatepack(slatepack: &str) -> Result<String, Error> {
 }
 
 // Returns the first four bytes of a double sha256 hash of some bytes
-fn generate_check(payload: &Vec<u8>) -> Result<Vec<u8>, Error> {
+fn generate_check(payload: &[u8]) -> Result<Vec<u8>, Error> {
 	let mut first_hash = Sha256::new();
 	first_hash.input(payload);
 	let mut second_hash = Sha256::new();

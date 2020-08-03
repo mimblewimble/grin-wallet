@@ -151,7 +151,7 @@ fn prompt_slatepack() -> Result<String, ParseError> {
 				}
 			}
 			ReadResult::Input(line) => {
-				if SlatepackArmor::decode(&line).is_ok() {
+				if SlatepackArmor::decode(line.as_bytes()).is_ok() {
 					message = line;
 					break;
 				} else {

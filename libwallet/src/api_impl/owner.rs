@@ -167,7 +167,7 @@ where
 			recipients: vec![],
 			dec_key: None,
 		});
-		let slatepack = packer.deser_slatepack(slatepack.as_bytes().to_vec(), true)?;
+		let slatepack = packer.deser_slatepack(slatepack.as_bytes(), true)?;
 		return packer.get_slate(&slatepack);
 	} else {
 		for index in secret_indices {
@@ -181,7 +181,7 @@ where
 				recipients: vec![],
 				dec_key: (&dec_key).as_ref(),
 			});
-			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec(), true);
+			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
 			let slatepack = match res {
 				Ok(sp) => sp,
 				Err(_) => {
@@ -218,7 +218,7 @@ where
 		dec_key: None,
 	});
 	if secret_indices.is_empty() {
-		packer.deser_slatepack(slatepack.as_bytes().to_vec(), false)
+		packer.deser_slatepack(slatepack.as_bytes(), false)
 	} else {
 		for index in secret_indices {
 			let dec_key = Some(get_slatepack_secret_key(
@@ -231,7 +231,7 @@ where
 				recipients: vec![],
 				dec_key: (&dec_key).as_ref(),
 			});
-			let res = packer.deser_slatepack(slatepack.as_bytes().to_vec(), true);
+			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
 			let slatepack = match res {
 				Ok(sp) => sp,
 				Err(_) => {
@@ -240,7 +240,7 @@ where
 			};
 			return Ok(slatepack);
 		}
-		packer.deser_slatepack(slatepack.as_bytes().to_vec(), false)
+		packer.deser_slatepack(slatepack.as_bytes(), false)
 	}
 }
 
