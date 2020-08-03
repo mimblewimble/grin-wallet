@@ -175,7 +175,6 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
-		!is_initiator,
 		use_test_rng,
 	)?;
 
@@ -226,7 +225,6 @@ where
 		slate,
 		current_height,
 		parent_key_id.clone(),
-		is_initiator,
 		use_test_rng,
 	)?;
 

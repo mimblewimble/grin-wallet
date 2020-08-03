@@ -141,8 +141,7 @@ where
 {
 	let mut sl = slate.clone();
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
-	let is_invoice = context.is_invoice;
-	if is_invoice {
+	if sl.state == SlateState::Invoice2 {
 		check_ttl(w, &sl)?;
 
 		let mut temp_ctx = context.clone();
