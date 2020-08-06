@@ -554,8 +554,6 @@ pub struct Context {
 	pub fee: u64,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
-	/// whether this was an invoice transaction
-	pub is_invoice: bool,
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
@@ -568,7 +566,6 @@ impl Context {
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
-		is_invoice: bool,
 	) -> Context {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
@@ -585,7 +582,6 @@ impl Context {
 			amount: 0,
 			fee: 0,
 			payment_proof_derivation_index: None,
-			is_invoice,
 			calculated_excess: None,
 		}
 	}

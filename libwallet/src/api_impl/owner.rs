@@ -674,7 +674,6 @@ where
 	if let Ok(c) = context_res {
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
-		context.is_invoice = c.is_invoice;
 		context.fee = c.fee;
 		context.amount = c.amount;
 		for o in c.output_ids.iter() {
@@ -953,25 +952,6 @@ where
 			})
 		}
 	}
-}
-
-/// return whether slate was an invoice tx
-pub fn context_is_invoice<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
-) -> Result<bool, Error>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let context = {
-		wallet_lock!(wallet_inst, w);
-		let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
-		context
-	};
-	Ok(context.is_invoice)
 }
 
 /// Experimental, wrap the entire definition of how a wallet's state is updated
