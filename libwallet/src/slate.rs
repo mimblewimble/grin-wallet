@@ -1264,6 +1264,24 @@ impl From<&InputV4> for Input {
 	}
 }
 
+impl From<CompatOutputFeatures> for OutputFeatures {
+	fn from(features: CompatOutputFeatures) -> Self {
+		match features {
+			CompatOutputFeatures::Plain => OutputFeatures::Plain,
+			CompatOutputFeatures::Coinbase => OutputFeatures::Coinbase,
+		}
+	}
+}
+
+impl From<OutputFeatures> for CompatOutputFeatures {
+	fn from(features: OutputFeatures) -> Self {
+		match features {
+			OutputFeatures::Plain => CompatOutputFeatures::Plain,
+			OutputFeatures::Coinbase => CompatOutputFeatures::Coinbase,
+		}
+	}
+}
+
 impl From<&OutputV4> for Output {
 	fn from(output: &OutputV4) -> Output {
 		let OutputV4 {
@@ -1298,6 +1316,11 @@ impl From<&TxKernelV4> for TxKernel {
 			excess_sig: kernel.excess_sig,
 		}
 	}
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum CompatOutputFeatures {
+	Plain,
+	Coinbase,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

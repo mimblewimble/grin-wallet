@@ -59,7 +59,7 @@ use crate::grin_util::secp;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
-use crate::slate::CompatKernelFeatures;
+use crate::slate::{CompatKernelFeatures, CompatOutputFeatures};
 use crate::slate_versions::ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
@@ -235,8 +235,8 @@ fn default_receiver_signature_none() -> Option<DalekSignature> {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CommitsV4 {
 	/// Options for an output's structure or use
-	#[serde(default = "default_output_feature")]
-	#[serde(skip_serializing_if = "output_feature_is_plain")]
+	#[serde(default = "default_output_feature_v4")]
+	#[serde(skip_serializing_if = "output_feature_is_plain_v4")]
 	pub f: OutputFeaturesV4,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
@@ -254,6 +254,14 @@ pub struct CommitsV4 {
 
 #[derive(Serialize, Deserialize, Copy, Debug, Clone, PartialEq, Eq)]
 pub struct OutputFeaturesV4(pub u8);
+
+fn default_output_feature_v4() -> OutputFeaturesV4 {
+	OutputFeaturesV4(0)
+}
+
+fn output_feature_is_plain_v4(o: &OutputFeaturesV4) -> bool {
+	o.0 == 0
+}
 
 /// A transaction
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -320,7 +328,7 @@ pub struct InputV4 {
 	/// We will check maturity for coinbase output.
 	#[serde(default = "default_output_feature")]
 	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub features: OutputFeaturesV4,
+	pub features: CompatOutputFeatures,
 	/// The commit referencing the output being spent.
 	#[serde(
 		serialize_with = "secp_ser::as_hex",
@@ -334,7 +342,7 @@ pub struct OutputV4 {
 	/// Options for an output's structure or use
 	#[serde(default = "default_output_feature")]
 	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub features: OutputFeaturesV4,
+	pub features: CompatOutputFeatures,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
 		serialize_with = "secp_ser::as_hex",
@@ -349,12 +357,15 @@ pub struct OutputV4 {
 	pub prf: RangeProof,
 }
 
-fn default_output_feature() -> OutputFeaturesV4 {
-	OutputFeaturesV4(0)
+fn default_output_feature() -> CompatOutputFeatures {
+	CompatOutputFeatures::Plain
 }
 
-fn output_feature_is_plain(o: &OutputFeaturesV4) -> bool {
-	o.0 == 0
+fn output_feature_is_plain(o: &CompatOutputFeatures) -> bool {
+	match o {
+		CompatOutputFeatures::Plain => true,
+		_ => false,
+	}
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
