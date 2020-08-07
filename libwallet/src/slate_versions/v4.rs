@@ -53,14 +53,14 @@
 //! *  The `receiver_signature` field is renamed to `rsig`
 //! * `rsig` may be omitted if it has not yet been filled out
 
+use crate::grin_core::core::{Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::{BlindingFactor, Identifier};
 use crate::grin_util::secp;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
-use crate::slate::{CompatKernelFeatures, CompatOutputFeatures};
-use crate::slate_versions::ser;
+use crate::{slate_versions::ser, CbData};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
@@ -235,8 +235,8 @@ fn default_receiver_signature_none() -> Option<DalekSignature> {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CommitsV4 {
 	/// Options for an output's structure or use
-	#[serde(default = "default_output_feature_v4")]
-	#[serde(skip_serializing_if = "output_feature_is_plain_v4")]
+	#[serde(default = "default_output_feature")]
+	#[serde(skip_serializing_if = "output_feature_is_plain")]
 	pub f: OutputFeaturesV4,
 	/// The homomorphic commitment representing the output amount
 	#[serde(
@@ -252,184 +252,16 @@ pub struct CommitsV4 {
 	pub p: Option<RangeProof>,
 }
 
-#[derive(Serialize, Deserialize, Copy, Debug, Clone, PartialEq, Eq)]
-pub struct OutputFeaturesV4(pub u8);
-
-fn default_output_feature_v4() -> OutputFeaturesV4 {
+fn default_output_feature() -> OutputFeaturesV4 {
 	OutputFeaturesV4(0)
 }
 
-fn output_feature_is_plain_v4(o: &OutputFeaturesV4) -> bool {
+fn output_feature_is_plain(o: &OutputFeaturesV4) -> bool {
 	o.0 == 0
 }
 
-/// A transaction
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TransactionV4 {
-	/// The kernel "offset" k2
-	/// excess is k1G after splitting the key k = k1 + k2
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::blind_from_hex"
-	)]
-	#[serde(default = "default_blinding_factor")]
-	#[serde(skip_serializing_if = "blinding_factor_is_zero")]
-	pub offset: BlindingFactor,
-	/// The transaction body - inputs/outputs/kernels
-	pub body: TransactionBodyV4,
-}
-
-fn default_blinding_factor() -> BlindingFactor {
-	BlindingFactor::zero()
-}
-
-fn blinding_factor_is_zero(bf: &BlindingFactor) -> bool {
-	*bf == BlindingFactor::zero()
-}
-
-/// TransactionBody is a common abstraction for transaction and block
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TransactionBodyV4 {
-	/// List of inputs spent by the transaction.
-	#[serde(default = "default_inputs")]
-	#[serde(skip_serializing_if = "inputs_are_empty")]
-	pub ins: Vec<InputV4>,
-	/// List of outputs the transaction produces.
-	#[serde(default = "default_outputs")]
-	#[serde(skip_serializing_if = "outputs_are_empty")]
-	pub outs: Vec<OutputV4>,
-	/// List of kernels that make up this transaction (usually a single kernel).
-	pub kers: Vec<TxKernelV4>,
-}
-
-fn inputs_are_empty(v: &[InputV4]) -> bool {
-	v.len() == 0
-}
-
-fn default_inputs() -> Vec<InputV4> {
-	vec![]
-}
-
-fn outputs_are_empty(v: &[OutputV4]) -> bool {
-	v.len() == 0
-}
-
-fn default_outputs() -> Vec<OutputV4> {
-	vec![]
-}
-
-fn default_range_proof() -> Option<RangeProof> {
-	None
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InputV4 {
-	/// The features of the output being spent.
-	/// We will check maturity for coinbase output.
-	#[serde(default = "default_output_feature")]
-	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub features: CompatOutputFeatures,
-	/// The commit referencing the output being spent.
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::commitment_from_hex"
-	)]
-	pub commit: Commitment,
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct OutputV4 {
-	/// Options for an output's structure or use
-	#[serde(default = "default_output_feature")]
-	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub features: CompatOutputFeatures,
-	/// The homomorphic commitment representing the output amount
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::commitment_from_hex"
-	)]
-	pub com: Commitment,
-	/// A proof that the commitment is in the right range
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::rangeproof_from_hex"
-	)]
-	pub prf: RangeProof,
-}
-
-fn default_output_feature() -> CompatOutputFeatures {
-	CompatOutputFeatures::Plain
-}
-
-fn output_feature_is_plain(o: &CompatOutputFeatures) -> bool {
-	match o {
-		CompatOutputFeatures::Plain => true,
-		_ => false,
-	}
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TxKernelV4 {
-	/// Options for a kernel's structure or use
-	#[serde(default = "default_kernel_feature")]
-	#[serde(skip_serializing_if = "kernel_feature_is_plain")]
-	pub features: CompatKernelFeatures,
-	/// Fee originally included in the transaction this proof is for.
-	#[serde(with = "secp_ser::string_or_u64")]
-	#[serde(default = "default_u64")]
-	#[serde(skip_serializing_if = "u64_is_blank")]
-	pub fee: u64,
-	/// This kernel is not valid earlier than lock_height blocks
-	/// The max lock_height of all *inputs* to this transaction
-	#[serde(with = "secp_ser::string_or_u64")]
-	#[serde(default = "default_u64")]
-	#[serde(skip_serializing_if = "u64_is_blank")]
-	pub lock_height: u64,
-	/// Remainder of the sum of all transaction commitments. If the transaction
-	/// is well formed, amounts components should sum to zero and the excess
-	/// is hence a valid public key.
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::commitment_from_hex"
-	)]
-	#[serde(default = "default_commitment")]
-	#[serde(skip_serializing_if = "commitment_is_blank")]
-	pub excess: Commitment,
-	/// The signature proving the excess is a valid public key, which signs
-	/// the transaction fee.
-	#[serde(with = "secp_ser::sig_serde")]
-	#[serde(default = "default_sig")]
-	#[serde(skip_serializing_if = "sig_is_blank")]
-	pub excess_sig: secp::Signature,
-}
-
-fn default_kernel_feature() -> CompatKernelFeatures {
-	CompatKernelFeatures::Plain
-}
-
-fn kernel_feature_is_plain(k: &CompatKernelFeatures) -> bool {
-	match k {
-		CompatKernelFeatures::Plain => true,
-		_ => false,
-	}
-}
-
-fn default_commitment() -> Commitment {
-	Commitment::from_vec([0u8; 1].to_vec())
-}
-
-fn commitment_is_blank(c: &Commitment) -> bool {
-	for b in c.0.iter() {
-		if *b != 0 {
-			return false;
-		}
-	}
-	true
-}
-
-fn default_sig() -> secp::Signature {
-	Signature::from_raw_data(&[0; 64]).unwrap()
-}
+#[derive(Serialize, Deserialize, Copy, Debug, Clone, PartialEq, Eq)]
+pub struct OutputFeaturesV4(pub u8);
 
 pub fn sig_is_blank(s: &secp::Signature) -> bool {
 	for b in s.to_raw_data().iter() {
@@ -438,6 +270,10 @@ pub fn sig_is_blank(s: &secp::Signature) -> bool {
 		}
 	}
 	true
+}
+
+fn default_range_proof() -> Option<RangeProof> {
+	None
 }
 
 fn default_u64() -> u64 {
@@ -459,9 +295,67 @@ fn u8_is_blank(u: &u8) -> bool {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoinbaseV4 {
 	/// Output
-	pub output: OutputV4,
+	output: CbOutputV4,
 	/// Kernel
-	pub kernel: TxKernelV4,
+	kernel: CbKernelV4,
 	/// Key Id
-	pub key_id: Option<Identifier>,
+	key_id: Option<Identifier>,
+}
+
+impl From<CbData> for CoinbaseV4 {
+	fn from(cb: CbData) -> CoinbaseV4 {
+		CoinbaseV4 {
+			output: CbOutputV4::from(&cb.output),
+			kernel: CbKernelV4::from(&cb.kernel),
+			key_id: cb.key_id,
+		}
+	}
+}
+
+impl From<&Output> for CbOutputV4 {
+	fn from(output: &Output) -> CbOutputV4 {
+		CbOutputV4 {
+			features: CbOutputFeatures::Coinbase,
+			commit: output.commit,
+			proof: output.proof,
+		}
+	}
+}
+
+impl From<&TxKernel> for CbKernelV4 {
+	fn from(kernel: &TxKernel) -> CbKernelV4 {
+		CbKernelV4 {
+			features: CbKernelFeatures::Coinbase,
+			excess: kernel.excess,
+			excess_sig: kernel.excess_sig,
+		}
+	}
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+enum CbOutputFeatures {
+	Coinbase,
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+enum CbKernelFeatures {
+	Coinbase,
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+struct CbOutputV4 {
+	features: CbOutputFeatures,
+	#[serde(serialize_with = "secp_ser::as_hex")]
+	commit: Commitment,
+	#[serde(serialize_with = "secp_ser::as_hex")]
+	proof: RangeProof,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct CbKernelV4 {
+	features: CbKernelFeatures,
+	#[serde(serialize_with = "secp_ser::as_hex")]
+	excess: Commitment,
+	#[serde(with = "secp_ser::sig_serde")]
+	excess_sig: secp::Signature,
 }
