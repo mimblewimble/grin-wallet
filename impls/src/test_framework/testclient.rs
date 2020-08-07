@@ -190,7 +190,7 @@ where
 
 		super::award_block_to_wallet(
 			&self.chain,
-			vec![&tx],
+			&[tx],
 			dest_wallet,
 			(&dest_wallet_mask).as_ref(),
 		)?;
