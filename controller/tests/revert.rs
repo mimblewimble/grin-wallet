@@ -173,11 +173,11 @@ fn revert(
 		api.tx_lock_outputs(m, &slate)?;
 		let slate = client1.send_tx_slate_direct("wallet2", &slate)?;
 		let slate = api.finalize_tx(m, &slate)?;
-		tx = Some(slate.tx);
+		tx = slate.tx;
 
 		Ok(())
 	})?;
-	let tx = tx.unwrap();
+	let tx = tx.expect("tx from slate");
 
 	// Check funds have been received
 	owner(Some(wallet2.clone()), mask2, None, |api, m| {
@@ -207,14 +207,9 @@ fn revert(
 
 	// Build 2 blocks at same height: 1 with the tx, 1 without
 	let head = chain.head_header().unwrap();
-	let block_with = create_block_for_wallet(
-		&chain,
-		head.clone(),
-		vec![&tx.as_ref().unwrap()],
-		wallet1.clone(),
-		mask1,
-	)?;
-	let block_without = create_block_for_wallet(&chain, head, vec![], wallet1.clone(), mask1)?;
+	let block_with =
+		create_block_for_wallet(&chain, head.clone(), &[tx.clone()], wallet1.clone(), mask1)?;
+	let block_without = create_block_for_wallet(&chain, head, &[], wallet1.clone(), mask1)?;
 
 	// Add block with tx to the chain
 	process_block(&chain, block_with.clone());
@@ -246,7 +241,7 @@ fn revert(
 	})?;
 
 	// Attach more blocks to the parallel chain, making it the longest one
-	award_block_to_wallet(&chain2, vec![], wallet1.clone(), mask1)?;
+	award_block_to_wallet(&chain2, &[], wallet1.clone(), mask1)?;
 	assert_eq!(chain2.head_header().unwrap().height, bh + 1);
 	let new_head = chain2
 		.get_block(&chain2.head_header().unwrap().hash())
@@ -282,15 +277,7 @@ fn revert(
 
 	stopper2.store(false, Ordering::Relaxed);
 	Ok((
-		chain,
-		stopper,
-		sent,
-		bh,
-		tx.unwrap(),
-		wallet1,
-		mask1_i,
-		wallet2,
-		mask2_i,
+		chain, stopper, sent, bh, tx, wallet1, mask1_i, wallet2, mask2_i,
 	))
 }
 
@@ -300,7 +287,7 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let mask2 = mask2_i.as_ref();
 
 	// Include the tx into the chain again, the tx should no longer be reverted
-	award_block_to_wallet(&chain, vec![&tx], wallet1.clone(), mask1)?;
+	award_block_to_wallet(&chain, &[tx], wallet1.clone(), mask1)?;
 
 	let bh = bh + 1;
 

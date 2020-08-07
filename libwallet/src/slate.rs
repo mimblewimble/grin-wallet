@@ -312,7 +312,7 @@ impl Slate {
 			return Ok(BlindingFactor::zero());
 		}
 		let (tx, blind) =
-			build::partial_transaction(self.tx_or_err()?.clone(), elems, keychain, builder)?;
+			build::partial_transaction(self.tx_or_err()?.clone(), &elems, keychain, builder)?;
 		self.tx = Some(tx);
 		Ok(blind)
 	}
@@ -673,18 +673,22 @@ impl Slate {
 
 		debug!("Final Tx excess: {:?}", final_excess);
 
-		let final_tx = self.tx_or_err_mut()?;
+		let final_tx = self.tx_or_err()?;
 
 		// update the tx kernel to reflect the offset excess and sig
 		assert_eq!(final_tx.kernels().len(), 1);
-		final_tx.kernels_mut()[0].excess = final_excess.clone();
-		final_tx.kernels_mut()[0].excess_sig = final_sig.clone();
+
+		let mut kernel = final_tx.kernels()[0];
+		kernel.excess = final_excess;
+		kernel.excess_sig = final_sig.clone();
+
+		let final_tx = final_tx.clone().replace_kernel(kernel);
 
 		// confirm the kernel verifies successfully before proceeding
 		debug!("Validating final transaction");
 		trace!(
 			"Final tx: {}",
-			serde_json::to_string_pretty(final_tx).unwrap()
+			serde_json::to_string_pretty(&final_tx).unwrap()
 		);
 		final_tx.kernels()[0].verify()?;
 
@@ -695,6 +699,9 @@ impl Slate {
 			error!("Error with final tx validation: {}", e);
 			Err(e.into())
 		} else {
+			// replace our slate tx with the new one with updated kernel
+			self.tx = Some(final_tx);
+
 			Ok(())
 		}
 	}
@@ -827,8 +834,14 @@ impl From<&Slate> for SlateV4 {
 impl From<&Slate> for Option<Vec<CommitsV4>> {
 	fn from(slate: &Slate) -> Option<Vec<CommitsV4>> {
 		let mut ret_vec = vec![];
-		let (ins, outs) = match slate.tx.as_ref() {
-			Some(t) => (t.body.inputs.clone(), t.body.outputs.clone()),
+		let (ins, outs) = match &slate.tx {
+			Some(t) => {
+				// TODO - input features are to be deprecated
+				// inputs here should be treated as a vec of commitments
+				// CommitsV4 should probably handle optional features.
+				let ins: Vec<Input> = t.inputs().into();
+				(ins, t.outputs().to_vec())
+			}
 			None => return None,
 		};
 		for i in ins.iter() {
@@ -951,11 +964,11 @@ impl From<&Transaction> for TransactionV4 {
 
 impl From<&TransactionBody> for TransactionBodyV4 {
 	fn from(body: &TransactionBody) -> TransactionBodyV4 {
-		let TransactionBody {
-			inputs,
-			outputs,
-			kernels,
-		} = body;
+		// TODO - input features will soon be deprecated.
+		// We should treat inputs here as vec of commitments.
+		let inputs: Vec<Input> = body.inputs().into();
+		let outputs = body.outputs();
+		let kernels = body.kernels();
 
 		let inputs = map_vec!(inputs, |inp| InputV4::from(inp));
 		let outputs = map_vec!(outputs, |out| OutputV4::from(out));
@@ -1106,19 +1119,23 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		excess,
 		excess_sig,
 	};
-	let mut tx = Transaction::empty();
-	tx.body.kernels.push(kernel);
+	let mut tx = Transaction::empty().with_kernel(kernel);
+
 	for c in coms.iter() {
 		match &c.p {
-			Some(p) => tx.body.outputs.push(Output {
-				features: c.f.into(),
-				commit: c.c,
-				proof: p.clone(),
-			}),
-			None => tx.body.inputs.push(Input {
-				features: c.f.into(),
-				commit: c.c,
-			}),
+			Some(p) => {
+				tx = tx.with_output(Output {
+					features: c.f.into(),
+					commit: c.c,
+					proof: p.clone(),
+				})
+			}
+			None => {
+				tx = tx.with_input(Input {
+					features: c.f.into(),
+					commit: c.c,
+				})
+			}
 		}
 	}
 	tx.offset = slate.off.clone();
@@ -1230,7 +1247,7 @@ impl From<&TransactionBodyV4> for TransactionBody {
 		let outputs = map_vec!(outs, |out| Output::from(out));
 		let kernels = map_vec!(kers, |kern| TxKernel::from(kern));
 		TransactionBody {
-			inputs,
+			inputs: inputs.into(),
 			outputs,
 			kernels,
 		}

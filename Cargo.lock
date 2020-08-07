@@ -1166,8 +1166,8 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
 name = "grin_api"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "bytes",
  "easy-jsonrpc-mw",
@@ -1199,8 +1199,8 @@ dependencies = [
 
 [[package]]
 name = "grin_chain"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "bit-vec",
  "bitflags 1.2.1",
@@ -1223,8 +1223,8 @@ dependencies = [
 
 [[package]]
 name = "grin_core"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1249,8 +1249,8 @@ dependencies = [
 
 [[package]]
 name = "grin_keychain"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1271,8 +1271,8 @@ dependencies = [
 
 [[package]]
 name = "grin_p2p"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "bitflags 1.2.1",
  "chrono",
@@ -1292,8 +1292,8 @@ dependencies = [
 
 [[package]]
 name = "grin_pool"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1326,8 +1326,8 @@ dependencies = [
 
 [[package]]
 name = "grin_store"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "byteorder",
  "croaring-mw",
@@ -1346,8 +1346,8 @@ dependencies = [
 
 [[package]]
 name = "grin_util"
-version = "4.0.1-alpha.1"
-source = "git+https://github.com/mimblewimble/grin#30db9c410ee5551ed65ac74a0e4e45a281fac6ef"
+version = "4.1.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin#4732a0b62bfaed8066fecf8adc6641ce1e0792f7"
 dependencies = [
  "backtrace",
  "base64 0.12.1",

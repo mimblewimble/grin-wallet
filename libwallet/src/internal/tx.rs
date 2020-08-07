@@ -584,7 +584,7 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_core::core::KernelFeatures;
+	use crate::grin_core::core::{Input, KernelFeatures};
 	use crate::grin_core::libtx::{build, ProofBuilder};
 	use crate::grin_keychain::{
 		BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
@@ -601,21 +601,22 @@ mod test {
 
 		let tx1 = build::transaction(
 			KernelFeatures::Plain { fee: 0 },
-			vec![build::output(105, key_id1.clone())],
+			&[build::output(105, key_id1.clone())],
 			&keychain,
 			&builder,
 		)
 		.unwrap();
 		let tx2 = build::transaction(
 			KernelFeatures::Plain { fee: 0 },
-			vec![build::input(105, key_id1.clone())],
+			&[build::input(105, key_id1.clone())],
 			&keychain,
 			&builder,
 		)
 		.unwrap();
 
-		assert_eq!(tx1.outputs()[0].features, tx2.inputs()[0].features);
-		assert_eq!(tx1.outputs()[0].commitment(), tx2.inputs()[0].commitment());
+		let inputs: Vec<Input> = tx2.inputs().into();
+		assert_eq!(tx1.outputs()[0].features, inputs[0].features);
+		assert_eq!(tx1.outputs()[0].commitment(), inputs[0].commitment());
 	}
 
 	#[test]
