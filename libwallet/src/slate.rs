@@ -18,8 +18,8 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction, TransactionBody,
-	TxKernel, Weighting,
+	Input, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction, TxKernel,
+	Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
@@ -40,13 +40,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
-	CoinbaseV4, CommitsV4, InputV4, KernelFeaturesArgsV4, OutputFeaturesV4, OutputV4,
-	ParticipantDataV4, PaymentInfoV4, SlateStateV4, SlateV4, TransactionBodyV4, TransactionV4,
-	TxKernelV4, VersionCompatInfoV4,
+	CommitsV4, KernelFeaturesArgsV4, OutputFeaturesV4, ParticipantDataV4, PaymentInfoV4,
+	SlateStateV4, SlateV4, VersionCompatInfoV4,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
-use crate::types::CbData;
 
 #[derive(Debug, Clone)]
 pub struct PaymentInfo {
@@ -716,18 +714,6 @@ impl Serialize for Slate {
 		v4.serialize(serializer)
 	}
 }
-
-// Coinbase data to versioned.
-impl From<CbData> for CoinbaseV4 {
-	fn from(cb: CbData) -> CoinbaseV4 {
-		CoinbaseV4 {
-			output: OutputV4::from(&cb.output),
-			kernel: TxKernelV4::from(&cb.kernel),
-			key_id: cb.key_id,
-		}
-	}
-}
-
 // Current slate version to versioned conversions
 
 // Slate to versioned
@@ -945,94 +931,6 @@ impl From<OutputFeatures> for OutputFeaturesV4 {
 	}
 }
 
-impl From<Transaction> for TransactionV4 {
-	fn from(tx: Transaction) -> TransactionV4 {
-		let Transaction { offset, body } = tx;
-		let body = TransactionBodyV4::from(&body);
-		TransactionV4 { offset, body }
-	}
-}
-
-impl From<&Transaction> for TransactionV4 {
-	fn from(tx: &Transaction) -> TransactionV4 {
-		let Transaction { offset, body } = tx;
-		let offset = offset.clone();
-		let body = TransactionBodyV4::from(body);
-		TransactionV4 { offset, body }
-	}
-}
-
-impl From<&TransactionBody> for TransactionBodyV4 {
-	fn from(body: &TransactionBody) -> TransactionBodyV4 {
-		// TODO - input features will soon be deprecated.
-		// We should treat inputs here as vec of commitments.
-		let inputs: Vec<Input> = body.inputs().into();
-		let outputs = body.outputs();
-		let kernels = body.kernels();
-
-		let inputs = map_vec!(inputs, |inp| InputV4::from(inp));
-		let outputs = map_vec!(outputs, |out| OutputV4::from(out));
-		let kernels = map_vec!(kernels, |kern| TxKernelV4::from(kern));
-		TransactionBodyV4 {
-			ins: inputs,
-			outs: outputs,
-			kers: kernels,
-		}
-	}
-}
-
-impl From<&Input> for InputV4 {
-	fn from(input: &Input) -> InputV4 {
-		let Input { features, commit } = *input;
-		InputV4 {
-			features: features.into(),
-			commit,
-		}
-	}
-}
-
-impl From<&Output> for OutputV4 {
-	fn from(output: &Output) -> OutputV4 {
-		let Output {
-			features,
-			commit,
-			proof,
-		} = *output;
-		OutputV4 {
-			features: features.into(),
-			com: commit,
-			prf: proof,
-		}
-	}
-}
-
-impl From<&TxKernel> for TxKernelV4 {
-	fn from(kernel: &TxKernel) -> TxKernelV4 {
-		let (features, fee, lock_height) = match kernel.features {
-			KernelFeatures::Plain { fee } => (CompatKernelFeatures::Plain, fee, 0),
-			KernelFeatures::Coinbase => (CompatKernelFeatures::Coinbase, 0, 0),
-			KernelFeatures::HeightLocked { fee, lock_height } => {
-				(CompatKernelFeatures::HeightLocked, fee, lock_height)
-			}
-			KernelFeatures::NoRecentDuplicate {
-				fee,
-				relative_height,
-			} => (
-				CompatKernelFeatures::NoRecentDuplicate,
-				fee,
-				relative_height.into(),
-			),
-		};
-		TxKernelV4 {
-			features,
-			fee,
-			lock_height,
-			excess: kernel.excess,
-			excess_sig: kernel.excess_sig,
-		}
-	}
-}
-
 // Versioned to current slate
 impl From<SlateV4> for Slate {
 	fn from(slate: SlateV4) -> Slate {
@@ -1229,81 +1127,4 @@ impl From<OutputFeaturesV4> for OutputFeatures {
 			0 | _ => OutputFeatures::Plain,
 		}
 	}
-}
-
-impl From<TransactionV4> for Transaction {
-	fn from(tx: TransactionV4) -> Transaction {
-		let TransactionV4 { offset, body } = tx;
-		let body = TransactionBody::from(&body);
-		Transaction { offset, body }
-	}
-}
-
-impl From<&TransactionBodyV4> for TransactionBody {
-	fn from(body: &TransactionBodyV4) -> TransactionBody {
-		let TransactionBodyV4 { ins, outs, kers } = body;
-
-		let inputs = map_vec!(ins, |inp| Input::from(inp));
-		let outputs = map_vec!(outs, |out| Output::from(out));
-		let kernels = map_vec!(kers, |kern| TxKernel::from(kern));
-		TransactionBody {
-			inputs: inputs.into(),
-			outputs,
-			kernels,
-		}
-	}
-}
-
-impl From<&InputV4> for Input {
-	fn from(input: &InputV4) -> Input {
-		let InputV4 { features, commit } = *input;
-		Input {
-			features: features.into(),
-			commit,
-		}
-	}
-}
-
-impl From<&OutputV4> for Output {
-	fn from(output: &OutputV4) -> Output {
-		let OutputV4 {
-			features,
-			com: commit,
-			prf: proof,
-		} = *output;
-		Output {
-			features: features.into(),
-			commit,
-			proof,
-		}
-	}
-}
-
-impl From<&TxKernelV4> for TxKernel {
-	fn from(kernel: &TxKernelV4) -> TxKernel {
-		let (fee, lock_height) = (kernel.fee, kernel.lock_height);
-		let features = match kernel.features {
-			CompatKernelFeatures::Plain => KernelFeatures::Plain { fee },
-			CompatKernelFeatures::Coinbase => KernelFeatures::Coinbase,
-			CompatKernelFeatures::HeightLocked => KernelFeatures::HeightLocked { fee, lock_height },
-			CompatKernelFeatures::NoRecentDuplicate => KernelFeatures::NoRecentDuplicate {
-				fee,
-				relative_height: NRDRelativeHeight::new(lock_height)
-					.expect("a valid NRD relative height"),
-			},
-		};
-		TxKernel {
-			features,
-			excess: kernel.excess,
-			excess_sig: kernel.excess_sig,
-		}
-	}
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum CompatKernelFeatures {
-	Plain,
-	Coinbase,
-	HeightLocked,
-	NoRecentDuplicate,
 }
