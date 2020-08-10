@@ -24,7 +24,7 @@ chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
 strum = "0.18"
 strum_macros = "0.18"
-ed25519-dalek = "1.0.0-pre.3"
+ed25519-dalek = "1.0.0-pre.4"
 x25519-dalek = "0.6"
 base64 = "0.9"
 regex = "1.3"
