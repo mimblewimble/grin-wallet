@@ -35,6 +35,7 @@ use crate::{
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use ed25519_dalek::Verifier;
 
 use std::convert::TryFrom;
 use std::sync::mpsc::Sender;

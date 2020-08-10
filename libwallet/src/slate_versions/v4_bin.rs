@@ -23,6 +23,7 @@ use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
+use std::convert::TryFrom;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
@@ -347,7 +348,7 @@ impl Readable for ProofWrap {
 		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let rsig = match reader.read_u8()? {
 			0 => None,
-			1 | _ => Some(DalekSignature::from_bytes(&reader.read_fixed_bytes(64)?).unwrap()),
+			1 | _ => Some(DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..]).unwrap()),
 		};
 		Ok(ProofWrap(PaymentInfoV4 { saddr, raddr, rsig }))
 	}

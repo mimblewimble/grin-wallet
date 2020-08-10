@@ -33,6 +33,7 @@ use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::{Signer, Verifier};
 
 // static for incrementing test UUIDs
 lazy_static! {
