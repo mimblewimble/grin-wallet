@@ -510,6 +510,7 @@ where
 		args.num_change_outputs as usize,
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
+		args.late_lock == Some(true),
 		true,
 		use_test_rng,
 	)?;
@@ -663,6 +664,7 @@ where
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
 		false,
+		false,
 		use_test_rng,
 	)?;
 
@@ -752,6 +754,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let keychain = w.keychain(keychain_mask)?;
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
@@ -762,6 +765,29 @@ where
 	// TODO: Post HF3, this should allow for inputs to be picked at this stage
 	// as opposed to locking them prior to this stage, as the excess to this point
 	// will just be the change output
+
+	// Experimental, late-locking
+	if context.input_ids.len() == 0 {
+		sl.amount = context.amount;
+		sl.fee = context.fee;
+		// Now perform input selection
+		let current_height = w.w2n_client().get_chain_tip()?.0;
+		selection::build_send_tx(
+			w,
+			&keychain,
+			keychain_mask,
+			&mut sl,
+			current_height,
+			2,
+			500,
+			1,
+			false,
+			parent_key_id.clone(),
+			false,
+			true,
+			false,
+		)?;
+	}
 
 	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;
 	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;

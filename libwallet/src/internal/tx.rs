@@ -147,6 +147,7 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
+	late_lock: bool,
 	is_initiator: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
@@ -176,6 +177,8 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
+		late_lock,
+		false,
 		use_test_rng,
 	)?;
 

@@ -71,6 +71,9 @@ pub struct InitTxArgs {
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
 	/// transaction amount
 	pub estimate_only: Option<bool>,
+	/// EXPERIMENTAL: if flagged, create the transaction as late-locked, i.e. don't select actual
+	/// inputs until just before finalization
+	pub late_lock: Option<bool>,
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
@@ -103,6 +106,7 @@ impl Default for InitTxArgs {
 			ttl_blocks: None,
 			estimate_only: Some(false),
 			payment_proof_recipient_address: None,
+			late_lock: None,
 			send_args: None,
 		}
 	}

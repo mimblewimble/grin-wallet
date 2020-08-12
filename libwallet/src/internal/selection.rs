@@ -22,7 +22,7 @@ use crate::grin_core::libtx::{
 	proof::{ProofBuild, ProofBuilder},
 	tx_fee,
 };
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{BlindingFactor, Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
@@ -47,6 +47,8 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: Identifier,
+	late_lock: bool,
+	late_lock_finalize: bool,
 	use_test_nonce: bool,
 ) -> Result<Context, Error>
 where
@@ -54,7 +56,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
+	let (elems, inputs, change_amounts_derivations, mut fee) = select_send_tx(
 		wallet,
 		keychain_mask,
 		slate.amount,
@@ -67,36 +69,57 @@ where
 		false,
 	)?;
 
-	// Update the fee on the slate so we account for this when building the tx.
-	slate.fee = fee;
-
-	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
-
-	// Create our own private context
-	let mut context = Context::new(
-		keychain.secp(),
-		blinding.secret_key(&keychain.secp()).unwrap(),
-		&parent_key_id,
-		use_test_nonce,
-	);
-
-	context.fee = fee;
-	context.amount = slate.amount;
-
-	// Store our private identifiers for each input
-	for input in inputs {
-		context.add_input(&input.key_id, &input.mmr_index, input.value);
+	// EXPERIMENTAL TODO - if late locking, treat the above as an estimate and (dumbly) triple fee
+	// for now
+	if late_lock {
+		fee = fee * 3
 	}
 
-	let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
+	// Update the fee on the slate so we account for this when building the tx.
+	if !late_lock_finalize {
+		slate.fee = fee;
+	}
 
-	// Store change output(s) and cached commits
-	for (change_amount, id, mmr_index) in &change_amounts_derivations {
-		context.add_output(&id, &mmr_index, *change_amount);
-		commits.insert(
-			id.clone(),
-			wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
-		);
+	let blinding = match late_lock {
+		false => slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?,
+		true => BlindingFactor::zero(),
+	};
+
+	//TODO :Should probably check fee is sufficient here
+
+	// Create our own private context
+	let mut context = match late_lock_finalize {
+		false => {
+			let mut context = Context::new(
+				keychain.secp(),
+				blinding.secret_key(&keychain.secp()).unwrap(),
+				&parent_key_id,
+				use_test_nonce,
+			);
+
+			context.fee = fee;
+			context.amount = slate.amount;
+			context
+		}
+		true => wallet.get_private_context(keychain_mask, slate.id.as_bytes())?,
+	};
+
+	// Store our private identifiers for each input
+	if !late_lock {
+		for input in inputs {
+			context.add_input(&input.key_id, &input.mmr_index, input.value);
+		}
+
+		let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
+
+		// Store change output(s) and cached commits
+		for (change_amount, id, mmr_index) in &change_amounts_derivations {
+			context.add_output(&id, &mmr_index, *change_amount);
+			commits.insert(
+				id.clone(),
+				wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
+			);
+		}
 	}
 
 	Ok(context)
