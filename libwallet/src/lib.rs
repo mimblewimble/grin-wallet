@@ -52,7 +52,7 @@ mod error;
 mod internal;
 mod slate;
 pub mod slate_versions;
-mod slatepack;
+pub mod slatepack;
 mod types;
 
 pub use crate::error::{Error, ErrorKind};

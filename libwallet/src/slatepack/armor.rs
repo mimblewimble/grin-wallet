@@ -21,7 +21,7 @@
 // Finally add armor framing and space/newline formatting as desired
 
 use crate::{Error, ErrorKind};
-use grin_wallet_util::byte_ser;
+use grin_wallet_util::{byte_ser, grin_core::global::max_tx_weight};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::str;
@@ -33,6 +33,20 @@ pub static HEADER: &str = "BEGINSLATEPACK.";
 static FOOTER: &str = ". ENDSLATEPACK.";
 const WORD_LENGTH: usize = 15;
 const WORDS_PER_LINE: usize = 200;
+const WEIGHT_RATIO: u64 = 32;
+
+/// Maximum size for an armored Slatepack file
+pub fn max_size() -> u64 {
+	max_tx_weight()
+		.saturating_mul(WEIGHT_RATIO)
+		.saturating_add(HEADER.len() as u64)
+		.saturating_add(FOOTER.len() as u64)
+}
+
+/// Minimum size for an armored Slatepack file or stream
+pub fn min_size() -> u64 {
+	HEADER.len() as u64
+}
 
 lazy_static! {
 	static ref HEADER_REGEX: Regex =

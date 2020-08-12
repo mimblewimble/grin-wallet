@@ -16,11 +16,11 @@ use std::convert::TryFrom;
 use std::str;
 
 use super::armor::HEADER;
-use crate::{Error, ErrorKind};
 use crate::{
-	Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
+	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
 	VersionedBinSlate, VersionedSlate,
 };
+use crate::{Error, ErrorKind};
 
 use grin_wallet_util::byte_ser;
 
@@ -50,8 +50,9 @@ impl<'a> Slatepacker<'a> {
 	/// return slatepack
 	pub fn deser_slatepack(&self, data: &[u8], decrypt: bool) -> Result<Slatepack, Error> {
 		// check if data is armored, if so, remove and continue
-		if data.len() < super::armor::HEADER.len() {
-			let msg = format!("Data too short");
+		let data_len = data.len() as u64;
+		if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
+			let msg = format!("Data invalid length");
 			return Err(ErrorKind::SlatepackDeser(msg).into());
 		}
 
