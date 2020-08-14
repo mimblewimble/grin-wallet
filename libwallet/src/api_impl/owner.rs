@@ -757,7 +757,7 @@ where
 	let keychain = w.keychain(keychain_mask)?;
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	let parent_key_id = w.parent_key_id();
 
 	// since we're now actually inserting our inputs, pick an offset and adjust
@@ -768,11 +768,12 @@ where
 
 	// Experimental, late-locking
 	if context.input_ids.len() == 0 {
+		error!("LATE");
 		sl.amount = context.amount;
 		sl.fee = context.fee;
 		// Now perform input selection
 		let current_height = w.w2n_client().get_chain_tip()?.0;
-		selection::build_send_tx(
+		let late_context = selection::build_send_tx(
 			w,
 			&keychain,
 			keychain_mask,
@@ -787,6 +788,8 @@ where
 			true,
 			false,
 		)?;
+		context.input_ids = late_context.input_ids.clone();
+		context.output_ids = late_context.output_ids.clone();
 	}
 
 	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;

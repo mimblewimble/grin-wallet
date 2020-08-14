@@ -101,7 +101,11 @@ where
 			context.amount = slate.amount;
 			context
 		}
-		true => wallet.get_private_context(keychain_mask, slate.id.as_bytes())?,
+		true => {
+			let mut late_ctx = wallet.get_private_context(keychain_mask, slate.id.as_bytes())?;
+			late_ctx.sec_key = blinding.secret_key(&keychain.secp()).unwrap();
+			late_ctx
+		}
 	};
 
 	// Store our private identifiers for each input
@@ -689,6 +693,8 @@ where
 
 	// restore my signature data
 	slate.add_participant_info(&keychain, &context.sec_key, &context.sec_nonce, None)?;
+
+	error!("GEt inputs: {:?}", context.get_inputs());
 
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {
