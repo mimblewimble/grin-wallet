@@ -515,6 +515,13 @@ where
 		use_test_rng,
 	)?;
 
+	if args.late_lock == Some(true) {
+		slate.fee = slate.fee * 3;
+		context.input_ids = vec![];
+		context.output_ids = vec![];
+		context.fee = slate.fee;
+	}
+
 	// Payment Proof, add addresses to slate and save address
 	// TODO: Note we only use single derivation path for now,
 	// probably want to allow sender to specify which one
@@ -754,7 +761,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let keychain = w.keychain(keychain_mask)?;
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
 	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
@@ -768,28 +774,27 @@ where
 
 	// Experimental, late-locking
 	if context.input_ids.len() == 0 {
-		error!("LATE");
-		sl.amount = context.amount;
+		let height = w.w2n_client().get_chain_tip()?.0;
 		sl.fee = context.fee;
-		// Now perform input selection
-		let current_height = w.w2n_client().get_chain_tip()?.0;
-		let late_context = selection::build_send_tx(
-			w,
-			&keychain,
+		let late_context = tx::add_inputs_to_slate(
+			&mut *w,
 			keychain_mask,
 			&mut sl,
-			current_height,
-			2,
+			height,
+			10,
 			500,
 			1,
 			false,
-			parent_key_id.clone(),
-			false,
+			&parent_key_id,
+			true,
 			true,
 			false,
 		)?;
+
 		context.input_ids = late_context.input_ids.clone();
 		context.output_ids = late_context.output_ids.clone();
+		//context.sec_key = late_context.sec_key.clone();
+		//context.sec_nonce = late_context.sec_nonce.clone();
 	}
 
 	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;

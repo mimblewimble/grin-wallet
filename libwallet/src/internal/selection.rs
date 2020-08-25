@@ -56,7 +56,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let (elems, inputs, change_amounts_derivations, mut fee) = select_send_tx(
+	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
 		wallet,
 		keychain_mask,
 		slate.amount,
@@ -69,58 +69,35 @@ where
 		false,
 	)?;
 
-	// EXPERIMENTAL TODO - if late locking, treat the above as an estimate and (dumbly) triple fee
-	// for now
-	if late_lock {
-		fee = fee * 3
-	}
-
-	// Update the fee on the slate so we account for this when building the tx.
-	if !late_lock_finalize {
-		slate.fee = fee;
-	}
+	slate.fee = fee;
 
 	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
-	//TODO :Should probably check fee is sufficient here
-
 	// Create our own private context
-	let mut context = match late_lock_finalize {
-		false => {
-			let mut context = Context::new(
-				keychain.secp(),
-				blinding.secret_key(&keychain.secp()).unwrap(),
-				&parent_key_id,
-				use_test_nonce,
-			);
+	let mut context = Context::new(
+		keychain.secp(),
+		blinding.secret_key(&keychain.secp()).unwrap(),
+		&parent_key_id,
+		use_test_nonce,
+	);
 
-			context.fee = fee;
-			context.amount = slate.amount;
-			context
-		}
-		true => {
-			let mut late_ctx = wallet.get_private_context(keychain_mask, slate.id.as_bytes())?;
-			late_ctx.sec_key = blinding.secret_key(&keychain.secp()).unwrap();
-			late_ctx
-		}
-	};
+	context.fee = fee;
+	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
-	if !late_lock {
-		for input in inputs {
-			context.add_input(&input.key_id, &input.mmr_index, input.value);
-		}
+	for input in inputs {
+		context.add_input(&input.key_id, &input.mmr_index, input.value);
+	}
 
-		let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
+	let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
 
-		// Store change output(s) and cached commits
-		for (change_amount, id, mmr_index) in &change_amounts_derivations {
-			context.add_output(&id, &mmr_index, *change_amount);
-			commits.insert(
-				id.clone(),
-				wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
-			);
-		}
+	// Store change output(s) and cached commits
+	for (change_amount, id, mmr_index) in &change_amounts_derivations {
+		context.add_output(&id, &mmr_index, *change_amount);
+		commits.insert(
+			id.clone(),
+			wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
+		);
 	}
 
 	Ok(context)

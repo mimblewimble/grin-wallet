@@ -166,6 +166,7 @@ where
 	// according to plan
 	// This function is just a big helper to do all of that, in theory
 	// this process can be split up in any way
+
 	let mut context = selection::build_send_tx(
 		wallet,
 		&wallet.keychain(keychain_mask)?,
