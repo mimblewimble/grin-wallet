@@ -200,6 +200,7 @@ where
 			&wallet.keychain(keychain_mask)?,
 			&context.sec_key,
 			&context.sec_nonce,
+			false,
 		)?;
 	}
 
@@ -244,7 +245,7 @@ where
 
 	if !is_initiator {
 		// perform partial sig
-		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
+		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce, false)?;
 		// update excess in stored transaction
 		let mut batch = wallet.batch(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
@@ -280,7 +281,12 @@ where
 			(context.sec_key.clone(), context.sec_nonce.clone())
 		}
 	};
-	slate.fill_round_2(&wallet.keychain(keychain_mask)?, &sec_key, &sec_nonce)?;
+	slate.fill_round_2(
+		&wallet.keychain(keychain_mask)?,
+		&sec_key,
+		&sec_nonce,
+		false,
+	)?;
 
 	// Final transaction can be built by anyone at this stage
 	trace!("Slate to finalize is: {}", slate);

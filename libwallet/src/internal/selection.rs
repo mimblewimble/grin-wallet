@@ -80,10 +80,7 @@ where
 		slate.fee = fee;
 	}
 
-	let blinding = match late_lock {
-		false => slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?,
-		true => BlindingFactor::zero(),
-	};
+	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	//TODO :Should probably check fee is sufficient here
 

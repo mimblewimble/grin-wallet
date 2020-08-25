@@ -389,6 +389,7 @@ impl Slate {
 		keychain: &K,
 		sec_key: &SecretKey,
 		sec_nonce: &SecretKey,
+		late_lock_adjust: bool,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
