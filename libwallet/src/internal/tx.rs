@@ -616,7 +616,7 @@ mod test {
 		.unwrap();
 
 		let inputs: Vec<Input> = tx2.inputs().into();
-		assert_eq!(tx1.outputs()[0].features, inputs[0].features);
+		assert_eq!(tx1.outputs()[0].features(), inputs[0].features);
 		assert_eq!(tx1.outputs()[0].commitment(), inputs[0].commitment());
 	}
 

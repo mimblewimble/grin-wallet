@@ -40,9 +40,10 @@ fn get_output_local(chain: &chain::Chain, commit: pedersen::Commitment) -> Optio
 	if chain.get_unspent(commit).unwrap().is_some() {
 		let block_height = chain.get_header_for_output(commit).unwrap().height;
 		let output_pos = chain.get_output_pos(&commit).unwrap_or(0);
-		return Some(api::Output::new(&commit, block_height, output_pos));
+		Some(api::Output::new(&commit, block_height, output_pos))
+	} else {
+		None
 	}
-	None
 }
 
 /// Get a kernel from the chain locally
