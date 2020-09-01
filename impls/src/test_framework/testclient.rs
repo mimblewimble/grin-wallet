@@ -276,7 +276,7 @@ where
 			}
 			let c = util::from_hex(&o_str).unwrap();
 			let commit = Commitment::from_vec(c);
-			let out = super::get_output_local(&self.chain.clone(), &commit);
+			let out = super::get_output_local(&self.chain.clone(), commit);
 			if let Some(o) = out {
 				outputs.push(o);
 			}
