@@ -316,8 +316,8 @@ impl From<&Output> for CbOutputV4 {
 	fn from(output: &Output) -> CbOutputV4 {
 		CbOutputV4 {
 			features: CbOutputFeatures::Coinbase,
-			commit: output.commit,
-			proof: output.proof,
+			commit: output.commitment(),
+			proof: output.proof(),
 		}
 	}
 }

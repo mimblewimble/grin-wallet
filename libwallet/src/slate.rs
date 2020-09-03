@@ -839,8 +839,8 @@ impl From<&Slate> for Option<Vec<CommitsV4>> {
 		}
 		for o in outs.iter() {
 			ret_vec.push(CommitsV4 {
-				f: o.features.into(),
-				c: o.commit,
+				f: o.features().into(),
+				c: o.commitment(),
 				p: Some(o.proof),
 			});
 		}
@@ -1020,14 +1020,8 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	let mut tx = Transaction::empty().with_kernel(kernel);
 
 	for c in coms.iter() {
-		match &c.p {
-			Some(p) => {
-				tx = tx.with_output(Output {
-					features: c.f.into(),
-					commit: c.c,
-					proof: p.clone(),
-				})
-			}
+		match c.p {
+			Some(p) => tx = tx.with_output(Output::new(c.f.into(), c.c, p)),
 			None => {
 				tx = tx.with_input(Input {
 					features: c.f.into(),
@@ -1036,7 +1030,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 			}
 		}
 	}
-	tx.offset = slate.off.clone();
+	tx = tx.with_offset(slate.off.clone());
 	Some(tx)
 }
 
