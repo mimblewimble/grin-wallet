@@ -370,3 +370,55 @@ impl NodeClient for HTTPNodeClient {
 		Ok((res.last_retrieved_index, res.highest_index))
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::core::KernelFeatures;
+	use crate::core::libtx::build;
+	use crate::core::libtx::ProofBuilder;
+	use crate::keychain::{ExtKeychain, Keychain};
+
+	fn tx1i1o() -> Transaction {
+		let keychain = ExtKeychain::from_random_seed(false).unwrap();
+		let builder = ProofBuilder::new(&keychain);
+		let key_id1 = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
+		let key_id2 = ExtKeychain::derive_key_id(1, 2, 0, 0, 0);
+		let tx = build::transaction(
+			KernelFeatures::Plain { fee: 2 },
+			&[build::input(5, key_id1), build::output(3, key_id2)],
+			&keychain,
+			&builder,
+		)
+		.unwrap();
+		tx
+	}
+
+	// Wallet will "push" a transaction to node, serializing the transaction as json.
+	// We are testing the json structure is what we expect here.
+	#[test]
+	fn test_transaction_json_ser_deser() {
+		let tx1 = tx1i1o();
+		let value = serde_json::to_value(&tx1).unwrap();
+
+		assert!(value["offset"].is_string());
+		assert_eq!(value["body"]["inputs"][0]["features"], "Plain");
+		assert!(value["body"]["inputs"][0]["commit"].is_string());
+		assert_eq!(value["body"]["outputs"][0]["features"], "Plain");
+		assert!(value["body"]["outputs"][0]["commit"].is_string());
+		assert!(value["body"]["outputs"][0]["proof"].is_string());
+
+		// Note: Tx kernel "features" serialize in a slightly unexpected way.
+		assert_eq!(value["body"]["kernels"][0]["features"]["Plain"]["fee"], 2);
+		assert!(value["body"]["kernels"][0]["excess"].is_string());
+		assert!(value["body"]["kernels"][0]["excess_sig"].is_string());
+
+		let tx2: Transaction = serde_json::from_value(value).unwrap();
+		assert_eq!(tx1, tx2);
+
+		let str = serde_json::to_string(&tx1).unwrap();
+		println!("{}", str);
+		let tx2: Transaction = serde_json::from_str(&str).unwrap();
+		assert_eq!(tx1, tx2);
+	}
+}
