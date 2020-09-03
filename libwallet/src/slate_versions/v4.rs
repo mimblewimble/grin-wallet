@@ -53,7 +53,7 @@
 //! *  The `receiver_signature` field is renamed to `rsig`
 //! * `rsig` may be omitted if it has not yet been filled out
 
-use crate::grin_core::core::{Output, TxKernel};
+use crate::grin_core::core::{Input, Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::{BlindingFactor, Identifier};
 use crate::grin_util::secp;
@@ -250,6 +250,27 @@ pub struct CommitsV4 {
 	#[serde(default = "default_range_proof")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub p: Option<RangeProof>,
+}
+
+impl From<&Output> for CommitsV4 {
+	fn from(out: &Output) -> CommitsV4 {
+		CommitsV4 {
+			f: out.features().into(),
+			c: out.commitment(),
+			p: Some(out.proof()),
+		}
+	}
+}
+
+// This will need to be reworked once we no longer support input features with "commit only" inputs.
+impl From<&Input> for CommitsV4 {
+	fn from(input: &Input) -> CommitsV4 {
+		CommitsV4 {
+			f: input.features.into(),
+			c: input.commitment(),
+			p: None,
+		}
+	}
 }
 
 fn default_output_feature() -> OutputFeaturesV4 {

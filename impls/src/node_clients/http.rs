@@ -374,12 +374,14 @@ impl NodeClient for HTTPNodeClient {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::core::core::KernelFeatures;
+	use crate::core::core::{KernelFeatures, OutputFeatures, OutputIdentifier};
 	use crate::core::libtx::build;
 	use crate::core::libtx::ProofBuilder;
 	use crate::keychain::{ExtKeychain, Keychain};
 
-	fn tx1i1o() -> Transaction {
+	// JSON api for "push_transaction" between wallet->node currently only supports "feature and commit" inputs.
+	// We will need to revisit this if we decide to support "commit only" inputs (no features) at wallet level.
+	fn tx1i1o_v2_compatible() -> Transaction {
 		let keychain = ExtKeychain::from_random_seed(false).unwrap();
 		let builder = ProofBuilder::new(&keychain);
 		let key_id1 = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
@@ -391,14 +393,26 @@ mod tests {
 			&builder,
 		)
 		.unwrap();
-		tx
+
+		let inputs: Vec<_> = tx.inputs().into();
+		let inputs: Vec<_> = inputs
+			.iter()
+			.map(|input| OutputIdentifier {
+				features: OutputFeatures::Plain,
+				commit: input.commitment(),
+			})
+			.collect();
+		Transaction {
+			body: tx.body.replace_inputs(inputs.as_slice().into()),
+			..tx
+		}
 	}
 
 	// Wallet will "push" a transaction to node, serializing the transaction as json.
 	// We are testing the json structure is what we expect here.
 	#[test]
 	fn test_transaction_json_ser_deser() {
-		let tx1 = tx1i1o();
+		let tx1 = tx1i1o_v2_compatible();
 		let value = serde_json::to_value(&tx1).unwrap();
 
 		assert!(value["offset"].is_string());
