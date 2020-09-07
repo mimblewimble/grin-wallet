@@ -17,7 +17,6 @@ use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
-use crate::grin_core::core::transaction::Transaction;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
@@ -91,7 +90,7 @@ where
 		}
 	}
 
-	ret_slate.tx = Some(Transaction::empty());
+	ret_slate.tx = Some(Slate::empty_transaction());
 
 	let height = w.last_confirmed_height()?;
 	let keychain = w.keychain(keychain_mask)?;

@@ -585,7 +585,7 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_core::core::{Input, KernelFeatures};
+	use crate::grin_core::core::KernelFeatures;
 	use crate::grin_core::libtx::{build, ProofBuilder};
 	use crate::grin_keychain::{
 		BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
@@ -615,8 +615,7 @@ mod test {
 		)
 		.unwrap();
 
-		let inputs: Vec<Input> = tx2.inputs().into();
-		assert_eq!(tx1.outputs()[0].features(), inputs[0].features);
+		let inputs: Vec<_> = tx2.inputs().into();
 		assert_eq!(tx1.outputs()[0].commitment(), inputs[0].commitment());
 	}
 

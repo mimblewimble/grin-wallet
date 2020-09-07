@@ -647,7 +647,7 @@ where
 	}
 
 	// if this is compact mode, we need to create the transaction now
-	ret_slate.tx = Some(Transaction::empty());
+	ret_slate.tx = Some(Slate::empty_transaction());
 
 	// if self sending, make sure to store 'initiator' keys
 	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
@@ -721,7 +721,7 @@ where
 	let mut sl = slate.clone();
 
 	if sl.tx == None {
-		sl.tx = Some(Transaction::empty());
+		sl.tx = Some(Slate::empty_transaction());
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 	}
 

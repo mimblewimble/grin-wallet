@@ -18,8 +18,8 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction, TxKernel,
-	Weighting,
+	Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction,
+	TxKernel, Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
@@ -242,6 +242,14 @@ impl Slate {
 		Ok(())
 	}
 
+	/// Build a new empty transaction.
+	/// Wallet currently only supports tx with "features and commit" inputs.
+	pub fn empty_transaction() -> Transaction {
+		let mut tx = Transaction::empty();
+		tx.body = tx.body.replace_inputs(Inputs::FeaturesAndCommit(vec![]));
+		tx
+	}
+
 	/// Create a new slate
 	pub fn blank(num_participants: u8, is_invoice: bool) -> Slate {
 		let np = match num_participants {
@@ -256,7 +264,7 @@ impl Slate {
 			num_participants: np, // assume 2 if not present
 			id: Uuid::new_v4(),
 			state,
-			tx: Some(Transaction::empty()),
+			tx: Some(Slate::empty_transaction()),
 			amount: 0,
 			fee: 0,
 			ttl_cutoff_height: 0,
@@ -816,35 +824,26 @@ impl From<&Slate> for SlateV4 {
 	}
 }
 
-// Node's Transaction object and lock height to SlateV4 `coms`
 impl From<&Slate> for Option<Vec<CommitsV4>> {
-	fn from(slate: &Slate) -> Option<Vec<CommitsV4>> {
-		let mut ret_vec = vec![];
-		let (ins, outs) = match &slate.tx {
-			Some(t) => {
-				// TODO - input features are to be deprecated
-				// inputs here should be treated as a vec of commitments
-				// CommitsV4 should probably handle optional features.
-				let ins: Vec<Input> = t.inputs().into();
-				(ins, t.outputs().to_vec())
+	fn from(slate: &Slate) -> Self {
+		match slate.tx {
+			None => None,
+			Some(ref tx) => {
+				let mut ret_vec = vec![];
+				match tx.inputs() {
+					Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
+					Inputs::FeaturesAndCommit(ref inputs) => {
+						for input in inputs {
+							ret_vec.push(input.into());
+						}
+					}
+				}
+				for output in tx.outputs() {
+					ret_vec.push(output.into());
+				}
+				Some(ret_vec)
 			}
-			None => return None,
-		};
-		for i in ins.iter() {
-			ret_vec.push(CommitsV4 {
-				f: i.features.into(),
-				c: i.commit,
-				p: None,
-			});
 		}
-		for o in outs.iter() {
-			ret_vec.push(CommitsV4 {
-				f: o.features().into(),
-				c: o.commitment(),
-				p: Some(o.proof),
-			});
-		}
-		Some(ret_vec)
 	}
 }
 
@@ -1017,20 +1016,30 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		excess,
 		excess_sig,
 	};
-	let mut tx = Transaction::empty().with_kernel(kernel);
+	let mut tx = Slate::empty_transaction().with_kernel(kernel);
+
+	let mut outputs = vec![];
+	let mut inputs = vec![];
 
 	for c in coms.iter() {
-		match c.p {
-			Some(p) => tx = tx.with_output(Output::new(c.f.into(), c.c, p)),
+		match &c.p {
+			Some(p) => {
+				outputs.push(Output::new(c.f.into(), c.c, p.clone()));
+			}
 			None => {
-				tx = tx.with_input(Input {
+				inputs.push(Input {
 					features: c.f.into(),
 					commit: c.c,
-				})
+				});
 			}
 		}
 	}
-	tx = tx.with_offset(slate.off.clone());
+
+	tx.body = tx
+		.body
+		.replace_inputs(inputs.as_slice().into())
+		.replace_outputs(outputs.as_slice());
+	tx.offset = slate.off.clone();
 	Some(tx)
 }
 
