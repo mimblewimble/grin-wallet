@@ -16,7 +16,6 @@
 //! JSON RPC Client functionality
 use std::{error, fmt};
 
-use hyper;
 use serde_json;
 
 /// Builds a request
@@ -97,8 +96,6 @@ impl Response {
 pub enum Error {
 	/// Json error
 	Json(serde_json::Error),
-	/// Client error
-	Hyper(hyper::error::Error),
 	/// Error response
 	Rpc(RpcError),
 	/// Response to a request did not have the expected nonce
@@ -121,12 +118,6 @@ impl From<serde_json::Error> for Error {
 	}
 }
 
-impl From<hyper::error::Error> for Error {
-	fn from(e: hyper::error::Error) -> Error {
-		Error::Hyper(e)
-	}
-}
-
 impl From<RpcError> for Error {
 	fn from(e: RpcError) -> Error {
 		Error::Rpc(e)
@@ -137,7 +128,6 @@ impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Error::Json(ref e) => write!(f, "JSON decode error: {}", e),
-			Error::Hyper(ref e) => write!(f, "Hyper error: {}", e),
 			Error::Rpc(ref r) => write!(f, "RPC error response: {:?}", r),
 			Error::_BatchDuplicateResponseId(ref v) => {
 				write!(f, "duplicate RPC batch response ID: {}", v)
@@ -152,7 +142,6 @@ impl std::error::Error for Error {
 	fn description(&self) -> &str {
 		match *self {
 			Error::Json(_) => "JSON decode error",
-			Error::Hyper(_) => "Hyper error",
 			Error::Rpc(_) => "RPC error response",
 			Error::_NonceMismatch => "Nonce of response did not match nonce of request",
 			Error::_VersionMismatch => "`jsonrpc` field set to non-\"2.0\"",
@@ -168,7 +157,6 @@ impl std::error::Error for Error {
 	fn cause(&self) -> Option<&dyn error::Error> {
 		match *self {
 			Error::Json(ref e) => Some(e),
-			Error::Hyper(ref e) => Some(e),
 			_ => None,
 		}
 	}

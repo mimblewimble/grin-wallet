@@ -167,28 +167,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 
 [[package]]
-name = "async-socks5"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "575663f6d00adcfc4289d3f0825f49856380e062c030e799a2f9f4a275d842d6"
-dependencies = [
- "async-trait",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "async-trait"
-version = "0.1.36"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a265e3abeffdce30b2e26b7a11b222fe37c6067404001b434101457d0385eb92"
-dependencies = [
- "proc-macro2 1.0.19",
- "quote 1.0.7",
- "syn 1.0.38",
-]
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1498,8 +1476,6 @@ dependencies = [
  "grin_wallet_config",
  "grin_wallet_libwallet",
  "grin_wallet_util",
- "hyper",
- "hyper-socks2-mw",
  "log",
  "rand 0.6.5",
  "regex",
@@ -1733,21 +1709,6 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.14.1",
  "webpki",
-]
-
-[[package]]
-name = "hyper-socks2-mw"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d7267805b50714db2ebe2904b1e70158ba6ba8eafdaf7c9d7735aca3273c4f8"
-dependencies = [
- "async-socks5",
- "futures 0.3.5",
- "http",
- "hyper",
- "hyper-tls",
- "thiserror",
- "tokio",
 ]
 
 [[package]]
