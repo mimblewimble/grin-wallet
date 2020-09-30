@@ -15,4 +15,4 @@
 mod client;
 pub mod json_rpc;
 
-pub use client::{Client, Error as ClientError};
+pub use client::{Client, Error as ClientError, ErrorKind as ClientErrorKind};

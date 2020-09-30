@@ -17,12 +17,11 @@
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet::{NodeClient, NodeVersionInfo};
-use crossbeam_utils::thread::scope;
+use futures::executor::block_on;
 use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
-use tokio::runtime::Builder;
 
 use crate::client_utils::Client;
 use crate::libwallet;
@@ -62,7 +61,7 @@ impl HTTPNodeClient {
 		params: &serde_json::Value,
 	) -> Result<D, libwallet::Error> {
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
-		let client = Client::new();
+		let client = Client::new().map_err(|_| libwallet::ErrorKind::Node)?;
 		let req = build_request(method, params);
 		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
 
@@ -157,7 +156,7 @@ impl NodeClient for HTTPNodeClient {
 		let params = json!([excess.0.as_ref().to_hex(), min_height, max_height]);
 		// have to handle this manually since the error needs to be parsed
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
-		let client = Client::new();
+		let client = Client::new().map_err(|_| libwallet::ErrorKind::Node)?;
 		let req = build_request(method, &params);
 		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
 
@@ -225,9 +224,8 @@ impl NodeClient for HTTPNodeClient {
 
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
 
+		let client = Client::new().map_err(|_| libwallet::ErrorKind::Node)?;
 		let task = async move {
-			let client = Client::new();
-
 			let params: Vec<_> = query_params
 				.chunks(chunk_size)
 				.map(|c| json!([c, null, null, false, false]))
@@ -251,20 +249,7 @@ impl NodeClient for HTTPNodeClient {
 			task.try_collect().await
 		};
 
-		let res = scope(|s| {
-			let handle = s.spawn(|_| {
-				let mut rt = Builder::new()
-					.threaded_scheduler()
-					.enable_all()
-					.build()
-					.unwrap();
-				let res: Result<Vec<Response>, _> = rt.block_on(task);
-				res
-			});
-			handle.join().unwrap()
-		})
-		.unwrap();
-
+		let res: Result<Vec<_>, _> = block_on(task);
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
 				let mut results = vec![];
