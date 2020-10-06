@@ -1410,7 +1410,7 @@ where
 	/// * `chain_type`: The chain type to use in creation of the configuration file. This can be
 	///     * `AutomatedTesting`
 	///     * `UserTesting`
-	///     * `Floonet`
+	///     * `Testnet`
 	///     * `Mainnet`
 	///
 	/// # Returns

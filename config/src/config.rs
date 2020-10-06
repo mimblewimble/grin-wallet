@@ -213,7 +213,7 @@ impl GlobalWalletConfig {
 
 		match *chain_type {
 			global::ChainTypes::Mainnet => {}
-			global::ChainTypes::Floonet => {
+			global::ChainTypes::Testnet => {
 				defaults.api_listen_port = 13415;
 				defaults.check_node_api_http_addr = "http://127.0.0.1:13413".to_owned();
 			}
