@@ -72,7 +72,7 @@ fn real_main() -> i32 {
 		.version(built_info::PKG_VERSION)
 		.get_matches();
 
-	let chain_type = if args.is_present("testet") {
+	let chain_type = if args.is_present("testnet") {
 		global::ChainTypes::Testnet
 	} else if args.is_present("usernet") {
 		global::ChainTypes::UserTesting
