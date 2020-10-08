@@ -56,11 +56,11 @@ where
 	K: Keychain + 'a,
 {
 	/// Sets the top level system wallet directory
-	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
+	/// default is assumed to be ~/.grin/main/wallet_data (or testnet equivalent)
 	fn set_top_level_directory(&mut self, dir: &str) -> Result<(), Error>;
 
 	/// Sets the top level system wallet directory
-	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
+	/// default is assumed to be ~/.grin/main/wallet_data (or testnet equivalent)
 	fn get_top_level_directory(&self) -> Result<String, Error>;
 
 	/// Output a grin-wallet.toml file into the current top-level system wallet directory

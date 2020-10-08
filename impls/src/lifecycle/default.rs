@@ -236,7 +236,7 @@ where
 			ErrorKind::Lifecycle("Error opening wallet (is password correct?)".into()),
 		)?;
 		let keychain = wallet_seed
-			.derive_keychain(global::is_floonet())
+			.derive_keychain(global::is_testnet())
 			.context(ErrorKind::Lifecycle("Error deriving keychain".into()))?;
 
 		let mask = wallet.set_keychain(Box::new(keychain), create_mask, use_test_rng)?;
