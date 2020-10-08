@@ -303,8 +303,14 @@ where
 			.map_err(|e| e.into())
 	}
 
+	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a> {
-		Box::new(self.db.iter(&[OUTPUT_PREFIX]).unwrap().map(|o| o.1))
+		let protocol_version = self.db.protocol_version();
+		let prefix_iter = self.db.iter(&[OUTPUT_PREFIX], move |_, mut v| {
+			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+		});
+		let iter = prefix_iter.expect("deserialize").into_iter();
+		Box::new(iter)
 	}
 
 	fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
@@ -312,8 +318,14 @@ where
 		self.db.get_ser(&key).map_err(|e| e.into())
 	}
 
+	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a> {
-		Box::new(self.db.iter(&[TX_LOG_ENTRY_PREFIX]).unwrap().map(|o| o.1))
+		let protocol_version = self.db.protocol_version();
+		let prefix_iter = self.db.iter(&[TX_LOG_ENTRY_PREFIX], move |_, mut v| {
+			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+		});
+		let iter = prefix_iter.expect("deserialize").into_iter();
+		Box::new(iter)
 	}
 
 	fn get_private_context(
@@ -337,13 +349,16 @@ where
 		Ok(ctx)
 	}
 
+	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn acct_path_iter<'a>(&'a self) -> Box<dyn Iterator<Item = AcctPathMapping> + 'a> {
-		Box::new(
-			self.db
-				.iter(&[ACCOUNT_PATH_MAPPING_PREFIX])
-				.unwrap()
-				.map(|o| o.1),
-		)
+		let protocol_version = self.db.protocol_version();
+		let prefix_iter = self
+			.db
+			.iter(&[ACCOUNT_PATH_MAPPING_PREFIX], move |_, mut v| {
+				ser::deserialize(&mut v, protocol_version).map_err(From::from)
+			});
+		let iter = prefix_iter.expect("deserialize").into_iter();
+		Box::new(iter)
 	}
 
 	fn get_acct_path(&self, label: String) -> Result<Option<AcctPathMapping>, Error> {
@@ -522,16 +537,16 @@ where
 		.map_err(|e| e.into())
 	}
 
+	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn iter(&self) -> Box<dyn Iterator<Item = OutputData>> {
-		Box::new(
-			self.db
-				.borrow()
-				.as_ref()
-				.unwrap()
-				.iter(&[OUTPUT_PREFIX])
-				.unwrap()
-				.map(|o| o.1),
-		)
+		let db = self.db.borrow();
+		let db = db.as_ref().unwrap();
+		let protocol_version = db.protocol_version();
+		let prefix_iter = db.iter(&[OUTPUT_PREFIX], move |_, mut v| {
+			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+		});
+		let iter = prefix_iter.expect("deserialize").into_iter();
+		Box::new(iter)
 	}
 
 	fn delete(&mut self, id: &Identifier, mmr_index: &Option<u64>) -> Result<(), Error> {
@@ -561,16 +576,16 @@ where
 		Ok(last_tx_log_id)
 	}
 
+	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn tx_log_iter(&self) -> Box<dyn Iterator<Item = TxLogEntry>> {
-		Box::new(
-			self.db
-				.borrow()
-				.as_ref()
-				.unwrap()
-				.iter(&[TX_LOG_ENTRY_PREFIX])
-				.unwrap()
-				.map(|o| o.1),
-		)
+		let db = self.db.borrow();
+		let db = db.as_ref().unwrap();
+		let protocol_version = db.protocol_version();
+		let prefix_iter = db.iter(&[TX_LOG_ENTRY_PREFIX], move |_, mut v| {
+			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+		});
+		let iter = prefix_iter.expect("deserialize").into_iter();
+		Box::new(iter)
 	}
 
 	fn save_last_confirmed_height(
@@ -657,16 +672,16 @@ where
 		Ok(())
 	}
 
+	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn acct_path_iter(&self) -> Box<dyn Iterator<Item = AcctPathMapping>> {
-		Box::new(
-			self.db
-				.borrow()
-				.as_ref()
-				.unwrap()
-				.iter(&[ACCOUNT_PATH_MAPPING_PREFIX])
-				.unwrap()
-				.map(|o| o.1),
-		)
+		let db = self.db.borrow();
+		let db = db.as_ref().unwrap();
+		let protocol_version = db.protocol_version();
+		let prefix_iter = db.iter(&[ACCOUNT_PATH_MAPPING_PREFIX], move |_, mut v| {
+			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+		});
+		let iter = prefix_iter.expect("deserialize").into_iter();
+		Box::new(iter)
 	}
 
 	fn lock_output(&mut self, out: &mut OutputData) -> Result<(), Error> {
