@@ -37,7 +37,7 @@ use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -402,8 +402,8 @@ where
 	let amount = if tx.amount_credited >= tx.amount_debited {
 		tx.amount_credited - tx.amount_debited
 	} else {
-		let fee = match tx.fee {
-			Some(f) => f,
+		let fee = match tx.fee_fields {
+			Some(f) => f.fee(),
 			None => 0,
 		};
 		tx.amount_debited - tx.amount_credited - fee
@@ -495,7 +495,7 @@ where
 			&parent_key_id,
 		)?;
 		slate.amount = total;
-		slate.fee = fee;
+		slate.fee_fields = fee.try_into().unwrap();
 		return Ok(slate);
 	}
 
@@ -675,7 +675,7 @@ where
 	if let Ok(c) = context_res {
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
-		context.fee = c.fee;
+		context.fee_fields = c.fee_fields;
 		context.amount = c.amount;
 		for o in c.output_ids.iter() {
 			context.output_ids.push(o.clone());
@@ -810,6 +810,7 @@ where
 }
 
 /// get stored tx
+/// crashes if stored tx has total fees exceeding 2^40 nanogrin
 pub fn get_stored_tx<'a, T: ?Sized, C, K>(
 	w: &T,
 	tx_id: Option<u32>,
@@ -846,7 +847,7 @@ where
 		Some(tx) => {
 			let mut slate = Slate::blank(2, false);
 			slate.tx = Some(tx.clone());
-			slate.fee = tx.fee();
+			slate.fee_fields = tx.aggregate_fee_fields().unwrap();
 			slate.id = id.clone();
 			slate.offset = tx.offset;
 			slate.state = SlateState::Standard3;

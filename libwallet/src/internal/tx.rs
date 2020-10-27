@@ -585,7 +585,7 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_core::core::KernelFeatures;
+	use crate::grin_core::core::{FeeFields, KernelFeatures};
 	use crate::grin_core::libtx::{build, ProofBuilder};
 	use crate::grin_keychain::{
 		BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
@@ -601,14 +601,18 @@ mod test {
 		let key_id1 = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 
 		let tx1 = build::transaction(
-			KernelFeatures::Plain { fee: 0 },
+			KernelFeatures::Plain {
+				fee_fields: FeeFields::zero(),
+			},
 			&[build::output(105, key_id1.clone())],
 			&keychain,
 			&builder,
 		)
 		.unwrap();
 		let tx2 = build::transaction(
-			KernelFeatures::Plain { fee: 0 },
+			KernelFeatures::Plain {
+				fee_fields: FeeFields::zero(),
+			},
 			&[build::input(105, key_id1.clone())],
 			&keychain,
 			&builder,

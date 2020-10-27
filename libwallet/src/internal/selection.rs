@@ -30,6 +30,7 @@ use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 /// Initialize a transaction on the sender side, returns a corresponding
 /// libwallet transaction slate with the appropriate inputs selected,
@@ -68,7 +69,7 @@ where
 	)?;
 
 	// Update the fee on the slate so we account for this when building the tx.
-	slate.fee = fee;
+	slate.fee_fields = fee.try_into().unwrap();
 
 	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
@@ -80,7 +81,7 @@ where
 		use_test_nonce,
 	);
 
-	context.fee = fee;
+	context.fee_fields = slate.fee_fields;
 	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
@@ -146,7 +147,7 @@ where
 		t.tx_slate_id = Some(slate_id);
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
-		t.fee = Some(context.fee);
+		t.fee_fields = Some(context.fee_fields);
 		t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 			0 => None,
 			n => Some(n),
@@ -269,7 +270,7 @@ where
 
 	context.add_output(&key_id, &None, amount);
 	context.amount = amount;
-	context.fee = slate.fee;
+	context.fee_fields = slate.fee_fields;
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -659,7 +660,7 @@ where
 	// restore the original amount, fee
 	slate.amount = context.amount;
 	if update_fee {
-		slate.fee = context.fee;
+		slate.fee_fields = context.fee_fields;
 	}
 
 	let keychain = wallet.keychain(keychain_mask)?;

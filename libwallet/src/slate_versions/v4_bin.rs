@@ -14,7 +14,7 @@
 
 //! Wraps a V4 Slate into a V4 Binary slate
 
-use crate::grin_core::core::transaction::OutputFeatures;
+use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::BlindingFactor;
@@ -87,8 +87,8 @@ struct SlateOptFields {
 	pub num_parts: u8,
 	/// amt, default 0
 	pub amt: u64,
-	/// fee, default 0
-	pub fee: u64,
+	/// fee_fields, default FeeFields::zero()
+	pub feef: FeeFields,
 	/// kernel features, default 0
 	pub feat: u8,
 	/// ttl, default 0
@@ -107,7 +107,7 @@ impl Writeable for SlateOptFields {
 		if self.amt > 0 {
 			status |= 0x02;
 		}
-		if self.fee > 0 {
+		if self.feef.fee() > 0 {
 			status |= 0x04;
 		}
 		if self.feat > 0 {
@@ -124,7 +124,7 @@ impl Writeable for SlateOptFields {
 			writer.write_u64(self.amt)?;
 		}
 		if status & 0x04 > 0 {
-			writer.write_u64(self.fee)?;
+			self.feef.write(writer)?;
 		}
 		if status & 0x08 > 0 {
 			writer.write_u8(self.feat)?;
@@ -149,10 +149,10 @@ impl Readable for SlateOptFields {
 		} else {
 			0
 		};
-		let fee = if status & 0x04 > 0 {
-			reader.read_u64()?
+		let feef = if status & 0x04 > 0 {
+			FeeFields::read(reader)?
 		} else {
-			0
+			FeeFields::zero()
 		};
 		let feat = if status & 0x08 > 0 {
 			reader.read_u8()?
@@ -167,7 +167,7 @@ impl Readable for SlateOptFields {
 		Ok(SlateOptFields {
 			num_parts,
 			amt,
-			fee,
+			feef,
 			feat,
 			ttl,
 		})
@@ -420,7 +420,7 @@ impl Writeable for SlateV4Bin {
 		SlateOptFields {
 			num_parts: v4.num_parts,
 			amt: v4.amt,
-			fee: v4.fee,
+			feef: v4.fee_fields,
 			feat: v4.feat,
 			ttl: v4.ttl,
 		}
@@ -472,7 +472,7 @@ impl Readable for SlateV4Bin {
 			off,
 			num_parts: opts.num_parts,
 			amt: opts.amt,
-			fee: opts.fee,
+			fee_fields: opts.feef,
 			feat: opts.feat,
 			ttl: opts.ttl,
 			sigs,
@@ -548,7 +548,7 @@ fn slate_v4_serialize_deserialize() {
 	assert_eq!(v4_1.ver, v4_2.ver);
 	assert_eq!(v4_1.id, v4_2.id);
 	assert_eq!(v4_1.amt, v4_2.amt);
-	assert_eq!(v4_1.fee, v4_2.fee);
+	assert_eq!(v4_1.fee_fields, v4_2.fee_fields);
 	let v4_2_coms = v4_2.coms.as_ref().unwrap().clone();
 	for (i, c) in v4_1.coms.unwrap().iter().enumerate() {
 		assert_eq!(c.f, v4_2_coms[i].f);
@@ -578,7 +578,7 @@ fn slate_v4_serialize_deserialize() {
 	assert_eq!(v4_1.ver, v4_2.ver);
 	assert_eq!(v4_1.id, v4_2.id);
 	assert_eq!(v4_1.amt, v4_2.amt);
-	assert_eq!(v4_1.fee, v4_2.fee);
+	assert_eq!(v4_1.fee_fields, v4_2.fee_fields);
 	assert!(v4_1.coms.is_none());
 	assert_eq!(v4_1.sigs, v4_2.sigs);
 	assert_eq!(v4_1.proof, v4_2.proof);

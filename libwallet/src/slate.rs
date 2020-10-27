@@ -18,8 +18,8 @@
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
-	Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures, Transaction,
-	TxKernel, Weighting,
+	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
+	Transaction, TxKernel, Weighting,
 };
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
@@ -106,8 +106,8 @@ pub struct Slate {
 	pub tx: Option<Transaction>,
 	/// base amount (excluding fee)
 	pub amount: u64,
-	/// fee amount
-	pub fee: u64,
+	/// fee amount and shift
+	pub fee_fields: FeeFields,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	/// associated outputs
@@ -266,7 +266,7 @@ impl Slate {
 			state,
 			tx: Some(Slate::empty_transaction()),
 			amount: 0,
-			fee: 0,
+			fee_fields: FeeFields::zero(),
 			ttl_cutoff_height: 0,
 			kernel_features: 0,
 			offset: BlindingFactor::zero(),
@@ -361,10 +361,12 @@ impl Slate {
 	// Any other value is invalid.
 	fn kernel_features(&self) -> Result<KernelFeatures, Error> {
 		match self.kernel_features {
-			0 => Ok(KernelFeatures::Plain { fee: self.fee }),
+			0 => Ok(KernelFeatures::Plain {
+				fee_fields: self.fee_fields,
+			}),
 			1 => Err(ErrorKind::InvalidKernelFeatures(1).into()),
 			2 => Ok(KernelFeatures::HeightLocked {
-				fee: self.fee,
+				fee_fields: self.fee_fields,
 				lock_height: match &self.kernel_features_args {
 					Some(a) => a.lock_height,
 					None => {
@@ -373,7 +375,7 @@ impl Slate {
 				},
 			}),
 			3 => Ok(KernelFeatures::NoRecentDuplicate {
-				fee: self.fee,
+				fee_fields: self.fee_fields,
 				relative_height: match &self.kernel_features_args {
 					Some(a) => NRDRelativeHeight::new(a.lock_height)?,
 					None => {
@@ -587,11 +589,11 @@ impl Slate {
 			);
 		}
 
-		if fee > self.amount + self.fee {
+		if fee > self.amount + self.fee_fields.fee() {
 			let reason = format!(
 				"Rejected the transfer because transaction fee ({}) exceeds received amount ({}).",
 				amount_to_hr_string(fee, false),
-				amount_to_hr_string(self.amount + self.fee, false)
+				amount_to_hr_string(self.amount + self.fee_fields.fee(), false)
 			);
 			info!("{}", reason);
 			return Err(ErrorKind::Fee(reason).into());
@@ -733,7 +735,7 @@ impl From<Slate> for SlateV4 {
 			state,
 			tx: _,
 			amount,
-			fee,
+			fee_fields,
 			kernel_features,
 			ttl_cutoff_height: ttl,
 			offset: off,
@@ -759,7 +761,7 @@ impl From<Slate> for SlateV4 {
 			sta,
 			coms: (&slate).into(),
 			amt: amount,
-			fee,
+			fee_fields,
 			feat: kernel_features,
 			ttl,
 			off,
@@ -779,7 +781,7 @@ impl From<&Slate> for SlateV4 {
 			state,
 			tx: _,
 			amount,
-			fee,
+			fee_fields,
 			kernel_features,
 			ttl_cutoff_height: ttl,
 			offset,
@@ -791,7 +793,7 @@ impl From<&Slate> for SlateV4 {
 		let num_parts = *num_parts;
 		let id = *id;
 		let amount = *amount;
-		let fee = *fee;
+		let fee_fields = *fee_fields;
 		let feat = *kernel_features;
 		let ttl = *ttl;
 		let off = offset.clone();
@@ -812,7 +814,7 @@ impl From<&Slate> for SlateV4 {
 			sta,
 			coms: slate.into(),
 			amt: amount,
-			fee,
+			fee_fields,
 			feat,
 			ttl,
 			off,
@@ -939,7 +941,7 @@ impl From<SlateV4> for Slate {
 			sta,
 			coms: _,
 			amt: amount,
-			fee,
+			fee_fields,
 			feat: kernel_features,
 			ttl: ttl_cutoff_height,
 			off: offset,
@@ -965,7 +967,7 @@ impl From<SlateV4> for Slate {
 			state,
 			tx: (&slate).into(),
 			amount,
-			fee,
+			fee_fields,
 			kernel_features,
 			ttl_cutoff_height,
 			offset,
@@ -985,7 +987,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	let secp = static_secp_instance();
 	let secp = secp.lock();
 	let mut calc_slate = Slate::blank(2, false);
-	calc_slate.fee = slate.fee;
+	calc_slate.fee_fields = slate.fee_fields;
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
 			public_blind_excess: d.xs,
@@ -1003,15 +1005,19 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	};
 	let kernel = TxKernel {
 		features: match slate.feat {
-			0 => KernelFeatures::Plain { fee: slate.fee },
+			0 => KernelFeatures::Plain {
+				fee_fields: slate.fee_fields,
+			},
 			1 => KernelFeatures::HeightLocked {
-				fee: slate.fee,
+				fee_fields: slate.fee_fields,
 				lock_height: match slate.feat_args.as_ref() {
 					Some(a) => a.lock_hgt,
 					None => 0,
 				},
 			},
-			_ => KernelFeatures::Plain { fee: slate.fee },
+			_ => KernelFeatures::Plain {
+				fee_fields: slate.fee_fields,
+			},
 		},
 		excess,
 		excess_sig,

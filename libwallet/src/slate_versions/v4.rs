@@ -53,6 +53,7 @@
 //! *  The `receiver_signature` field is renamed to `rsig`
 //! * `rsig` may be omitted if it has not yet been filled out
 
+use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Input, Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::{BlindingFactor, Identifier};
@@ -95,11 +96,8 @@ pub struct SlateV4 {
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	#[serde(default = "default_u64_0")]
 	pub amt: u64,
-	/// fee amount
-	#[serde(with = "secp_ser::string_or_u64")]
-	#[serde(default = "default_u64")]
-	#[serde(skip_serializing_if = "u64_is_blank")]
-	pub fee: u64,
+	/// fee
+	pub fee_fields: FeeFields,
 	/// kernel features, if any
 	#[serde(skip_serializing_if = "u8_is_blank")]
 	#[serde(default = "default_u8_0")]
@@ -295,10 +293,6 @@ pub fn sig_is_blank(s: &secp::Signature) -> bool {
 
 fn default_range_proof() -> Option<RangeProof> {
 	None
-}
-
-fn default_u64() -> u64 {
-	0
 }
 
 fn u64_is_blank(u: &u64) -> bool {
