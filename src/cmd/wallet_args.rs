@@ -22,7 +22,7 @@ use crate::util::{Mutex, ZeroingString};
 use clap::ArgMatches;
 use failure::Fail;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
+use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::command;
 use grin_wallet_controller::{Error, ErrorKind};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
@@ -57,7 +57,7 @@ pub enum ParseError {
 	ArgumentError(String),
 	#[fail(display = "Parsing IO error: {}", _0)]
 	IOError(String),
-	#[fail(display = "Wallet configuration already exists: {}", _0)]
+	#[fail(display = "Wallet directory already exists: {}", _0)]
 	WalletExists(String),
 	#[fail(display = "User Cancelled")]
 	CancelledError,
@@ -375,8 +375,11 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	if config_file_exists(&config.data_file_dir) && !test_mode {
-		return Err(ParseError::WalletExists(config.data_file_dir.clone()));
+	let mut data_dir_name = PathBuf::from(&config.data_file_dir);
+	data_dir_name.push(GRIN_WALLET_DIR);
+
+	if data_dir_name.exists() && !test_mode {
+		return Err(ParseError::WalletExists(format!("{:?}", &data_dir_name)));
 	}
 
 	let list_length = match args.is_present("short_wordlist") {
