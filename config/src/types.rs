@@ -56,6 +56,9 @@ pub struct WalletConfig {
 	pub dark_background_color_scheme: Option<bool>,
 	/// The exploding lifetime (minutes) for keybase notification on coins received
 	pub keybase_notify_ttl: Option<u16>,
+	/// Scaling factor from transaction weight to transaction fee
+	/// should match accept_fee_base parameter in grin-server
+	pub accept_fee_base: u64,
 }
 
 impl Default for WalletConfig {
@@ -75,6 +78,7 @@ impl Default for WalletConfig {
 			tls_certificate_key: None,
 			dark_background_color_scheme: Some(true),
 			keybase_notify_ttl: Some(1440),
+			use_fee_base: default_use_fee_base,
 		}
 	}
 }
@@ -88,6 +92,11 @@ impl WalletConfig {
 	/// Default listener port
 	pub fn default_owner_api_listen_port() -> u16 {
 		3420
+	}
+
+	/// Default listener port
+	pub fn default_use_fee_base() -> u64 {
+		500_000
 	}
 
 	/// Use value from config file, defaulting to sensible value if missing.

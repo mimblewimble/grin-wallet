@@ -122,7 +122,13 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
-
+	retval.insert(
+		"accept_fee_base".to_string(),
+		"
+#Minimum acceptable fee per unit of transaction weight
+"
+		.to_string(),
+	);
 	retval.insert(
 		"[logging]".to_string(),
 		"
