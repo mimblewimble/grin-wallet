@@ -151,7 +151,6 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			wallet1_info.last_confirmed_height as usize - cm as usize,
 			2,
 			1,
-			None,
 		);
 		// we should have a transaction entry for this slate
 		let tx = txs.iter().find(|t| t.tx_slate_id == Some(slate.id));
@@ -198,7 +197,6 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			wallet1_info.last_confirmed_height as usize - 1 - cm as usize,
 			2,
 			1,
-			None,
 		);
 		assert!(wallet1_refreshed);
 		// wallet 1 received fees, so amount should be the same

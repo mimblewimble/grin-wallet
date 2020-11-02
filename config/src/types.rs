@@ -78,7 +78,7 @@ impl Default for WalletConfig {
 			tls_certificate_key: None,
 			dark_background_color_scheme: Some(true),
 			keybase_notify_ttl: Some(1440),
-			use_fee_base: default_use_fee_base,
+			accept_fee_base: WalletConfig::default_accept_fee_base(),
 		}
 	}
 }
@@ -95,7 +95,7 @@ impl WalletConfig {
 	}
 
 	/// Default listener port
-	pub fn default_use_fee_base() -> u64 {
+	pub fn default_accept_fee_base() -> u64 {
 		500_000
 	}
 

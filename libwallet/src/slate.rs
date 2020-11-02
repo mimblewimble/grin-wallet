@@ -576,12 +576,7 @@ impl Slate {
 		// double check the fee amount included in the partial tx
 		// we don't necessarily want to just trust the sender
 		// we could just overwrite the fee here (but we won't) due to the sig
-		let fee = tx_fee(
-			tx.inputs().len(),
-			tx.outputs().len(),
-			tx.kernels().len(),
-			None,
-		);
+		let fee = tx_fee(tx.inputs().len(), tx.outputs().len(), tx.kernels().len());
 
 		if fee > tx.fee() {
 			return Err(

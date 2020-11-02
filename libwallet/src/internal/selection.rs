@@ -403,7 +403,7 @@ where
 	// TODO - Does this not potentially reveal the senders private key?
 	//
 	// First attempt to spend without change
-	let mut fee = tx_fee(coins.len(), 1, 1, None);
+	let mut fee = tx_fee(coins.len(), 1, 1);
 	let mut total: u64 = coins.iter().map(|c| c.value).sum();
 	let mut amount_with_fee = amount + fee;
 
@@ -432,7 +432,7 @@ where
 
 	// We need to add a change address or amount with fee is more than total
 	if total != amount_with_fee {
-		fee = tx_fee(coins.len(), num_outputs, 1, None);
+		fee = tx_fee(coins.len(), num_outputs, 1);
 		amount_with_fee = amount + fee;
 
 		// Here check if we have enough outputs for the amount including fee otherwise
@@ -460,7 +460,7 @@ where
 				parent_key_id,
 			)
 			.1;
-			fee = tx_fee(coins.len(), num_outputs, 1, None);
+			fee = tx_fee(coins.len(), num_outputs, 1);
 			total = coins.iter().map(|c| c.value).sum();
 			amount_with_fee = amount + fee;
 		}
