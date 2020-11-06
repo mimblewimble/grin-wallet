@@ -552,7 +552,7 @@ pub struct Context {
 	/// needed by the other party
 	pub amount: u64,
 	/// store the calculated fee
-	pub fee_fields: FeeFields,
+	pub fee_fields: Option<FeeFields>,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
 	/// for invoice I2 Only, store the tx excess so we can
@@ -581,7 +581,7 @@ impl Context {
 			input_ids: vec![],
 			output_ids: vec![],
 			amount: 0,
-			fee_fields: FeeFields::zero(),
+			fee_fields: None,
 			payment_proof_derivation_index: None,
 			calculated_excess: None,
 		}
@@ -635,7 +635,10 @@ impl ser::Writeable for Context {
 impl ser::Readable for Context {
 	fn read<R: ser::Reader>(reader: &mut R) -> Result<Context, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
-		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
+		serde_json::from_slice(&data[..]).map_err(|e| {
+			println!("READ CTX ERR {:?}", e);
+			ser::Error::CorruptedData
+		})
 	}
 }
 

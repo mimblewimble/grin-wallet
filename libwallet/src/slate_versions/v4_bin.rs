@@ -420,7 +420,7 @@ impl Writeable for SlateV4Bin {
 		SlateOptFields {
 			num_parts: v4.num_parts,
 			amt: v4.amt,
-			feef: v4.fee_fields,
+			feef: v4.feef,
 			feat: v4.feat,
 			ttl: v4.ttl,
 		}
@@ -472,7 +472,7 @@ impl Readable for SlateV4Bin {
 			off,
 			num_parts: opts.num_parts,
 			amt: opts.amt,
-			fee_fields: opts.feef,
+			feef: opts.feef,
 			feat: opts.feat,
 			ttl: opts.ttl,
 			sigs,
@@ -548,7 +548,7 @@ fn slate_v4_serialize_deserialize() {
 	assert_eq!(v4_1.ver, v4_2.ver);
 	assert_eq!(v4_1.id, v4_2.id);
 	assert_eq!(v4_1.amt, v4_2.amt);
-	assert_eq!(v4_1.fee_fields, v4_2.fee_fields);
+	assert_eq!(v4_1.feef, v4_2.feef);
 	let v4_2_coms = v4_2.coms.as_ref().unwrap().clone();
 	for (i, c) in v4_1.coms.unwrap().iter().enumerate() {
 		assert_eq!(c.f, v4_2_coms[i].f);
@@ -578,7 +578,7 @@ fn slate_v4_serialize_deserialize() {
 	assert_eq!(v4_1.ver, v4_2.ver);
 	assert_eq!(v4_1.id, v4_2.id);
 	assert_eq!(v4_1.amt, v4_2.amt);
-	assert_eq!(v4_1.fee_fields, v4_2.fee_fields);
+	assert_eq!(v4_1.feef, v4_2.feef);
 	assert!(v4_1.coms.is_none());
 	assert_eq!(v4_1.sigs, v4_2.sigs);
 	assert_eq!(v4_1.proof, v4_2.proof);

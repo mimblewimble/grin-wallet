@@ -97,7 +97,9 @@ pub struct SlateV4 {
 	#[serde(default = "default_u64_0")]
 	pub amt: u64,
 	/// fee
-	pub fee_fields: FeeFields,
+	#[serde(skip_serializing_if = "feef_is_zero")]
+	#[serde(default = "default_feef")]
+	pub feef: FeeFields,
 	/// kernel features, if any
 	#[serde(skip_serializing_if = "u8_is_blank")]
 	#[serde(default = "default_u8_0")]
@@ -306,6 +308,15 @@ fn default_u8_0() -> u8 {
 fn u8_is_blank(u: &u8) -> bool {
 	*u == 0
 }
+
+fn feef_is_zero(f: &FeeFields) -> bool {
+	f.is_zero()
+}
+
+fn default_feef() -> FeeFields {
+	FeeFields::zero()
+}
+
 /// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoinbaseV4 {

@@ -58,7 +58,7 @@ pub struct WalletConfig {
 	pub keybase_notify_ttl: Option<u16>,
 	/// Scaling factor from transaction weight to transaction fee
 	/// should match accept_fee_base parameter in grin-server
-	pub accept_fee_base: u64,
+	pub accept_fee_base: Option<u64>,
 }
 
 impl Default for WalletConfig {
@@ -78,7 +78,7 @@ impl Default for WalletConfig {
 			tls_certificate_key: None,
 			dark_background_color_scheme: Some(true),
 			keybase_notify_ttl: Some(1440),
-			accept_fee_base: WalletConfig::default_accept_fee_base(),
+			accept_fee_base: None,
 		}
 	}
 }
@@ -108,6 +108,11 @@ impl WalletConfig {
 	/// Owner API listen address
 	pub fn owner_api_listen_addr(&self) -> String {
 		format!("127.0.0.1:{}", self.owner_api_listen_port())
+	}
+
+	pub fn accept_fee_base(&self) -> u64 {
+		self.accept_fee_base
+			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())
 	}
 }
 /// Error type wrapping config errors.
