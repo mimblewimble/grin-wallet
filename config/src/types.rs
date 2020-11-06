@@ -110,6 +110,7 @@ impl WalletConfig {
 		format!("127.0.0.1:{}", self.owner_api_listen_port())
 	}
 
+	/// Accept fee base
 	pub fn accept_fee_base(&self) -> u64 {
 		self.accept_fee_base
 			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())

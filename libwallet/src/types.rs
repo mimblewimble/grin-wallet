@@ -635,10 +635,7 @@ impl ser::Writeable for Context {
 impl ser::Readable for Context {
 	fn read<R: ser::Reader>(reader: &mut R) -> Result<Context, ser::Error> {
 		let data = reader.read_bytes_len_prefix()?;
-		serde_json::from_slice(&data[..]).map_err(|e| {
-			println!("READ CTX ERR {:?}", e);
-			ser::Error::CorruptedData
-		})
+		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
 }
 
