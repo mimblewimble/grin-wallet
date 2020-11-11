@@ -97,9 +97,9 @@ pub struct SlateV4 {
 	#[serde(default = "default_u64_0")]
 	pub amt: u64,
 	/// fee
-	#[serde(skip_serializing_if = "feef_is_zero")]
-	#[serde(default = "default_feef")]
-	pub feef: FeeFields,
+	#[serde(skip_serializing_if = "fee_is_zero")]
+	#[serde(default = "default_fee")]
+	pub fee: FeeFields,
 	/// kernel features, if any
 	#[serde(skip_serializing_if = "u8_is_blank")]
 	#[serde(default = "default_u8_0")]
@@ -309,11 +309,11 @@ fn u8_is_blank(u: &u8) -> bool {
 	*u == 0
 }
 
-fn feef_is_zero(f: &FeeFields) -> bool {
+fn fee_is_zero(f: &FeeFields) -> bool {
 	f.is_zero()
 }
 
-fn default_feef() -> FeeFields {
+fn default_fee() -> FeeFields {
 	FeeFields::zero()
 }
 
