@@ -27,10 +27,13 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
+use crate::InitTxArgs;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
+use rand::rngs::mock::StepRng;
+use rand::thread_rng;
 use serde;
 use serde_json;
 use std::collections::HashMap;
@@ -554,6 +557,9 @@ pub struct Context {
 	pub fee: u64,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
+	/// If late-locking, store my tranasction creation prefs
+	/// for later
+	pub late_lock_args: Option<InitTxArgs>,
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
@@ -563,25 +569,48 @@ impl Context {
 	/// Create a new context with defaults
 	pub fn new(
 		secp: &secp::Secp256k1,
+		parent_key_id: &Identifier,
+		use_test_rng: bool,
+		is_initiator: bool,
+	) -> Self {
+		let sec_key = match use_test_rng {
+			false => SecretKey::new(secp, &mut thread_rng()),
+			true => {
+				// allow for consistent test results
+				let mut test_rng = if is_initiator {
+					StepRng::new(1_234_567_890_u64, 1)
+				} else {
+					StepRng::new(1_234_567_891_u64, 1)
+				};
+				SecretKey::new(secp, &mut test_rng)
+			}
+		};
+		Self::with_excess(secp, sec_key, parent_key_id, use_test_rng)
+	}
+
+	/// Create a new context with a specific excess
+	pub fn with_excess(
+		secp: &secp::Secp256k1,
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
-	) -> Context {
+	) -> Self {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
 			true => SecretKey::from_slice(secp, &[1; 32]).unwrap(),
 		};
-		Context {
+		Self {
 			parent_key_id: parent_key_id.clone(),
 			sec_key: sec_key.clone(),
 			sec_nonce: sec_nonce.clone(),
-			initial_sec_key: sec_key.clone(),
-			initial_sec_nonce: sec_nonce.clone(),
+			initial_sec_key: sec_key,
+			initial_sec_nonce: sec_nonce,
 			input_ids: vec![],
 			output_ids: vec![],
 			amount: 0,
 			fee: 0,
 			payment_proof_derivation_index: None,
+			late_lock_args: None,
 			calculated_excess: None,
 		}
 	}

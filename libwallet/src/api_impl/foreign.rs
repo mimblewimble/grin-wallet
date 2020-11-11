@@ -105,6 +105,9 @@ where
 		use_test_rng,
 	)?;
 
+	// Add our contribution to the offset
+	ret_slate.adjust_offset(&keychain, &context)?;
+
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
@@ -142,6 +145,9 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	if sl.state == SlateState::Invoice2 {
 		check_ttl(w, &sl)?;
+
+		// Add our contribution to the offset
+		sl.adjust_offset(&w.keychain(keychain_mask)?, &context)?;
 
 		let mut temp_ctx = context.clone();
 		temp_ctx.sec_key = context.initial_sec_key.clone();

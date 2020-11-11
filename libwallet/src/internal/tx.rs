@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
-use crate::grin_keychain::{BlindSum, BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
+use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
@@ -28,6 +28,7 @@ use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
 use crate::util::OnionV3Address;
+use crate::InitTxArgs;
 use crate::{address, Error, ErrorKind};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -126,6 +127,7 @@ where
 	let (_coins, total, _amount, fee) = selection::select_coins_and_fee(
 		wallet,
 		amount,
+		None,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -175,19 +177,16 @@ where
 		max_outputs,
 		num_change_outputs,
 		selection_strategy_is_use_all,
+		None,
 		parent_key_id.clone(),
 		use_test_rng,
+		is_initiator,
 	)?;
 
 	// Generate a kernel offset and subtract from our context's secret key. Store
 	// the offset in the slate's transaction kernel, and adds our public key
 	// information to the slate
-	slate.fill_round_1(
-		&wallet.keychain(keychain_mask)?,
-		&mut context.sec_key,
-		&context.sec_nonce,
-		use_test_rng,
-	)?;
+	slate.fill_round_1(&wallet.keychain(keychain_mask)?, &mut context)?;
 
 	context.initial_sec_key = context.sec_key.clone();
 
@@ -227,15 +226,11 @@ where
 		current_height,
 		parent_key_id.clone(),
 		use_test_rng,
+		is_initiator,
 	)?;
 
 	// fill public keys
-	slate.fill_round_1(
-		&keychain,
-		&mut context.sec_key,
-		&context.sec_nonce,
-		use_test_rng,
-	)?;
+	slate.fill_round_1(&keychain, &mut context)?;
 
 	context.initial_sec_key = context.sec_key.clone();
 
@@ -248,6 +243,57 @@ where
 		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 		batch.commit()?;
 	}
+
+	Ok(context)
+}
+
+/// Create context, without adding inputs to slate
+pub fn create_late_lock_context<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	current_height: u64,
+	init_tx_args: &InitTxArgs,
+	parent_key_id: &Identifier,
+	use_test_rng: bool,
+) -> Result<Context, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// sender should always refresh outputs
+	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+
+	// we're just going to run a selection to get the potential fee,
+	// but this won't be locked
+	let (_coins, _total, _amount, fee) = selection::select_coins_and_fee(
+		wallet,
+		init_tx_args.amount,
+		None,
+		current_height,
+		init_tx_args.minimum_confirmations,
+		init_tx_args.max_outputs as usize,
+		init_tx_args.num_change_outputs as usize,
+		init_tx_args.selection_strategy_is_use_all,
+		&parent_key_id,
+	)?;
+
+	// and we're going to dumbly triple it for now, to account
+	// for any variation when we get the transaction back
+	slate.fee = fee * 3;
+
+	let keychain = wallet.keychain(keychain_mask)?;
+
+	// Create our own private context
+	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
+	context.fee = slate.fee;
+	context.amount = slate.amount;
+	context.late_lock_args = Some(init_tx_args.clone());
+
+	// Generate a blinding factor for the tx and add
+	//  public key info to the slate
+	slate.fill_round_1(&wallet.keychain(keychain_mask)?, &mut context)?;
 
 	Ok(context)
 }
@@ -393,47 +439,6 @@ where
 	let mut batch = wallet.batch(keychain_mask)?;
 	batch.save_tx_log_entry(tx, &parent_key)?;
 	batch.commit()?;
-	Ok(())
-}
-
-/// Update the transaction's offset by subtracting the inputs
-/// stored in the context
-pub fn sub_inputs_from_offset<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	context: &Context,
-	slate: &mut Slate,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let k = wallet.keychain(keychain_mask)?;
-	// Offset has been created and adjusted
-	// Now subtract sum total of all my inputs from the offset
-	let new_offset = k.blind_sum(
-		&context
-			.get_inputs()
-			.iter()
-			.map(
-				|i| match k.derive_key(i.2, &i.0, SwitchCommitmentType::Regular) {
-					Ok(k) => BlindingFactor::from_secret_key(k),
-					Err(e) => {
-						error!("Error deriving key for offset: {}", e);
-						BlindingFactor::zero()
-					}
-				},
-			)
-			.fold(
-				BlindSum::new().add_blinding_factor(slate.offset.clone()),
-				|acc, x| acc.sub_blinding_factor(x.clone()),
-			),
-	)?;
-
-	slate.offset = new_offset.clone();
-	slate.tx_or_err_mut()?.offset = new_offset;
-
 	Ok(())
 }
 

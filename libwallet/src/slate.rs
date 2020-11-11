@@ -24,15 +24,13 @@ use crate::grin_core::core::transaction::{
 use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
-use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain};
+use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, static_secp_instance, RwLock};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
-use rand::rngs::mock::StepRng;
-use rand::thread_rng;
 use serde::ser::{Serialize, Serializer};
 use serde_json;
 use std::fmt;
@@ -45,6 +43,7 @@ use crate::slate_versions::v4::{
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
+use crate::Context;
 
 #[derive(Debug, Clone)]
 pub struct PaymentInfo {
@@ -337,20 +336,11 @@ impl Slate {
 
 	/// Completes callers part of round 1, adding public key info
 	/// to the slate
-	pub fn fill_round_1<K>(
-		&mut self,
-		keychain: &K,
-		sec_key: &mut SecretKey,
-		sec_nonce: &SecretKey,
-		use_test_rng: bool,
-	) -> Result<(), Error>
+	pub fn fill_round_1<K>(&mut self, keychain: &K, context: &mut Context) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
-		// Always choose my part of the offset, and subtract from my excess
-		self.generate_offset(keychain, sec_key, use_test_rng)?;
-		self.add_participant_info(keychain, &sec_key, &sec_nonce, None)?;
-		Ok(())
+		self.add_participant_info(keychain, context, None)
 	}
 
 	// Build kernel features based on variant and associated data.
@@ -455,7 +445,7 @@ impl Slate {
 	}
 
 	/// Return the sum of public blinding factors
-	fn pub_blind_sum(&self, secp: &secp::Secp256k1) -> Result<PublicKey, Error> {
+	pub fn pub_blind_sum(&self, secp: &secp::Secp256k1) -> Result<PublicKey, Error> {
 		let pub_blinds: Vec<&PublicKey> = self
 			.participant_data
 			.iter()
@@ -488,16 +478,15 @@ impl Slate {
 	pub fn add_participant_info<K>(
 		&mut self,
 		keychain: &K,
-		sec_key: &SecretKey,
-		sec_nonce: &SecretKey,
+		context: &Context,
 		part_sig: Option<Signature>,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		// Add our public key and nonce to the slate
-		let pub_key = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
-		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
+		let pub_key = PublicKey::from_secret_key(keychain.secp(), &context.sec_key)?;
+		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &context.sec_nonce)?;
 		let mut part_sig = part_sig;
 
 		// Remove if already here and replace
@@ -524,46 +513,32 @@ impl Slate {
 		Ok(())
 	}
 
-	/// Somebody involved needs to generate an offset with their private key
-	/// For now, we'll have the transaction initiator be responsible for it
-	/// Return offset private key for the participant to use later in the
-	/// transaction
-	pub fn generate_offset<K>(
+	/// Add our contribution to the offset based on the excess, inputs and outputs
+	pub fn adjust_offset<K: Keychain>(
 		&mut self,
 		keychain: &K,
-		sec_key: &mut SecretKey,
-		use_test_rng: bool,
-	) -> Result<(), Error>
-	where
-		K: Keychain,
-	{
-		// Generate a random kernel offset here
-		// and subtract it from the blind_sum so we create
-		// the aggsig context with the "split" key
-		let my_offset = match use_test_rng {
-			false => {
-				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut thread_rng()))
-			}
-			true => {
-				// allow for consistent test results
-				let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
-				BlindingFactor::from_secret_key(SecretKey::new(&keychain.secp(), &mut test_rng))
-			}
-		};
-
-		let total_offset = keychain.blind_sum(
-			&BlindSum::new()
-				.add_blinding_factor(self.offset.clone())
-				.add_blinding_factor(my_offset.clone()),
-		)?;
-		self.offset = total_offset;
-
-		let adjusted_offset = keychain.blind_sum(
-			&BlindSum::new()
-				.add_blinding_factor(BlindingFactor::from_secret_key(sec_key.clone()))
-				.sub_blinding_factor(my_offset),
-		)?;
-		*sec_key = adjusted_offset.secret_key(&keychain.secp())?;
+		context: &Context,
+	) -> Result<(), Error> {
+		let mut sum = BlindSum::new()
+			.add_blinding_factor(self.offset.clone())
+			.sub_blinding_factor(BlindingFactor::from_secret_key(
+				context.initial_sec_key.clone(),
+			));
+		for (id, _, amount) in &context.input_ids {
+			sum = sum.sub_blinding_factor(BlindingFactor::from_secret_key(keychain.derive_key(
+				*amount,
+				id,
+				SwitchCommitmentType::Regular,
+			)?));
+		}
+		for (id, _, amount) in &context.output_ids {
+			sum = sum.add_blinding_factor(BlindingFactor::from_secret_key(keychain.derive_key(
+				*amount,
+				id,
+				SwitchCommitmentType::Regular,
+			)?));
+		}
+		self.offset = keychain.blind_sum(&sum)?;
 
 		Ok(())
 	}

@@ -46,8 +46,10 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	max_outputs: usize,
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
+	fixed_fee: Option<u64>,
 	parent_key_id: Identifier,
 	use_test_nonce: bool,
+	is_initiator: bool,
 ) -> Result<Context, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -58,6 +60,7 @@ where
 		wallet,
 		keychain_mask,
 		slate.amount,
+		fixed_fee,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -69,15 +72,14 @@ where
 
 	// Update the fee on the slate so we account for this when building the tx.
 	slate.fee = fee;
-
-	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
+	slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	// Create our own private context
 	let mut context = Context::new(
 		keychain.secp(),
-		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
+		is_initiator,
 	);
 
 	context.fee = fee;
@@ -237,6 +239,7 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	current_height: u64,
 	parent_key_id: Identifier,
 	use_test_rng: bool,
+	is_initiator: bool,
 ) -> Result<(Identifier, Context, TxLogEntry), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -251,21 +254,14 @@ where
 	let height = current_height;
 
 	let slate_id = slate.id;
-	let blinding = slate.add_transaction_elements(
+	slate.add_transaction_elements(
 		&keychain,
 		&ProofBuilder::new(&keychain),
 		vec![build::output(amount, key_id.clone())],
 	)?;
 
 	// Add blinding sum to our context
-	let mut context = Context::new(
-		keychain.secp(),
-		blinding
-			.secret_key(wallet.keychain(keychain_mask)?.secp())
-			.unwrap(),
-		&parent_key_id,
-		use_test_rng,
-	);
+	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, is_initiator);
 
 	context.add_output(&key_id, &None, amount);
 	context.amount = amount;
@@ -312,6 +308,7 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	amount: u64,
+	fixed_fee: Option<u64>,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -337,6 +334,7 @@ where
 	let (coins, _total, amount, fee) = select_coins_and_fee(
 		wallet,
 		amount,
+		fixed_fee,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -363,6 +361,7 @@ where
 pub fn select_coins_and_fee<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
+	fixed_fee: Option<u64>,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -398,11 +397,8 @@ where
 	// recipient should double check the fee calculation and not blindly trust the
 	// sender
 
-	// TODO - Is it safe to spend without a change output? (1 input -> 1 output)
-	// TODO - Does this not potentially reveal the senders private key?
-	//
 	// First attempt to spend without change
-	let mut fee = tx_fee(coins.len(), 1, 1, None);
+	let mut fee = fixed_fee.unwrap_or_else(|| tx_fee(coins.len(), 1, 1, None));
 	let mut total: u64 = coins.iter().map(|c| c.value).sum();
 	let mut amount_with_fee = amount + fee;
 
@@ -431,7 +427,9 @@ where
 
 	// We need to add a change address or amount with fee is more than total
 	if total != amount_with_fee {
-		fee = tx_fee(coins.len(), num_outputs, 1, None);
+		if fixed_fee.is_none() {
+			fee = tx_fee(coins.len(), num_outputs, 1, None);
+		}
 		amount_with_fee = amount + fee;
 
 		// Here check if we have enough outputs for the amount including fee otherwise
@@ -459,7 +457,9 @@ where
 				parent_key_id,
 			)
 			.1;
-			fee = tx_fee(coins.len(), num_outputs, 1, None);
+			if fixed_fee.is_none() {
+				fee = tx_fee(coins.len(), num_outputs, 1, None);
+			}
 			total = coins.iter().map(|c| c.value).sum();
 			amount_with_fee = amount + fee;
 		}
@@ -665,7 +665,7 @@ where
 	let keychain = wallet.keychain(keychain_mask)?;
 
 	// restore my signature data
-	slate.add_participant_info(&keychain, &context.sec_key, &context.sec_nonce, None)?;
+	slate.add_participant_info(&keychain, &context, None)?;
 
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {
