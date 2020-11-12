@@ -249,6 +249,7 @@ pub struct SendArgs {
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
+	pub late_lock: bool,
 	pub dest: String,
 	pub change_outputs: usize,
 	pub fluff: bool,
@@ -307,6 +308,7 @@ where
 				payment_proof_recipient_address: args.payment_proof_address.clone(),
 				ttl_blocks: args.ttl_blocks,
 				send_args: None,
+				late_lock: Some(args.late_lock),
 				..Default::default()
 			};
 			let result = api.init_send_tx(m, init_args);

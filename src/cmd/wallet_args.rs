@@ -479,6 +479,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	// estimate_selection_strategies
 	let estimate_selection_strategies = args.is_present("estimate_selection_strategies");
 
+	let late_lock = args.is_present("late_lock");
+
 	// dest
 	let dest = match args.value_of("dest") {
 		Some(d) => d,
@@ -533,6 +535,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
+		late_lock,
 		dest: dest.to_owned(),
 		change_outputs: change_outputs,
 		fluff: fluff,
