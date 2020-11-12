@@ -127,7 +127,6 @@ where
 	let (_coins, total, _amount, fee) = selection::select_coins_and_fee(
 		wallet,
 		amount,
-		None,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -270,7 +269,6 @@ where
 	let (_coins, _total, _amount, fee) = selection::select_coins_and_fee(
 		wallet,
 		init_tx_args.amount,
-		None,
 		current_height,
 		init_tx_args.minimum_confirmations,
 		init_tx_args.max_outputs as usize,
@@ -278,10 +276,7 @@ where
 		init_tx_args.selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-
-	// and we're going to dumbly triple it for now, to account
-	// for any variation when we get the transaction back
-	slate.fee = fee * 3;
+	slate.fee = fee;
 
 	let keychain = wallet.keychain(keychain_mask)?;
 

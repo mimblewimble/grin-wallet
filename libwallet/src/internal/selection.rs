@@ -60,7 +60,6 @@ where
 		wallet,
 		keychain_mask,
 		slate.amount,
-		fixed_fee,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -69,6 +68,10 @@ where
 		&parent_key_id,
 		false,
 	)?;
+
+	if fixed_fee.map(|f| fee != f).unwrap_or(false) {
+		return Err(ErrorKind::Fee("The initially selected fee is not sufficient".into()).into());
+	}
 
 	// Update the fee on the slate so we account for this when building the tx.
 	slate.fee = fee;
@@ -308,7 +311,6 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	amount: u64,
-	fixed_fee: Option<u64>,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -334,7 +336,6 @@ where
 	let (coins, _total, amount, fee) = select_coins_and_fee(
 		wallet,
 		amount,
-		fixed_fee,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -361,7 +362,6 @@ where
 pub fn select_coins_and_fee<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
-	fixed_fee: Option<u64>,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -398,7 +398,7 @@ where
 	// sender
 
 	// First attempt to spend without change
-	let mut fee = fixed_fee.unwrap_or_else(|| tx_fee(coins.len(), 1, 1, None));
+	let mut fee = tx_fee(coins.len(), 1, 1, None);
 	let mut total: u64 = coins.iter().map(|c| c.value).sum();
 	let mut amount_with_fee = amount + fee;
 
@@ -427,9 +427,7 @@ where
 
 	// We need to add a change address or amount with fee is more than total
 	if total != amount_with_fee {
-		if fixed_fee.is_none() {
-			fee = tx_fee(coins.len(), num_outputs, 1, None);
-		}
+		fee = tx_fee(coins.len(), num_outputs, 1, None);
 		amount_with_fee = amount + fee;
 
 		// Here check if we have enough outputs for the amount including fee otherwise
@@ -457,9 +455,7 @@ where
 				parent_key_id,
 			)
 			.1;
-			if fixed_fee.is_none() {
-				fee = tx_fee(coins.len(), num_outputs, 1, None);
-			}
+			fee = tx_fee(coins.len(), num_outputs, 1, None);
 			total = coins.iter().map(|c| c.value).sum();
 			amount_with_fee = amount + fee;
 		}
