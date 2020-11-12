@@ -682,8 +682,8 @@ where
 
 	// Add our contribution to the offset
 	if context_res.is_ok() {
-		// Self sending: don't correct for in- and outputs here
-		//  as we will do it during finalization.
+		// Self sending: don't correct for inputs and outputs
+		// here, as we will do it during finalization.
 		let mut tmp_context = context.clone();
 		tmp_context.input_ids.clear();
 		tmp_context.output_ids.clear();
@@ -784,7 +784,7 @@ where
 
 	if let Some(args) = context.late_lock_args.take() {
 		// Transaction was late locked, select inputs+change now
-		//  and insert into original context
+		// and insert into original context
 
 		let current_height = w.w2n_client().get_chain_tip()?.0;
 		let mut temp_sl =

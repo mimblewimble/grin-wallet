@@ -114,8 +114,8 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 		println!("S2 SLATE: {}", slate);
 
-		// Note we're not doing this here
-		// sender_api.tx_lock_outputs(m, &slate)?;
+		// Note we're don't call `tx_lock_outputs` on the sender side here,
+		// as the outputs will only be locked during finalization
 
 		slate = sender_api.finalize_tx(m, &slate)?;
 		println!("S3 SLATE: {}", slate);
