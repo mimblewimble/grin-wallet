@@ -390,7 +390,7 @@ mod tests {
 		let key_id2 = ExtKeychain::derive_key_id(1, 2, 0, 0, 0);
 		let tx = build::transaction(
 			KernelFeatures::Plain {
-				fee_fields: 2.try_into().unwrap(),
+				fee_fields: 2.into(),
 			},
 			&[build::input(5, key_id1), build::output(3, key_id2)],
 			&keychain,

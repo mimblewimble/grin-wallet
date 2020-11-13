@@ -135,7 +135,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 				.map(|k| k.features)
 				.unwrap(),
 			transaction::KernelFeatures::Plain {
-				fee_fields: 26_000_000.try_into().unwrap()
+				fee_fields: 26_000_000.into()
 			}
 		);
 
