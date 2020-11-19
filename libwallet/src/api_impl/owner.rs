@@ -457,9 +457,9 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = match args.src_acct_name {
+	let parent_key_id = match &args.src_acct_name {
 		Some(d) => {
-			let pm = w.get_acct_path(d)?;
+			let pm = w.get_acct_path(d.clone())?;
 			match pm {
 				Some(p) => p.path,
 				None => w.parent_key_id(),
@@ -500,19 +500,31 @@ where
 	}
 
 	let height = w.w2n_client().get_chain_tip()?.0;
-	let mut context = tx::add_inputs_to_slate(
-		&mut *w,
-		keychain_mask,
-		&mut slate,
-		height,
-		args.minimum_confirmations,
-		args.max_outputs as usize,
-		args.num_change_outputs as usize,
-		args.selection_strategy_is_use_all,
-		&parent_key_id,
-		true,
-		use_test_rng,
-	)?;
+	let mut context = if args.late_lock.unwrap_or(false) {
+		tx::create_late_lock_context(
+			&mut *w,
+			keychain_mask,
+			&mut slate,
+			height,
+			&args,
+			&parent_key_id,
+			use_test_rng,
+		)?
+	} else {
+		tx::add_inputs_to_slate(
+			&mut *w,
+			keychain_mask,
+			&mut slate,
+			height,
+			args.minimum_confirmations,
+			args.max_outputs as usize,
+			args.num_change_outputs as usize,
+			args.selection_strategy_is_use_all,
+			&parent_key_id,
+			true,
+			use_test_rng,
+		)?
+	};
 
 	// Payment Proof, add addresses to slate and save address
 	// TODO: Note we only use single derivation path for now,
@@ -667,6 +679,19 @@ where
 	)?;
 
 	let keychain = w.keychain(keychain_mask)?;
+
+	// Add our contribution to the offset
+	if context_res.is_ok() {
+		// Self sending: don't correct for inputs and outputs
+		// here, as we will do it during finalization.
+		let mut tmp_context = context.clone();
+		tmp_context.input_ids.clear();
+		tmp_context.output_ids.clear();
+		ret_slate.adjust_offset(&keychain, &tmp_context)?;
+	} else {
+		ret_slate.adjust_offset(&keychain, &context)?;
+	}
+
 	// needs to be stored as we're removing sig data for return trip. this needs to be present
 	// when locking transaction context and updating tx log with excess later
 	context.calculated_excess = Some(ret_slate.calc_excess(keychain.secp())?);
@@ -685,7 +710,6 @@ where
 		}
 	}
 
-	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut ret_slate)?;
 	selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, false)?;
 
 	// Save the aggsig context in our DB for when we
@@ -754,16 +778,51 @@ where
 {
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	let keychain = w.keychain(keychain_mask)?;
 	let parent_key_id = w.parent_key_id();
 
-	// since we're now actually inserting our inputs, pick an offset and adjust
-	// our contribution to the excess by offset amount
-	// TODO: Post HF3, this should allow for inputs to be picked at this stage
-	// as opposed to locking them prior to this stage, as the excess to this point
-	// will just be the change output
+	if let Some(args) = context.late_lock_args.take() {
+		// Transaction was late locked, select inputs+change now
+		// and insert into original context
 
-	tx::sub_inputs_from_offset(&mut *w, keychain_mask, &context, &mut sl)?;
+		let current_height = w.w2n_client().get_chain_tip()?.0;
+		let mut temp_sl =
+			tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
+		let temp_context = selection::build_send_tx(
+			w,
+			&keychain,
+			keychain_mask,
+			&mut temp_sl,
+			current_height,
+			args.minimum_confirmations,
+			args.max_outputs as usize,
+			args.num_change_outputs as usize,
+			args.selection_strategy_is_use_all,
+			Some(context.fee),
+			parent_key_id.clone(),
+			false,
+			true,
+		)?;
+
+		// Add inputs and outputs to original context
+		context.input_ids = temp_context.input_ids;
+		context.output_ids = temp_context.output_ids;
+
+		// Store the updated context
+		{
+			let mut batch = w.batch(keychain_mask)?;
+			batch.save_private_context(sl.id.as_bytes(), &context)?;
+			batch.commit()?;
+		}
+
+		// Now do the actual locking
+		tx_lock_outputs(w, keychain_mask, &sl)?;
+	}
+
+	// Add our contribution to the offset
+	sl.adjust_offset(&keychain, &context)?;
+
 	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
