@@ -26,9 +26,6 @@ use crate::util::logger::LoggingConfig;
 pub struct WalletConfig {
 	/// Chain parameters (default to Mainnet if none at the moment)
 	pub chain_type: Option<ChainTypes>,
-	/// The api interface/ip_address that this api server (i.e. this wallet) will run
-	/// by default this is 127.0.0.1 (and will not accept connections from external clients)
-	pub api_listen_interface: String,
 	/// The port this wallet will run on
 	pub api_listen_port: u16,
 	/// The port this wallet's owner API will run on
@@ -62,7 +59,6 @@ impl Default for WalletConfig {
 	fn default() -> WalletConfig {
 		WalletConfig {
 			chain_type: Some(ChainTypes::Mainnet),
-			api_listen_interface: "127.0.0.1".to_string(),
 			api_listen_port: 3415,
 			owner_api_listen_port: Some(WalletConfig::default_owner_api_listen_port()),
 			api_secret_path: Some(".owner_api_secret".to_string()),
@@ -82,7 +78,7 @@ impl Default for WalletConfig {
 impl WalletConfig {
 	/// API Listen address
 	pub fn api_listen_addr(&self) -> String {
-		format!("{}:{}", self.api_listen_interface, self.api_listen_port)
+		format!("127.0.0.1:{}", self.api_listen_port)
 	}
 
 	/// Default listener port

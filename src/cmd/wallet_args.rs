@@ -224,9 +224,9 @@ fn prompt_deprecate_http() -> Result<bool, ParseError> {
 	interface.set_report_signal(Signal::Interrupt, true);
 	interface.set_prompt("To proceed, type 'UNDERSTOOD' > ")?;
 	println!();
-	println!("Http(s) is being deprecated in favour of the Slatepack Workflow");
-	println!("This sending method is planned for removal as of the last scheduled Hardfork in Grin 5.0.0");
-	println!("Please see https://github.com/mimblewimble/grin-rfcs/pull/55 for details");
+	println!("Http(s) is deprecated in favour of the Slatepack Workflow");
+	println!("This sending method is planned to be removed completely in a future version");
+	println!("Please see https://github.com/mimblewimble/grin-rfcs/pull/54 for details");
 	loop {
 		let res = interface.read_line()?;
 		match res {
@@ -962,10 +962,6 @@ where
 		>,
 	),
 {
-	if wallet_args.is_present("external") {
-		wallet_config.api_listen_interface = "0.0.0.0".to_string();
-	}
-
 	if let Some(dir) = wallet_args.value_of("top_level_dir") {
 		wallet_config.data_file_dir = dir.to_string().clone();
 	}
