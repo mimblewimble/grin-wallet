@@ -190,7 +190,7 @@ pub fn txs(
 		let amount_debited_str = core::amount_to_hr_string(t.amount_debited, true);
 		let amount_credited_str = core::amount_to_hr_string(t.amount_credited, true);
 		let fee = match t.fee_fields {
-			Some(f) => format!("{}", core::amount_to_hr_string(f.fee(), true)),
+			Some(f) => format!("{}", core::amount_to_hr_string(f.fee(cur_height), true)),
 			None => "None".to_owned(),
 		};
 		let net_diff = if t.amount_credited >= t.amount_debited {
@@ -417,13 +417,13 @@ pub fn estimate(
 		if dark_background_color_scheme {
 			table.add_row(row![
 				bFC->strategy,
-				FR->amount_to_hr_string(fee_fields.fee(), false),
+				FR->amount_to_hr_string(fee_fields.fee(0), false),
 				FY->amount_to_hr_string(total, false),
 			]);
 		} else {
 			table.add_row(row![
 				bFD->strategy,
-				FR->amount_to_hr_string(fee_fields.fee(), false),
+				FR->amount_to_hr_string(fee_fields.fee(0), false),
 				FY->amount_to_hr_string(total, false),
 			]);
 		}
@@ -485,7 +485,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		None => "None".to_owned(),
 	};
 	let fee = match tx.fee_fields {
-		Some(f) => f.fee(),
+		Some(f) => f.fee(0),
 		None => 0,
 	};
 	let amount = if tx.amount_credited >= tx.amount_debited {

@@ -379,7 +379,6 @@ mod tests {
 	use crate::core::libtx::build;
 	use crate::core::libtx::ProofBuilder;
 	use crate::keychain::{ExtKeychain, Keychain};
-	use std::convert::TryInto;
 
 	// JSON api for "push_transaction" between wallet->node currently only supports "feature and commit" inputs.
 	// We will need to revisit this if we decide to support "commit only" inputs (no features) at wallet level.

@@ -155,7 +155,7 @@ where
 	K: keychain::Keychain + 'a,
 {
 	// build block fees
-	let fee_amt = txs.iter().map(|tx| tx.fee()).sum();
+	let fee_amt = txs.iter().map(|tx| tx.fee(prev.height + 1)).sum();
 	let block_fees = BlockFees {
 		fees: fee_amt,
 		key_id: None,

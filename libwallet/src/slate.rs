@@ -578,17 +578,17 @@ impl Slate {
 		// we could just overwrite the fee here (but we won't) due to the sig
 		let fee = tx_fee(tx.inputs().len(), tx.outputs().len(), tx.kernels().len());
 
-		if fee > tx.fee() {
+		if fee > tx.fee(0) {
 			return Err(
-				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(), fee,)).into(),
+				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(0), fee,)).into(),
 			);
 		}
 
-		if fee > self.amount + self.fee_fields.fee() {
+		if fee > self.amount + self.fee_fields.fee(0) {
 			let reason = format!(
 				"Rejected the transfer because transaction fee ({}) exceeds received amount ({}).",
 				amount_to_hr_string(fee, false),
-				amount_to_hr_string(self.amount + self.fee_fields.fee(), false)
+				amount_to_hr_string(self.amount + self.fee_fields.fee(0), false)
 			);
 			info!("{}", reason);
 			return Err(ErrorKind::Fee(reason).into());
@@ -698,7 +698,7 @@ impl Slate {
 		// confirm the overall transaction is valid (including the updated kernel)
 		// accounting for tx weight limits
 		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
-		if let Err(e) = final_tx.validate(Weighting::AsTransaction, verifier_cache) {
+		if let Err(e) = final_tx.validate(Weighting::AsTransaction, verifier_cache, 0) {
 			error!("Error with final tx validation: {}", e);
 			Err(e.into())
 		} else {

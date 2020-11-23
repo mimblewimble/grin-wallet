@@ -403,7 +403,7 @@ where
 		tx.amount_credited - tx.amount_debited
 	} else {
 		let fee = match tx.fee_fields {
-			Some(f) => f.fee(),
+			Some(f) => f.fee(0),
 			None => 0,
 		};
 		tx.amount_debited - tx.amount_credited - fee
@@ -847,7 +847,7 @@ where
 		Some(tx) => {
 			let mut slate = Slate::blank(2, false);
 			slate.tx = Some(tx.clone());
-			slate.fee_fields = tx.aggregate_fee_fields().unwrap();
+			slate.fee_fields = tx.aggregate_fee_fields(0).unwrap();
 			slate.id = id.clone();
 			slate.offset = tx.offset;
 			slate.state = SlateState::Standard3;

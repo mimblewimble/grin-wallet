@@ -107,7 +107,7 @@ impl Writeable for SlateOptFields {
 		if self.amt > 0 {
 			status |= 0x02;
 		}
-		if self.fee.fee() > 0 {
+		if self.fee.fee(0) > 0 {
 			status |= 0x04;
 		}
 		if self.feat > 0 {

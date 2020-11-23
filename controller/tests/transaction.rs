@@ -272,7 +272,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		let est = sender_api.init_send_tx(m, init_args)?;
 		assert_eq!(est.amount, 600_000_000_000);
 		// fees for 5 inputs, 2 outputs, 1 kernel (weight 50)
-		assert_eq!(est.fee_fields.fee(), 25_000_000);
+		assert_eq!(est.fee_fields.fee(0), 25_000_000);
 
 		let init_args = InitTxArgs {
 			src_acct_name: None,
@@ -287,7 +287,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		let est = sender_api.init_send_tx(m, init_args)?;
 		assert_eq!(est.amount, 180_000_000_000);
 		// fees for 3 inputs, 2 outputs, 1 kernel (weight 48)
-		assert_eq!(est.fee_fields.fee(), 24_000_000);
+		assert_eq!(est.fee_fields.fee(0), 24_000_000);
 
 		Ok(())
 	})?;
