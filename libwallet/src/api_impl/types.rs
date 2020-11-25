@@ -25,7 +25,7 @@ use crate::SlatepackAddress;
 use ed25519_dalek::Signature as DalekSignature;
 
 /// V2 Init / Send TX API Args
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InitTxArgs {
 	/// The human readable account name from which to draw outputs
 	/// for the transaction, overriding whatever the active account is as set via the
@@ -71,6 +71,10 @@ pub struct InitTxArgs {
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided
 	/// transaction amount
 	pub estimate_only: Option<bool>,
+	/// EXPERIMENTAL: if flagged, create the transaction as late-locked, i.e. don't select actual
+	/// inputs until just before finalization
+	#[serde(default)]
+	pub late_lock: Option<bool>,
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
@@ -78,7 +82,7 @@ pub struct InitTxArgs {
 
 /// Send TX API Args, for convenience functionality that inits the transaction and sends
 /// in one go
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InitTxSendArgs {
 	/// The destination, contents will depend on the particular method
 	pub dest: String,
@@ -103,6 +107,7 @@ impl Default for InitTxArgs {
 			ttl_blocks: None,
 			estimate_only: Some(false),
 			payment_proof_recipient_address: None,
+			late_lock: Some(false),
 			send_args: None,
 		}
 	}

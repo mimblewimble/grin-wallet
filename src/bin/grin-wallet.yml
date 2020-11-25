@@ -112,6 +112,10 @@ subcommands:
             help: Estimates all possible Coin/Output selection strategies.
             short: e
             long: estimate-selection
+        - late_lock:
+            help: EXPERIMENTAL - Do not lock the coins immediately, instead only lock them during finalization.
+            short: l
+            long: late-lock
         - change_outputs:
             help: Number of change outputs to generate (mainly for testing)
             short: o
@@ -228,7 +232,7 @@ subcommands:
             possible_values:
               - all
               - smallest
-            default_value: all
+            default_value: smallest
             takes_value: true
         - estimate_selection_strategies:
             help: Estimates all possible Coin/Output selection strategies.
