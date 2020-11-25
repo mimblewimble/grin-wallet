@@ -283,7 +283,7 @@ where
 
 	// Create our own private context
 	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
-	context.fee_fields = Some(slate.fee_fields);
+	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 	context.late_lock_args = Some(init_tx_args.clone());
 

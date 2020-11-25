@@ -86,7 +86,7 @@ where
 		is_initiator,
 	);
 
-	context.fee_fields = Some(slate.fee_fields);
+	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
@@ -152,7 +152,7 @@ where
 		t.tx_slate_id = Some(slate_id);
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
-		t.fee_fields = context.fee_fields;
+		t.fee_fields = context.fee;
 		t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 			0 => None,
 			n => Some(n),
@@ -269,7 +269,7 @@ where
 
 	context.add_output(&key_id, &None, amount);
 	context.amount = amount;
-	context.fee_fields = slate.fee_fields.as_opt();
+	context.fee = slate.fee_fields.as_opt();
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -657,7 +657,7 @@ where
 	slate.amount = context.amount;
 	if update_fee {
 		slate.fee_fields = context
-			.fee_fields
+			.fee
 			.ok_or_else(|| ErrorKind::Fee("Missing fee fields".into()))?;
 	}
 

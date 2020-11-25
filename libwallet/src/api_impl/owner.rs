@@ -700,7 +700,7 @@ where
 	if let Ok(c) = context_res {
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
-		context.fee_fields = c.fee_fields;
+		context.fee = c.fee;
 		context.amount = c.amount;
 		for o in c.output_ids.iter() {
 			context.output_ids.push(o.clone());
@@ -799,12 +799,7 @@ where
 			args.max_outputs as usize,
 			args.num_change_outputs as usize,
 			args.selection_strategy_is_use_all,
-			Some(
-				context
-					.fee_fields
-					.map(|f| f.fee(current_height))
-					.unwrap_or(0),
-			),
+			Some(context.fee.map(|f| f.fee(current_height)).unwrap_or(0)),
 			parent_key_id.clone(),
 			false,
 			true,

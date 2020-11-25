@@ -555,7 +555,7 @@ pub struct Context {
 	/// needed by the other party
 	pub amount: u64,
 	/// store the calculated fee
-	pub fee_fields: Option<FeeFields>,
+	pub fee: Option<FeeFields>,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
 	/// If late-locking, store my tranasction creation prefs
@@ -609,7 +609,7 @@ impl Context {
 			input_ids: vec![],
 			output_ids: vec![],
 			amount: 0,
-			fee_fields: None,
+			fee: None,
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
