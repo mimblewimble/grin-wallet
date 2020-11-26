@@ -402,7 +402,7 @@ where
 	let amount = if tx.amount_credited >= tx.amount_debited {
 		tx.amount_credited - tx.amount_debited
 	} else {
-		let fee = match tx.fee_fields {
+		let fee = match tx.fee {
 			Some(f) => f.fee(0),
 			None => 0,
 		};

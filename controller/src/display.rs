@@ -189,7 +189,7 @@ pub fn txs(
 		let num_outputs = format!("{}", t.num_outputs);
 		let amount_debited_str = core::amount_to_hr_string(t.amount_debited, true);
 		let amount_credited_str = core::amount_to_hr_string(t.amount_credited, true);
-		let fee = match t.fee_fields {
+		let fee = match t.fee {
 			Some(f) => format!("{}", core::amount_to_hr_string(f.fee(cur_height), true)),
 			None => "None".to_owned(),
 		};
@@ -484,7 +484,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		}
 		None => "None".to_owned(),
 	};
-	let fee = match tx.fee_fields {
+	let fee = match tx.fee {
 		Some(f) => f.fee(0),
 		None => 0,
 	};
