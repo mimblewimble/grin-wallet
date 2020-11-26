@@ -152,7 +152,7 @@ where
 		t.tx_slate_id = Some(slate_id);
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
-		t.fee_fields = context.fee;
+		t.fee = context.fee;
 		t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 			0 => None,
 			n => Some(n),
