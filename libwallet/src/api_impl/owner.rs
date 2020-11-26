@@ -16,6 +16,7 @@
 
 use uuid::Uuid;
 
+use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
 use crate::grin_util::secp::key::SecretKey;
@@ -37,7 +38,7 @@ use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -403,7 +404,7 @@ where
 		tx.amount_credited - tx.amount_debited
 	} else {
 		let fee = match tx.fee {
-			Some(f) => f,
+			Some(f) => f.fee(2 * YEAR_HEIGHT), // apply fee mask past HF4
 			None => 0,
 		};
 		tx.amount_debited - tx.amount_credited - fee
@@ -495,7 +496,7 @@ where
 			&parent_key_id,
 		)?;
 		slate.amount = total;
-		slate.fee = fee;
+		slate.fee_fields = fee.try_into().unwrap();
 		return Ok(slate);
 	}
 
@@ -799,7 +800,7 @@ where
 			args.max_outputs as usize,
 			args.num_change_outputs as usize,
 			args.selection_strategy_is_use_all,
-			Some(context.fee),
+			Some(context.fee.map(|f| f.fee(current_height)).unwrap_or(0)),
 			parent_key_id.clone(),
 			false,
 			true,
@@ -869,6 +870,7 @@ where
 }
 
 /// get stored tx
+/// crashes if stored tx has total fees exceeding 2^40 nanogrin
 pub fn get_stored_tx<'a, T: ?Sized, C, K>(
 	w: &T,
 	tx_id: Option<u32>,
@@ -905,7 +907,7 @@ where
 		Some(tx) => {
 			let mut slate = Slate::blank(2, false);
 			slate.tx = Some(tx.clone());
-			slate.fee = tx.fee();
+			slate.fee_fields = tx.aggregate_fee_fields(0).unwrap();
 			slate.id = id.clone();
 			slate.offset = tx.offset;
 			slate.state = SlateState::Standard3;

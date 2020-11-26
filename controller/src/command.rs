@@ -17,6 +17,7 @@
 use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
+use crate::core::core::FeeFields;
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::PathToSlatepack;
@@ -277,7 +278,7 @@ where
 	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
-			let strategies = vec!["smallest", "all"]
+			let strategies: Vec<(&str, u64, FeeFields)> = vec!["smallest", "all"]
 				.into_iter()
 				.map(|strategy| {
 					let init_args = InitTxArgs {
@@ -291,7 +292,7 @@ where
 						..Default::default()
 					};
 					let slate = api.init_send_tx(m, init_args).unwrap();
-					(strategy, slate.amount, slate.fee)
+					(strategy, slate.amount, slate.fee_fields)
 				})
 				.collect();
 			display::estimate(args.amount, strategies, dark_scheme);
@@ -848,7 +849,7 @@ where
 						..Default::default()
 					};
 					let slate = api.init_send_tx(m, init_args).unwrap();
-					(strategy, slate.amount, slate.fee)
+					(strategy, slate.amount, slate.fee_fields)
 				})
 				.collect();
 			display::estimate(slate.amount, strategies, dark_scheme);

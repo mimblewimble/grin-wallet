@@ -30,6 +30,7 @@ use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 /// Initialize a transaction on the sender side, returns a corresponding
 /// libwallet transaction slate with the appropriate inputs selected,
@@ -74,7 +75,7 @@ where
 	}
 
 	// Update the fee on the slate so we account for this when building the tx.
-	slate.fee = fee;
+	slate.fee_fields = fee.try_into().unwrap();
 	slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	// Create our own private context
@@ -85,7 +86,7 @@ where
 		is_initiator,
 	);
 
-	context.fee = fee;
+	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
@@ -151,7 +152,7 @@ where
 		t.tx_slate_id = Some(slate_id);
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
-		t.fee = Some(context.fee);
+		t.fee = context.fee;
 		t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 			0 => None,
 			n => Some(n),
@@ -268,7 +269,7 @@ where
 
 	context.add_output(&key_id, &None, amount);
 	context.amount = amount;
-	context.fee = slate.fee;
+	context.fee = slate.fee_fields.as_opt();
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -398,7 +399,7 @@ where
 	// sender
 
 	// First attempt to spend without change
-	let mut fee = tx_fee(coins.len(), 1, 1, None);
+	let mut fee = tx_fee(coins.len(), 1, 1);
 	let mut total: u64 = coins.iter().map(|c| c.value).sum();
 	let mut amount_with_fee = amount + fee;
 
@@ -427,7 +428,7 @@ where
 
 	// We need to add a change address or amount with fee is more than total
 	if total != amount_with_fee {
-		fee = tx_fee(coins.len(), num_outputs, 1, None);
+		fee = tx_fee(coins.len(), num_outputs, 1);
 		amount_with_fee = amount + fee;
 
 		// Here check if we have enough outputs for the amount including fee otherwise
@@ -455,7 +456,7 @@ where
 				parent_key_id,
 			)
 			.1;
-			fee = tx_fee(coins.len(), num_outputs, 1, None);
+			fee = tx_fee(coins.len(), num_outputs, 1);
 			total = coins.iter().map(|c| c.value).sum();
 			amount_with_fee = amount + fee;
 		}
@@ -655,7 +656,9 @@ where
 	// restore the original amount, fee
 	slate.amount = context.amount;
 	if update_fee {
-		slate.fee = context.fee;
+		slate.fee_fields = context
+			.fee
+			.ok_or_else(|| ErrorKind::Fee("Missing fee fields".into()))?;
 	}
 
 	let keychain = wallet.keychain(keychain_mask)?;

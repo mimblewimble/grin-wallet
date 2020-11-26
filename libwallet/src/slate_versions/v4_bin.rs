@@ -14,7 +14,8 @@
 
 //! Wraps a V4 Slate into a V4 Binary slate
 
-use crate::grin_core::core::transaction::OutputFeatures;
+use crate::grin_core::consensus::YEAR_HEIGHT;
+use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::BlindingFactor;
@@ -87,8 +88,8 @@ struct SlateOptFields {
 	pub num_parts: u8,
 	/// amt, default 0
 	pub amt: u64,
-	/// fee, default 0
-	pub fee: u64,
+	/// fee_fields, default FeeFields::zero()
+	pub fee: FeeFields,
 	/// kernel features, default 0
 	pub feat: u8,
 	/// ttl, default 0
@@ -107,7 +108,8 @@ impl Writeable for SlateOptFields {
 		if self.amt > 0 {
 			status |= 0x02;
 		}
-		if self.fee > 0 {
+		if self.fee.fee(2 * YEAR_HEIGHT) > 0 {
+			// apply fee mask past HF4
 			status |= 0x04;
 		}
 		if self.feat > 0 {
@@ -124,7 +126,7 @@ impl Writeable for SlateOptFields {
 			writer.write_u64(self.amt)?;
 		}
 		if status & 0x04 > 0 {
-			writer.write_u64(self.fee)?;
+			self.fee.write(writer)?;
 		}
 		if status & 0x08 > 0 {
 			writer.write_u8(self.feat)?;
@@ -150,9 +152,9 @@ impl Readable for SlateOptFields {
 			0
 		};
 		let fee = if status & 0x04 > 0 {
-			reader.read_u64()?
+			FeeFields::read(reader)?
 		} else {
-			0
+			FeeFields::zero()
 		};
 		let feat = if status & 0x08 > 0 {
 			reader.read_u8()?
@@ -488,7 +490,9 @@ fn slate_v4_serialize_deserialize() {
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
 	use crate::Slate;
+	use grin_wallet_util::grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_wallet_util::grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+	set_local_chain_type(ChainTypes::Mainnet);
 	let slate = Slate::blank(1, false);
 	let mut v4 = SlateV4::from(slate);
 

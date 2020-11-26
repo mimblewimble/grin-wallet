@@ -107,7 +107,8 @@ fn create_block_with_reward(
 	reward_output: Output,
 	reward_kernel: TxKernel,
 ) -> core::core::Block {
-	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter().unwrap());
+	let next_header_info =
+		consensus::next_difficulty(prev.height + 1, chain.difficulty_iter().unwrap());
 	let mut b = core::core::Block::new(
 		&prev,
 		txs,
@@ -155,7 +156,7 @@ where
 	K: keychain::Keychain + 'a,
 {
 	// build block fees
-	let fee_amt = txs.iter().map(|tx| tx.fee()).sum();
+	let fee_amt = txs.iter().map(|tx| tx.fee(prev.height + 1)).sum();
 	let block_fees = BlockFees {
 		fees: fee_amt,
 		key_id: None,

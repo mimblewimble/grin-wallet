@@ -153,6 +153,8 @@ fn real_main() -> i32 {
 			.clone(),
 	);
 
+	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
+
 	let wallet_config = config.clone().members.unwrap().wallet;
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
 

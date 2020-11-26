@@ -18,6 +18,7 @@
 use crate::config::{TorConfig, WalletConfig};
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
+use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
@@ -554,7 +555,7 @@ pub struct Context {
 	/// needed by the other party
 	pub amount: u64,
 	/// store the calculated fee
-	pub fee: u64,
+	pub fee: Option<FeeFields>,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
 	/// If late-locking, store my tranasction creation prefs
@@ -608,7 +609,7 @@ impl Context {
 			input_ids: vec![],
 			output_ids: vec![],
 			amount: 0,
-			fee: 0,
+			fee: None,
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
@@ -818,8 +819,7 @@ pub struct TxLogEntry {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_debited: u64,
 	/// Fee
-	#[serde(with = "secp_ser::opt_string_or_u64")]
-	pub fee: Option<u64>,
+	pub fee: Option<FeeFields>,
 	/// Cutoff block height
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(default)]

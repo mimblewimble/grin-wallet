@@ -35,6 +35,7 @@ use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::{Signer, Verifier};
+use grin_wallet_util::grin_core::core::FeeFields;
 
 // static for incrementing test UUIDs
 lazy_static! {
@@ -276,13 +277,13 @@ where
 		init_tx_args.selection_strategy_is_use_all,
 		&parent_key_id,
 	)?;
-	slate.fee = fee;
+	slate.fee_fields = FeeFields::new(0, fee)?;
 
 	let keychain = wallet.keychain(keychain_mask)?;
 
 	// Create our own private context
 	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
-	context.fee = slate.fee;
+	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 	context.late_lock_args = Some(init_tx_args.clone());
 
@@ -585,7 +586,7 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_core::core::KernelFeatures;
+	use crate::grin_core::core::{FeeFields, KernelFeatures};
 	use crate::grin_core::libtx::{build, ProofBuilder};
 	use crate::grin_keychain::{
 		BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
@@ -601,14 +602,18 @@ mod test {
 		let key_id1 = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
 
 		let tx1 = build::transaction(
-			KernelFeatures::Plain { fee: 0 },
+			KernelFeatures::Plain {
+				fee: FeeFields::zero(),
+			},
 			&[build::output(105, key_id1.clone())],
 			&keychain,
 			&builder,
 		)
 		.unwrap();
 		let tx2 = build::transaction(
-			KernelFeatures::Plain { fee: 0 },
+			KernelFeatures::Plain {
+				fee: FeeFields::zero(),
+			},
 			&[build::input(105, key_id1.clone())],
 			&keychain,
 			&builder,
