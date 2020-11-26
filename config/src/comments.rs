@@ -30,14 +30,6 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"api_listen_interface".to_string(),
-		"
-#host IP for wallet listener, change to \"0.0.0.0\" to receive grins
-"
-		.to_string(),
-	);
-
-	retval.insert(
 		"api_listen_port".to_string(),
 		"
 #path of TLS certificate file, self-signed certificates are not supported
