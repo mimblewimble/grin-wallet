@@ -16,6 +16,7 @@
 //! around during an interactive wallet exchange
 
 use crate::error::{Error, ErrorKind};
+use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
@@ -553,17 +554,21 @@ impl Slate {
 		// we could just overwrite the fee here (but we won't) due to the sig
 		let fee = tx_fee(tx.inputs().len(), tx.outputs().len(), tx.kernels().len());
 
-		if fee > tx.fee(0) {
-			return Err(
-				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(0), fee,)).into(),
-			);
+		if fee > tx.fee(2 * YEAR_HEIGHT) {
+			// apply fee mask past HF4
+			return Err(ErrorKind::Fee(format!(
+				"Fee Dispute Error: {}, {}",
+				tx.fee(2 * YEAR_HEIGHT),
+				fee,
+			))
+			.into());
 		}
 
-		if fee > self.amount + self.fee_fields.fee(0) {
+		if fee > self.amount + self.fee_fields.fee(2 * YEAR_HEIGHT) {
 			let reason = format!(
 				"Rejected the transfer because transaction fee ({}) exceeds received amount ({}).",
 				amount_to_hr_string(fee, false),
-				amount_to_hr_string(self.amount + self.fee_fields.fee(0), false)
+				amount_to_hr_string(self.amount + self.fee_fields.fee(2 * YEAR_HEIGHT), false)
 			);
 			info!("{}", reason);
 			return Err(ErrorKind::Fee(reason).into());

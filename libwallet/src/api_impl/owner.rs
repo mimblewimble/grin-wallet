@@ -16,6 +16,7 @@
 
 use uuid::Uuid;
 
+use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
 use crate::grin_util::secp::key::SecretKey;
@@ -403,7 +404,7 @@ where
 		tx.amount_credited - tx.amount_debited
 	} else {
 		let fee = match tx.fee_fields {
-			Some(f) => f.fee(0),
+			Some(f) => f.fee(2 * YEAR_HEIGHT), // apply fee mask past HF4
 			None => 0,
 		};
 		tx.amount_debited - tx.amount_credited - fee
