@@ -388,9 +388,7 @@ mod tests {
 		let key_id1 = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
 		let key_id2 = ExtKeychain::derive_key_id(1, 2, 0, 0, 0);
 		let tx = build::transaction(
-			KernelFeatures::Plain {
-				fee_fields: 2.into(),
-			},
+			KernelFeatures::Plain { fee: 2.into() },
 			&[build::input(5, key_id1), build::output(3, key_id2)],
 			&keychain,
 			&builder,
@@ -426,10 +424,7 @@ mod tests {
 		assert!(value["body"]["outputs"][0]["proof"].is_string());
 
 		// Note: Tx kernel "features" serialize in a slightly unexpected way.
-		assert_eq!(
-			value["body"]["kernels"][0]["features"]["Plain"]["fee_fields"],
-			2
-		);
+		assert_eq!(value["body"]["kernels"][0]["features"]["Plain"]["fee"], 2);
 		assert!(value["body"]["kernels"][0]["excess"].is_string());
 		assert!(value["body"]["kernels"][0]["excess_sig"].is_string());
 

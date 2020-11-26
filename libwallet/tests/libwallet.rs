@@ -25,7 +25,7 @@ use rand::thread_rng;
 
 fn kernel_sig_msg() -> secp::Message {
 	transaction::KernelFeatures::Plain {
-		fee_fields: FeeFields::zero(),
+		fee: FeeFields::zero(),
 	}
 	.kernel_sig_msg()
 	.unwrap()

@@ -603,7 +603,7 @@ mod test {
 
 		let tx1 = build::transaction(
 			KernelFeatures::Plain {
-				fee_fields: FeeFields::zero(),
+				fee: FeeFields::zero(),
 			},
 			&[build::output(105, key_id1.clone())],
 			&keychain,
@@ -612,7 +612,7 @@ mod test {
 		.unwrap();
 		let tx2 = build::transaction(
 			KernelFeatures::Plain {
-				fee_fields: FeeFields::zero(),
+				fee: FeeFields::zero(),
 			},
 			&[build::input(105, key_id1.clone())],
 			&keychain,
