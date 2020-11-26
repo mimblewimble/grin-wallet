@@ -107,7 +107,8 @@ fn create_block_with_reward(
 	reward_output: Output,
 	reward_kernel: TxKernel,
 ) -> core::core::Block {
-	let next_header_info = consensus::next_difficulty(1, chain.difficulty_iter().unwrap());
+	let next_header_info =
+		consensus::next_difficulty(prev.height + 1, chain.difficulty_iter().unwrap());
 	let mut b = core::core::Block::new(
 		&prev,
 		txs,
