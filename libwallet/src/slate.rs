@@ -352,11 +352,11 @@ impl Slate {
 	fn kernel_features(&self) -> Result<KernelFeatures, Error> {
 		match self.kernel_features {
 			0 => Ok(KernelFeatures::Plain {
-				fee_fields: self.fee_fields,
+				fee: self.fee_fields,
 			}),
 			1 => Err(ErrorKind::InvalidKernelFeatures(1).into()),
 			2 => Ok(KernelFeatures::HeightLocked {
-				fee_fields: self.fee_fields,
+				fee: self.fee_fields,
 				lock_height: match &self.kernel_features_args {
 					Some(a) => a.lock_height,
 					None => {
@@ -365,7 +365,7 @@ impl Slate {
 				},
 			}),
 			3 => Ok(KernelFeatures::NoRecentDuplicate {
-				fee_fields: self.fee_fields,
+				fee: self.fee_fields,
 				relative_height: match &self.kernel_features_args {
 					Some(a) => NRDRelativeHeight::new(a.lock_height)?,
 					None => {
@@ -975,19 +975,15 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	};
 	let kernel = TxKernel {
 		features: match slate.feat {
-			0 => KernelFeatures::Plain {
-				fee_fields: slate.fee,
-			},
+			0 => KernelFeatures::Plain { fee: slate.fee },
 			1 => KernelFeatures::HeightLocked {
-				fee_fields: slate.fee,
+				fee: slate.fee,
 				lock_height: match slate.feat_args.as_ref() {
 					Some(a) => a.lock_hgt,
 					None => 0,
 				},
 			},
-			_ => KernelFeatures::Plain {
-				fee_fields: slate.fee,
-			},
+			_ => KernelFeatures::Plain { fee: slate.fee },
 		},
 		excess,
 		excess_sig,
