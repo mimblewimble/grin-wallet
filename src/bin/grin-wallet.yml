@@ -27,11 +27,6 @@ args:
       short: t
       long: top_level_dir
       takes_value: true
-  - external:
-      help: Listen on 0.0.0.0 interface to allow external connections (default is 127.0.0.1)
-      short: e
-      long: external
-      takes_value: false
   - show_spent:
       help: Show spent outputs on wallet output commands
       short: s
