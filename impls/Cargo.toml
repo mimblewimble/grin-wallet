@@ -22,7 +22,9 @@ log = "0.4"
 ring = "0.16"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 chrono = { version = "0.4.11", features = ["serde"] }
+tokio = { version = "0.2", features = ["full"] }
 reqwest = { version = "0.10", features = ["rustls-tls", "socks"] }
+lazy_static = "1.4"
 
 #Socks/Tor
 byteorder = "1"

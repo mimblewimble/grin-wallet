@@ -16,14 +16,31 @@
 
 use crate::util::to_base64;
 use failure::{Backtrace, Context, Fail, ResultExt};
-use futures::executor::block_on;
+use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio::runtime::{Builder, Runtime};
+
+// Global Tokio runtime.
+// Needs a `Mutex` because `Runtime::block_on` requires mutable access.
+// Tokio v0.3 requires immutable self, but we are waiting on upstream
+// updates before we can upgrade.
+// See: https://github.com/seanmonstar/reqwest/pull/1076
+lazy_static! {
+	pub static ref RUNTIME: Arc<Mutex<Runtime>> = Arc::new(Mutex::new(
+		Builder::new()
+			.threaded_scheduler()
+			.enable_all()
+			.build()
+			.unwrap()
+	));
+}
 
 /// Errors that can be returned by an ApiEndpoint implementation.
 #[derive(Debug)]
@@ -81,6 +98,7 @@ impl From<Context<ErrorKind>> for Error {
 	}
 }
 
+#[derive(Clone)]
 pub struct Client {
 	client: reqwest::Client,
 }
@@ -295,6 +313,9 @@ impl Client {
 	}
 
 	pub fn send_request(&self, req: RequestBuilder) -> Result<String, Error> {
-		block_on(self.send_request_async(req))
+		RUNTIME
+			.lock()
+			.unwrap()
+			.block_on(self.send_request_async(req))
 	}
 }
