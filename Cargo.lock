@@ -1229,7 +1229,7 @@ source = "git+https://github.com/mimblewimble/grin?tag=v5.0.0-beta.2#f48a23655de
 dependencies = [
  "blake2-rfc",
  "byteorder",
- "bytes",
+ "bytes 0.5.6",
  "chrono",
  "croaring-mw",
  "enum_primitive",
@@ -1277,7 +1277,7 @@ version = "5.0.0-beta.2"
 source = "git+https://github.com/mimblewimble/grin?tag=v5.0.0-beta.2#f48a23655ded65285ab412ad22b8f6a7a0075e56"
 dependencies = [
  "bitflags 1.2.1",
- "bytes",
+ "bytes 0.5.6",
  "chrono",
  "enum_primitive",
  "grin_chain",
