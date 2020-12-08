@@ -2451,7 +2451,8 @@ macro_rules! doctest_helper_setup_doc_env {
 		wallet_config.data_file_dir = dir.to_owned();
 		let pw = ZeroingString::from("");
 
-		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
+		let node_client =
+			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
 		let mut wallet = Box::new(
 			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
 			)
