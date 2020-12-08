@@ -251,7 +251,7 @@ impl Client {
 		api_secret: Option<String>,
 		body: Option<String>,
 	) -> Result<RequestBuilder, Error> {
-		let mut builder = self.client.request(method.clone(), url);
+		let mut builder = self.client.request(method, url);
 		if let Some(api_secret) = api_secret {
 			let basic_auth = format!("Basic {}", to_base64(&format!("grin:{}", api_secret)));
 			builder = builder.header(AUTHORIZATION, basic_auth);
