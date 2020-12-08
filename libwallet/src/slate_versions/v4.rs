@@ -53,6 +53,7 @@
 //! *  The `receiver_signature` field is renamed to `rsig`
 //! * `rsig` may be omitted if it has not yet been filled out
 
+use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Input, Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
 use crate::grin_keychain::{BlindingFactor, Identifier};
@@ -95,11 +96,10 @@ pub struct SlateV4 {
 	#[serde(skip_serializing_if = "u64_is_blank")]
 	#[serde(default = "default_u64_0")]
 	pub amt: u64,
-	/// fee amount
-	#[serde(with = "secp_ser::string_or_u64")]
-	#[serde(default = "default_u64")]
-	#[serde(skip_serializing_if = "u64_is_blank")]
-	pub fee: u64,
+	/// fee
+	#[serde(skip_serializing_if = "fee_is_zero")]
+	#[serde(default = "default_fee")]
+	pub fee: FeeFields,
 	/// kernel features, if any
 	#[serde(skip_serializing_if = "u8_is_blank")]
 	#[serde(default = "default_u8_0")]
@@ -297,10 +297,6 @@ fn default_range_proof() -> Option<RangeProof> {
 	None
 }
 
-fn default_u64() -> u64 {
-	0
-}
-
 fn u64_is_blank(u: &u64) -> bool {
 	*u == 0
 }
@@ -312,6 +308,15 @@ fn default_u8_0() -> u8 {
 fn u8_is_blank(u: &u8) -> bool {
 	*u == 0
 }
+
+fn fee_is_zero(f: &FeeFields) -> bool {
+	f.is_zero()
+}
+
+fn default_fee() -> FeeFields {
+	FeeFields::zero()
+}
+
 /// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CoinbaseV4 {

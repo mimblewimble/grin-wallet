@@ -30,6 +30,7 @@ use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 /// Initialize a transaction on the sender side, returns a corresponding
 /// libwallet transaction slate with the appropriate inputs selected,
@@ -46,8 +47,10 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	max_outputs: usize,
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
+	fixed_fee: Option<u64>,
 	parent_key_id: Identifier,
 	use_test_nonce: bool,
+	is_initiator: bool,
 ) -> Result<Context, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -67,20 +70,23 @@ where
 		false,
 	)?;
 
-	// Update the fee on the slate so we account for this when building the tx.
-	slate.fee = fee;
+	if fixed_fee.map(|f| fee != f).unwrap_or(false) {
+		return Err(ErrorKind::Fee("The initially selected fee is not sufficient".into()).into());
+	}
 
-	let blinding = slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
+	// Update the fee on the slate so we account for this when building the tx.
+	slate.fee_fields = fee.try_into().unwrap();
+	slate.add_transaction_elements(keychain, &ProofBuilder::new(keychain), elems)?;
 
 	// Create our own private context
 	let mut context = Context::new(
 		keychain.secp(),
-		blinding.secret_key(&keychain.secp()).unwrap(),
 		&parent_key_id,
 		use_test_nonce,
+		is_initiator,
 	);
 
-	context.fee = fee;
+	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
@@ -146,7 +152,7 @@ where
 		t.tx_slate_id = Some(slate_id);
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
-		t.fee = Some(context.fee);
+		t.fee = context.fee;
 		t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 			0 => None,
 			n => Some(n),
@@ -237,6 +243,7 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	current_height: u64,
 	parent_key_id: Identifier,
 	use_test_rng: bool,
+	is_initiator: bool,
 ) -> Result<(Identifier, Context, TxLogEntry), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -251,25 +258,18 @@ where
 	let height = current_height;
 
 	let slate_id = slate.id;
-	let blinding = slate.add_transaction_elements(
+	slate.add_transaction_elements(
 		&keychain,
 		&ProofBuilder::new(&keychain),
 		vec![build::output(amount, key_id.clone())],
 	)?;
 
 	// Add blinding sum to our context
-	let mut context = Context::new(
-		keychain.secp(),
-		blinding
-			.secret_key(wallet.keychain(keychain_mask)?.secp())
-			.unwrap(),
-		&parent_key_id,
-		use_test_rng,
-	);
+	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, is_initiator);
 
 	context.add_output(&key_id, &None, amount);
 	context.amount = amount;
-	context.fee = slate.fee;
+	context.fee = slate.fee_fields.as_opt();
 	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -398,11 +398,8 @@ where
 	// recipient should double check the fee calculation and not blindly trust the
 	// sender
 
-	// TODO - Is it safe to spend without a change output? (1 input -> 1 output)
-	// TODO - Does this not potentially reveal the senders private key?
-	//
 	// First attempt to spend without change
-	let mut fee = tx_fee(coins.len(), 1, 1, None);
+	let mut fee = tx_fee(coins.len(), 1, 1);
 	let mut total: u64 = coins.iter().map(|c| c.value).sum();
 	let mut amount_with_fee = amount + fee;
 
@@ -431,7 +428,7 @@ where
 
 	// We need to add a change address or amount with fee is more than total
 	if total != amount_with_fee {
-		fee = tx_fee(coins.len(), num_outputs, 1, None);
+		fee = tx_fee(coins.len(), num_outputs, 1);
 		amount_with_fee = amount + fee;
 
 		// Here check if we have enough outputs for the amount including fee otherwise
@@ -459,7 +456,7 @@ where
 				parent_key_id,
 			)
 			.1;
-			fee = tx_fee(coins.len(), num_outputs, 1, None);
+			fee = tx_fee(coins.len(), num_outputs, 1);
 			total = coins.iter().map(|c| c.value).sum();
 			amount_with_fee = amount + fee;
 		}
@@ -659,13 +656,15 @@ where
 	// restore the original amount, fee
 	slate.amount = context.amount;
 	if update_fee {
-		slate.fee = context.fee;
+		slate.fee_fields = context
+			.fee
+			.ok_or_else(|| ErrorKind::Fee("Missing fee fields".into()))?;
 	}
 
 	let keychain = wallet.keychain(keychain_mask)?;
 
 	// restore my signature data
-	slate.add_participant_info(&keychain, &context.sec_key, &context.sec_nonce, None)?;
+	slate.add_participant_info(&keychain, &context, None)?;
 
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::core::consensus::YEAR_HEIGHT;
+use crate::core::core::FeeFields;
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
 use crate::libwallet::{
@@ -189,7 +191,7 @@ pub fn txs(
 		let amount_debited_str = core::amount_to_hr_string(t.amount_debited, true);
 		let amount_credited_str = core::amount_to_hr_string(t.amount_credited, true);
 		let fee = match t.fee {
-			Some(f) => format!("{}", core::amount_to_hr_string(f, true)),
+			Some(f) => format!("{}", core::amount_to_hr_string(f.fee(cur_height), true)),
 			None => "None".to_owned(),
 		};
 		let net_diff = if t.amount_credited >= t.amount_debited {
@@ -393,9 +395,9 @@ pub fn info(
 pub fn estimate(
 	amount: u64,
 	strategies: Vec<(
-		&str, // strategy
-		u64,  // total amount to be locked
-		u64,  // fee
+		&str,      // strategy
+		u64,       // total amount to be locked
+		FeeFields, // fee
 	)>,
 	dark_background_color_scheme: bool,
 ) {
@@ -412,17 +414,17 @@ pub fn estimate(
 		bMG->"Will be locked",
 	]);
 
-	for (strategy, total, fee) in strategies {
+	for (strategy, total, fee_fields) in strategies {
 		if dark_background_color_scheme {
 			table.add_row(row![
 				bFC->strategy,
-				FR->amount_to_hr_string(fee, false),
+				FR->amount_to_hr_string(fee_fields.fee(2*YEAR_HEIGHT), false), // apply fee mask past HF4
 				FY->amount_to_hr_string(total, false),
 			]);
 		} else {
 			table.add_row(row![
 				bFD->strategy,
-				FR->amount_to_hr_string(fee, false),
+				FR->amount_to_hr_string(fee_fields.fee(2*YEAR_HEIGHT), false), // apply fee mask past HF4
 				FY->amount_to_hr_string(total, false),
 			]);
 		}
@@ -484,7 +486,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		None => "None".to_owned(),
 	};
 	let fee = match tx.fee {
-		Some(f) => f,
+		Some(f) => f.fee(2 * YEAR_HEIGHT), // apply fee mask past HF4
 		None => 0,
 	};
 	let amount = if tx.amount_credited >= tx.amount_debited {

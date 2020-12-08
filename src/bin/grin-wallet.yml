@@ -3,9 +3,9 @@ about: Reference Grin Wallet
 author: The Grin Team
 
 args:
-  - floonet:
-      help: Run grin against the Floonet (as opposed to mainnet)
-      long: floonet
+  - testnet:
+      help: Run grin against the Testnet (as opposed to mainnet)
+      long: testnet
       takes_value: false
   - usernet:
       help: Run grin as a local-only network. Doesn't block peer connections but will not connect to any peer or seed
@@ -27,11 +27,6 @@ args:
       short: t
       long: top_level_dir
       takes_value: true
-  - external:
-      help: Listen on 0.0.0.0 interface to allow external connections (default is 127.0.0.1)
-      short: e
-      long: external
-      takes_value: false
   - show_spent:
       help: Show spent outputs on wallet output commands
       short: s
@@ -112,6 +107,10 @@ subcommands:
             help: Estimates all possible Coin/Output selection strategies.
             short: e
             long: estimate-selection
+        - late_lock:
+            help: EXPERIMENTAL - Do not lock the coins immediately, instead only lock them during finalization.
+            short: l
+            long: late-lock
         - change_outputs:
             help: Number of change outputs to generate (mainly for testing)
             short: o
@@ -228,7 +227,7 @@ subcommands:
             possible_values:
               - all
               - smallest
-            default_value: all
+            default_value: smallest
             takes_value: true
         - estimate_selection_strategies:
             help: Estimates all possible Coin/Output selection strategies.

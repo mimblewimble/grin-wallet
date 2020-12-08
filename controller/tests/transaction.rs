@@ -24,6 +24,7 @@ use self::core::core::transaction;
 use self::core::global;
 use self::libwallet::{InitTxArgs, OutputStatus, Slate, SlateState};
 use impls::test_framework::{self, LocalWalletClient};
+use std::convert::TryInto;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -124,6 +125,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		assert_eq!(slate.state, SlateState::Standard3);
 
 		// Check we have a single kernel and that it is a Plain kernel (no lock_height).
+		// fees for 7 inputs, 2 outputs, 1 kernel (weight 52)
 		assert_eq!(slate.tx_or_err()?.kernels().len(), 1);
 		assert_eq!(
 			slate
@@ -132,7 +134,9 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 				.first()
 				.map(|k| k.features)
 				.unwrap(),
-			transaction::KernelFeatures::Plain { fee: 2000000 }
+			transaction::KernelFeatures::Plain {
+				fee: 26_000_000.into()
+			}
 		);
 
 		Ok(())
@@ -147,7 +151,6 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			wallet1_info.last_confirmed_height as usize - cm as usize,
 			2,
 			1,
-			None,
 		);
 		// we should have a transaction entry for this slate
 		let tx = txs.iter().find(|t| t.tx_slate_id == Some(slate.id));
@@ -157,7 +160,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		assert!(tx.confirmation_ts.is_none());
 		assert_eq!(tx.amount_debited - tx.amount_credited, fee + amount);
 		println!("tx: {:?}", tx);
-		assert_eq!(Some(fee), tx.fee);
+		assert_eq!(Some(fee.try_into().unwrap()), tx.fee);
 		Ok(())
 	})?;
 
@@ -194,7 +197,6 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			wallet1_info.last_confirmed_height as usize - 1 - cm as usize,
 			2,
 			1,
-			None,
 		);
 		assert!(wallet1_refreshed);
 		// wallet 1 received fees, so amount should be the same
@@ -269,7 +271,8 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let est = sender_api.init_send_tx(m, init_args)?;
 		assert_eq!(est.amount, 600_000_000_000);
-		assert_eq!(est.fee, 4_000_000);
+		// fees for 5 inputs, 2 outputs, 1 kernel (weight 50)
+		assert_eq!(est.fee_fields.fee(0), 25_000_000);
 
 		let init_args = InitTxArgs {
 			src_acct_name: None,
@@ -283,7 +286,8 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let est = sender_api.init_send_tx(m, init_args)?;
 		assert_eq!(est.amount, 180_000_000_000);
-		assert_eq!(est.fee, 6_000_000);
+		// fees for 3 inputs, 2 outputs, 1 kernel (weight 48)
+		assert_eq!(est.fee_fields.fee(0), 24_000_000);
 
 		Ok(())
 	})?;

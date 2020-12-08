@@ -71,8 +71,8 @@ impl WalletSeed {
 		seed.as_bytes().to_vec()
 	}
 
-	pub fn derive_keychain<K: Keychain>(&self, is_floonet: bool) -> Result<K, Error> {
-		let result = K::from_seed(&self.0, is_floonet)?;
+	pub fn derive_keychain<K: Keychain>(&self, is_testnet: bool) -> Result<K, Error> {
+		let result = K::from_seed(&self.0, is_testnet)?;
 		Ok(result)
 	}
 

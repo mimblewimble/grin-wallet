@@ -18,6 +18,7 @@
 use crate::config::{TorConfig, WalletConfig};
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::hash::Hash;
+use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
 use crate::grin_core::libtx::{aggsig, secp_ser};
 use crate::grin_core::{global, ser};
@@ -27,10 +28,13 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
+use crate::InitTxArgs;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use failure::ResultExt;
+use rand::rngs::mock::StepRng;
+use rand::thread_rng;
 use serde;
 use serde_json;
 use std::collections::HashMap;
@@ -56,11 +60,11 @@ where
 	K: Keychain + 'a,
 {
 	/// Sets the top level system wallet directory
-	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
+	/// default is assumed to be ~/.grin/main/wallet_data (or testnet equivalent)
 	fn set_top_level_directory(&mut self, dir: &str) -> Result<(), Error>;
 
 	/// Sets the top level system wallet directory
-	/// default is assumed to be ~/.grin/main/wallet_data (or floonet equivalent)
+	/// default is assumed to be ~/.grin/main/wallet_data (or testnet equivalent)
 	fn get_top_level_directory(&self) -> Result<String, Error>;
 
 	/// Output a grin-wallet.toml file into the current top-level system wallet directory
@@ -551,9 +555,12 @@ pub struct Context {
 	/// needed by the other party
 	pub amount: u64,
 	/// store the calculated fee
-	pub fee: u64,
+	pub fee: Option<FeeFields>,
 	/// Payment proof sender address derivation path, if needed
 	pub payment_proof_derivation_index: Option<u32>,
+	/// If late-locking, store my tranasction creation prefs
+	/// for later
+	pub late_lock_args: Option<InitTxArgs>,
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
@@ -563,25 +570,48 @@ impl Context {
 	/// Create a new context with defaults
 	pub fn new(
 		secp: &secp::Secp256k1,
+		parent_key_id: &Identifier,
+		use_test_rng: bool,
+		is_initiator: bool,
+	) -> Self {
+		let sec_key = match use_test_rng {
+			false => SecretKey::new(secp, &mut thread_rng()),
+			true => {
+				// allow for consistent test results
+				let mut test_rng = if is_initiator {
+					StepRng::new(1_234_567_890_u64, 1)
+				} else {
+					StepRng::new(1_234_567_891_u64, 1)
+				};
+				SecretKey::new(secp, &mut test_rng)
+			}
+		};
+		Self::with_excess(secp, sec_key, parent_key_id, use_test_rng)
+	}
+
+	/// Create a new context with a specific excess
+	pub fn with_excess(
+		secp: &secp::Secp256k1,
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
-	) -> Context {
+	) -> Self {
 		let sec_nonce = match use_test_rng {
 			false => aggsig::create_secnonce(secp).unwrap(),
 			true => SecretKey::from_slice(secp, &[1; 32]).unwrap(),
 		};
-		Context {
+		Self {
 			parent_key_id: parent_key_id.clone(),
 			sec_key: sec_key.clone(),
 			sec_nonce: sec_nonce.clone(),
-			initial_sec_key: sec_key.clone(),
-			initial_sec_nonce: sec_nonce.clone(),
+			initial_sec_key: sec_key,
+			initial_sec_nonce: sec_nonce,
 			input_ids: vec![],
 			output_ids: vec![],
 			amount: 0,
-			fee: 0,
+			fee: None,
 			payment_proof_derivation_index: None,
+			late_lock_args: None,
 			calculated_excess: None,
 		}
 	}
@@ -789,8 +819,7 @@ pub struct TxLogEntry {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_debited: u64,
 	/// Fee
-	#[serde(with = "secp_ser::opt_string_or_u64")]
-	pub fee: Option<u64>,
+	pub fee: Option<FeeFields>,
 	/// Cutoff block height
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(default)]

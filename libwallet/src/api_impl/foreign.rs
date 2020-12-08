@@ -17,6 +17,7 @@ use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
@@ -105,6 +106,9 @@ where
 		use_test_rng,
 	)?;
 
+	// Add our contribution to the offset
+	ret_slate.adjust_offset(&keychain, &context)?;
+
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
@@ -119,7 +123,7 @@ where
 	}
 
 	ret_slate.amount = 0;
-	ret_slate.fee = 0;
+	ret_slate.fee_fields = FeeFields::zero();
 	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
 	ret_slate.state = SlateState::Standard2;
 
@@ -142,6 +146,9 @@ where
 	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	if sl.state == SlateState::Invoice2 {
 		check_ttl(w, &sl)?;
+
+		// Add our contribution to the offset
+		sl.adjust_offset(&w.keychain(keychain_mask)?, &context)?;
 
 		let mut temp_ctx = context.clone();
 		temp_ctx.sec_key = context.initial_sec_key.clone();

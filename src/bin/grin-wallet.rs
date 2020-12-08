@@ -72,8 +72,8 @@ fn real_main() -> i32 {
 		.version(built_info::PKG_VERSION)
 		.get_matches();
 
-	let chain_type = if args.is_present("floonet") {
-		global::ChainTypes::Floonet
+	let chain_type = if args.is_present("testnet") {
+		global::ChainTypes::Testnet
 	} else if args.is_present("usernet") {
 		global::ChainTypes::UserTesting
 	} else {
@@ -152,6 +152,8 @@ fn real_main() -> i32 {
 			.unwrap()
 			.clone(),
 	);
+
+	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
 
 	let wallet_config = config.clone().members.unwrap().wallet;
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
