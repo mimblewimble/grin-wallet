@@ -17,14 +17,12 @@
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet::{NodeClient, NodeVersionInfo};
-use crossbeam_utils::thread::scope;
 use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
-use tokio::runtime::Builder;
 
-use crate::client_utils::Client;
+use crate::client_utils::{Client, RUNTIME};
 use crate::libwallet;
 use crate::util::secp::pedersen;
 use crate::util::ToHex;
@@ -251,19 +249,7 @@ impl NodeClient for HTTPNodeClient {
 			task.try_collect().await
 		};
 
-		let res = scope(|s| {
-			let handle = s.spawn(|_| {
-				let mut rt = Builder::new()
-					.threaded_scheduler()
-					.enable_all()
-					.build()
-					.unwrap();
-				let res: Result<Vec<Response>, _> = rt.block_on(task);
-				res
-			});
-			handle.join().unwrap()
-		})
-		.unwrap();
+		let res: Result<Vec<Response>, _> = RUNTIME.lock().unwrap().block_on(task);
 
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
