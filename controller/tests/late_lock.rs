@@ -70,14 +70,12 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// add some accounts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		api.create_account_path(m, "mining")?;
-		api.create_account_path(m, "listener")?;
 		Ok(())
 	})?;
 
 	// add some accounts
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		api.create_account_path(m, "account1")?;
-		api.create_account_path(m, "account2")?;
 		Ok(())
 	})?;
 
@@ -91,12 +89,10 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let bh = 10u64;
-	let _ =
-		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false)?;
 
 	let mut slate = Slate::blank(2, false);
-	let amount = 60_000_000_000;
+	let amount = 100_000_000_000;
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		let args = InitTxArgs {
@@ -120,29 +116,28 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		slate = sender_api.finalize_tx(m, &slate)?;
 		println!("S3 SLATE: {}", slate);
 
+		// Now post tx to our node for inclusion in the next block.
+		sender_api.post_tx(m, &slate, true)?;
+
 		Ok(())
 	})?;
 
-	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
+	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false)?;
 
 	// update/test contents of both accounts
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
-		print!(
-			"Wallet 1 amount: {}",
-			wallet_info.amount_currently_spendable
-		);
+		// Reward from mining 11 blocks, minus the amount sent.
+		// Note: We mined the block containing the tx, so fees are effectively refunded.
+		assert_eq!(560_000_000_000, wallet_info.amount_currently_spendable);
 		Ok(())
 	})?;
 
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		let (wallet2_refreshed, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
-		println!(
-			"Wallet 2 amount: {}",
-			wallet_info.amount_currently_spendable
-		);
+		assert_eq!(amount, wallet_info.amount_currently_spendable);
 		Ok(())
 	})?;
 
