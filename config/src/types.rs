@@ -31,9 +31,9 @@ pub struct WalletConfig {
 	/// The port this wallet's owner API will run on
 	pub owner_api_listen_port: Option<u16>,
 	/// Location of the secret for basic auth on the Owner API
-	pub api_secret_path: Option<String>,
-	/// Location of the node api secret for basic auth on the Grin API
-	pub node_api_secret_path: Option<String>,
+	pub owner_api_secret_path: Option<String>,
+	/// Location of the node foreign api secret for basic auth on the Grin API
+	pub node_foreign_api_secret_path: Option<String>,
 	/// The api address of a running server node against which transaction inputs
 	/// will be checked during send
 	pub check_node_api_http_addr: String,
@@ -64,8 +64,8 @@ impl Default for WalletConfig {
 			chain_type: Some(ChainTypes::Mainnet),
 			api_listen_port: 3415,
 			owner_api_listen_port: Some(WalletConfig::default_owner_api_listen_port()),
-			api_secret_path: Some(".owner_api_secret".to_string()),
-			node_api_secret_path: Some(".foreign_api_secret".to_string()),
+			owner_api_secret_path: Some(".wallet_owner_api_secret".to_string()),
+			node_foreign_api_secret_path: Some(".node_foreign_api_secret".to_string()),
 			check_node_api_http_addr: "http://127.0.0.1:3413".to_string(),
 			owner_api_include_foreign: Some(false),
 			data_file_dir: ".".to_string(),

@@ -51,13 +51,14 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"api_secret_path".to_string(),
+		"owner_api_secret_path".to_string(),
 		"
-#path of the secret token used by the API to authenticate the calls
+#path of the secret token used by the Owner API to authenticate the calls
 #comment it to disable basic auth
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"check_node_api_http_addr".to_string(),
 		"
@@ -66,12 +67,13 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
-		"node_api_secret_path".to_string(),
+		"node_foreign_api_secret_path".to_string(),
 		"
 #location of the node api secret for basic auth on the Grin API
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"owner_api_include_foreign".to_string(),
 		"
@@ -88,6 +90,7 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"no_commit_cache".to_string(),
 		"
@@ -97,6 +100,7 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"dark_background_color_scheme".to_string(),
 		"
@@ -104,6 +108,7 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"keybase_notify_ttl".to_string(),
 		"
@@ -114,6 +119,7 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"accept_fee_base".to_string(),
 		"
@@ -121,6 +127,7 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"[logging]".to_string(),
 		"

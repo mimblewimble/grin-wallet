@@ -298,8 +298,8 @@ pub fn parse_global_args(
 	if args.is_present("show_spent") {
 		show_spent = true;
 	}
-	let api_secret = get_first_line(config.api_secret_path.clone());
-	let node_api_secret = get_first_line(config.node_api_secret_path.clone());
+	let api_secret = get_first_line(config.owner_api_secret_path.clone());
+	let node_api_secret = get_first_line(config.node_foreign_api_secret_path.clone());
 	let password = match args.value_of("pass") {
 		None => None,
 		Some(p) => Some(ZeroingString::from(p)),
