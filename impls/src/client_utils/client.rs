@@ -15,19 +15,35 @@
 //! High level JSON/HTTP client API
 
 use crate::util::to_base64;
-use crossbeam_utils::thread::scope;
 use failure::{Backtrace, Context, Fail, ResultExt};
 use hyper::body;
 use hyper::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use hyper::{self, Body, Client as HyperClient, Request, Uri};
 use hyper_rustls;
 use hyper_timeout::TimeoutConnector;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::runtime::Builder;
+use tokio::runtime::{Builder, Runtime};
+
+// Global Tokio runtime.
+// Needs a `Mutex` because `Runtime::block_on` requires mutable access.
+// Tokio v0.3 requires immutable self, but we are waiting on upstream
+// updates before we can upgrade.
+// See: https://github.com/seanmonstar/reqwest/pull/1076
+lazy_static! {
+	pub static ref RUNTIME: Arc<Mutex<Runtime>> = Arc::new(Mutex::new(
+		Builder::new()
+			.threaded_scheduler()
+			.enable_all()
+			.build()
+			.unwrap()
+	));
+}
 
 /// Errors that can be returned by an ApiEndpoint implementation.
 #[derive(Debug)]
@@ -323,18 +339,9 @@ impl Client {
 	}
 
 	pub fn send_request(&self, req: Request<Body>) -> Result<String, Error> {
-		let task = self.send_request_async(req);
-		scope(|s| {
-			let handle = s.spawn(|_| {
-				let mut rt = Builder::new()
-					.basic_scheduler()
-					.enable_all()
-					.build()
-					.context(ErrorKind::Internal("can't create Tokio runtime".to_owned()))?;
-				rt.block_on(task)
-			});
-			handle.join().unwrap()
-		})
-		.unwrap()
+		RUNTIME
+			.lock()
+			.unwrap()
+			.block_on(self.send_request_async(req))
 	}
 }
