@@ -332,6 +332,10 @@ where
 		Ok(())
 	})?;
 
+	if args.estimate_selection_strategies {
+		return Ok(());
+	}
+
 	let tor_config = match tor_config {
 		Some(mut c) => {
 			c.skip_send_attempt = Some(args.skip_tor);
