@@ -483,7 +483,9 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			false => match SlatepackAddress::try_from(dest) {
 				Ok(a) => Some(a),
 				Err(_) => {
-					println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
+					if !estimate_selection_strategies {
+						println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
+					}
 					None
 				}
 			},
