@@ -28,7 +28,7 @@ use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::{Builder, Handle, Runtime};
 
 // Global Tokio runtime.
 // Needs a `Mutex` because `Runtime::block_on` requires mutable access.
@@ -101,6 +101,7 @@ impl From<Context<ErrorKind>> for Error {
 	}
 }
 
+#[derive(Clone)]
 pub struct Client {
 	/// Whether to use socks proxy
 	pub use_socks: bool,
@@ -339,9 +340,17 @@ impl Client {
 	}
 
 	pub fn send_request(&self, req: Request<Body>) -> Result<String, Error> {
-		RUNTIME
-			.lock()
-			.unwrap()
-			.block_on(self.send_request_async(req))
+		if Handle::try_current().is_ok() {
+			let rt = RUNTIME.clone();
+			let client = self.clone();
+			std::thread::spawn(move || rt.lock().unwrap().block_on(client.send_request_async(req)))
+				.join()
+				.unwrap()
+		} else {
+			RUNTIME
+				.lock()
+				.unwrap()
+				.block_on(self.send_request_async(req))
+		}
 	}
 }
