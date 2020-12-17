@@ -1373,7 +1373,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "built",
  "clap",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_api"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "base64 0.12.3",
  "chrono",
@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_config"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "dirs 2.0.2",
  "grin_wallet_util",
@@ -1438,7 +1438,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_controller"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "chrono",
  "easy-jsonrpc-mw",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_impls"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1503,7 +1503,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_libwallet"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "age",
  "base64 0.9.3",
@@ -1535,7 +1535,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_util"
-version = "5.0.0-beta.3"
+version = "5.0.0-beta.4"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
