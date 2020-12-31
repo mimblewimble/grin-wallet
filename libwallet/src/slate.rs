@@ -432,7 +432,7 @@ impl Slate {
 	}
 
 	/// Return the sum of public nonces
-	fn pub_nonce_sum(&self, secp: &secp::Secp256k1) -> Result<PublicKey, Error> {
+	pub fn pub_nonce_sum(&self, secp: &secp::Secp256k1) -> Result<PublicKey, Error> {
 		let pub_nonces: Vec<&PublicKey> = self
 			.participant_data
 			.iter()
