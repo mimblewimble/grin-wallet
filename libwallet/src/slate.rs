@@ -250,8 +250,21 @@ impl Slate {
 		tx
 	}
 
-	/// Create a new slate
+	/// Create a new slate with a plain kernel
 	pub fn blank(num_participants: u8, is_invoice: bool) -> Slate {
+		Slate::blank_with_kernel_features(num_participants, is_invoice, 0, None)
+	}
+
+	/// Create a new slate with custom kernel_feature and lock height
+	/// If a lock_height is set kernel_features will have to be either HeightLocked (2) or NoRecentDuplicate (3)
+	/// otherwise the value passed as lock_height will be ignored and a plain kernel will be created
+	/// Invalid arguments for kernel_features (>3) will be set to 0 (Plain)
+	pub fn blank_with_kernel_features(
+		num_participants: u8,
+		is_invoice: bool,
+		kernel_feat_param: u8,
+		lock_height_param: Option<u64>,
+	) -> Slate {
 		let np = match num_participants {
 			0 => 2,
 			n => n,
@@ -259,6 +272,20 @@ impl Slate {
 		let state = match is_invoice {
 			true => SlateState::Invoice1,
 			false => SlateState::Standard1,
+		};
+		let kernel_features = if kernel_feat_param > 3 {
+			0
+		} else {
+			kernel_feat_param
+		};
+		let is_height_locked =
+			lock_height_param.is_some() && (kernel_features == 2 || kernel_features == 3);
+		let kernel_feat_args = if is_height_locked {
+			Some(KernelFeaturesArgs {
+				lock_height: lock_height_param.unwrap(),
+			})
+		} else {
+			None
 		};
 		Slate {
 			num_participants: np, // assume 2 if not present
@@ -268,7 +295,7 @@ impl Slate {
 			amount: 0,
 			fee_fields: FeeFields::zero(),
 			ttl_cutoff_height: 0,
-			kernel_features: 0,
+			kernel_features: kernel_features,
 			offset: BlindingFactor::zero(),
 			participant_data: vec![],
 			version_info: VersionCompatInfo {
@@ -276,9 +303,10 @@ impl Slate {
 				block_header_version: GRIN_BLOCK_HEADER_VERSION,
 			},
 			payment_proof: None,
-			kernel_features_args: None,
+			kernel_features_args: kernel_feat_args,
 		}
 	}
+
 	/// Removes any signature data that isn't mine, for compacting
 	/// slates for a return journey
 	pub fn remove_other_sigdata<K>(
