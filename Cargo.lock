@@ -1171,7 +1171,8 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7d4699e5e13f250b3a5e8155e723d82980aa7cbdddccfd0105438292b185faa"
 dependencies = [
  "bytes",
  "easy-jsonrpc-mw",
@@ -1204,7 +1205,8 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f183d8ba97a9e3f48a54038953f2b0563c20ddd46003b9fbdcb1b7c66595bc09"
 dependencies = [
  "bit-vec",
  "bitflags 1.2.1",
@@ -1228,7 +1230,8 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8ad9a387fc2d862b5a5dedc3c474d1528b2d504111cd3d6260d0eab2494a6aa"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1255,7 +1258,8 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ddcbfe42b6b50b5ade1c692008341b35f9f41a2cb0518f47c5a250a6b142b24"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1277,7 +1281,8 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e278df0ee7552191410100e9b6f637777253abdf56dc4c309c3d7251e41342df"
 dependencies = [
  "bitflags 1.2.1",
  "bytes",
@@ -1299,7 +1304,8 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "802955fc1358f57a159bf1dfad5e1fdc39ea8a25a5b31de3eae4bdd0ce4c79d9"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1333,7 +1339,8 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3c958eee2cb0bed47dc0666cd1ea41f5c56e81ea8524a06ac10305b16ac4847"
 dependencies = [
  "byteorder",
  "croaring-mw",
@@ -1353,7 +1360,8 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "5.0.1"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.0.1#298accb6f382ab9e96c73ea3fae70ab88d2372a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "598bc1e70283916d111010730f7839c3bb0e8086c459025d410dd67e11c0223a"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
