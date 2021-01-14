@@ -359,7 +359,7 @@ pub trait OwnerRpc {
 	) -> Result<(bool, WalletInfo), ErrorKind>;
 
 	/**
-		;Networked version of [Owner::init_send_tx](struct.Owner.html#method.init_send_tx).
+	;Networked version of [Owner::init_send_tx](struct.Owner.html#method.init_send_tx).
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -418,7 +418,7 @@ pub trait OwnerRpc {
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
-		;Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
+	;Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
