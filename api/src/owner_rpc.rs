@@ -469,7 +469,7 @@ pub trait OwnerRpc {
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
-		 Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
+	;Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
