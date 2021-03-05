@@ -494,7 +494,7 @@ pub fn run_doctest_foreign(
 				.unwrap()
 		};
 		println!("INIT INVOICE SLATE");
-		// Spit out slate for input to finalize_invoice_tx
+		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 	}
 

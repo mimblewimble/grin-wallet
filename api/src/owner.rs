@@ -718,7 +718,7 @@ where
 	/// The slate created by this function will contain the amount, an output for the amount,
 	/// as well as round 1 of singature creation complete. The slate should then be send
 	/// to the payer, who should add their inputs and signature data and return the slate
-	/// via the [Foreign API's `finalize_invoice_tx`](struct.Foreign.html#method.finalize_invoice_tx) method.
+	/// via the [Foreign API's `finalize_tx`](struct.Foreign.html#method.finalize_tx) method.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
