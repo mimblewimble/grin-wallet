@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2021 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ macro_rules! arg_parse {
 			Ok(res) => res,
 			Err(e) => {
 				return Err(ErrorKind::ArgumentError(format!("{}", e)).into());
-				}
 			}
+		}
 	};
 }
 /// Simple error definition, just so we can return errors from all commands

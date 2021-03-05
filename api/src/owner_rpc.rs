@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2021 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2348,7 +2348,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// disable for now on windows
 		// TODO: Fix properly
 		#[cfg(not(target_os = "windows"))]
-			{
+		{
 			use grin_wallet_api::run_doctest_owner;
 			use serde_json;
 			use serde_json::Value;
@@ -2372,7 +2372,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 				$lock_tx,
 				$finalize_tx,
 				$payment_proof,
-				)
+			)
 			.unwrap()
 			.unwrap();
 
@@ -2382,7 +2382,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 					serde_json::to_string_pretty(&response).unwrap(),
 					serde_json::to_string_pretty(&expected_response).unwrap()
 				);
-				}
 			}
+		}
 	};
 }

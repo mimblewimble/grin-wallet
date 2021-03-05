@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2021 The Grin Developers
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -68,7 +68,7 @@ macro_rules! setup_proxy {
 		println!("{:?}", target);
 		if !target.exists() {
 			execute_command(&app, $test_dir, "wallet1", &$client1, arg_vec.clone())?;
-			}
+		}
 
 		// add wallet to proxy
 		let config1 = initial_setup_wallet($test_dir, "wallet1");
@@ -79,14 +79,14 @@ macro_rules! setup_proxy {
 			$client1.clone(),
 			"password",
 			"default",
-			)?;
+		)?;
 		let $mask1 = (&mask1_i).as_ref();
 		wallet_proxy.add_wallet(
 			"wallet1",
 			$client1.get_send_instance(),
 			$wallet1.clone(),
 			mask1_i.clone(),
-			);
+		);
 
 		// Create wallet 2, which will run a listener
 		let $client2 = LocalWalletClient::new("wallet2", wallet_proxy.tx.clone());
@@ -94,7 +94,7 @@ macro_rules! setup_proxy {
 		let target = std::path::PathBuf::from(format!("{}/wallet2/grin-wallet.toml", $test_dir));
 		if !target.exists() {
 			execute_command(&app, $test_dir, "wallet2", &$client2, arg_vec.clone())?;
-			}
+		}
 
 		let config2 = initial_setup_wallet($test_dir, "wallet2");
 		let wallet_config2 = config2.clone().members.unwrap().wallet;
@@ -104,21 +104,21 @@ macro_rules! setup_proxy {
 			$client2.clone(),
 			"password",
 			"default",
-			)?;
+		)?;
 		let $mask2 = (&mask2_i).as_ref();
 		wallet_proxy.add_wallet(
 			"wallet2",
 			$client2.get_send_instance(),
 			$wallet2.clone(),
 			mask2_i.clone(),
-			);
+		);
 
 		// Set the wallet proxy listener running
 		thread::spawn(move || {
 			if let Err(e) = wallet_proxy.run() {
 				error!("Wallet Proxy error: {}", e);
-				}
-			});
+			}
+		});
 	};
 }
 
