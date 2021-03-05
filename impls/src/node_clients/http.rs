@@ -21,6 +21,7 @@ use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
+use tokio::runtime::Handle;
 
 use crate::client_utils::{Client, RUNTIME};
 use crate::libwallet;
@@ -222,7 +223,7 @@ impl NodeClient for HTTPNodeClient {
 		trace!("Output query chunk size is: {}", chunk_size);
 
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
-
+		let api_secret = self.node_api_secret();
 		let task = async move {
 			let client = Client::new();
 
@@ -241,7 +242,7 @@ impl NodeClient for HTTPNodeClient {
 				tasks.push(client.post_async::<Request, Response>(
 					url.as_str(),
 					req,
-					self.node_api_secret(),
+					api_secret.clone(),
 				));
 			}
 
@@ -249,7 +250,14 @@ impl NodeClient for HTTPNodeClient {
 			task.try_collect().await
 		};
 
-		let res: Result<Vec<Response>, _> = RUNTIME.lock().unwrap().block_on(task);
+		let res: Result<Vec<Response>, _> = if Handle::try_current().is_ok() {
+			let rt = RUNTIME.clone();
+			std::thread::spawn(move || rt.lock().unwrap().block_on(task))
+				.join()
+				.unwrap()
+		} else {
+			RUNTIME.lock().unwrap().block_on(task)
+		};
 
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
