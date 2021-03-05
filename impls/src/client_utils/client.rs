@@ -16,19 +16,16 @@
 
 use crate::util::to_base64;
 use failure::{Backtrace, Context, Fail, ResultExt};
-use hyper::body;
-use hyper::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
-use hyper::{self, Body, Client as HyperClient, Request, Uri};
-use hyper_rustls;
-use hyper_timeout::TimeoutConnector;
 use lazy_static::lazy_static;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
+use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::runtime::{Builder, Handle, Runtime};
+use tokio::runtime::{Builder, Runtime};
 
 // Global Tokio runtime.
 // Needs a `Mutex` because `Runtime::block_on` requires mutable access.
@@ -103,19 +100,41 @@ impl From<Context<ErrorKind>> for Error {
 
 #[derive(Clone)]
 pub struct Client {
-	/// Whether to use socks proxy
-	pub use_socks: bool,
-	/// Proxy url/port
-	pub socks_proxy_addr: Option<SocketAddr>,
+	client: reqwest::Client,
 }
 
 impl Client {
 	/// New client
-	pub fn new() -> Self {
-		Client {
-			use_socks: false,
-			socks_proxy_addr: None,
+	pub fn new() -> Result<Self, Error> {
+		Self::build(None)
+	}
+
+	pub fn with_socks_proxy(socks_proxy_addr: SocketAddr) -> Result<Self, Error> {
+		Self::build(Some(socks_proxy_addr))
+	}
+
+	fn build(socks_proxy_addr: Option<SocketAddr>) -> Result<Self, Error> {
+		let mut headers = HeaderMap::new();
+		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
+		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+		let mut builder = ClientBuilder::new()
+			.timeout(Duration::from_secs(20))
+			.use_rustls_tls()
+			.default_headers(headers);
+
+		if let Some(s) = socks_proxy_addr {
+			let proxy = Proxy::all(&format!("socks5://{}:{}", s.ip(), s.port()))
+				.map_err(|e| ErrorKind::Internal(format!("Unable to create proxy: {}", e)))?;
+			builder = builder.proxy(proxy);
 		}
+
+		let client = builder
+			.build()
+			.map_err(|e| ErrorKind::Internal(format!("Unable to build client: {}", e)))?;
+
+		Ok(Client { client })
 	}
 
 	/// Helper function to easily issue a HTTP GET request against a given URL that
@@ -125,7 +144,7 @@ impl Client {
 	where
 		for<'de> T: Deserialize<'de>,
 	{
-		self.handle_request(self.build_request(url, "GET", api_secret, None)?)
+		self.handle_request(self.build_request(url, Method::GET, api_secret, None)?)
 	}
 
 	/// Helper function to easily issue an async HTTP GET request against a given
@@ -139,7 +158,7 @@ impl Client {
 	where
 		for<'de> T: Deserialize<'de> + Send + 'static,
 	{
-		self.handle_request_async(self.build_request(url, "GET", api_secret, None)?)
+		self.handle_request_async(self.build_request(url, Method::GET, api_secret, None)?)
 			.await
 	}
 
@@ -147,7 +166,7 @@ impl Client {
 	/// on a given URL that returns nothing. Handles request
 	/// building and response code checking.
 	pub fn _get_no_ret(&self, url: &str, api_secret: Option<String>) -> Result<(), Error> {
-		let req = self.build_request(url, "GET", api_secret, None)?;
+		let req = self.build_request(url, Method::GET, api_secret, None)?;
 		self.send_request(req)?;
 		Ok(())
 	}
@@ -228,32 +247,21 @@ impl Client {
 	fn build_request(
 		&self,
 		url: &str,
-		method: &str,
+		method: Method,
 		api_secret: Option<String>,
 		body: Option<String>,
-	) -> Result<Request<Body>, Error> {
-		let uri: Uri = url
-			.parse()
-			.map_err(|_| ErrorKind::RequestError(format!("Invalid url {}", url)))?;
-		let mut builder = Request::builder();
+	) -> Result<RequestBuilder, Error> {
+		let mut builder = self.client.request(method, url);
 		if let Some(api_secret) = api_secret {
 			let basic_auth = format!("Basic {}", to_base64(&format!("grin:{}", api_secret)));
 			builder = builder.header(AUTHORIZATION, basic_auth);
 		}
 
-		builder
-			.method(method)
-			.uri(uri)
-			.header(USER_AGENT, "grin-client")
-			.header(ACCEPT, "application/json")
-			.header(CONTENT_TYPE, "application/json")
-			.body(match body {
-				None => Body::empty(),
-				Some(json) => json.into(),
-			})
-			.map_err(|e| {
-				ErrorKind::RequestError(format!("Bad request {} {}: {}", method, url, e)).into()
-			})
+		if let Some(body) = body {
+			builder = builder.body(body);
+		}
+
+		Ok(builder)
 	}
 
 	pub fn create_post_request<IN>(
@@ -261,17 +269,17 @@ impl Client {
 		url: &str,
 		api_secret: Option<String>,
 		input: &IN,
-	) -> Result<Request<Body>, Error>
+	) -> Result<RequestBuilder, Error>
 	where
 		IN: Serialize,
 	{
 		let json = serde_json::to_string(input).context(ErrorKind::Internal(
 			"Could not serialize data to JSON".to_owned(),
 		))?;
-		self.build_request(url, "POST", api_secret, Some(json))
+		self.build_request(url, Method::POST, api_secret, Some(json))
 	}
 
-	fn handle_request<T>(&self, req: Request<Body>) -> Result<T, Error>
+	fn handle_request<T>(&self, req: RequestBuilder) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de>,
 	{
@@ -282,7 +290,7 @@ impl Client {
 		})
 	}
 
-	async fn handle_request_async<T>(&self, req: Request<Body>) -> Result<T, Error>
+	async fn handle_request_async<T>(&self, req: RequestBuilder) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de> + Send + 'static,
 	{
@@ -292,68 +300,22 @@ impl Client {
 		Ok(ser)
 	}
 
-	async fn send_request_async(&self, req: Request<Body>) -> Result<String, Error> {
-		let resp = if !self.use_socks {
-			let https = hyper_rustls::HttpsConnector::new();
-			let mut connector = TimeoutConnector::new(https);
-			connector.set_connect_timeout(Some(Duration::from_secs(20)));
-			connector.set_read_timeout(Some(Duration::from_secs(20)));
-			connector.set_write_timeout(Some(Duration::from_secs(20)));
-			let client = HyperClient::builder().build::<_, Body>(connector);
-
-			client.request(req).await
-		} else {
-			let addr = self.socks_proxy_addr.ok_or_else(|| {
-				ErrorKind::RequestError("Missing Socks proxy address".to_string())
-			})?;
-			let auth = format!("{}:{}", addr.ip(), addr.port());
-
-			let https = hyper_rustls::HttpsConnector::new();
-			let socks = hyper_socks2_mw::SocksConnector {
-				proxy_addr: hyper::Uri::builder()
-					.scheme("socks5")
-					.authority(auth.as_str())
-					.path_and_query("/")
-					.build()
-					.map_err(|_| {
-						ErrorKind::RequestError("Can't parse Socks proxy address".to_string())
-					})?,
-				auth: None,
-				connector: https,
-			};
-			let mut connector = TimeoutConnector::new(socks);
-			connector.set_connect_timeout(Some(Duration::from_secs(20)));
-			connector.set_read_timeout(Some(Duration::from_secs(20)));
-			connector.set_write_timeout(Some(Duration::from_secs(20)));
-			let client = HyperClient::builder().build::<_, Body>(connector);
-
-			client.request(req).await
-		};
-		let resp =
-			resp.map_err(|e| ErrorKind::RequestError(format!("Cannot make request: {}", e)))?;
-
-		let raw = body::to_bytes(resp)
+	async fn send_request_async(&self, req: RequestBuilder) -> Result<String, Error> {
+		let resp = req
+			.send()
 			.await
-			.map_err(|e| ErrorKind::RequestError(format!("Cannot read response body: {}", e)))?;
-
-		Ok(String::from_utf8_lossy(&raw).to_string())
+			.map_err(|e| ErrorKind::RequestError(format!("Cannot make request: {}", e)))?;
+		let text = resp
+			.text()
+			.await
+			.map_err(|e| ErrorKind::ResponseError(format!("Cannot parse response: {}", e)))?;
+		Ok(text)
 	}
 
-	pub fn send_request(&self, req: Request<Body>) -> Result<String, Error> {
-		// This client is currently used both outside and inside of a tokio runtime
-		// context. In the latter case we are not allowed to do a blocking call to
-		// our global runtime, which unfortunately means we have to spawn a new thread
-		if Handle::try_current().is_ok() {
-			let rt = RUNTIME.clone();
-			let client = self.clone();
-			std::thread::spawn(move || rt.lock().unwrap().block_on(client.send_request_async(req)))
-				.join()
-				.unwrap()
-		} else {
-			RUNTIME
-				.lock()
-				.unwrap()
-				.block_on(self.send_request_async(req))
-		}
+	pub fn send_request(&self, req: RequestBuilder) -> Result<String, Error> {
+		RUNTIME
+			.lock()
+			.unwrap()
+			.block_on(self.send_request_async(req))
 	}
 }
