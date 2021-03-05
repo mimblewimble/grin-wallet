@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2021 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -557,7 +557,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 			$blocks_to_mine,
 			$init_tx,
 			$init_invoice_tx,
-			)
+		)
 		.unwrap()
 		.unwrap();
 
@@ -566,7 +566,7 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 				"(left != right) \nleft: {}\nright: {}",
 				serde_json::to_string_pretty(&response).unwrap(),
 				serde_json::to_string_pretty(&expected_response).unwrap()
-				);
-			}
+			);
+		}
 	};
 }

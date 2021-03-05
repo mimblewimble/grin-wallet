@@ -1,4 +1,4 @@
-// Copyright 2019 The Grin Developers
+// Copyright 2021 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -479,7 +479,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		// don't run on windows CI, which gives very inconsistent results
 		if cfg!(windows) {
 			return;
-			}
+		}
 
 		// Set our local chain_type for testing.
 		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
@@ -497,7 +497,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None);
 		let mut wallet = Box::new(
 			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
-			)
+		)
 			as Box<
 				WalletInst<
 					'static,
@@ -505,7 +505,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 					HTTPNodeClient,
 					ExtKeychain,
 				>,
-				>;
+			>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);
