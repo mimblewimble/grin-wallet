@@ -114,7 +114,7 @@ pub trait ForeignRpc {
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<VersionedCoinbase, ErrorKind>;
 
 	/**
-		Networked version of [Foreign::receive_tx](struct.Foreign.html#method.receive_tx).
+	;Networked version of [Foreign::receive_tx](struct.Foreign.html#method.receive_tx).
 
 	# Json rpc example
 
