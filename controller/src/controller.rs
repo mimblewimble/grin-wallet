@@ -337,38 +337,17 @@ pub struct OwnerV3Helpers;
 impl OwnerV3Helpers {
 	/// Checks whether a request is to init the secure API
 	pub fn is_init_secure_api(val: &serde_json::Value) -> bool {
-		if let Some(m) = val["method"].as_str() {
-			match m {
-				"init_secure_api" => true,
-				_ => false,
-			}
-		} else {
-			false
-		}
+		matches!(val["method"].as_str(), Some("init_secure_api"))
 	}
 
 	/// Checks whether a request is to open the wallet
 	pub fn is_open_wallet(val: &serde_json::Value) -> bool {
-		if let Some(m) = val["method"].as_str() {
-			match m {
-				"open_wallet" => true,
-				_ => false,
-			}
-		} else {
-			false
-		}
+		matches!(val["method"].as_str(), Some("open_wallet"))
 	}
 
 	/// Checks whether a request is an encrypted request
 	pub fn is_encrypted_request(val: &serde_json::Value) -> bool {
-		if let Some(m) = val["method"].as_str() {
-			match m {
-				"encrypted_request_v3" => true,
-				_ => false,
-			}
-		} else {
-			false
-		}
+		matches!(val["method"].as_str(), Some("encrypted_request_v3"))
 	}
 
 	/// whether encryption is enabled
