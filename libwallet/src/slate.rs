@@ -273,11 +273,10 @@ impl Slate {
 			true => SlateState::Invoice1,
 			false => SlateState::Standard1,
 		};
-		let kernel_features = if kernel_feat_param > 3 {
-			0
-		} else {
-			kernel_feat_param
-		};
+		if kernel_feat_param > 3 {
+			panic!("Invalid value passed as kernel_feat_param to blank_with_kernel_features");
+		}
+		let kernel_features = kernel_feat_param;
 		let is_height_locked =
 			lock_height_param.is_some() && (kernel_features == 2 || kernel_features == 3);
 		let kernel_feat_args = if is_height_locked {
