@@ -258,7 +258,7 @@ impl Slate {
 	/// Create a new slate with custom kernel_feature and lock height
 	/// If a lock_height is set kernel_features will have to be either HeightLocked (2) or NoRecentDuplicate (3)
 	/// otherwise the value passed as lock_height will be ignored and a plain kernel will be created
-	/// Invalid arguments for kernel_features (>3) will be set to 0 (Plain)
+	/// Invalid arguments for kernel_features (>3) are not allowed and will make the function panic
 	pub fn blank_with_kernel_features(
 		num_participants: u8,
 		is_invoice: bool,
