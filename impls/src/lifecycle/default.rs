@@ -153,13 +153,18 @@ where
 			"File {} configured and created",
 			config_file_name.to_str().unwrap(),
 		);
+		let grin_path = PathBuf::from(self.data_dir.clone());
 
-		let mut api_secret_path = PathBuf::from(self.data_dir.clone());
+		let mut api_secret_path = grin_path.clone();
 		api_secret_path.push(PathBuf::from(config::NODE_FOREIGN_API_SECRET_FILE_NAME));
-		if !api_secret_path.exists() {
-			config::init_api_secret(&api_secret_path).unwrap();
-		} else {
+		let mut old_api_secret_path = grin_path.clone();
+		old_api_secret_path.push(PathBuf::from(config::NODE_FOREIGN_API_SECRET_FILE_NAME));
+		if api_secret_path.exists() {
 			config::check_api_secret(&api_secret_path).unwrap();
+		} else if old_api_secret_path.exists() {
+			config::check_api_secret(&old_api_secret_path).unwrap();
+		} else {
+			config::init_api_secret(&api_secret_path).unwrap();
 		}
 
 		Ok(())

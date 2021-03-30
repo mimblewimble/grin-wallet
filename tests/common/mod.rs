@@ -321,7 +321,7 @@ where
 	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
 	let mut wallet_config = config.clone().members.unwrap().wallet;
 	wallet_config.chain_type = None;
-	wallet_config.owner_api_secret_path = None;
+	wallet_config.wallet_owner_api_secret_path = None;
 	wallet_config.node_foreign_api_secret_path = None;
 	let tor_config = config.members.unwrap().tor.clone();
 	wallet_args::wallet_command(&args, wallet_config, tor_config, client.clone(), true, f)

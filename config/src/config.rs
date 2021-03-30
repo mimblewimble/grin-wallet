@@ -37,10 +37,14 @@ const WALLET_LOG_FILE_NAME: &str = "grin-wallet.log";
 const GRIN_HOME: &str = ".grin";
 /// Wallet data directory
 pub const GRIN_WALLET_DIR: &str = "wallet_data";
-/// Node API secret
+/// Node Foreign API secret
 pub const NODE_FOREIGN_API_SECRET_FILE_NAME: &str = ".node_foreign_api_secret";
-/// Owner API secret
-pub const OWNER_API_SECRET_FILE_NAME: &str = ".wallet_owner_api_secret";
+/// Wallet Owner API secret
+pub const WALLET_OWNER_API_SECRET_FILE_NAME: &str = ".wallet_owner_api_secret";
+/// Old Node Foreign API secret
+pub const OLD_NODE_FOREIGN_API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
+/// Old Wallet Owner API secret
+pub const OLD_WALLET_OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 fn get_grin_path(
 	chain_type: &global::ChainTypes,
@@ -118,17 +122,22 @@ fn check_api_secret_file(
 	chain_type: &global::ChainTypes,
 	data_path: Option<PathBuf>,
 	file_name: &str,
+	old_file_name: &str,
 ) -> Result<(), ConfigError> {
 	let grin_path = match data_path {
 		Some(p) => p,
 		None => get_grin_path(chain_type, false)?,
 	};
-	let mut api_secret_path = grin_path;
+	let mut api_secret_path = grin_path.clone();
 	api_secret_path.push(file_name);
-	if !api_secret_path.exists() {
-		init_api_secret(&api_secret_path)
-	} else {
+	let mut old_api_secret_path = grin_path.clone();
+	old_api_secret_path.push(old_file_name);
+	if api_secret_path.exists() {
 		check_api_secret(&api_secret_path)
+	} else if old_api_secret_path.exists() {
+		check_api_secret(&old_api_secret_path)
+	} else {
+		init_api_secret(&api_secret_path)
 	}
 }
 
@@ -179,8 +188,18 @@ pub fn initial_setup_wallet(
 		}
 	};
 
-	check_api_secret_file(chain_type, Some(path.clone()), OWNER_API_SECRET_FILE_NAME)?;
-	check_api_secret_file(chain_type, Some(path), NODE_FOREIGN_API_SECRET_FILE_NAME)?;
+	check_api_secret_file(
+		chain_type,
+		Some(path.clone()),
+		WALLET_OWNER_API_SECRET_FILE_NAME,
+		OLD_WALLET_OWNER_API_SECRET_FILE_NAME,
+	)?;
+	check_api_secret_file(
+		chain_type,
+		Some(path),
+		NODE_FOREIGN_API_SECRET_FILE_NAME,
+		OLD_NODE_FOREIGN_API_SECRET_FILE_NAME,
+	)?;
 	Ok(config)
 }
 
@@ -248,7 +267,7 @@ impl GlobalWalletConfig {
 		let mut file = File::open(self.config_file_path.as_mut().unwrap())?;
 		let mut contents = String::new();
 		file.read_to_string(&mut contents)?;
-		let fixed = GlobalWalletConfig::fix_warning_level(contents);
+		let fixed = GlobalWalletConfig::forwards_compatibility(contents);
 		let decoded: Result<GlobalWalletConfigMembers, toml::de::Error> = toml::from_str(&fixed);
 		match decoded {
 			Ok(gc) => {
@@ -269,9 +288,12 @@ impl GlobalWalletConfig {
 		self.members.as_mut().unwrap().wallet.data_file_dir =
 			wallet_path.to_str().unwrap().to_owned();
 		let mut secret_path = wallet_home.clone();
-		secret_path.push(OWNER_API_SECRET_FILE_NAME);
-		self.members.as_mut().unwrap().wallet.owner_api_secret_path =
-			Some(secret_path.to_str().unwrap().to_owned());
+		secret_path.push(WALLET_OWNER_API_SECRET_FILE_NAME);
+		self.members
+			.as_mut()
+			.unwrap()
+			.wallet
+			.wallet_owner_api_secret_path = Some(secret_path.to_str().unwrap().to_owned());
 		let mut node_secret_path = wallet_home.clone();
 		node_secret_path.push(NODE_FOREIGN_API_SECRET_FILE_NAME);
 		self.members
@@ -318,9 +340,14 @@ impl GlobalWalletConfig {
 		Ok(())
 	}
 
-	// For forwards compatibility old config needs `Warning` log level changed to standard log::Level `WARN`
-	fn fix_warning_level(conf: String) -> String {
+	// For forwards compatibility of old config
+	fn forwards_compatibility(conf: String) -> String {
+		// Needs `Warning` log level changed to standard log::Level `WARN`
 		conf.replace("Warning", "WARN")
+			// Needs `api_secret_path` toml key compatibility to the actual "wallet_owner_api_secret_path" field
+			.replace("\napi_secret_path", "\nwallet_owner_api_secret_path")
+			// Needs `foreign_api_secret_path` toml key compatibility to the actual "node_foreign_api_secret_path" field
+			.replace("\nnode_api_secret_path", "\nnode_foreign_api_secret_path")
 	}
 
 	// For backwards compatibility only first letter of log level should be capitalised.
@@ -331,4 +358,21 @@ impl GlobalWalletConfig {
 			.replace("WARN", "Warning")
 			.replace("ERROR", "Error")
 	}
+}
+
+#[test]
+fn test_fix_log_level() {
+	let config = "TRACE DEBUG INFO WARN ERROR".to_string();
+	let fixed_config = GlobalWalletConfig::fix_log_level(config);
+	assert_eq!(fixed_config, "Trace Debug Info Warning Error");
+}
+
+#[test]
+fn test_forwards_compatibility() {
+	let config = "Warning \nnode_api_secret_path \napi_secret_path".to_string();
+	let fixed_config = GlobalWalletConfig::forwards_compatibility(config);
+	assert_eq!(
+		fixed_config,
+		"WARN \nnode_foreign_api_secret_path \nwallet_owner_api_secret_path"
+	);
 }

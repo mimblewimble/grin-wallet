@@ -1045,7 +1045,7 @@ pub trait OwnerRpc {
 				"api_listen_interface": "127.0.0.1",
 				"api_listen_port": 3415,
 				"owner_api_listen_port": 3420,
-				"owner_api_secret_path": null,
+				"wallet_owner_api_secret_path": null,
 				"node_foreign_api_secret_path": null,
 				"check_node_api_http_addr": "http://127.0.0.1:3413",
 				"owner_api_include_foreign": false,

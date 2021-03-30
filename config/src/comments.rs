@@ -51,9 +51,9 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"owner_api_secret_path".to_string(),
+		"wallet_owner_api_secret_path".to_string(),
 		"
-#path of the secret token used by the Owner API to authenticate the calls
+#path of the secret token used by the Wallet Owner API to authenticate the calls
 #comment it to disable basic auth
 "
 		.to_string(),
@@ -66,10 +66,11 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"node_foreign_api_secret_path".to_string(),
 		"
-#location of the node api secret for basic auth on the Grin API
+#location of the Node Foreign API secret for basic auth on the Grin API
 "
 		.to_string(),
 	);
@@ -83,6 +84,7 @@ fn comments() -> HashMap<String, String> {
 "
 		.to_string(),
 	);
+
 	retval.insert(
 		"data_file_dir".to_string(),
 		"
