@@ -30,9 +30,9 @@ pub struct WalletConfig {
 	pub api_listen_port: u16,
 	/// The port this wallet's owner API will run on
 	pub owner_api_listen_port: Option<u16>,
-	/// Location of the secret for basic auth on the Owner API
+	/// Location of the Wallet Owner API secret for basic auth on the Grin Wallet API
 	pub wallet_owner_api_secret_path: Option<String>,
-	/// Location of the node foreign api secret for basic auth on the Grin API
+	/// Location of the Node Foreign API secret for basic auth on the Grin Node API
 	pub node_foreign_api_secret_path: Option<String>,
 	/// The api address of a running server node against which transaction inputs
 	/// will be checked during send
