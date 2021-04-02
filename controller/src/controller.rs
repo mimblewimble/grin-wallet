@@ -104,7 +104,7 @@ where
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 	warn!(
-		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
+		"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr
 	);
 	tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
