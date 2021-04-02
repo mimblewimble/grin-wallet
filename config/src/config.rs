@@ -288,14 +288,22 @@ impl GlobalWalletConfig {
 		self.members.as_mut().unwrap().wallet.data_file_dir =
 			wallet_path.to_str().unwrap().to_owned();
 		let mut secret_path = wallet_home.clone();
-		secret_path.push(WALLET_OWNER_API_SECRET_FILE_NAME);
+		secret_path.push(OLD_WALLET_OWNER_API_SECRET_FILE_NAME);
+		if !secret_path.exists() {
+			secret_path.parent().unwrap();
+			secret_path.push(WALLET_OWNER_API_SECRET_FILE_NAME);
+		}
 		self.members
 			.as_mut()
 			.unwrap()
 			.wallet
 			.wallet_owner_api_secret_path = Some(secret_path.to_str().unwrap().to_owned());
 		let mut node_secret_path = wallet_home.clone();
-		node_secret_path.push(NODE_FOREIGN_API_SECRET_FILE_NAME);
+		node_secret_path.push(OLD_NODE_FOREIGN_API_SECRET_FILE_NAME);
+		if !node_secret_path.exists() {
+			node_secret_path.parent().unwrap();
+			node_secret_path.push(NODE_FOREIGN_API_SECRET_FILE_NAME);
+		}
 		self.members
 			.as_mut()
 			.unwrap()

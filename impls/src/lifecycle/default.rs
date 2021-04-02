@@ -157,7 +157,7 @@ where
 		let mut api_secret_path = grin_path.clone();
 		api_secret_path.push(PathBuf::from(config::NODE_FOREIGN_API_SECRET_FILE_NAME));
 		let mut old_api_secret_path = grin_path.clone();
-		old_api_secret_path.push(PathBuf::from(config::NODE_FOREIGN_API_SECRET_FILE_NAME));
+		old_api_secret_path.push(PathBuf::from(config::OLD_NODE_FOREIGN_API_SECRET_FILE_NAME));
 		if api_secret_path.exists() {
 			config::check_api_secret(&api_secret_path).unwrap();
 		} else if old_api_secret_path.exists() {
