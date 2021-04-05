@@ -16,7 +16,6 @@
 //! around during an interactive wallet exchange
 
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
@@ -552,21 +551,18 @@ impl Slate {
 		// we could just overwrite the fee here (but we won't) due to the sig
 		let fee = tx_fee(tx.inputs().len(), tx.outputs().len(), tx.kernels().len());
 
-		if fee > tx.fee(2 * YEAR_HEIGHT) {
+		if fee > tx.fee() {
 			// apply fee mask past HF4
-			return Err(ErrorKind::Fee(format!(
-				"Fee Dispute Error: {}, {}",
-				tx.fee(2 * YEAR_HEIGHT),
-				fee,
-			))
-			.into());
+			return Err(
+				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(), fee,)).into(),
+			);
 		}
 
-		if fee > self.amount + self.fee_fields.fee(2 * YEAR_HEIGHT) {
+		if fee > self.amount + self.fee_fields.fee() {
 			let reason = format!(
 				"Rejected the transfer because transaction fee ({}) exceeds received amount ({}).",
 				amount_to_hr_string(fee, false),
-				amount_to_hr_string(self.amount + self.fee_fields.fee(2 * YEAR_HEIGHT), false)
+				amount_to_hr_string(self.amount + self.fee_fields.fee(), false)
 			);
 			info!("{}", reason);
 			return Err(ErrorKind::Fee(reason).into());
@@ -675,7 +671,7 @@ impl Slate {
 
 		// confirm the overall transaction is valid (including the updated kernel)
 		// accounting for tx weight limits
-		if let Err(e) = final_tx.validate(Weighting::AsTransaction, 0) {
+		if let Err(e) = final_tx.validate(Weighting::AsTransaction) {
 			error!("Error with final tx validation: {}", e);
 			Err(e.into())
 		} else {
