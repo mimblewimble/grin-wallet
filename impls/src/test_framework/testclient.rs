@@ -19,7 +19,6 @@
 use crate::api::{self, LocatedTxKernel};
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
-use crate::core::core::verifier_cache::LruVerifierCache;
 use crate::core::core::{Transaction, TxKernel};
 use crate::core::global::{set_local_chain_type, ChainTypes};
 use crate::core::pow;
@@ -32,7 +31,7 @@ use crate::util;
 use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
 use crate::util::secp::pedersen::Commitment;
-use crate::util::{Mutex, RwLock, ToHex};
+use crate::util::{Mutex, ToHex};
 use failure::ResultExt;
 use serde_json;
 use std::collections::HashMap;
@@ -95,14 +94,12 @@ where
 	pub fn new(chain_dir: &str) -> Self {
 		set_local_chain_type(ChainTypes::AutomatedTesting);
 		let genesis_block = pow::mine_genesis_block().unwrap();
-		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
 		let dir_name = format!("{}/.grin", chain_dir);
 		let c = Chain::init(
 			dir_name,
 			Arc::new(NoopAdapter {}),
 			genesis_block,
 			pow::verify_size,
-			verifier_cache,
 			false,
 		)
 		.unwrap();
