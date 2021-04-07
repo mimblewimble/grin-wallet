@@ -26,7 +26,6 @@ use self::keychain::ExtKeychain;
 use self::libwallet::WalletInst;
 use impls::test_framework::{LocalWalletClient, WalletProxy};
 use impls::{DefaultLCProvider, DefaultWalletImpl};
-use remove_dir_all::remove_dir_all;
 use std::sync::Arc;
 use util::secp::key::SecretKey;
 use util::{Mutex, ZeroingString};
@@ -77,7 +76,7 @@ macro_rules! open_wallet_and_add {
 pub fn clean_output_dir(test_dir: &str) {
 	let path = std::path::Path::new(test_dir);
 	if path.is_dir() {
-		remove_dir_all(test_dir).unwrap();
+		remove_dir_all::remove_dir_all(test_dir).unwrap();
 	}
 }
 
