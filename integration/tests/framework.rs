@@ -37,7 +37,7 @@ use std::{fs, thread, time};
 /// Just removes all results from previous runs
 pub fn clean_all_output(test_name_dir: &str) {
 	let target_dir = format!("target/tmp/{}", test_name_dir);
-	if let Err(e) = fs::remove_dir_all(target_dir) {
+	if let Err(e) = remove_dir_all::remove_dir_all(target_dir) {
 		println!("can't remove output from previous test :{}, may be ok", e);
 	}
 }

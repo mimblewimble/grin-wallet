@@ -39,4 +39,4 @@ grin_wallet_config = { path = "../config", version = "5.1.0-alpha.1" }
 
 [dev-dependencies]
 ed25519-dalek = "1.0.0-pre.4"
-remove_dir_all = "0.5.3"
+remove_dir_all = "0.7"
