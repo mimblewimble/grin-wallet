@@ -10,7 +10,7 @@ First run the Owner API:
 grin-wallet owner_api
 ```
 
-This sample doesn't use the authentication specified in the wallet's `.wallet_owner_api_secret` or `.owner_api_secret` for old wallet version, so before running the owner_api please ensure api authentication is commented out in `grin-wallet.toml`. Including the authentication token as part of the request is a function of your json-rpc client library of choice, so it's not included in the sample to make setup a bit simpler.
+This sample doesn't use the authentication specified in the wallet's `.wallet_owner_api_secret` or `owner_api_secret` for old wallet version, so before running the owner_api please ensure api authentication is commented out in `grin-wallet.toml`. Including the authentication token as part of the request is a function of your json-rpc client library of choice, so it's not included in the sample to make setup a bit simpler.
 
 ensure the client url in `src\index.js` is set correctly:
 

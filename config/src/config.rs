@@ -117,7 +117,17 @@ pub fn check_api_secret(api_secret_path: &PathBuf) -> Result<(), ConfigError> {
 	Ok(())
 }
 
-/// Check that the api secret file exists and is valid
+/// Check that the default/custom api secret file exists and is valid when the config file exists
+fn check_api_file_existing_config(api_secret: String) -> Result<(), ConfigError> {
+	let api_secret_path = PathBuf::from(&api_secret);
+	if !api_secret_path.exists() {
+		init_api_secret(&api_secret_path)
+	} else {
+		check_api_secret(&api_secret_path)
+	}
+}
+
+/// Check that the api secret file exists and is valid when the config file does not exist
 fn check_api_secret_file(
 	chain_type: &global::ChainTypes,
 	data_path: Option<PathBuf>,
@@ -152,6 +162,7 @@ pub fn initial_setup_wallet(
 			fs::create_dir_all(p)?;
 		}
 	}
+	let mut checking_api_file = false;
 	// Use config file if current directory if it exists, .grin home otherwise
 	let (path, config) = if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
 		let mut path = p.clone();
@@ -171,6 +182,7 @@ pub fn initial_setup_wallet(
 		// Return defaults if file doesn't exist
 		match config_path.clone().exists() {
 			false => {
+				checking_api_file = true;
 				let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 				default_config.config_file_path = Some(config_path);
 				// update paths relative to current dir
@@ -187,18 +199,21 @@ pub fn initial_setup_wallet(
 			}
 		}
 	};
-	check_api_secret_file(
-		chain_type,
-		Some(path.clone()),
-		WALLET_OWNER_API_SECRET_FILE_NAME,
-		OLD_WALLET_OWNER_API_SECRET_FILE_NAME,
-	)?;
-	check_api_secret_file(
-		chain_type,
-		Some(path),
-		NODE_FOREIGN_API_SECRET_FILE_NAME,
-		OLD_NODE_FOREIGN_API_SECRET_FILE_NAME,
-	)?;
+
+	if checking_api_file {
+		check_api_secret_file(
+			chain_type,
+			Some(path.clone()),
+			WALLET_OWNER_API_SECRET_FILE_NAME,
+			OLD_WALLET_OWNER_API_SECRET_FILE_NAME,
+		)?;
+		check_api_secret_file(
+			chain_type,
+			Some(path),
+			NODE_FOREIGN_API_SECRET_FILE_NAME,
+			OLD_NODE_FOREIGN_API_SECRET_FILE_NAME,
+		)?;
+	}
 	Ok(config)
 }
 
@@ -271,6 +286,26 @@ impl GlobalWalletConfig {
 		match decoded {
 			Ok(gc) => {
 				self.members = Some(gc);
+				if let Some(p) = self
+					.members
+					.as_mut()
+					.unwrap()
+					.wallet
+					.node_foreign_api_secret_path
+					.clone()
+				{
+					check_api_file_existing_config(p)?;
+				}
+				if let Some(p) = self
+					.members
+					.as_mut()
+					.unwrap()
+					.wallet
+					.wallet_owner_api_secret_path
+					.clone()
+				{
+					check_api_file_existing_config(p)?;
+				}
 				Ok(self)
 			}
 			Err(e) => Err(ConfigError::ParseError(
