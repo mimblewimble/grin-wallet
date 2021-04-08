@@ -264,7 +264,7 @@ mod tests {
 	use crate::util::{self, secp, static_secp_instance};
 
 	pub fn clean_output_dir(test_dir: &str) {
-		let _ = fs::remove_dir_all(test_dir);
+		let _ = remove_dir_all::remove_dir_all(test_dir);
 	}
 
 	pub fn setup(test_dir: &str) {
