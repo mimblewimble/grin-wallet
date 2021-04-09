@@ -378,7 +378,7 @@ impl Slate {
 		}
 	}
 
-	// This is the msg that we will sign as part of the tx kernel.
+	/// This is the msg that we will sign as part of the tx kernel.
 	pub fn msg_to_sign(&self) -> Result<secp::Message, Error> {
 		let msg = self.kernel_features()?.kernel_sig_msg()?;
 		Ok(msg)
