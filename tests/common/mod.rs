@@ -191,7 +191,7 @@ pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> GlobalWalletCo
 	let _ = fs::create_dir_all(current_dir.clone());
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
-	GlobalWalletConfig::new(config_file_name.to_str().unwrap()).unwrap()
+	GlobalWalletConfig::new(config_file_name.to_str().unwrap(), false).unwrap()
 }
 
 fn get_wallet_subcommand<'a>(

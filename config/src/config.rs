@@ -162,12 +162,9 @@ pub fn initial_setup_wallet(
 			fs::create_dir_all(p)?;
 		}
 	}
-	let mut checking_api_file = false;
 	// Use config file if current directory if it exists, .grin home otherwise
-	let (path, config) = if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
-		let mut path = p.clone();
-		path.pop();
-		(path, GlobalWalletConfig::new(p.to_str().unwrap())?)
+	let config = if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
+		GlobalWalletConfig::new(p.to_str().unwrap(), true)?
 	} else {
 		// Check if grin dir exists
 		let grin_path = match data_path {
@@ -182,38 +179,27 @@ pub fn initial_setup_wallet(
 		// Return defaults if file doesn't exist
 		match config_path.clone().exists() {
 			false => {
-				checking_api_file = true;
 				let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 				default_config.config_file_path = Some(config_path);
 				// update paths relative to current dir
 				default_config.update_paths(&grin_path);
-				(grin_path, default_config)
+				check_api_secret_file(
+					chain_type,
+					Some(grin_path.clone()),
+					WALLET_OWNER_API_SECRET_FILE_NAME,
+					OLD_WALLET_OWNER_API_SECRET_FILE_NAME,
+				)?;
+				check_api_secret_file(
+					chain_type,
+					Some(grin_path.clone()),
+					NODE_FOREIGN_API_SECRET_FILE_NAME,
+					OLD_NODE_FOREIGN_API_SECRET_FILE_NAME,
+				)?;
+				default_config
 			}
-			true => {
-				let mut path = config_path.clone();
-				path.pop();
-				(
-					path,
-					GlobalWalletConfig::new(config_path.to_str().unwrap())?,
-				)
-			}
+			true => GlobalWalletConfig::new(config_path.to_str().unwrap(), true)?,
 		}
 	};
-
-	if checking_api_file {
-		check_api_secret_file(
-			chain_type,
-			Some(path.clone()),
-			WALLET_OWNER_API_SECRET_FILE_NAME,
-			OLD_WALLET_OWNER_API_SECRET_FILE_NAME,
-		)?;
-		check_api_secret_file(
-			chain_type,
-			Some(path),
-			NODE_FOREIGN_API_SECRET_FILE_NAME,
-			OLD_NODE_FOREIGN_API_SECRET_FILE_NAME,
-		)?;
-	}
 	Ok(config)
 }
 
@@ -259,7 +245,7 @@ impl GlobalWalletConfig {
 		defaults_conf
 	}
 	/// Requires the path to a config file
-	pub fn new(file_path: &str) -> Result<GlobalWalletConfig, ConfigError> {
+	pub fn new(file_path: &str, check_api_path: bool) -> Result<GlobalWalletConfig, ConfigError> {
 		let mut return_value = GlobalWalletConfig::default();
 		return_value.config_file_path = Some(PathBuf::from(&file_path));
 
@@ -273,11 +259,11 @@ impl GlobalWalletConfig {
 
 		// Try to parse the config file if it exists, explode if it does exist but
 		// something's wrong with it
-		return_value.read_config()
+		return_value.read_config(check_api_path)
 	}
 
 	/// Read config
-	fn read_config(mut self) -> Result<GlobalWalletConfig, ConfigError> {
+	fn read_config(mut self, check_api_path: bool) -> Result<GlobalWalletConfig, ConfigError> {
 		let mut file = File::open(self.config_file_path.as_mut().unwrap())?;
 		let mut contents = String::new();
 		file.read_to_string(&mut contents)?;
@@ -286,25 +272,14 @@ impl GlobalWalletConfig {
 		match decoded {
 			Ok(gc) => {
 				self.members = Some(gc);
-				if let Some(p) = self
-					.members
-					.as_mut()
-					.unwrap()
-					.wallet
-					.node_foreign_api_secret_path
-					.clone()
-				{
-					check_api_file_existing_config(p)?;
-				}
-				if let Some(p) = self
-					.members
-					.as_mut()
-					.unwrap()
-					.wallet
-					.wallet_owner_api_secret_path
-					.clone()
-				{
-					check_api_file_existing_config(p)?;
+				if check_api_path {
+					let wallet_config = self.members.as_mut().unwrap().wallet.clone();
+					if let Some(p) = wallet_config.node_foreign_api_secret_path {
+						check_api_file_existing_config(p)?;
+					}
+					if let Some(p) = wallet_config.wallet_owner_api_secret_path {
+						check_api_file_existing_config(p)?;
+					}
 				}
 				Ok(self)
 			}
