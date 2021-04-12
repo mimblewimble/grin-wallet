@@ -74,7 +74,7 @@ impl Default for WalletConfig {
 			tls_certificate_key: None,
 			dark_background_color_scheme: Some(true),
 			keybase_notify_ttl: Some(1440),
-			accept_fee_base: None,
+			accept_fee_base: Some(WalletConfig::default_accept_fee_base()),
 		}
 	}
 }
@@ -90,7 +90,7 @@ impl WalletConfig {
 		3420
 	}
 
-	/// Default listener port
+	/// Default fee base
 	pub fn default_accept_fee_base() -> u64 {
 		500_000
 	}
@@ -109,7 +109,7 @@ impl WalletConfig {
 	/// Accept fee base
 	pub fn accept_fee_base(&self) -> u64 {
 		self.accept_fee_base
-			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())
+			.unwrap_or_else(WalletConfig::default_accept_fee_base)
 	}
 }
 /// Error type wrapping config errors.
