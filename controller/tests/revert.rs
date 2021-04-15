@@ -133,7 +133,7 @@ fn revert(
 		assert_eq!(info.amount_currently_spendable, (bh - cm) * reward);
 		assert_eq!(info.amount_reverted, 0);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
 		assert_eq!(info.total, c);
 		assert_eq!(txs.len(), bh as usize);
@@ -148,7 +148,7 @@ fn revert(
 		assert_eq!(info.amount_currently_spendable, 0);
 		assert_eq!(info.amount_reverted, 0);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 0);
 		Ok(())
 	})?;
@@ -188,7 +188,7 @@ fn revert(
 		assert_eq!(info.amount_currently_spendable, 0);
 		assert_eq!(info.amount_reverted, 0);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
@@ -230,11 +230,12 @@ fn revert(
 		assert_eq!(info.amount_currently_spendable, sent);
 		assert_eq!(info.amount_reverted, 0);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
 		assert!(tx.confirmed);
+		assert!(tx.confirmed_height.is_some());
 		assert!(tx.kernel_excess.is_some());
 		assert!(tx.reverted_after.is_none());
 		Ok(())
@@ -266,11 +267,12 @@ fn revert(
 		assert_eq!(info.amount_currently_spendable, 0);
 		assert_eq!(info.amount_reverted, sent);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReverted);
 		assert!(!tx.confirmed);
+		assert!(tx.confirmed_height.is_none());
 		assert!(tx.reverted_after.is_some());
 		Ok(())
 	})?;
@@ -300,11 +302,12 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		assert_eq!(info.amount_currently_spendable, sent);
 		assert_eq!(info.amount_reverted, 0);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
 		assert!(tx.confirmed);
+		assert!(tx.confirmed_height.is_some());
 		assert!(tx.reverted_after.is_none());
 		Ok(())
 	})?;
@@ -329,7 +332,7 @@ fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		assert_eq!(info.amount_currently_spendable, 0);
 		assert_eq!(info.amount_reverted, sent);
 
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		let tx = &txs[0];
 
@@ -345,7 +348,7 @@ fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		assert_eq!(info.amount_reverted, 0);
 
 		// Check updated tx log
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceivedCancelled);

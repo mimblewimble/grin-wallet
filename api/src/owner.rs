@@ -446,6 +446,8 @@ where
 	/// the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
 	/// the given [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) uuid.
+	/// * `confirmed_height` - If `Some(block_height)`, only return transactions confirmed in
+	/// the given block height.
 	///
 	/// # Returns
 	/// * `(bool, Vec<TxLogEntry)` - A tuple:
@@ -464,9 +466,10 @@ where
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
+	/// let confirmed_height = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id, confirmed_height);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
 	///     //...
@@ -479,6 +482,7 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		confirmed_height: Option<u64>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let tx = {
 			let t = self.status_tx.lock();
@@ -495,6 +499,7 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
+			confirmed_height,
 		)?;
 		if self.doctest_mode {
 			res.1 = res
@@ -1158,9 +1163,10 @@ where
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
+	/// let confirmed_height = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id, confirmed_height);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
 	///     let stored_tx = api_owner.get_stored_tx(None, Some(tx_log_entries[0].id), None).unwrap();

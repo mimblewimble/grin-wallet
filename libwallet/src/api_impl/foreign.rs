@@ -84,6 +84,7 @@ where
 		Some(ret_slate.id),
 		Some(&parent_key_id),
 		use_test_rng,
+		None,
 	)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxReceived {

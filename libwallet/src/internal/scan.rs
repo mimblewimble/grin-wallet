@@ -233,6 +233,7 @@ where
 		};
 		let mut t = TxLogEntry::new(parent_key_id.clone(), entry_type, log_id);
 		t.confirmed = true;
+		t.confirmed_height = Some(output.height);
 		t.amount_credited = output.value;
 		t.num_outputs = 1;
 		t.update_confirmation_ts();
@@ -296,6 +297,7 @@ where
 			None,
 			Some(&parent_key_id),
 			false,
+			None,
 		)?;
 		if !entries.is_empty() {
 			let mut entry = entries[0].clone();
@@ -378,6 +380,7 @@ where
 		let matched_out = wallet_outputs.iter().find(|wo| wo.commit == deffo.commit);
 		match matched_out {
 			Some(s) => {
+				if s.output.status == OutputStatus::Unspent {}
 				if s.output.status == OutputStatus::Spent {
 					accidental_spend_outs.push((s.output.clone(), deffo.clone()));
 				}
