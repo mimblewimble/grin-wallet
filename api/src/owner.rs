@@ -446,7 +446,7 @@ where
 	/// the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
 	/// the given [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) uuid.
-	/// * `confirmed_height` - If `Some(block_height)`, only return transactions confirmed in
+	/// * `confirmed_height` - If `Some(block_height)`, only return transactions confirmed at
 	/// the given block height.
 	///
 	/// # Returns

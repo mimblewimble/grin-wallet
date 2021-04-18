@@ -1301,10 +1301,10 @@ where
 	};
 
 	for tx in txs.iter_mut() {
-		if tx.confirmed {
+		if tx.confirmed && (tx.confirmed_height.is_some() || tx.kernel_excess.is_none()) {
 			continue;
 		}
-		if tx.amount_debited != 0 && tx.amount_credited != 0 {
+		if tx.amount_debited != 0 && tx.amount_credited != 0 && tx.confirmed_height.is_some() {
 			continue;
 		}
 		if let Some(e) = tx.kernel_excess {

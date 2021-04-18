@@ -380,7 +380,6 @@ where
 		let matched_out = wallet_outputs.iter().find(|wo| wo.commit == deffo.commit);
 		match matched_out {
 			Some(s) => {
-				if s.output.status == OutputStatus::Unspent {}
 				if s.output.status == OutputStatus::Spent {
 					accidental_spend_outs.push((s.output.clone(), deffo.clone()));
 				}

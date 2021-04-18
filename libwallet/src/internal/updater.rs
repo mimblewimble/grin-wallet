@@ -124,7 +124,7 @@ where
 			};
 			let f_outstanding = match outstanding_only {
 				true => {
-					!tx_entry.confirmed
+					(!tx_entry.confirmed || tx_entry.confirmed_height.is_none())
 						&& (tx_entry.tx_type == TxLogEntryType::TxReceived
 							|| tx_entry.tx_type == TxLogEntryType::TxSent
 							|| tx_entry.tx_type == TxLogEntryType::TxReverted)

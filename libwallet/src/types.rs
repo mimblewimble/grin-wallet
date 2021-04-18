@@ -808,7 +808,7 @@ pub struct TxLogEntry {
 	/// confirmed (In all cases either all outputs involved in a tx should be
 	/// confirmed, or none should be; otherwise there's a deeper problem)
 	pub confirmed: bool,
-	/// Return the confirmed block_height, if not confirmed return "False"
+	/// confirmed block height of the transaction
 	pub confirmed_height: Option<u64>,
 	/// number of inputs involved in TX
 	pub num_inputs: usize,
