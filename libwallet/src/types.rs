@@ -554,6 +554,8 @@ pub struct Context {
 	pub initial_sec_key: SecretKey,
 	/// as above
 	pub initial_sec_nonce: SecretKey,
+	/// Secret key (of which public is shared, atomic swap only)
+	pub sec_atomic: Option<SecretKey>,
 	/// store my outputs + amounts between invocations
 	/// Id, mmr_index (if known), amount
 	pub output_ids: Vec<(Identifier, Option<u64>, u64)>,
@@ -573,6 +575,8 @@ pub struct Context {
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
+	/// For multisig only, store the partial commitment to the output value
+	pub partial_commit: Option<pedersen::Commitment>,
 }
 
 impl Context {
@@ -615,6 +619,7 @@ impl Context {
 			sec_nonce: sec_nonce.clone(),
 			initial_sec_key: sec_key,
 			initial_sec_nonce: sec_nonce,
+			sec_atomic: None,
 			input_ids: vec![],
 			output_ids: vec![],
 			amount: 0,
@@ -622,6 +627,7 @@ impl Context {
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
+			partial_commit: None,
 		}
 	}
 }
@@ -661,6 +667,32 @@ impl Context {
 			PublicKey::from_secret_key(secp, &self.sec_key).unwrap(),
 			PublicKey::from_secret_key(secp, &self.sec_nonce).unwrap(),
 		)
+	}
+
+	/// Create an atomic secret key
+	pub fn create_atomic_secret(&mut self, secret: SecretKey) {
+		self.sec_atomic = Some(secret);
+	}
+
+	/// Set an atomic secret key
+	pub fn set_atomic_secret(&mut self, secret: SecretKey) {
+		self.sec_atomic = Some(secret);
+	}
+
+	/// Get the atomic secret key
+	pub fn get_secret_atomic_secret(&self) -> Option<&SecretKey> {
+		match &self.sec_atomic {
+			Some(n) => Some(n),
+			None => None,
+		}
+	}
+
+	/// Get the atomic public key
+	pub fn get_public_atomic(&self, secp: &Secp256k1) -> Result<Option<PublicKey>, Error> {
+		match &self.sec_atomic {
+			Some(a) => Ok(Some(PublicKey::from_secret_key(secp, a)?)),
+			None => Ok(None),
+		}
 	}
 }
 

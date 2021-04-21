@@ -147,6 +147,22 @@ pub enum SlateStateV5 {
 	Invoice2,
 	/// Invoice flow, ready for tranasction posting
 	Invoice3,
+	/// Multisig flow, freshly init
+	Multisig1,
+	///Multisig flow, step 1 proof build
+	Multisig2,
+	/// Multisig flow, step 2 proof build
+	Multisig3,
+	/// Multisig flow, final proof step
+	Multisig4,
+	/// Atomic flow, freshly init
+	Atomic1,
+	///Atomic flow, return journey
+	Atomic2,
+	/// Atomic flow, partial signature from initiator
+	Atomic3,
+	/// Atomic flow, ready for tranasction posting
+	Atomic4,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -172,11 +188,21 @@ pub struct ParticipantDataV5 {
 	/// Public key corresponding to private nonce
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub nonce: PublicKey,
+	/// Public key corresponding to atomic secret
+	#[serde(default = "default_atomic_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(with = "secp_ser::option_pubkey_serde")]
+	pub atomic: Option<PublicKey>,
 	/// Public partial signature
 	#[serde(default = "default_part_sig_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part: Option<Signature>,
+	/// Public partial commitment to multisig output value
+	#[serde(default = "default_part_com_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(with = "secp_ser::option_commitment_serde")]
+	pub part_commit: Option<Commitment>,
 	/// Tau X key for shared outputs
 	#[serde(default = "default_tau_x_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -193,7 +219,15 @@ pub struct ParticipantDataV5 {
 	pub tau_two: Option<PublicKey>,
 }
 
+fn default_atomic_none() -> Option<PublicKey> {
+	None
+}
+
 fn default_part_sig_none() -> Option<Signature> {
+	None
+}
+
+fn default_part_com_none() -> Option<Commitment> {
 	None
 }
 

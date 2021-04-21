@@ -42,6 +42,14 @@ impl Writeable for SlateStateV5 {
 			SlateStateV5::Invoice1 => 4,
 			SlateStateV5::Invoice2 => 5,
 			SlateStateV5::Invoice3 => 6,
+			SlateStateV5::Multisig1 => 7,
+			SlateStateV5::Multisig2 => 8,
+			SlateStateV5::Multisig3 => 9,
+			SlateStateV5::Multisig4 => 10,
+			SlateStateV5::Atomic1 => 11,
+			SlateStateV5::Atomic2 => 12,
+			SlateStateV5::Atomic3 => 13,
+			SlateStateV5::Atomic4 => 14,
 		};
 		writer.write_u8(b)
 	}
@@ -58,6 +66,14 @@ impl Readable for SlateStateV5 {
 			4 => SlateStateV5::Invoice1,
 			5 => SlateStateV5::Invoice2,
 			6 => SlateStateV5::Invoice3,
+			7 => SlateStateV5::Multisig1,
+			8 => SlateStateV5::Multisig2,
+			9 => SlateStateV5::Multisig3,
+			10 => SlateStateV5::Multisig4,
+			11 => SlateStateV5::Atomic1,
+			12 => SlateStateV5::Atomic2,
+			13 => SlateStateV5::Atomic3,
+			14 => SlateStateV5::Atomic4,
 			_ => SlateStateV5::Unknown,
 		};
 		Ok(sta)
@@ -185,24 +201,38 @@ impl<'a> Writeable for SigsWrapRef<'a> {
 		for s in self.0.iter() {
 			//0 means part sig is not yet included
 			//1 bit set means part sig included
-			//2 bit set means tau_x included
-			//4 bit set means tau_one included
-			//8 bit set means tau_two included
+			//2 bit set means atomic included
+			//4 bit set means part commit included
+			//8 bit set means tau_x included
+			//16 bit set means tau_one included
+			//32 bit set means tau_two included
 			let mut optional = s.part.is_some() as u8;
-			if s.tau_x.is_some() {
+			if s.atomic.is_some() {
 				optional |= 2;
 			}
-			if s.tau_one.is_some() {
+			if s.part_commit.is_some() {
 				optional |= 4;
 			}
-			if s.tau_two.is_some() {
+			if s.tau_x.is_some() {
 				optional |= 8;
+			}
+			if s.tau_one.is_some() {
+				optional |= 16;
+			}
+			if s.tau_two.is_some() {
+				optional |= 32;
 			}
 			writer.write_u8(optional)?;
 			s.xs.write(writer)?;
 			s.nonce.write(writer)?;
+			if let Some(a) = s.atomic {
+				a.write(writer)?;
+			}
 			if let Some(s) = s.part {
 				s.write(writer)?;
+			}
+			if let Some(c) = s.part_commit {
+				c.write(writer)?;
 			}
 			if let Some(tx) = s.tau_x.as_ref() {
 				writer.write_fixed_bytes(tx.0)?;
@@ -225,15 +255,25 @@ impl Readable for SigsWrap {
 			let mut ret = vec![];
 			for _ in 0..sigs_len as usize {
 				let has_optional = reader.read_u8()?;
+				let has_atomic = has_optional & 2 != 0;
 				let has_partial = has_optional & 1 != 0;
-				let has_tau_x = has_optional & 2 != 0;
-				let has_tau_one = has_optional & 4 != 0;
-				let has_tau_two = has_optional & 8 != 0;
+				let has_part_com = has_optional & 4 != 0;
+				let has_tau_x = has_optional & 8 != 0;
+				let has_tau_one = has_optional & 16 != 0;
+				let has_tau_two = has_optional & 32 != 0;
 				let c = ParticipantDataV5 {
 					xs: PublicKey::read(reader)?,
 					nonce: PublicKey::read(reader)?,
+					atomic: match has_atomic {
+						true => Some(PublicKey::read(reader)?),
+						false => None,
+					},
 					part: match has_partial {
 						true => Some(Signature::read(reader)?),
+						false => None,
+					},
+					part_commit: match has_part_com {
+						true => Some(Commitment::read(reader)?),
 						false => None,
 					},
 					tau_x: match has_tau_x {
@@ -550,7 +590,9 @@ fn slate_v5_serialize_deserialize() {
 	let part = ParticipantDataV5 {
 		xs,
 		nonce,
+		atomic: None,
 		part: None,
+		part_commit: None,
 		tau_x: None,
 		tau_one: None,
 		tau_two: None,
@@ -558,7 +600,9 @@ fn slate_v5_serialize_deserialize() {
 	let part2 = ParticipantDataV5 {
 		xs,
 		nonce,
+		atomic: None,
 		part: Some(Signature::from_raw_data(&[11; 64]).unwrap()),
+		part_commit: None,
 		tau_x: None,
 		tau_one: None,
 		tau_two: None,
