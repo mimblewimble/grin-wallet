@@ -24,7 +24,7 @@ use crate::impls::SlateGetter as _;
 use crate::keychain;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
+	SlatepackAddress, Slatepacker, SlatepackerArgs, TxFlow, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -274,7 +274,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slate = Slate::blank(2, false);
+	let mut slate = Slate::blank(2, TxFlow::Standard);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -495,7 +495,7 @@ where
 		Some(s) => s,
 		None => {
 			// try and parse directly from input_slatepack_message
-			let mut slate = Slate::blank(2, false);
+			let mut slate = Slate::blank(2, TxFlow::Standard);
 			match message {
 				Some(message) => {
 					controller::owner_single_use(
@@ -785,7 +785,7 @@ where
 {
 	let issue_args = args.issue_args.clone();
 
-	let mut slate = Slate::blank(2, false);
+	let mut slate = Slate::blank(2, TxFlow::Standard);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		slate = api.issue_invoice_tx(m, issue_args)?;
 		Ok(())

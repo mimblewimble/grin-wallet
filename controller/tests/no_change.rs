@@ -21,7 +21,7 @@ use grin_wallet_util::grin_core as core;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, TxFlow};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -76,7 +76,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let fee = core::libtx::tx_fee(1, 1, 1);
 
 	// send a single block's worth of transactions with minimal strategy
-	let mut slate = Slate::blank(2, false);
+	let mut slate = Slate::blank(2, TxFlow::Standard);
 	let mut stored_excess = None;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let args = InitTxArgs {

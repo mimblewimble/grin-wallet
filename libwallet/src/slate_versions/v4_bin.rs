@@ -488,11 +488,11 @@ impl Readable for SlateV4Bin {
 fn slate_v4_serialize_deserialize() {
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
-	use crate::Slate;
+	use crate::{Slate, TxFlow};
 	use grin_wallet_util::grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_wallet_util::grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
 	set_local_chain_type(ChainTypes::Mainnet);
-	let slate = Slate::blank(1, false);
+	let slate = Slate::blank(1, TxFlow::Standard);
 	let mut v4 = SlateV4::from(slate);
 
 	let keychain = ExtKeychain::from_random_seed(true).unwrap();

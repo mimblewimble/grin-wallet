@@ -27,8 +27,8 @@ use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, Status
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxLogEntry, WalletInfo,
-	WalletInst, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxFlow, TxLogEntry,
+	WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
@@ -801,7 +801,7 @@ where
 	///
 	/// // . . .
 	/// // The slate has been recieved from the invoicer, somehow
-	/// # let slate = Slate::blank(2, true);
+	/// # let slate = Slate::blank(2, TxFlow::Invoice);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: slate.amount,
@@ -2338,7 +2338,7 @@ pub fn try_slatepack_sync_workflow(
 			return Ok(None);
 		}
 	}
-	let mut ret_slate = Slate::blank(2, false);
+	let mut ret_slate = Slate::blank(2, TxFlow::Standard);
 	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_to_finalize)
 	{

@@ -20,7 +20,7 @@ extern crate grin_wallet_util;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, Slate};
+use libwallet::{InitTxArgs, Slate, TxFlow};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -84,7 +84,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 
 	println!("Public address is: {:?}", address);
 	let amount = 60_000_000_000;
-	let mut slate = Slate::blank(1, false);
+	let mut slate = Slate::blank(1, TxFlow::Standard);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {

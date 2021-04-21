@@ -25,7 +25,7 @@ use crate::util::{OnionV3Address, OnionV3AddressError};
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::{PaymentInfo, Slate, SlateState};
+use crate::slate::{PaymentInfo, Slate, SlateState, TxFlow};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
@@ -471,7 +471,7 @@ where
 	let mut slate = tx::new_tx_slate(
 		&mut *w,
 		args.amount,
-		false,
+		TxFlow::Standard,
 		2,
 		use_test_rng,
 		args.ttl_blocks,
@@ -582,7 +582,7 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, true, 2, use_test_rng, None)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, TxFlow::Invoice, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let context = tx::add_output_to_slate(
 		&mut *w,
@@ -932,8 +932,14 @@ where
 		// and insert into original context
 
 		let current_height = w.w2n_client().get_chain_tip()?.0;
-		let mut temp_sl =
-			tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
+		let mut temp_sl = tx::new_tx_slate(
+			&mut *w,
+			context.amount,
+			TxFlow::Standard,
+			2,
+			false,
+			args.ttl_blocks,
+		)?;
 		let temp_context = selection::build_send_tx(
 			w,
 			&keychain,
@@ -1049,7 +1055,7 @@ where
 	let tx_res = w.get_stored_tx(&format!("{}", id))?;
 	match tx_res {
 		Some(tx) => {
-			let mut slate = Slate::blank(2, false);
+			let mut slate = Slate::blank(2, TxFlow::Standard);
 			slate.tx = Some(tx.clone());
 			slate.fee_fields = tx.aggregate_fee_fields().unwrap(); // apply fee mask past HF4
 			slate.id = id;

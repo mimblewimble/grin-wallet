@@ -21,7 +21,7 @@ use grin_wallet_libwallet as libwallet;
 use grin_wallet_util::grin_core as core;
 
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, SlateState};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, SlateState, TxFlow};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -95,7 +95,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	let mut slate = Slate::blank(2, true);
+	let mut slate = Slate::blank(2, TxFlow::Invoice);
 
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		// Wallet 2 inititates an invoice transaction, requesting payment

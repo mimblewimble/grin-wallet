@@ -25,7 +25,7 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
-use crate::slate::Slate;
+use crate::slate::{Slate, TxFlow};
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
 use crate::util::OnionV3Address;
 use crate::InitTxArgs;
@@ -47,7 +47,7 @@ lazy_static! {
 pub fn new_tx_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
-	is_invoice: bool,
+	tx_flow: TxFlow,
 	num_participants: u8,
 	use_test_rng: bool,
 	ttl_blocks: Option<u64>,
@@ -58,7 +58,7 @@ where
 	K: Keychain + 'a,
 {
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
-	let mut slate = Slate::blank(num_participants, is_invoice);
+	let mut slate = Slate::blank(num_participants, tx_flow);
 	if let Some(b) = ttl_blocks {
 		slate.ttl_cutoff_height = current_height + b;
 	}

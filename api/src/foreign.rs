@@ -334,7 +334,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
-	/// # let slate = Slate::blank(2, false);
+	/// # let slate = Slate::blank(2, TxFlow::Standard);
 	///
 	/// // . . .
 	/// // Obtain a sent slate somehow
@@ -430,7 +430,7 @@ where
 	/// // If result okay, send to payer, who will apply the transaction via their
 	/// // owner API, then send back the slate
 	/// // ...
-	/// # let slate = Slate::blank(2, true);
+	/// # let slate = Slate::blank(2, TxFlow::Invoice);
 	///
 	/// let slate = api_foreign.finalize_tx(&slate, true);
 	/// // if okay, then post via the owner API
@@ -474,7 +474,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
-		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletInst};
+		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, TxFlow, WalletInst};
 
 		// don't run on windows CI, which gives very inconsistent results
 		if cfg!(windows) {

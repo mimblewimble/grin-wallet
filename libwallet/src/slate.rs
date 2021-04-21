@@ -205,6 +205,19 @@ impl fmt::Display for SlateState {
 	}
 }
 
+/// Transaction flow definition
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TxFlow {
+	/// Standard transaction flow, sender-receiver-sender
+	Standard,
+	/// Invoice transaction flow, receiver-sender-receiver
+	Invoice,
+	/// Multisig transaction flow
+	Multisig,
+	/// Atomic swap transaction flow
+	Atomic,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Kernel features arguments definition
 pub struct KernelFeaturesArgs {
@@ -286,14 +299,16 @@ impl Slate {
 	}
 
 	/// Create a new slate
-	pub fn blank(num_participants: u8, is_invoice: bool) -> Slate {
+	pub fn blank(num_participants: u8, tx_flow: TxFlow) -> Slate {
 		let np = match num_participants {
 			0 => 2,
 			n => n,
 		};
-		let state = match is_invoice {
-			true => SlateState::Invoice1,
-			false => SlateState::Standard1,
+		let state = match tx_flow {
+			TxFlow::Standard => SlateState::Standard1,
+			TxFlow::Invoice => SlateState::Invoice1,
+			TxFlow::Multisig => SlateState::Multisig1,
+			TxFlow::Atomic => SlateState::Atomic1,
 		};
 		Slate {
 			num_participants: np, // assume 2 if not present
@@ -314,6 +329,7 @@ impl Slate {
 			kernel_features_args: None,
 		}
 	}
+
 	/// Removes any signature data that isn't mine, for compacting
 	/// slates for a return journey
 	pub fn remove_other_sigdata<K>(
@@ -1300,7 +1316,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	};
 	let secp = static_secp_instance();
 	let secp = secp.lock();
-	let mut calc_slate = Slate::blank(2, false);
+	let mut calc_slate = Slate::blank(2, TxFlow::Standard);
 	calc_slate.fee_fields = slate.fee;
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
@@ -1371,7 +1387,7 @@ pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
 	};
 	let secp = static_secp_instance();
 	let secp = secp.lock();
-	let mut calc_slate = Slate::blank(2, false);
+	let mut calc_slate = Slate::blank(2, TxFlow::Standard);
 	calc_slate.fee_fields = slate.fee;
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {

@@ -20,8 +20,8 @@ use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, StatusMessage,
-	TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
+	StatusMessage, TxFlow, TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -2194,7 +2194,7 @@ pub fn run_doctest_owner(
 		mask1.clone(),
 	);
 
-	let mut slate_outer = Slate::blank(2, false);
+	let mut slate_outer = Slate::blank(2, TxFlow::Standard);
 
 	let rec_phrase_2 = util::ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \

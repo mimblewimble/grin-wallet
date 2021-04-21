@@ -18,7 +18,7 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use self::libwallet::{InitTxArgs, Slate};
+use self::libwallet::{InitTxArgs, Slate, TxFlow};
 use impls::test_framework::{self, LocalWalletClient};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -91,7 +91,7 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false)?;
 
-	let mut slate = Slate::blank(2, false);
+	let mut slate = Slate::blank(2, TxFlow::Standard);
 	let amount = 100_000_000_000;
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {

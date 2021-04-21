@@ -20,7 +20,7 @@ extern crate grin_wallet_util;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, Slate, TxLogEntryType};
+use libwallet::{InitTxArgs, Slate, TxFlow, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -77,7 +77,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let amount = 60_000_000_000;
-	let mut slate = Slate::blank(1, false);
+	let mut slate = Slate::blank(1, TxFlow::Standard);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
@@ -127,7 +127,7 @@ fn ttl_cutoff_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	})?;
 
 	// try again, except try and send off the transaction for completion beyond the expiry
-	let mut slate = Slate::blank(1, false);
+	let mut slate = Slate::blank(1, TxFlow::Standard);
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {

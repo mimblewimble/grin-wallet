@@ -28,7 +28,7 @@ use std::time::Duration;
 
 use grin_wallet_libwallet::{
 	InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress, Slatepacker,
-	SlatepackerArgs,
+	SlatepackerArgs, TxFlow,
 };
 
 use ed25519_dalek::PublicKey as edDalekPublicKey;
@@ -300,7 +300,7 @@ fn slatepack_exchange_test_impl(
 		),
 	};
 
-	let mut slate = Slate::blank(2, true);
+	let mut slate = Slate::blank(2, TxFlow::Invoice);
 
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		let args = IssueInvoiceTxArgs {
@@ -375,7 +375,7 @@ fn slatepack_exchange_test_impl(
 		),
 	};
 
-	let mut slate = Slate::blank(2, true);
+	let mut slate = Slate::blank(2, TxFlow::Invoice);
 	let mut address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		address = Some(api.get_slatepack_address(m, 0)?);
