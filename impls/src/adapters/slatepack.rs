@@ -104,7 +104,7 @@ mod tests {
 	use grin_wallet_util::grin_core::global;
 
 	fn clean_output_dir(test_dir: &str) {
-		let _ = fs::remove_dir_all(test_dir);
+		let _ = remove_dir_all::remove_dir_all(test_dir);
 	}
 
 	fn setup(test_dir: &str) {

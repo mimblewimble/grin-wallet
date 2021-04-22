@@ -951,14 +951,10 @@ where
 
 	// for backwards compatibility: If tor config doesn't exist in the file, assume
 	// the top level directory for data
-	let tor_config = match tor_config {
-		Some(tc) => tc,
-		None => {
-			let mut tc = TorConfig::default();
-			tc.send_config_dir = wallet_config.data_file_dir.clone();
-			tc
-		}
-	};
+	let tor_config = tor_config.unwrap_or_else(|| TorConfig {
+		send_config_dir: wallet_config.data_file_dir.clone(),
+		..Default::default()
+	});
 
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet =

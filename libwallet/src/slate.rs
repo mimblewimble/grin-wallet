@@ -22,20 +22,18 @@ use crate::grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
 	Transaction, TxKernel, Weighting,
 };
-use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
-use crate::grin_util::{secp, static_secp_instance, RwLock};
+use crate::grin_util::{secp, static_secp_instance};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use serde::ser::{Serialize, Serializer};
 use serde_json;
 use std::fmt;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
@@ -677,8 +675,7 @@ impl Slate {
 
 		// confirm the overall transaction is valid (including the updated kernel)
 		// accounting for tx weight limits
-		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
-		if let Err(e) = final_tx.validate(Weighting::AsTransaction, verifier_cache, 0) {
+		if let Err(e) = final_tx.validate(Weighting::AsTransaction, 0) {
 			error!("Error with final tx validation: {}", e);
 			Err(e.into())
 		} else {

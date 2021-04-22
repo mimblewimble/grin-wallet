@@ -192,7 +192,7 @@ impl<'a> Writeable for SigsWrapRef<'a> {
 			}
 			s.xs.write(writer)?;
 			s.nonce.write(writer)?;
-			if let Some(s) = s.part.clone() {
+			if let Some(s) = s.part {
 				s.write(writer)?;
 			}
 		}
@@ -295,7 +295,7 @@ impl<'a> Writeable for ComsWrapRef<'a> {
 			}
 			OutputFeatures::from(o.f).write(writer)?;
 			o.c.write(writer)?;
-			if let Some(p) = o.p.clone() {
+			if let Some(p) = o.p {
 				p.write(writer)?;
 			}
 		}

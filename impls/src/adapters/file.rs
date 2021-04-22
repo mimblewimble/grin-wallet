@@ -63,10 +63,8 @@ impl SlateGetter for PathToSlate {
 		let bin_res = byte_ser::from_bytes::<VersionedBinSlate>(&data);
 		if let Err(e) = bin_res {
 			debug!("Not a valid binary slate: {} - Will try JSON", e);
-		} else {
-			if let Ok(s) = bin_res {
-				return Ok((Slate::upgrade(s.into())?, true));
-			}
+		} else if let Ok(s) = bin_res {
+			return Ok((Slate::upgrade(s.into())?, true));
 		}
 
 		// Otherwise try json

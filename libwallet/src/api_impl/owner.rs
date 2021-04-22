@@ -908,7 +908,7 @@ where
 			let mut slate = Slate::blank(2, false);
 			slate.tx = Some(tx.clone());
 			slate.fee_fields = tx.aggregate_fee_fields(2 * YEAR_HEIGHT).unwrap(); // apply fee mask past HF4
-			slate.id = id.clone();
+			slate.id = id;
 			slate.offset = tx.offset;
 			slate.state = SlateState::Standard3;
 			Ok(Some(slate))
