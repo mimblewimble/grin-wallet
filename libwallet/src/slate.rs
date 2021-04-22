@@ -401,6 +401,33 @@ impl Slate {
 		Ok(())
 	}
 
+	/// Find the pariticipant data index associated with the given index
+	pub fn find_participant_data_index(
+		&self,
+		secp: &secp::Secp256k1,
+		context: &Context,
+	) -> Result<usize, Error> {
+		let (public_blind, public_nonce) = context.get_public_keys(secp);
+		if let Some((i, _p)) =
+			self.participant_data.iter().enumerate().find(|(_i, p)| {
+				p.public_blind_excess == public_blind && p.public_nonce == public_nonce
+			}) {
+			Ok(i)
+		} else {
+			Err(ErrorKind::StoredTx("Missing participant data".into()).into())
+		}
+	}
+
+	/// In a two-party transaction, find the participant data index other than the one provided
+	pub fn find_other_participant_data_index(&self, idx: usize) -> Result<usize, Error> {
+		for i in 0..self.participant_data.len() {
+			if i != idx {
+				return Ok(i);
+			}
+		}
+		Err(ErrorKind::StoredTx("Missing participant data".into()).into())
+	}
+
 	/// Create an atomic secret identifier with the prefix b'\x04mwatomic'
 	pub fn create_atomic_id(id: u32) -> Identifier {
 		ExtKeychain::derive_key_id(
@@ -515,6 +542,103 @@ impl Slate {
 		Ok(())
 	}
 
+	/// Create a partial signature over the Slate using the atomic swap receiver's
+	/// secret atomic nonce
+	pub fn fill_round_2_atomic<K>(&mut self, keychain: &K, context: &Context) -> Result<(), Error>
+	where
+		K: Keychain,
+	{
+		let secp = keychain.secp();
+		let part_sig = aggsig::calculate_partial_sig(
+			secp,
+			&context.sec_key,
+			&context.sec_nonce,
+			context.get_secret_atomic(),
+			&self.pub_nonce_sum(secp)?,
+			Some(&self.pub_blind_sum(secp)?),
+			&self.msg_to_sign()?,
+		)?;
+
+		let pdata_idx = self.find_participant_data_index(secp, context)?;
+		self.participant_data[pdata_idx].part_sig = Some(part_sig);
+		Ok(())
+	}
+
+	/// Verify the receiver's adaptor signature, and create the sender's partial signature
+	pub fn fill_round_3_atomic<K>(
+		&mut self,
+		keychain: &K,
+		context: &Context,
+	) -> Result<Signature, Error>
+	where
+		K: Keychain,
+	{
+		let secp = keychain.secp();
+		let pdata_idx = self.find_participant_data_index(secp, context)?;
+		let opdata_idx = self.find_other_participant_data_index(pdata_idx)?;
+		let part_sig = &self.participant_data[opdata_idx].part_sig.ok_or::<Error>(
+			ErrorKind::Signature("Missing round 2 atomic swap adaptor signature".into()).into(),
+		)?;
+		let msg = self.msg_to_sign()?;
+		let nonce_sum = self.pub_nonce_sum(secp)?;
+		let key_sum = self.pub_blind_sum(secp)?;
+
+		aggsig::verify_partial_sig(
+			secp,
+			part_sig,
+			&nonce_sum,
+			self.participant_data[opdata_idx].public_atomic.as_ref(),
+			&self.participant_data[opdata_idx].public_blind_excess,
+			Some(&key_sum),
+			&msg,
+		)?;
+
+		let a_part_sig = aggsig::calculate_partial_sig(
+			secp,
+			&context.sec_key,
+			&context.sec_nonce,
+			None,
+			&nonce_sum,
+			Some(&key_sum),
+			&msg,
+		)?;
+
+		self.participant_data[pdata_idx].part_sig = Some(a_part_sig);
+
+		// return the receiver's adaptor signature from round 2
+		Ok((*part_sig).clone())
+	}
+
+	/// Finalize the atomic swap transaction, return the receiver's partial signature
+	pub fn finalize_atomic<K>(
+		&mut self,
+		keychain: &K,
+		context: &Context,
+	) -> Result<Signature, Error>
+	where
+		K: Keychain,
+	{
+		let secp = keychain.secp();
+
+		let part_sig = aggsig::calculate_partial_sig(
+			secp,
+			&context.sec_key,
+			&context.sec_nonce,
+			None,
+			&self.pub_nonce_sum(secp)?,
+			Some(&self.pub_blind_sum(secp)?),
+			&self.msg_to_sign()?,
+		)?;
+
+		let pdata_idx = self.find_participant_data_index(secp, context)?;
+		self.participant_data[pdata_idx].part_sig = Some(part_sig.clone());
+
+		let final_sig = self.finalize_signature(secp)?;
+		self.finalize_transaction(keychain, &final_sig)?;
+
+		Ok(part_sig)
+	}
+
 	/// Creates the final signature, callable by either the sender or recipient
 	/// (after phase 3: sender confirmation)
 	pub fn finalize<K>(&mut self, keychain: &K) -> Result<(), Error>
@@ -589,6 +713,7 @@ impl Slate {
 		let tau_x = context.tau_x.clone();
 		let tau_one = context.tau_one.clone();
 		let tau_two = context.tau_two.clone();
+		let pub_atomic = context.get_public_atomic(keychain.secp())?;
 
 		// Remove if already here and replace
 		self.participant_data = self
@@ -609,7 +734,7 @@ impl Slate {
 		self.participant_data.push(ParticipantData {
 			public_blind_excess: pub_key,
 			public_nonce: pub_nonce,
-			public_atomic: None,
+			public_atomic: pub_atomic,
 			part_sig: part_sig,
 			part_commit,
 			tau_x: tau_x,

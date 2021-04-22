@@ -535,3 +535,156 @@ fn test_rewind_range_proof() {
 	.unwrap();
 	assert!(proof_info.is_none());
 }
+
+#[test]
+fn test_atomic_swap_multisig_tx() {
+	use grin_wallet_libwallet::{Slate, TxFlow};
+	use grin_wallet_util::grin_core::global;
+
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+
+	let mut slate = Slate::blank(2, TxFlow::Atomic);
+	let key_id = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
+	let switch = SwitchCommitmentType::Regular;
+
+	let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
+	let receiver_keychain = ExtKeychain::from_random_seed(true).unwrap();
+	let sender_blind = sender_keychain.derive_key(0, &key_id, switch).unwrap();
+	let receiver_blind = receiver_keychain.derive_key(0, &key_id, switch).unwrap();
+	let in_commit = sender_keychain.commit(23000015, &key_id, switch).unwrap();
+	let change_commit = sender_keychain.commit(10, &key_id, switch).unwrap();
+	let out_commit = receiver_keychain.commit(5, &key_id, switch).unwrap();
+
+	let input = transaction::Input::new(transaction::OutputFeatures::Plain, in_commit);
+
+	// create the change output range proof
+	let change_builder = proof::ProofBuilder::new(&receiver_keychain);
+	let change_proof = proof::create(
+		&sender_keychain,
+		&change_builder,
+		10,
+		&key_id,
+		switch,
+		change_commit,
+		None,
+	)
+	.unwrap();
+
+	let change = transaction::Output::new(
+		transaction::OutputFeatures::Plain,
+		change_commit,
+		change_proof,
+	);
+
+	// create the output range proof
+	let out_builder = proof::ProofBuilder::new(&receiver_keychain);
+	let out_proof = proof::create(
+		&receiver_keychain,
+		&out_builder,
+		5,
+		&key_id,
+		switch,
+		out_commit,
+		None,
+	)
+	.unwrap();
+
+	let output =
+		transaction::Output::new(transaction::OutputFeatures::Plain, out_commit, out_proof);
+
+	// set the fee to the minimum for a single (input, output, kernel) tx
+	let kernel = transaction::TxKernel {
+		features: transaction::KernelFeatures::Plain {
+			fee: 23000000.into(),
+		},
+		excess: in_commit,
+		excess_sig: secp::Signature::from_raw_data(&[0; 64]).unwrap(),
+	};
+
+	let mut sender_ctx;
+	{
+		// dealing with an input here so we need to negate the blinding_factor
+		// rather than use it as is
+		let bs = BlindSum::new();
+		let blinding_factor = sender_keychain
+			.blind_sum(&bs.sub_blinding_factor(BlindingFactor::from_secret_key(sender_blind)))
+			.unwrap();
+
+		let blind = blinding_factor.secret_key(sender_keychain.secp()).unwrap();
+
+		sender_ctx = Context::with_excess(sender_keychain.secp(), blind, &key_id, false);
+	}
+	let mut receiver_ctx =
+		Context::with_excess(receiver_keychain.secp(), receiver_blind, &key_id, false);
+
+	// set the atomic nonce used for the adaptor signature
+	let atomic_secret = SecretKey::from_slice(receiver_keychain.secp(), &[2; 32]).unwrap();
+	receiver_ctx.set_atomic_secret(atomic_secret.clone());
+
+	// set kernel features, fee, and total amount to sign the correct kernel message
+	slate.kernel_features = 0;
+	slate.fee_fields = transaction::FeeFields::new(0, 23000000).unwrap();
+	slate.amount = 23000015;
+
+	slate
+		.fill_round_1(&sender_keychain, &mut sender_ctx)
+		.unwrap();
+
+	// adjust kernel offset to match correct kernel sum
+	sender_ctx.input_ids = vec![(key_id.clone(), None, 23000015)];
+	sender_ctx.output_ids = vec![(key_id.clone(), None, 10)];
+	slate.adjust_offset(&sender_keychain, &sender_ctx).unwrap();
+
+	slate
+		.fill_round_1(&receiver_keychain, &mut receiver_ctx)
+		.unwrap();
+
+	// adjust kernel offset to match correct kernel sum
+	receiver_ctx.output_ids = vec![(key_id.clone(), None, 5)];
+	slate
+		.adjust_offset(&receiver_keychain, &receiver_ctx)
+		.unwrap();
+
+	slate
+		.fill_round_2_atomic(&receiver_keychain, &mut receiver_ctx)
+		.unwrap();
+
+	let adaptor_sig = slate
+		.fill_round_3_atomic(&sender_keychain, &mut sender_ctx)
+		.unwrap();
+
+	let mut tx = transaction::Transaction::empty()
+		.with_input(input)
+		.with_output(change)
+		.with_output(output)
+		.with_kernel(kernel);
+	tx.offset = slate.offset.clone();
+	slate.tx = Some(tx);
+
+	let rec_part_sig = slate
+		.finalize_atomic(&receiver_keychain, &mut receiver_ctx)
+		.unwrap();
+
+	// calculate sr' - sr, and validate it equals the receiver's atomic nonce
+	let secp = receiver_keychain.secp();
+	let mut srp = SecretKey::from_slice(secp, &adaptor_sig.as_ref()[32..]).unwrap();
+	let mut sr = SecretKey::from_slice(secp, &rec_part_sig.as_ref()[32..]).unwrap();
+	sr.neg_assign(secp).unwrap();
+	srp.add_assign(secp, &sr).unwrap();
+	assert_eq!(srp, atomic_secret);
+
+	// now, do the same thing, but with the final signature
+	let full_sig = slate.tx.unwrap().kernels()[0].excess_sig.clone();
+	let send_part_sig = slate.participant_data[0].part_sig.unwrap();
+	sr = SecretKey::from_slice(secp, &full_sig.as_ref()[32..]).unwrap();
+	// subtract the sender's partial sig from the final sig
+	let mut sp_s = SecretKey::from_slice(secp, &send_part_sig.as_ref()[32..]).unwrap();
+	sp_s.neg_assign(secp).unwrap();
+	sr.add_assign(secp, &sp_s).unwrap();
+	// now sr contains the receiver's partial sig
+	// calculate sr' - sr, and validate it equals the receiver's atomic nonce
+	sr.neg_assign(secp).unwrap();
+	srp = SecretKey::from_slice(secp, &adaptor_sig.as_ref()[32..]).unwrap();
+	srp.add_assign(secp, &sr).unwrap();
+	assert_eq!(srp, atomic_secret);
+}

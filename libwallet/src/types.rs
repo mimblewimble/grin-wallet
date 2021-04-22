@@ -721,20 +721,15 @@ impl Context {
 		SecretKey::from_slice(secp, &hasher.result()).map_err(|e| e.into())
 	}
 
-	/// Create an atomic secret key
-	pub fn create_atomic_secret(&mut self, secret: SecretKey) {
+	/// Set an atomic secret
+	pub fn set_secret_atomic(&mut self, secret: SecretKey) {
 		self.sec_atomic = Some(secret);
 	}
 
-	/// Set an atomic secret key
-	pub fn set_atomic_secret(&mut self, secret: SecretKey) {
-		self.sec_atomic = Some(secret);
-	}
-
-	/// Get the atomic secret key
-	pub fn get_secret_atomic_secret(&self) -> Option<&SecretKey> {
+	/// Get the atomic secret
+	pub fn get_secret_atomic(&self) -> Option<&SecretKey> {
 		match &self.sec_atomic {
-			Some(n) => Some(n),
+			Some(a) => Some(a),
 			None => None,
 		}
 	}
