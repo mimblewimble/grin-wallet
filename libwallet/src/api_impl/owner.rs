@@ -27,14 +27,12 @@ use crate::util::{OnionV3Address, OnionV3AddressError};
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::{PaymentInfo, Slate, SlateState, TxFlow};
-use crate::types::{
-	AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletBackend, WalletInfo,
-};
+use crate::slate::{KernelFeaturesArgs, PaymentInfo, Slate, SlateState, TxFlow};
+use crate::types::{AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletBackend, WalletInfo};
 use crate::{
-	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs,
-	TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
+	address, wallet_lock, Context, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	OutputCommitMapping, PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker,
+	SlatepackerArgs, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -919,6 +917,123 @@ where
 		&context,
 		excess_override,
 	)
+}
+
+/// Initialize sender atomic swap transaction
+pub fn init_atomic_swap<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: InitTxArgs,
+	derive_path: u32,
+	use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let parent_key_id = match &args.src_acct_name {
+		Some(d) => {
+			let pm = w.get_acct_path(d.clone())?;
+			match pm {
+				Some(p) => p.path,
+				None => w.parent_key_id(),
+			}
+		}
+		None => w.parent_key_id(),
+	};
+
+	let mut slate = tx::new_tx_slate(
+		&mut *w,
+		args.amount,
+		TxFlow::Atomic,
+		2,
+		use_test_rng,
+		args.ttl_blocks,
+	)?;
+
+	if let Some(v) = args.target_slate_version {
+		slate.version_info.version = v;
+	};
+
+	let height = w.w2n_client().get_chain_tip()?.0;
+	let keychain = w.keychain(keychain_mask)?;
+	// FIXME: need a way to ensure atomic secrets are not reused
+	//
+	// The attack vector is being supplied/tricked into reusing the
+	// same derivation path for multiple swaps, where the swap has
+	// already been completed successfully.
+	//
+	// The attacker would not need to wait for the full signature
+	// in the repeat swap, since they would have the nonce already.
+	//
+	// Maybe use a bloom filter as an automated defense?
+	let atomic_id = Slate::create_atomic_id(derive_path as u64);
+	slate.atomic_id = Some(atomic_id);
+	let mut context = if args.late_lock.unwrap_or(false) {
+		// use late_lock context for initial height_lock tx,
+		// initiated by the atomic swap receiver
+		let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
+		context.amount = args.amount;
+		context.fee = slate.fee_fields.as_opt();
+
+		slate.fill_round_1(&keychain, &mut context)?;
+
+		// Create a height_lock kernel, with a lock_height set to an
+		// arbitrary amount of blocks in the future
+		//
+		// FIXME: add option to specify the lock_height?
+		slate.kernel_features = 2;
+		slate.kernel_features_args = Some(KernelFeaturesArgs {
+			lock_height: height + 60,
+		});
+
+		context
+	} else {
+		let mut context = tx::add_inputs_to_atomic_slate(
+			w,
+			keychain_mask,
+			&mut slate,
+			height,
+			args.minimum_confirmations,
+			args.max_outputs as usize,
+			args.num_change_outputs as usize,
+			args.selection_strategy_is_use_all,
+			&parent_key_id,
+			None,
+			use_test_rng,
+		)?;
+		slate.fill_round_1(&keychain, &mut context)?;
+		context
+	};
+
+	// Payment Proof, add addresses to slate and save address
+	if let Some(a) = args.payment_proof_recipient_address {
+		let sec_addr_key =
+			address::address_from_derivation_path(&keychain, &parent_key_id, derive_path)?;
+		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
+
+		slate.payment_proof = Some(PaymentInfo {
+			sender_address: sender_address.to_ed25519()?,
+			receiver_address: a.pub_key,
+			receiver_signature: None,
+		});
+
+		context.payment_proof_derivation_index = Some(derive_path);
+	}
+
+	// Save the aggsig context in our DB for when we
+	// receive the transaction back
+	{
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.commit()?;
+	}
+
+	slate.adjust_offset(&keychain, &context)?;
+	slate.compact()?;
+
+	Ok(slate)
 }
 
 /// Finalize slate

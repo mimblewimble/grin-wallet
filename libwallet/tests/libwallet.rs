@@ -617,7 +617,7 @@ fn test_atomic_swap_multisig_tx() {
 	let mut receiver_ctx =
 		Context::with_excess(receiver_keychain.secp(), receiver_blind, &key_id, false);
 
-	// set the atomic nonce used for the adaptor signature
+	// set the atomic secret used for the adaptor signature
 	let atomic_secret = SecretKey::from_slice(receiver_keychain.secp(), &[2; 32]).unwrap();
 	receiver_ctx.set_atomic_secret(atomic_secret.clone());
 
@@ -665,7 +665,7 @@ fn test_atomic_swap_multisig_tx() {
 		.finalize_atomic(&receiver_keychain, &mut receiver_ctx)
 		.unwrap();
 
-	// calculate sr' - sr, and validate it equals the receiver's atomic nonce
+	// calculate sr' - sr, and validate it equals the receiver's atomic secret
 	let secp = receiver_keychain.secp();
 	let mut srp = SecretKey::from_slice(secp, &adaptor_sig.as_ref()[32..]).unwrap();
 	let mut sr = SecretKey::from_slice(secp, &rec_part_sig.as_ref()[32..]).unwrap();
@@ -682,7 +682,7 @@ fn test_atomic_swap_multisig_tx() {
 	sp_s.neg_assign(secp).unwrap();
 	sr.add_assign(secp, &sp_s).unwrap();
 	// now sr contains the receiver's partial sig
-	// calculate sr' - sr, and validate it equals the receiver's atomic nonce
+	// calculate sr' - sr, and validate it equals the receiver's atomic secret
 	sr.neg_assign(secp).unwrap();
 	srp = SecretKey::from_slice(secp, &adaptor_sig.as_ref()[32..]).unwrap();
 	srp.add_assign(secp, &sr).unwrap();

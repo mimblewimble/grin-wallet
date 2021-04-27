@@ -543,7 +543,7 @@ impl Slate {
 	}
 
 	/// Create a partial signature over the Slate using the atomic swap receiver's
-	/// secret atomic nonce
+	/// atomic secret
 	pub fn fill_round_2_atomic<K>(&mut self, keychain: &K, context: &Context) -> Result<(), Error>
 	where
 		K: Keychain,
