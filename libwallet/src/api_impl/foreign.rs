@@ -138,7 +138,137 @@ where
 	Ok(ret_slate)
 }
 
-///
+/// Receive an atomic tx as recipient
+pub fn receive_atomic_tx<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest_acct_name: Option<&str>,
+	use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
+	let parent_key_id = match dest_acct_name {
+		Some(d) => {
+			let pm = w.get_acct_path(d.to_owned())?;
+			match pm {
+				Some(p) => p.path,
+				None => w.parent_key_id(),
+			}
+		}
+		None => w.parent_key_id(),
+	};
+	// Don't do this multiple times
+	let tx = updater::retrieve_txs(
+		w,
+		None,
+		Some(ret_slate.id),
+		Some(&parent_key_id),
+		use_test_rng,
+	)?;
+	for t in &tx {
+		if t.tx_type == TxLogEntryType::TxReceived {
+			return Err(ErrorKind::TransactionAlreadyReceived(ret_slate.id.to_string()).into());
+		}
+	}
+
+	ret_slate.tx = Some(Slate::empty_transaction());
+
+	let height = w.last_confirmed_height()?;
+	let keychain = w.keychain(keychain_mask)?;
+
+	let is_height_lock = ret_slate.kernel_features == 2;
+	// derive atomic secret from the slate's `atomic_id`
+	let atomic_secret = {
+		// FIXME: need a way to ensure atomic secrets are not reused
+		//
+		// The attack vector is being supplied/tricked into reusing the
+		// same derivation path for multiple swaps, where the swap has
+		// already been completed successfully.
+		//
+		// The attacker would not need to wait for the full signature
+		// in the repeat swap, since they would have the nonce already.
+		//
+		// Maybe use a bloom filter as an automated defense?
+		let atomic_id = match &ret_slate.atomic_id {
+			Some(aid) => aid.clone(),
+			None => return Err(ErrorKind::GenericError("missing atomic ID".into()).into()),
+		};
+		Slate::check_atomic_id(&atomic_id)?;
+		let atomic =
+			keychain.derive_key(ret_slate.amount, &atomic_id, SwitchCommitmentType::Regular)?;
+
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_atomic_secret(&atomic_id, &atomic)?;
+		batch.commit()?;
+
+		Some(atomic)
+	};
+
+	let (input_ids, output_ids) = if is_height_lock {
+		// add input(s) and change output to slate
+		let ctx = tx::add_inputs_to_atomic_slate(
+			w,
+			keychain_mask,
+			&mut ret_slate,
+			height,
+			10,   // min_confirmations
+			500,  // max_outputs
+			1,    // num_change_outputs
+			true, // selection_strategy_is_use_all
+			&parent_key_id,
+			atomic_secret.clone(),
+			use_test_rng,
+		)?;
+
+		(ctx.input_ids, ctx.output_ids)
+	} else {
+		(vec![], vec![])
+	};
+
+	let mut context = tx::add_output_to_atomic_slate(
+		w,
+		keychain_mask,
+		&mut ret_slate,
+		height,
+		&parent_key_id,
+		atomic_scret,
+		use_test_rng,
+	)?;
+
+	context.fee = Some(ret_slate.fee_fields.clone());
+	let excess = ret_slate.calc_excess(keychain.secp())?;
+
+	if let Some(ref mut p) = ret_slate.payment_proof {
+		let sig = tx::create_payment_proof_signature(
+			ret_slate.amount,
+			&excess,
+			p.sender_address,
+			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+		)?;
+
+		p.receiver_signature = Some(sig);
+	}
+
+	if is_height_lock {
+		ret_slate.compact()?;
+		context.input_ids = input_ids;
+		context.output_ids.extend_from_slice(&output_ids);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_private_context(ret_slate.id.as_bytes(), &context)?;
+		batch.commit()?;
+	}
+
+	ret_slate.adjust_offset(&keychain, &context)?;
+	ret_slate.state = SlateState::Atomic2;
+
+	Ok(ret_slate)
+}
 
 /// Receive a tx that this wallet has issued
 pub fn finalize_tx<'a, T: ?Sized, C, K>(
