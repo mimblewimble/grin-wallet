@@ -1186,6 +1186,36 @@ where
 	Ok(sl)
 }
 
+/// Complete the atomic swap
+pub fn finalize_atomic_swap<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
+	let context = w.get_private_context(keychain_mask, ret_slate.id.as_bytes())?;
+	let parent_key_id = w.parent_key_id();
+
+	if ret_slate.kernel_features == 2 {
+		ret_slate.tx = Some(Slate::empty_transaction());
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, true)?;
+	}
+	tx::complete_atomic_tx(&mut *w, keychain_mask, &mut ret_slate, &context)?;
+	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &ret_slate)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &ret_slate, true)?;
+
+	ret_slate.state = SlateState::Atomic4;
+	ret_slate.amount = 0;
+
+	Ok(ret_slate)
+}
+
 /// cancel tx
 pub fn cancel_tx<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,

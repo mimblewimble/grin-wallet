@@ -239,6 +239,15 @@ where
 	/// Next child ID when we want to create a new output, based on current parent
 	fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
 
+	/// Return the current atomic secret index
+	fn current_atomic_id(&mut self) -> Result<Identifier, Error>;
+
+	/// Next atomic ID when we want to create a new atomic secret 
+	fn next_atomic_id(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
+
+	/// Get the atomic ID for the atomic swap associated with the given UUID
+	fn get_used_atomic_id(&mut self, id: &Uuid) -> Result<Identifier, Error>;
+
 	/// last verified height of outputs directly descending from the given parent key
 	fn last_confirmed_height(&mut self) -> Result<u64, Error>;
 
@@ -283,6 +292,12 @@ where
 	/// Save last stored child index of a given parent
 	fn save_child_index(&mut self, parent_key_id: &Identifier, child_n: u32) -> Result<(), Error>;
 
+	/// Save global atomic index under the current keychain mask
+	fn save_atomic_index(&mut self, atomic_idx: u32) -> Result<(), Error>;
+
+	/// Save an atomic index that has been used in an atomic swap
+	fn save_used_atomic_index(&mut self, id: &Uuid, atomic_idx: u32) -> Result<(), Error>;
+
 	/// Save last confirmed height of outputs for a given parent
 	fn save_last_confirmed_height(
 		&mut self,
@@ -325,6 +340,13 @@ where
 
 	/// Save secret for an atomic swap transaction
 	fn save_atomic_secret(
+		&mut self,
+		atomic_id: &Identifier,
+		secret: &SecretKey,
+	) -> Result<(), Error>;
+
+	/// Save recovered secret for an atomic swap transaction
+	fn save_recovered_atomic_secret(
 		&mut self,
 		atomic_id: &Identifier,
 		secret: &SecretKey,

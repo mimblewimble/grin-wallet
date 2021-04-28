@@ -16,8 +16,8 @@
 use rand::thread_rng;
 use strum::IntoEnumIterator;
 
-use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::api_impl::owner::{finalize_atomic_swap, finalize_tx as owner_finalize};
 use crate::grin_core::core::FeeFields;
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{Keychain, SwitchCommitmentType};
@@ -407,6 +407,8 @@ where
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(sl.id.as_bytes().as_ref(), &context)?;
 		batch.commit()?;
+	} else if sl.state == SlateState::Atomic3 {
+		sl = finalize_atomic_swap(w, keychain_mask, slate)?;
 	} else {
 		sl = owner_finalize(w, keychain_mask, slate)?;
 	}

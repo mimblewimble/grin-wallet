@@ -402,6 +402,24 @@ where
 	Ok(())
 }
 
+/// Complete an atomic swap transaction
+pub fn complete_atomic_tx<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	context: &Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// Final transaction can be built by anyone at this stage
+	trace!("Slate to finalize is: {}", slate);
+	let _ = slate.finalize_atomic(&wallet.keychain(keychain_mask)?, context)?;
+	Ok(())
+}
+
 /// Rollback outputs associated with a transaction in the wallet
 pub fn cancel_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
