@@ -237,7 +237,7 @@ where
 		&mut ret_slate,
 		height,
 		&parent_key_id,
-		atomic_scret,
+		atomic_secret,
 		use_test_rng,
 	)?;
 

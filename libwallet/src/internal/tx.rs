@@ -139,6 +139,59 @@ where
 }
 
 /// Add inputs to the slate (effectively becoming the sender)
+pub fn add_inputs_to_atomic_slate<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	current_height: u64,
+	minimum_confirmations: u64,
+	max_outputs: usize,
+	num_change_outputs: usize,
+	selection_strategy_is_use_all: bool,
+	parent_key_id: &Identifier,
+	atomic_secret: Option<SecretKey>,
+	use_test_rng: bool,
+) -> Result<Context, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// sender should always refresh outputs
+	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	let is_initiator = atomic_secret.is_none();
+
+	// Sender selects outputs into a new slate and save our corresponding keys in
+	// a transaction context. The secret key in our transaction context will be
+	// randomly selected. This returns the public slate, and a closure that locks
+	// our inputs and outputs once we're convinced the transaction exchange went
+	// according to plan
+	// This function is just a big helper to do all of that, in theory
+	// this process can be split up in any way
+	let mut context = selection::build_send_tx(
+		wallet,
+		&wallet.keychain(keychain_mask)?,
+		keychain_mask,
+		slate,
+		current_height,
+		minimum_confirmations,
+		max_outputs,
+		num_change_outputs,
+		selection_strategy_is_use_all,
+		None,
+		parent_key_id.clone(),
+		use_test_rng,
+		is_initiator,
+	)?;
+
+	context.sec_atomic = atomic_secret;
+
+	context.initial_sec_key = context.sec_key.clone();
+
+	Ok(context)
+}
+
+/// Add inputs to the slate (effectively becoming the sender)
 pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
@@ -295,7 +348,7 @@ where
 		is_initiator,
 	)?;
 
-	context.sec_atomic = atomic_scret;
+	context.sec_atomic = atomic_secret;
 	// fill public keys
 	slate.fill_round_1(&keychain, &mut context)?;
 	// Create partial signature using the atomic secret,
@@ -455,7 +508,7 @@ where
 	let mut sp_s = SecretKey::from_slice(secp, &part_sig.as_ref()[32..])?;
 	// The atomic_secret contains sr' from the responder's adaptor signature
 	let atomic_id = wallet.get_used_atomic_id(&slate.id)?;
-	let mut srp = wallet.get_recovered_atomic_nonce(keychain_mask, &atomic_id)?;
+	let mut srp = wallet.get_recovered_atomic_secret(keychain_mask, &atomic_id)?;
 
 	// Subtract the initiator's partial signature from the full signature
 	sp_s.neg_assign(secp)?;

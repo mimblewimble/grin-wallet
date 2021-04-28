@@ -913,6 +913,37 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::process_multisig_tx(&mut **w, keychain_mask, slate)
+    }
+
+	/// Initializes an atomic swap transaction. The transaction can either be
+	/// the main or refund. To create a refund transaction, set `args.late_lock = Some(true)`.
+	pub fn init_atomic_swap(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: InitTxArgs,
+		derive_path: u32,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::init_atomic_swap(
+			&mut **w,
+			keychain_mask,
+			args,
+			derive_path,
+			self.doctest_mode,
+		)
+	}
+
+	/// Countersign the atomic swap transaction. Creates the first partial signature
+	/// over the transaction that contributes to the kernel excess signature.
+	pub fn countersign_atomic_swap(
+		&self,
+		slate: &Slate,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::countersign_atomic_swap(&mut **w, slate, keychain_mask)
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given

@@ -965,19 +965,8 @@ where
 
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let keychain = w.keychain(keychain_mask)?;
-	// FIXME: need a way to ensure atomic secrets are not reused
-	//
-	// The attack vector is being supplied/tricked into reusing the
-	// same derivation path for multiple swaps, where the swap has
-	// already been completed successfully.
-	//
-	// The attacker would not need to wait for the full signature
-	// in the repeat swap, since they would have the nonce already.
-	//
-	// Maybe use a bloom filter as an automated defense?
-	let atomic_id = Slate::create_atomic_id(derive_path as u64);
-	slate.atomic_id = Some(atomic_id);
-	let mut context = if args.late_lock.unwrap_or(false) {
+
+	let context = if args.late_lock.unwrap_or(false) {
 		// use late_lock context for initial height_lock tx,
 		// initiated by the atomic swap receiver
 		let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
@@ -1013,21 +1002,6 @@ where
 		slate.fill_round_1(&keychain, &mut context)?;
 		context
 	};
-
-	// Payment Proof, add addresses to slate and save address
-	if let Some(a) = args.payment_proof_recipient_address {
-		let sec_addr_key =
-			address::address_from_derivation_path(&keychain, &parent_key_id, derive_path)?;
-		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
-
-		slate.payment_proof = Some(PaymentInfo {
-			sender_address: sender_address.to_ed25519()?,
-			receiver_address: a.pub_key,
-			receiver_signature: None,
-		});
-
-		context.payment_proof_derivation_index = Some(derive_path);
-	}
 
 	// Save the aggsig context in our DB for when we
 	// receive the transaction back
@@ -1076,15 +1050,24 @@ where
 	let atomic_secret = SecretKey::from_slice(keychain.secp(), &adaptor_sig.as_ref()[32..])?;
 
 	{
-		let atomic_id =
-			&ret_slate
-				.atomic_id
+		let atomic_id = w.next_atomic_id(keychain_mask)?;
+		let atomic =
+			keychain.derive_key(slate.amount, &atomic_id, SwitchCommitmentType::Regular)?;
+		let pub_atomic = PublicKey::from_secret_key(keychain.secp(), &atomic)?;
+
+		debug!(
+			"Your public atomic key: {}",
+			pub_atomic
+				.serialize_vec(keychain.secp(), true)
 				.as_ref()
-				.ok_or(Error::from(ErrorKind::GenericError(
-					"missing atomic ID".into(),
-				)))?;
+				.to_hex()
+		);
+		debug!("Use this key to lock funds on the other chain.\n");
+
 		let mut batch = w.batch(keychain_mask)?;
-		batch.save_atomic_secret(atomic_id, &atomic_secret)?;
+		batch.save_recovered_atomic_secret(&atomic_id, &atomic)?;
+		let atomic_idx = Slate::atomic_id_to_int(&atomic_id)?;
+		batch.save_used_atomic_index(&slate.id, atomic_idx)?;
 		batch.commit()?;
 	}
 
@@ -1310,6 +1293,41 @@ where
 			fluff
 		);
 		Ok(())
+	}
+}
+
+/// Recover atomic secret from an adaptor signature and finalized kernel excess signature
+pub fn recover_atomic_secret<'a, L, C, K>(
+	wallet_inst: &mut Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<Identifier, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut w_lock = wallet_inst.lock();
+	let w = w_lock.lc_provider()?.wallet_inst()?;
+	let mut client = w.w2n_client().clone();
+	let keychain = w.keychain(keychain_mask)?;
+	if let Some((kernel, _, _)) = client.get_kernel(
+		&slate.calc_excess(keychain.secp())?,
+		Some(slate.ttl_cutoff_height.saturating_sub(60)),
+		Some(slate.ttl_cutoff_height),
+	)? {
+		let atomic = tx::recover_atomic_secret(&mut **w, keychain_mask, slate, &kernel)?;
+		let atomic_id = w.get_used_atomic_id(&slate.id)?;
+		info!("Saving atomic secret with atomic ID: {}, use with `get_atomic_secrets` to retrieve from storage", Slate::atomic_id_to_int(&atomic_id)?);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_recovered_atomic_secret(&atomic_id, &atomic)?;
+		batch.commit()?;
+		Ok(atomic_id)
+	} else {
+		Err(
+			ErrorKind::StoredTx("missing finalized transaction kernel for the atomic swap".into())
+				.into(),
+		)
 	}
 }
 
