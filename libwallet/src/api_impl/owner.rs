@@ -919,7 +919,14 @@ where
 	)
 }
 
-/// Initialize sender atomic swap transaction
+/// Initialize atomic swap transaction
+///
+/// To initialize as the receiver for the `heigh_lock`ed
+/// refund transaction, set the `late_lock` field in the
+/// `InitTxArgs`
+///
+/// Otherwise, the transaction will initialize as the sender
+/// in the main transaction
 pub fn init_atomic_swap<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
@@ -1034,6 +1041,60 @@ where
 	slate.compact()?;
 
 	Ok(slate)
+}
+
+/// Complete the third round of the atomic swap
+///
+/// In this round, the adaptor signature from round
+/// two is saved, and the counterparty completes their
+/// half of the kernel signature.
+///
+/// For the refund transaction, the receiver is the counterparty.
+///
+/// For the main transaction, the sender is the counterparty.
+pub fn countersign_atomic_swap<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	slate: &Slate,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
+
+	let mut context = w.get_private_context(keychain_mask, ret_slate.id.as_bytes())?;
+
+	let keychain = w.keychain(keychain_mask)?;
+	// Save `s` from the adaptor signature to be able to extract the
+	// atomic secret using the full signature
+	//
+	// This is the atomic secret used to recover funds on the other chain
+	let adaptor_sig = ret_slate.fill_round_3_atomic(&keychain, &mut context)?;
+	let atomic_secret = SecretKey::from_slice(keychain.secp(), &adaptor_sig.as_ref()[32..])?;
+
+	{
+		let atomic_id =
+			&ret_slate
+				.atomic_id
+				.as_ref()
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing atomic ID".into(),
+				)))?;
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_atomic_secret(atomic_id, &atomic_secret)?;
+		batch.commit()?;
+	}
+
+	if slate.kernel_features != 2 {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, true)?;
+		ret_slate.tx_or_err_mut()?.offset = ret_slate.offset.clone();
+	}
+	ret_slate.state = SlateState::Atomic3;
+
+	Ok(ret_slate)
 }
 
 /// Finalize slate

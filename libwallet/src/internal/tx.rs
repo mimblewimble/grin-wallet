@@ -266,6 +266,52 @@ where
 	Ok(context)
 }
 
+/// Add receiver output to the atomic slate
+pub fn add_output_to_atomic_slate<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	current_height: u64,
+	parent_key_id: &Identifier,
+	atomic_secret: Option<SecretKey>,
+	use_test_rng: bool,
+) -> Result<Context, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = wallet.keychain(keychain_mask)?;
+	let is_initiator = atomic_secret.is_none();
+
+	// create an output using the amount in the slate
+	let (_, mut context, mut tx) = selection::build_recipient_output(
+		wallet,
+		keychain_mask,
+		slate,
+		current_height,
+		parent_key_id.clone(),
+		use_test_rng,
+		is_initiator,
+	)?;
+
+	context.sec_atomic = atomic_scret;
+	// fill public keys
+	slate.fill_round_1(&keychain, &mut context)?;
+	// Create partial signature using the atomic secret,
+	// allows sender to recover the atomic secret when the
+	// full kernel signature is published
+	slate.fill_round_2_atomic(&keychain, &context)?;
+	// update excess in stored transaction
+	let mut batch = wallet.batch(keychain_mask)?;
+	tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
+	batch.save_private_context(slate.id.as_bytes(), &context, true)?;
+	batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+	batch.commit()?;
+
+	Ok(context)
+}
+
 /// Create context, without adding inputs to slate
 pub fn create_late_lock_context<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
