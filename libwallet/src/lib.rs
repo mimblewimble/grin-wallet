@@ -71,6 +71,7 @@ pub use api_impl::types::{
 	OutputCommitMapping, PaymentProof, VersionInfo,
 };
 pub use internal::scan::scan;
+pub use internal::tx::recover_atomic_secret;
 pub use slate_versions::ser as dalek_ser;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,

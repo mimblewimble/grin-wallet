@@ -19,7 +19,7 @@ use std::io::Cursor;
 use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
-use crate::grin_core::core::HeaderVersion;
+use crate::grin_core::core::{HeaderVersion, Transaction};
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
@@ -305,7 +305,7 @@ where
 	// update excess in stored transaction
 	let mut batch = wallet.batch(keychain_mask)?;
 	tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
-	batch.save_private_context(slate.id.as_bytes(), &context, true)?;
+	batch.save_private_context(slate.id.as_bytes(), &context)?;
 	batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 	batch.commit()?;
 
@@ -418,6 +418,62 @@ where
 	trace!("Slate to finalize is: {}", slate);
 	let _ = slate.finalize_atomic(&wallet.keychain(keychain_mask)?, context)?;
 	Ok(())
+}
+
+/// Recover atomic secret from final signature and adaptor signature
+pub fn recover_atomic_secret<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	tx: &Transaction,
+) -> Result<SecretKey, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let full_sig = tx.kernels()[0].excess_sig.clone();
+	let keychain = wallet.keychain(keychain_mask)?;
+	let secp = keychain.secp();
+
+	let context = wallet.get_private_context(keychain_mask, slate.id.as_bytes())?;
+
+	let pdata_idx = slate.find_participant_data_index(secp, &context)?;
+	let part_sig = match slate.participant_data[pdata_idx].part_sig {
+		Some(ref s) => s,
+		None => {
+			return Err(ErrorKind::Signature(
+				"Could not recover partial signature from atomic swap slate".into(),
+			)
+			.into())
+		}
+	};
+
+	let mut sr = SecretKey::from_slice(secp, &full_sig.as_ref()[32..])?;
+	// Use the initiator's partial signature to recover the responder's partial
+	// signature from the full signature
+	let mut sp_s = SecretKey::from_slice(secp, &part_sig.as_ref()[32..])?;
+	// The atomic_secret contains sr' from the responder's adaptor signature
+	let atomic_id = wallet.get_used_atomic_id(&slate.id)?;
+	let mut srp = wallet.get_recovered_atomic_nonce(keychain_mask, &atomic_id)?;
+
+	// Subtract the initiator's partial signature from the full signature
+	sp_s.neg_assign(secp)?;
+	sr.add_assign(secp, &sp_s)?;
+
+	// Now the signature only contains the responder's partial signature
+	// calculate sr' - sr to recover the atomic secret
+	// x = (kr + x + rr*xr) - (kr + rr*xr)
+	sr.neg_assign(secp)?;
+	srp.add_assign(secp, &sr)?;
+
+	{
+		// No longer need to keep the slate around, clean up
+		let mut batch = wallet.batch(keychain_mask)?;
+		batch.delete_private_context(slate.id.as_bytes())?;
+	}
+
+	Ok(srp)
 }
 
 /// Rollback outputs associated with a transaction in the wallet
