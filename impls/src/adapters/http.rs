@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// HTTP Wallet 'plugin' implementation
-use crate::client_utils::{Client, ClientError};
+use crate::client_utils::{Client, ClientError, ClientErrorKind};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, ErrorKind, Slate};
 use crate::SlateSender;
@@ -163,11 +163,15 @@ impl HttpSlateSender {
 	where
 		IN: Serialize,
 	{
-		let mut client = Client::new();
-		if self.use_socks {
-			client.use_socks = true;
-			client.socks_proxy_addr = self.socks_proxy_addr;
-		}
+		let client =
+			if self.use_socks {
+				Client::new()
+			} else {
+				Client::with_socks_proxy(self.socks_proxy_addr.ok_or_else(|| {
+					ClientErrorKind::Internal("No socks proxy address set".into())
+				})?)
+			}
+			.map_err(|_| ClientErrorKind::Internal("Unable to create http client".into()))?;
 		let req = client.create_post_request(url, api_secret, &input)?;
 		let res = client.send_request(req)?;
 		Ok(res)
