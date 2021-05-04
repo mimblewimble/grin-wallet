@@ -94,15 +94,25 @@ where
 		context.add_input(&input.key_id, &input.mmr_index, input.value);
 	}
 
-	let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
-
 	// Store change output(s) and cached commits
 	for (change_amount, id, mmr_index) in &change_amounts_derivations {
 		context.add_output(&id, &mmr_index, *change_amount);
-		commits.insert(
-			id.clone(),
-			wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
-		);
+		let out_data = OutputData {
+			root_key_id: parent_key_id.clone(),
+			key_id: id.clone(),
+			n_child: 0,
+			commit: wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
+			mmr_index: *mmr_index,
+			value: *change_amount,
+			status: OutputStatus::Unconfirmed,
+			height: current_height,
+			lock_height: 0,
+			is_coinbase: false,
+			tx_log_entry: None,
+		};
+		let mut batch = wallet.batch(keychain_mask)?;
+		batch.save(out_data)?;
+		batch.commit()?;
 	}
 
 	Ok(context)
