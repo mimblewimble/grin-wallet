@@ -28,7 +28,9 @@ use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{KernelFeaturesArgs, PaymentInfo, Slate, SlateState, TxFlow};
-use crate::types::{AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletBackend, WalletInfo};
+use crate::types::{
+	AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletBackend, WalletInfo,
+};
 use crate::{
 	address, wallet_lock, Context, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker,
@@ -931,7 +933,6 @@ pub fn init_atomic_swap<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	args: InitTxArgs,
-	derive_path: u32,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -1065,16 +1066,18 @@ where
 		debug!("Use this key to lock funds on the other chain.\n");
 
 		let mut batch = w.batch(keychain_mask)?;
-		batch.save_recovered_atomic_secret(&atomic_id, &atomic)?;
+		batch.save_recovered_atomic_secret(&atomic_id, &atomic_secret)?;
 		let atomic_idx = Slate::atomic_id_to_int(&atomic_id)?;
 		batch.save_used_atomic_index(&slate.id, atomic_idx)?;
 		batch.commit()?;
 	}
 
-	if slate.kernel_features != 2 {
+	ret_slate.adjust_offset(&keychain, &context)?;
+
+	if ret_slate.kernel_features != 2 {
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, true)?;
-		ret_slate.tx_or_err_mut()?.offset = ret_slate.offset.clone();
 	}
+
 	ret_slate.state = SlateState::Atomic3;
 
 	Ok(ret_slate)

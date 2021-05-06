@@ -260,6 +260,7 @@ pub struct SendArgs {
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
 	pub is_multisig: Option<bool>,
+	pub derive_path: Option<u32>,
 }
 
 pub fn send<L, C, K>(
@@ -269,13 +270,14 @@ pub fn send<L, C, K>(
 	args: SendArgs,
 	dark_scheme: bool,
 	test_mode: bool,
+	tx_flow: TxFlow,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slate = Slate::blank(2, TxFlow::Standard);
+	let mut slate = Slate::blank(2, tx_flow.clone());
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -292,7 +294,12 @@ where
 						is_multisig: args.is_multisig,
 						..Default::default()
 					};
-					let slate = api.init_send_tx(m, init_args)?;
+					let slate = match tx_flow {
+						TxFlow::Standard => api.init_send_tx(m, init_args)?,
+						TxFlow::Atomic => api.init_atomic_swap(m, init_args)?,
+						_ => api.init_send_tx(m, init_args)?,
+					};
+
 					Ok((strategy, slate.amount, slate.fee_fields))
 				})
 				.collect::<Result<Vec<_>, grin_wallet_libwallet::Error>>()?;
@@ -314,7 +321,11 @@ where
 				is_multisig: args.is_multisig,
 				..Default::default()
 			};
-			let result = api.init_send_tx(m, init_args);
+			let result = match tx_flow {
+				TxFlow::Standard => api.init_send_tx(m, init_args),
+				TxFlow::Atomic => api.init_atomic_swap(m, init_args),
+				_ => api.init_send_tx(m, init_args),
+			};
 			slate = match result {
 				Ok(s) => {
 					info!(
@@ -542,6 +553,7 @@ pub fn receive<L, C, K>(
 	args: ReceiveArgs,
 	tor_config: Option<TorConfig>,
 	test_mode: bool,
+	tx_flow: TxFlow,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K>,
@@ -569,7 +581,15 @@ where
 	};
 
 	controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
-		slate = api.receive_tx(&slate, Some(&g_args.account), None)?;
+		slate = match tx_flow {
+			TxFlow::Standard => api.receive_tx(&slate, Some(&g_args.account), None)?,
+			TxFlow::Atomic => api.receive_atomic_tx(&slate, Some(&g_args.account), None)?,
+			_ => {
+				return Err(
+					libwallet::ErrorKind::GenericError("Invalid transaction flow".into()).into(),
+				)
+			}
+		};
 		Ok(())
 	})?;
 
@@ -585,6 +605,70 @@ where
 			println!();
 			println!(
 				"Transaction recieved and sent back to sender at {} for finalization.",
+				dest
+			);
+			println!();
+			Ok(())
+		}
+		Ok(None) => {
+			output_slatepack(
+				owner_api,
+				keychain_mask,
+				&slate,
+				&dest,
+				args.outfile,
+				false,
+				false,
+			)?;
+			Ok(())
+		}
+		Err(e) => Err(e.into()),
+	}
+}
+pub fn countersign_atomic<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: ReceiveArgs,
+	tor_config: Option<TorConfig>,
+	test_mode: bool,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let (mut slate, ret_address) = parse_slatepack(
+		owner_api,
+		keychain_mask,
+		args.input_file,
+		args.input_slatepack_message,
+	)?;
+
+	let tor_config = match tor_config {
+		Some(mut c) => {
+			c.skip_send_attempt = Some(args.skip_tor);
+			Some(c)
+		}
+		None => None,
+	};
+
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		slate = api.countersign_atomic_swap(&slate, m, None)?;
+		Ok(())
+	})?;
+
+	let dest = match ret_address {
+		Some(a) => String::try_from(&a).unwrap(),
+		None => String::from(""),
+	};
+
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
+
+	match res {
+		Ok(Some(_)) => {
+			println!();
+			println!(
+				"Transaction countersigned and sent back to {} for finalization.",
 				dest
 			);
 			println!();
@@ -777,6 +861,7 @@ pub fn finalize<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: FinalizeArgs,
+	tx_flow: TxFlow,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -806,7 +891,16 @@ where
 		})?;
 	} else {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-			slate = api.finalize_tx(m, &slate)?;
+			slate = match tx_flow {
+				TxFlow::Standard => api.finalize_tx(m, &slate)?,
+				TxFlow::Atomic => api.finalize_atomic_swap(m, &slate)?,
+				_ => {
+					return Err(libwallet::ErrorKind::GenericError(
+						"invalid transaction flow".into(),
+					)
+					.into())
+				}
+			};
 			Ok(())
 		})?;
 	}
@@ -854,6 +948,84 @@ where
 		true,
 	)?;
 
+	Ok(())
+}
+
+/// Recover atomic secret args
+#[derive(Clone)]
+pub struct RecoverAtomicArgs {
+	pub input_file: Option<String>,
+	pub input_slatepack_message: Option<String>,
+	pub outfile: Option<String>,
+}
+
+/// Recover the atomic secret from an adaptor signature and kernel excess signature
+pub fn recover_atomic_secret<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: RecoverAtomicArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let (slate, _ret_address) = parse_slatepack(
+		owner_api,
+		keychain_mask,
+		args.input_file.clone(),
+		args.input_slatepack_message.clone(),
+	)?;
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let result = api.recover_atomic_secret(m, &slate);
+		match result {
+			Ok(_) => {
+				info!("Atomic nonce recovered successfully.");
+				Ok(())
+			}
+			Err(e) => {
+				error!("Tx not sent: {}", e);
+				Err(e)
+			}
+		}
+	})?;
+
+	println!("Transaction finalized successfully");
+	Ok(())
+}
+
+/// Get atomic secrets args
+#[derive(Clone)]
+pub struct GetAtomicSecretsArgs {
+	pub id: u32,
+	pub amount: f64,
+}
+
+/// Get atomic secrets from storage to recover funds on the other chain
+pub fn get_atomic_secrets<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: GetAtomicSecretsArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let result =
+			api.get_atomic_secrets(m, args.id, (args.amount * (10_u64.pow(9) as f64)) as u64);
+		match result {
+			Ok(_) => {
+				info!("Atomic nonces recovered successfully.");
+				Ok(())
+			}
+			Err(e) => {
+				error!("Tx not sent: {}", e);
+				Err(e)
+			}
+		}
+	})?;
 	Ok(())
 }
 

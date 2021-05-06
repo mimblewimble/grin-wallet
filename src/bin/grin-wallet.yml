@@ -277,6 +277,152 @@ subcommands:
             short: u
             long: outfile
             takes_value: true
+  - send_atomic:
+      about: Builds an atomic swap main transaction to send coins and sends to the recipient via the Slatepack workflow
+      args:
+        - refund:
+            help: Create an atomic swap refund transaction
+            short: r
+            long: refund
+        - amount:
+            help: Number of coins to send with optional fraction, e.g. 12.423
+            index: 1
+        - minimum_confirmations:
+            help: Minimum number of confirmations required for an output to be spendable
+            short: c
+            long: min_conf
+            default_value: "10"
+            takes_value: true
+        - selection_strategy:
+            help: Coin/Output selection strategy.
+            short: s
+            long: selection
+            possible_values:
+              - all
+              - smallest
+            default_value: smallest
+            takes_value: true
+        - estimate_selection_strategies:
+            help: Estimates all possible Coin/Output selection strategies.
+            short: e
+            long: estimate-selection
+        - late_lock:
+            help: EXPERIMENTAL - Do not lock the coins immediately, instead only lock them during finalization.
+            short: l
+            long: late-lock
+        - change_outputs:
+            help: Number of change outputs to generate (mainly for testing)
+            short: o
+            long: change_outputs
+            default_value: "1"
+            takes_value: true
+        - dest:
+            help: Intended recipient's Slatepack Address (or http listener address (DEPRECATED))
+            short: d
+            long: dest
+            takes_value: true
+        - no_payment_proof:
+            help: Don't request a payment proof, even if the Recipient's Slatepack address is provided in the -dest argument
+            short: n
+            long: no_payment_proof
+        - fluff:
+            help: Fluff the transaction (ignore Dandelion relay protocol)
+            short: f
+            long: fluff
+        - stored_tx:
+            help: If present, use the previously stored Unconfirmed transaction with given id
+            short: t
+            long: stored_tx
+            takes_value: true
+        - ttl_blocks:
+            help: If present, the number of blocks from the current after which wallets should refuse to process transactions further
+            short: b
+            long: ttl_blocks
+            takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
+  - receive_atomic:
+      about: Processes a Slatepack Message to accept an atomic swap transfer from a sender
+      args:
+        - input:
+            help: File containing a Slatepack Message
+            short: i
+            long: input
+            takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
+  - countersign_atomic:
+      about: Third round of an atomic swap, creates a signature, and recovers adaptor signature from the other party
+      args:
+        - input:
+            help: File containing a Slatepack Message
+            short: i
+            long: input
+            takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
+  - finalize_atomic:
+      about: Processes a Slatepack Message to finalize an atomic swap transfer.
+      args:
+        - input:
+            help: Partial transaction to process, expects the receiver's transaction file.
+            short: i
+            long: input
+            takes_value: true
+        - fluff:
+            help: Fluff the transaction (ignore Dandelion relay protocol)
+            short: f
+            long: fluff
+        - nopost:
+            help: Do not post the transaction.
+            short: n
+            long: nopost
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
+  - recover_atomic_secret:
+      about: Processes a Slatepack Message to recover an atomic secret for recovering funds on the other chain.
+      args:
+        - input:
+            help: Finalized transaction to process, expects the initiator's transaction file.
+            short: i
+            long: input
+            takes_value: true
+  - get_atomic_secrets:
+      about: Uses the supplied ID to recover atomic secrets from storage
+      args:
+        - id:
+            help: Unique identifier to recover atomic swap secrets
+            short: i
+            long: id
+            takes_value: true
+        - amount:
+            help: Atomic swap amount
+            long: amount
+            takes_value: true
   - outputs:
       about: Raw wallet output info (list of outputs)
   - txs:

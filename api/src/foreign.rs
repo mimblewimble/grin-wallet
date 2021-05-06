@@ -419,7 +419,7 @@ where
 					&a,
 					tor_config_lock.clone(),
 					None,
-					true,
+					false,
 					self.doctest_mode,
 				);
 				match res {

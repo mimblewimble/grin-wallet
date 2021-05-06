@@ -19,7 +19,7 @@ use std::io::Cursor;
 use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
-use crate::grin_core::core::{HeaderVersion, Transaction};
+use crate::grin_core::core::{HeaderVersion, TxKernel};
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
@@ -478,14 +478,14 @@ pub fn recover_atomic_secret<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	tx: &Transaction,
+	tx_kernel: &TxKernel,
 ) -> Result<SecretKey, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let full_sig = tx.kernels()[0].excess_sig.clone();
+	let full_sig = tx_kernel.excess_sig.clone();
 	let keychain = wallet.keychain(keychain_mask)?;
 	let secp = keychain.secp();
 

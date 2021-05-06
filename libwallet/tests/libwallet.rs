@@ -619,7 +619,7 @@ fn test_atomic_swap_multisig_tx() {
 
 	// set the atomic secret used for the adaptor signature
 	let atomic_secret = SecretKey::from_slice(receiver_keychain.secp(), &[2; 32]).unwrap();
-	receiver_ctx.set_atomic_secret(atomic_secret.clone());
+	receiver_ctx.sec_atomic = Some(atomic_secret.clone());
 
 	// set kernel features, fee, and total amount to sign the correct kernel message
 	slate.kernel_features = 0;

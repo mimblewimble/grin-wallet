@@ -21,7 +21,7 @@ use crate::api_impl::owner::{finalize_atomic_swap, finalize_tx as owner_finalize
 use crate::grin_core::core::FeeFields;
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{Keychain, SwitchCommitmentType};
-use crate::grin_util::from_hex;
+use crate::grin_util::{from_hex, ToHex};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::internal::{selection, tx, updater};
@@ -183,31 +183,24 @@ where
 	let keychain = w.keychain(keychain_mask)?;
 
 	let is_height_lock = ret_slate.kernel_features == 2;
-	// derive atomic secret from the slate's `atomic_id`
-	let atomic_secret = {
-		// FIXME: need a way to ensure atomic secrets are not reused
-		//
-		// The attack vector is being supplied/tricked into reusing the
-		// same derivation path for multiple swaps, where the swap has
-		// already been completed successfully.
-		//
-		// The attacker would not need to wait for the full signature
-		// in the repeat swap, since they would have the nonce already.
-		//
-		// Maybe use a bloom filter as an automated defense?
-		let atomic_id = match &ret_slate.atomic_id {
-			Some(aid) => aid.clone(),
-			None => return Err(ErrorKind::GenericError("missing atomic ID".into()).into()),
-		};
-		Slate::check_atomic_id(&atomic_id)?;
+	// derive atomic nonce from the slate's `atomic_id`
+	let (atomic_id, atomic_secret) = {
+		let atomic_id = w.next_atomic_id(keychain_mask)?;
 		let atomic =
 			keychain.derive_key(ret_slate.amount, &atomic_id, SwitchCommitmentType::Regular)?;
 
-		let mut batch = w.batch(keychain_mask)?;
-		batch.save_atomic_secret(&atomic_id, &atomic)?;
-		batch.commit()?;
+		let pub_atomic = PublicKey::from_secret_key(keychain.secp(), &atomic)?;
 
-		Some(atomic)
+		debug!(
+			"Your public atomic nonce: {}",
+			pub_atomic
+				.serialize_vec(keychain.secp(), true)
+				.as_ref()
+				.to_hex()
+		);
+		debug!("Use this key to lock funds on the other chain.\n");
+
+		(atomic_id, Some(atomic))
 	};
 
 	let (input_ids, output_ids) = if is_height_lock {
@@ -241,19 +234,14 @@ where
 		use_test_rng,
 	)?;
 
-	context.fee = Some(ret_slate.fee_fields.clone());
-	let excess = ret_slate.calc_excess(keychain.secp())?;
-
-	if let Some(ref mut p) = ret_slate.payment_proof {
-		let sig = tx::create_payment_proof_signature(
-			ret_slate.amount,
-			&excess,
-			p.sender_address,
-			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
-		)?;
-
-		p.receiver_signature = Some(sig);
+	{
+		let atomic_idx = Slate::atomic_id_to_int(&atomic_id)?;
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_used_atomic_index(&ret_slate.id, atomic_idx)?;
+		batch.commit()?;
 	}
+
+	context.fee = Some(ret_slate.fee_fields.clone());
 
 	if is_height_lock {
 		ret_slate.compact()?;

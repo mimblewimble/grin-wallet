@@ -14,7 +14,8 @@
 //! core::libtx specific tests
 use grin_wallet_api::foreign_rpc_client;
 use grin_wallet_api::run_doctest_foreign;
-use grin_wallet_libwallet::{Slate, SlateVersion, VersionedSlate};
+use grin_wallet_libwallet::TxFlow;
+//use grin_wallet_libwallet::{Slate, SlateVersion, VersionedSlate};
 use serde_json;
 use serde_json::Value;
 use tempfile::tempdir;
@@ -52,7 +53,7 @@ fn _receive_versioned_slate() {
 	let request_val: Value = serde_json::from_str(v1_req).unwrap();
 	let expected_response: Value = serde_json::from_str(v1_resp).unwrap();
 
-	let response = run_doctest_foreign(request_val, dir, false, 5, true, false)
+	let response = run_doctest_foreign(request_val, dir, false, 5, false, TxFlow::Standard)
 		.unwrap()
 		.unwrap();
 
@@ -83,7 +84,7 @@ fn receive_tx(vs: VersionedSlate) -> VersionedSlate {
 	)
 	.unwrap();
 	let (call, tracker) = bound_method.call();
-	let json_response = run_doctest_foreign(call.as_request(), dir, true, 5, false, false)
+	let json_response = run_doctest_foreign(call.as_request(), dir, 5, TxFlow::Standard)
 		.unwrap()
 		.unwrap();
 	let mut response = easy_jsonrpc_mw::Response::from_json_response(json_response).unwrap();

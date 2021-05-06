@@ -56,7 +56,9 @@ const LAST_SCANNED_BLOCK: u8 = b'l';
 const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
 const WALLET_INIT_STATUS: u8 = b'w';
 const WALLET_INIT_STATUS_KEY: &str = "WALLET_INIT_STATUS";
+const ATOMIC_ID_PREFIX: u8 = b'm';
 const ATOMIC_SECRET_PREFIX: u8 = b's';
+const RECOVERED_ATOMIC_SECRET_PREFIX: u8 = b'r';
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations
@@ -135,6 +137,34 @@ where
 	Ok(ret_atomic)
 }
 
+fn recovered_atomic_xor_key<K>(
+	keychain: &K,
+	atomic_id: &Identifier,
+) -> Result<[u8; SECRET_KEY_SIZE], Error>
+where
+	K: Keychain,
+{
+	let root_key = keychain.derive_key(0, &K::root_key_id(), SwitchCommitmentType::Regular)?;
+	//derive XOE value for storing public atomic secret
+	// h(root_key|atomic_id|"recovered_atomic_secret")
+	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
+	hasher.update(&root_key.0);
+	hasher.update(&atomic_id.to_bytes());
+	hasher.update(&b"recovered_atomic_secret"[..]);
+	let atomic_xor_key = hasher.finalize();
+	let mut ret_atomic = [0; SECRET_KEY_SIZE];
+	ret_atomic.copy_from_slice(&atomic_xor_key.as_bytes()[0..SECRET_KEY_SIZE]);
+	Ok(ret_atomic)
+}
+
+fn default_parent_atomic_id() -> Identifier {
+	ExtKeychain::derive_key_id(
+		2, 0x6d776174, /* 'mwat' */
+		0x6f6d6963, /* 'omic' */
+		0, 0,
+	)
+}
+
 pub struct LMDBBackend<'ck, C, K>
 where
 	C: NodeClient + 'ck,
@@ -148,6 +178,8 @@ where
 	pub master_checksum: Box<Option<Blake2bResult>>,
 	/// Parent path to use by default for output operations
 	parent_key_id: Identifier,
+	/// Atomic swap path to use by default for nonce operations
+	parent_atomic_id: Identifier,
 	/// wallet to node client
 	w2n_client: C,
 	///phantom
@@ -193,6 +225,7 @@ where
 			keychain: None,
 			master_checksum: Box::new(None),
 			parent_key_id: LMDBBackend::<C, K>::default_path(),
+			parent_atomic_id: LMDBBackend::<C, K>::default_atomic_path(),
 			w2n_client: n_client,
 			_phantom: &PhantomData,
 		};
@@ -204,6 +237,13 @@ where
 		// in the BIP32 spec. Parent is account 0 at level 2, child output identifiers
 		// are all at level 3
 		ExtKeychain::derive_key_id(2, 0, 0, 0, 0)
+	}
+
+	fn default_atomic_path() -> Identifier {
+		// return the default atomic secret wallet path, corresponding to the default account
+		// offset for atomic secret keys. Parent is account `hex(b"mwatomic")` at level 2,
+		// child atomic secret identifiers are all at level 3
+		default_parent_atomic_id()
 	}
 
 	/// Just test to see if database files exist in the current directory. If
@@ -509,6 +549,65 @@ where
 		Ok(Identifier::from_path(&return_path))
 	}
 
+	fn current_atomic_id<'a>(&mut self) -> Result<Identifier, Error> {
+		let index = {
+			let batch = self.db.batch()?;
+			let atomic_key = to_key(
+				ATOMIC_ID_PREFIX,
+				&mut self.parent_atomic_id.to_bytes().to_vec(),
+			);
+			match batch.get_ser(&atomic_key)? {
+				Some(idx) => idx,
+				None => 0,
+			}
+		};
+		let mut return_path = self.parent_atomic_id.to_path();
+		return_path.depth += 1;
+		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(index);
+		Ok(Identifier::from_path(&return_path))
+	}
+
+	fn next_atomic_id<'a>(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Identifier, Error> {
+		let mut atomic_idx = {
+			let batch = self.db.batch()?;
+			let atomic_key = to_key(
+				ATOMIC_ID_PREFIX,
+				&mut self.parent_atomic_id.to_bytes().to_vec(),
+			);
+			match batch.get_ser(&atomic_key)? {
+				Some(idx) => idx,
+				None => 0,
+			}
+		};
+		let mut return_path = self.parent_atomic_id.to_path();
+		return_path.depth += 1;
+		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(atomic_idx);
+		atomic_idx += 1;
+		let mut batch = self.batch(keychain_mask)?;
+		batch.save_atomic_index(atomic_idx)?;
+		batch.commit()?;
+		Ok(Identifier::from_path(&return_path))
+	}
+
+	fn get_used_atomic_id(&mut self, id: &Uuid) -> Result<Identifier, Error> {
+		let parent_atomic_id = self.parent_atomic_id.clone();
+		let atomic_idx = {
+			let batch = self.db.batch()?;
+			let atomic_key = to_key(ATOMIC_ID_PREFIX, &mut id.as_bytes().to_vec());
+			match batch.get_ser(&atomic_key)? {
+				Some(idx) => idx,
+				None => 0,
+			}
+		};
+		let mut return_path = parent_atomic_id.to_path();
+		return_path.depth += 1;
+		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(atomic_idx);
+		Ok(Identifier::from_path(&return_path))
+	}
+
 	fn last_confirmed_height<'a>(&mut self) -> Result<u64, Error> {
 		let batch = self.db.batch()?;
 		let height_key = to_key(
@@ -565,6 +664,30 @@ where
 		let secret: Vec<u8> = match batch.get_ser(&secret_key)? {
 			Some(s) => s,
 			None => return Err(ErrorKind::GenericError("missing atomic secret".into()).into()),
+		};
+		for (x, s) in xor_key.iter_mut().zip(secret.iter()) {
+			*x ^= s;
+		}
+		Ok(SecretKey::from_slice(keychain.secp(), xor_key.as_ref())?)
+	}
+
+	fn get_recovered_atomic_secret<'a>(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		atomic_id: &Identifier,
+	) -> Result<SecretKey, Error> {
+		let keychain = self.keychain(keychain_mask)?;
+		let mut xor_key = recovered_atomic_xor_key(&keychain, atomic_id)?;
+		let nonce_key = to_key(
+			RECOVERED_ATOMIC_SECRET_PREFIX,
+			&mut atomic_id.to_bytes().to_vec(),
+		);
+		let batch = self.db.batch()?;
+		let secret: Vec<u8> = match batch.get_ser(&nonce_key)? {
+			Some(s) => s,
+			None => {
+				return Err(ErrorKind::GenericError("missing atomic secret".into()).into())
+			}
 		};
 		for (x, s) in xor_key.iter_mut().zip(secret.iter()) {
 			*x ^= s;
@@ -724,6 +847,27 @@ where
 		Ok(())
 	}
 
+	fn save_atomic_index(&mut self, atomic_idx: u32) -> Result<(), Error> {
+		let parent_atomic_id = default_parent_atomic_id();
+		let atomic_key = to_key(ATOMIC_ID_PREFIX, &mut parent_atomic_id.to_bytes().to_vec());
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&atomic_key, &atomic_idx)?;
+		Ok(())
+	}
+
+	fn save_used_atomic_index(&mut self, id: &Uuid, atomic_idx: u32) -> Result<(), Error> {
+		let atomic_key = to_key(ATOMIC_ID_PREFIX, &mut id.as_bytes().to_vec());
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&atomic_key, &atomic_idx)?;
+		Ok(())
+	}
+
 	fn save_tx_log_entry(
 		&mut self,
 		tx_in: TxLogEntry,
@@ -817,11 +961,32 @@ where
 	fn save_atomic_secret(
 		&mut self,
 		atomic_id: &Identifier,
-		atomic_secret: &SecretKey,
+		secret: &SecretKey,
 	) -> Result<(), Error> {
 		let mut xor_key = atomic_xor_key(self.keychain(), atomic_id)?;
 		let secret_key = to_key(ATOMIC_SECRET_PREFIX, &mut atomic_id.to_bytes().to_vec());
-		for (x, s) in xor_key.iter_mut().zip(atomic_secret.0[..].iter()) {
+		for (x, s) in xor_key.iter_mut().zip(secret.0[..].iter()) {
+			*x ^= s;
+		}
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&secret_key, &xor_key.to_vec())?;
+		Ok(())
+	}
+
+	fn save_recovered_atomic_secret(
+		&mut self,
+		atomic_id: &Identifier,
+		secret: &SecretKey,
+	) -> Result<(), Error> {
+		let mut xor_key = recovered_atomic_xor_key(self.keychain(), atomic_id)?;
+		let secret_key = to_key(
+			RECOVERED_ATOMIC_SECRET_PREFIX,
+			&mut atomic_id.to_bytes().to_vec(),
+		);
+		for (x, s) in xor_key.iter_mut().zip(secret.0[..].iter()) {
 			*x ^= s;
 		}
 		self.db

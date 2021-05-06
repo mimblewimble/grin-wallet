@@ -30,7 +30,7 @@ use crate::grin_keychain::{
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
-use crate::grin_util::{secp, static_secp_instance};
+use crate::grin_util::{secp, static_secp_instance, ToHex};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use serde::ser::{Serialize, Serializer};
@@ -582,6 +582,18 @@ impl Slate {
 		let msg = self.msg_to_sign()?;
 		let nonce_sum = self.pub_nonce_sum(secp)?;
 		let key_sum = self.pub_blind_sum(secp)?;
+		let pub_atomic = self.participant_data[opdata_idx]
+			.public_atomic
+			.as_ref()
+			.ok_or(Error::from(ErrorKind::GenericError(
+				"Missing atomic public key".into(),
+			)))?;
+
+		debug!(
+			"Other party's atomic public key: {}",
+			pub_atomic.serialize_vec(secp, true).as_ref().to_hex()
+		);
+		debug!("Validate against the key used to lock funds on the other chain.\n");
 
 		aggsig::verify_partial_sig(
 			secp,

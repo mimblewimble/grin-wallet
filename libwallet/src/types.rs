@@ -263,6 +263,13 @@ where
 		keychain_mask: Option<&SecretKey>,
 		atomic_id: &Identifier,
 	) -> Result<SecretKey, Error>;
+
+	/// Get the recovered secret for an atomic swap transaction
+	fn get_recovered_atomic_secret(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		atomic_id: &Identifier,
+	) -> Result<SecretKey, Error>;
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a

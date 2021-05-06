@@ -15,7 +15,7 @@
 /// HTTP Wallet 'plugin' implementation
 use crate::client_utils::{Client, ClientError, ClientErrorKind};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
-use crate::libwallet::{Error, ErrorKind, Slate};
+use crate::libwallet::{Error, ErrorKind, Slate, SlateState};
 use crate::SlateSender;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -198,24 +198,58 @@ impl SlateSender for HttpSlateSender {
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = match finalize {
-			false => json!({
-				"jsonrpc": "2.0",
-				"method": "receive_tx",
-				"id": 1,
-				"params": [
-							slate_send,
-							null,
-							null
-						]
-			}),
-			true => json!({
-				"jsonrpc": "2.0",
-				"method": "finalize_tx",
-				"id": 1,
-				"params": [
-							slate_send
-						]
-			}),
+			false => match slate.state {
+				SlateState::Standard1 | SlateState::Invoice1 => json!({
+					"jsonrpc": "2.0",
+					"method": "receive_tx",
+					"id": 1,
+					"params": [
+								slate_send,
+								null,
+								null
+							]
+				}),
+				SlateState::Atomic1 => json!({
+					"jsonrpc": "2.0",
+					"method": "receive_atomic_tx",
+					"id": 1,
+					"params": [
+								slate_send,
+								null,
+								null
+							]
+				}),
+				SlateState::Atomic2 => json!({
+					"jsonrpc": "2.0",
+					"method": "countersign_atomic_swap",
+					"id": 1,
+					"params": [
+								slate_send,
+								null,
+								null
+							]
+				}),
+				_ => return Err(ErrorKind::ClientCallback("invalid slate state".into()).into()),
+			},
+			true => match slate.state {
+				SlateState::Standard2 | SlateState::Invoice2 => json!({
+					"jsonrpc": "2.0",
+					"method": "finalize_tx",
+					"id": 1,
+					"params": [
+								slate_send
+							]
+				}),
+				SlateState::Atomic3 => json!({
+					"jsonrpc": "2.0",
+					"method": "finalize_atomic_swap",
+					"id": 1,
+					"params": [
+								slate_send
+							]
+				}),
+				_ => return Err(ErrorKind::ClientCallback("invalid slate state".into()).into()),
+			},
 		};
 
 		trace!("Sending receive_tx request: {}", req);
