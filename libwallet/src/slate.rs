@@ -25,7 +25,7 @@ use crate::grin_core::core::transaction::{
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{
-	BlindSum, BlindingFactor, ExtKeychainPath, Identifier, Keychain, SwitchCommitmentType,
+	BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Identifier, Keychain, SwitchCommitmentType,
 };
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
@@ -49,6 +49,8 @@ use crate::slate_versions::v5::{
 use crate::slate_versions::{SlateVersion, VersionedSlate};
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
+
+pub const ATOMIC_ID_PREFIX: &'static [u8] = b"\x03mwatomic";
 
 #[derive(Debug, Clone)]
 pub struct PaymentInfo {
@@ -397,6 +399,33 @@ impl Slate {
 				.replace_kernel(TxKernel::with_features(self.kernel_features()?)),
 		);
 		Ok(())
+	}
+
+	/// Create an atomic secret identifier with the prefix b'\x04mwatomic'
+	pub fn create_atomic_id(id: u32) -> Identifier {
+		ExtKeychain::derive_key_id(
+			3, 0x6d776174, /* 'mwat' */
+			0x6f6d6963, /* 'omic' */
+			id, 0,
+		)
+	}
+
+	/// Check that an atomic secret identifier is valid
+	pub fn check_atomic_id(id: &Identifier) -> Result<(), Error> {
+		let id_bytes = id.to_bytes();
+		if &id_bytes[..9] == ATOMIC_ID_PREFIX {
+			Ok(())
+		} else {
+			Err(ErrorKind::GenericError("Invalid atomic ID".into()).into())
+		}
+	}
+
+	/// Convert the atomic secret identifier to an unsigned integer
+	pub fn atomic_id_to_int(id: &Identifier) -> Result<u32, Error> {
+		Self::check_atomic_id(id)?;
+		let mut id_bytes = [0; 4];
+		id_bytes.copy_from_slice(&id.to_bytes()[9..13]);
+		Ok(u32::from_be_bytes(id_bytes))
 	}
 
 	/// Completes callers part of round 1, adding public key info
