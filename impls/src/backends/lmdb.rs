@@ -56,6 +56,7 @@ const LAST_SCANNED_BLOCK: u8 = b'l';
 const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
 const WALLET_INIT_STATUS: u8 = b'w';
 const WALLET_INIT_STATUS_KEY: &str = "WALLET_INIT_STATUS";
+const ATOMIC_SECRET_PREFIX: u8 = b's';
 
 /// test to see if database files exist in the current directory. If so,
 /// use a DB backend for all operations
@@ -113,6 +114,25 @@ where
 	ret_tau_x.copy_from_slice(&tau_x_xor_key.as_bytes()[..SECRET_KEY_SIZE]);
 
 	Ok(ret_tau_x)
+}
+
+fn atomic_xor_key<K>(keychain: &K, atomic_id: &Identifier) -> Result<[u8; SECRET_KEY_SIZE], Error>
+where
+	K: Keychain,
+{
+	let root_key = keychain.derive_key(0, &K::root_key_id(), SwitchCommitmentType::Regular)?;
+
+	//derive XOE value for storing atomic public key
+	// h(root_key|atomic_id|"atomic_secret")
+	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
+	hasher.update(&root_key.0);
+	hasher.update(&atomic_id.to_bytes());
+	hasher.update(&b"atomic_secret"[..]);
+	let atomic_xor_key = hasher.finalize();
+	let mut ret_atomic = [0; SECRET_KEY_SIZE];
+	ret_atomic.copy_from_slice(&atomic_xor_key.as_bytes()[0..SECRET_KEY_SIZE]);
+
+	Ok(ret_atomic)
 }
 
 pub struct LMDBBackend<'ck, C, K>
@@ -532,6 +552,25 @@ where
 		};
 		Ok(status)
 	}
+
+	fn get_atomic_secret<'a>(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		atomic_id: &Identifier,
+	) -> Result<SecretKey, Error> {
+		let keychain = self.keychain(keychain_mask)?;
+		let mut xor_key = atomic_xor_key(&keychain, atomic_id)?;
+		let secret_key = to_key(ATOMIC_SECRET_PREFIX, &mut atomic_id.to_bytes().to_vec());
+		let batch = self.db.batch()?;
+		let secret: Vec<u8> = match batch.get_ser(&secret_key)? {
+			Some(s) => s,
+			None => return Err(ErrorKind::GenericError("missing atomic secret".into()).into()),
+		};
+		for (x, s) in xor_key.iter_mut().zip(secret.iter()) {
+			*x ^= s;
+		}
+		Ok(SecretKey::from_slice(keychain.secp(), xor_key.as_ref())?)
+	}
 }
 
 /// An atomic batch in which all changes can be committed all at once or
@@ -772,6 +811,24 @@ where
 	fn commit(&self) -> Result<(), Error> {
 		let db = self.db.replace(None);
 		db.unwrap().commit()?;
+		Ok(())
+	}
+
+	fn save_atomic_secret(
+		&mut self,
+		atomic_id: &Identifier,
+		atomic_secret: &SecretKey,
+	) -> Result<(), Error> {
+		let mut xor_key = atomic_xor_key(self.keychain(), atomic_id)?;
+		let secret_key = to_key(ATOMIC_SECRET_PREFIX, &mut atomic_id.to_bytes().to_vec());
+		for (x, s) in xor_key.iter_mut().zip(atomic_secret.0[..].iter()) {
+			*x ^= s;
+		}
+		self.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.put_ser(&secret_key, &xor_key.to_vec())?;
 		Ok(())
 	}
 }

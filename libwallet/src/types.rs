@@ -247,6 +247,13 @@ where
 
 	/// Flag whether the wallet needs a full UTXO scan on next update attempt
 	fn init_status(&mut self) -> Result<WalletInitStatus, Error>;
+
+	/// Get the secret for an atomic swap transaction
+	fn get_atomic_secret(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		atomic_id: &Identifier,
+	) -> Result<SecretKey, Error>;
 }
 
 /// Batch trait to update the output data backend atomically. Trying to use a
@@ -315,6 +322,13 @@ where
 
 	/// Write the wallet data to backend file
 	fn commit(&self) -> Result<(), Error>;
+
+	/// Save secret for an atomic swap transaction
+	fn save_atomic_secret(
+		&mut self,
+		atomic_id: &Identifier,
+		secret: &SecretKey,
+	) -> Result<(), Error>;
 }
 
 /// Encapsulate all wallet-node communication functions. No functions within libwallet
