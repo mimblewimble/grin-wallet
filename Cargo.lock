@@ -1180,8 +1180,8 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
 name = "grin_api"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
@@ -1213,8 +1213,8 @@ dependencies = [
 
 [[package]]
 name = "grin_chain"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "bit-vec",
  "bitflags 1.2.1",
@@ -1237,8 +1237,8 @@ dependencies = [
 
 [[package]]
 name = "grin_core"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1264,8 +1264,8 @@ dependencies = [
 
 [[package]]
 name = "grin_keychain"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1286,8 +1286,8 @@ dependencies = [
 
 [[package]]
 name = "grin_p2p"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "bitflags 1.2.1",
  "bytes 0.5.6",
@@ -1308,8 +1308,8 @@ dependencies = [
 
 [[package]]
 name = "grin_pool"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1342,8 +1342,8 @@ dependencies = [
 
 [[package]]
 name = "grin_store"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "byteorder",
  "croaring",
@@ -1362,8 +1362,8 @@ dependencies = [
 
 [[package]]
 name = "grin_util"
-version = "5.1.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f6ec77a592de04fcc4a78127822932ec7e18525c"
+version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
@@ -4160,9 +4160,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "0.5.8"
+version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "543adf038106b64cfca4711c82c917d785e3540e04f7996554488f988ec43124"
+checksum = "9c83dc9b784d252127720168abd71ea82bf8c3d96b17dc565b5e2a02854f2b27"
 dependencies = [
  "byteorder",
  "crc32fast",
