@@ -180,10 +180,23 @@ pub fn output_torrc(
 	props.add_item("SocksPort", socks_port);
 	props.add_item("DataDirectory", &tor_data_dir);
 
+	let listen_port = match wallet_listener_addr.find(|c| c == ':') {
+		Some(p) => wallet_listener_addr[p + 1..].parse::<u16>().map_err(|e| {
+			Error::from(ErrorKind::GenericError(format!(
+				"invalid onion listen port: {}",
+				e
+			)))
+		})?,
+		None => 13415,
+	};
+
 	for dir in service_dirs {
 		let service_file_name = format!("./{}{}{}", HIDDEN_SERVICES_DIR, MAIN_SEPARATOR, dir);
 		props.add_item("HiddenServiceDir", &service_file_name);
-		props.add_item("HiddenServicePort", &format!("80 {}", wallet_listener_addr));
+		props.add_item(
+			"HiddenServicePort",
+			&format!("{} {}", listen_port, wallet_listener_addr),
+		);
 	}
 
 	props.write_to_file(&torrc_file_path)?;
