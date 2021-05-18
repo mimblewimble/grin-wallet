@@ -83,6 +83,7 @@ fn init_tor_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
+	bridge_line: &str,
 ) -> Result<(tor_process::TorProcess, SlatepackAddress), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -103,12 +104,26 @@ where
 	let onion_address = OnionV3Address::from_private(&sec_key.0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+	let mut obfs4proxy_path = "".to_string();
+	if !bridge_line.is_empty() {
+		warn!("TOR Bridge relays configured");
+		tor_config::check_bridge_line(bridge_line)
+			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
+		obfs4proxy_path = tor_config::is_obfs4proxy_in_path()
+			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
+	};
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr
 	);
-	tor_config::output_tor_listener_config(&tor_dir, addr, &vec![sec_key])
-		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	tor_config::output_tor_listener_config(
+		&tor_dir,
+		addr,
+		&vec![sec_key],
+		bridge_line,
+		&obfs4proxy_path,
+	)
+	.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))
@@ -266,17 +281,23 @@ where
 		let lc = w_lock.lc_provider()?;
 		let _ = lc.wallet_inst()?;
 	}
+	let bridge_line = match tor_config.clone() {
+		Some(s) => s.bridge_line,
+		None => "".to_string(),
+	};
 	// need to keep in scope while the main listener is running
 	let (_tor_process, address) = match use_tor {
-		true => match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr) {
-			Ok((tp, addr)) => (Some(tp), Some(addr)),
-			Err(e) => {
-				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
-				warn!("Tor Error: {}", e);
-				warn!("Listener will be available via HTTP only");
-				(None, None)
+		true => {
+			match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr, &bridge_line) {
+				Ok((tp, addr)) => (Some(tp), Some(addr)),
+				Err(e) => {
+					warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
+					warn!("Tor Error: {}", e);
+					warn!("Listener will be available via HTTP only");
+					(None, None)
+				}
 			}
-		},
+		}
 		false => (None, None),
 	};
 

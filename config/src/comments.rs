@@ -215,9 +215,11 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"socks_proxy_addr".to_string(),
+		"bridge_line".to_string(),
 		"
-# TOR (SOCKS) proxy server address
+#TOR Bridge relays: Allows people to send and receive Grin in a country where TOR is censored.
+#Enable it by entering a single bridge line. To disable it, you must let it empty.
+#Bridge line must be in the following format: `obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]`
 "
 		.to_string(),
 	);

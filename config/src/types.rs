@@ -164,6 +164,8 @@ pub struct TorConfig {
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
+	/// Send configuration directory
+	pub bridge_line: String,
 }
 
 impl Default for TorConfig {
@@ -173,6 +175,7 @@ impl Default for TorConfig {
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
+			bridge_line: "".to_string(),
 		}
 	}
 }

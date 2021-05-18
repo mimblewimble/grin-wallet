@@ -47,6 +47,14 @@ pub enum ErrorKind {
 	#[fail(display = "Onion V3 Address Error")]
 	OnionV3Address(OnionV3AddressError),
 
+	/// Error when obfs4proxy is not in the user path if TOR brigde is enabled
+	#[fail(display = "Unable to find obfs4proxy binary in your path; {}", _0)]
+	Obfs4proxyBin(String),
+
+	/// Error the bridge input is in bad format
+	#[fail(display = "Bridge line is in bad format; {}", _0)]
+	BridgeLine(String),
+
 	/// Error when formatting json
 	#[fail(display = "IO error")]
 	IO,

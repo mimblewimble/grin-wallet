@@ -35,6 +35,7 @@ pub struct HttpSlateSender {
 	socks_proxy_addr: Option<SocketAddr>,
 	tor_config_dir: String,
 	process: Option<Arc<tor_process::TorProcess>>,
+	bridge_line: String,
 }
 
 impl HttpSlateSender {
@@ -49,6 +50,7 @@ impl HttpSlateSender {
 				socks_proxy_addr: None,
 				tor_config_dir: String::from(""),
 				process: None,
+				bridge_line: String::from(""),
 			})
 		}
 	}
@@ -58,12 +60,14 @@ impl HttpSlateSender {
 		base_url: &str,
 		proxy_addr: &str,
 		tor_config_dir: &str,
+		bridge_line: &str,
 	) -> Result<HttpSlateSender, SchemeNotHttp> {
 		let mut ret = Self::new(base_url)?;
 		ret.use_socks = true;
 		//TODO: Unwrap
 		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
 		ret.tor_config_dir = tor_config_dir.into();
+		ret.bridge_line = bridge_line.to_string();
 		Ok(ret)
 	}
 
@@ -80,9 +84,19 @@ impl HttpSlateSender {
 				"Starting TOR Process for send at {:?}",
 				self.socks_proxy_addr
 			);
+			let mut obfs4proxy_path = "".to_string();
+			if !self.bridge_line.is_empty() {
+				warn!("TOR Bridge relays configured");
+				tor_config::check_bridge_line(&self.bridge_line)
+					.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
+				obfs4proxy_path = tor_config::is_obfs4proxy_in_path()
+					.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
+			};
 			tor_config::output_tor_sender_config(
 				&tor_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
+				&self.bridge_line,
+				&obfs4proxy_path,
 			)
 			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 			// Start TOR process
