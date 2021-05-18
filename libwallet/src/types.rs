@@ -362,7 +362,14 @@ pub trait NodeClient: Send + Sync + Clone {
 		(
 			u64,
 			u64,
-			Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
+			Vec<(
+				pedersen::Commitment,
+				pedersen::RangeProof,
+				bool,
+				bool,
+				u64,
+				u64,
+			)>,
 		),
 		Error,
 	>;

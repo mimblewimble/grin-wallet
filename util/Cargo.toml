@@ -35,12 +35,12 @@ sha3 = "0.8"
 # grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
 
 # For bleeding edge
-grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-grin_api = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-grin_store = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+grin_core = { git = "https://github.com/geneferneau/grin", branch = "atomic" }
+grin_keychain = { git = "https://github.com/geneferneau/grin", branch = "atomic" }
+grin_chain = { git = "https://github.com/geneferneau/grin", branch = "atomic" }
+grin_util = { git = "https://github.com/geneferneau/grin", branch = "atomic" }
+grin_api = { git = "https://github.com/geneferneau/grin", branch = "atomic" }
+grin_store = { git = "https://github.com/geneferneau/grin", branch = "atomic" }
 
 # For local testing
 # grin_core = { path = "../../grin/core"}

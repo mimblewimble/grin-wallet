@@ -562,7 +562,14 @@ impl NodeClient for LocalWalletClient {
 		(
 			u64,
 			u64,
-			Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
+			Vec<(
+				pedersen::Commitment,
+				pedersen::RangeProof,
+				bool,
+				bool,
+				u64,
+				u64,
+			)>,
 		),
 		libwallet::Error,
 	> {
@@ -589,18 +596,26 @@ impl NodeClient for LocalWalletClient {
 		let m = r.recv().unwrap();
 		let o: api::OutputListing = serde_json::from_str(&m.body).unwrap();
 
-		let mut api_outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)> =
-			Vec::new();
+		let mut api_outputs: Vec<(
+			pedersen::Commitment,
+			pedersen::RangeProof,
+			bool,
+			bool,
+			u64,
+			u64,
+		)> = Vec::new();
 
 		for out in o.outputs {
-			let is_coinbase = match out.output_type {
-				api::OutputType::Coinbase => true,
-				api::OutputType::Transaction => false,
+			let (is_coinbase, is_multisig) = match out.output_type {
+				api::OutputType::Coinbase => (true, false),
+				api::OutputType::Transaction => (false, false),
+				api::OutputType::Multisig => (false, true),
 			};
 			api_outputs.push((
 				out.commit,
 				out.range_proof().unwrap(),
 				is_coinbase,
+				is_multisig,
 				out.block_height.unwrap(),
 				out.mmr_index,
 			));
