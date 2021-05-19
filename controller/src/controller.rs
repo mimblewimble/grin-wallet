@@ -572,7 +572,7 @@ where
 		is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 		// also need to intercept open/close wallet requests
 		let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
-		match OwnerRpc::handle_request(&*api, val) {
+		match <dyn OwnerRpc>::handle_request(&*api, val) {
 			MaybeReply::Reply(mut r) => {
 				let (_was_error, unencrypted_intercept) =
 					OwnerV3Helpers::check_error_response(&r.clone());
@@ -691,7 +691,7 @@ where
 		api: Foreign<'static, L, C, K>,
 	) -> Result<serde_json::Value, Error> {
 		let val: serde_json::Value = parse_body(req).await?;
-		match ForeignRpc::handle_request(&api, val) {
+		match <dyn ForeignRpc>::handle_request(&api, val) {
 			MaybeReply::Reply(r) => Ok(r),
 			MaybeReply::DontReply => {
 				// Since it's http, we need to return something. We return [] because jsonrpc
