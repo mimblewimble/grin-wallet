@@ -20,6 +20,14 @@ fn comments() -> HashMap<String, String> {
 	let mut retval = HashMap::new();
 
 	retval.insert(
+		"[config_file_version]".to_string(),
+		"
+#Generated Configuration File for Grin Wallet
+"
+		.to_string(),
+	);
+
+	retval.insert(
 		"[wallet]".to_string(),
 		"
 #########################################
@@ -217,7 +225,7 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"bridge_line".to_string(),
 		"
-#TOR Bridge relays: Allows people to send and receive Grin in a country where TOR is censored.
+#TOR Bridge relays: Allow to send and receive via TOR in a country where it is censored.
 #Enable it by entering a single bridge line. To disable it, you must let it empty.
 #Bridge line must be in the following format: `obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]`
 "

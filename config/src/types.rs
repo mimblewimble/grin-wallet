@@ -165,6 +165,7 @@ pub struct TorConfig {
 	/// Send configuration directory
 	pub send_config_dir: String,
 	/// Send configuration directory
+	#[serde(default)]
 	pub bridge_line: String,
 }
 
@@ -200,6 +201,9 @@ pub struct GlobalWalletConfig {
 /// Wallet internal members
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GlobalWalletConfigMembers {
+	/// Config file version (None == version 1)
+	#[serde(default)]
+	pub config_file_version: Option<u32>,
 	/// Wallet configuration
 	#[serde(default)]
 	pub wallet: WalletConfig,

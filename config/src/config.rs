@@ -21,7 +21,6 @@ use std::env;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::io::Read;
 use std::path::PathBuf;
 use toml;
 
@@ -187,6 +186,7 @@ pub fn initial_setup_wallet(
 impl Default for GlobalWalletConfigMembers {
 	fn default() -> GlobalWalletConfigMembers {
 		GlobalWalletConfigMembers {
+			config_file_version: Some(2),
 			logging: Some(LoggingConfig::default()),
 			tor: Some(TorConfig::default()),
 			wallet: WalletConfig::default(),
@@ -245,10 +245,13 @@ impl GlobalWalletConfig {
 
 	/// Read config
 	fn read_config(mut self) -> Result<GlobalWalletConfig, ConfigError> {
-		let mut file = File::open(self.config_file_path.as_mut().unwrap())?;
-		let mut contents = String::new();
-		file.read_to_string(&mut contents)?;
-		let fixed = GlobalWalletConfig::fix_warning_level(contents);
+		let config_file_path = self.config_file_path.as_mut().unwrap();
+		let contents = fs::read_to_string(config_file_path.clone())?;
+		let migrated = GlobalWalletConfig::migrate_config_file_version_none_to_2(
+			contents,
+			config_file_path.to_owned(),
+		)?;
+		let fixed = GlobalWalletConfig::fix_warning_level(migrated);
 		let decoded: Result<GlobalWalletConfigMembers, toml::de::Error> = toml::from_str(&fixed);
 		match decoded {
 			Ok(gc) => {
@@ -313,6 +316,31 @@ impl GlobalWalletConfig {
 		let mut file = File::create(name)?;
 		file.write_all(commented_config.as_bytes())?;
 		Ok(())
+	}
+	/// This migration does the following:
+	/// - Adds "config_file_version = 2"
+	/// - Adds bridge_line = ""
+	fn migrate_config_file_version_none_to_2(
+		config_str: String,
+		config_file_path: PathBuf,
+	) -> Result<String, ConfigError> {
+		let config: GlobalWalletConfigMembers =
+			toml::from_str(&GlobalWalletConfig::fix_warning_level(config_str.clone())).unwrap();
+		if config.config_file_version != None {
+			return Ok(config_str);
+		};
+		let adjusted_config = GlobalWalletConfigMembers {
+			config_file_version: GlobalWalletConfigMembers::default().config_file_version,
+			..config
+		};
+		let mut gc = GlobalWalletConfig {
+			members: Some(adjusted_config),
+			config_file_path: Some(config_file_path.clone()),
+		};
+		let str_path = config_file_path.into_os_string().into_string().unwrap();
+		gc.write_to_file(&str_path)?;
+		let adjusted_config_str = fs::read_to_string(str_path.clone())?;
+		Ok(adjusted_config_str)
 	}
 
 	// For forwards compatibility old config needs `Warning` log level changed to standard log::Level `WARN`

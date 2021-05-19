@@ -292,7 +292,7 @@ where
 				Ok((tp, addr)) => (Some(tp), Some(addr)),
 				Err(e) => {
 					warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
-					warn!("Tor Error: {}", e);
+					error!("Tor Error: {}", e);
 					warn!("Listener will be available via HTTP only");
 					(None, None)
 				}

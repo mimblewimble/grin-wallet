@@ -72,7 +72,7 @@ subcommands:
             takes_value: false
         - bridge:
             help: Enable bridge relay with TOR listener
-            short: b
+            short: g
             long: bridge
             takes_value: true
   - owner_api:
@@ -156,7 +156,7 @@ subcommands:
             takes_value: true
         - bridge:
             help: Enable bridge relay when sending via Slatepack workflow
-            short: b
+            short: g
             long: bridge
             takes_value: true
   - unpack:
