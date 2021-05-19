@@ -14,7 +14,6 @@
 
 //! Wraps a V4 Slate into a V4 Binary slate
 
-use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
@@ -108,7 +107,7 @@ impl Writeable for SlateOptFields {
 		if self.amt > 0 {
 			status |= 0x02;
 		}
-		if self.fee.fee(2 * YEAR_HEIGHT) > 0 {
+		if self.fee.fee() > 0 {
 			// apply fee mask past HF4
 			status |= 0x04;
 		}

@@ -16,7 +16,6 @@
 
 use uuid::Uuid;
 
-use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
 use crate::grin_util::secp::key::SecretKey;
@@ -404,7 +403,7 @@ where
 		tx.amount_credited - tx.amount_debited
 	} else {
 		let fee = match tx.fee {
-			Some(f) => f.fee(2 * YEAR_HEIGHT), // apply fee mask past HF4
+			Some(f) => f.fee(), // apply fee mask past HF4
 			None => 0,
 		};
 		tx.amount_debited - tx.amount_credited - fee
@@ -800,7 +799,7 @@ where
 			args.max_outputs as usize,
 			args.num_change_outputs as usize,
 			args.selection_strategy_is_use_all,
-			Some(context.fee.map(|f| f.fee(current_height)).unwrap_or(0)),
+			Some(context.fee.map(|f| f.fee()).unwrap_or(0)),
 			parent_key_id.clone(),
 			false,
 			true,
@@ -907,7 +906,7 @@ where
 		Some(tx) => {
 			let mut slate = Slate::blank(2, false);
 			slate.tx = Some(tx.clone());
-			slate.fee_fields = tx.aggregate_fee_fields(2 * YEAR_HEIGHT).unwrap(); // apply fee mask past HF4
+			slate.fee_fields = tx.aggregate_fee_fields().unwrap(); // apply fee mask past HF4
 			slate.id = id;
 			slate.offset = tx.offset;
 			slate.state = SlateState::Standard3;
