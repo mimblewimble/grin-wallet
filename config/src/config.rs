@@ -320,6 +320,7 @@ impl GlobalWalletConfig {
 	/// This migration does the following:
 	/// - Adds "config_file_version = 2"
 	/// - Adds bridge_line = ""
+	/// - Migrate old config field/value to a new config file with missing new field/value
 	fn migrate_config_file_version_none_to_2(
 		config_str: String,
 		config_file_path: PathBuf,
@@ -328,7 +329,7 @@ impl GlobalWalletConfig {
 			toml::from_str(&GlobalWalletConfig::fix_warning_level(config_str.clone())).unwrap();
 		if config.config_file_version != None {
 			return Ok(config_str);
-		};
+		}
 		let adjusted_config = GlobalWalletConfigMembers {
 			config_file_version: GlobalWalletConfigMembers::default().config_file_version,
 			..config

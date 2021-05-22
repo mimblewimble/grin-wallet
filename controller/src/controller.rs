@@ -106,12 +106,12 @@ where
 	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 	let mut obfs4proxy_path = "".to_string();
 	if !bridge_line.is_empty() {
-		warn!("TOR Bridge relays configured");
+		warn!("TOR Bridge relay configured");
 		tor_config::check_bridge_line(bridge_line)
 			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
 		obfs4proxy_path = tor_config::is_obfs4proxy_in_path()
 			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
-	};
+	}
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr

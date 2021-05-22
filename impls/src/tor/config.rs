@@ -185,7 +185,6 @@ pub fn output_torrc(
 	let tor_data_dir = format!("./{}", TOR_DATA_DIR);
 
 	let mut props = TorRcConfig::new();
-	let bridge = 1;
 	props.add_item("SocksPort", socks_port);
 	props.add_item("DataDirectory", &tor_data_dir);
 
@@ -196,12 +195,12 @@ pub fn output_torrc(
 	}
 
 	if !bridge_line.is_empty() {
-		props.add_item("UseBridges", &format!("{}", bridge));
+		props.add_item("UseBridges", &format!("{}", 1));
 		props.add_item(
 			"ClientTransportPlugin",
 			&format!("obfs4 exec {}", obfs4proxy_path),
 		);
-		props.add_item("bridge", bridge_line);
+		props.add_item("Bridge", bridge_line);
 	}
 
 	props.write_to_file(&torrc_file_path)?;
@@ -272,7 +271,7 @@ pub fn check_bridge_line(bridge_line: &str) -> Result<(), Error> {
 	{
 		let msg = "Must be in the following format \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"".to_string();
 		return Err(ErrorKind::BridgeLine(msg).into());
-	};
+	}
 	Ok(())
 }
 

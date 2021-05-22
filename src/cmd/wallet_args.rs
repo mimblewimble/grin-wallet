@@ -395,7 +395,7 @@ pub fn parse_listen_args(
 		config.api_listen_port = port.parse().unwrap();
 	}
 	if let Some(bridge) = args.value_of("bridge") {
-		tor_config.bridge_line = bridge.to_string();
+		tor_config.bridge_line = bridge.into();
 	}
 	if args.is_present("no_tor") {
 		tor_config.use_tor_listener = false;
@@ -499,7 +499,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let outfile = parse_optional(args, "outfile")?;
 
 	let bridge = match args.value_of("bridge") {
-		Some(v) => v,
+		Some(b) => b,
 		None => "",
 	};
 
@@ -518,7 +518,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		target_slate_version: target_slate_version,
 		outfile,
 		skip_tor: args.is_present("manual"),
-		bridge: bridge.to_string(),
+		bridge: bridge.into(),
 	})
 }
 

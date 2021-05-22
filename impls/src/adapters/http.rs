@@ -67,7 +67,7 @@ impl HttpSlateSender {
 		//TODO: Unwrap
 		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
 		ret.tor_config_dir = tor_config_dir.into();
-		ret.bridge_line = bridge_line.to_string();
+		ret.bridge_line = bridge_line.into();
 		Ok(ret)
 	}
 
@@ -86,12 +86,12 @@ impl HttpSlateSender {
 			);
 			let mut obfs4proxy_path = "".to_string();
 			if !self.bridge_line.is_empty() {
-				warn!("TOR Bridge relays configured");
+				warn!("TOR Bridge relay configured");
 				tor_config::check_bridge_line(&self.bridge_line)
 					.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
 				obfs4proxy_path = tor_config::is_obfs4proxy_in_path()
 					.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
-			};
+			}
 			tor_config::output_tor_sender_config(
 				&tor_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
