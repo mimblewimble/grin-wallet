@@ -259,6 +259,7 @@ pub struct SendArgs {
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
+	pub is_multisig: Option<bool>,
 }
 
 pub fn send<L, C, K>(
@@ -288,6 +289,7 @@ where
 						num_change_outputs: args.change_outputs as u32,
 						selection_strategy_is_use_all: strategy == "all",
 						estimate_only: Some(true),
+						is_multisig: args.is_multisig,
 						..Default::default()
 					};
 					let slate = api.init_send_tx(m, init_args)?;
@@ -309,6 +311,7 @@ where
 				ttl_blocks: args.ttl_blocks,
 				send_args: None,
 				late_lock: Some(args.late_lock),
+				is_multisig: args.is_multisig,
 				..Default::default()
 			};
 			let result = api.init_send_tx(m, init_args);
@@ -603,6 +606,85 @@ where
 	}
 }
 
+/// Process Multisig command arguments
+#[derive(Clone)]
+pub struct MultisigArgs {
+	pub input_file: Option<String>,
+	pub input_slatepack_message: Option<String>,
+	pub skip_tor: bool,
+	pub outfile: Option<String>,
+}
+
+pub fn process_multisig<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: MultisigArgs,
+	tor_config: Option<TorConfig>,
+	test_mode: bool,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let (mut slate, ret_address) = parse_slatepack(
+		owner_api,
+		keychain_mask,
+		args.input_file,
+		args.input_slatepack_message,
+	)?;
+
+	let tor_config = match tor_config {
+		Some(mut c) => {
+			c.skip_send_attempt = Some(args.skip_tor);
+			Some(c)
+		}
+		None => None,
+	};
+
+	controller::owner_single_use(
+		Some(owner_api.wallet_inst.clone()),
+		keychain_mask,
+		Some(owner_api),
+		|api, m| {
+			slate = api.process_multisig_tx(m, &slate)?;
+			Ok(())
+		},
+	)?;
+
+	let dest = match ret_address {
+		Some(a) => String::try_from(&a).unwrap(),
+		None => String::from(""),
+	};
+
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
+
+	match res {
+		Ok(Some(_)) => {
+			println!();
+			println!(
+				"Transaction multisig bulletproof processed and sent back to recipient at {} for first round of finalization.",
+				dest
+			);
+			println!();
+			Ok(())
+		}
+		Ok(None) => {
+			output_slatepack(
+				owner_api,
+				keychain_mask,
+				&slate,
+				&dest,
+				args.outfile,
+				false,
+				false,
+			)?;
+			Ok(())
+		}
+		Err(e) => Err(e.into()),
+	}
+}
+
 pub fn unpack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -749,6 +831,18 @@ where
 	}
 
 	println!("Transaction finalized successfully");
+
+	if slate
+		.participant_data
+		.iter()
+		.fold(false, |t, d| t | d.tau_x.is_some())
+	{
+		info!(
+			"Transaction multisig identifier: {}",
+			slate.create_multisig_id().to_bip_32_string()
+		);
+		info!("Use the identifier to select the multisig output in future transactions");
+	}
 
 	output_slatepack(
 		owner_api,

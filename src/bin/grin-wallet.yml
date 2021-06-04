@@ -111,6 +111,9 @@ subcommands:
             help: EXPERIMENTAL - Do not lock the coins immediately, instead only lock them during finalization.
             short: l
             long: late-lock
+        - mutlisig:
+            help: EXPERIMENTAL - Create a multisig output with shared ownership.
+            long: multisig
         - change_outputs:
             help: Number of change outputs to generate (mainly for testing)
             short: o
@@ -159,6 +162,23 @@ subcommands:
             takes_value: true
   - receive:
       about: Processes a Slatepack Message to accept a transfer from a sender
+      args:
+        - input:
+            help: File containing a Slatepack Message
+            short: i
+            long: input
+            takes_value: true
+        - manual:
+            help: If present, don't attempt to send the resulting Slatepack via TOR
+            short: m
+            long: manual
+        - outfile:
+            help: If present, overrides the filename and location of the output Slatepack file.
+            short: u
+            long: outfile
+            takes_value: true
+  - process_multisig:
+      about: Processes a Slatepack Message to perform step 1 + 2 in multisig bulletproof building 
       args:
         - input:
             help: File containing a Slatepack Message

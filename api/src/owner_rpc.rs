@@ -469,7 +469,7 @@ pub trait OwnerRpc {
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
-	;Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
+	Networked version of [Owner::process_invoice_tx](struct.Owner.html#method.process_invoice_tx).
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -550,6 +550,17 @@ pub trait OwnerRpc {
 		token: Token,
 		slate: VersionedSlate,
 		args: InitTxArgs,
+	) -> Result<VersionedSlate, ErrorKind>;
+
+	/**
+	Networked version of [Owner::process_multisig_tx](struct.Owner.html#method.process_multisig_tx).
+
+	FIXME: add RPC doc-test
+	 */
+	fn process_multisig_tx(
+		&self,
+		token: Token,
+		slate: VersionedSlate,
 	) -> Result<VersionedSlate, ErrorKind>;
 
 	/**
@@ -1823,6 +1834,21 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		Ok(VersionedSlate::into_version(out_slate, out_slate.version()).map_err(|e| e.kind())?)
+	}
+
+	fn process_multisig_tx(
+		&self,
+		token: Token,
+		in_slate: VersionedSlate,
+	) -> Result<VersionedSlate, ErrorKind> {
+		let out_slate = Owner::process_multisig_tx(
+			self,
+			(&token.keychain_mask).as_ref(),
+			&Slate::from(in_slate),
+		)
+		.map_err(|e| e.kind())?;
+		let version = SlateVersion::V5;
+		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(

@@ -495,6 +495,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let is_multisig = Some(args.is_present("multisig"));
+
 	Ok(command::SendArgs {
 		amount: amount,
 		minimum_confirmations: min_c,
@@ -510,6 +512,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		target_slate_version: target_slate_version,
 		outfile,
 		skip_tor: args.is_present("manual"),
+		is_multisig,
 	})
 }
 
@@ -732,6 +735,36 @@ pub fn parse_process_invoice_args(
 		slate,
 		max_outputs,
 		ttl_blocks,
+		skip_tor: args.is_present("manual"),
+		outfile,
+	})
+}
+
+pub fn parse_process_multisig_args(args: &ArgMatches) -> Result<command::MultisigArgs, ParseError> {
+	// input file
+	let input_file = match args.is_present("input") {
+		true => {
+			let file = args.value_of("input").unwrap().to_owned();
+			// validate input
+			if !Path::new(&file).is_file() {
+				let msg = format!("File {} not found.", &file);
+				return Err(ParseError::ArgumentError(msg));
+			}
+			Some(file)
+		}
+		false => None,
+	};
+
+	let mut input_slatepack_message = None;
+	if input_file.is_none() {
+		input_slatepack_message = Some(prompt_slatepack()?);
+	}
+
+	let outfile = parse_optional(args, "outfile")?;
+
+	Ok(command::MultisigArgs {
+		input_file,
+		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
 	})
@@ -1163,6 +1196,10 @@ where
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
 			)
+		}
+		("process_multisig", Some(args)) => {
+			let a = arg_parse!(parse_process_multisig_args(&args));
+			command::process_multisig(owner_api, km, a, Some(tor_config.clone()), test_mode)
 		}
 		("info", Some(args)) => {
 			let a = arg_parse!(parse_info_args(&args));

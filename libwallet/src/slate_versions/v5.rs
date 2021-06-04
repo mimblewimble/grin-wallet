@@ -206,6 +206,7 @@ pub struct ParticipantDataV5 {
 	/// Tau X key for shared outputs
 	#[serde(default = "default_tau_x_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(with = "secp_ser::option_seckey_serde")]
 	pub tau_x: Option<SecretKey>,
 	/// Tau part one key for shared outputs
 	#[serde(default = "default_tau_part_none")]

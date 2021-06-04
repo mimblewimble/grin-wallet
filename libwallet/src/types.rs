@@ -28,6 +28,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
+use crate::util::sha3::{Digest, Sha3_256};
 use crate::InitTxArgs;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -172,6 +173,15 @@ where
 		amount: u64,
 		id: &Identifier,
 	) -> Result<Option<String>, Error>;
+
+	/// return the multisig commit sum for caching if allowed, none otherwise
+	fn calc_multisig_commit_for_cache(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		amount: u64,
+		id: &Identifier,
+		partial_commit: &pedersen::Commitment,
+	) -> Result<(Option<pedersen::Commitment>, Option<pedersen::Commitment>), Error>;
 
 	/// Set parent key id by stored account name
 	fn set_parent_key_id_by_name(&mut self, label: &str) -> Result<(), Error>;
@@ -577,6 +587,12 @@ pub struct Context {
 	pub calculated_excess: Option<pedersen::Commitment>,
 	/// For multisig only, store the partial commitment to the output value
 	pub partial_commit: Option<pedersen::Commitment>,
+	/// For multisig only, store the tau_one public key
+	pub tau_one: Option<PublicKey>,
+	/// For multisig only, store the tau_two public key
+	pub tau_two: Option<PublicKey>,
+	/// For multisig only, store the tau_x secret key
+	pub tau_x: Option<SecretKey>,
 }
 
 impl Context {
@@ -628,6 +644,9 @@ impl Context {
 			late_lock_args: None,
 			calculated_excess: None,
 			partial_commit: None,
+			tau_one: None,
+			tau_two: None,
+			tau_x: None,
 		}
 	}
 }
@@ -667,6 +686,25 @@ impl Context {
 			PublicKey::from_secret_key(secp, &self.sec_key).unwrap(),
 			PublicKey::from_secret_key(secp, &self.sec_nonce).unwrap(),
 		)
+	}
+
+	/// Derive a common nonce using a Diffie-Hellman of the local secret nonce and
+	/// public nonce of the other participant
+	///
+	/// The common nonce is:
+	///
+	/// c = SecretKey(SHA3("multisig_common_nonce" || secNonce*pubNonce))
+	pub fn create_common_nonce(
+		&self,
+		secp: &Secp256k1,
+		nonce: &PublicKey,
+	) -> Result<SecretKey, Error> {
+		let mut common = nonce.clone();
+		common.mul_assign(secp, &self.sec_key)?;
+		let mut hasher = Sha3_256::new();
+		hasher.input(b"multisig_common_nonce");
+		hasher.input(&common.serialize_vec(secp, true));
+		SecretKey::from_slice(secp, &hasher.result()).map_err(|e| e.into())
 	}
 
 	/// Create an atomic secret key
@@ -1137,5 +1175,47 @@ mod tests {
 
 		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
 		assert_eq!(none, none2);
+	}
+
+	#[test]
+	fn context_tau_serde() {
+		let secp = Secp256k1::new();
+		let mut ctx = Context::new(
+			&secp,
+			&Identifier::zero(),
+			true,  /*use_test_rng*/
+			false, /*is_initiator*/
+		);
+
+		let sec_key = SecretKey::new(&secp, &mut thread_rng());
+		ctx.tau_one = Some(PublicKey::from_secret_key(&secp, &sec_key).unwrap());
+		ctx.tau_two = Some(PublicKey::from_secret_key(&secp, &sec_key).unwrap());
+		ctx.tau_x = Some(sec_key);
+
+		let val = serde_json::to_value(&ctx).unwrap();
+		let des_ctx: Context = serde_json::from_value(val).unwrap();
+
+		assert!(des_ctx.tau_x.is_some());
+		assert!(des_ctx.tau_one.is_some());
+		assert!(des_ctx.tau_two.is_some());
+
+		ctx.tau_x = None;
+
+		let val = serde_json::to_value(&ctx).unwrap();
+		let des_ctx: Context = serde_json::from_value(val).unwrap();
+
+		assert!(des_ctx.tau_x.is_none());
+		assert!(des_ctx.tau_one.is_some());
+		assert!(des_ctx.tau_two.is_some());
+
+		ctx.tau_one = None;
+		ctx.tau_two = None;
+
+		let val = serde_json::to_value(&ctx).unwrap();
+		let des_ctx: Context = serde_json::from_value(val).unwrap();
+
+		assert!(des_ctx.tau_x.is_none());
+		assert!(des_ctx.tau_one.is_none());
+		assert!(des_ctx.tau_two.is_none());
 	}
 }

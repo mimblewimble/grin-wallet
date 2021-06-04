@@ -14,19 +14,23 @@
 
 //! Generic implementation of owner API functions
 
+use rand::thread_rng;
 use uuid::Uuid;
 
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::Mutex;
+use crate::grin_core::libtx::proof;
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::{Mutex, ToHex};
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState, TxFlow};
-use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
+use crate::types::{
+	AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletBackend, WalletInfo,
+};
 use crate::{
 	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
 	PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs,
@@ -500,6 +504,7 @@ where
 	}
 
 	let height = w.w2n_client().get_chain_tip()?.0;
+	let is_multisig = args.is_multisig.unwrap_or(false);
 	let mut context = if args.late_lock.unwrap_or(false) {
 		tx::create_late_lock_context(
 			&mut *w,
@@ -522,6 +527,7 @@ where
 			args.selection_strategy_is_use_all,
 			&parent_key_id,
 			true,
+			is_multisig,
 			use_test_rng,
 		)?
 	};
@@ -555,6 +561,10 @@ where
 	}
 
 	slate.compact()?;
+
+	if slate.is_multisig() {
+		slate.state = SlateState::Multisig1;
+	}
 
 	Ok(slate)
 }
@@ -674,6 +684,7 @@ where
 		args.num_change_outputs as usize,
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
+		false,
 		false,
 		use_test_rng,
 	)?;
@@ -969,6 +980,15 @@ where
 
 		// Now do the actual locking
 		tx_lock_outputs(w, keychain_mask, &sl)?;
+	}
+
+	// finalize multisig bulletproof
+	if sl
+		.participant_data
+		.iter()
+		.fold(false, |t, d| t | d.tau_x.is_some())
+	{
+		selection::finalize_multisig_bulletproof(&mut *w, keychain_mask, &mut sl, &mut context)?;
 	}
 
 	// Add our contribution to the offset

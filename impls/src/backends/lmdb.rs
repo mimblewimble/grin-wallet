@@ -36,6 +36,7 @@ use crate::libwallet::{
 };
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::secp::key::SecretKey;
+use crate::util::secp::pedersen::Commitment;
 use crate::util::{self, secp, ToHex};
 
 use rand::rngs::mock::StepRng;
@@ -94,6 +95,24 @@ where
 	ret_nonce.copy_from_slice(&nonce_xor_key.as_bytes()[0..SECRET_KEY_SIZE]);
 
 	Ok((ret_blind, ret_nonce))
+}
+
+/// XOR key to encrypt tau x key for multisig bulletproofs
+fn tau_x_xor_key<K>(keychain: &K, slate_id: &[u8]) -> Result<[u8; SECRET_KEY_SIZE], Error>
+where
+	K: Keychain,
+{
+	let root_key = keychain.derive_key(0, &K::root_key_id(), SwitchCommitmentType::Regular)?;
+
+	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
+	hasher.update(&root_key.0[..]);
+	hasher.update(&slate_id[..]);
+	hasher.update(&b"tau_x"[..]);
+	let tau_x_xor_key = hasher.finalize();
+	let mut ret_tau_x = [0; SECRET_KEY_SIZE];
+	ret_tau_x.copy_from_slice(&tau_x_xor_key.as_bytes()[..SECRET_KEY_SIZE]);
+
+	Ok(ret_tau_x)
 }
 
 pub struct LMDBBackend<'ck, C, K>
@@ -273,6 +292,24 @@ where
 		/*}*/
 	}
 
+	/// return the version of the commit for caching
+	fn calc_multisig_commit_for_cache(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		amount: u64,
+		id: &Identifier,
+		partial_commit: &Commitment,
+	) -> Result<(Option<Commitment>, Option<Commitment>), Error> {
+		let keychain = self.keychain(keychain_mask)?;
+		let secp = keychain.secp();
+		// TODO: proper support for different switch commitment schemes
+		let commit_key = keychain.derive_key(amount, id, SwitchCommitmentType::Regular)?;
+		let commit = secp.commit(0, commit_key)?;
+		let commit_sum = secp.commit_sum(vec![commit.clone(), partial_commit.clone()], vec![])?;
+
+		Ok((Some(commit), Some(commit_sum)))
+	}
+
 	/// Set parent path by account name
 	fn set_parent_key_id_by_name(&mut self, label: &str) -> Result<(), Error> {
 		let label = label.to_owned();
@@ -334,16 +371,23 @@ where
 		slate_id: &[u8],
 	) -> Result<Context, Error> {
 		let ctx_key = to_key_u64(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec(), 0);
-		let (blind_xor_key, nonce_xor_key) =
-			private_ctx_xor_keys(&self.keychain(keychain_mask)?, slate_id)?;
+		let k = self.keychain(keychain_mask)?;
+		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(&k, slate_id)?;
+		let tau_x_xor_key = tau_x_xor_key(&k, slate_id)?;
 
 		let mut ctx: Context = option_to_not_found(self.db.get_ser(&ctx_key), || {
 			format!("Slate id: {:x?}", slate_id.to_vec())
 		})?;
 
+		let mut tau_none = [0; SECRET_KEY_SIZE];
+		let tau_x_bytes = match ctx.tau_x.as_mut() {
+			Some(x) => &mut x.0,
+			None => &mut tau_none,
+		};
 		for i in 0..SECRET_KEY_SIZE {
 			ctx.sec_key.0[i] ^= blind_xor_key[i];
 			ctx.sec_nonce.0[i] ^= nonce_xor_key[i];
+			tau_x_bytes[i] ^= tau_x_xor_key[i];
 		}
 
 		Ok(ctx)
@@ -691,12 +735,20 @@ where
 
 	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error> {
 		let ctx_key = to_key_u64(PRIVATE_TX_CONTEXT_PREFIX, &mut slate_id.to_vec(), 0);
-		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(self.keychain(), slate_id)?;
+		let k = self.keychain();
+		let (blind_xor_key, nonce_xor_key) = private_ctx_xor_keys(k, slate_id)?;
+		let tau_x_xor_key = tau_x_xor_key(k, slate_id)?;
 
 		let mut s_ctx = ctx.clone();
+		let mut tau_none = [0; SECRET_KEY_SIZE];
+		let tau_x_bytes = match s_ctx.tau_x.as_mut() {
+			Some(x) => &mut x.0,
+			None => &mut tau_none,
+		};
 		for i in 0..SECRET_KEY_SIZE {
 			s_ctx.sec_key.0[i] ^= blind_xor_key[i];
 			s_ctx.sec_nonce.0[i] ^= nonce_xor_key[i];
+			tau_x_bytes[i] ^= tau_x_xor_key[i];
 		}
 
 		self.db

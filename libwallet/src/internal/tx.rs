@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
@@ -150,6 +150,7 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
 	is_initiator: bool,
+	is_multisig: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
@@ -182,6 +183,16 @@ where
 		use_test_rng,
 		is_initiator,
 	)?;
+
+	if is_multisig {
+		// calculate partial commit to the amount
+		// used with receiver partial commit to calculate tau_one and tau_two in
+		// multisig bulletproof step 1
+		let k = wallet.keychain(keychain_mask)?;
+		let key_id = slate.create_multisig_id();
+		let partial_commit = k.commit(slate.amount, &key_id, SwitchCommitmentType::Regular)?;
+		context.partial_commit = Some(partial_commit);
+	}
 
 	// Generate a kernel offset and subtract from our context's secret key. Store
 	// the offset in the slate's transaction kernel, and adds our public key
@@ -234,12 +245,20 @@ where
 
 	context.initial_sec_key = context.sec_key.clone();
 
+	let is_multisig = slate
+		.participant_data
+		.iter()
+		.fold(false, |t, d| t | d.part_commit.is_some());
+
 	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
 		// update excess in stored transaction
 		let mut batch = wallet.batch(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
+		if is_multisig {
+			batch.save_private_context(slate.id.as_bytes().as_ref(), &context)?;
+		}
 		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 		batch.commit()?;
 	}
@@ -286,6 +305,16 @@ where
 	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 	context.late_lock_args = Some(init_tx_args.clone());
+
+	if init_tx_args.is_multisig.unwrap_or(false) {
+		// calculate partial commit to the amount
+		// used with receiver partial commit to calculate tau_one and tau_two in
+		// multisig bulletproof step 1
+		let k = wallet.keychain(keychain_mask)?;
+		let key_id = slate.create_multisig_id();
+		let partial_commit = k.commit(slate.amount, &key_id, SwitchCommitmentType::Regular)?;
+		context.partial_commit = Some(partial_commit);
+	}
 
 	// Generate a blinding factor for the tx and add
 	//  public key info to the slate

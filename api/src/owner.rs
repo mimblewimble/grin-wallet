@@ -860,6 +860,61 @@ where
 		}
 	}
 
+	/// Process a multisig transaction to perform step 1 + 2 in the multisig bulletproof creation
+	/// process.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
+	/// receiver should have filled in round 0 and 1 of the multisig bulletproof.
+	///
+	/// # Returns
+	/// * a result containing:
+	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html),
+	/// which can be forwarded to the receiving party by any means. Once the caller receives the final partial
+	/// bulletproof from the receiver, the associated wallet transaction outputs should be locked via a call to
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs). This must be called before calling
+	/// [`finalize_tx`](struct.Owner.html#method.finalize_tx).
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Remarks
+	///
+	/// * This method will store a partially completed transaction in the wallet's transaction log,
+	/// which will be updated on the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx).
+	///
+	/// # Example
+	/// Set up as in [new](struct.Owner.html#method.new) method above.
+	/// ```rust,no_run
+	/// # use grin_wallet_libwallet::TxFlow;
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// // Normally, slate is the output of multisig `receive_tx`
+	/// # let slate = Slate::blank(2, TxFlow::Multisig);
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.process_multisig_tx(
+	///     None,
+	///     &slate,
+	/// );
+	///
+	/// if let Ok(slate) = result {
+	///     // Send slate somehow
+	///     // ...
+	///     // Lock our outputs if we're happy the slate was (or is being) sent
+	///     api_owner.tx_lock_outputs(None, &slate);
+	/// }
+	/// ```
+	pub fn process_multisig_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::process_multisig_tx(&mut **w, keychain_mask, slate)
+	}
+
 	/// Locks the outputs associated with the inputs to the transaction in the given
 	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html),
 	/// making them unavailable for use in further transactions. This function is called

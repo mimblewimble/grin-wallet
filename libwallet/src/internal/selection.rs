@@ -16,15 +16,16 @@
 
 use crate::address;
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::core::amount_to_hr_string;
+use crate::grin_core::core::{amount_to_hr_string, Output, OutputFeatures};
 use crate::grin_core::libtx::{
 	build,
-	proof::{ProofBuild, ProofBuilder},
+	proof::{create_multisig, ProofBuild, ProofBuilder},
 	tx_fee,
 };
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
+use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen;
+use crate::grin_util::{from_hex, ToHex};
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
@@ -251,19 +252,22 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let is_multisig = slate
+		.participant_data
+		.iter()
+		.fold(false, |t, d| t | d.part_commit.is_some());
+
 	// Create a potential output for this transaction
-	let key_id = keys::next_available_key(wallet, keychain_mask).unwrap();
+	let key_id = match is_multisig {
+		true => slate.create_multisig_id(),
+		false => keys::next_available_key(wallet, keychain_mask).unwrap(),
+	};
 	let keychain = wallet.keychain(keychain_mask)?;
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
 	let height = current_height;
 
 	let slate_id = slate.id;
-	slate.add_transaction_elements(
-		&keychain,
-		&ProofBuilder::new(&keychain),
-		vec![build::output(amount, key_id.clone())],
-	)?;
 
 	// Add blinding sum to our context
 	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, is_initiator);
@@ -271,7 +275,71 @@ where
 	context.add_output(&key_id, &None, amount);
 	context.amount = amount;
 	context.fee = slate.fee_fields.as_opt();
-	let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?;
+
+	let (commit, output) = if is_multisig {
+		let (_, public_nonce) = context.get_public_keys(keychain.secp());
+		let data = if use_test_rng {
+			assert_eq!(slate.participant_data.len(), 1);
+			&slate.participant_data[0]
+		} else {
+			slate
+				.participant_data
+				.iter()
+				.find(|d| d.public_nonce != public_nonce)
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing other participant data".into(),
+				)))?
+		};
+
+		let oth_partial_commit = data.part_commit.ok_or(Error::from(ErrorKind::Commit(
+			"missing partial commit".into(),
+		)))?;
+
+		// calculate the commit sum of the participants' partial commits
+		let (partial_commit, commit_sum) = wallet.calc_multisig_commit_for_cache(
+			keychain_mask,
+			amount,
+			&key_id_inner,
+			&oth_partial_commit,
+		)?;
+
+		context.partial_commit = partial_commit;
+		context.tau_one = Some(PublicKey::new());
+		context.tau_two = Some(PublicKey::new());
+
+		// create the common nonce: SecretKey(SHA3("multisig_common_nonce" || secNonce*pubNonce))
+		let oth_public_nonce = &data.public_nonce;
+		let common_nonce = context.create_common_nonce(keychain.secp(), oth_public_nonce)?;
+
+		// calculate receiver's tau_one and tau_two public keys for the multisig bulletproof
+		let _ = create_multisig(
+			&keychain,
+			&ProofBuilder::new(&keychain),
+			amount,
+			&key_id_inner,
+			SwitchCommitmentType::Regular,
+			&common_nonce,
+			None,
+			context.tau_one.as_mut(),
+			context.tau_two.as_mut(),
+			&[commit_sum.clone().unwrap()],
+			1,
+			None,
+		)?;
+
+		(
+			Some(commit_sum.unwrap().0.to_vec().to_hex()),
+			build::multisig_output(amount, key_id.clone(), oth_partial_commit.clone()),
+		)
+	} else {
+		(
+			wallet.calc_commit_for_cache(keychain_mask, amount, &key_id_inner)?,
+			build::output(amount, key_id.clone()),
+		)
+	};
+
+	slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), vec![output])?;
+
 	let mut batch = wallet.batch(keychain_mask)?;
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
 	let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);
@@ -287,8 +355,12 @@ where
 		t.kernel_excess = Some(e)
 	}
 	t.kernel_lookup_min_height = Some(current_height);
+	let root_key_id = match is_multisig {
+		true => key_id.clone(),
+		false => parent_key_id.clone(),
+	};
 	batch.save(OutputData {
-		root_key_id: parent_key_id.clone(),
+		root_key_id: root_key_id,
 		key_id: key_id_inner.clone(),
 		mmr_index: None,
 		n_child: key_id_inner.to_path().last_path_index(),
@@ -694,5 +766,95 @@ where
 	let _ = slate.add_transaction_elements(&keychain, &ProofBuilder::new(&keychain), parts)?;
 	// restore the original offset
 	slate.tx_or_err_mut()?.offset = slate.offset.clone();
+	Ok(())
+}
+
+pub fn finalize_multisig_bulletproof<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	context: &mut Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = wallet.keychain(keychain_mask)?;
+	let secp = keychain.secp();
+	let (_, pub_nonce) = context.get_public_keys(secp);
+	let oth_data = slate
+		.participant_data
+		.iter()
+		.find(|d| d.public_nonce != pub_nonce)
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing other participant data".into(),
+		)))?;
+
+	let mut tau_x_sum = context
+		.tau_x
+		.clone()
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing local tau x".into(),
+		)))?;
+	let oth_tau_x = oth_data
+		.tau_x
+		.as_ref()
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing other tau x".into(),
+		)))?;
+	tau_x_sum.add_assign(secp, oth_tau_x)?;
+
+	let common_nonce = context.create_common_nonce(secp, &oth_data.public_nonce)?;
+
+	let key_id = slate.create_multisig_id();
+
+	let amount = slate.amount;
+	let out = wallet
+		.iter()
+		.find(|o| o.key_id == key_id)
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing multisig output".into(),
+		)))?;
+	let commit_str = out
+		.commit
+		.as_ref()
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing multisig output commit".into(),
+		)))?;
+	let commit_hex = from_hex(&commit_str)
+		.map_err(|e| ErrorKind::GenericError(format!("invalid hex: {}", e)))?;
+	let commit = pedersen::Commitment::from_vec(commit_hex);
+
+	let proof = create_multisig(
+		&keychain,
+		&ProofBuilder::new(&keychain),
+		amount,
+		&key_id,
+		SwitchCommitmentType::Regular,
+		&common_nonce,
+		Some(&mut tau_x_sum),
+		context.tau_one.as_mut(),
+		context.tau_two.as_mut(),
+		&[commit.clone()],
+		0,
+		None,
+	)?
+	.ok_or(Error::from(ErrorKind::GenericError(
+		"error creating final multisig proof".into(),
+	)))?;
+
+	// replace the multisig output's rangeproof with the finalized multisig proof
+	let mut new_outs = vec![Output::new(OutputFeatures::Multisig, commit.clone(), proof)];
+	let old_outs: Vec<Output> = slate
+		.tx_or_err()?
+		.outputs()
+		.iter()
+		.filter(|o| o.identifier.commit != commit)
+		.map(|o| o.clone())
+		.collect();
+	new_outs.extend_from_slice(&old_outs[..]);
+	slate.tx_or_err_mut()?.body.outputs = new_outs;
+
 	Ok(())
 }

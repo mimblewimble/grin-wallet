@@ -15,6 +15,7 @@
 //! Functions for building partial transactions to be passed
 //! around during an interactive wallet exchange
 
+use crate::blake2::blake2b::Blake2b;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
@@ -23,7 +24,9 @@ use crate::grin_core::core::transaction::{
 };
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
-use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentType};
+use crate::grin_keychain::{
+	BlindSum, BlindingFactor, ExtKeychainPath, Identifier, Keychain, SwitchCommitmentType,
+};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
@@ -290,6 +293,16 @@ impl Slate {
 		Ok(())
 	}
 
+	/// Get if the slate is for a multisig transaction
+	pub fn is_multisig(&self) -> bool {
+		self.participant_data.iter().fold(false, |t, d| {
+			t | d.tau_x.is_some()
+				| d.tau_one.is_some()
+				| d.tau_two.is_some()
+				| d.part_commit.is_some()
+		})
+	}
+
 	/// Build a new empty transaction.
 	/// Wallet currently only supports tx with "features and commit" inputs.
 	pub fn empty_transaction() -> Transaction {
@@ -544,6 +557,9 @@ impl Slate {
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &context.sec_nonce)?;
 		let mut part_sig = part_sig;
 		let part_commit = context.partial_commit.clone();
+		let tau_x = context.tau_x.clone();
+		let tau_one = context.tau_one.clone();
+		let tau_two = context.tau_two.clone();
 
 		// Remove if already here and replace
 		self.participant_data = self
@@ -567,9 +583,9 @@ impl Slate {
 			public_atomic: None,
 			part_sig: part_sig,
 			part_commit,
-			tau_x: None,
-			tau_one: None,
-			tau_two: None,
+			tau_x: tau_x,
+			tau_one: tau_one,
+			tau_two: tau_two,
 		});
 		Ok(())
 	}
@@ -750,6 +766,32 @@ impl Slate {
 			4 => SlateVersion::V4,
 			5 | _ => SlateVersion::V5,
 		}
+    }
+
+	/// Calculate multisig key ID
+	pub fn create_multisig_id(&self) -> Identifier {
+		let mut hasher = Blake2b::new(16);
+		hasher.update(b"multisig_id");
+		hasher.update(self.id.as_bytes().as_ref());
+		hasher.update(self.amount.to_be_bytes().as_ref());
+		let hash = hasher.finalize();
+		let hash_bytes = hash.as_bytes();
+
+		let mut id_bytes = [[0; 4]; 4];
+		id_bytes[0].copy_from_slice(&hash_bytes[..4]);
+		id_bytes[1].copy_from_slice(&hash_bytes[4..8]);
+		id_bytes[2].copy_from_slice(&hash_bytes[8..12]);
+		id_bytes[3].copy_from_slice(&hash_bytes[12..16]);
+
+		let key_path = ExtKeychainPath::new(
+			4,
+			u32::from_be_bytes(id_bytes[0]),
+			u32::from_be_bytes(id_bytes[1]),
+			u32::from_be_bytes(id_bytes[2]),
+			u32::from_be_bytes(id_bytes[3]),
+		);
+
+		Identifier::from_path(&key_path)
 	}
 }
 
