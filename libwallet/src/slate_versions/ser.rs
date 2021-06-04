@@ -514,6 +514,48 @@ pub mod version_info_v4 {
 	}
 }
 
+/// Serializes slates 'version_info' field
+pub mod version_info_v5 {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::slate_versions::v5::VersionCompatInfoV5;
+
+	///
+	pub fn serialize<S>(v: &VersionCompatInfoV5, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&format!("{}:{}", v.version, v.block_header_version))
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<VersionCompatInfoV5, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		String::deserialize(deserializer).and_then(|s| {
+			let mut retval = VersionCompatInfoV5 {
+				version: 0,
+				block_header_version: 0,
+			};
+			let v: Vec<&str> = s.split(':').collect();
+			if v.len() != 2 {
+				return Err(Error::custom("Cannot parse version"));
+			}
+			match u16::from_str_radix(v[0], 10) {
+				Ok(u) => retval.version = u,
+				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
+			}
+			match u16::from_str_radix(v[1], 10) {
+				Ok(u) => retval.block_header_version = u,
+				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
+			}
+			Ok(retval)
+		})
+	}
+}
+
 /// Serializes slates 'state' field
 pub mod slate_state_v4 {
 	use serde::de::Error;
@@ -552,6 +594,51 @@ pub mod slate_state_v4 {
 				"I1" => SlateStateV4::Invoice1,
 				"I2" => SlateStateV4::Invoice2,
 				"I3" => SlateStateV4::Invoice3,
+				_ => return Err(Error::custom("Invalid Slate state")),
+			};
+			Ok(retval)
+		})
+	}
+}
+
+/// Serializes slates 'state' field
+pub mod slate_state_v5 {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::slate_versions::v5::SlateStateV5;
+
+	///
+	pub fn serialize<S>(st: &SlateStateV5, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		let label = match st {
+			SlateStateV5::Unknown => "NA",
+			SlateStateV5::Standard1 => "S1",
+			SlateStateV5::Standard2 => "S2",
+			SlateStateV5::Standard3 => "S3",
+			SlateStateV5::Invoice1 => "I1",
+			SlateStateV5::Invoice2 => "I2",
+			SlateStateV5::Invoice3 => "I3",
+		};
+		serializer.serialize_str(label)
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<SlateStateV5, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		String::deserialize(deserializer).and_then(|s| {
+			let retval = match s.as_str() {
+				"NA" => SlateStateV5::Unknown,
+				"S1" => SlateStateV5::Standard1,
+				"S2" => SlateStateV5::Standard2,
+				"S3" => SlateStateV5::Standard3,
+				"I1" => SlateStateV5::Invoice1,
+				"I2" => SlateStateV5::Invoice2,
+				"I3" => SlateStateV5::Invoice3,
 				_ => return Err(Error::custom("Invalid Slate state")),
 			};
 			Ok(retval)

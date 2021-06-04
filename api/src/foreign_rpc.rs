@@ -308,7 +308,6 @@ where
 		dest_acct_name: Option<String>,
 		dest: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind> {
-		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
 		let out_slate = Foreign::receive_tx(
 			self,
@@ -317,14 +316,13 @@ where
 			dest,
 		)
 		.map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(out_slate, out_slate.version()).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
-		let version = in_slate.version();
 		let out_slate =
 			Foreign::finalize_tx(self, &Slate::from(in_slate), true).map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(out_slate, out_slate.version()).map_err(|e| e.kind())?)
 	}
 }
 

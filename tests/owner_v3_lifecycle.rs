@@ -405,12 +405,13 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 
 	//16) Finalize the invoice tx (to foreign api)
 	// (Tests that foreign API on same port also has its stored mask updated)
+	let v = slate.version();
 	let req = serde_json::json!({
 		"jsonrpc": "2.0",
 		"id": 1,
 		"method": "finalize_tx",
 		"params": {
-			"slate": VersionedSlate::into_version(slate, SlateVersion::V4)?,
+			"slate": VersionedSlate::into_version(slate, v)?,
 		}
 	});
 	let res =

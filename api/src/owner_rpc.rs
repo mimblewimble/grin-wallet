@@ -20,8 +20,8 @@ use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack, SlatepackAddress,
-	StatusMessage, TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, StatusMessage,
+	TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -1796,8 +1796,7 @@ where
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
-		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(slate, slate.version()).map_err(|e| e.kind())?)
 	}
 
 	fn issue_invoice_tx(
@@ -1807,8 +1806,7 @@ where
 	) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
-		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(slate, slate.version()).map_err(|e| e.kind())?)
 	}
 
 	fn process_invoice_tx(
@@ -1824,8 +1822,7 @@ where
 			args,
 		)
 		.map_err(|e| e.kind())?;
-		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(out_slate, out_slate.version()).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(
@@ -1839,8 +1836,7 @@ where
 			&Slate::from(in_slate),
 		)
 		.map_err(|e| e.kind())?;
-		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(out_slate).map_err(|e| e.kind())?)
 	}
 
 	fn tx_lock_outputs(&self, token: Token, in_slate: VersionedSlate) -> Result<(), ErrorKind> {
@@ -1876,12 +1872,9 @@ where
 		)
 		.map_err(|e| e.kind())?;
 		match out_slate {
-			Some(s) => {
-				let version = SlateVersion::V4;
-				Ok(Some(
-					VersionedSlate::into_version(s, version).map_err(|e| e.kind())?,
-				))
-			}
+			Some(s) => Ok(Some(
+				VersionedSlate::into_version(s, s.version()).map_err(|e| e.kind())?,
+			)),
 			None => Ok(None),
 		}
 	}
@@ -2082,8 +2075,7 @@ where
 			secret_indices,
 		)
 		.map_err(|e| e.kind())?;
-		let version = SlateVersion::V4;
-		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(slate, slate.version()).map_err(|e| e.kind())?)
 	}
 
 	fn decode_slatepack_message(

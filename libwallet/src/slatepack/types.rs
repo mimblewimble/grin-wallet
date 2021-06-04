@@ -20,7 +20,7 @@ use x25519_dalek::StaticSecret;
 
 use crate::dalek_ser;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::{Error, ErrorKind};
+use crate::{Error, ErrorKind, CURRENT_SLATE_VERSION};
 use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
@@ -260,8 +260,12 @@ impl serde::Serialize for SlatepackBin {
 		S: serde::Serializer,
 	{
 		let mut vec = vec![];
-		ser::serialize(&mut vec, ser::ProtocolVersion(4), self)
-			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		ser::serialize(
+			&mut vec,
+			ser::ProtocolVersion(CURRENT_SLATE_VERSION as u32),
+			self,
+		)
+		.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
 		serializer.serialize_bytes(&vec)
 	}
 }
@@ -285,8 +289,11 @@ impl<'de> serde::Deserialize<'de> for SlatepackBin {
 				E: serde::de::Error,
 			{
 				let mut reader = std::io::Cursor::new(value.to_vec());
-				let s = ser::deserialize(&mut reader, ser::ProtocolVersion(4))
-					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				let s = ser::deserialize(
+					&mut reader,
+					ser::ProtocolVersion(CURRENT_SLATE_VERSION as u32),
+				)
+				.map_err(|err| serde::de::Error::custom(err.to_string()))?;
 				Ok(s)
 			}
 		}
@@ -488,8 +495,12 @@ impl serde::Serialize for SlatepackEncMetadataBin {
 		S: serde::Serializer,
 	{
 		let mut vec = vec![];
-		ser::serialize(&mut vec, ser::ProtocolVersion(4), self)
-			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		ser::serialize(
+			&mut vec,
+			ser::ProtocolVersion(CURRENT_SLATE_VERSION as u32),
+			self,
+		)
+		.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
 		serializer.serialize_bytes(&vec)
 	}
 }
@@ -513,8 +524,11 @@ impl<'de> serde::Deserialize<'de> for SlatepackEncMetadataBin {
 				E: serde::de::Error,
 			{
 				let mut reader = std::io::Cursor::new(value.to_vec());
-				let s = ser::deserialize(&mut reader, ser::ProtocolVersion(4))
-					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				let s = ser::deserialize(
+					&mut reader,
+					ser::ProtocolVersion(CURRENT_SLATE_VERSION as u32),
+				)
+				.map_err(|err| serde::de::Error::custom(err.to_string()))?;
 				Ok(s)
 			}
 		}

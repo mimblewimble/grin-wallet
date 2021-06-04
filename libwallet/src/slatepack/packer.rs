@@ -17,8 +17,8 @@ use std::str;
 
 use super::armor::HEADER;
 use crate::{
-	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
-	VersionedBinSlate, VersionedSlate,
+	slatepack, Slate, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin, VersionedBinSlate,
+	VersionedSlate,
 };
 use crate::{Error, ErrorKind};
 
@@ -94,7 +94,7 @@ impl<'a> Slatepacker<'a> {
 
 	/// Create slatepack from slate and args
 	pub fn create_slatepack(&self, slate: &Slate) -> Result<Slatepack, Error> {
-		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
+		let out_slate = VersionedSlate::into_version(slate.clone(), slate.version())?;
 		let bin_slate =
 			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();

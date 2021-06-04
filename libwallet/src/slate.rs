@@ -39,7 +39,11 @@ use crate::slate_versions::v4::{
 	CommitsV4, KernelFeaturesArgsV4, OutputFeaturesV4, ParticipantDataV4, PaymentInfoV4,
 	SlateStateV4, SlateV4, VersionCompatInfoV4,
 };
-use crate::slate_versions::VersionedSlate;
+use crate::slate_versions::v5::{
+	CommitsV5, KernelFeaturesArgsV5, OutputFeaturesV5, ParticipantDataV5, PaymentInfoV5,
+	SlateStateV5, SlateV5, VersionCompatInfoV5,
+};
+use crate::slate_versions::{SlateVersion, VersionedSlate};
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
 
@@ -62,6 +66,12 @@ pub struct ParticipantData {
 	pub public_nonce: PublicKey,
 	/// Public partial signature
 	pub part_sig: Option<Signature>,
+	/// Tau X key for multiparty output rangeproof
+	pub tau_x: Option<SecretKey>,
+	/// Tau one partial public key for multiparty output rangeproof
+	pub tau_one: Option<PublicKey>,
+	/// Tau two partial public key for multiparty output rangeproof
+	pub tau_two: Option<PublicKey>,
 }
 
 impl ParticipantData {
@@ -98,7 +108,7 @@ pub struct Slate {
 	pub state: SlateState,
 	/// The core transaction data:
 	/// inputs, outputs, kernels, kernel offset
-	/// Optional as of V4 to allow for a compact
+	/// Optional as of V5 to allow for a compact
 	/// transaction initiation
 	pub tx: Option<Transaction>,
 	/// base amount (excluding fee)
@@ -226,10 +236,10 @@ impl Slate {
 
 	/// Upgrade a versioned slate
 	pub fn upgrade(v_slate: VersionedSlate) -> Result<Slate, Error> {
-		let v4: SlateV4 = match v_slate {
-			VersionedSlate::V4(s) => s,
-		};
-		Ok(v4.into())
+		match v_slate {
+			VersionedSlate::V4(s) => Ok(s.into()),
+			VersionedSlate::V5(s) => Ok(s.into()),
+		}
 	}
 	/// Compact the slate for initial sending, storing the excess + offset explicit
 	/// and removing my input/output data
@@ -510,6 +520,9 @@ impl Slate {
 			public_blind_excess: pub_key,
 			public_nonce: pub_nonce,
 			part_sig: part_sig,
+			tau_x: None,
+			tau_one: None,
+			tau_two: None,
 		});
 		Ok(())
 	}
@@ -683,6 +696,14 @@ impl Slate {
 			Ok(())
 		}
 	}
+
+	/// Get the SlateVersion of the Slate
+	pub fn version(&self) -> SlateVersion {
+		match self.version_info.version {
+			4 => SlateVersion::V4,
+			5 | _ => SlateVersion::V5,
+		}
+	}
 }
 
 impl Serialize for Slate {
@@ -690,8 +711,16 @@ impl Serialize for Slate {
 	where
 		S: Serializer,
 	{
-		let v4 = SlateV4::from(self);
-		v4.serialize(serializer)
+		match self.version() {
+			SlateVersion::V4 => {
+				let v4 = SlateV4::from(self);
+				v4.serialize(serializer)
+			}
+			SlateVersion::V5 => {
+				let v5 = SlateV5::from(self);
+				v5.serialize(serializer)
+			}
+		}
 	}
 }
 // Current slate version to versioned conversions
@@ -726,6 +755,53 @@ impl From<Slate> for SlateV4 {
 		};
 		let sta = SlateStateV4::from(&state);
 		SlateV4 {
+			num_parts,
+			id,
+			sta,
+			coms: (&slate).into(),
+			amt: amount,
+			fee: fee_fields,
+			feat: kernel_features,
+			ttl,
+			off,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		}
+	}
+}
+
+// Slate to versioned
+impl From<Slate> for SlateV5 {
+	fn from(slate: Slate) -> SlateV5 {
+		let Slate {
+			num_participants: num_parts,
+			id,
+			state,
+			tx: _,
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height: ttl,
+			offset: off,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		} = slate.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let ver = VersionCompatInfoV5::from(&version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV5::from(&p)),
+			None => None,
+		};
+		let feat_args = match kernel_features_args {
+			Some(a) => Some(KernelFeaturesArgsV5::from(&a)),
+			None => None,
+		};
+		let sta = SlateStateV5::from(&state);
+		SlateV5 {
 			num_parts,
 			id,
 			sta,
@@ -796,7 +872,83 @@ impl From<&Slate> for SlateV4 {
 	}
 }
 
+impl From<&Slate> for SlateV5 {
+	fn from(slate: &Slate) -> SlateV5 {
+		let Slate {
+			num_participants: num_parts,
+			id,
+			state,
+			tx: _,
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height: ttl,
+			offset,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		} = slate;
+		let num_parts = *num_parts;
+		let id = *id;
+		let amount = *amount;
+		let fee_fields = *fee_fields;
+		let feat = *kernel_features;
+		let ttl = *ttl;
+		let off = offset.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let ver = VersionCompatInfoV5::from(version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV5::from(p)),
+			None => None,
+		};
+		let sta = SlateStateV5::from(state);
+		let feat_args = match kernel_features_args {
+			Some(a) => Some(KernelFeaturesArgsV5::from(a)),
+			None => None,
+		};
+		SlateV5 {
+			num_parts,
+			id,
+			sta,
+			coms: slate.into(),
+			amt: amount,
+			fee: fee_fields,
+			feat,
+			ttl,
+			off,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		}
+	}
+}
+
 impl From<&Slate> for Option<Vec<CommitsV4>> {
+	fn from(slate: &Slate) -> Self {
+		match slate.tx {
+			None => None,
+			Some(ref tx) => {
+				let mut ret_vec = vec![];
+				match tx.inputs() {
+					Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
+					Inputs::FeaturesAndCommit(ref inputs) => {
+						for input in inputs {
+							ret_vec.push(input.into());
+						}
+					}
+				}
+				for output in tx.outputs() {
+					ret_vec.push(output.into());
+				}
+				Some(ret_vec)
+			}
+		}
+	}
+}
+
+impl From<&Slate> for Option<Vec<CommitsV5>> {
 	fn from(slate: &Slate) -> Self {
 		match slate.tx {
 			None => None,
@@ -825,6 +977,9 @@ impl From<&ParticipantData> for ParticipantDataV4 {
 			public_blind_excess,
 			public_nonce,
 			part_sig,
+			tau_x: _,
+			tau_one: _,
+			tau_two: _,
 		} = data;
 		let public_blind_excess = *public_blind_excess;
 		let public_nonce = *public_nonce;
@@ -833,6 +988,33 @@ impl From<&ParticipantData> for ParticipantDataV4 {
 			xs: public_blind_excess,
 			nonce: public_nonce,
 			part: part_sig,
+		}
+	}
+}
+
+impl From<&ParticipantData> for ParticipantDataV5 {
+	fn from(data: &ParticipantData) -> ParticipantDataV5 {
+		let ParticipantData {
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+			tau_x,
+			tau_one,
+			tau_two,
+		} = data;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		let tau_x = tau_x.clone();
+		let tau_one = tau_one.clone();
+		let tau_two = tau_two.clone();
+		ParticipantDataV5 {
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
+			tau_x,
+			tau_one,
+			tau_two,
 		}
 	}
 }
@@ -851,11 +1033,33 @@ impl From<&SlateState> for SlateStateV4 {
 	}
 }
 
+impl From<&SlateState> for SlateStateV5 {
+	fn from(data: &SlateState) -> SlateStateV5 {
+		match data {
+			SlateState::Unknown => SlateStateV5::Unknown,
+			SlateState::Standard1 => SlateStateV5::Standard1,
+			SlateState::Standard2 => SlateStateV5::Standard2,
+			SlateState::Standard3 => SlateStateV5::Standard3,
+			SlateState::Invoice1 => SlateStateV5::Invoice1,
+			SlateState::Invoice2 => SlateStateV5::Invoice2,
+			SlateState::Invoice3 => SlateStateV5::Invoice3,
+		}
+	}
+}
+
 impl From<&KernelFeaturesArgs> for KernelFeaturesArgsV4 {
 	fn from(data: &KernelFeaturesArgs) -> KernelFeaturesArgsV4 {
 		let KernelFeaturesArgs { lock_height } = data;
 		let lock_hgt = *lock_height;
 		KernelFeaturesArgsV4 { lock_hgt }
+	}
+}
+
+impl From<&KernelFeaturesArgs> for KernelFeaturesArgsV5 {
+	fn from(data: &KernelFeaturesArgs) -> KernelFeaturesArgsV5 {
+		let KernelFeaturesArgs { lock_height } = data;
+		let lock_hgt = *lock_height;
+		KernelFeaturesArgsV5 { lock_hgt }
 	}
 }
 
@@ -868,6 +1072,21 @@ impl From<&VersionCompatInfo> for VersionCompatInfoV4 {
 		let version = *version;
 		let block_header_version = *block_header_version;
 		VersionCompatInfoV4 {
+			version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<&VersionCompatInfo> for VersionCompatInfoV5 {
+	fn from(data: &VersionCompatInfo) -> VersionCompatInfoV5 {
+		let VersionCompatInfo {
+			version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfoV5 {
 			version,
 			block_header_version,
 		}
@@ -892,6 +1111,24 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 	}
 }
 
+impl From<&PaymentInfo> for PaymentInfoV5 {
+	fn from(data: &PaymentInfo) -> PaymentInfoV5 {
+		let PaymentInfo {
+			sender_address,
+			receiver_address,
+			receiver_signature,
+		} = data;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let receiver_signature = *receiver_signature;
+		PaymentInfoV5 {
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
+		}
+	}
+}
+
 impl From<OutputFeatures> for OutputFeaturesV4 {
 	fn from(of: OutputFeatures) -> OutputFeaturesV4 {
 		let index = match of {
@@ -903,10 +1140,68 @@ impl From<OutputFeatures> for OutputFeaturesV4 {
 	}
 }
 
+impl From<OutputFeatures> for OutputFeaturesV5 {
+	fn from(of: OutputFeatures) -> OutputFeaturesV5 {
+		let index = match of {
+			OutputFeatures::Plain => 0,
+			OutputFeatures::Coinbase => 1,
+			OutputFeatures::Multisig => 2,
+		};
+		OutputFeaturesV5(index)
+	}
+}
+
 // Versioned to current slate
 impl From<SlateV4> for Slate {
 	fn from(slate: SlateV4) -> Slate {
 		let SlateV4 {
+			num_parts: num_participants,
+			id,
+			sta,
+			coms: _,
+			amt: amount,
+			fee: fee_fields,
+			feat: kernel_features,
+			ttl: ttl_cutoff_height,
+			off: offset,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		} = slate.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
+		let version_info = VersionCompatInfo::from(&ver);
+		let payment_proof = match &payment_proof {
+			Some(p) => Some(PaymentInfo::from(p)),
+			None => None,
+		};
+		let kernel_features_args = match &feat_args {
+			Some(a) => Some(KernelFeaturesArgs::from(a)),
+			None => None,
+		};
+		let state = SlateState::from(&sta);
+		Slate {
+			num_participants,
+			id,
+			state,
+			tx: (&slate).into(),
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height,
+			offset,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		}
+	}
+}
+
+// Versioned to current slate
+impl From<SlateV5> for Slate {
+	fn from(slate: SlateV5) -> Slate {
+		let SlateV5 {
 			num_parts: num_participants,
 			id,
 			sta,
@@ -964,6 +1259,9 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 			public_blind_excess: d.xs,
 			public_nonce: d.nonce,
 			part_sig: d.part,
+			tau_x: None,
+			tau_one: None,
+			tau_two: None,
 		});
 	}
 	let excess = match calc_slate.calc_excess(&secp) {
@@ -1016,10 +1314,86 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	Some(tx)
 }
 
-// Node's Transaction object and lock height to SlateV4 `coms`
+pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
+	let coms = match slate.coms.as_ref() {
+		Some(c) => c,
+		None => return None,
+	};
+	let secp = static_secp_instance();
+	let secp = secp.lock();
+	let mut calc_slate = Slate::blank(2, false);
+	calc_slate.fee_fields = slate.fee;
+	for d in slate.sigs.iter() {
+		calc_slate.participant_data.push(ParticipantData {
+			public_blind_excess: d.xs,
+			public_nonce: d.nonce,
+			part_sig: d.part,
+			tau_x: d.tau_x.clone(),
+			tau_one: d.tau_one.clone(),
+			tau_two: d.tau_two.clone(),
+		});
+	}
+	let excess = match calc_slate.calc_excess(&secp) {
+		Ok(e) => e,
+		Err(_) => Commitment::from_vec(vec![0]),
+	};
+	let excess_sig = match calc_slate.finalize_signature(&secp) {
+		Ok(s) => s,
+		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
+	};
+	let kernel = TxKernel {
+		features: match slate.feat {
+			0 => KernelFeatures::Plain { fee: slate.fee },
+			1 => KernelFeatures::HeightLocked {
+				fee: slate.fee,
+				lock_height: match slate.feat_args.as_ref() {
+					Some(a) => a.lock_hgt,
+					None => 0,
+				},
+			},
+			_ => KernelFeatures::Plain { fee: slate.fee },
+		},
+		excess,
+		excess_sig,
+	};
+	let mut tx = Slate::empty_transaction().with_kernel(kernel);
+
+	let mut outputs = vec![];
+	let mut inputs = vec![];
+
+	for c in coms.iter() {
+		match &c.p {
+			Some(p) => {
+				outputs.push(Output::new(c.f.into(), c.c, p.clone()));
+			}
+			None => {
+				inputs.push(Input {
+					features: c.f.into(),
+					commit: c.c,
+				});
+			}
+		}
+	}
+
+	tx.body = tx
+		.body
+		.replace_inputs(inputs.as_slice().into())
+		.replace_outputs(outputs.as_slice());
+	tx.offset = slate.off.clone();
+	Some(tx)
+}
+
+// Node's Transaction object and lock height to SlateV5 `coms`
 impl From<&SlateV4> for Option<Transaction> {
 	fn from(slate: &SlateV4) -> Option<Transaction> {
 		tx_from_slate_v4(slate)
+	}
+}
+
+// Node's Transaction object and lock height to SlateV5 `coms`
+impl From<&SlateV5> for Option<Transaction> {
+	fn from(slate: &SlateV5) -> Option<Transaction> {
+		tx_from_slate_v5(slate)
 	}
 }
 
@@ -1037,6 +1411,36 @@ impl From<&ParticipantDataV4> for ParticipantData {
 			public_blind_excess,
 			public_nonce,
 			part_sig,
+			tau_x: None,
+			tau_one: None,
+			tau_two: None,
+		}
+	}
+}
+
+impl From<&ParticipantDataV5> for ParticipantData {
+	fn from(data: &ParticipantDataV5) -> ParticipantData {
+		let ParticipantDataV5 {
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
+			tau_x,
+			tau_one,
+			tau_two,
+		} = data;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		let tau_x = tau_x.clone();
+		let tau_one = tau_one.clone();
+		let tau_two = tau_two.clone();
+		ParticipantData {
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+			tau_x,
+			tau_one,
+			tau_two,
 		}
 	}
 }
@@ -1044,6 +1448,14 @@ impl From<&ParticipantDataV4> for ParticipantData {
 impl From<&KernelFeaturesArgsV4> for KernelFeaturesArgs {
 	fn from(data: &KernelFeaturesArgsV4) -> KernelFeaturesArgs {
 		let KernelFeaturesArgsV4 { lock_hgt } = data;
+		let lock_height = *lock_hgt;
+		KernelFeaturesArgs { lock_height }
+	}
+}
+
+impl From<&KernelFeaturesArgsV5> for KernelFeaturesArgs {
+	fn from(data: &KernelFeaturesArgsV5) -> KernelFeaturesArgs {
+		let KernelFeaturesArgsV5 { lock_hgt } = data;
 		let lock_height = *lock_hgt;
 		KernelFeaturesArgs { lock_height }
 	}
@@ -1063,9 +1475,38 @@ impl From<&SlateStateV4> for SlateState {
 	}
 }
 
+impl From<&SlateStateV5> for SlateState {
+	fn from(data: &SlateStateV5) -> SlateState {
+		match data {
+			SlateStateV5::Unknown => SlateState::Unknown,
+			SlateStateV5::Standard1 => SlateState::Standard1,
+			SlateStateV5::Standard2 => SlateState::Standard2,
+			SlateStateV5::Standard3 => SlateState::Standard3,
+			SlateStateV5::Invoice1 => SlateState::Invoice1,
+			SlateStateV5::Invoice2 => SlateState::Invoice2,
+			SlateStateV5::Invoice3 => SlateState::Invoice3,
+		}
+	}
+}
+
 impl From<&VersionCompatInfoV4> for VersionCompatInfo {
 	fn from(data: &VersionCompatInfoV4) -> VersionCompatInfo {
 		let VersionCompatInfoV4 {
+			version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfo {
+			version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<&VersionCompatInfoV5> for VersionCompatInfo {
+	fn from(data: &VersionCompatInfoV5) -> VersionCompatInfo {
+		let VersionCompatInfoV5 {
 			version,
 			block_header_version,
 		} = data;
@@ -1096,8 +1537,35 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 	}
 }
 
+impl From<&PaymentInfoV5> for PaymentInfo {
+	fn from(data: &PaymentInfoV5) -> PaymentInfo {
+		let PaymentInfoV5 {
+			saddr: sender_address,
+			raddr: receiver_address,
+			rsig: receiver_signature,
+		} = data;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let receiver_signature = *receiver_signature;
+		PaymentInfo {
+			sender_address,
+			receiver_address,
+			receiver_signature,
+		}
+	}
+}
+
 impl From<OutputFeaturesV4> for OutputFeatures {
 	fn from(of: OutputFeaturesV4) -> OutputFeatures {
+		match of.0 {
+			1 => OutputFeatures::Coinbase,
+			0 | _ => OutputFeatures::Plain,
+		}
+	}
+}
+
+impl From<OutputFeaturesV5> for OutputFeatures {
+	fn from(of: OutputFeaturesV5) -> OutputFeatures {
 		match of.0 {
 			1 => OutputFeatures::Coinbase,
 			0 | _ => OutputFeatures::Plain,
