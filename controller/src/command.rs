@@ -261,6 +261,7 @@ pub struct SendArgs {
 	pub outfile: Option<String>,
 	pub is_multisig: Option<bool>,
 	pub derive_path: Option<u32>,
+	pub multisig_path: Option<String>,
 }
 
 pub fn send<L, C, K>(
@@ -292,6 +293,7 @@ where
 						selection_strategy_is_use_all: strategy == "all",
 						estimate_only: Some(true),
 						is_multisig: args.is_multisig,
+						multisig_path: args.multisig_path.clone(),
 						..Default::default()
 					};
 					let slate = match tx_flow {
@@ -319,6 +321,7 @@ where
 				send_args: None,
 				late_lock: Some(args.late_lock),
 				is_multisig: args.is_multisig,
+				multisig_path: args.multisig_path.clone(),
 				..Default::default()
 			};
 			let result = match tx_flow {
@@ -926,11 +929,7 @@ where
 
 	println!("Transaction finalized successfully");
 
-	if slate
-		.participant_data
-		.iter()
-		.fold(false, |t, d| t | d.tau_x.is_some())
-	{
+	if slate.is_multisig() {
 		info!(
 			"Transaction multisig identifier: {}",
 			slate.create_multisig_id().to_bip_32_string()

@@ -17,7 +17,7 @@
 use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
-use crate::grin_keychain::BlindingFactor;
+use crate::grin_keychain::{BlindingFactor, Identifier, IDENTIFIER_SIZE};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
@@ -523,6 +523,12 @@ impl Writeable for SlateV5Bin {
 			};
 			writer.write_u64(lock_hgt)?;
 		}
+		if let Some(mid) = v5.multisig_key_id.as_ref() {
+			writer.write_u8(1)?;
+			writer.write_fixed_bytes(mid.to_bytes())?;
+		} else {
+			writer.write_u8(0)?;
+		}
 		Ok(())
 	}
 }
@@ -549,6 +555,13 @@ impl Readable for SlateV5Bin {
 			None
 		};
 
+		let multisig_key_id = if reader.read_u8()? != 0 {
+			let id_bytes = reader.read_fixed_bytes(IDENTIFIER_SIZE)?;
+			Some(Identifier::from_bytes(id_bytes.as_ref()))
+		} else {
+			None
+		};
+
 		Ok(SlateV5Bin(SlateV5 {
 			ver,
 			id,
@@ -563,6 +576,7 @@ impl Readable for SlateV5Bin {
 			coms: opt_structs.coms,
 			proof: opt_structs.proof,
 			feat_args,
+			multisig_key_id,
 		}))
 	}
 }

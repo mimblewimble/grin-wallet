@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
-use crate::grin_core::libtx::proof;
+use crate::grin_core::libtx::{proof, tx_fee};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::{Mutex, ToHex};
 use crate::util::{OnionV3Address, OnionV3AddressError};
@@ -745,6 +745,7 @@ pub fn process_multisig_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
+	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -758,13 +759,17 @@ where
 	let secp = keychain.secp();
 	let key_id = slate.create_multisig_id();
 	let (_, pub_nonce) = context.get_public_keys(secp);
-	let oth_part_data = slate
-		.participant_data
-		.iter()
-		.find(|d| d.public_nonce != pub_nonce)
-		.ok_or(Error::from(ErrorKind::GenericError(
-			"missing other participant data".into(),
-		)))?;
+	let oth_part_data = if use_test_rng && slate.participant_data.len() == 1 {
+		&slate.participant_data[0]
+	} else {
+		slate
+			.participant_data
+			.iter()
+			.find(|d| d.public_nonce != pub_nonce)
+			.ok_or(Error::from(ErrorKind::GenericError(
+				"missing other participant data".into(),
+			)))?
+	};
 
 	let oth_part_commit =
 		oth_part_data
@@ -796,27 +801,27 @@ where
 		None,
 	)?;
 
-	if oth_part_data.tau_one.is_none() || oth_part_data.tau_two.is_none() {
-		return Err(ErrorKind::GenericError(
-			"missing other participant's tau public key(s)".into(),
-		)
-		.into());
-	}
+	let (oth_tau_one, oth_tau_two) = match (
+		oth_part_data.tau_one.as_ref(),
+		oth_part_data.tau_two.as_ref(),
+	) {
+		(Some(one), Some(two)) => (one, two),
+		_ => {
+			return Err(ErrorKind::GenericError(
+				"missing other participant's tau public key(s)".into(),
+			)
+			.into())
+		}
+	};
 
 	// calculate tau_one_sum and tau_two_sum
 	let mut tau_one_sum = Some(PublicKey::from_combination(
 		secp,
-		vec![
-			context.tau_one.as_ref().unwrap(),
-			oth_part_data.tau_one.as_ref().unwrap(),
-		],
+		vec![context.tau_one.as_ref().unwrap(), oth_tau_one],
 	)?);
 	let mut tau_two_sum = Some(PublicKey::from_combination(
 		secp,
-		vec![
-			context.tau_two.as_ref().unwrap(),
-			oth_part_data.tau_two.as_ref().unwrap(),
-		],
+		vec![context.tau_two.as_ref().unwrap(), oth_tau_two],
 	)?);
 
 	// calculate initiator's tau_x secret key for the multisig bulletproof
@@ -951,6 +956,13 @@ where
 		None => w.parent_key_id(),
 	};
 
+	let multisig_path_str = args
+		.multisig_path
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing BIP32 multisig path".into(),
+		)))?;
+	let multisig_id = Identifier::from_bip_32_string(&multisig_path_str)?;
+
 	let mut slate = tx::new_tx_slate(
 		&mut *w,
 		args.amount,
@@ -960,19 +972,25 @@ where
 		args.ttl_blocks,
 	)?;
 
-	if let Some(v) = args.target_slate_version {
-		slate.version_info.version = v;
-	};
+	slate.multisig_key_id = Some(multisig_id.clone());
 
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let keychain = w.keychain(keychain_mask)?;
+
+	let output = w
+		.iter()
+		.find(|d| d.key_id == multisig_id)
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing multisig output".into(),
+		)))?;
 
 	let context = if args.late_lock.unwrap_or(false) {
 		// use late_lock context for initial height_lock tx,
 		// initiated by the atomic swap receiver
 		let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
 		context.amount = args.amount;
-		context.fee = slate.fee_fields.as_opt();
+		context.fee = Some((tx_fee(1, 1, 1) as u32).into());
+		context.input_ids = vec![(output.key_id, output.mmr_index, output.value)];
 
 		slate.fill_round_1(&keychain, &mut context)?;
 
@@ -1012,7 +1030,6 @@ where
 		batch.commit()?;
 	}
 
-	slate.adjust_offset(&keychain, &context)?;
 	slate.compact()?;
 
 	Ok(slate)
@@ -1125,6 +1142,7 @@ where
 			args.selection_strategy_is_use_all,
 			Some(context.fee.map(|f| f.fee()).unwrap_or(0)),
 			parent_key_id.clone(),
+			None,
 			false,
 			true,
 		)?;
@@ -1145,29 +1163,61 @@ where
 	}
 
 	// finalize multisig bulletproof
-	if sl
-		.participant_data
-		.iter()
-		.fold(false, |t, d| t | d.tau_x.is_some())
-	{
-		selection::finalize_multisig_bulletproof(&mut *w, keychain_mask, &mut sl, &mut context)?;
+	let is_multisig = sl.is_multisig();
+	let multisig_init_final = is_multisig && context.tau_x.is_some();
+	if is_multisig {
+		let tau_x =
+			selection::finalize_multisig_bulletproof(w, keychain_mask, &mut sl, &mut context)?;
+		let k = w.keychain(keychain_mask)?;
+		let (_, pub_nonce) = context.get_public_keys(k.secp());
+		{
+			let mut part_data = sl
+				.participant_data
+				.iter_mut()
+				.find(|d| d.public_nonce == pub_nonce)
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing local participant data".into(),
+				)))?;
+			part_data.tau_x = tau_x;
+		}
+	}
+
+	if multisig_init_final {
+		context
+			.output_ids
+			.push((sl.create_multisig_id(), None, sl.amount));
 	}
 
 	// Add our contribution to the offset
 	sl.adjust_offset(&keychain, &context)?;
 
-	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+	if multisig_init_final {
+		context.output_ids.pop();
+	}
 
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+	if multisig_init_final || !is_multisig {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+
+		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+		tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+	}
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
-	sl.state = SlateState::Standard3;
-	sl.amount = 0;
+	if is_multisig {
+		debug!(
+			"multisig ID path: {}",
+			slate.create_multisig_id().to_bip_32_string()
+		);
+		debug!("Use with commands spending this multisig output");
+		sl.state = SlateState::Multisig4;
+	} else {
+		sl.state = SlateState::Standard3;
+		sl.amount = 0;
+	}
 
 	Ok(sl)
 }
@@ -1185,13 +1235,37 @@ where
 {
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
-	let context = w.get_private_context(keychain_mask, ret_slate.id.as_bytes())?;
+	let mut context = w.get_private_context(keychain_mask, ret_slate.id.as_bytes())?;
 	let parent_key_id = w.parent_key_id();
+	let is_height_lock = ret_slate.kernel_features == 2;
 
-	if ret_slate.kernel_features == 2 {
+	if !is_height_lock {
+		// check that the multisig ID matches a locally stored multisig output
+		let multisig_id =
+			slate
+				.multisig_key_id
+				.as_ref()
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing multisig ouptut ID".into(),
+				)))?;
+		let output = w
+			.iter()
+			.find(|o| &o.key_id == multisig_id)
+			.ok_or(Error::from(ErrorKind::GenericError(
+				"missing multisig output".into(),
+			)))?;
+		context.input_ids = vec![(output.key_id, output.mmr_index, output.value)];
+	}
+
+	ret_slate.adjust_offset(&w.keychain(keychain_mask)?, &context)?;
+
+	if is_height_lock {
 		ret_slate.tx = Some(Slate::empty_transaction());
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, true)?;
 	}
+
+	ret_slate.tx_or_err_mut()?.offset = ret_slate.offset.clone();
+
 	tx::complete_atomic_tx(&mut *w, keychain_mask, &mut ret_slate, &context)?;
 	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &ret_slate)?;
 	tx::update_stored_tx(&mut *w, keychain_mask, &context, &ret_slate, true)?;

@@ -14,6 +14,8 @@
 
 //! Selection of inputs for building transactions
 
+use rand::thread_rng;
+
 use crate::address;
 use crate::error::{Error, ErrorKind};
 use crate::grin_core::core::{amount_to_hr_string, Output, OutputFeatures};
@@ -27,7 +29,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::{from_hex, ToHex};
 use crate::internal::keys;
-use crate::slate::Slate;
+use crate::slate::{Slate, SlateState};
 use crate::types::*;
 use crate::util::OnionV3Address;
 use std::collections::HashMap;
@@ -50,6 +52,7 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	fixed_fee: Option<u64>,
 	parent_key_id: Identifier,
+	multisig_key_id: Option<&Identifier>,
 	use_test_nonce: bool,
 	is_initiator: bool,
 ) -> Result<Context, Error>
@@ -68,6 +71,7 @@ where
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
+		multisig_key_id,
 		false,
 	)?;
 
@@ -278,18 +282,13 @@ where
 
 	let (commit, output) = if is_multisig {
 		let (_, public_nonce) = context.get_public_keys(keychain.secp());
-		let data = if use_test_rng {
-			assert_eq!(slate.participant_data.len(), 1);
-			&slate.participant_data[0]
-		} else {
-			slate
-				.participant_data
-				.iter()
-				.find(|d| d.public_nonce != public_nonce)
-				.ok_or(Error::from(ErrorKind::GenericError(
-					"missing other participant data".into(),
-				)))?
-		};
+		let data = slate
+			.participant_data
+			.iter()
+			.find(|d| d.public_nonce != public_nonce)
+			.ok_or(Error::from(ErrorKind::GenericError(
+				"missing other participant data".into(),
+			)))?;
 
 		let oth_partial_commit = data.part_commit.ok_or(Error::from(ErrorKind::Commit(
 			"missing partial commit".into(),
@@ -355,12 +354,8 @@ where
 		t.kernel_excess = Some(e)
 	}
 	t.kernel_lookup_min_height = Some(current_height);
-	let root_key_id = match is_multisig {
-		true => key_id.clone(),
-		false => parent_key_id.clone(),
-	};
 	batch.save(OutputData {
-		root_key_id: root_key_id,
+		root_key_id: parent_key_id.clone(),
 		key_id: key_id_inner.clone(),
 		mmr_index: None,
 		n_child: key_id_inner.to_path().last_path_index(),
@@ -392,6 +387,7 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
+	multisig_key_id: Option<&Identifier>,
 	include_inputs_in_sum: bool,
 ) -> Result<
 	(
@@ -417,6 +413,7 @@ where
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
+		multisig_key_id,
 	)?;
 
 	// build transaction skeleton with inputs and change
@@ -443,6 +440,7 @@ pub fn select_coins_and_fee<'a, T: ?Sized, C, K>(
 	change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
+	multisig_key_id: Option<&Identifier>,
 ) -> Result<
 	(
 		Vec<OutputData>,
@@ -466,6 +464,7 @@ where
 		max_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id,
+		multisig_key_id,
 	);
 
 	// sender is responsible for setting the fee on the partial tx
@@ -528,6 +527,7 @@ where
 				max_outputs,
 				selection_strategy_is_use_all,
 				parent_key_id,
+				multisig_key_id,
 			)
 			.1;
 			fee = tx_fee(coins.len(), num_outputs, 1);
@@ -627,6 +627,7 @@ pub fn select_coins<'a, T: ?Sized, C, K>(
 	max_outputs: usize,
 	select_all: bool,
 	parent_key_id: &Identifier,
+	multisig_key_id: Option<&Identifier>,
 ) -> (usize, Vec<OutputData>)
 //    max_outputs_available, Outputs
 where
@@ -635,13 +636,15 @@ where
 	K: Keychain + 'a,
 {
 	// first find all eligible outputs based on number of confirmations
-	let mut eligible = wallet
-		.iter()
-		.filter(|out| {
-			out.root_key_id == *parent_key_id
-				&& out.eligible_to_spend(current_height, minimum_confirmations)
-		})
-		.collect::<Vec<OutputData>>();
+	let key_id = multisig_key_id.unwrap_or(parent_key_id);
+	let mut eligible = vec![];
+	for out in wallet.iter() {
+		if (out.root_key_id == *key_id || out.key_id == *key_id)
+			&& out.eligible_to_spend(current_height, minimum_confirmations)
+		{
+			eligible.push(out.clone());
+		}
+	}
 
 	let max_available = eligible.len();
 
@@ -774,7 +777,7 @@ pub fn finalize_multisig_bulletproof<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &mut Context,
-) -> Result<(), Error>
+) -> Result<Option<SecretKey>, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -790,20 +793,6 @@ where
 		.ok_or(Error::from(ErrorKind::GenericError(
 			"missing other participant data".into(),
 		)))?;
-
-	let mut tau_x_sum = context
-		.tau_x
-		.clone()
-		.ok_or(Error::from(ErrorKind::GenericError(
-			"missing local tau x".into(),
-		)))?;
-	let oth_tau_x = oth_data
-		.tau_x
-		.as_ref()
-		.ok_or(Error::from(ErrorKind::GenericError(
-			"missing other tau x".into(),
-		)))?;
-	tau_x_sum.add_assign(secp, oth_tau_x)?;
 
 	let common_nonce = context.create_common_nonce(secp, &oth_data.public_nonce)?;
 
@@ -826,35 +815,98 @@ where
 		.map_err(|e| ErrorKind::GenericError(format!("invalid hex: {}", e)))?;
 	let commit = pedersen::Commitment::from_vec(commit_hex);
 
-	let proof = create_multisig(
-		&keychain,
-		&ProofBuilder::new(&keychain),
-		amount,
-		&key_id,
-		SwitchCommitmentType::Regular,
-		&common_nonce,
-		Some(&mut tau_x_sum),
-		context.tau_one.as_mut(),
-		context.tau_two.as_mut(),
-		&[commit.clone()],
-		0,
-		None,
-	)?
-	.ok_or(Error::from(ErrorKind::GenericError(
-		"error creating final multisig proof".into(),
-	)))?;
+	let is_initiator_final = context.tau_x.is_some();
+	if !is_initiator_final {
+		let tau_one = context.tau_one.ok_or(Error::from(ErrorKind::GenericError(
+			"missing tau one multisig key".into(),
+		)))?;
+		let tau_two = context.tau_two.ok_or(Error::from(ErrorKind::GenericError(
+			"missing tau two multisig key".into(),
+		)))?;
+		let oth_tau_one = oth_data.tau_one.ok_or(Error::from(ErrorKind::GenericError(
+			"missing other tau one multisig key".into(),
+		)))?;
+		let oth_tau_two = oth_data.tau_two.ok_or(Error::from(ErrorKind::GenericError(
+			"missing other tau two multisig key".into(),
+		)))?;
+		context.tau_one = Some(PublicKey::from_combination(
+			secp,
+			vec![&tau_one, &oth_tau_one],
+		)?);
+		context.tau_two = Some(PublicKey::from_combination(
+			secp,
+			vec![&tau_two, &oth_tau_two],
+		)?);
+		context.tau_x = Some(SecretKey::new(secp, &mut thread_rng()));
+		let _ = create_multisig(
+			&keychain,
+			&ProofBuilder::new(&keychain),
+			amount,
+			&key_id,
+			SwitchCommitmentType::Regular,
+			&common_nonce,
+			context.tau_x.as_mut(),
+			context.tau_one.as_mut(),
+			context.tau_two.as_mut(),
+			&[commit],
+			2,
+			None,
+		)?;
+	}
+	let mut tau_x_sum = context
+		.tau_x
+		.clone()
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing local tau x".into(),
+		)))?;
+	// Save for receiver to add to the slate, can be ignored for initiator finalization
+	let ret_tau_x = Some(tau_x_sum.clone());
+	let oth_tau_x = oth_data
+		.tau_x
+		.as_ref()
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing other tau x".into(),
+		)))?;
+	tau_x_sum.add_assign(secp, oth_tau_x)?;
 
-	// replace the multisig output's rangeproof with the finalized multisig proof
-	let mut new_outs = vec![Output::new(OutputFeatures::Multisig, commit.clone(), proof)];
-	let old_outs: Vec<Output> = slate
-		.tx_or_err()?
-		.outputs()
-		.iter()
-		.filter(|o| o.identifier.commit != commit)
-		.map(|o| o.clone())
-		.collect();
-	new_outs.extend_from_slice(&old_outs[..]);
-	slate.tx_or_err_mut()?.body.outputs = new_outs;
+	if is_initiator_final {
+		let proof = create_multisig(
+			&keychain,
+			&ProofBuilder::new(&keychain),
+			amount,
+			&key_id,
+			SwitchCommitmentType::Regular,
+			&common_nonce,
+			Some(&mut tau_x_sum),
+			context.tau_one.as_mut(),
+			context.tau_two.as_mut(),
+			&[commit.clone()],
+			0,
+			None,
+		)?
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"error creating final multisig proof".into(),
+		)))?;
 
-	Ok(())
+		let output = Output::new(OutputFeatures::Multisig, commit.clone(), proof);
+		output.verify_proof()?;
+
+		// replace the multisig output's rangeproof with the finalized multisig proof
+		let mut new_outs = vec![output];
+		let old_outs: Vec<Output> = slate
+			.tx_or_err()?
+			.outputs()
+			.iter()
+			.filter(|o| o.identifier.commit != commit)
+			.map(|o| o.clone())
+			.collect();
+		new_outs.extend_from_slice(&old_outs[..]);
+		slate.tx_or_err_mut()?.body.outputs = new_outs;
+	} else {
+		context.tau_x = Some(tau_x_sum);
+	}
+
+	slate.state = SlateState::Multisig4;
+
+	Ok(ret_tau_x)
 }

@@ -13,17 +13,14 @@
 // limitations under the License.
 
 //! Generic implementation of owner API functions
-use rand::thread_rng;
 use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::api_impl::owner::{finalize_atomic_swap, finalize_tx as owner_finalize};
 use crate::grin_core::core::FeeFields;
-use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{Keychain, SwitchCommitmentType};
-use crate::grin_util::{from_hex, ToHex};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::pedersen::Commitment;
+use crate::grin_util::ToHex;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
@@ -110,8 +107,12 @@ where
 		use_test_rng,
 	)?;
 
-	// Add our contribution to the offset
-	ret_slate.adjust_offset(&keychain, &context)?;
+	let is_multisig = slate.is_multisig();
+
+	if !is_multisig {
+		// Add our contribution to the offset
+		ret_slate.adjust_offset(&keychain, &context)?;
+	}
 
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
@@ -126,12 +127,12 @@ where
 		p.receiver_signature = Some(sig);
 	}
 
-	ret_slate.amount = 0;
-	ret_slate.fee_fields = FeeFields::zero();
-	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
 	if ret_slate.is_multisig() {
 		ret_slate.state = SlateState::Multisig2;
 	} else {
+		ret_slate.amount = 0;
+		ret_slate.fee_fields = FeeFields::zero();
+		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
 		ret_slate.state = SlateState::Standard2;
 	}
 
@@ -203,6 +204,7 @@ where
 		(atomic_id, Some(atomic))
 	};
 
+	let min_confirmations = if use_test_rng { 0 } else { 10 };
 	let (input_ids, output_ids) = if is_height_lock {
 		// add input(s) and change output to slate
 		let ctx = tx::add_inputs_to_atomic_slate(
@@ -210,7 +212,7 @@ where
 			keychain_mask,
 			&mut ret_slate,
 			height,
-			10,   // min_confirmations
+			min_confirmations,
 			500,  // max_outputs
 			1,    // num_change_outputs
 			true, // selection_strategy_is_use_all
@@ -252,7 +254,6 @@ where
 		batch.commit()?;
 	}
 
-	ret_slate.adjust_offset(&keychain, &context)?;
 	ret_slate.state = SlateState::Atomic2;
 
 	Ok(ret_slate)
@@ -293,74 +294,10 @@ where
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
 	} else if sl.state == SlateState::Multisig3 {
+		let tau_x =
+			selection::finalize_multisig_bulletproof(w, keychain_mask, &mut sl, &mut context)?;
 		let k = w.keychain(keychain_mask)?;
-		let secp = k.secp();
-		let (_, pub_nonce) = context.get_public_keys(secp);
-
-		let tau_one = context.tau_one.ok_or(Error::from(ErrorKind::GenericError(
-			"missing tau one multisig key".into(),
-		)))?;
-		let tau_two = context.tau_two.ok_or(Error::from(ErrorKind::GenericError(
-			"missing tau two multisig key".into(),
-		)))?;
-
-		{
-			let oth_data = sl
-				.participant_data
-				.iter()
-				.find(|d| d.public_nonce != pub_nonce)
-				.ok_or(Error::from(ErrorKind::GenericError(
-					"missing other participant's data".into(),
-				)))?;
-			let oth_tau_one = oth_data.tau_one.ok_or(Error::from(ErrorKind::GenericError(
-				"missing other tau one multisig key".into(),
-			)))?;
-			let oth_tau_two = oth_data.tau_two.ok_or(Error::from(ErrorKind::GenericError(
-				"missing other tau two multisig key".into(),
-			)))?;
-
-			context.tau_one = Some(PublicKey::from_combination(
-				secp,
-				vec![&tau_one, &oth_tau_one],
-			)?);
-			context.tau_two = Some(PublicKey::from_combination(
-				secp,
-				vec![&tau_two, &oth_tau_two],
-			)?);
-			let common_nonce = context.create_common_nonce(secp, &oth_data.public_nonce)?;
-			let key_id = sl.create_multisig_id();
-			let out = w.iter().find(|o| o.key_id == key_id).ok_or(Error::from(
-				ErrorKind::GenericError("missing multisig output".into()),
-			))?;
-
-			let commit_str = out
-				.commit
-				.as_ref()
-				.ok_or(Error::from(ErrorKind::GenericError(
-					"missing multisig output commit".into(),
-				)))?;
-			let commit_hex = from_hex(&commit_str)
-				.map_err(|e| ErrorKind::GenericError(format!("invalid hex: {}", e)))?;
-			let commit = Commitment::from_vec(commit_hex);
-
-			// finish receiver's side of the multisig bulletproof
-			context.tau_x = Some(SecretKey::new(secp, &mut thread_rng()));
-			let _ = proof::create_multisig(
-				&k,
-				&proof::ProofBuilder::new(&k),
-				sl.amount,
-				&key_id,
-				SwitchCommitmentType::Regular,
-				&common_nonce,
-				context.tau_x.as_mut(),
-				context.tau_one.as_mut(),
-				context.tau_two.as_mut(),
-				&[commit],
-				2,
-				None,
-			)?;
-		}
-
+		let (_, pub_nonce) = context.get_public_keys(k.secp());
 		{
 			let mut part_data = sl
 				.participant_data
@@ -369,28 +306,16 @@ where
 				.ok_or(Error::from(ErrorKind::GenericError(
 					"missing local participant data".into(),
 				)))?;
-			part_data.tau_x = context.tau_x.clone();
+			part_data.tau_x = tau_x;
 		}
-		// FIXME: keep tau_one and tau_two in participant data to check on other end?
 
-		let oth_tau_x = sl
-			.participant_data
-			.iter()
-			.find(|d| d.public_nonce != pub_nonce)
-			.ok_or(Error::from(ErrorKind::GenericError(
-				"missing other participant's data".into(),
-			)))?
-			.tau_x
-			.as_ref()
-			.ok_or(Error::from(ErrorKind::GenericError(
-				"missing other tau x key".into(),
-			)))?;
+		sl.adjust_offset(&k, &context)?;
 
-		// compute tau x sum to store in the backend DB
-		let tau_x = context.tau_x.as_mut().unwrap();
-		tau_x.add_assign(secp, oth_tau_x)?;
-
-		sl.state = SlateState::Multisig4;
+		debug!(
+			"multisig ID path: {}",
+			slate.create_multisig_id().to_bip_32_string()
+		);
+		debug!("Use with commands spending this multisig output");
 
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(sl.id.as_bytes().as_ref(), &context)?;

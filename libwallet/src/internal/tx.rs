@@ -134,6 +134,7 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id,
+		None,
 	)?;
 	Ok((total, fee))
 }
@@ -161,6 +162,10 @@ where
 	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
 	let is_initiator = atomic_secret.is_none();
 
+	if slate.multisig_key_id.is_none() {
+		return Err(ErrorKind::GenericError("missing multisig key id".into()).into());
+	}
+
 	// Sender selects outputs into a new slate and save our corresponding keys in
 	// a transaction context. The secret key in our transaction context will be
 	// randomly selected. This returns the public slate, and a closure that locks
@@ -168,6 +173,7 @@ where
 	// according to plan
 	// This function is just a big helper to do all of that, in theory
 	// this process can be split up in any way
+	let multisig_key_id = slate.multisig_key_id.clone();
 	let mut context = selection::build_send_tx(
 		wallet,
 		&wallet.keychain(keychain_mask)?,
@@ -180,6 +186,7 @@ where
 		selection_strategy_is_use_all,
 		None,
 		parent_key_id.clone(),
+		multisig_key_id.as_ref(),
 		use_test_rng,
 		is_initiator,
 	)?;
@@ -233,6 +240,7 @@ where
 		selection_strategy_is_use_all,
 		None,
 		parent_key_id.clone(),
+		None,
 		use_test_rng,
 		is_initiator,
 	)?;
@@ -394,6 +402,7 @@ where
 		init_tx_args.num_change_outputs as usize,
 		init_tx_args.selection_strategy_is_use_all,
 		&parent_key_id,
+		None,
 	)?;
 	slate.fee_fields = FeeFields::new(0, fee)?;
 

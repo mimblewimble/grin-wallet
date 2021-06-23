@@ -84,7 +84,7 @@ fn receive_tx(vs: VersionedSlate) -> VersionedSlate {
 	)
 	.unwrap();
 	let (call, tracker) = bound_method.call();
-	let json_response = run_doctest_foreign(call.as_request(), dir, 5, TxFlow::Standard)
+	let json_response = run_doctest_foreign(call.as_request(), dir, 5, TxFlow::Standard, false)
 		.unwrap()
 		.unwrap();
 	let mut response = easy_jsonrpc_mw::Response::from_json_response(json_response).unwrap();

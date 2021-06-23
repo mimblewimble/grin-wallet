@@ -242,7 +242,7 @@ where
 	/// Return the current atomic secret index
 	fn current_atomic_id(&mut self) -> Result<Identifier, Error>;
 
-	/// Next atomic ID when we want to create a new atomic secret 
+	/// Next atomic ID when we want to create a new atomic secret
 	fn next_atomic_id(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
 
 	/// Get the atomic ID for the atomic swap associated with the given UUID
@@ -743,7 +743,7 @@ impl Context {
 		nonce: &PublicKey,
 	) -> Result<SecretKey, Error> {
 		let mut common = nonce.clone();
-		common.mul_assign(secp, &self.sec_key)?;
+		common.mul_assign(secp, &self.sec_nonce)?;
 		let mut hasher = Sha3_256::new();
 		hasher.input(b"multisig_common_nonce");
 		hasher.input(&common.serialize_vec(secp, true));

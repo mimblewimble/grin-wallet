@@ -27,7 +27,7 @@ use std::thread;
 use std::time::Duration;
 
 use grin_wallet_impls::DefaultLCProvider;
-use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
+use grin_wallet_libwallet::{InitTxArgs, Slate, VersionedSlate};
 use grin_wallet_util::grin_keychain::ExtKeychain;
 use serde_json;
 

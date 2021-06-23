@@ -220,7 +220,7 @@ pub trait ForeignRpc {
 				],
 				"multisig_path": "m/1018305059/3401844484/447546778/208817231",
 				"sta": "A1",
-				"ver": "4:2"
+				"ver": "5:2"
 			},
 			null,
 			null
@@ -588,9 +588,10 @@ pub fn run_doctest_foreign(
 
 			// Spit out slate for input to finalize_tx
 			println!("LOCKING TX");
-			api_impl::owner::tx_lock_outputs(&mut **w, (&mask1).as_ref(), &sl).unwrap();
+			api_impl::owner::tx_lock_outputs(&mut **w, mask1.as_ref(), &sl).unwrap();
 
-			sl = api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl).unwrap();
+			sl =
+				api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl, false).unwrap();
 			sl = api_impl::foreign::finalize_tx(&mut **w2, mask2.as_ref(), &sl, false).unwrap();
 		}
 

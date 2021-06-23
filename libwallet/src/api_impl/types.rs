@@ -81,6 +81,8 @@ pub struct InitTxArgs {
 	/// If true, the transaction should contain a multisignature output shared by all the
 	/// participants
 	pub is_multisig: Option<bool>,
+	/// BIP32 path for the multisig output spent in an atomic swap transaction
+	pub multisig_path: Option<String>,
 }
 
 /// Send TX API Args, for convenience functionality that inits the transaction and sends
@@ -113,6 +115,7 @@ impl Default for InitTxArgs {
 			late_lock: Some(false),
 			send_args: None,
 			is_multisig: None,
+			multisig_path: None,
 		}
 	}
 }

@@ -96,6 +96,10 @@ pub struct SlateV5 {
 	#[serde(default = "default_kernel_features_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub feat_args: Option<KernelFeaturesArgsV5>,
+	/// Multisig output identifier
+	#[serde(default = "default_multisig_id_none")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub multisig_key_id: Option<Identifier>,
 }
 
 fn default_payment_none() -> Option<PaymentInfoV5> {
@@ -127,6 +131,10 @@ fn default_num_participants_2() -> u8 {
 }
 
 fn default_kernel_features_none() -> Option<KernelFeaturesArgsV5> {
+	None
+}
+
+fn default_multisig_id_none() -> Option<Identifier> {
 	None
 }
 

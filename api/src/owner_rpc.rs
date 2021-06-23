@@ -73,7 +73,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false, false, false, false);
+	# , 4, false, false, false, false, false, false);
 	```
 	*/
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, ErrorKind>;
@@ -106,7 +106,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false, false, false, false);
+	# , 4, false, false, false, false, false, false);
 	```
 	 */
 	fn create_account_path(&self, token: Token, label: &String) -> Result<Identifier, ErrorKind>;
@@ -139,7 +139,7 @@ pub trait OwnerRpc {
 		"id": 1
 	}
 	# "#
-	# , 4, false, false, false, false, false);
+	# , 4, false, false, false, false, false, false);
 	```
 	 */
 	fn set_active_account(&self, token: Token, label: &String) -> Result<(), ErrorKind>;
@@ -212,7 +212,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 2, false, false, false, false, false);
+	# , 2, false, false, false, false, false, false);
 	```
 	*/
 	fn retrieve_outputs(
@@ -297,7 +297,7 @@ pub trait OwnerRpc {
 	  }
 	}
 	# "#
-	# , 2, false, false, false, false, false);
+	# , 2, false, false, false, false, false, false);
 	```
 	*/
 
@@ -349,7 +349,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 4, false, false, false, false, false);
+	# , 4, false, false, false, false, false, false);
 	```
 	 */
 
@@ -413,7 +413,7 @@ pub trait OwnerRpc {
 			}
 		}
 		# "#
-		# , 4, false, false, false, false, false);
+		# , 4, false, false, false, false, false, false);
 	```
 	*/
 
@@ -460,7 +460,7 @@ pub trait OwnerRpc {
 			}
 		}
 		# "#
-		# , 4, false, false, false, false, false);
+		# , 4, false, false, false, false, false, false);
 	```
 	*/
 
@@ -543,7 +543,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 4, false, false, false, false, false);
+	# , 4, false, false, false, false, false, false);
 	```
 	*/
 
@@ -557,7 +557,66 @@ pub trait OwnerRpc {
 	/**
 	Networked version of [Owner::process_multisig_tx](struct.Owner.html#method.process_multisig_tx).
 
-	FIXME: add RPC doc-test
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "process_multisig_tx",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"slate": {
+				"amt": "5001250000",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"off": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"sigs": [
+					{
+						"nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+						"xs": "028e95921cc0d5be5922362265d352c9bdabe51a9e1502a3f0d4a10387f1893f40",
+						"part": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841be7bf31d80494f5e4a3d656649b1610c61a268f9cafcfc604b5d9f25efb2aa3c5",
+						"part_commit": "091c34a190f7352149a343e3652d3f9e37972d822440e0d8ee03c658f003e178b4",
+						"tau_one": "02799bbf36460d56c1999bedd02acfefde8fd608f8b9ecc9bf02559a6d203cf308",
+						"tau_two": "020052d5842dc9a75859384b5136573545dc60553d766cad01f0665dbca937fb9a"
+					}
+				],
+				"sta": "M3",
+				"ver": "5:2"
+			}
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+		  "Ok": {
+			"amt": "5001250000",
+			"id": "0436430c-2b02-624c-2032-570501212b00",
+			"off": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"sigs": [
+			  {
+				"nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+				"part": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841be7bf31d80494f5e4a3d656649b1610c61a268f9cafcfc604b5d9f25efb2aa3c5",
+				"part_commit": "091c34a190f7352149a343e3652d3f9e37972d822440e0d8ee03c658f003e178b4",
+				"tau_one": "0262ce501b38d17d3b378a198c94ab8dbbc7fbc6482543bea6d9f526350f874bd9",
+				"tau_two": "0204504dd81a04fbb104f3c5980dcbdc58f0b7084a721c760bbb47bc639b2e144d",
+				"tau_x": "3b77bcde9039b5219eabfd4b386981107659174bc1bf33283ee0ef1a2063456f",
+				"xs": "028e95921cc0d5be5922362265d352c9bdabe51a9e1502a3f0d4a10387f1893f40"
+			  }
+			],
+			"sta": "M3",
+			"ver": "5:2"
+		  }
+		}
+	}
+	# "#
+	# , 5, false, true, false, false, false, true);
+	```
 	 */
 	fn process_multisig_tx(
 		&self,
@@ -604,7 +663,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5 ,true, false, false, false, false);
+	# , 5 ,true, false, false, false, false, false);
 
 	```
 	 */
@@ -630,6 +689,7 @@ pub trait OwnerRpc {
 					"selection_strategy_is_use_all": true,
 					"target_slate_version": null,
 					"payment_proof_recipient_address": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
+					"multisig_path": "m/860601635/303558731/534026549/1571534207",
 					"ttl_blocks": null,
 					"multisig_path": "m/1018305059/3401844484/447546778/208817231",
 					"send_args": null
@@ -645,7 +705,7 @@ pub trait OwnerRpc {
 			"jsonrpc": "2.0",
 			"result": {
 				"Ok": {
-					"amt": "6000000000",
+					"amt": "5000000000",
 					"fee": "23000000",
 					"id": "0436430c-2b02-624c-2032-570501212b01",
 					"multisig_key_id": "043cb21a23cac407041aad059a0c724c4f",
@@ -841,7 +901,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false, false, false);
+	# , 5, true, true, false, false, false, false);
 	```
 	 */
 	fn finalize_tx(&self, token: Token, slate: VersionedSlate)
@@ -910,7 +970,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, true, false, false);
+	# , 5, true, true, true, false, false, false);
 	```
 	 */
 
@@ -944,7 +1004,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false, false, false);
+	# , 5, true, true, false, false, false, false);
 	```
 	 */
 	fn cancel_tx(
@@ -993,7 +1053,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false, false, false);
+	# , 5, true, true, false, false, false, false);
 	```
 	 */
 	fn get_stored_tx(
@@ -1031,7 +1091,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 1, false, false, false, false, false);
+	# , 1, false, false, false, false, false, false);
 	```
 	 */
 	fn scan(
@@ -1070,7 +1130,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, false, false, false, false, false);
+	# , 5, false, false, false, false, false, false);
 	```
 	 */
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, ErrorKind>;
@@ -1153,7 +1213,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, false, false, false, false, false);
+	# , 5, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1183,7 +1243,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, false, false, false, false, false);
+	# , 5, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1249,7 +1309,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, false, false, false, false, false);
+	# , 5, false, false, false, false, false, false);
 	```
 	*/
 	fn create_config(
@@ -1287,7 +1347,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1324,7 +1384,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1354,7 +1414,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1385,7 +1445,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1417,7 +1477,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 	fn change_password(
@@ -1451,7 +1511,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), ErrorKind>;
@@ -1481,7 +1541,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1509,7 +1569,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 	fn stop_updater(&self) -> Result<(), ErrorKind>;
@@ -1538,7 +1598,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1569,7 +1629,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1604,7 +1664,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1654,7 +1714,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1709,7 +1769,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1751,7 +1811,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 
@@ -1796,7 +1856,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, true, true, false);
+	# , 5, true, true, true, true, false, false);
 	```
 	*/
 
@@ -1843,7 +1903,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, true, true, false);
+	# , 5, true, true, true, true, false, false);
 	```
 	*/
 
@@ -1881,7 +1941,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 0, false, false, false, false, false);
+	# , 0, false, false, false, false, false, false);
 	```
 	*/
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind>;
@@ -2342,7 +2402,8 @@ pub fn run_doctest_owner(
 	lock_tx: bool,
 	finalize_tx: bool,
 	payment_proof: bool,
-	countersign_atomic: bool,
+	is_atomic: bool,
+	is_multisig: bool,
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc_mw::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
@@ -2495,11 +2556,37 @@ pub fn run_doctest_owner(
 				api_impl::owner::tx_lock_outputs(&mut **w, (&mask1).as_ref(), &sl).unwrap();
 			}
 
-			sl = api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl).unwrap();
+			sl =
+				api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl, false).unwrap();
 			sl = api_impl::foreign::finalize_tx(&mut **w2, mask2.as_ref(), &sl, false).unwrap();
 		}
 
 		let _ = api_impl::owner::finalize_tx(&mut **w, mask1.as_ref(), &sl).unwrap();
+	}
+
+	if is_multisig {
+		let amount = 50_012_500_000;
+		let mut w_lock = wallet1.lock();
+		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount,
+			minimum_confirmations: 0,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			payment_proof_recipient_address: None,
+			is_multisig: Some(true),
+			..Default::default()
+		};
+		let mut sl = api_impl::owner::init_send_tx(&mut **w, mask1.as_ref(), args, true).unwrap();
+		let mut w_lock = wallet2.lock();
+		let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+		sl = api_impl::foreign::receive_tx(&mut **w2, mask2.as_ref(), &sl, None, false).unwrap();
+
+		// Spit out slate for input to finalize_tx
+		println!("LOCKING TX");
+		api_impl::owner::tx_lock_outputs(&mut **w, (&mask1).as_ref(), &sl).unwrap();
 	}
 
 	if perform_tx {
@@ -2526,6 +2613,7 @@ pub fn run_doctest_owner(
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
 			payment_proof_recipient_address: proof_address,
+			is_multisig: Some(is_multisig),
 			..Default::default()
 		};
 		// Calculate the multisig output for the atomic swap
@@ -2541,12 +2629,11 @@ pub fn run_doctest_owner(
 					.unwrap();
 
 				// Spit out slate for input to finalize_tx
-				if lock_tx {
-					println!("LOCKING TX");
-					api_impl::owner::tx_lock_outputs(&mut **w, (&mask1).as_ref(), &sl).unwrap();
-				}
+				println!("LOCKING TX");
+				api_impl::owner::tx_lock_outputs(&mut **w, mask1.as_ref(), &sl).unwrap();
 
-				sl = api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl).unwrap();
+				sl = api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl, false)
+					.unwrap();
 				sl = api_impl::foreign::finalize_tx(&mut **w2, mask2.as_ref(), &sl, false).unwrap();
 			}
 
@@ -2568,7 +2655,7 @@ pub fn run_doctest_owner(
 		{
 			let mut w_lock = wallet2.lock();
 			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			slate = if countersign_atomic {
+			slate = if is_atomic {
 				api_impl::foreign::receive_atomic_tx(
 					&mut **w2,
 					(&mask2).as_ref(),
@@ -2578,8 +2665,14 @@ pub fn run_doctest_owner(
 				)
 				.unwrap()
 			} else {
-				api_impl::foreign::receive_tx(&mut **w2, (&mask2).as_ref(), &slate, None, true)
-					.unwrap()
+				api_impl::foreign::receive_tx(
+					&mut **w2,
+					(&mask2).as_ref(),
+					&slate,
+					None,
+					!is_multisig,
+				)
+				.unwrap()
 			};
 			w2.close().unwrap();
 		}
@@ -2591,10 +2684,24 @@ pub fn run_doctest_owner(
 		println!("RECEIPIENT SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		if finalize_tx {
-			slate = if countersign_atomic {
+			slate = if is_atomic {
 				let sl =
 					api_impl::owner::countersign_atomic_swap(&mut **w, &slate, (&mask1).as_ref())
 						.unwrap();
+				let mut w_lock = wallet2.lock();
+				let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+				let sl = api_impl::foreign::finalize_tx(&mut **w2, (&mask2).as_ref(), &sl, false)
+					.unwrap();
+				w2.close().unwrap();
+				sl
+			} else if is_multisig {
+				let sl = api_impl::owner::process_multisig_tx(
+					&mut **w,
+					(&mask1).as_ref(),
+					&slate,
+					false,
+				)
+				.unwrap();
 				let mut w_lock = wallet2.lock();
 				let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 				let sl = api_impl::foreign::finalize_tx(&mut **w2, (&mask2).as_ref(), &sl, false)
@@ -2636,7 +2743,7 @@ pub fn run_doctest_owner(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_owner_assert_response {
-	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr, $payment_proof:expr, $countersign_atomic:expr) => {
+	($request:expr, $expected_response:expr, $blocks_to_mine:expr, $perform_tx:expr, $lock_tx:expr, $finalize_tx:expr, $payment_proof:expr, $is_atomic:expr, $is_multisig:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
@@ -2669,7 +2776,8 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 				$lock_tx,
 				$finalize_tx,
 				$payment_proof,
-				$countersign_atomic,
+				$is_atomic,
+				$is_multisig,
 			)
 			.unwrap()
 			.unwrap();
