@@ -272,6 +272,11 @@ subcommands:
             short: t
             long: txid
             takes_value: true
+        - confirmed_height:
+            help: If specified, display all transactions confirmed at a specific block height
+            short: h
+            long: confirmed_height
+            takes_value: true
   - post:
       about: Posts a finalized transaction to the chain
       args:

@@ -236,7 +236,8 @@ pub trait OwnerRpc {
 				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"refresh_from_node": true,
 				"tx_id": null,
-				"tx_slate_id": null
+				"tx_slate_id": null,
+				"confirmed_height": null
 			},
 			"id": 1
 		}
@@ -255,6 +256,7 @@ pub trait OwnerRpc {
 			  "amount_debited": "0",
 			  "confirmation_ts": "2019-01-15T16:01:26Z",
 			  "confirmed": true,
+			  "confirmed_height": 1,
 			  "creation_ts": "2019-01-15T16:01:26Z",
 			  "fee": null,
 			  "id": 0,
@@ -275,6 +277,7 @@ pub trait OwnerRpc {
 			  "amount_debited": "0",
 			  "confirmation_ts": "2019-01-15T16:01:26Z",
 			  "confirmed": true,
+			  "confirmed_height": 2,
 			  "creation_ts": "2019-01-15T16:01:26Z",
 			  "fee": null,
 			  "id": 1,
@@ -305,6 +308,7 @@ pub trait OwnerRpc {
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		confirmed_height: Option<u64>,
 	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind>;
 
 	/**
@@ -1767,6 +1771,7 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		confirmed_height: Option<u64>,
 	) -> Result<(bool, Vec<TxLogEntry>), ErrorKind> {
 		Owner::retrieve_txs(
 			self,
@@ -1774,6 +1779,7 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
+			confirmed_height,
 		)
 		.map_err(|e| e.kind())
 	}
