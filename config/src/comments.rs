@@ -20,6 +20,14 @@ fn comments() -> HashMap<String, String> {
 	let mut retval = HashMap::new();
 
 	retval.insert(
+		"config_file_version".to_string(),
+		"
+#Version of the Generated Configuration File for Grin Wallet
+"
+		.to_string(),
+	);
+
+	retval.insert(
 		"[wallet]".to_string(),
 		"
 #########################################
@@ -215,17 +223,20 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"socks_proxy_addr".to_string(),
+		"send_config_dir".to_string(),
 		"
-# TOR (SOCKS) proxy server address
+#Directory to output TOR configuration to when sending
 "
 		.to_string(),
 	);
 
 	retval.insert(
-		"send_config_dir".to_string(),
+		"bridge_line".to_string(),
 		"
-#Directory to output TOR configuration to when sending
+#TOR Bridge relays: Make possible to send and receive via TOR in a country where it is censored.
+#Enable it by entering a single bridge line. To disable it, you must let it empty or comment it.
+#Obfs4proxy binary must be installed and in the path.
+#Bridge line must be in the following format: `obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]`
 "
 		.to_string(),
 	);

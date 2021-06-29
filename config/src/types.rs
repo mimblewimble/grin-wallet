@@ -164,6 +164,9 @@ pub struct TorConfig {
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
+	/// Send configuration directory
+	#[serde(default)]
+	pub bridge_line: String,
 }
 
 impl Default for TorConfig {
@@ -173,6 +176,7 @@ impl Default for TorConfig {
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
+			bridge_line: "".to_string(),
 		}
 	}
 }
@@ -197,6 +201,9 @@ pub struct GlobalWalletConfig {
 /// Wallet internal members
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GlobalWalletConfigMembers {
+	/// Config file version (None == version 1)
+	#[serde(default)]
+	pub config_file_version: Option<u32>,
 	/// Wallet configuration
 	#[serde(default)]
 	pub wallet: WalletConfig,
