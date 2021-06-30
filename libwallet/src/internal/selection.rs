@@ -219,6 +219,7 @@ where
 				height: height,
 				lock_height: 0,
 				is_coinbase: false,
+				is_multisig: slate.is_multisig(),
 				tx_log_entry: Some(log_id),
 			})?;
 		}
@@ -297,6 +298,7 @@ where
 		height: height,
 		lock_height: 0,
 		is_coinbase: false,
+		is_multisig: slate.is_multisig(),
 		tx_log_entry: Some(log_id),
 	})?;
 	batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
@@ -672,6 +674,12 @@ where
 		if let Some(i) = input {
 			if i.is_coinbase {
 				parts.push(build::coinbase_input(*value, i.key_id.clone()));
+			} else if i.is_multisig {
+				let commit_str = i.commit.ok_or(Error::from(ErrorKind::GenericError(
+					"missing multisig output commitment".into(),
+				)))?;
+				let commit = pedersen::Commitment::from_hex(&commit_str)?;
+				parts.push(build::multisig_input(*value, i.key_id.clone(), commit));
 			} else {
 				parts.push(build::input(*value, i.key_id.clone()));
 			}

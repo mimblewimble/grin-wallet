@@ -613,6 +613,7 @@ where
 			height: height,
 			lock_height: lock_height,
 			is_coinbase: true,
+			is_multisig: false,
 			tx_log_entry: None,
 		})?;
 		batch.commit()?;

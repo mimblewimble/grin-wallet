@@ -426,6 +426,8 @@ pub struct OutputData {
 	pub lock_height: u64,
 	/// Is this a coinbase output? Is it subject to coinbase locktime?
 	pub is_coinbase: bool,
+	/// Is this a multisig output?
+	pub is_multisig: bool,
 	/// Optional corresponding internal entry in tx entry log
 	pub tx_log_entry: Option<u32>,
 }

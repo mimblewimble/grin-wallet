@@ -274,6 +274,7 @@ where
 		height: output.height,
 		lock_height: output.lock_height,
 		is_coinbase: output.is_coinbase,
+		is_multisig: output.is_multisig,
 		tx_log_entry: Some(log_id),
 	});
 
