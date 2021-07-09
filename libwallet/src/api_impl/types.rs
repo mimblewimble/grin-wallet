@@ -78,6 +78,11 @@ pub struct InitTxArgs {
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
+	/// If true, the transaction should contain a multisignature output shared by all the
+	/// participants
+	pub is_multisig: Option<bool>,
+	/// BIP32 path for the multisig output spent in an atomic swap transaction
+	pub multisig_path: Option<String>,
 }
 
 /// Send TX API Args, for convenience functionality that inits the transaction and sends
@@ -109,6 +114,8 @@ impl Default for InitTxArgs {
 			payment_proof_recipient_address: None,
 			late_lock: Some(false),
 			send_args: None,
+			is_multisig: None,
+			multisig_path: None,
 		}
 	}
 }

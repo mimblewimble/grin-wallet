@@ -26,6 +26,7 @@ extern crate serde_derive;
 mod ov3;
 pub use ov3::OnionV3Address;
 pub use ov3::OnionV3Error as OnionV3AddressError;
+pub use sha3;
 
 #[allow(missing_docs)]
 pub mod byte_ser;

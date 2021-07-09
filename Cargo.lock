@@ -99,7 +99,7 @@ dependencies = [
  "sha2 0.8.2",
  "subtle 2.2.3",
  "x25519-dalek",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -238,7 +238,7 @@ dependencies = [
  "crypto-mac 0.7.0",
  "pbkdf2 0.3.0",
  "sha2 0.8.2",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -500,7 +500,7 @@ dependencies = [
  "aead",
  "poly1305",
  "stream-cipher",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -747,7 +747,7 @@ dependencies = [
  "digest 0.8.1",
  "rand_core 0.5.1",
  "subtle 2.2.3",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -890,7 +890,7 @@ dependencies = [
  "rand 0.7.3",
  "serde",
  "sha2 0.8.2",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -955,7 +955,7 @@ dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
  "syn 1.0.38",
- "synstructure 0.12.4",
+ "synstructure",
 ]
 
 [[package]]
@@ -1183,7 +1183,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "bit-vec",
  "bitflags 1.2.1",
@@ -1240,7 +1240,7 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1261,13 +1261,13 @@ dependencies = [
  "serde",
  "serde_derive",
  "siphasher",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1283,13 +1283,13 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha2 0.7.1",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
 name = "grin_p2p"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "bitflags 1.2.1",
  "bytes 0.5.6",
@@ -1311,7 +1311,7 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1328,9 +1328,8 @@ dependencies = [
 
 [[package]]
 name = "grin_secp256k1zkp"
-version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daca5852d12dbd4df8b7b760eaad791d191ea546bf80c46b033bbcc650b35a5c"
+version = "0.7.11"
+source = "git+https://github.com/geneferneau/rust-secp256k1-zkp?branch=atomic#45c27af7ac91d8c4323a19730760922348ee9a08"
 dependencies = [
  "arrayvec 0.3.25",
  "cc",
@@ -1339,13 +1338,13 @@ dependencies = [
  "rustc-serialize",
  "serde",
  "serde_json",
- "zeroize 0.9.3",
+ "zeroize",
 ]
 
 [[package]]
 name = "grin_store"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "byteorder",
  "croaring",
@@ -1365,7 +1364,7 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#f51b6e13761ac4c3c8e57904618ef431c14c6227"
+source = "git+https://github.com/geneferneau/grin?branch=atomic#b6b9a037513d331af62bc25e86a72ebf0b6f9023"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
@@ -1379,7 +1378,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "walkdir",
- "zeroize 1.1.0",
+ "zeroize",
  "zip",
 ]
 
@@ -3133,7 +3132,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9182278ed645df3477a9c27bfee0621c621aa16f6972635f7f795dae3d81070f"
 dependencies = [
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -3430,18 +3429,6 @@ dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
  "unicode-xid 0.2.1",
-]
-
-[[package]]
-name = "synstructure"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02353edf96d6e4dc81aea2d8490a7e9db177bf8acb0e951c24940bf866cb313f"
-dependencies = [
- "proc-macro2 0.4.30",
- "quote 0.6.13",
- "syn 0.15.44",
- "unicode-xid 0.1.0",
 ]
 
 [[package]]
@@ -4100,7 +4087,7 @@ checksum = "637ff90c9540fa3073bb577e65033069e4bae7c79d49d74aa3ffdf5342a53217"
 dependencies = [
  "curve25519-dalek",
  "rand_core 0.5.1",
- "zeroize 1.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -4120,32 +4107,11 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45af6a010d13e4cf5b54c94ba5a2b2eba5596b9e46bf5875612d332a1f2b3f86"
-dependencies = [
- "zeroize_derive 0.9.3",
-]
-
-[[package]]
-name = "zeroize"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cbac2ed2ba24cc90f5e06485ac8c7c1e5449fe8911aef4d8877218af021a5b8"
 dependencies = [
- "zeroize_derive 1.0.0",
-]
-
-[[package]]
-name = "zeroize_derive"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "080616bd0e31f36095288bb0acdf1f78ef02c2fa15527d7e993f2a6c7591643e"
-dependencies = [
- "proc-macro2 0.4.30",
- "quote 0.6.13",
- "syn 0.15.44",
- "synstructure 0.10.2",
+ "zeroize_derive",
 ]
 
 [[package]]
@@ -4157,7 +4123,7 @@ dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
  "syn 1.0.38",
- "synstructure 0.12.4",
+ "synstructure",
 ]
 
 [[package]]

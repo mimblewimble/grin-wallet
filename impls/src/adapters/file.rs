@@ -16,7 +16,7 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
-use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
+use crate::libwallet::{Error, ErrorKind, Slate, VersionedBinSlate, VersionedSlate};
 use crate::{SlateGetter, SlatePutter};
 use grin_wallet_util::byte_ser;
 use std::convert::TryFrom;
@@ -37,7 +37,7 @@ impl SlatePutter for PathToSlate {
 		}*/
 		let mut pub_tx = File::create(&self.0)?;
 		// TODO:
-		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
+		let out_slate = VersionedSlate::into_version(slate.clone(), slate.version())?;
 		if as_bin {
 			let bin_slate =
 				VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;

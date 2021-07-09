@@ -19,13 +19,13 @@ use std::io::Cursor;
 use uuid::Uuid;
 
 use crate::grin_core::consensus::valid_header_version;
-use crate::grin_core::core::HeaderVersion;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_core::core::{HeaderVersion, TxKernel};
+use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
-use crate::slate::Slate;
+use crate::slate::{Slate, TxFlow};
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
 use crate::util::OnionV3Address;
 use crate::InitTxArgs;
@@ -47,7 +47,7 @@ lazy_static! {
 pub fn new_tx_slate<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
-	is_invoice: bool,
+	tx_flow: TxFlow,
 	num_participants: u8,
 	use_test_rng: bool,
 	ttl_blocks: Option<u64>,
@@ -58,7 +58,7 @@ where
 	K: Keychain + 'a,
 {
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
-	let mut slate = Slate::blank(num_participants, is_invoice);
+	let mut slate = Slate::blank(num_participants, tx_flow);
 	if let Some(b) = ttl_blocks {
 		slate.ttl_cutoff_height = current_height + b;
 	}
@@ -134,8 +134,68 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id,
+		None,
 	)?;
 	Ok((total, fee))
+}
+
+/// Add inputs to the slate (effectively becoming the sender)
+pub fn add_inputs_to_atomic_slate<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	current_height: u64,
+	minimum_confirmations: u64,
+	max_outputs: usize,
+	num_change_outputs: usize,
+	selection_strategy_is_use_all: bool,
+	parent_key_id: &Identifier,
+	atomic_secret: Option<SecretKey>,
+	use_test_rng: bool,
+) -> Result<Context, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// sender should always refresh outputs
+	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	let is_initiator = atomic_secret.is_none();
+
+	if slate.multisig_key_id.is_none() {
+		return Err(ErrorKind::GenericError("missing multisig key id".into()).into());
+	}
+
+	// Sender selects outputs into a new slate and save our corresponding keys in
+	// a transaction context. The secret key in our transaction context will be
+	// randomly selected. This returns the public slate, and a closure that locks
+	// our inputs and outputs once we're convinced the transaction exchange went
+	// according to plan
+	// This function is just a big helper to do all of that, in theory
+	// this process can be split up in any way
+	let multisig_key_id = slate.multisig_key_id.clone();
+	let mut context = selection::build_send_tx(
+		wallet,
+		&wallet.keychain(keychain_mask)?,
+		keychain_mask,
+		slate,
+		current_height,
+		minimum_confirmations,
+		max_outputs,
+		num_change_outputs,
+		selection_strategy_is_use_all,
+		None,
+		parent_key_id.clone(),
+		multisig_key_id.as_ref(),
+		use_test_rng,
+		is_initiator,
+	)?;
+
+	context.sec_atomic = atomic_secret;
+
+	context.initial_sec_key = context.sec_key.clone();
+
+	Ok(context)
 }
 
 /// Add inputs to the slate (effectively becoming the sender)
@@ -150,6 +210,7 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
 	is_initiator: bool,
+	is_multisig: bool,
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
@@ -179,9 +240,20 @@ where
 		selection_strategy_is_use_all,
 		None,
 		parent_key_id.clone(),
+		None,
 		use_test_rng,
 		is_initiator,
 	)?;
+
+	if is_multisig {
+		// calculate partial commit to the amount
+		// used with receiver partial commit to calculate tau_one and tau_two in
+		// multisig bulletproof step 1
+		let k = wallet.keychain(keychain_mask)?;
+		let key_id = slate.create_multisig_id();
+		let partial_commit = k.commit(slate.amount, &key_id, SwitchCommitmentType::Regular)?;
+		context.partial_commit = Some(partial_commit);
+	}
 
 	// Generate a kernel offset and subtract from our context's secret key. Store
 	// the offset in the slate's transaction kernel, and adds our public key
@@ -234,15 +306,69 @@ where
 
 	context.initial_sec_key = context.sec_key.clone();
 
+	let is_multisig = slate
+		.participant_data
+		.iter()
+		.fold(false, |t, d| t | d.part_commit.is_some());
+
 	if !is_initiator {
 		// perform partial sig
 		slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
 		// update excess in stored transaction
 		let mut batch = wallet.batch(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
+		if is_multisig {
+			batch.save_private_context(slate.id.as_bytes().as_ref(), &context)?;
+		}
 		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 		batch.commit()?;
 	}
+
+	Ok(context)
+}
+
+/// Add receiver output to the atomic slate
+pub fn add_output_to_atomic_slate<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	current_height: u64,
+	parent_key_id: &Identifier,
+	atomic_secret: Option<SecretKey>,
+	use_test_rng: bool,
+) -> Result<Context, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = wallet.keychain(keychain_mask)?;
+	let is_initiator = atomic_secret.is_none();
+
+	// create an output using the amount in the slate
+	let (_, mut context, mut tx) = selection::build_recipient_output(
+		wallet,
+		keychain_mask,
+		slate,
+		current_height,
+		parent_key_id.clone(),
+		use_test_rng,
+		is_initiator,
+	)?;
+
+	context.sec_atomic = atomic_secret;
+	// fill public keys
+	slate.fill_round_1(&keychain, &mut context)?;
+	// Create partial signature using the atomic secret,
+	// allows sender to recover the atomic secret when the
+	// full kernel signature is published
+	slate.fill_round_2_atomic(&keychain, &context)?;
+	// update excess in stored transaction
+	let mut batch = wallet.batch(keychain_mask)?;
+	tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
+	batch.save_private_context(slate.id.as_bytes(), &context)?;
+	batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+	batch.commit()?;
 
 	Ok(context)
 }
@@ -276,6 +402,7 @@ where
 		init_tx_args.num_change_outputs as usize,
 		init_tx_args.selection_strategy_is_use_all,
 		&parent_key_id,
+		None,
 	)?;
 	slate.fee_fields = FeeFields::new(0, fee)?;
 
@@ -286,6 +413,16 @@ where
 	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 	context.late_lock_args = Some(init_tx_args.clone());
+
+	if init_tx_args.is_multisig.unwrap_or(false) {
+		// calculate partial commit to the amount
+		// used with receiver partial commit to calculate tau_one and tau_two in
+		// multisig bulletproof step 1
+		let k = wallet.keychain(keychain_mask)?;
+		let key_id = slate.create_multisig_id();
+		let partial_commit = k.commit(slate.amount, &key_id, SwitchCommitmentType::Regular)?;
+		context.partial_commit = Some(partial_commit);
+	}
 
 	// Generate a blinding factor for the tx and add
 	//  public key info to the slate
@@ -325,6 +462,80 @@ where
 	trace!("Slate to finalize is: {}", slate);
 	slate.finalize(&wallet.keychain(keychain_mask)?)?;
 	Ok(())
+}
+
+/// Complete an atomic swap transaction
+pub fn complete_atomic_tx<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	context: &Context,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// Final transaction can be built by anyone at this stage
+	trace!("Slate to finalize is: {}", slate);
+	let _ = slate.finalize_atomic(&wallet.keychain(keychain_mask)?, context)?;
+	Ok(())
+}
+
+/// Recover atomic secret from final signature and adaptor signature
+pub fn recover_atomic_secret<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	tx_kernel: &TxKernel,
+) -> Result<SecretKey, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let full_sig = tx_kernel.excess_sig.clone();
+	let keychain = wallet.keychain(keychain_mask)?;
+	let secp = keychain.secp();
+
+	let context = wallet.get_private_context(keychain_mask, slate.id.as_bytes())?;
+
+	let pdata_idx = slate.find_participant_data_index(secp, &context)?;
+	let part_sig = match slate.participant_data[pdata_idx].part_sig {
+		Some(ref s) => s,
+		None => {
+			return Err(ErrorKind::Signature(
+				"Could not recover partial signature from atomic swap slate".into(),
+			)
+			.into())
+		}
+	};
+
+	let mut sr = SecretKey::from_slice(secp, &full_sig.as_ref()[32..])?;
+	// Use the initiator's partial signature to recover the responder's partial
+	// signature from the full signature
+	let mut sp_s = SecretKey::from_slice(secp, &part_sig.as_ref()[32..])?;
+	// The atomic_secret contains sr' from the responder's adaptor signature
+	let atomic_id = wallet.get_used_atomic_id(&slate.id)?;
+	let mut srp = wallet.get_recovered_atomic_secret(keychain_mask, &atomic_id)?;
+
+	// Subtract the initiator's partial signature from the full signature
+	sp_s.neg_assign(secp)?;
+	sr.add_assign(secp, &sp_s)?;
+
+	// Now the signature only contains the responder's partial signature
+	// calculate sr' - sr to recover the atomic secret
+	// x = (kr + x + rr*xr) - (kr + rr*xr)
+	sr.neg_assign(secp)?;
+	srp.add_assign(secp, &sr)?;
+
+	{
+		// No longer need to keep the slate around, clean up
+		let mut batch = wallet.batch(keychain_mask)?;
+		batch.delete_private_context(slate.id.as_bytes())?;
+	}
+
+	Ok(srp)
 }
 
 /// Rollback outputs associated with a transaction in the wallet

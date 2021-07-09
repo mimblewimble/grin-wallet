@@ -303,20 +303,34 @@ impl NodeClient for HTTPNodeClient {
 		(
 			u64,
 			u64,
-			Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
+			Vec<(
+				pedersen::Commitment,
+				pedersen::RangeProof,
+				bool,
+				bool,
+				u64,
+				u64,
+			)>,
 		),
 		libwallet::Error,
 	> {
-		let mut api_outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)> =
-			Vec::new();
+		let mut api_outputs: Vec<(
+			pedersen::Commitment,
+			pedersen::RangeProof,
+			bool,
+			bool,
+			u64,
+			u64,
+		)> = Vec::new();
 
 		let params = json!([start_index, end_index, max_outputs, Some(true)]);
 		let res = self.send_json_request::<OutputListing>("get_unspent_outputs", &params)?;
 		// We asked for unspent outputs via the api but defensively filter out spent outputs just in case.
 		for out in res.outputs.into_iter().filter(|out| out.spent == false) {
-			let is_coinbase = match out.output_type {
-				api::OutputType::Coinbase => true,
-				api::OutputType::Transaction => false,
+			let (is_coinbase, is_multisig) = match out.output_type {
+				api::OutputType::Coinbase => (true, false),
+				api::OutputType::Transaction => (false, false),
+				api::OutputType::Multisig => (false, true),
 			};
 			let range_proof = match out.range_proof() {
 				Ok(r) => r,
@@ -344,6 +358,7 @@ impl NodeClient for HTTPNodeClient {
 				out.commit,
 				range_proof,
 				is_coinbase,
+				is_multisig,
 				block_height,
 				out.mmr_index,
 			));

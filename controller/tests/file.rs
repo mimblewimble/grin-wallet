@@ -26,7 +26,7 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
+use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate, TxFlow};
 
 #[macro_use]
 mod common;
@@ -195,7 +195,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		),
 	};
 
-	let mut slate = Slate::blank(2, true);
+	let mut slate = Slate::blank(2, TxFlow::Invoice);
 
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		let args = IssueInvoiceTxArgs {
@@ -249,7 +249,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 			format!("{}/standard_pp_S3.txbin", test_dir),
 		),
 	};
-	let mut slate = Slate::blank(2, true);
+	let mut slate = Slate::blank(2, TxFlow::Invoice);
 	let mut address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		address = Some(api.get_slatepack_address(m, 0)?);

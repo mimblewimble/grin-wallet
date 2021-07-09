@@ -15,11 +15,12 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
-use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::api_impl::owner::{finalize_atomic_swap, finalize_tx as owner_finalize};
 use crate::grin_core::core::FeeFields;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
+use crate::grin_keychain::{Keychain, SwitchCommitmentType};
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::ToHex;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
@@ -106,8 +107,12 @@ where
 		use_test_rng,
 	)?;
 
-	// Add our contribution to the offset
-	ret_slate.adjust_offset(&keychain, &context)?;
+	let is_multisig = slate.is_multisig();
+
+	if !is_multisig {
+		// Add our contribution to the offset
+		ret_slate.adjust_offset(&keychain, &context)?;
+	}
 
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
@@ -122,10 +127,134 @@ where
 		p.receiver_signature = Some(sig);
 	}
 
-	ret_slate.amount = 0;
-	ret_slate.fee_fields = FeeFields::zero();
-	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
-	ret_slate.state = SlateState::Standard2;
+	if ret_slate.is_multisig() {
+		ret_slate.state = SlateState::Multisig2;
+	} else {
+		ret_slate.amount = 0;
+		ret_slate.fee_fields = FeeFields::zero();
+		ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
+		ret_slate.state = SlateState::Standard2;
+	}
+
+	Ok(ret_slate)
+}
+
+/// Receive an atomic tx as recipient
+pub fn receive_atomic_tx<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest_acct_name: Option<&str>,
+	use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
+	let parent_key_id = match dest_acct_name {
+		Some(d) => {
+			let pm = w.get_acct_path(d.to_owned())?;
+			match pm {
+				Some(p) => p.path,
+				None => w.parent_key_id(),
+			}
+		}
+		None => w.parent_key_id(),
+	};
+	// Don't do this multiple times
+	let tx = updater::retrieve_txs(
+		w,
+		None,
+		Some(ret_slate.id),
+		Some(&parent_key_id),
+		use_test_rng,
+	)?;
+	for t in &tx {
+		if t.tx_type == TxLogEntryType::TxReceived {
+			return Err(ErrorKind::TransactionAlreadyReceived(ret_slate.id.to_string()).into());
+		}
+	}
+
+	ret_slate.tx = Some(Slate::empty_transaction());
+
+	let height = w.last_confirmed_height()?;
+	let keychain = w.keychain(keychain_mask)?;
+
+	let is_height_lock = ret_slate.kernel_features == 2;
+	// derive atomic nonce from the slate's `atomic_id`
+	let (atomic_id, atomic_secret) = {
+		let atomic_id = w.next_atomic_id(keychain_mask)?;
+		let atomic =
+			keychain.derive_key(ret_slate.amount, &atomic_id, SwitchCommitmentType::Regular)?;
+
+		let pub_atomic = PublicKey::from_secret_key(keychain.secp(), &atomic)?;
+
+		debug!(
+			"Your public atomic nonce: {}",
+			pub_atomic
+				.serialize_vec(keychain.secp(), true)
+				.as_ref()
+				.to_hex()
+		);
+		debug!("Use this key to lock funds on the other chain.\n");
+
+		(atomic_id, Some(atomic))
+	};
+
+	let min_confirmations = if use_test_rng { 0 } else { 10 };
+	let (input_ids, output_ids) = if is_height_lock {
+		// add input(s) and change output to slate
+		let ctx = tx::add_inputs_to_atomic_slate(
+			w,
+			keychain_mask,
+			&mut ret_slate,
+			height,
+			min_confirmations,
+			500,  // max_outputs
+			1,    // num_change_outputs
+			true, // selection_strategy_is_use_all
+			&parent_key_id,
+			atomic_secret.clone(),
+			use_test_rng,
+		)?;
+
+		(ctx.input_ids, ctx.output_ids)
+	} else {
+		(vec![], vec![])
+	};
+
+	let mut context = tx::add_output_to_atomic_slate(
+		w,
+		keychain_mask,
+		&mut ret_slate,
+		height,
+		&parent_key_id,
+		atomic_secret,
+		use_test_rng,
+	)?;
+
+	{
+		let atomic_idx = Slate::atomic_id_to_int(&atomic_id)?;
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_used_atomic_index(&ret_slate.id, atomic_idx)?;
+		batch.commit()?;
+	}
+
+	context.fee = Some(ret_slate.fee_fields.clone());
+
+	if is_height_lock {
+		ret_slate.compact()?;
+		context.input_ids = input_ids;
+		context.output_ids.extend_from_slice(&output_ids);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_private_context(ret_slate.id.as_bytes(), &context)?;
+		batch.commit()?;
+	}
+
+	ret_slate.state = SlateState::Atomic2;
 
 	Ok(ret_slate)
 }
@@ -143,7 +272,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	if sl.state == SlateState::Invoice2 {
 		check_ttl(w, &sl)?;
 
@@ -164,6 +293,35 @@ where
 		}
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
+	} else if sl.state == SlateState::Multisig3 {
+		let tau_x =
+			selection::finalize_multisig_bulletproof(w, keychain_mask, &mut sl, &mut context)?;
+		let k = w.keychain(keychain_mask)?;
+		let (_, pub_nonce) = context.get_public_keys(k.secp());
+		{
+			let mut part_data = sl
+				.participant_data
+				.iter_mut()
+				.find(|d| d.public_nonce == pub_nonce)
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing local participant data".into(),
+				)))?;
+			part_data.tau_x = tau_x;
+		}
+
+		sl.adjust_offset(&k, &context)?;
+
+		debug!(
+			"multisig ID path: {}",
+			slate.create_multisig_id().to_bip_32_string()
+		);
+		debug!("Use with commands spending this multisig output");
+
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_private_context(sl.id.as_bytes().as_ref(), &context)?;
+		batch.commit()?;
+	} else if sl.state == SlateState::Atomic3 {
+		sl = finalize_atomic_swap(w, keychain_mask, slate)?;
 	} else {
 		sl = owner_finalize(w, keychain_mask, slate)?;
 	}

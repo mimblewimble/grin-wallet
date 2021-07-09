@@ -22,17 +22,17 @@ use crate::config::{TorConfig, WalletConfig};
 use crate::core::global;
 use crate::impls::HttpSlateSender;
 use crate::impls::SlateSender as _;
-use crate::keychain::{Identifier, Keychain};
+use crate::keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxLogEntry, WalletInfo,
-	WalletInst, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxFlow, TxLogEntry,
+	WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
-use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use crate::util::{from_hex, static_secp_instance, Mutex, ToHex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use std::convert::TryFrom;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -801,7 +801,8 @@ where
 	///
 	/// // . . .
 	/// // The slate has been recieved from the invoicer, somehow
-	/// # let slate = Slate::blank(2, true);
+	/// # use grin_wallet_libwallet::TxFlow;
+	/// # let slate = Slate::blank(2, TxFlow::Invoice);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: slate.amount,
@@ -854,6 +855,124 @@ where
 				match res {
 					Ok(s) => Ok(s.unwrap()),
 					Err(_) => Ok(slate),
+				}
+			}
+			None => Ok(slate),
+		}
+	}
+
+	/// Process a multisig transaction to perform step 1 + 2 in the multisig bulletproof creation
+	/// process.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
+	/// receiver should have filled in round 0 and 1 of the multisig bulletproof.
+	///
+	/// # Returns
+	/// * a result containing:
+	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html),
+	/// which can be forwarded to the receiving party by any means. Once the caller receives the final partial
+	/// bulletproof from the receiver, the associated wallet transaction outputs should be locked via a call to
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs). This must be called before calling
+	/// [`finalize_tx`](struct.Owner.html#method.finalize_tx).
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Remarks
+	///
+	/// * This method will store a partially completed transaction in the wallet's transaction log,
+	/// which will be updated on the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx).
+	///
+	/// # Example
+	/// Set up as in [new](struct.Owner.html#method.new) method above.
+	/// ```rust,no_run
+	/// # use grin_wallet_libwallet::TxFlow;
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// // Normally, slate is the output of multisig `receive_tx`
+	/// # let slate = Slate::blank(2, TxFlow::Multisig);
+	/// // Attempt to create a transaction using the 'default' account
+	/// let result = api_owner.process_multisig_tx(
+	///     None,
+	///     &slate,
+	/// );
+	///
+	/// if let Ok(slate) = result {
+	///     // Send slate somehow
+	///     // ...
+	///     // Lock our outputs if we're happy the slate was (or is being) sent
+	///     api_owner.tx_lock_outputs(None, &slate);
+	/// }
+	/// ```
+	pub fn process_multisig_tx(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::process_multisig_tx(&mut **w, keychain_mask, slate, self.doctest_mode)
+	}
+
+	/// Initializes an atomic swap transaction. The transaction can either be
+	/// the main or refund. To create a refund transaction, set `args.late_lock = Some(true)`.
+	pub fn init_atomic_swap(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: InitTxArgs,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		let send_args = args.send_args.clone();
+		let slate = owner::init_atomic_swap(&mut **w, keychain_mask, args, self.doctest_mode)?;
+		if let Some(sa) = send_args {
+			let tor_config_lock = self.tor_config.lock();
+			let tc = tor_config_lock.clone();
+			let tc = match tc {
+				Some(mut c) => {
+					c.skip_send_attempt = Some(sa.skip_tor);
+					Some(c)
+				}
+				None => None,
+			};
+			let res =
+				try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, false, self.doctest_mode);
+			match res {
+				Ok(s) => Ok(s.unwrap()),
+				Err(_) => Ok(slate),
+			}
+		} else {
+			Ok(slate)
+		}
+	}
+
+	/// Countersign the atomic swap transaction. Creates the first partial signature
+	/// over the transaction that contributes to the kernel excess signature.
+	pub fn countersign_atomic_swap(
+		&self,
+		slate: &Slate,
+		keychain_mask: Option<&SecretKey>,
+		r_addr: Option<String>,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		let slate = owner::countersign_atomic_swap(&mut **w, &slate, keychain_mask)?;
+		match r_addr {
+			Some(a) => {
+				let tor_config_lock = self.tor_config.lock();
+				let res = try_slatepack_sync_workflow(
+					&slate,
+					&a,
+					tor_config_lock.clone(),
+					None,
+					false,
+					self.doctest_mode,
+				);
+				match res {
+					Ok(s) => return Ok(s.unwrap()),
+					Err(_) => return Ok(slate),
 				}
 			}
 			None => Ok(slate),
@@ -988,6 +1107,125 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::finalize_tx(&mut **w, keychain_mask, slate)
+	}
+
+	/// Finalizes an atomic swap transaction, after all parties
+	/// have filled in all rounds of Slate generation. This step adds
+	/// all participants partial signatures to create the final signature,
+	/// resulting in a final transaction that is ready to post to a node.
+	///
+	/// Note that this function DOES NOT POST the transaction to a node
+	/// for validation. This is done in separately via the
+	/// [`post_tx`](struct.Owner.html#method.post_tx) function.
+	///
+	/// This function also stores the final transaction in the user's wallet files for retrieval
+	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
+	///
+	/// Combined with the partial signature from the second round, the kernel signature is used
+	/// to recover the atomic secret for unlocking funds on the other chain.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
+	/// participants must have filled in both rounds, and the sender should have locked their
+	/// outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
+	///
+	/// # Returns
+	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// containing the new finalized slate.
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let args = InitTxArgs {
+	///     src_acct_name: None,
+	///     amount: 2_000_000_000,
+	///     minimum_confirmations: 10,
+	///     max_outputs: 500,
+	///     num_change_outputs: 1,
+	///     selection_strategy_is_use_all: false,
+	///     ..Default::default()
+	/// };
+	/// let result = api_owner.init_send_tx(
+	///     None,
+	///     args,
+	/// );
+	///
+	/// if let Ok(slate) = result {
+	///     // Send slate somehow
+	///     // ...
+	///     // Lock our outputs if we're happy the slate was (or is being) sent
+	///     let res = api_owner.tx_lock_outputs(None, &slate);
+	///     //
+	///     // Retrieve slate back from recipient
+	///     //
+	///     let res = api_owner.finalize_atomic_swap(None, &slate);
+	/// }
+	/// ```
+	pub fn finalize_atomic_swap(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::finalize_atomic_swap(&mut **w, keychain_mask, slate)
+	}
+
+	/// Recover the atomic secret from the second round adaptor signature, and the finalized kernel
+	/// excess signature. Use the atomic secret to recover funds on the other chain
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
+	/// * `slate` - Third round atomic swap transaction slate with the initiator's partial signature
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	pub fn recover_atomic_secret(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<(), Error> {
+		let atomic_id =
+			owner::recover_atomic_secret(&mut self.wallet_inst.clone(), keychain_mask, slate)?;
+		self.get_atomic_secrets(
+			keychain_mask,
+			Slate::atomic_id_to_int(&atomic_id)?,
+			slate.amount,
+		)
+	}
+
+	/// Recover the atomic secret from the second round adaptor signature, and the finalized kernel
+	/// excess signature. Use the atomic secret to recover funds on the other chain
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
+	/// * `id` - Unique atomic swap identifier to recover stored atomic secrets
+	///
+	/// # Returns
+	/// * `Ok(())` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	pub fn get_atomic_secrets(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		id: u32,
+		amount: u64,
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		let atomic_id = Slate::create_atomic_id(id);
+		let keychain = w.keychain(keychain_mask)?;
+		let our_nonce = keychain.derive_key(amount, &atomic_id, SwitchCommitmentType::Regular)?;
+		let rec_nonce = w.get_recovered_atomic_secret(keychain_mask, &atomic_id)?;
+		info!("Your atomic secret:");
+		info!("{}\n", our_nonce.to_hex());
+		info!("Recovered atomic secret:");
+		info!("{}\n", rec_nonce.to_hex());
+		Ok(())
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -2338,7 +2576,7 @@ pub fn try_slatepack_sync_workflow(
 			return Ok(None);
 		}
 	}
-	let mut ret_slate = Slate::blank(2, false);
+	let mut ret_slate = Slate::blank(2, TxFlow::Standard);
 	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_to_finalize)
 	{

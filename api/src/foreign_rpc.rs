@@ -17,7 +17,7 @@
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	self, BlockFees, CbData, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeVersionInfo, Slate, SlateVersion, VersionInfo, VersionedCoinbase, VersionedSlate,
+	NodeVersionInfo, Slate, SlateVersion, TxFlow, VersionInfo, VersionedCoinbase, VersionedSlate,
 	WalletLCProvider,
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
@@ -53,13 +53,14 @@ pub trait ForeignRpc {
 			"Ok": {
 				"foreign_api_version": 2,
 				"supported_slate_versions": [
+					"V5",
 					"V4"
 				]
 			}
 		}
 	}
 	# "#
-	# ,false, 0, false, false);
+	# ,false, 0, false, TxFlow::Standard);
 	```
 	*/
 	fn check_version(&self) -> Result<VersionInfo, ErrorKind>;
@@ -107,7 +108,7 @@ pub trait ForeignRpc {
 		}
 	}
 	# "#
-	# ,false, 4, false, false);
+	# ,false, 4, false, TxFlow::Standard);
 	```
 	*/
 
@@ -142,7 +143,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "S1",
-				"ver": "4:2"
+				"ver": "5:2"
 			},
 			null,
 			null
@@ -177,15 +178,94 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "S2",
-				"ver": "4:2"
+				"ver": "5:2"
 			}
 		}
 	}
 	# "#
-	# ,false, 5, true, false);
+	# ,false, 5, true, TxFlow::Standard);
 	```
 	*/
 	fn receive_tx(
+		&self,
+		slate: VersionedSlate,
+		dest_acct_name: Option<String>,
+		dest: Option<String>,
+	) -> Result<VersionedSlate, ErrorKind>;
+
+	/**
+	;Networked version of [Foreign::receive_atomic_tx](struct.Foreign.html#method.receive_atomic_tx).
+
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_foreign_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "receive_atomic_tx",
+		"id": 1,
+		"params": [
+			{
+				"amt": "6000000000",
+				"atomic_id": "046d7761746f6d69630000000000000000",
+				"fee": "23500000",
+				"id": "0436430c-2b02-624c-2032-570501212b00",
+				"off": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"sigs": [
+					{
+						"nonce": "02b57c1f4fea69a3ee070309cf8f06082022fe06f25a9be1851b56ef0fa18f25d6",
+						"xs": "023878ce845727f3a4ec76ca3f3db4b38a2d05d636b8c3632108b857fed63c96de"
+					}
+				],
+				"multisig_path": "m/1018305059/3401844484/447546778/208817231",
+				"sta": "A1",
+				"ver": "5:2"
+			},
+			null,
+			null
+		]
+	}
+	# "#
+	# ,
+	# r#"
+	   {
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+		  "Ok": {
+			"amt": "6000000000",
+			"coms": [
+			  {
+				"c": "091582c92b99943b57955e52b5ccf1223780c2a2e55995c00c86fca2bcb46b6b9f",
+				"p": "49972a8d5b7c088e7813c3988ebe0982f8f0b12b849b1788df7da07b549408b0d6c99f80c0e2335370c104225ef5d282d79966e9044c959bedc3be03af6246fa07fc13eb3c60c90213c9f3a7a5ecf9a34c8fbaddc1a72e49e12dba9495e5aaa53bb6ac6ed63d8774707c57ab604d6bdc46de18da57a731fe336c3ccef92b4dae967417ffdae2c7d75864d46d30e287dd9cc15882e15f296b9bab0040e4432f4024be33924f112dd26c90cc800ac09a327b0ac3a661f63da9945fb1bcc82a7777d61d97cbe657675e22d035d2cf9ea03a89cfa410960ebc18a0a18b1909f4c5bef20b0fd13ffcf5a818ad8768d354b1c0f2e9b16dd7a9cf0641546f57d1945a98b8684d067dd085b90b40457e4c14665fb1b94feecf30a90f508ded16ba1bba8080a6866dffd0b1f01738fff8c62ce5e38e677835752a1b4072124dd9ff14ba8ff92126baebbb5f6e14fbb052f5d5b09aec11bfd880d7d4640a295aa83f184034d26f00cbdbabf9b89fddd7a7c9cc8c5d4b53fc39971e4495a8d984ac9607be89780fde528ee3f2d6b912908b4caf04f5c93f64431517af6b32d0b9c18255959f6903c6696ec71f615a0c877630a2d871f3f8a107fc80f306a94b6ad5790070f7d2535163bad7feae9263a9d3558ea1acecc4e61ff4e05b0162f6aba1a3b299ff1c3bb85e4109e550ad870c328bedc45fed8b504f679bc3c1a25b2b65ede44602f21fac123ba7c5f132e7c786bf9420a27bae4d2559cf7779e77f96b747b6d3ad5c13b5e8c9b49a7083001b2f98bcf242d4644537bb5a3b5b41764812a93395b7ab372c18be575e02c3763b4170234e5fddeb43420aadb71cb80f75cc681c1e7ffee3e6a8868c6076fd1da539ab9a12fef1c8cbe271b6de60100c9f82d826dc97b47b57ee9804e60112f556c1dce4f12ecc91ef34d69090b8c9d2ae9cbae38994a955cb"
+			  }
+			],
+			"fee": "23500000",
+			"id": "0436430c-2b02-624c-2032-570501212b00",
+			"off": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"sigs": [
+			  {
+				"nonce": "02b57c1f4fea69a3ee070309cf8f06082022fe06f25a9be1851b56ef0fa18f25d6",
+				"xs": "023878ce845727f3a4ec76ca3f3db4b38a2d05d636b8c3632108b857fed63c96de"
+			  },
+			  {
+				"atomic": "03e1d14f7b440af4944193b0559452651720ecf1847ef0f7092ef7e68414b8d732",
+				"nonce": "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
+				"part": "8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841bf9df0f2c4d96d6bb0b2e6e0b94ad6cbbc0e3f9e5582b085b31b5c8bb0e15bd36",
+				"xs": "02e3c128e436510500616fef3f9a22b15ca015f407c8c5cf96c9059163c873828f"
+			  }
+			],
+			"sta": "A2",
+			"ver": "5:2"
+		  }
+		}
+	}
+	# "#
+	# ,false, 5, true, TxFlow::Atomic);
+	```
+	*/
+	fn receive_atomic_tx(
 		&self,
 		slate: VersionedSlate,
 		dest_acct_name: Option<String>,
@@ -206,7 +286,7 @@ pub trait ForeignRpc {
 		"method": "finalize_tx",
 		"id": 1,
 		"params": [{
-			"ver": "4:2",
+			"ver": "5:2",
 			"id": "0436430c-2b02-624c-2032-570501212b00",
 			"sta": "I2",
 			"off": "383bc9df0dd332629520a0a72f8dd7f0e97d579dccb4dbdc8592aa3d424c846c",
@@ -276,12 +356,12 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "I3",
-				"ver": "4:2"
+				"ver": "5:2"
 			}
 		}
 	}
 	# "#
-	# ,false, 5, false, true);
+	# ,false, 5, true, TxFlow::Invoice);
 	```
 	*/
 	fn finalize_tx(&self, slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind>;
@@ -299,7 +379,7 @@ where
 
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<VersionedCoinbase, ErrorKind> {
 		let cb: CbData = Foreign::build_coinbase(self, block_fees).map_err(|e| e.kind())?;
-		Ok(VersionedCoinbase::into_version(cb, SlateVersion::V4))
+		Ok(VersionedCoinbase::into_version(cb, SlateVersion::V5))
 	}
 
 	fn receive_tx(
@@ -308,7 +388,7 @@ where
 		dest_acct_name: Option<String>,
 		dest: Option<String>,
 	) -> Result<VersionedSlate, ErrorKind> {
-		let version = in_slate.version();
+		let v = in_slate.version();
 		let slate_from = Slate::from(in_slate);
 		let out_slate = Foreign::receive_tx(
 			self,
@@ -317,14 +397,32 @@ where
 			dest,
 		)
 		.map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(out_slate, v).map_err(|e| e.kind())?)
+	}
+
+	fn receive_atomic_tx(
+		&self,
+		in_slate: VersionedSlate,
+		dest_acct_name: Option<String>,
+		dest: Option<String>,
+	) -> Result<VersionedSlate, ErrorKind> {
+		let v = in_slate.version();
+		let slate_from = Slate::from(in_slate);
+		let out_slate = Foreign::receive_atomic_tx(
+			self,
+			&slate_from,
+			dest_acct_name.as_ref().map(String::as_str),
+			dest,
+		)
+		.map_err(|e| e.kind())?;
+		Ok(VersionedSlate::into_version(out_slate, v).map_err(|e| e.kind())?)
 	}
 
 	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, ErrorKind> {
-		let version = in_slate.version();
+		let v = in_slate.version();
 		let out_slate =
 			Foreign::finalize_tx(self, &Slate::from(in_slate), true).map_err(|e| e.kind())?;
-		Ok(VersionedSlate::into_version(out_slate, version).map_err(|e| e.kind())?)
+		Ok(VersionedSlate::into_version(out_slate, v).map_err(|e| e.kind())?)
 	}
 }
 
@@ -344,8 +442,8 @@ pub fn run_doctest_foreign(
 	test_dir: &str,
 	use_token: bool,
 	blocks_to_mine: u64,
-	init_tx: bool,
-	init_invoice_tx: bool,
+	do_tx: bool,
+	tx_flow: TxFlow,
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc_mw::Handler;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
@@ -467,59 +565,129 @@ pub fn run_doctest_foreign(
 		assert!(wallet_refreshed);
 	}
 
-	if init_invoice_tx {
-		let amount = 60_000_000_000;
-		let mut slate = {
-			let mut w_lock = wallet2.lock();
-			let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			let args = IssueInvoiceTxArgs {
-				amount,
-				..Default::default()
-			};
-			api_impl::owner::issue_invoice_tx(&mut **w, (&mask2).as_ref(), args, true).unwrap()
-		};
-		slate = {
-			let mut w_lock = wallet1.lock();
-			let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			let args = InitTxArgs {
-				src_acct_name: None,
-				amount: slate.amount,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			api_impl::owner::process_invoice_tx(&mut **w, (&mask1).as_ref(), &slate, args, true)
-				.unwrap()
-		};
-		println!("INIT INVOICE SLATE");
-		// Spit out slate for input to finalize_tx
-		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
-	}
-
-	if init_tx {
-		let amount = 60_000_000_000;
+	if tx_flow == TxFlow::Atomic {
+		let amount = 60_012_500_000;
 		let mut w_lock = wallet1.lock();
 		let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount,
-			minimum_confirmations: 2,
+			minimum_confirmations: 0,
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
+			is_multisig: Some(true),
 			..Default::default()
 		};
-		let slate = api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
-		println!("INIT SLATE");
-		// Spit out slate for input to finalize_tx
-		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+		let mut sl = api_impl::owner::init_send_tx(&mut **w, mask1.as_ref(), args, true).unwrap();
+		{
+			let mut w_lock = wallet2.lock();
+			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+			sl =
+				api_impl::foreign::receive_tx(&mut **w2, mask2.as_ref(), &sl, None, false).unwrap();
+
+			// Spit out slate for input to finalize_tx
+			println!("LOCKING TX");
+			api_impl::owner::tx_lock_outputs(&mut **w, mask1.as_ref(), &sl).unwrap();
+
+			sl =
+				api_impl::owner::process_multisig_tx(&mut **w, mask1.as_ref(), &sl, false).unwrap();
+			sl = api_impl::foreign::finalize_tx(&mut **w2, mask2.as_ref(), &sl, false).unwrap();
+		}
+
+		let _ = api_impl::owner::finalize_tx(&mut **w, mask1.as_ref(), &sl).unwrap();
 	}
 
-	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1, mask1, Some(test_check_middleware), true),
-		true => Foreign::new(wallet2, mask2, Some(test_check_middleware), true),
+	if do_tx {
+		match tx_flow {
+			TxFlow::Invoice => {
+				let amount = 60_000_000_000;
+				let mut slate = {
+					let mut w_lock = wallet2.lock();
+					let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+					let args = IssueInvoiceTxArgs {
+						amount,
+						..Default::default()
+					};
+					api_impl::owner::issue_invoice_tx(&mut **w, (&mask2).as_ref(), args, true)
+						.unwrap()
+				};
+				slate = {
+					let mut w_lock = wallet1.lock();
+					let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+					let args = InitTxArgs {
+						src_acct_name: None,
+						amount: slate.amount,
+						minimum_confirmations: 2,
+						max_outputs: 500,
+						num_change_outputs: 1,
+						selection_strategy_is_use_all: true,
+						..Default::default()
+					};
+					api_impl::owner::process_invoice_tx(
+						&mut **w,
+						(&mask1).as_ref(),
+						&slate,
+						args,
+						true,
+					)
+					.unwrap()
+				};
+				println!("INIT INVOICE SLATE");
+				// Spit out slate for input to finalize_tx
+				println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+			}
+			TxFlow::Standard => {
+				let amount = 60_000_000_000;
+				let mut w_lock = wallet1.lock();
+				let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+				let args = InitTxArgs {
+					src_acct_name: None,
+					amount,
+					minimum_confirmations: 2,
+					max_outputs: 500,
+					num_change_outputs: 1,
+					selection_strategy_is_use_all: true,
+					..Default::default()
+				};
+				let slate =
+					api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
+				println!("INIT SLATE");
+				// Spit out slate for input to finalize_tx
+				println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+			}
+			TxFlow::Atomic => {
+				let amount = 60_000_000_000;
+				let mut w_lock = wallet1.lock();
+				let w = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
+				let args = InitTxArgs {
+					src_acct_name: None,
+					amount,
+					minimum_confirmations: 0,
+					max_outputs: 500,
+					num_change_outputs: 1,
+					selection_strategy_is_use_all: true,
+					multisig_path: Some("m/3489303641/867659429/4142508075/4116169848".into()),
+					..Default::default()
+				};
+				let slate =
+					api_impl::owner::init_atomic_swap(&mut **w, (&mask1).as_ref(), args, true)
+						.unwrap();
+				println!("INIT SLATE");
+				// Spit out slate for input to finalize_tx
+				println!("{}", serde_json::to_string_pretty(&slate).unwrap());
+			}
+			TxFlow::Multisig => {
+				unimplemented!("multisig");
+			}
+		}
+	}
+
+	let mut api_foreign = match tx_flow {
+		TxFlow::Standard | TxFlow::Atomic | TxFlow::Multisig => {
+			Foreign::new(wallet1, mask1, Some(test_check_middleware), true)
+		}
+		TxFlow::Invoice => Foreign::new(wallet2, mask2, Some(test_check_middleware), true),
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;
@@ -531,11 +699,12 @@ pub fn run_doctest_foreign(
 #[doc(hidden)]
 #[macro_export]
 macro_rules! doctest_helper_json_rpc_foreign_assert_response {
-	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $init_tx:expr, $init_invoice_tx:expr) => {
+	($request:expr, $expected_response:expr, $use_token:expr, $blocks_to_mine:expr, $do_tx:expr, $tx_flow:expr) => {
 		// create temporary wallet, run jsonrpc request on owner api of wallet, delete wallet, return
 		// json response.
 		// In order to prevent leaking tempdirs, This function should not panic.
 		use grin_wallet_api::run_doctest_foreign;
+		use grin_wallet_libwallet::TxFlow;
 		use serde_json;
 		use serde_json::Value;
 		use tempfile::tempdir;
@@ -555,8 +724,8 @@ macro_rules! doctest_helper_json_rpc_foreign_assert_response {
 			dir,
 			$use_token,
 			$blocks_to_mine,
-			$init_tx,
-			$init_invoice_tx,
+			$do_tx,
+			$tx_flow,
 		)
 		.unwrap()
 		.unwrap();

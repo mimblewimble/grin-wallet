@@ -12,9 +12,10 @@
 // limitations under the License.
 
 //! core::libtx specific tests
-//use grin_wallet_api::foreign_rpc_client;
+use grin_wallet_api::foreign_rpc_client;
 use grin_wallet_api::run_doctest_foreign;
-//use grin_wallet_libwallet::VersionedSlate;
+use grin_wallet_libwallet::TxFlow;
+//use grin_wallet_libwallet::{Slate, SlateVersion, VersionedSlate};
 use serde_json;
 use serde_json::Value;
 use tempfile::tempdir;
@@ -52,7 +53,7 @@ fn _receive_versioned_slate() {
 	let request_val: Value = serde_json::from_str(v1_req).unwrap();
 	let expected_response: Value = serde_json::from_str(v1_resp).unwrap();
 
-	let response = run_doctest_foreign(request_val, dir, false, 5, true, false)
+	let response = run_doctest_foreign(request_val, dir, false, 5, false, TxFlow::Standard)
 		.unwrap()
 		.unwrap();
 
@@ -83,52 +84,45 @@ fn receive_tx(vs: VersionedSlate) -> VersionedSlate {
 	)
 	.unwrap();
 	let (call, tracker) = bound_method.call();
-	let json_response = run_doctest_foreign(call.as_request(), dir, 5, false, false)
+	let json_response = run_doctest_foreign(call.as_request(), dir, 5, TxFlow::Standard, false)
 		.unwrap()
 		.unwrap();
-	let mut response = easy_jsonrpc::Response::from_json_response(json_response).unwrap();
+	let mut response = easy_jsonrpc_mw::Response::from_json_response(json_response).unwrap();
 	tracker.get_return(&mut response).unwrap().unwrap()
 }
 
 #[test]
 fn version_unchanged() {
-	let req: Value = serde_json::from_str(include_str!("slates/v1_req.slate")).unwrap();
-	let slate: VersionedSlate = serde_json::from_value(req["params"][0].clone()).unwrap();
-	let slate_req: Slate = slate.into();
+	let req_v4: Value = serde_json::from_str(include_str!("slates/v4_req.slate")).unwrap();
+	let slate: VersionedSlate = serde_json::from_value(req_v4["params"][0].clone()).unwrap();
+	let mut slate_req: Slate = slate.into();
 
 	assert_eq!(
 		receive_tx(VersionedSlate::into_version(
-			slate_req.clone(),
-			SlateVersion::V0
-		))
+			slate_req.clone()
+		).unwrap())
 		.version(),
-		SlateVersion::V0
+		SlateVersion::V4
 	);
 
-	assert_eq!(
-		receive_tx(VersionedSlate::into_version(
-			slate_req.clone(),
-			SlateVersion::V1
-		))
-		.version(),
-		SlateVersion::V1
-	);
+	let req_v5: Value = serde_json::from_str(include_str!("slates/v5_req.slate")).unwrap();
+	let slate: VersionedSlate = serde_json::from_value(req_v5["params"][0].clone()).unwrap();
+	slate_req = slate.into();
 
 	assert_eq!(
 		receive_tx(VersionedSlate::into_version(
-			slate_req.clone(),
-			SlateVersion::V2
-		))
+			slate_req.clone()
+		).unwrap())
 		.version(),
-		SlateVersion::V2
+		SlateVersion::V5
 	);
 
 	// compile time test will remind us to update these tests when updating slate format
 	fn _all_versions_tested(vs: VersionedSlate) {
 		match vs {
-			VersionedSlate::V0(_) => (),
-			VersionedSlate::V1(_) => (),
-			VersionedSlate::V2(_) => (),
+			VersionedSlate::V4(_) => (),
+			VersionedSlate::V5(_) => (),
 		}
 	}
-}*/
+}
+*/

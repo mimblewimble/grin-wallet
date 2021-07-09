@@ -1,0 +1,27 @@
+{
+	"jsonrpc": "2.0",
+	"method": "receive_tx",
+	"id": 1,
+	"params": [
+		{
+			"amt": "6000000000",
+			"fee": "23500000",
+			"id": "0436430c-2b02-624c-2032-570501212b00",
+			"off": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"proof": {
+				"raddr": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3",
+				"saddr": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
+			},
+			"sigs": [
+				{
+					"nonce": "02b57c1f4fea69a3ee070309cf8f06082022fe06f25a9be1851b56ef0fa18f25d6",
+					"xs": "023878ce845727f3a4ec76ca3f3db4b38a2d05d636b8c3632108b857fed63c96de"
+				}
+			],
+			"sta": "S1",
+			"ver": "4:2"
+		},
+		null,
+		null
+	]
+}

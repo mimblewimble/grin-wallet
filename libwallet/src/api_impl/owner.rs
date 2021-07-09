@@ -14,23 +14,27 @@
 
 //! Generic implementation of owner API functions
 
+use rand::thread_rng;
 use uuid::Uuid;
 
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::Transaction;
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::Mutex;
+use crate::grin_core::libtx::{proof, tx_fee};
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::{Mutex, ToHex};
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_keychain::{Identifier, Keychain};
+use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
-use crate::slate::{PaymentInfo, Slate, SlateState};
-use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
+use crate::slate::{KernelFeaturesArgs, PaymentInfo, Slate, SlateState, TxFlow};
+use crate::types::{
+	AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletBackend, WalletInfo,
+};
 use crate::{
-	address, wallet_lock, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult, OutputCommitMapping,
-	PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs,
-	TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
+	address, wallet_lock, Context, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	OutputCommitMapping, PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker,
+	SlatepackerArgs, TxLogEntryType, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -471,7 +475,7 @@ where
 	let mut slate = tx::new_tx_slate(
 		&mut *w,
 		args.amount,
-		false,
+		TxFlow::Standard,
 		2,
 		use_test_rng,
 		args.ttl_blocks,
@@ -500,6 +504,7 @@ where
 	}
 
 	let height = w.w2n_client().get_chain_tip()?.0;
+	let is_multisig = args.is_multisig.unwrap_or(false);
 	let mut context = if args.late_lock.unwrap_or(false) {
 		tx::create_late_lock_context(
 			&mut *w,
@@ -522,6 +527,7 @@ where
 			args.selection_strategy_is_use_all,
 			&parent_key_id,
 			true,
+			is_multisig,
 			use_test_rng,
 		)?
 	};
@@ -556,6 +562,10 @@ where
 
 	slate.compact()?;
 
+	if slate.is_multisig() {
+		slate.state = SlateState::Multisig1;
+	}
+
 	Ok(slate)
 }
 
@@ -582,7 +592,7 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, true, 2, use_test_rng, None)?;
+	let mut slate = tx::new_tx_slate(&mut *w, args.amount, TxFlow::Invoice, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let context = tx::add_output_to_slate(
 		&mut *w,
@@ -675,6 +685,7 @@ where
 		args.selection_strategy_is_use_all,
 		&parent_key_id,
 		false,
+		false,
 		use_test_rng,
 	)?;
 
@@ -728,6 +739,156 @@ where
 	Ok(ret_slate)
 }
 
+/// Perform initiator's step 1 + 2 of the multisig bulletproof to create
+/// tau_x, tau_one, tau_two keys
+pub fn process_multisig_tx<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = w.keychain(keychain_mask)?;
+	let mut context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+	let mut ret_slate = slate.clone();
+
+	let secp = keychain.secp();
+	let key_id = slate.create_multisig_id();
+	let (_, pub_nonce) = context.get_public_keys(secp);
+	let oth_part_data = if use_test_rng && slate.participant_data.len() == 1 {
+		&slate.participant_data[0]
+	} else {
+		slate
+			.participant_data
+			.iter()
+			.find(|d| d.public_nonce != pub_nonce)
+			.ok_or(Error::from(ErrorKind::GenericError(
+				"missing other participant data".into(),
+			)))?
+	};
+
+	let oth_part_commit =
+		oth_part_data
+			.part_commit
+			.clone()
+			.ok_or(Error::from(ErrorKind::Commit(
+				"missing other partial commit".into(),
+			)))?;
+	let partial_commit = keychain.commit(slate.amount, &key_id, SwitchCommitmentType::Regular)?;
+	let commit_sum = secp.commit_sum(vec![partial_commit, oth_part_commit], vec![])?;
+
+	let common_nonce = context.create_common_nonce(secp, &oth_part_data.public_nonce)?;
+
+	// calculate initiator's tau_one and tau_two public keys for the multisig bulletproof
+	context.tau_one = Some(PublicKey::new());
+	context.tau_two = Some(PublicKey::new());
+	let _ = proof::create_multisig(
+		&keychain,
+		&proof::ProofBuilder::new(&keychain),
+		slate.amount,
+		&key_id,
+		SwitchCommitmentType::Regular,
+		&common_nonce,
+		None,
+		context.tau_one.as_mut(),
+		context.tau_two.as_mut(),
+		&[commit_sum.clone()],
+		1,
+		None,
+	)?;
+
+	let (oth_tau_one, oth_tau_two) = match (
+		oth_part_data.tau_one.as_ref(),
+		oth_part_data.tau_two.as_ref(),
+	) {
+		(Some(one), Some(two)) => (one, two),
+		_ => {
+			return Err(ErrorKind::GenericError(
+				"missing other participant's tau public key(s)".into(),
+			)
+			.into())
+		}
+	};
+
+	// calculate tau_one_sum and tau_two_sum
+	let mut tau_one_sum = Some(PublicKey::from_combination(
+		secp,
+		vec![context.tau_one.as_ref().unwrap(), oth_tau_one],
+	)?);
+	let mut tau_two_sum = Some(PublicKey::from_combination(
+		secp,
+		vec![context.tau_two.as_ref().unwrap(), oth_tau_two],
+	)?);
+
+	// calculate initiator's tau_x secret key for the multisig bulletproof
+	context.tau_x = Some(SecretKey::new(secp, &mut thread_rng()));
+	let _ = proof::create_multisig(
+		&keychain,
+		&proof::ProofBuilder::new(&keychain),
+		slate.amount,
+		&key_id,
+		SwitchCommitmentType::Regular,
+		&common_nonce,
+		context.tau_x.as_mut(),
+		tau_one_sum.as_mut(),
+		tau_two_sum.as_mut(),
+		&[commit_sum],
+		2,
+		None,
+	)?;
+
+	let part_data = ret_slate
+		.participant_data
+		.iter_mut()
+		.find(|d| d.public_nonce == pub_nonce)
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing local participant data".into(),
+		)))?;
+
+	part_data.tau_x = context.tau_x.clone();
+	part_data.tau_one = context.tau_one.clone();
+	part_data.tau_two = context.tau_two.clone();
+
+	context.tau_one = tau_one_sum;
+	context.tau_two = tau_two_sum;
+
+	// Don't calculate partial excess signature, wait for tau_x from the receiver
+	// After receiving tau_x, compute the final bulletproof over the shared output
+	//
+	// Then, calculate the partial excess signature, add to receiver's signature,
+	// and finalize the multisig transaction
+
+	// Save the multisig output and context in our DB
+	{
+		let height = w.last_confirmed_height()?;
+		let mut batch = w.batch(keychain_mask)?;
+		let commit = Some(commit_sum.0.to_vec().to_hex());
+		batch.save(OutputData {
+			root_key_id: key_id.clone(),
+			key_id: key_id.clone(),
+			mmr_index: None,
+			n_child: key_id.to_path().last_path_index(),
+			commit,
+			value: slate.amount,
+			status: OutputStatus::Unconfirmed,
+			height: height,
+			lock_height: 0,
+			is_coinbase: false,
+			is_multisig: true,
+			tx_log_entry: None,
+		})?;
+		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.commit()?;
+	}
+
+	ret_slate.state = SlateState::Multisig3;
+	Ok(ret_slate)
+}
+
 /// Lock sender outputs
 pub fn tx_lock_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
@@ -765,6 +926,180 @@ where
 	)
 }
 
+/// Initialize atomic swap transaction
+///
+/// To initialize as the receiver for the `heigh_lock`ed
+/// refund transaction, set the `late_lock` field in the
+/// `InitTxArgs`
+///
+/// Otherwise, the transaction will initialize as the sender
+/// in the main transaction
+pub fn init_atomic_swap<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: InitTxArgs,
+	use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let parent_key_id = match &args.src_acct_name {
+		Some(d) => {
+			let pm = w.get_acct_path(d.clone())?;
+			match pm {
+				Some(p) => p.path,
+				None => w.parent_key_id(),
+			}
+		}
+		None => w.parent_key_id(),
+	};
+
+	let multisig_path_str = args
+		.multisig_path
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing BIP32 multisig path".into(),
+		)))?;
+	let multisig_id = Identifier::from_bip_32_string(&multisig_path_str)?;
+
+	let mut slate = tx::new_tx_slate(
+		&mut *w,
+		args.amount,
+		TxFlow::Atomic,
+		2,
+		use_test_rng,
+		args.ttl_blocks,
+	)?;
+
+	slate.multisig_key_id = Some(multisig_id.clone());
+
+	let height = w.w2n_client().get_chain_tip()?.0;
+	let keychain = w.keychain(keychain_mask)?;
+
+	let output = w
+		.iter()
+		.find(|d| d.key_id == multisig_id)
+		.ok_or(Error::from(ErrorKind::GenericError(
+			"missing multisig output".into(),
+		)))?;
+
+	let context = if args.late_lock.unwrap_or(false) {
+		// use late_lock context for initial height_lock tx,
+		// initiated by the atomic swap receiver
+		let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
+		context.amount = args.amount;
+		context.fee = Some((tx_fee(1, 1, 1) as u32).into());
+		context.input_ids = vec![(output.key_id, output.mmr_index, output.value)];
+
+		slate.fill_round_1(&keychain, &mut context)?;
+
+		// Create a height_lock kernel, with a lock_height set to an
+		// arbitrary amount of blocks in the future
+		//
+		// FIXME: add option to specify the lock_height?
+		slate.kernel_features = 2;
+		slate.kernel_features_args = Some(KernelFeaturesArgs {
+			lock_height: height + 60,
+		});
+
+		context
+	} else {
+		let mut context = tx::add_inputs_to_atomic_slate(
+			w,
+			keychain_mask,
+			&mut slate,
+			height,
+			args.minimum_confirmations,
+			args.max_outputs as usize,
+			args.num_change_outputs as usize,
+			args.selection_strategy_is_use_all,
+			&parent_key_id,
+			None,
+			use_test_rng,
+		)?;
+		slate.fill_round_1(&keychain, &mut context)?;
+		context
+	};
+
+	// Save the aggsig context in our DB for when we
+	// receive the transaction back
+	{
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.commit()?;
+	}
+
+	slate.compact()?;
+
+	Ok(slate)
+}
+
+/// Complete the third round of the atomic swap
+///
+/// In this round, the adaptor signature from round
+/// two is saved, and the counterparty completes their
+/// half of the kernel signature.
+///
+/// For the refund transaction, the receiver is the counterparty.
+///
+/// For the main transaction, the sender is the counterparty.
+pub fn countersign_atomic_swap<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	slate: &Slate,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
+
+	let mut context = w.get_private_context(keychain_mask, ret_slate.id.as_bytes())?;
+
+	let keychain = w.keychain(keychain_mask)?;
+	// Save `s` from the adaptor signature to be able to extract the
+	// atomic secret using the full signature
+	//
+	// This is the atomic secret used to recover funds on the other chain
+	let adaptor_sig = ret_slate.fill_round_3_atomic(&keychain, &mut context)?;
+	let atomic_secret = SecretKey::from_slice(keychain.secp(), &adaptor_sig.as_ref()[32..])?;
+
+	{
+		let atomic_id = w.next_atomic_id(keychain_mask)?;
+		let atomic =
+			keychain.derive_key(slate.amount, &atomic_id, SwitchCommitmentType::Regular)?;
+		let pub_atomic = PublicKey::from_secret_key(keychain.secp(), &atomic)?;
+
+		debug!(
+			"Your public atomic key: {}",
+			pub_atomic
+				.serialize_vec(keychain.secp(), true)
+				.as_ref()
+				.to_hex()
+		);
+		debug!("Use this key to lock funds on the other chain.\n");
+
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_recovered_atomic_secret(&atomic_id, &atomic_secret)?;
+		let atomic_idx = Slate::atomic_id_to_int(&atomic_id)?;
+		batch.save_used_atomic_index(&slate.id, atomic_idx)?;
+		batch.commit()?;
+	}
+
+	ret_slate.adjust_offset(&keychain, &context)?;
+
+	if ret_slate.kernel_features != 2 {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, true)?;
+	}
+
+	ret_slate.state = SlateState::Atomic3;
+
+	Ok(ret_slate)
+}
+
 /// Finalize slate
 pub fn finalize_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
@@ -787,8 +1122,14 @@ where
 		// and insert into original context
 
 		let current_height = w.w2n_client().get_chain_tip()?.0;
-		let mut temp_sl =
-			tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
+		let mut temp_sl = tx::new_tx_slate(
+			&mut *w,
+			context.amount,
+			TxFlow::Standard,
+			2,
+			false,
+			args.ttl_blocks,
+		)?;
 		let temp_context = selection::build_send_tx(
 			w,
 			&keychain,
@@ -801,6 +1142,7 @@ where
 			args.selection_strategy_is_use_all,
 			Some(context.fee.map(|f| f.fee()).unwrap_or(0)),
 			parent_key_id.clone(),
+			None,
 			false,
 			true,
 		)?;
@@ -820,23 +1162,118 @@ where
 		tx_lock_outputs(w, keychain_mask, &sl)?;
 	}
 
+	// finalize multisig bulletproof
+	let is_multisig = sl.is_multisig();
+	let multisig_init_final = is_multisig && context.tau_x.is_some();
+	if is_multisig {
+		let tau_x =
+			selection::finalize_multisig_bulletproof(w, keychain_mask, &mut sl, &mut context)?;
+		let k = w.keychain(keychain_mask)?;
+		let (_, pub_nonce) = context.get_public_keys(k.secp());
+		{
+			let mut part_data = sl
+				.participant_data
+				.iter_mut()
+				.find(|d| d.public_nonce == pub_nonce)
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing local participant data".into(),
+				)))?;
+			part_data.tau_x = tau_x;
+		}
+	}
+
+	if multisig_init_final {
+		context
+			.output_ids
+			.push((sl.create_multisig_id(), None, sl.amount));
+	}
+
 	// Add our contribution to the offset
 	sl.adjust_offset(&keychain, &context)?;
 
-	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+	if multisig_init_final {
+		context.output_ids.pop();
+	}
 
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+	if multisig_init_final || !is_multisig {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+
+		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+		tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+	}
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
-	sl.state = SlateState::Standard3;
-	sl.amount = 0;
+	if is_multisig {
+		debug!(
+			"multisig ID path: {}",
+			slate.create_multisig_id().to_bip_32_string()
+		);
+		debug!("Use with commands spending this multisig output");
+		sl.state = SlateState::Multisig4;
+	} else {
+		sl.state = SlateState::Standard3;
+		sl.amount = 0;
+	}
 
 	Ok(sl)
+}
+
+/// Complete the atomic swap
+pub fn finalize_atomic_swap<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut ret_slate = slate.clone();
+	check_ttl(w, &ret_slate)?;
+	let mut context = w.get_private_context(keychain_mask, ret_slate.id.as_bytes())?;
+	let parent_key_id = w.parent_key_id();
+	let is_height_lock = ret_slate.kernel_features == 2;
+
+	if !is_height_lock {
+		// check that the multisig ID matches a locally stored multisig output
+		let multisig_id =
+			slate
+				.multisig_key_id
+				.as_ref()
+				.ok_or(Error::from(ErrorKind::GenericError(
+					"missing multisig ouptut ID".into(),
+				)))?;
+		let output = w
+			.iter()
+			.find(|o| &o.key_id == multisig_id)
+			.ok_or(Error::from(ErrorKind::GenericError(
+				"missing multisig output".into(),
+			)))?;
+		context.input_ids = vec![(output.key_id, output.mmr_index, output.value)];
+	}
+
+	ret_slate.adjust_offset(&w.keychain(keychain_mask)?, &context)?;
+
+	if is_height_lock {
+		ret_slate.tx = Some(Slate::empty_transaction());
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, true)?;
+	}
+
+	ret_slate.tx_or_err_mut()?.offset = ret_slate.offset.clone();
+
+	tx::complete_atomic_tx(&mut *w, keychain_mask, &mut ret_slate, &context)?;
+	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &ret_slate)?;
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &ret_slate, true)?;
+
+	ret_slate.state = SlateState::Atomic4;
+	ret_slate.amount = 0;
+
+	Ok(ret_slate)
 }
 
 /// cancel tx
@@ -904,7 +1341,7 @@ where
 	let tx_res = w.get_stored_tx(&format!("{}", id))?;
 	match tx_res {
 		Some(tx) => {
-			let mut slate = Slate::blank(2, false);
+			let mut slate = Slate::blank(2, TxFlow::Standard);
 			slate.tx = Some(tx.clone());
 			slate.fee_fields = tx.aggregate_fee_fields().unwrap(); // apply fee mask past HF4
 			slate.id = id;
@@ -933,6 +1370,41 @@ where
 			fluff
 		);
 		Ok(())
+	}
+}
+
+/// Recover atomic secret from an adaptor signature and finalized kernel excess signature
+pub fn recover_atomic_secret<'a, L, C, K>(
+	wallet_inst: &mut Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+) -> Result<Identifier, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut w_lock = wallet_inst.lock();
+	let w = w_lock.lc_provider()?.wallet_inst()?;
+	let mut client = w.w2n_client().clone();
+	let keychain = w.keychain(keychain_mask)?;
+	if let Some((kernel, _, _)) = client.get_kernel(
+		&slate.calc_excess(keychain.secp())?,
+		Some(slate.ttl_cutoff_height.saturating_sub(60)),
+		Some(slate.ttl_cutoff_height),
+	)? {
+		let atomic = tx::recover_atomic_secret(&mut **w, keychain_mask, slate, &kernel)?;
+		let atomic_id = w.get_used_atomic_id(&slate.id)?;
+		info!("Saving atomic secret with atomic ID: {}, use with `get_atomic_secrets` to retrieve from storage", Slate::atomic_id_to_int(&atomic_id)?);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_recovered_atomic_secret(&atomic_id, &atomic)?;
+		batch.commit()?;
+		Ok(atomic_id)
+	} else {
+		Err(
+			ErrorKind::StoredTx("missing finalized transaction kernel for the atomic swap".into())
+				.into(),
+		)
 	}
 }
 

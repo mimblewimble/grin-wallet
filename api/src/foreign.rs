@@ -334,7 +334,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
 	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
-	/// # let slate = Slate::blank(2, false);
+	/// # let slate = Slate::blank(2, TxFlow::Standard);
 	///
 	/// // . . .
 	/// // Obtain a sent slate somehow
@@ -388,6 +388,49 @@ where
 		}
 	}
 
+	/// Receive an atomic swap transaction
+	pub fn receive_atomic_tx(
+		&self,
+		slate: &Slate,
+		dest_acct_name: Option<&str>,
+		r_addr: Option<String>,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::ReceiveTx,
+				w.w2n_client().get_version_info(),
+				Some(slate),
+			)?;
+		}
+		let ret_slate = foreign::receive_atomic_tx(
+			&mut **w,
+			(&self.keychain_mask).as_ref(),
+			slate,
+			dest_acct_name,
+			self.doctest_mode,
+		)?;
+		match r_addr {
+			Some(a) => {
+				let tor_config_lock = self.tor_config.lock();
+				let res = try_slatepack_sync_workflow(
+					&ret_slate,
+					&a,
+					tor_config_lock.clone(),
+					None,
+					false,
+					self.doctest_mode,
+				);
+				match res {
+					Ok(s) => return Ok(s.unwrap()),
+					Err(_) => return Ok(ret_slate),
+				}
+			}
+			None => Ok(ret_slate),
+		}
+	}
+
 	/// Finalizes a (standard or invoice) transaction initiated by this wallet's Owner api.
 	/// This step assumes the paying party has completed round 1 and 2 of slate
 	/// creation, and added their partial signatures. This wallet will verify
@@ -430,7 +473,7 @@ where
 	/// // If result okay, send to payer, who will apply the transaction via their
 	/// // owner API, then send back the slate
 	/// // ...
-	/// # let slate = Slate::blank(2, true);
+	/// # let slate = Slate::blank(2, TxFlow::Invoice);
 	///
 	/// let slate = api_foreign.finalize_tx(&slate, true);
 	/// // if okay, then post via the owner API
@@ -474,7 +517,7 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
-		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, WalletInst};
+		use libwallet::{BlockFees, IssueInvoiceTxArgs, Slate, TxFlow, WalletInst};
 
 		// don't run on windows CI, which gives very inconsistent results
 		if cfg!(windows) {

@@ -20,7 +20,7 @@ extern crate grin_wallet_libwallet as libwallet;
 
 use grin_wallet_util::grin_core as core;
 
-use self::libwallet::{InitTxArgs, Slate};
+use self::libwallet::{InitTxArgs, Slate, TxFlow};
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
 use std::sync::atomic::Ordering;
@@ -99,7 +99,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let send_file = format!("{}/part_tx_1.tx", test_dir);
 	let receive_file = format!("{}/part_tx_2.tx", test_dir);
 
-	let mut slate = Slate::blank(2, false);
+	let mut slate = Slate::blank(2, TxFlow::Standard);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
@@ -198,7 +198,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	let mut slate = Slate::blank(2, false);
+	let mut slate = Slate::blank(2, TxFlow::Standard);
 	let amount = 60_000_000_000;
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
