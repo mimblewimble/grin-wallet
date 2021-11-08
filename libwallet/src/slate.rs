@@ -16,26 +16,23 @@
 //! around during an interactive wallet exchange
 
 use crate::error::{Error, ErrorKind};
-use crate::grin_core::consensus::YEAR_HEIGHT;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
 	Transaction, TxKernel, Weighting,
 };
-use crate::grin_core::core::verifier_cache::LruVerifierCache;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
-use crate::grin_util::{secp, static_secp_instance, RwLock};
+use crate::grin_util::{secp, static_secp_instance};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use serde::ser::{Serialize, Serializer};
 use serde_json;
 use std::fmt;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::slate_versions::v4::{
@@ -378,7 +375,7 @@ impl Slate {
 		}
 	}
 
-	// This is the msg that we will sign as part of the tx kernel.
+	/// This is the msg that we will sign as part of the tx kernel.
 	pub fn msg_to_sign(&self) -> Result<secp::Message, Error> {
 		let msg = self.kernel_features()?.kernel_sig_msg()?;
 		Ok(msg)
@@ -554,21 +551,18 @@ impl Slate {
 		// we could just overwrite the fee here (but we won't) due to the sig
 		let fee = tx_fee(tx.inputs().len(), tx.outputs().len(), tx.kernels().len());
 
-		if fee > tx.fee(2 * YEAR_HEIGHT) {
+		if fee > tx.fee() {
 			// apply fee mask past HF4
-			return Err(ErrorKind::Fee(format!(
-				"Fee Dispute Error: {}, {}",
-				tx.fee(2 * YEAR_HEIGHT),
-				fee,
-			))
-			.into());
+			return Err(
+				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(), fee,)).into(),
+			);
 		}
 
-		if fee > self.amount + self.fee_fields.fee(2 * YEAR_HEIGHT) {
+		if fee > self.amount + self.fee_fields.fee() {
 			let reason = format!(
 				"Rejected the transfer because transaction fee ({}) exceeds received amount ({}).",
 				amount_to_hr_string(fee, false),
-				amount_to_hr_string(self.amount + self.fee_fields.fee(2 * YEAR_HEIGHT), false)
+				amount_to_hr_string(self.amount + self.fee_fields.fee(), false)
 			);
 			info!("{}", reason);
 			return Err(ErrorKind::Fee(reason).into());
@@ -677,8 +671,7 @@ impl Slate {
 
 		// confirm the overall transaction is valid (including the updated kernel)
 		// accounting for tx weight limits
-		let verifier_cache = Arc::new(RwLock::new(LruVerifierCache::new()));
-		if let Err(e) = final_tx.validate(Weighting::AsTransaction, verifier_cache, 0) {
+		if let Err(e) = final_tx.validate(Weighting::AsTransaction) {
 			error!("Error with final tx validation: {}", e);
 			Err(e.into())
 		} else {
