@@ -196,7 +196,7 @@ impl Slatepack {
 
 		let x_dec_secret = StaticSecret::from(b);
 		let x_dec_secret_bech32 =
-			bech32::encode("age-secret-key", (&x_dec_secret).to_bytes().to_base32())?;
+			bech32::encode("age-secret-key-", (&x_dec_secret).to_bytes().to_base32())?;
 		let key: age::x25519::Identity = x_dec_secret_bech32.parse()?;
 
 		let decryptor = match age::Decryptor::new(&self.payload[..])? {
