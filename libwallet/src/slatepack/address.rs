@@ -67,6 +67,14 @@ impl SlatepackAddress {
 		// add length byte
 		Ok(encoded.as_bytes().len() + 1)
 	}
+
+	/// utility to construct a public key that can be read by age 0.5+,
+	/// for some reason the author decided the library can no longer accept
+	/// x25519 keys to construct its types even though it uses them under the hood
+	pub fn to_age_pubkey_str(&self) -> Result<String, Error> {
+		let x_key = xDalekPublicKey::try_from(self)?;
+		Ok(bech32::encode("age", x_key.as_bytes().to_base32())?.to_string())
+	}
 }
 
 impl Display for SlatepackAddress {

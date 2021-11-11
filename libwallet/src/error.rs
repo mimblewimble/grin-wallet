@@ -435,10 +435,26 @@ impl From<util::OnionV3AddressError> for Error {
 	}
 }
 
-impl From<age::Error> for Error {
-	fn from(error: age::Error) -> Error {
+impl From<age::EncryptError> for Error {
+	fn from(error: age::EncryptError) -> Error {
 		Error {
 			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
+	}
+}
+
+impl From<age::DecryptError> for Error {
+	fn from(error: age::DecryptError) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
+	}
+}
+
+impl From<&str> for Error {
+	fn from(error: &str) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Age(format!("Bech32 Key Encoding - {}", error))),
 		}
 	}
 }
