@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bech32::{self, ToBase32};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// Slatepack Types + Serialization implementation
 use ed25519_dalek::SecretKey as edSecretKey;
@@ -25,7 +26,6 @@ use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
 
-use std::convert::TryInto;
 use std::fmt;
 use std::io::{Cursor, Read, Write};
 
@@ -158,8 +158,8 @@ impl Slatepack {
 		let rec_keys: Result<Vec<_>, _> = recipients
 			.into_iter()
 			.map(|addr| {
-				let key = age::keys::RecipientKey::X25519((&addr).try_into()?);
-				Ok(key)
+				let recp_key: age::x25519::Recipient = addr.to_age_pubkey_str()?.parse()?;
+				Ok(Box::new(recp_key) as Box<dyn age::Recipient>)
 			})
 			.collect();
 
@@ -170,7 +170,7 @@ impl Slatepack {
 
 		let encryptor = age::Encryptor::with_recipients(keys);
 		let mut encrypted = vec![];
-		let mut writer = encryptor.wrap_output(&mut encrypted, age::Format::Binary)?;
+		let mut writer = encryptor.wrap_output(&mut encrypted)?;
 		writer.write_all(&to_encrypt)?;
 		writer.finish()?;
 		self.payload = encrypted.to_vec();
@@ -195,14 +195,16 @@ impl Slatepack {
 		b.copy_from_slice(&result[0..32]);
 
 		let x_dec_secret = StaticSecret::from(b);
-		let key = age::keys::SecretKey::X25519(x_dec_secret);
+		let x_dec_secret_bech32 =
+			bech32::encode("age-secret-key-", (&x_dec_secret).to_bytes().to_base32())?;
+		let key: age::x25519::Identity = x_dec_secret_bech32.parse()?;
 
 		let decryptor = match age::Decryptor::new(&self.payload[..])? {
 			age::Decryptor::Recipients(d) => d,
 			_ => unreachable!(),
 		};
 		let mut decrypted = vec![];
-		let mut reader = decryptor.decrypt(&[key.into()])?;
+		let mut reader = decryptor.decrypt(std::iter::once(&key as &dyn age::Identity))?;
 		reader.read_to_end(&mut decrypted)?;
 		// Parse encrypted metadata from payload, first 4 bytes of decrypted payload
 		// will be encrypted metadata length
