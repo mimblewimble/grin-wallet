@@ -71,6 +71,18 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 		}
 	});
 
+	// Stop the scanning updater threads because it extends the time needed to build the chain
+	// exponentially
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, _m| {
+		api.stop_updater()?;
+		Ok(())
+	})?;
+
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, _m| {
+		api.stop_updater()?;
+		Ok(())
+	})?;
+
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
 	let mut rng = rand::thread_rng();
@@ -139,11 +151,20 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 }
 
 #[test]
+#[ignore]
 fn build_chain_to_height() {
+	// ******************
+	// If letting this run for a while to build a chain, recommend also tweaking scan threshold around 1112 of owner.rs:
+	// ***
+	// let start_index = last_scanned_block.height.saturating_sub(1);
+	// ***
+	// TODO: Make this parameter somehow
+	// ******************
+
 	let test_dir = "test_output/build_chain";
 	clean_output_dir(test_dir);
 	setup(test_dir);
-	if let Err(e) = build_chain(test_dir, 64) {
+	if let Err(e) = build_chain(test_dir, 2048) {
 		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
 	}
 	// don't clean to get the result for testing
