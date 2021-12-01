@@ -125,7 +125,7 @@ impl Client {
 			.default_headers(headers);
 
 		if let Some(s) = socks_proxy_addr {
-			let proxy = Proxy::all(&format!("socks5://{}:{}", s.ip(), s.port()))
+			let proxy = Proxy::all(&format!("socks5h://{}:{}", s.ip(), s.port()))
 				.map_err(|e| ErrorKind::Internal(format!("Unable to create proxy: {}", e)))?;
 			builder = builder.proxy(proxy);
 		}
