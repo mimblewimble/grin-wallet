@@ -1217,7 +1217,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
@@ -1250,7 +1250,7 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "bit-vec",
  "bitflags 1.3.2",
@@ -1274,7 +1274,7 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1301,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1323,7 +1323,7 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "bitflags 1.3.2",
  "bytes 0.5.6",
@@ -1345,7 +1345,7 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1379,7 +1379,7 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "byteorder",
  "croaring",
@@ -1399,7 +1399,7 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#3f4f165e0bda7410ca0c0197da9a44b22070fd66"
+source = "git+https://github.com/mimblewimble/grin?branch=master#382e914c50c46ddd167b47f9f0c2c3d33f273ef4"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
