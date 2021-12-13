@@ -404,8 +404,8 @@ where
 	Ok(())
 }
 
-/// Scan outputs with the rewind hash of a given rewind hash view wallet.
-/// Retrieve outputs information that belongs to it.
+/// Scan outputs with a given rewind hash view wallet.
+/// Retrieve all outputs information that belongs to it.
 pub fn scan_rewind_hash<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	rewind_hash: String,
@@ -418,7 +418,6 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	// First, get a definitive list of outputs we own from the chain
 	if let Some(ref s) = status_send_channel {
 		let _ = s.send(StatusMessage::Scanning("Starting UTXO scan".to_owned(), 0));
 	}
