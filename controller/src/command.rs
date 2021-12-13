@@ -29,6 +29,7 @@ use crate::libwallet::{
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
+use ::core::time;
 use serde_json as json;
 use std::convert::TryFrom;
 use std::fs::File;
@@ -113,6 +114,80 @@ where
 	let p = w_lock.lc_provider()?;
 	let m = p.get_mnemonic(None, args.passphrase)?;
 	show_recovery_phrase(m);
+	Ok(())
+}
+
+pub fn rewind_hash<'a, L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let rewind_hash = api.get_rewind_hash(m)?;
+		println!();
+		println!("Wallet Rewind Hash");
+		println!("-------------------------------------");
+		println!("{}", rewind_hash);
+		println!();
+		Ok(())
+	})?;
+	Ok(())
+}
+
+/// Arguments for rewind hash view wallet scan command
+pub struct ViewWalletScanArgs {
+	pub rewind_hash: String,
+	pub start_height: Option<u64>,
+	pub backwards_from_tip: Option<u64>,
+}
+
+pub fn scan_rewind_hash<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	args: ViewWalletScanArgs,
+	dark_scheme: bool,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+		let rewind_hash = args.rewind_hash;
+		let tip_height = api.node_height(m)?.height;
+		let start_height = match args.backwards_from_tip {
+			Some(b) => tip_height.saturating_sub(b),
+			None => match args.start_height {
+				Some(s) => s,
+				None => 1,
+			},
+		};
+		warn!(
+			"Starting view wallet output scan from height {} ...",
+			start_height
+		);
+		let result = api.scan_rewind_hash(rewind_hash, Some(start_height));
+		let deci_sec = time::Duration::from_millis(100);
+		thread::sleep(deci_sec);
+		match result {
+			Ok(res) => {
+				warn!("View wallet check complete");
+				if res.total_balance != 0 {
+					display::view_wallet_output(res.clone(), tip_height, dark_scheme)?;
+				}
+				display::view_wallet_balance(res.clone(), tip_height, dark_scheme);
+				Ok(())
+			}
+			Err(e) => {
+				error!("View wallet check failed: {}", e);
+				error!("Backtrace: {}", e.backtrace().unwrap());
+				Err(e)
+			}
+		}
+	})?;
 	Ok(())
 }
 

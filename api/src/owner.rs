@@ -27,8 +27,8 @@ use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, Status
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxLogEntry, WalletInfo,
-	WalletInst, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxLogEntry, ViewWallet,
+	WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
@@ -1179,6 +1179,88 @@ where
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
 		owner::get_stored_tx(&**w, tx_id, slate_id)
+	}
+
+	/// Return the rewind hash of the wallet.
+	/// The rewind hash when shared, help third-party to retrieve informations (outputs, balance, ...) that belongs to this wallet.
+	///
+	/// # Arguments
+	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	///
+	/// # Returns
+	/// * `Ok(String)` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let result = api_owner.scan(
+	///     None,
+	///     Some(20000),
+	///     false,
+	/// );
+	///
+	/// if let Ok(_) = result {
+	///     // Wallet outputs should be consistent with what's on chain
+	///     // ...
+	/// }
+	/// ```
+
+	pub fn get_rewind_hash(&self, keychain_mask: Option<&SecretKey>) -> Result<String, Error> {
+		owner::get_rewind_hash(self.wallet_inst.clone(), keychain_mask)
+	}
+
+	/// Scans the entire UTXO set from the node, identify which outputs belong to the given rewind hash view wallet.
+	///
+	/// This function can be used to retrieve outputs informations (outputs, balance, ...) from a rewind hash view wallet.
+	///
+	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
+	/// that no other processes should be trying to use the wallet at the same time this function is
+	/// running.
+	///
+	/// # Arguments
+	///
+	/// * `rewind_hash` - Rewind hash of a wallet, used to retrieve the output of a third-party wallet.
+	/// * `start_height` - If provided, the height of the first block from which to start scanning.
+	/// The scan will start from block 1 if this is not provided.
+	///
+	/// # Returns
+	/// * `Ok(ViewWallet)` if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let result = api_owner.scan(
+	///     None,
+	///     Some(20000),
+	///     false,
+	/// );
+	///
+	/// if let Ok(_) = result {
+	///     // Wallet outputs should be consistent with what's on chain
+	///     // ...
+	/// }
+	/// ```
+
+	pub fn scan_rewind_hash(
+		&self,
+		rewind_hash: String,
+		start_height: Option<u64>,
+	) -> Result<ViewWallet, Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		owner::scan_rewind_hash(self.wallet_inst.clone(), rewind_hash, start_height, &tx)
 	}
 
 	/// Scans the entire UTXO set from the node, identify which outputs belong to the given wallet

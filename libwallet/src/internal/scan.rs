@@ -21,10 +21,13 @@ use crate::grin_core::libtx::proof;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
+use crate::grin_util::secp::{ContextFlag, Secp256k1};
 use crate::grin_util::Mutex;
+use crate::grin_util::{from_hex, ToHex};
 use crate::internal::{keys, updater};
-use crate::types::*;
+use crate::{types::*, ErrorKind};
 use crate::{wallet_lock, Error, OutputCommitMapping};
+use blake2_rfc::blake2b::blake2b;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -140,6 +143,88 @@ where
 		});
 	}
 	Ok(wallet_outputs)
+}
+
+fn collect_chain_outputs_rewind_hash<'a, C>(
+	client: C,
+	rewind_hash: String,
+	start_index: u64,
+	end_index: Option<u64>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+) -> Result<ViewWallet, Error>
+where
+	C: NodeClient + 'a,
+{
+	let batch_size = 1000;
+	let start_index_stat = start_index;
+	let mut start_index = start_index;
+	let mut vw = ViewWallet {
+		rewind_hash: rewind_hash,
+		output_result: vec![],
+		total_balance: 0,
+		last_pmmr_index: 0,
+	};
+	let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
+
+	loop {
+		let (highest_index, last_retrieved_index, outputs) =
+			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
+
+		let range = highest_index as f64 - start_index_stat as f64;
+		let progress = last_retrieved_index as f64 - start_index_stat as f64;
+		let percentage_complete = cmp::min(((progress / range) * 100.0) as u8, 99);
+
+		let msg = format!(
+			"Checking {} outputs, up to index {}. (Highest index: {})",
+			outputs.len(),
+			highest_index,
+			last_retrieved_index,
+		);
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::Scanning(msg, percentage_complete));
+		}
+
+		// Scanning outputs
+		for output in outputs.iter() {
+			let (commit, proof, is_coinbase, height, mmr_index) = output;
+			let rewind_hash = from_hex(vw.rewind_hash.as_str()).map_err(|e| {
+				ErrorKind::RewindHash(format!("Unable to decode rewind hash: {}", e))
+			})?;
+			let rewind_nonce = blake2b(32, &commit.0, &rewind_hash);
+			let nonce = SecretKey::from_slice(&secp, rewind_nonce.as_bytes())
+				.map_err(|e| ErrorKind::Nonce(format!("Unable to create nonce: {}", e)))?;
+			let info = secp.rewind_bullet_proof(*commit, nonce.clone(), None, *proof);
+
+			if info.is_err() {
+				continue;
+			}
+
+			let info = info.unwrap();
+			vw.total_balance += info.value;
+			let lock_height = if *is_coinbase {
+				*height + global::coinbase_maturity()
+			} else {
+				*height
+			};
+
+			let output_info = ViewWalletOutputResult {
+				commit: commit.to_hex(),
+				value: info.value,
+				height: *height,
+				mmr_index: *mmr_index,
+				is_coinbase: *is_coinbase,
+				lock_height: lock_height,
+			};
+
+			vw.output_result.push(output_info);
+		}
+		if highest_index <= last_retrieved_index {
+			vw.last_pmmr_index = last_retrieved_index;
+			break;
+		}
+		start_index = last_retrieved_index + 1;
+	}
+	Ok(vw)
 }
 
 fn collect_chain_outputs<'a, C, K>(
@@ -317,6 +402,54 @@ where
 	}
 	batch.commit()?;
 	Ok(())
+}
+
+/// Scan outputs with the rewind hash of a given rewind hash view wallet.
+/// Retrieve outputs information that belongs to it.
+pub fn scan_rewind_hash<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	rewind_hash: String,
+	start_height: u64,
+	end_height: u64,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+) -> Result<ViewWallet, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// First, get a definitive list of outputs we own from the chain
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::Scanning("Starting UTXO scan".to_owned(), 0));
+	}
+	let client = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().clone()
+	};
+	// Retrieve the actual PMMR index range we're looking for
+	let pmmr_range = client.height_range_to_pmmr_indices(start_height, Some(end_height))?;
+
+	let chain_outs = collect_chain_outputs_rewind_hash(
+		client,
+		rewind_hash,
+		pmmr_range.0,
+		Some(pmmr_range.1),
+		status_send_channel,
+	)?;
+
+	let msg = format!(
+		"Identified {} wallet_outputs as belonging to this wallet",
+		chain_outs.output_result.len(),
+	);
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::Scanning(msg, 99));
+	}
+	if let Some(ref s) = status_send_channel {
+		let _ = s.send(StatusMessage::ScanningComplete(
+			"Scanning Complete".to_owned(),
+		));
+	}
+	Ok(chain_outs)
 }
 
 /// Check / repair wallet contents by scanning against chain
