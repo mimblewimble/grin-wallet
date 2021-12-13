@@ -287,8 +287,12 @@ impl<'de> serde::Deserialize<'de> for SlatepackBin {
 				E: serde::de::Error,
 			{
 				let mut reader = std::io::Cursor::new(value.to_vec());
-				let s = ser::deserialize(&mut reader, ser::ProtocolVersion(4))
-					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				let s = ser::deserialize(
+					&mut reader,
+					ser::ProtocolVersion(4),
+					ser::DeserializationMode::default(),
+				)
+				.map_err(|err| serde::de::Error::custom(err.to_string()))?;
 				Ok(s)
 			}
 		}
@@ -515,8 +519,12 @@ impl<'de> serde::Deserialize<'de> for SlatepackEncMetadataBin {
 				E: serde::de::Error,
 			{
 				let mut reader = std::io::Cursor::new(value.to_vec());
-				let s = ser::deserialize(&mut reader, ser::ProtocolVersion(4))
-					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				let s = ser::deserialize(
+					&mut reader,
+					ser::ProtocolVersion(4),
+					ser::DeserializationMode::default(),
+				)
+				.map_err(|err| serde::de::Error::custom(err.to_string()))?;
 				Ok(s)
 			}
 		}

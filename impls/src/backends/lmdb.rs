@@ -299,7 +299,7 @@ where
 			Some(i) => to_key_u64(OUTPUT_PREFIX, &mut id.to_bytes().to_vec(), *i),
 			None => to_key(OUTPUT_PREFIX, &mut id.to_bytes().to_vec()),
 		};
-		option_to_not_found(self.db.get_ser(&key), || format!("Key Id: {}", id))
+		option_to_not_found(self.db.get_ser(&key, None), || format!("Key Id: {}", id))
 			.map_err(|e| e.into())
 	}
 
@@ -307,7 +307,12 @@ where
 	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self.db.iter(&[OUTPUT_PREFIX], move |_, mut v| {
-			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+			ser::deserialize(
+				&mut v,
+				protocol_version,
+				ser::DeserializationMode::default(),
+			)
+			.map_err(From::from)
 		});
 		let iter = prefix_iter.expect("deserialize").into_iter();
 		Box::new(iter)
@@ -315,14 +320,19 @@ where
 
 	fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
 		let key = to_key(TX_LOG_ENTRY_PREFIX, &mut u.as_bytes().to_vec());
-		self.db.get_ser(&key).map_err(|e| e.into())
+		self.db.get_ser(&key, None).map_err(|e| e.into())
 	}
 
 	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>
 	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self.db.iter(&[TX_LOG_ENTRY_PREFIX], move |_, mut v| {
-			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+			ser::deserialize(
+				&mut v,
+				protocol_version,
+				ser::DeserializationMode::default(),
+			)
+			.map_err(From::from)
 		});
 		let iter = prefix_iter.expect("deserialize").into_iter();
 		Box::new(iter)
@@ -337,7 +347,7 @@ where
 		let (blind_xor_key, nonce_xor_key) =
 			private_ctx_xor_keys(&self.keychain(keychain_mask)?, slate_id)?;
 
-		let mut ctx: Context = option_to_not_found(self.db.get_ser(&ctx_key), || {
+		let mut ctx: Context = option_to_not_found(self.db.get_ser(&ctx_key, None), || {
 			format!("Slate id: {:x?}", slate_id.to_vec())
 		})?;
 
@@ -355,7 +365,12 @@ where
 		let prefix_iter = self
 			.db
 			.iter(&[ACCOUNT_PATH_MAPPING_PREFIX], move |_, mut v| {
-				ser::deserialize(&mut v, protocol_version).map_err(From::from)
+				ser::deserialize(
+					&mut v,
+					protocol_version,
+					ser::DeserializationMode::default(),
+				)
+				.map_err(From::from)
 			});
 		let iter = prefix_iter.expect("deserialize").into_iter();
 		Box::new(iter)
@@ -363,7 +378,7 @@ where
 
 	fn get_acct_path(&self, label: String) -> Result<Option<AcctPathMapping>, Error> {
 		let acct_key = to_key(ACCOUNT_PATH_MAPPING_PREFIX, &mut label.as_bytes().to_vec());
-		self.db.get_ser(&acct_key).map_err(|e| e.into())
+		self.db.get_ser(&acct_key, None).map_err(|e| e.into())
 	}
 
 	fn store_tx(&self, uuid: &str, tx: &Transaction) -> Result<(), Error> {
@@ -390,7 +405,12 @@ where
 		tx_f.read_to_string(&mut content)?;
 		let tx_bin = util::from_hex(&content).unwrap();
 		Ok(Some(
-			ser::deserialize(&mut &tx_bin[..], ser::ProtocolVersion(1)).unwrap(),
+			ser::deserialize(
+				&mut &tx_bin[..],
+				ser::ProtocolVersion(1),
+				ser::DeserializationMode::default(),
+			)
+			.unwrap(),
 		))
 	}
 
@@ -417,7 +437,7 @@ where
 		let index = {
 			let batch = self.db.batch()?;
 			let deriv_key = to_key(DERIV_PREFIX, &mut parent_key_id.to_bytes().to_vec());
-			match batch.get_ser(&deriv_key)? {
+			match batch.get_ser(&deriv_key, None)? {
 				Some(idx) => idx,
 				None => 0,
 			}
@@ -430,7 +450,7 @@ where
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
 			let deriv_key = to_key(DERIV_PREFIX, &mut self.parent_key_id.to_bytes().to_vec());
-			match batch.get_ser(&deriv_key)? {
+			match batch.get_ser(&deriv_key, None)? {
 				Some(idx) => idx,
 				None => 0,
 			}
@@ -451,7 +471,7 @@ where
 			CONFIRMED_HEIGHT_PREFIX,
 			&mut self.parent_key_id.to_bytes().to_vec(),
 		);
-		let last_confirmed_height = match batch.get_ser(&height_key)? {
+		let last_confirmed_height = match batch.get_ser(&height_key, None)? {
 			Some(h) => h,
 			None => 0,
 		};
@@ -464,7 +484,7 @@ where
 			LAST_SCANNED_BLOCK,
 			&mut LAST_SCANNED_KEY.as_bytes().to_vec(),
 		);
-		let last_scanned_block = match batch.get_ser(&scanned_block_key)? {
+		let last_scanned_block = match batch.get_ser(&scanned_block_key, None)? {
 			Some(b) => b,
 			None => ScannedBlockInfo {
 				height: 0,
@@ -482,7 +502,7 @@ where
 			WALLET_INIT_STATUS,
 			&mut WALLET_INIT_STATUS_KEY.as_bytes().to_vec(),
 		);
-		let status = match batch.get_ser(&init_status_key)? {
+		let status = match batch.get_ser(&init_status_key, None)? {
 			Some(s) => s,
 			None => WalletInitStatus::InitComplete,
 		};
@@ -531,9 +551,10 @@ where
 			Some(i) => to_key_u64(OUTPUT_PREFIX, &mut id.to_bytes().to_vec(), *i),
 			None => to_key(OUTPUT_PREFIX, &mut id.to_bytes().to_vec()),
 		};
-		option_to_not_found(self.db.borrow().as_ref().unwrap().get_ser(&key), || {
-			format!("Key ID: {}", id)
-		})
+		option_to_not_found(
+			self.db.borrow().as_ref().unwrap().get_ser(&key, None),
+			|| format!("Key ID: {}", id),
+		)
 		.map_err(|e| e.into())
 	}
 
@@ -543,7 +564,12 @@ where
 		let db = db.as_ref().unwrap();
 		let protocol_version = db.protocol_version();
 		let prefix_iter = db.iter(&[OUTPUT_PREFIX], move |_, mut v| {
-			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+			ser::deserialize(
+				&mut v,
+				protocol_version,
+				ser::DeserializationMode::default(),
+			)
+			.map_err(From::from)
 		});
 		let iter = prefix_iter.expect("deserialize").into_iter();
 		Box::new(iter)
@@ -564,7 +590,13 @@ where
 
 	fn next_tx_log_id(&mut self, parent_key_id: &Identifier) -> Result<u32, Error> {
 		let tx_id_key = to_key(TX_LOG_ID_PREFIX, &mut parent_key_id.to_bytes().to_vec());
-		let last_tx_log_id = match self.db.borrow().as_ref().unwrap().get_ser(&tx_id_key)? {
+		let last_tx_log_id = match self
+			.db
+			.borrow()
+			.as_ref()
+			.unwrap()
+			.get_ser(&tx_id_key, None)?
+		{
 			Some(t) => t,
 			None => 0,
 		};
@@ -582,7 +614,12 @@ where
 		let db = db.as_ref().unwrap();
 		let protocol_version = db.protocol_version();
 		let prefix_iter = db.iter(&[TX_LOG_ENTRY_PREFIX], move |_, mut v| {
-			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+			ser::deserialize(
+				&mut v,
+				protocol_version,
+				ser::DeserializationMode::default(),
+			)
+			.map_err(From::from)
 		});
 		let iter = prefix_iter.expect("deserialize").into_iter();
 		Box::new(iter)
@@ -678,7 +715,12 @@ where
 		let db = db.as_ref().unwrap();
 		let protocol_version = db.protocol_version();
 		let prefix_iter = db.iter(&[ACCOUNT_PATH_MAPPING_PREFIX], move |_, mut v| {
-			ser::deserialize(&mut v, protocol_version).map_err(From::from)
+			ser::deserialize(
+				&mut v,
+				protocol_version,
+				ser::DeserializationMode::default(),
+			)
+			.map_err(From::from)
 		});
 		let iter = prefix_iter.expect("deserialize").into_iter();
 		Box::new(iter)
