@@ -870,7 +870,7 @@ pub trait OwnerRpc {
 	fn get_rewind_hash(&self, token: Token) -> Result<String, ErrorKind>;
 
 	/**
-	Networked version of [Owner::view_wallet_scan](struct.Owner.html#method.view_wallet_scan).
+	Networked version of [Owner::scan_rewind_hash](struct.Owner.html#method.scan_rewind_hash).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
