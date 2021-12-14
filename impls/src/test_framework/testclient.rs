@@ -292,7 +292,7 @@ where
 		m: WalletProxyMessage,
 	) -> Result<WalletProxyMessage, libwallet::Error> {
 		let split = m.body.split(',').collect::<Vec<&str>>();
-		let start_index = split[0].parse::<u64>().unwrap();
+		let start_index = std::cmp::max(split[0].parse::<u64>().unwrap(), 1);
 		let max = split[1].parse::<u64>().unwrap();
 		let end_index = split[2].parse::<u64>().unwrap();
 		let end_index = match end_index {
