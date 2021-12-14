@@ -16,7 +16,7 @@ use crate::core::core::FeeFields;
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
 use crate::libwallet::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, WalletInfo,
+	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, ViewWallet, WalletInfo,
 };
 use crate::util::ToHex;
 use grin_wallet_util::OnionV3Address;
@@ -289,6 +289,98 @@ pub fn txs(
 	}
 	Ok(())
 }
+
+pub fn view_wallet_balance(w: ViewWallet, cur_height: u64, dark_background_color_scheme: bool) {
+	println!(
+		"\n____ View Wallet Summary Info - Block Height: {} ____\n Rewind Hash - {}\n",
+		cur_height, w.rewind_hash
+	);
+	let mut table = table!();
+
+	if dark_background_color_scheme {
+		table.add_row(row![
+			bFG->"Total Balance",
+			FG->amount_to_hr_string(w.total_balance, false)
+		]);
+	} else {
+		table.add_row(row![
+			bFG->"Total Balance",
+			FG->amount_to_hr_string(w.total_balance, false)
+		]);
+	};
+	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+	table.printstd();
+	println!();
+}
+
+pub fn view_wallet_output(
+	view_wallet: ViewWallet,
+	cur_height: u64,
+	dark_background_color_scheme: bool,
+) -> Result<(), Error> {
+	println!();
+	let title = format!("View Wallet Outputs - Block Height: {}", cur_height);
+
+	if term::stdout().is_none() {
+		println!("Could not open terminal");
+		return Ok(());
+	}
+
+	let mut t = term::stdout().unwrap();
+	t.fg(term::color::MAGENTA).unwrap();
+	writeln!(t, "{}", title).unwrap();
+	t.reset().unwrap();
+
+	let mut table = table!();
+
+	table.set_titles(row![
+		bMG->"Output Commitment",
+		bMG->"MMR Index",
+		bMG->"Block Height",
+		bMG->"Locked Until",
+		bMG->"Coinbase?",
+		bMG->"# Confirms",
+		bMG->"Value",
+	]);
+
+	for m in view_wallet.output_result {
+		let commit = format!("{}", m.commit);
+		let index = m.mmr_index;
+		let height = format!("{}", m.height);
+		let lock_height = format!("{}", m.lock_height);
+		let is_coinbase = format!("{}", m.is_coinbase);
+		let num_confirmations = format!("{}", m.num_confirmations(cur_height));
+		let value = format!("{}", core::amount_to_hr_string(m.value, false));
+
+		if dark_background_color_scheme {
+			table.add_row(row![
+				bFC->commit,
+				bFB->index,
+				bFB->height,
+				bFB->lock_height,
+				bFY->is_coinbase,
+				bFB->num_confirmations,
+				bFG->value,
+			]);
+		} else {
+			table.add_row(row![
+				bFD->commit,
+				bFB->index,
+				bFB->height,
+				bFB->lock_height,
+				bFD->is_coinbase,
+				bFB->num_confirmations,
+				bFG->value,
+			]);
+		}
+	}
+
+	table.set_format(*prettytable::format::consts::FORMAT_NO_COLSEP);
+	table.printstd();
+	println!();
+	Ok(())
+}
+
 /// Display summary info in a pretty way
 pub fn info(
 	account: &str,

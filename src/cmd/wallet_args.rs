@@ -413,6 +413,23 @@ pub fn parse_owner_api_args(
 	Ok(())
 }
 
+pub fn parse_scan_rewind_hash_args(
+	args: &ArgMatches,
+) -> Result<command::ViewWalletScanArgs, ParseError> {
+	let rewind_hash = parse_required(args, "rewind_hash")?;
+	let start_height = parse_u64_or_none(args.value_of("start_height"));
+	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
+	if backwards_from_tip.is_some() && start_height.is_some() {
+		let msg = format!("backwards_from tip and start_height cannot both be present");
+		return Err(ParseError::ArgumentError(msg));
+	}
+	Ok(command::ViewWalletScanArgs {
+		rewind_hash: rewind_hash.into(),
+		start_height,
+		backwards_from_tip,
+	})
+}
+
 pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountArgs, ParseError> {
 	let create = match account_args.value_of("create") {
 		None => None,
@@ -1110,6 +1127,15 @@ where
 			global_wallet_args,
 			test_mode,
 		),
+		("rewind_hash", Some(_)) => command::rewind_hash(owner_api, km),
+		("scan_rewind_hash", Some(args)) => {
+			let a = arg_parse!(parse_scan_rewind_hash_args(&args));
+			command::scan_rewind_hash(
+				owner_api,
+				a,
+				wallet_config.dark_background_color_scheme.unwrap_or(true),
+			)
+		}
 		("account", Some(args)) => {
 			let a = arg_parse!(parse_account_args(&args));
 			command::account(owner_api, km, a)

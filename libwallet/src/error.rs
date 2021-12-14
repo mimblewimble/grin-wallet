@@ -298,6 +298,14 @@ pub enum ErrorKind {
 	#[fail(display = "Age error: {}", _0)]
 	Age(String),
 
+	/// Rewind Hash parsing error
+	#[fail(display = "Rewind Hash error: {}", _0)]
+	RewindHash(String),
+
+	/// Nonce creation error
+	#[fail(display = "Nonce error: {}", _0)]
+	Nonce(String),
+
 	/// Slatepack address parsing error
 	#[fail(display = "SlatepackAddress error: {}", _0)]
 	SlatepackAddress(String),
