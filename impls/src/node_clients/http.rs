@@ -21,7 +21,6 @@ use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
-use tokio::runtime::Handle;
 
 use crate::client_utils::{Client, RUNTIME};
 use crate::libwallet;
@@ -35,6 +34,7 @@ const ENDPOINT: &str = "/v2/foreign";
 
 #[derive(Clone)]
 pub struct HTTPNodeClient {
+	client: Client,
 	node_url: String,
 	node_api_secret: Option<String>,
 	node_version_info: Option<NodeVersionInfo>,
@@ -42,12 +42,16 @@ pub struct HTTPNodeClient {
 
 impl HTTPNodeClient {
 	/// Create a new client that will communicate with the given grin node
-	pub fn new(node_url: &str, node_api_secret: Option<String>) -> HTTPNodeClient {
-		HTTPNodeClient {
+	pub fn new(
+		node_url: &str,
+		node_api_secret: Option<String>,
+	) -> Result<HTTPNodeClient, libwallet::Error> {
+		Ok(HTTPNodeClient {
+			client: Client::new().map_err(|_| libwallet::ErrorKind::Node)?,
 			node_url: node_url.to_owned(),
 			node_api_secret: node_api_secret,
 			node_version_info: None,
-		}
+		})
 	}
 
 	/// Allow returning the chain height without needing a wallet instantiated
@@ -61,9 +65,10 @@ impl HTTPNodeClient {
 		params: &serde_json::Value,
 	) -> Result<D, libwallet::Error> {
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
-		let client = Client::new();
 		let req = build_request(method, params);
-		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
+		let res = self
+			.client
+			.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
 
 		match res {
 			Err(e) => {
@@ -156,9 +161,10 @@ impl NodeClient for HTTPNodeClient {
 		let params = json!([excess.0.as_ref().to_hex(), min_height, max_height]);
 		// have to handle this manually since the error needs to be parsed
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
-		let client = Client::new();
 		let req = build_request(method, &params);
-		let res = client.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
+		let res = self
+			.client
+			.post::<Request, Response>(url.as_str(), self.node_api_secret(), &req);
 
 		match res {
 			Err(e) => {
@@ -225,8 +231,6 @@ impl NodeClient for HTTPNodeClient {
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
 		let api_secret = self.node_api_secret();
 		let task = async move {
-			let client = Client::new();
-
 			let params: Vec<_> = query_params
 				.chunks(chunk_size)
 				.map(|c| json!([c, null, null, false, false]))
@@ -239,7 +243,7 @@ impl NodeClient for HTTPNodeClient {
 
 			let mut tasks = Vec::with_capacity(params.len());
 			for req in &reqs {
-				tasks.push(client.post_async::<Request, Response>(
+				tasks.push(self.client.post_async::<Request, Response>(
 					url.as_str(),
 					req,
 					api_secret.clone(),
@@ -250,14 +254,7 @@ impl NodeClient for HTTPNodeClient {
 			task.try_collect().await
 		};
 
-		let res: Result<Vec<Response>, _> = if Handle::try_current().is_ok() {
-			let rt = RUNTIME.clone();
-			std::thread::spawn(move || rt.lock().unwrap().block_on(task))
-				.join()
-				.unwrap()
-		} else {
-			RUNTIME.lock().unwrap().block_on(task)
-		};
+		let res: Result<Vec<_>, _> = RUNTIME.lock().unwrap().block_on(task);
 
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
