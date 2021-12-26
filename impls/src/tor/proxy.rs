@@ -19,20 +19,16 @@ use std::convert::TryFrom;
 use std::str;
 use url::Host;
 
-/// Tor configuration
+/// Tor Proxy
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TorProxy {
 	/// proxy type used for the proxy, eg "socks4", "socks5", "http", "https"
-	#[serde(default)]
 	pub transport: Option<String>,
 	/// Proxy address for the proxy, eg IP:PORT or Hostname
-	#[serde(default)]
 	pub address: Option<String>,
 	/// Username for the proxy authentification
-	#[serde(default)]
 	pub username: Option<String>,
 	/// Password for the proxy authentification
-	#[serde(default)]
 	pub password: Option<String>,
 	/// computer goes through a firewall that only allows connections to certain ports
 	pub allowed_port: Option<Vec<u16>>,
@@ -191,15 +187,12 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 				}
 			}
 		} else {
-			// In case the user wants
-			if let Some(ports) = tb.allowed_port {
-				Ok(TorProxy {
-					allowed_port: Some(ports),
-					..TorProxy::default()
-				})
-			} else {
-				return Err(ErrorKind::TorProxy("yolo".to_string()).into());
-			}
+			// In case the user want to allow only some ports
+			let ports = tb.allowed_port.unwrap();
+			Ok(TorProxy {
+				allowed_port: Some(ports),
+				..TorProxy::default()
+			})
 		}
 	}
 }
