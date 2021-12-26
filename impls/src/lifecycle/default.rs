@@ -144,7 +144,8 @@ where
 		abs_path.push(self.data_dir.clone());
 
 		default_config.update_paths(&abs_path);
-		let res = default_config.write_to_file(config_file_name.to_str().unwrap());
+		let res =
+			default_config.write_to_file(config_file_name.to_str().unwrap(), false, None, None);
 		if let Err(e) = res {
 			let msg = format!(
 				"Error creating config file as ({}): {}",

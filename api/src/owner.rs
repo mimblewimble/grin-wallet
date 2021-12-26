@@ -2369,7 +2369,8 @@ pub fn try_slatepack_sync_workflow(
 							&tor_addr.to_http_str(),
 							&tor_config.as_ref().unwrap().socks_proxy_addr,
 							&tor_config.as_ref().unwrap().send_config_dir,
-							&tor_config.as_ref().unwrap().bridge_line,
+							tor_config.as_ref().unwrap().bridge.clone(),
+							tor_config.as_ref().unwrap().proxy.clone(),
 						) {
 							Ok(s) => Some(s),
 							Err(e) => {
@@ -2392,7 +2393,8 @@ pub fn try_slatepack_sync_workflow(
 				match send_sync(s, "TOR") {
 					Ok(_) => return Ok(Some(ret_slate)),
 					Err(e) => {
-						if !tor_config.as_ref().unwrap().bridge_line.is_empty() {
+						let bridge_line = tor_config.as_ref().unwrap().bridge.bridge_line.as_ref();
+						if bridge_line.is_some() {
 							warn!("Unable to send via TOR: {}", e);
 						} else {
 							debug!("Unable to send via TOR: {}", e);

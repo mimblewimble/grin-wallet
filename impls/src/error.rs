@@ -91,6 +91,14 @@ pub enum ErrorKind {
 	#[fail(display = "{}", _0)]
 	ArgumentError(String),
 
+	/// Tor Bridge error
+	#[fail(display = "Tor Bridge Error: {}", _0)]
+	TorBridge(String),
+
+	/// Tor Proxy error
+	#[fail(display = "Tor Proxy Error: {}", _0)]
+	TorProxy(String),
+
 	/// Generating ED25519 Public Key
 	#[fail(display = "Error generating ed25519 secret key: {}", _0)]
 	ED25519Key(String),

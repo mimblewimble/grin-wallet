@@ -395,7 +395,7 @@ pub fn parse_listen_args(
 		config.api_listen_port = port.parse().unwrap();
 	}
 	if let Some(bridge) = args.value_of("bridge") {
-		tor_config.bridge_line = bridge.into();
+		tor_config.bridge.bridge_line = Some(bridge.into());
 	}
 	if args.is_present("no_tor") {
 		tor_config.use_tor_listener = false;

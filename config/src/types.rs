@@ -153,6 +153,15 @@ impl fmt::Display for ConfigError {
 	}
 }
 
+impl From<io::Error> for ConfigError {
+	fn from(error: io::Error) -> ConfigError {
+		ConfigError::FileIOError(
+			String::from(""),
+			format!("Error loading config file: {}", error),
+		)
+	}
+}
+
 /// Tor configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TorConfig {
@@ -164,9 +173,12 @@ pub struct TorConfig {
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
-	/// Send configuration directory
+	/// tor bridge config
 	#[serde(default)]
-	pub bridge_line: String,
+	pub bridge: TorBridgeConfig,
+	/// tor proxy config
+	#[serde(default)]
+	pub proxy: TorProxyConfig,
 }
 
 impl Default for TorConfig {
@@ -176,16 +188,66 @@ impl Default for TorConfig {
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
-			bridge_line: "".to_string(),
+			bridge: TorBridgeConfig::default(),
+			proxy: TorProxyConfig::default(),
 		}
 	}
 }
-impl From<io::Error> for ConfigError {
-	fn from(error: io::Error) -> ConfigError {
-		ConfigError::FileIOError(
-			String::from(""),
-			format!("Error loading config file: {}", error),
-		)
+
+/// Tor Bridge Config
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TorBridgeConfig {
+	/// Bridge Line
+	pub bridge_line: Option<String>,
+	/// Client Option
+	pub client_option: Option<String>,
+}
+
+impl Default for TorBridgeConfig {
+	fn default() -> TorBridgeConfig {
+		TorBridgeConfig {
+			bridge_line: None,
+			client_option: None,
+		}
+	}
+}
+
+impl fmt::Display for TorBridgeConfig {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{:?}", self)
+	}
+}
+
+/// Tor Proxy configuration (useful for protocols such as shadowsocks)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TorProxyConfig {
+	/// socks4 |socks5 | http(s)
+	pub transport: Option<String>,
+	/// ip or dns
+	pub address: Option<String>,
+	/// user for auth - socks5|https(s)
+	pub username: Option<String>,
+	/// pass for auth - socks5|https(s)
+	pub password: Option<String>,
+	/// allowed port - proxy
+	pub allowed_port: Option<Vec<u16>>,
+}
+
+impl Default for TorProxyConfig {
+	fn default() -> TorProxyConfig {
+		TorProxyConfig {
+			transport: None,
+			address: None,
+			username: None,
+			password: None,
+			allowed_port: None,
+		}
+	}
+}
+
+impl fmt::Display for TorProxyConfig {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{:?}", self)
 	}
 }
 

@@ -30,7 +30,7 @@ http = "0.2"
 hyper-rustls = "0.20"
 hyper-timeout = "0.3"
 
-#Socks/Tor
+#Socks/Tor/Bridge/Proxy
 byteorder = "1"
 hyper = "0.13"
 hyper-socks2-mw = "0.4"
@@ -40,6 +40,8 @@ data-encoding = "2"
 regex = "1.3"
 timer = "0.2"
 sysinfo = "0.14"
+base64 = "0.12.0"
+url = "2.1"
 
 grin_wallet_util = { path = "../util", version = "5.1.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "5.1.0-alpha.1" }

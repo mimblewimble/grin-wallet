@@ -167,7 +167,7 @@ pub fn config_command_wallet(
 	}
 	default_config.update_paths(&current_dir);
 	default_config
-		.write_to_file(config_file_name.to_str().unwrap())
+		.write_to_file(config_file_name.to_str().unwrap(), false, None, None)
 		.unwrap_or_else(|e| {
 			panic!("Error creating config file: {}", e);
 		});

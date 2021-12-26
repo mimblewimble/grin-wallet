@@ -339,7 +339,7 @@ where
 
 	let tor_config = match tor_config {
 		Some(mut c) => {
-			c.bridge_line = args.bridge.clone();
+			c.bridge.bridge_line = Some(args.bridge.clone());
 			c.skip_send_attempt = Some(args.skip_tor);
 			Some(c)
 		}

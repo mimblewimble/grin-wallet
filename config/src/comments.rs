@@ -22,7 +22,7 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"config_file_version".to_string(),
 		"
-#Version of the Generated Configuration File for Grin Wallet
+#Version of the Generated Configuration File for the Grin Wallet (DO NOT EDIT)
 "
 		.to_string(),
 	);
@@ -132,6 +132,22 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"[logging]".to_string(),
 		"
+#Type of proxy, eg \"socks4\", \"socks5\", \"http\", \"https\"
+#transport = \"https\"
+
+#Proxy address, eg IP:PORT or Hostname
+#server = \"IP:PORT\"
+
+#Username for the proxy server authentification
+#user = \"\"
+
+#Password for the proxy server authentification
+#pass = \"\"
+
+#This computer goes through a firewall that only allows connections to certain ports
+#allowed_port = [\"80\", \"443\"]
+
+
 #########################################
 ### LOGGING CONFIGURATION             ###
 #########################################
@@ -231,14 +247,33 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"bridge_line".to_string(),
+		"[tor.bridge]".to_string(),
 		"
-#TOR Bridge relays: Make possible to send and receive via TOR in a country where it is censored.
-#Enable it by entering a single bridge line. To disable it, you must let it empty or comment it.
-#Obfs4proxy binary must be installed and in the path.
-#Bridge line must be in the following format: `obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]`
+#########################################
+### TOR BRIDGE                        ###
+#########################################
 "
 		.to_string(),
+	);
+
+	retval.insert(
+		"[tor.proxy]".to_string(),
+		"
+#Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
+#Enable it by entering a single bridge line. To disable it, you must comment it.
+#obfs4proxy or snowflake client binary must be installed and on your path.
+#For example, the bridge line must be in the following format for obfs4 transport: \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"
+#bridge_line = \"\"
+
+#Plugging client option, needed only for snowflake (let it empty if you want to use the default option of tor) or debugging purpose
+#client_option = \"\"
+
+
+#########################################
+### TOR PROXY                         ###
+#########################################
+"
+	.to_string(),
 	);
 
 	retval
@@ -271,4 +306,79 @@ pub fn insert_comments(orig: String) -> String {
 		ret_val.push_str(&l);
 	}
 	ret_val
+}
+
+pub fn migrate_comments(
+	old_config: String,
+	new_config: String,
+	old_version: Option<u32>,
+) -> String {
+	let comments = comments();
+	let prohibited_key = match old_version {
+		None => vec!["[tor.bridge]", "[tor.proxy]", "[logging]"],
+		Some(_) => vec![],
+	};
+	let old_conf: Vec<&str> = old_config.split_inclusive('\n').collect();
+	let new_conf: Vec<&str> = new_config.split_inclusive('\n').collect();
+
+	let mut vec_key_old = vec![];
+	let mut vec_old_conf = vec![];
+	let mut hm_key_cmt_old: HashMap<String, String> = HashMap::new();
+
+	let mut vec_conf_new = vec![];
+	let mut vec_key_cmt_new: Vec<(String, String)> = Vec::new();
+
+	let mut new_config_str = String::from("");
+	// Get all key/comments from the old conf + hashmap
+	for line in old_conf {
+		let line_nospace = line.trim();
+		let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
+		if line.contains("#") || is_ascii_control {
+			vec_old_conf.push(line.to_owned());
+		} else {
+			let mut ret_val = String::from("");
+			for out_line in &vec_old_conf {
+				ret_val.push_str(&out_line);
+			}
+			let key = get_key(line_nospace);
+			if !(key == "NOT_FOUND") {
+				hm_key_cmt_old.insert(key.clone(), ret_val);
+				vec_key_old.push(key);
+				vec_old_conf.clear()
+			}
+		}
+	}
+	// Get all key/comments from the new conf
+	for line in new_conf {
+		let line_nospace = line.trim();
+		let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
+		if line.contains("#") || is_ascii_control {
+			vec_conf_new.push(line.to_owned());
+		} else {
+			let key = get_key(line_nospace);
+			if !(key == "NOT_FOUND") {
+				vec_key_cmt_new.push((key, line_nospace.to_string()))
+			}
+		}
+	}
+	for (key, line) in vec_key_cmt_new {
+		let is_key = vec_key_old.iter().any(|x| *x == key);
+		let key_fmt = format!("{}\n", line);
+		if is_key {
+			if prohibited_key.contains(&key.as_str()) {
+				let value = comments.get(&key).unwrap();
+				new_config_str.push_str(value);
+				new_config_str.push_str(&key_fmt);
+			} else {
+				let value = hm_key_cmt_old.get(&key).unwrap();
+				new_config_str.push_str(value);
+				new_config_str.push_str(&key_fmt);
+			}
+		} else {
+			let value = comments.get(&key).unwrap();
+			new_config_str.push_str(value);
+			new_config_str.push_str(&key_fmt);
+		}
+	}
+	new_config_str
 }

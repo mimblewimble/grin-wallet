@@ -24,9 +24,11 @@ use std::io::BufReader;
 use std::path::PathBuf;
 use toml;
 
-use crate::comments::insert_comments;
+use crate::comments::{insert_comments, migrate_comments};
 use crate::core::global;
-use crate::types::{ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers};
+use crate::types::{
+	ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers, TorBridgeConfig, TorProxyConfig,
+};
 use crate::types::{TorConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
 
@@ -309,10 +311,20 @@ impl GlobalWalletConfig {
 	}
 
 	/// Write configuration to a file
-	pub fn write_to_file(&mut self, name: &str) -> Result<(), ConfigError> {
+	pub fn write_to_file(
+		&mut self,
+		name: &str,
+		migration: bool,
+		old_config: Option<String>,
+		old_version: Option<u32>,
+	) -> Result<(), ConfigError> {
 		let conf_out = self.ser_config()?;
-		let fixed_config = GlobalWalletConfig::fix_log_level(conf_out);
-		let commented_config = insert_comments(fixed_config);
+		let commented_config = if migration {
+			migrate_comments(old_config.unwrap(), conf_out, old_version)
+		} else {
+			let fixed_config = GlobalWalletConfig::fix_log_level(conf_out);
+			insert_comments(fixed_config)
+		};
 		let mut file = File::create(name)?;
 		file.write_all(commented_config.as_bytes())?;
 		Ok(())
@@ -332,6 +344,11 @@ impl GlobalWalletConfig {
 		}
 		let adjusted_config = GlobalWalletConfigMembers {
 			config_file_version: GlobalWalletConfigMembers::default().config_file_version,
+			tor: Some(TorConfig {
+				bridge: TorBridgeConfig::default(),
+				proxy: TorProxyConfig::default(),
+				..config.tor.unwrap_or(TorConfig::default())
+			}),
 			..config
 		};
 		let mut gc = GlobalWalletConfig {
@@ -339,7 +356,12 @@ impl GlobalWalletConfig {
 			config_file_path: Some(config_file_path.clone()),
 		};
 		let str_path = config_file_path.into_os_string().into_string().unwrap();
-		gc.write_to_file(&str_path)?;
+		gc.write_to_file(
+			&str_path,
+			true,
+			Some(config_str),
+			config.config_file_version,
+		)?;
 		let adjusted_config_str = fs::read_to_string(str_path.clone())?;
 		Ok(adjusted_config_str)
 	}

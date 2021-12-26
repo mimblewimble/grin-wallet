@@ -20,19 +20,14 @@ use grin_wallet_util::OnionV3Address;
 use ed25519_dalek::ExpandedSecretKey;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::env;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, MAIN_SEPARATOR};
 use std::string::String;
 
 use failure::ResultExt;
-
-#[cfg(windows)]
-const OBFS4_EXE_NAME: &str = "obfs4proxy.exe";
-#[cfg(not(windows))]
-const OBFS4_EXE_NAME: &str = "obfs4proxy";
 
 const SEC_KEY_FILE: &str = "hs_ed25519_secret_key";
 const PUB_KEY_FILE: &str = "hs_ed25519_public_key";
@@ -177,8 +172,8 @@ pub fn output_torrc(
 	wallet_listener_addr: &str,
 	socks_port: &str,
 	service_dirs: &[String],
-	bridge_line: &str,
-	obfs4proxy_path: &str,
+	bridge_line: HashMap<String, String>,
+	proxy_config: HashMap<String, String>,
 ) -> Result<(), Error> {
 	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
 
@@ -195,12 +190,16 @@ pub fn output_torrc(
 	}
 
 	if !bridge_line.is_empty() {
-		props.add_item("UseBridges", &format!("{}", 1));
-		props.add_item(
-			"ClientTransportPlugin",
-			&format!("obfs4 exec {}", obfs4proxy_path),
-		);
-		props.add_item("Bridge", bridge_line);
+		props.add_item("UseBridges", "1");
+		for (key, value) in bridge_line {
+			props.add_item(&key, &value);
+		}
+	}
+
+	if !proxy_config.is_empty() {
+		for (key, value) in proxy_config {
+			props.add_item(&key, &value);
+		}
 	}
 
 	props.write_to_file(&torrc_file_path)?;
@@ -213,8 +212,8 @@ pub fn output_tor_listener_config(
 	tor_config_directory: &str,
 	wallet_listener_addr: &str,
 	listener_keys: &[SecretKey],
-	bridge_line: &str,
-	obfs4proxy_path: &str,
+	bridge_line: HashMap<String, String>,
+	proxy_config: HashMap<String, String>,
 ) -> Result<(), Error> {
 	let tor_data_dir = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TOR_DATA_DIR);
 
@@ -235,7 +234,7 @@ pub fn output_tor_listener_config(
 		"0",
 		&service_dirs,
 		bridge_line,
-		obfs4proxy_path,
+		proxy_config,
 	)?;
 
 	Ok(())
@@ -245,8 +244,8 @@ pub fn output_tor_listener_config(
 pub fn output_tor_sender_config(
 	tor_config_dir: &str,
 	socks_listener_addr: &str,
-	bridge_line: &str,
-	obfs4proxy_path: &str,
+	bridge_line: HashMap<String, String>,
+	proxy_config: HashMap<String, String>,
 ) -> Result<(), Error> {
 	// create data directory if it doesn't exist
 	fs::create_dir_all(&tor_config_dir).context(ErrorKind::IO)?;
@@ -257,44 +256,10 @@ pub fn output_tor_sender_config(
 		socks_listener_addr,
 		&[],
 		bridge_line,
-		obfs4proxy_path,
+		proxy_config,
 	)?;
 
 	Ok(())
-}
-
-pub fn check_bridge_line(bridge_line: &str) -> Result<(), Error> {
-	if !(bridge_line.starts_with("obfs4")
-		&& (bridge_line.ends_with("iat-mode=0")
-			|| bridge_line.ends_with("iat-mode=1")
-			|| bridge_line.ends_with("iat-mode=2")))
-	{
-		let msg = "Must be in the following format \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"".to_string();
-		return Err(ErrorKind::BridgeLine(msg).into());
-	}
-	Ok(())
-}
-
-pub fn is_obfs4proxy_in_path() -> Result<String, Error> {
-	let obfs4proxy_path = env::var_os("PATH").and_then(|paths| {
-		env::split_paths(&paths)
-			.filter_map(|dir| {
-				let full_path = dir.join(&OBFS4_EXE_NAME);
-				if full_path.is_file() {
-					Some(full_path)
-				} else {
-					None
-				}
-			})
-			.next()
-	});
-	match obfs4proxy_path {
-		Some(path) => Ok(path.into_os_string().into_string().unwrap()),
-		None => {
-			let msg = "Make sure obsf4proxy is installed and on your path".to_string();
-			Err(ErrorKind::Obfs4proxyBin(msg).into())
-		}
-	}
 }
 
 pub fn is_tor_address(input: &str) -> Result<(), Error> {
@@ -357,7 +322,8 @@ mod tests {
 		let secp = secp_inst.lock();
 		let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
-		output_tor_listener_config(test_dir, "127.0.0.1:3415", &[sec_key], "", "")?;
+		let hm = HashMap::new();
+		output_tor_listener_config(test_dir, "127.0.0.1:3415", &[sec_key], hm.clone(), hm)?;
 		clean_output_dir(test_dir);
 		Ok(())
 	}

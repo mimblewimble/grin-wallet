@@ -16,9 +16,14 @@
 use crate::client_utils::{Client, ClientError};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, ErrorKind, Slate};
+use crate::tor::bridge::TorBridge;
+use crate::tor::proxy::TorProxy;
 use crate::SlateSender;
+use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::path::MAIN_SEPARATOR;
 use std::sync::Arc;
@@ -35,7 +40,8 @@ pub struct HttpSlateSender {
 	socks_proxy_addr: Option<SocketAddr>,
 	tor_config_dir: String,
 	process: Option<Arc<tor_process::TorProcess>>,
-	bridge_line: String,
+	bridge: TorBridgeConfig,
+	proxy: TorProxyConfig,
 }
 
 impl HttpSlateSender {
@@ -50,7 +56,8 @@ impl HttpSlateSender {
 				socks_proxy_addr: None,
 				tor_config_dir: String::from(""),
 				process: None,
-				bridge_line: String::from(""),
+				bridge: TorBridgeConfig::default(),
+				proxy: TorProxyConfig::default(),
 			})
 		}
 	}
@@ -60,14 +67,16 @@ impl HttpSlateSender {
 		base_url: &str,
 		proxy_addr: &str,
 		tor_config_dir: &str,
-		bridge_line: &str,
+		tor_bridge: TorBridgeConfig,
+		tor_proxy: TorProxyConfig,
 	) -> Result<HttpSlateSender, SchemeNotHttp> {
 		let mut ret = Self::new(base_url)?;
 		ret.use_socks = true;
 		//TODO: Unwrap
 		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
 		ret.tor_config_dir = tor_config_dir.into();
-		ret.bridge_line = bridge_line.into();
+		ret.bridge = tor_bridge;
+		ret.proxy = tor_proxy;
 		Ok(ret)
 	}
 
@@ -84,19 +93,30 @@ impl HttpSlateSender {
 				"Starting TOR Process for send at {:?}",
 				self.socks_proxy_addr
 			);
-			let mut obfs4proxy_path = "".to_string();
-			if !self.bridge_line.is_empty() {
-				warn!("TOR Bridge relay configured");
-				tor_config::check_bridge_line(&self.bridge_line)
-					.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
-				obfs4proxy_path = tor_config::is_obfs4proxy_in_path()
-					.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
+
+			let mut bridge_config: HashMap<String, String> = HashMap::new();
+			if self.bridge.bridge_line.is_some() {
+				let bridge_struct = TorBridge::try_from(self.bridge.clone())
+					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+				bridge_config = bridge_struct
+					.to_hashmap()
+					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 			}
+
+			let mut proxy_config: HashMap<String, String> = HashMap::new();
+			if self.proxy.transport.is_some() || self.proxy.allowed_port.is_some() {
+				let proxy = TorProxy::try_from(self.proxy.clone())
+					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+				proxy_config = proxy
+					.to_hashmap()
+					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+			}
+
 			tor_config::output_tor_sender_config(
 				&tor_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
-				&self.bridge_line,
-				&obfs4proxy_path,
+				bridge_config,
+				proxy_config,
 			)
 			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 			// Start TOR process

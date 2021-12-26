@@ -25,6 +25,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
 use grin_wallet_api::JsonId;
+use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
 use grin_wallet_util::OnionV3Address;
 use hyper::body;
 use hyper::header::HeaderValue;
@@ -38,6 +39,7 @@ use std::sync::Arc;
 
 use crate::impls::tor::config as tor_config;
 use crate::impls::tor::process as tor_process;
+use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
@@ -83,7 +85,8 @@ fn init_tor_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
-	bridge_line: &str,
+	bridge: TorBridgeConfig,
+	tor_proxy: TorProxyConfig,
 ) -> Result<(tor_process::TorProcess, SlatepackAddress), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -104,14 +107,27 @@ where
 	let onion_address = OnionV3Address::from_private(&sec_key.0)
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-	let mut obfs4proxy_path = "".to_string();
-	if !bridge_line.is_empty() {
-		warn!("TOR Bridge relay configured");
-		tor_config::check_bridge_line(bridge_line)
-			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
-		obfs4proxy_path = tor_config::is_obfs4proxy_in_path()
-			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.inner).into()))?;
+
+	let mut hm_bridge_line: HashMap<String, String> = HashMap::new();
+	let mut tor_timeout = 20;
+	if bridge.bridge_line.is_some() {
+		tor_timeout = 40;
+		let bridge_config = tor_bridge::TorBridge::try_from(bridge)
+			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
+		hm_bridge_line = bridge_config
+			.to_hashmap()
+			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
 	}
+
+	let mut hm_proxy_config: HashMap<String, String> = HashMap::new();
+	if tor_proxy.transport.is_some() || tor_proxy.allowed_port.is_some() {
+		let proxy_config = tor_proxy::TorProxy::try_from(tor_proxy)
+			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
+		hm_proxy_config = proxy_config
+			.to_hashmap()
+			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.kind()).into()))?;
+	}
+
 	warn!(
 		"Starting TOR Hidden Service for API listener at address {}, binding to {}",
 		onion_address, addr
@@ -120,15 +136,15 @@ where
 		&tor_dir,
 		addr,
 		&vec![sec_key],
-		bridge_line,
-		&obfs4proxy_path,
+		hm_bridge_line,
+		hm_proxy_config,
 	)
 	.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))
 		.working_dir(&tor_dir)
-		.timeout(20)
+		.timeout(tor_timeout)
 		.completion_percent(100)
 		.launch()
 		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
@@ -281,14 +297,22 @@ where
 		let lc = w_lock.lc_provider()?;
 		let _ = lc.wallet_inst()?;
 	}
-	let bridge_line = match tor_config.clone() {
-		Some(s) => s.bridge_line,
-		None => "".to_string(),
+
+	let (tor_bridge, tor_proxy) = match tor_config.clone() {
+		Some(s) => (s.bridge, s.proxy),
+		None => (TorBridgeConfig::default(), TorProxyConfig::default()),
 	};
+
 	// need to keep in scope while the main listener is running
 	let (_tor_process, address) = match use_tor {
 		true => {
-			match init_tor_listener(wallet.clone(), keychain_mask.clone(), addr, &bridge_line) {
+			match init_tor_listener(
+				wallet.clone(),
+				keychain_mask.clone(),
+				addr,
+				tor_bridge,
+				tor_proxy,
+			) {
 				Ok((tp, addr)) => (Some(tp), Some(addr)),
 				Err(e) => {
 					warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
