@@ -314,67 +314,81 @@ pub fn migrate_comments(
 	old_version: Option<u32>,
 ) -> String {
 	let comments = comments();
+	// Prohibe the old key we are basing on to introduce new comments
 	let prohibited_key = match old_version {
-		None => vec!["[tor.bridge]", "[tor.proxy]", "[logging]"],
+		None => vec!["[logging]"],
 		Some(_) => vec![],
 	};
-	let old_conf: Vec<&str> = old_config.split_inclusive('\n').collect();
-	let new_conf: Vec<&str> = new_config.split_inclusive('\n').collect();
-
-	let mut vec_key_old = vec![];
 	let mut vec_old_conf = vec![];
-	let mut hm_key_cmt_old: HashMap<String, String> = HashMap::new();
+	let mut hm_key_cmt_old = HashMap::new();
+	let old_conf: Vec<&str> = old_config.split_inclusive('\n').collect();
+	// collect old key in a vec and insert old key/comments from the old conf in a hashmap
+	let vec_key_old = old_conf
+		.iter()
+		.filter_map(|line| {
+			let line_nospace = line.trim();
+			let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
+			match line.contains("#") || is_ascii_control {
+				true => {
+					vec_old_conf.push(line.to_owned());
+					None
+				}
+				false => {
+					let comments: String =
+						vec_old_conf.iter().map(|s| s.chars()).flatten().collect();
+					let key = get_key(line_nospace);
+					match !(key == "NOT_FOUND") {
+						true => {
+							vec_old_conf.clear();
+							hm_key_cmt_old.insert(key.clone(), comments);
+							Some(key)
+						}
+						false => None,
+					}
+				}
+			}
+		})
+		.collect::<Vec<String>>();
 
-	let mut vec_conf_new = vec![];
-	let mut vec_key_cmt_new: Vec<(String, String)> = Vec::new();
+	let new_conf: Vec<&str> = new_config.split_inclusive('\n').collect();
+	// collect new key and the whole key line from the new config
+	let vec_key_cmt_new = new_conf
+		.iter()
+		.filter_map(|line| {
+			let line_nospace = line.trim();
+			let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
+			match !(line.contains("#") || is_ascii_control) {
+				true => {
+					let key = get_key(line_nospace);
+					match !(key == "NOT_FOUND") {
+						true => Some((key, line_nospace.to_string())),
+						false => None,
+					}
+				}
+				false => None,
+			}
+		})
+		.collect::<Vec<(String, String)>>();
 
 	let mut new_config_str = String::from("");
-	// Get all key/comments from the old conf + hashmap
-	for line in old_conf {
-		let line_nospace = line.trim();
-		let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
-		if line.contains("#") || is_ascii_control {
-			vec_old_conf.push(line.to_owned());
-		} else {
-			let mut ret_val = String::from("");
-			for out_line in &vec_old_conf {
-				ret_val.push_str(&out_line);
-			}
-			let key = get_key(line_nospace);
-			if !(key == "NOT_FOUND") {
-				hm_key_cmt_old.insert(key.clone(), ret_val);
-				vec_key_old.push(key);
-				vec_old_conf.clear()
-			}
-		}
-	}
-	// Get all key/comments from the new conf
-	for line in new_conf {
-		let line_nospace = line.trim();
-		let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
-		if line.contains("#") || is_ascii_control {
-			vec_conf_new.push(line.to_owned());
-		} else {
-			let key = get_key(line_nospace);
-			if !(key == "NOT_FOUND") {
-				vec_key_cmt_new.push((key, line_nospace.to_string()))
-			}
-		}
-	}
-	for (key, line) in vec_key_cmt_new {
-		let is_key = vec_key_old.iter().any(|x| *x == key);
-		let key_fmt = format!("{}\n", line);
-		if is_key {
+	// Merging old comments in the new config (except if the key is contained in the prohibited vec) with all new introduced key comments
+	for (key, key_line) in vec_key_cmt_new {
+		let old_key_exist = vec_key_old.iter().any(|old_key| *old_key == key);
+		let key_fmt = format!("{}\n", key_line);
+		if old_key_exist {
 			if prohibited_key.contains(&key.as_str()) {
+				// push new config comment
 				let value = comments.get(&key).unwrap();
 				new_config_str.push_str(value);
 				new_config_str.push_str(&key_fmt);
 			} else {
+				// push old config comment
 				let value = hm_key_cmt_old.get(&key).unwrap();
 				new_config_str.push_str(value);
 				new_config_str.push_str(&key_fmt);
 			}
 		} else {
+			// old key does not exist, we push new comments
 			let value = comments.get(&key).unwrap();
 			new_config_str.push_str(value);
 			new_config_str.push_str(&key_fmt);
