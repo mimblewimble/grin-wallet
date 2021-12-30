@@ -499,8 +499,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let outfile = parse_optional(args, "outfile")?;
 
 	let bridge = match args.value_of("bridge") {
-		Some(b) => b,
-		None => "",
+		Some(b) => Some(b.to_string()),
+		None => None,
 	};
 
 	Ok(command::SendArgs {
@@ -518,7 +518,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		target_slate_version: target_slate_version,
 		outfile,
 		skip_tor: args.is_present("manual"),
-		bridge: bridge.into(),
+		bridge: bridge,
 	})
 }
 

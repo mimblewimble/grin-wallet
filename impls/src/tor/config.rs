@@ -172,8 +172,8 @@ pub fn output_torrc(
 	wallet_listener_addr: &str,
 	socks_port: &str,
 	service_dirs: &[String],
-	bridge_line: HashMap<String, String>,
-	proxy_config: HashMap<String, String>,
+	hm_tor_bridge: HashMap<String, String>,
+	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
 
@@ -189,15 +189,15 @@ pub fn output_torrc(
 		props.add_item("HiddenServicePort", &format!("80 {}", wallet_listener_addr));
 	}
 
-	if !bridge_line.is_empty() {
+	if !hm_tor_bridge.is_empty() {
 		props.add_item("UseBridges", "1");
-		for (key, value) in bridge_line {
+		for (key, value) in hm_tor_bridge {
 			props.add_item(&key, &value);
 		}
 	}
 
-	if !proxy_config.is_empty() {
-		for (key, value) in proxy_config {
+	if !hm_tor_proxy.is_empty() {
+		for (key, value) in hm_tor_proxy {
 			props.add_item(&key, &value);
 		}
 	}
@@ -212,8 +212,8 @@ pub fn output_tor_listener_config(
 	tor_config_directory: &str,
 	wallet_listener_addr: &str,
 	listener_keys: &[SecretKey],
-	bridge_line: HashMap<String, String>,
-	proxy_config: HashMap<String, String>,
+	hm_tor_bridge: HashMap<String, String>,
+	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	let tor_data_dir = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TOR_DATA_DIR);
 
@@ -233,8 +233,8 @@ pub fn output_tor_listener_config(
 		wallet_listener_addr,
 		"0",
 		&service_dirs,
-		bridge_line,
-		proxy_config,
+		hm_tor_bridge,
+		hm_tor_proxy,
 	)?;
 
 	Ok(())
@@ -244,8 +244,8 @@ pub fn output_tor_listener_config(
 pub fn output_tor_sender_config(
 	tor_config_dir: &str,
 	socks_listener_addr: &str,
-	bridge_line: HashMap<String, String>,
-	proxy_config: HashMap<String, String>,
+	hm_tor_bridge: HashMap<String, String>,
+	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	// create data directory if it doesn't exist
 	fs::create_dir_all(&tor_config_dir).context(ErrorKind::IO)?;
@@ -255,8 +255,8 @@ pub fn output_tor_sender_config(
 		"",
 		socks_listener_addr,
 		&[],
-		bridge_line,
-		proxy_config,
+		hm_tor_bridge,
+		hm_tor_proxy,
 	)?;
 
 	Ok(())

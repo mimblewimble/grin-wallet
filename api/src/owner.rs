@@ -2393,13 +2393,8 @@ pub fn try_slatepack_sync_workflow(
 				match send_sync(s, "TOR") {
 					Ok(_) => return Ok(Some(ret_slate)),
 					Err(e) => {
-						let bridge_line = tor_config.as_ref().unwrap().bridge.bridge_line.as_ref();
-						if bridge_line.is_some() {
-							warn!("Unable to send via TOR: {}", e);
-						} else {
-							debug!("Unable to send via TOR: {}", e);
-							warn!("Unable to send transaction via TOR");
-						}
+						debug!("Unable to send via TOR: {}", e);
+						warn!("Unable to send transaction via TOR");
 					}
 				}
 			}

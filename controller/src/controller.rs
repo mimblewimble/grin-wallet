@@ -108,22 +108,22 @@ where
 		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 
-	let mut hm_bridge_line: HashMap<String, String> = HashMap::new();
+	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
 	let mut tor_timeout = 20;
 	if bridge.bridge_line.is_some() {
 		tor_timeout = 40;
 		let bridge_config = tor_bridge::TorBridge::try_from(bridge)
 			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
-		hm_bridge_line = bridge_config
+		hm_tor_bridge = bridge_config
 			.to_hashmap()
 			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
 	}
 
-	let mut hm_proxy_config: HashMap<String, String> = HashMap::new();
+	let mut hm_tor_poxy: HashMap<String, String> = HashMap::new();
 	if tor_proxy.transport.is_some() || tor_proxy.allowed_port.is_some() {
 		let proxy_config = tor_proxy::TorProxy::try_from(tor_proxy)
 			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
-		hm_proxy_config = proxy_config
+		hm_tor_poxy = proxy_config
 			.to_hashmap()
 			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.kind()).into()))?;
 	}
@@ -136,8 +136,8 @@ where
 		&tor_dir,
 		addr,
 		&vec![sec_key],
-		hm_bridge_line,
-		hm_proxy_config,
+		hm_tor_bridge,
+		hm_tor_poxy,
 	)
 	.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process

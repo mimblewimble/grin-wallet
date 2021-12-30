@@ -94,20 +94,20 @@ impl HttpSlateSender {
 				self.socks_proxy_addr
 			);
 
-			let mut bridge_config: HashMap<String, String> = HashMap::new();
+			let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
 			if self.bridge.bridge_line.is_some() {
 				let bridge_struct = TorBridge::try_from(self.bridge.clone())
 					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
-				bridge_config = bridge_struct
+				hm_tor_bridge = bridge_struct
 					.to_hashmap()
 					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 			}
 
-			let mut proxy_config: HashMap<String, String> = HashMap::new();
+			let mut hm_tor_proxy: HashMap<String, String> = HashMap::new();
 			if self.proxy.transport.is_some() || self.proxy.allowed_port.is_some() {
 				let proxy = TorProxy::try_from(self.proxy.clone())
 					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
-				proxy_config = proxy
+				hm_tor_proxy = proxy
 					.to_hashmap()
 					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
 			}
@@ -115,8 +115,8 @@ impl HttpSlateSender {
 			tor_config::output_tor_sender_config(
 				&tor_dir,
 				&self.socks_proxy_addr.unwrap().to_string(),
-				bridge_config,
-				proxy_config,
+				hm_tor_bridge,
+				hm_tor_proxy,
 			)
 			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
 			// Start TOR process

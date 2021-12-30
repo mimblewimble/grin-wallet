@@ -259,7 +259,7 @@ pub struct SendArgs {
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
-	pub bridge: String,
+	pub bridge: Option<String>,
 }
 
 pub fn send<L, C, K>(
@@ -338,7 +338,7 @@ where
 
 	let tor_config = match tor_config {
 		Some(mut c) => {
-			c.bridge.bridge_line = Some(args.bridge.clone());
+			c.bridge.bridge_line = args.bridge.clone();
 			c.skip_send_attempt = Some(args.skip_tor);
 			Some(c)
 		}
