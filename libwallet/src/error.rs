@@ -298,6 +298,14 @@ pub enum ErrorKind {
 	#[fail(display = "Age error: {}", _0)]
 	Age(String),
 
+	/// Rewind Hash parsing error
+	#[fail(display = "Rewind Hash error: {}", _0)]
+	RewindHash(String),
+
+	/// Nonce creation error
+	#[fail(display = "Nonce error: {}", _0)]
+	Nonce(String),
+
 	/// Slatepack address parsing error
 	#[fail(display = "SlatepackAddress error: {}", _0)]
 	SlatepackAddress(String),
@@ -435,10 +443,26 @@ impl From<util::OnionV3AddressError> for Error {
 	}
 }
 
-impl From<age::Error> for Error {
-	fn from(error: age::Error) -> Error {
+impl From<age::EncryptError> for Error {
+	fn from(error: age::EncryptError) -> Error {
 		Error {
 			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
+	}
+}
+
+impl From<age::DecryptError> for Error {
+	fn from(error: age::DecryptError) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Age(format!("{}", error))),
+		}
+	}
+}
+
+impl From<&str> for Error {
+	fn from(error: &str) -> Error {
+		Error {
+			inner: Context::new(ErrorKind::Age(format!("Bech32 Key Encoding - {}", error))),
 		}
 	}
 }

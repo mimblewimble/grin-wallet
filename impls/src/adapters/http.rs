@@ -198,7 +198,7 @@ impl HttpSlateSender {
 		IN: Serialize,
 	{
 		let client =
-			if self.use_socks {
+			if !self.use_socks {
 				Client::new()
 			} else {
 				Client::with_socks_proxy(self.socks_proxy_addr.ok_or_else(|| {
