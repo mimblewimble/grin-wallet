@@ -338,7 +338,9 @@ where
 
 	let tor_config = match tor_config {
 		Some(mut c) => {
-			c.bridge.bridge_line = args.bridge.clone();
+			if let Some(b) = args.bridge.clone() {
+				c.bridge.bridge_line = Some(b);
+			}
 			c.skip_send_attempt = Some(args.skip_tor);
 			Some(c)
 		}
@@ -532,6 +534,7 @@ pub struct ReceiveArgs {
 	pub input_slatepack_message: Option<String>,
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
+	pub bridge: Option<String>,
 }
 
 pub fn receive<L, C, K>(
@@ -561,6 +564,9 @@ where
 
 	let tor_config = match tor_config {
 		Some(mut c) => {
+			if let Some(b) = args.bridge {
+				c.bridge.bridge_line = Some(b);
+			}
 			c.skip_send_attempt = Some(args.skip_tor);
 			Some(c)
 		}
@@ -816,6 +822,7 @@ pub struct ProcessInvoiceArgs {
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
+	pub bridge: Option<String>,
 }
 
 /// Process invoice
@@ -892,6 +899,9 @@ where
 
 	let tor_config = match tor_config {
 		Some(mut c) => {
+			if let Some(b) = args.bridge {
+				c.bridge.bridge_line = Some(b);
+			}
 			c.skip_send_attempt = Some(args.skip_tor);
 			Some(c)
 		}

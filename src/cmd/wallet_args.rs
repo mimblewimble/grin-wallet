@@ -544,11 +544,14 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = parse_optional(args, "bridge")?;
+
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
+		bridge,
 	})
 }
 
@@ -574,11 +577,14 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = parse_optional(args, "bridge")?;
+
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
+		bridge,
 	})
 }
 
@@ -733,6 +739,8 @@ pub fn parse_process_invoice_args(
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = parse_optional(args, "bridge")?;
+
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
@@ -743,6 +751,7 @@ pub fn parse_process_invoice_args(
 		ttl_blocks,
 		skip_tor: args.is_present("manual"),
 		outfile,
+		bridge,
 	})
 }
 

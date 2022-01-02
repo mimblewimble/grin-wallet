@@ -136,7 +136,7 @@ fn comments() -> HashMap<String, String> {
 #transport = \"https\"
 
 #Proxy address, eg IP:PORT or Hostname
-#server = \"IP:PORT\"
+#server = \"\"
 
 #Username for the proxy server authentification
 #user = \"\"
@@ -261,6 +261,7 @@ fn comments() -> HashMap<String, String> {
 		"
 #Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
 #Enable it by entering a single bridge line. To disable it, you must comment it.
+#Support of the transport: obfs4, meek and snowflake. 
 #obfs4proxy or snowflake client binary must be installed and on your path.
 #For example, the bridge line must be in the following format for obfs4 transport: \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"
 #bridge_line = \"\"
@@ -314,7 +315,7 @@ pub fn migrate_comments(
 	old_version: Option<u32>,
 ) -> String {
 	let comments = comments();
-	// Prohibe the old key we are basing on to introduce new comments
+	// Prohibe the key we are basing on to introduce new comments for [tor.proxy]
 	let prohibited_key = match old_version {
 		None => vec!["[logging]"],
 		Some(_) => vec![],
@@ -377,18 +378,18 @@ pub fn migrate_comments(
 		let key_fmt = format!("{}\n", key_line);
 		if old_key_exist {
 			if prohibited_key.contains(&key.as_str()) {
-				// push new config comment
+				// push new config key/comments
 				let value = comments.get(&key).unwrap();
 				new_config_str.push_str(value);
 				new_config_str.push_str(&key_fmt);
 			} else {
-				// push old config comment
+				// push old config key/comment
 				let value = hm_key_cmt_old.get(&key).unwrap();
 				new_config_str.push_str(value);
 				new_config_str.push_str(&key_fmt);
 			}
 		} else {
-			// old key does not exist, we push new comments
+			// old key does not exist, we push new key/comments
 			let value = comments.get(&key).unwrap();
 			new_config_str.push_str(value);
 			new_config_str.push_str(&key_fmt);

@@ -274,7 +274,7 @@ impl PluginClient {
 		FlagParser::new(s, flags, bool_flags, true).collect()
 	}
 
-	/// Try to find the plugin client path in the env var
+	/// Try to find the plugin client path
 	pub fn get_client_path(plugin: &str) -> Result<String, Error> {
 		let plugin_path = env::var_os("PATH").and_then(|path| {
 			env::split_paths(&path)
@@ -291,7 +291,7 @@ impl PluginClient {
 		match plugin_path {
 			Some(path) => Ok(path.into_os_string().into_string().unwrap()),
 			None => {
-				let msg = format!("Transport plugin client \"{}\" is missing, make sure it's installed and in your path.", plugin);
+				let msg = format!("Transport client \"{}\" is missing, make sure it's installed and on your path.", plugin);
 				return Err(ErrorKind::TorBridge(msg).into());
 			}
 		}
@@ -327,7 +327,7 @@ impl PluginClient {
 		let ice_addr = arg.trim();
 		let vec_ice_addr = ice_addr.split(",");
 		for addr in vec_ice_addr {
-			addr.to_lowercase();
+			let addr = addr.to_lowercase();
 			if addr.starts_with("stun:") || addr.starts_with("turn:") {
 				let address = addr.replace("stun:", "").replace("turn:", "");
 				let _p_address = TorProxy::parse_address(&address)

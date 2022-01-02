@@ -331,7 +331,7 @@ impl GlobalWalletConfig {
 	}
 	/// This migration does the following:
 	/// - Adds "config_file_version = 2"
-	/// - Introduce new commented key [tor.bridge] and [tor.proxy]
+	/// - Introduce new key config_file_version, [tor.bridge] and [tor.proxy]
 	/// - Migrate old config key/value and comments while it does not conflict with newly indroduced key and comments
 	fn migrate_config_file_version_none_to_2(
 		config_str: String,
