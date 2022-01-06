@@ -162,46 +162,43 @@ impl Default for Transport {
 impl Transport {
 	/// Parse the server address of the bridge line
 	fn parse_socketaddr_arg(arg: Option<&&str>) -> Result<String, Error> {
-		if let Some(addr) = arg {
-			let address = addr.parse::<SocketAddr>().map_err(|_e| {
-				ErrorKind::TorBridge(format!("Invalid bridge server address: {}", addr).into())
-			})?;
-			Ok(address.to_string())
-		} else {
-			let msg = format!("Missing bridge server address");
-			return Err(ErrorKind::TorBridge(msg).into());
+		match arg {
+			Some(addr) => {
+				let address = addr.parse::<SocketAddr>().map_err(|_e| {
+					ErrorKind::TorBridge(format!("Invalid bridge server address: {}", addr).into())
+				})?;
+				Ok(address.to_string())
+			}
+			None => {
+				let msg = format!("Missing bridge server address");
+				Err(ErrorKind::TorBridge(msg).into())
+			}
 		}
 	}
 
 	/// Parse the fingerprint of the bridge line (obfs4/snowflake/meek)
-	fn parse_fingerprint_arg(arg: Option<&&str>, obfs4: bool) -> Result<Option<String>, Error> {
-		if let Some(f) = arg {
-			let fgp = f.to_owned();
-			// fingerprint may be missing as it's optional for snowflake/meek
-			if fgp.contains("=") && !obfs4 {
-				return Ok(None);
+	fn parse_fingerprint_arg(arg: Option<&&str>) -> Result<Option<String>, Error> {
+		match arg {
+			Some(f) => {
+				let fgp = f.to_owned();
+				let is_hex = fgp.chars().all(|c| c.is_ascii_hexdigit());
+				let fingerprint = fgp.to_uppercase();
+				if !(is_hex && fingerprint.len() == 40) {
+					let msg = format!("Invalid fingerprint: {}", fingerprint);
+					return Err(ErrorKind::TorBridge(msg).into());
+				}
+				Ok(Some(fingerprint))
 			}
-			let is_hex = fgp.chars().all(|c| c.is_ascii_hexdigit());
-			let fingerprint = fgp.to_uppercase();
-			if !(is_hex && fingerprint.len() == 40) {
-				let msg = format!("Invalid fingerprint: {}", fingerprint);
-				return Err(ErrorKind::TorBridge(msg).into());
-			}
-			Ok(Some(fingerprint))
-		} else if obfs4 {
-			// if only socketaddr is given on obfs4 transport
-			let msg =
-				format!("Missing fingerprint, it's mandatory to specify one for obfs4 bridge type");
-			return Err(ErrorKind::TorBridge(msg).into());
-		} else {
-			// if only socketaddr is given and not obfs4
-			Ok(None)
+			None => Ok(None),
 		}
 	}
 	/// Parse the certificate of the bridge line (obfs4)
 	pub fn parse_cert_arg(arg: &str) -> Result<String, Error> {
 		let cert_vec = base64::decode(arg).map_err(|_e| {
-			ErrorKind::TorBridge(format!("Error decoding bridge base64 certificate: {}", arg))
+			ErrorKind::TorBridge(format!(
+				"Invalid certificate, error decoding bridge certificate: {}",
+				arg
+			))
 		})?;
 		if cert_vec.len() != 52 {
 			let msg = format!("Invalid certificate: {}", arg);
@@ -292,7 +289,7 @@ impl PluginClient {
 			Some(path) => Ok(path.into_os_string().into_string().unwrap()),
 			None => {
 				let msg = format!("Transport client \"{}\" is missing, make sure it's installed and on your path.", plugin);
-				return Err(ErrorKind::TorBridge(msg).into());
+				Err(ErrorKind::TorBridge(msg).into())
 			}
 		}
 	}
@@ -317,7 +314,7 @@ impl PluginClient {
 					"Invalid front argument: {}, in the client option. Must be a DNS Domain",
 					front
 				);
-				return Err(ErrorKind::TorBridge(msg).into());
+				Err(ErrorKind::TorBridge(msg).into())
 			}
 		}
 	}
@@ -345,11 +342,12 @@ impl PluginClient {
 
 	/// Parse the max value for the arg -max in the client line option (snowflake)
 	fn parse_max_arg(arg: &str) -> Result<String, Error> {
-		if let Ok(max) = arg.parse::<u16>() {
-			Ok(max.to_string())
-		} else {
-			let msg = format!("Invalid -max argument: {} in the client option.", arg);
-			return Err(ErrorKind::TorBridge(msg).into());
+		match arg.parse::<u16>() {
+			Ok(max) => Ok(max.to_string()),
+			Err(_e) => {
+				let msg = format!("Invalid -max argument: {} in the client option.", arg);
+				Err(ErrorKind::TorBridge(msg).into())
+			}
 		}
 	}
 
@@ -360,7 +358,7 @@ impl PluginClient {
 			"ERROR" | "WARN" | "INFO" | "DEBUG" => Ok(log_level.to_string()),
 			_ => {
 				let msg = format!("Invalid log level argurment: {}, in the client option. Must be: ERROR, WARN, INFO or DEBUG", log_level);
-				return Err(ErrorKind::TorBridge(msg).into());
+				Err(ErrorKind::TorBridge(msg).into())
 			}
 		}
 	}
@@ -455,14 +453,12 @@ impl TorBridge {
 				ret_val.insert(chskey, chsvalue);
 
 				let hskey = "Bridge".to_string();
-				let hsvalue = format!(
-					"{} {} {} cert={} iat-mode={}",
-					transport,
-					bridge.server.as_ref().unwrap(),
-					bridge.fingerprint.as_ref().unwrap(),
-					bridge.cert.as_ref().unwrap(),
-					bridge.iatmode.as_ref().unwrap()
-				);
+				let mut hsvalue = format!("{} {}", transport, bridge.server.as_ref().unwrap());
+				if let Some(fingerprint) = bridge.fingerprint {
+					hsvalue.push_str(format!(" {}", fingerprint).as_str())
+				}
+				hsvalue.push_str(format!(" cert={}", bridge.cert.unwrap()).as_str());
+				hsvalue.push_str(format!(" iat-mode={}", bridge.iatmode.unwrap()).as_str());
 				ret_val.insert(hskey, hsvalue);
 
 				Ok(ret_val)
@@ -521,7 +517,7 @@ impl TorBridge {
 					"Invalid transport method: {} - must be obfs4/meek_lite/meek/snowflake",
 					transport
 				);
-				return Err(ErrorKind::TorBridge(msg).into());
+				Err(ErrorKind::TorBridge(msg).into())
 			}
 		}
 	}
@@ -542,7 +538,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 		match transport.as_str() {
 			"obfs4" => {
 				let socketaddr = Transport::parse_socketaddr_arg(iter.next())?;
-				let fingerprint = Transport::parse_fingerprint_arg(iter.next(), true)?;
+				let fingerprint = Transport::parse_fingerprint_arg(iter.next())?;
 				let cert = match flags.get_key_value("cert=") {
 					Some(hm) => Transport::parse_cert_arg(hm.1)?,
 					None => {
@@ -551,14 +547,10 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 						return Err(ErrorKind::TorBridge(msg).into());
 					}
 				};
-				let iatmode =
-					match flags.get_key_value("iat-mode=") {
-						Some(hm) => Transport::parse_iatmode_arg(hm.1)?,
-						None => {
-							let msg = format!("Missing iat-mode argurment in obfs4 transport, specify \"iat-mode=\"");
-							return Err(ErrorKind::TorBridge(msg).into());
-						}
-					};
+				let iatmode = match flags.get_key_value("iat-mode=") {
+					Some(hm) => Transport::parse_iatmode_arg(hm.1)?,
+					None => String::from("0"),
+				};
 				let path = PluginClient::get_client_path(OBFS4_EXE_NAME)?;
 				let option = match tbc.client_option {
 					Some(o) => Some(PluginClient::parse_client(&o, false)?),
@@ -583,7 +575,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 
 			"meek_lite" | "meek" => {
 				let socketaddr = Transport::parse_socketaddr_arg(iter.next())?;
-				let fingerprint = Transport::parse_fingerprint_arg(iter.next(), false)?;
+				let fingerprint = Transport::parse_fingerprint_arg(iter.next())?;
 				let url = match flags.get_key_value("url=") {
 					Some(hm) => PluginClient::parse_url_arg(hm.1)?,
 					None => {
@@ -631,7 +623,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 
 			"snowflake" => {
 				let socketaddr = Transport::parse_socketaddr_arg(iter.next())?;
-				let fingerprint = Transport::parse_fingerprint_arg(iter.next(), false)?;
+				let fingerprint = Transport::parse_fingerprint_arg(iter.next())?;
 				let path = PluginClient::get_client_path(SNOWFLAKE_EXE_NAME)?;
 				let option = match tbc.client_option {
 					Some(o) => PluginClient::parse_client(&o, true)?,
@@ -662,7 +654,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					"Invalid transport method: {} - must be obfs4/meek_lite/meek/snowflake",
 					transport
 				);
-				return Err(ErrorKind::TorBridge(msg).into());
+				Err(ErrorKind::TorBridge(msg).into())
 			}
 		}
 	}

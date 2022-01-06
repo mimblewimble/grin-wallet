@@ -144,8 +144,8 @@ fn comments() -> HashMap<String, String> {
 #Password for the proxy server authentification
 #pass = \"\"
 
-#This computer goes through a firewall that only allows connections to certain ports
-#allowed_port = [\"80\", \"443\"]
+#This computer goes through a firewall that only allows connections to certain ports (Optional)
+#allowed_port = [80, 443]
 
 
 #########################################

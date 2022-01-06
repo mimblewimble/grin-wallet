@@ -47,43 +47,36 @@ impl Default for TorProxy {
 }
 
 impl TorProxy {
-	fn remove_whitespace(s: &str) -> String {
-		s.chars().filter(|c| !c.is_whitespace()).collect()
-	}
-
-	fn parse_ip_dns(addr: &str) -> Result<(String, Option<String>), Error> {
-		let mut host: String;
+	fn parse_host_port(addr: &str) -> Result<(String, Option<String>), Error> {
+		let host: String;
 		let str_port: Option<String>;
-		let mut split = vec![];
-		let address = TorProxy::remove_whitespace(addr);
+		let address = addr
+			.chars()
+			.filter(|c| !c.is_whitespace())
+			.collect::<String>();
 		if address.starts_with('[') {
-			split = address.split_inclusive("]:").collect();
-			host = split[0].into();
-			host.push_str("]");
-			str_port = Some(split[1].into());
-		} else if address.contains(":") {
-			split = address.split(":").collect();
-			host = split[0].into();
-			str_port = Some(split[1].into());
+			let split = address.split_once("]:").unwrap();
+			host = split.0.to_string();
+			str_port = Some(split.1.to_string());
+		} else if address.contains(":") && !address.ends_with(":") {
+			let split = address.split_once(":").unwrap();
+			host = split.0.to_string();
+			str_port = Some(split.1.to_string());
 		} else {
 			host = address.to_string();
 			str_port = None;
 		};
-		if (split.len()) > 2 {
-			let msg = format!("Error parsing the address: {}", addr);
-			return Err(ErrorKind::TorProxy(msg).into());
-		}
 		Ok((host, str_port))
 	}
 
 	pub fn parse_address(addr: &str) -> Result<(String, Option<u16>), Error> {
-		let (host, str_port) = TorProxy::parse_ip_dns(&addr)?;
+		let (host, str_port) = TorProxy::parse_host_port(&addr)?;
 		let host = Host::parse(&host)
 			.map_err(|_e| ErrorKind::TorProxy(format!("Invalid host address: {}", host)))?;
 		let port = if let Some(p) = str_port {
-			let res = p.parse::<u16>().map_err(|_e| {
-				ErrorKind::TorProxy(format!("Invalid port in the server address: {}", p))
-			})?;
+			let res = p
+				.parse::<u16>()
+				.map_err(|_e| ErrorKind::TorProxy(format!("Invalid port number: {}", p)))?;
 			Some(res)
 		} else {
 			None
@@ -92,7 +85,7 @@ impl TorProxy {
 	}
 
 	pub fn to_hashmap(self) -> Result<HashMap<String, String>, Error> {
-		let mut hm: HashMap<String, String> = HashMap::new();
+		let mut hm = HashMap::new();
 		if let Some(ports) = self.allowed_port {
 			let mut allowed_ports = "".to_string();
 			let last_port = ports.last().unwrap().to_owned();
@@ -109,7 +102,7 @@ impl TorProxy {
 		}
 
 		let transport = match self.transport {
-			Some(t) => t.to_lowercase(),
+			Some(t) => t,
 			None => return Ok(hm),
 		};
 		match transport.as_str() {
@@ -180,10 +173,10 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 				// Missing transport type
 				_ => {
 					let msg = format!(
-						"Invalid proxy type: {} - must be socks4/socks5/http(s)",
+						"Invalid proxy transport: {} - must be socks4/socks5/http(s)",
 						transport
 					);
-					return Err(ErrorKind::TorProxy(msg).into());
+					Err(ErrorKind::TorProxy(msg).into())
 				}
 			}
 		} else {
