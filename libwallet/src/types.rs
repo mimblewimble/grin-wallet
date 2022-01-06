@@ -1019,6 +1019,45 @@ impl ser::Readable for WalletInitStatus {
 	}
 }
 
+/// Utility struct for return values from below
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewWallet {
+	/// Rewind Hash used to retrieve the outputs
+	pub rewind_hash: String,
+	/// All outputs information that belongs to the rewind hash
+	pub output_result: Vec<ViewWalletOutputResult>,
+	/// total balance
+	pub total_balance: u64,
+	/// last pmmr index
+	pub last_pmmr_index: u64,
+}
+/// Utility struct for return values from below
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewWalletOutputResult {
+	///
+	pub commit: String,
+	///
+	pub value: u64,
+	///
+	pub height: u64,
+	///
+	pub mmr_index: u64,
+	///
+	pub is_coinbase: bool,
+	///
+	pub lock_height: u64,
+}
+
+impl ViewWalletOutputResult {
+	pub fn num_confirmations(&self, tip_height: u64) -> u64 {
+		if self.height > tip_height {
+			return 0;
+		} else {
+			1 + (tip_height - self.height)
+		}
+	}
+}
+
 /// Serializes an Option<Duration> to and from a string
 pub mod option_duration_as_secs {
 	use serde::de::Error;

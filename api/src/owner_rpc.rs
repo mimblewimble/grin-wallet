@@ -21,7 +21,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
 	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack, SlatepackAddress,
-	StatusMessage, TxLogEntry, VersionedSlate, WalletInfo, WalletLCProvider,
+	StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -839,6 +839,115 @@ pub trait OwnerRpc {
 		id: Option<u32>,
 		slate_id: Option<Uuid>,
 	) -> Result<Option<VersionedSlate>, ErrorKind>;
+
+	/**
+	Networked version of [Owner::get_rewind_hash](struct.Owner.html#method.get_rewind_hash).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "get_rewind_hash",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id":1,
+		"jsonrpc":"2.0",
+		"result":{
+			"Ok":"c820c52a492b7db511c752035483d0e50e8fd3ec62544f1b99638e220a4682de"
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	 */
+	fn get_rewind_hash(&self, token: Token) -> Result<String, ErrorKind>;
+
+	/**
+	Networked version of [Owner::scan_rewind_hash](struct.Owner.html#method.scan_rewind_hash).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "scan_rewind_hash",
+		"params": {
+			"rewind_hash": "c820c52a492b7db511c752035483d0e50e8fd3ec62544f1b99638e220a4682de",
+			"start_height": 1
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id":1,
+		"jsonrpc":"2.0",
+		"result":{
+			"Ok":{
+				"last_pmmr_index":8,
+				"output_result":[
+					   {
+						   "commit":"08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+						   "height":1,
+						   "is_coinbase":true,
+						   "lock_height":4,
+						   "mmr_index":1,
+						   "value":60000000000
+					   },
+					   {
+						   "commit":"087df32304c5d4ae8b2af0bc31e700019d722910ef87dd4eec3197b80b207e3045",
+						   "height":2,
+						   "is_coinbase":true,
+						   "lock_height":5,
+						   "mmr_index":2,
+						   "value":60000000000
+					   },
+					   {
+						   "commit":"084219d64014223a205431acfa8f8cc3e8cb8c6d04df80b26713314becf83861c7",
+						   "height":3,
+						   "is_coinbase":true,
+						   "lock_height":6,
+						   "mmr_index":4,
+						   "value":60000000000
+					   },
+					   {
+						   "commit":"09c5efc4dab05d7d16fc90168c484c13f15a142ea4e1bf93c3fad12f5e8a402598",
+						   "height":4,
+						   "is_coinbase":true,
+						   "lock_height":7,
+						   "mmr_index":5,
+						   "value":60000000000
+					   },
+					   {
+						   "commit":"08fe198e525a5937d0c5d01fa354394d2679be6df5d42064a0f7550c332fce3d9d",
+						   "height":5,
+						   "is_coinbase":true,
+						   "lock_height":8,
+						   "mmr_index":8,
+						   "value":60000000000
+					   }
+				],
+				"rewind_hash":"c820c52a492b7db511c752035483d0e50e8fd3ec62544f1b99638e220a4682de",
+				"total_balance":300000000000
+			}
+		}
+	 }
+	# "#
+	# , 5, false, false, false, false);
+	```
+	 */
+	fn scan_rewind_hash(
+		&self,
+		rewind_hash: String,
+		start_height: Option<u64>,
+	) -> Result<ViewWallet, ErrorKind>;
 
 	/**
 	Networked version of [Owner::scan](struct.Owner.html#method.scan).
@@ -1894,6 +2003,18 @@ where
 			fluff,
 		)
 		.map_err(|e| e.kind())
+	}
+
+	fn get_rewind_hash(&self, token: Token) -> Result<String, ErrorKind> {
+		Owner::get_rewind_hash(self, (&token.keychain_mask).as_ref()).map_err(|e| e.kind())
+	}
+
+	fn scan_rewind_hash(
+		&self,
+		rewind_hash: String,
+		start_height: Option<u64>,
+	) -> Result<ViewWallet, ErrorKind> {
+		Owner::scan_rewind_hash(self, rewind_hash, start_height).map_err(|e| e.kind())
 	}
 
 	fn scan(

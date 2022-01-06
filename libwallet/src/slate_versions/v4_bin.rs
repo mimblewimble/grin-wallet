@@ -401,8 +401,12 @@ impl<'de> serde::Deserialize<'de> for SlateV4Bin {
 				E: serde::de::Error,
 			{
 				let mut reader = std::io::Cursor::new(value.to_vec());
-				let s = grin_ser::deserialize(&mut reader, grin_ser::ProtocolVersion(4))
-					.map_err(|err| serde::de::Error::custom(err.to_string()))?;
+				let s = grin_ser::deserialize(
+					&mut reader,
+					grin_ser::ProtocolVersion(4),
+					grin_ser::DeserializationMode::default(),
+				)
+				.map_err(|err| serde::de::Error::custom(err.to_string()))?;
 				Ok(s)
 			}
 		}
