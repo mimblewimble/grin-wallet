@@ -105,22 +105,23 @@ pub struct Client {
 
 impl Client {
 	/// New client
-	pub fn new() -> Result<Self, Error> {
-		Self::build(None)
+	pub fn new(read_and_write_timeout: Option<u64>) -> Result<Self, Error> {
+		Self::build(None, read_and_write_timeout)
 	}
 
-	pub fn with_socks_proxy(socks_proxy_addr: SocketAddr) -> Result<Self, Error> {
-		Self::build(Some(socks_proxy_addr))
+	pub fn with_socks_proxy(socks_proxy_addr: SocketAddr, read_and_write_timeout: Option<u64>) -> Result<Self, Error> {
+		Self::build(Some(socks_proxy_addr), read_and_write_timeout)
 	}
 
-	fn build(socks_proxy_addr: Option<SocketAddr>) -> Result<Self, Error> {
+	fn build(socks_proxy_addr: Option<SocketAddr>, read_and_write_timeout: Option<u64>) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
 		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 		let mut builder = ClientBuilder::new()
-			.timeout(Duration::from_secs(20))
+			.timeout(Duration::from_secs(read_and_write_timeout.unwrap_or(20)))
+			.connect_timeout(Duration::from_secs(20))
 			.use_rustls_tls()
 			.default_headers(headers);
 

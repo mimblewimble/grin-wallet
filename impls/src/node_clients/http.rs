@@ -47,7 +47,7 @@ impl HTTPNodeClient {
 		node_api_secret: Option<String>,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
 		Ok(HTTPNodeClient {
-			client: Client::new().map_err(|_| libwallet::ErrorKind::Node)?,
+			client: Client::new(None).map_err(|_| libwallet::ErrorKind::Node)?,
 			node_url: node_url.to_owned(),
 			node_api_secret: node_api_secret,
 			node_version_info: None,
