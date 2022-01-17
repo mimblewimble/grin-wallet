@@ -230,6 +230,7 @@ impl NodeClient for HTTPNodeClient {
 
 		let url = format!("{}{}", self.node_url(), ENDPOINT);
 		let api_secret = self.node_api_secret();
+		let cl = self.client.clone();
 		let task = async move {
 			let params: Vec<_> = query_params
 				.chunks(chunk_size)
@@ -243,7 +244,7 @@ impl NodeClient for HTTPNodeClient {
 
 			let mut tasks = Vec::with_capacity(params.len());
 			for req in &reqs {
-				tasks.push(self.client.post_async::<Request, Response>(
+				tasks.push(cl.post_async::<Request, Response>(
 					url.as_str(),
 					req,
 					api_secret.clone(),
@@ -254,7 +255,11 @@ impl NodeClient for HTTPNodeClient {
 			task.try_collect().await
 		};
 
-		let res: Result<Vec<_>, _> = RUNTIME.lock().unwrap().block_on(task);
+		let rt = RUNTIME.clone();
+		let res: Result<Vec<_>, _> =
+			std::thread::spawn(move || rt.lock().unwrap().block_on(async move { task.await }))
+				.join()
+				.unwrap();
 
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {

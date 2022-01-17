@@ -319,9 +319,13 @@ impl Client {
 		if Handle::try_current().is_ok() {
 			let rt = RUNTIME.clone();
 			let client = self.clone();
-			std::thread::spawn(move || rt.lock().unwrap().block_on(client.send_request_async(req)))
-				.join()
-				.unwrap()
+			std::thread::spawn(move || {
+				rt.lock()
+					.unwrap()
+					.block_on(async { client.send_request_async(req).await })
+			})
+			.join()
+			.unwrap()
 		} else {
 			RUNTIME
 				.lock()
