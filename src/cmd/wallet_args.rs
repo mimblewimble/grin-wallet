@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Argument parsing and error handling for wallet commands
+use self::core::consensus;
 use crate::api::TLSConfig;
 use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
-/// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
@@ -965,6 +966,148 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 	})
 }
 
+// TODO: parse args
+pub fn parse_contract_new_args(
+	args: &ArgMatches,
+	account: &String,
+) -> Result<command::ContractNewArgs, ParseError> {
+	let counterparty_addr = args.value_of("encrypt-for").unwrap();
+
+	// TODO: Make sure the values are in some expected bounds.
+	// TODO: How to deal with decimals and precision? we probably want users to express the value in Grin.
+	// Parse receive and send params and convert them to nano grin
+	let receive = match args.value_of("receive") {
+		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		None => None,
+	};
+	let send = match args.value_of("send") {
+		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		None => None,
+	};
+	if receive.is_some() && send.is_some() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You can only specify receive or send, not both.",
+		)));
+	};
+	// TODO: verify this is correct e.g. which values are passed here by default etc.
+	let src_acct_name = Some(String::from(account));
+	let add_outputs = args.is_present("add-outputs");
+	let as_json = args.is_present("as-json");
+	let no_payjoin = args.is_present("no-payjoin");
+	let use_inputs = match args.value_of("use-inputs") {
+		Some(v) => {
+			if no_payjoin {
+				panic!("Can't use --no-payjoin with --use-inputs.");
+			}
+			Some(String::from(v))
+		}
+		None => {
+			if no_payjoin {
+				None
+			} else {
+				// Some("any") means pick 1 random input to contribute (payjoin)
+				Some(String::from("any"))
+			}
+		}
+	};
+	let make_outputs = match args.value_of("make-outputs") {
+		Some(v) => Some(String::from(v)),
+		None => None,
+	};
+
+	let num_participants = args
+		.value_of("num-participants")
+		.unwrap()
+		.parse::<u8>()
+		.unwrap();
+
+	Ok(command::ContractNewArgs {
+		counterparty_addr: String::from(counterparty_addr),
+		receive: receive,
+		send: send,
+		src_acct_name: src_acct_name,
+		num_participants: num_participants,
+		as_json: as_json,
+		add_outputs: add_outputs,
+		use_inputs: use_inputs,
+		make_outputs: make_outputs,
+		// TODO: Future features below
+		fee_rate: None,
+		outfile: None,
+	})
+}
+
+// TODO: parse args
+pub fn parse_contract_setup_args(
+	args: &ArgMatches,
+) -> Result<command::ContractSetupArgs, ParseError> {
+	// TODO: Make sure the values are in some expected bounds.
+	// TODO: How to deal with decimals and precision? we probably want users to express the value in Grin.
+	let counterparty_addr = match args.value_of("encrypt-for") {
+		Some(v) => Some(String::from(v)),
+		None => None,
+	};
+	// Parse receive and send params and convert them to nano grin
+	let receive = match args.value_of("receive") {
+		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		None => None,
+	};
+	let send = match args.value_of("send") {
+		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		None => None,
+	};
+	if receive.is_some() && send.is_some() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You can only specify receive or send, not both.",
+		)));
+	};
+	let as_json = args.is_present("as-json");
+	let no_payjoin = args.is_present("no-payjoin");
+	let use_inputs = match args.value_of("use-inputs") {
+		Some(v) => {
+			if no_payjoin {
+				panic!("Can't use --no-payjoin with --use-inputs.");
+			}
+			Some(String::from(v))
+		}
+		None => {
+			if no_payjoin {
+				None
+			} else {
+				// Some("any") means pick 1 random input to contribute (payjoin)
+				Some(String::from("any"))
+			}
+		}
+	};
+	let make_outputs = match args.value_of("make-outputs") {
+		Some(v) => Some(String::from(v)),
+		None => None,
+	};
+	// TODO: should we catch if the person calls "--receive=5" when it should be "--send=5"?
+	// Perhaps we could detect this from the slate state e.g. S1 -> receive, I1 -> send?
+
+	Ok(command::ContractSetupArgs {
+		counterparty_addr: counterparty_addr,
+		receive: receive,
+		send: send,
+		as_json: as_json,
+		add_outputs: false,
+		use_inputs: use_inputs,
+		make_outputs: make_outputs,
+		// TODO: Future features below
+		fee_rate: None,
+		outfile: None,
+	})
+}
+
+pub fn parse_contract_revoke_args(
+	args: &ArgMatches,
+) -> Result<command::ContractRevokeArgs, ParseError> {
+	let tx_id = args.value_of("tx-id").unwrap().parse::<u32>().unwrap();
+
+	Ok(command::ContractRevokeArgs { tx_id: tx_id })
+}
+
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
@@ -1295,6 +1438,31 @@ where
 			// for CLI mode only, should be handled externally
 			Ok(())
 		}
+		("contract", Some(args)) => match args.subcommand() {
+			("new", Some(new_args)) => {
+				let account = &global_wallet_args.account;
+				let a = arg_parse!(parse_contract_new_args(&new_args, account));
+				command::contract_new(owner_api, km, a)
+			}
+			// ("setup", Some(setup_args)) => {
+			// 	let a = arg_parse!(parse_contract_setup_args(&setup_args));
+			// 	command::contract_setup(owner_api, km, a)
+			// }
+			("sign", Some(sign_args)) => {
+				// Sign command takes setup_args so we use the same parser
+				let setup_args = arg_parse!(parse_contract_setup_args(&sign_args));
+				let broadcast_tx = !sign_args.is_present("no-broadcast");
+				command::contract_sign(owner_api, km, setup_args, broadcast_tx)
+			}
+			("view", Some(view_args)) => {
+				Err(Error::ArgumentError(String::from("Not implemented")).into())
+			}
+			("revoke", Some(revoke_args)) => {
+				let a = arg_parse!(parse_contract_revoke_args(&revoke_args));
+				command::contract_revoke(owner_api, km, a)
+			}
+			_ => Err(Error::ArgumentError(String::from("Unknown contract subcommand.")).into()),
+		},
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
 			return Err(Error::ArgumentError(msg));

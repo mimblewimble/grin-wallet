@@ -27,6 +27,9 @@ use crate::impls::SlateSender as _;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::contract::types::{
+	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI,
+};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -764,6 +767,54 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
+	}
+
+	/// TODO
+	pub fn contract_new(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractNewArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		// TODO: self.doctest_mode ?
+		owner::contract_new(&mut **w, keychain_mask, &args)
+	}
+
+	// /// TODO
+	// pub fn contract_setup(
+	// 	&self,
+	// 	keychain_mask: Option<&SecretKey>,
+	// 	slate: &Slate,
+	// 	args: &ContractSetupArgsAPI,
+	// ) -> Result<Slate, Error> {
+	// 	let mut w_lock = self.wallet_inst.lock();
+	// 	let w = w_lock.lc_provider()?.wallet_inst()?;
+	// 	// TODO: self.doctest_mode ?
+	// 	owner::contract_setup(&mut **w, keychain_mask, &args, &slate)
+	// }
+
+	/// TODO
+	pub fn contract_sign(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		args: &ContractSetupArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_sign(&mut **w, keychain_mask, &args, &slate)
+	}
+
+	/// TODO
+	pub fn contract_revoke(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractRevokeArgsAPI,
+	) -> Result<Option<Slate>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_revoke(&mut **w, keychain_mask, &args)
 	}
 
 	/// Processes an invoice tranaction created by another party, essentially

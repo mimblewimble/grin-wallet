@@ -20,6 +20,9 @@ use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
+use crate::libwallet::contract::types::{
+	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI,
+};
 use crate::libwallet::{
 	AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
@@ -511,6 +514,25 @@ pub trait OwnerRpc {
 	*/
 
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
+	fn contract_new(&self, token: Token, args: ContractNewArgsAPI)
+		-> Result<VersionedSlate, Error>;
+	// fn contract_setup(
+	// 	&self,
+	// 	token: Token,
+	// 	slate: VersionedSlate,
+	// 	args: ContractSetupArgsAPI,
+	// ) -> Result<VersionedSlate, Error>;
+	fn contract_sign(
+		&self,
+		token: Token,
+		slate: VersionedSlate,
+		args: ContractSetupArgsAPI,
+	) -> Result<VersionedSlate, Error>;
+	fn contract_revoke(
+		&self,
+		token: Token,
+		args: ContractRevokeArgsAPI,
+	) -> Result<Option<VersionedSlate>, Error>;
 
 	/**
 	;Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
@@ -2050,6 +2072,65 @@ where
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)?;
 		let version = SlateVersion::V4;
 		VersionedSlate::into_version(slate, version)
+	}
+
+	fn contract_new(
+		&self,
+		token: Token,
+		args: ContractNewArgsAPI,
+	) -> Result<VersionedSlate, Error> {
+		let slate = Owner::contract_new(self, (&token.keychain_mask).as_ref(), &args)?;
+		let version = SlateVersion::V4;
+		VersionedSlate::into_version(slate, version)
+	}
+
+	// fn contract_setup(
+	// 	&self,
+	// 	token: Token,
+	// 	in_slate: VersionedSlate,
+	// 	args: ContractSetupArgsAPI,
+	// ) -> Result<VersionedSlate, Error> {
+	// 	let slate = Owner::contract_setup(
+	// 		self,
+	// 		(&token.keychain_mask).as_ref(),
+	// 		&Slate::from(in_slate),
+	// 		&args,
+	// 	)?;
+	// 	let version = SlateVersion::V4;
+	// 	VersionedSlate::into_version(slate, version)
+	// }
+
+	fn contract_sign(
+		&self,
+		token: Token,
+		in_slate: VersionedSlate,
+		args: ContractSetupArgsAPI,
+	) -> Result<VersionedSlate, Error> {
+		let slate = Owner::contract_sign(
+			self,
+			(&token.keychain_mask).as_ref(),
+			&Slate::from(in_slate),
+			&args,
+		)?;
+		let version = SlateVersion::V4;
+		VersionedSlate::into_version(slate, version)
+	}
+
+	fn contract_revoke(
+		&self,
+		token: Token,
+		args: ContractRevokeArgsAPI,
+	) -> Result<Option<VersionedSlate>, Error> {
+		let slate_opt = Owner::contract_revoke(self, (&token.keychain_mask).as_ref(), &args)?;
+		let version = SlateVersion::V4;
+		// We return a slate only when we had to perform a self-spend safe cancel
+		if slate_opt.is_some() {
+			return Ok(Some(VersionedSlate::into_version(
+				slate_opt.unwrap(),
+				version,
+			)?));
+		}
+		Ok(None)
 	}
 
 	fn issue_invoice_tx(
