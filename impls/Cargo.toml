@@ -26,7 +26,7 @@ lazy_static = "1"
 tokio = { version = "0.2", features = ["full"] }
 reqwest = { version = "0.10", features = ["rustls-tls", "socks"] }
 
-#Socks/Tor
+#Socks/Tor/Bridge/Proxy
 byteorder = "1"
 ed25519-dalek = "1.0.0-pre.4"
 x25519-dalek = "0.6"
@@ -34,6 +34,8 @@ data-encoding = "2"
 regex = "1.3"
 timer = "0.2"
 sysinfo = "0.14"
+base64 = "0.12.0"
+url = "2.1"
 
 grin_wallet_util = { path = "../util", version = "5.1.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "5.1.0-alpha.1" }

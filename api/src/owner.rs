@@ -2451,6 +2451,8 @@ pub fn try_slatepack_sync_workflow(
 							&tor_addr.to_http_str(),
 							&tor_config.as_ref().unwrap().socks_proxy_addr,
 							&tor_config.as_ref().unwrap().send_config_dir,
+							tor_config.as_ref().unwrap().bridge.clone(),
+							tor_config.as_ref().unwrap().proxy.clone(),
 						) {
 							Ok(s) => Some(s),
 							Err(e) => {

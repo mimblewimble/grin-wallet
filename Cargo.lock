@@ -1546,6 +1546,7 @@ dependencies = [
 name = "grin_wallet_impls"
 version = "5.1.0-alpha.1"
 dependencies = [
+ "base64 0.12.3",
  "blake2-rfc",
  "byteorder",
  "chrono",
@@ -1570,6 +1571,7 @@ dependencies = [
  "sysinfo",
  "timer",
  "tokio",
+ "url",
  "uuid",
  "x25519-dalek 0.6.0",
 ]

@@ -20,11 +20,12 @@ use grin_wallet_util::OnionV3Address;
 use ed25519_dalek::ExpandedSecretKey;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
-
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, MAIN_SEPARATOR};
+use std::string::String;
 
 use failure::ResultExt;
 
@@ -171,6 +172,8 @@ pub fn output_torrc(
 	wallet_listener_addr: &str,
 	socks_port: &str,
 	service_dirs: &[String],
+	hm_tor_bridge: HashMap<String, String>,
+	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	let torrc_file_path = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TORRC_FILE);
 
@@ -186,6 +189,19 @@ pub fn output_torrc(
 		props.add_item("HiddenServicePort", &format!("80 {}", wallet_listener_addr));
 	}
 
+	if !hm_tor_bridge.is_empty() {
+		props.add_item("UseBridges", "1");
+		for (key, value) in hm_tor_bridge {
+			props.add_item(&key, &value);
+		}
+	}
+
+	if !hm_tor_proxy.is_empty() {
+		for (key, value) in hm_tor_proxy {
+			props.add_item(&key, &value);
+		}
+	}
+
 	props.write_to_file(&torrc_file_path)?;
 
 	Ok(())
@@ -196,6 +212,8 @@ pub fn output_tor_listener_config(
 	tor_config_directory: &str,
 	wallet_listener_addr: &str,
 	listener_keys: &[SecretKey],
+	hm_tor_bridge: HashMap<String, String>,
+	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	let tor_data_dir = format!("{}{}{}", tor_config_directory, MAIN_SEPARATOR, TOR_DATA_DIR);
 
@@ -215,6 +233,8 @@ pub fn output_tor_listener_config(
 		wallet_listener_addr,
 		"0",
 		&service_dirs,
+		hm_tor_bridge,
+		hm_tor_proxy,
 	)?;
 
 	Ok(())
@@ -224,11 +244,20 @@ pub fn output_tor_listener_config(
 pub fn output_tor_sender_config(
 	tor_config_dir: &str,
 	socks_listener_addr: &str,
+	hm_tor_bridge: HashMap<String, String>,
+	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	// create data directory if it doesn't exist
 	fs::create_dir_all(&tor_config_dir).context(ErrorKind::IO)?;
 
-	output_torrc(tor_config_dir, "", socks_listener_addr, &[])?;
+	output_torrc(
+		tor_config_dir,
+		"",
+		socks_listener_addr,
+		&[],
+		hm_tor_bridge,
+		hm_tor_proxy,
+	)?;
 
 	Ok(())
 }
@@ -293,7 +322,8 @@ mod tests {
 		let secp = secp_inst.lock();
 		let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
 		let sec_key = secp::key::SecretKey::new(&secp, &mut test_rng);
-		output_tor_listener_config(test_dir, "127.0.0.1:3415", &[sec_key])?;
+		let hm = HashMap::new();
+		output_tor_listener_config(test_dir, "127.0.0.1:3415", &[sec_key], hm.clone(), hm)?;
 		clean_output_dir(test_dir);
 		Ok(())
 	}

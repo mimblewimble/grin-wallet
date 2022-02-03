@@ -79,6 +79,10 @@ where
 		tor_config: Option<TorConfig>,
 	) -> Result<(), Error> {
 		let mut default_config = GlobalWalletConfig::for_chain(&chain_type);
+		let config_file_version = match default_config.members.as_ref() {
+			Some(m) => m.clone().config_file_version,
+			None => None,
+		};
 		let logging = match logging_config {
 			Some(l) => Some(l),
 			None => match default_config.members.as_ref() {
@@ -102,6 +106,7 @@ where
 		};
 		default_config = GlobalWalletConfig {
 			members: Some(GlobalWalletConfigMembers {
+				config_file_version,
 				wallet,
 				tor,
 				logging,
@@ -139,7 +144,8 @@ where
 		abs_path.push(self.data_dir.clone());
 
 		default_config.update_paths(&abs_path);
-		let res = default_config.write_to_file(config_file_name.to_str().unwrap());
+		let res =
+			default_config.write_to_file(config_file_name.to_str().unwrap(), false, None, None);
 		if let Err(e) = res {
 			let msg = format!(
 				"Error creating config file as ({}): {}",

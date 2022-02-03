@@ -394,6 +394,9 @@ pub fn parse_listen_args(
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
+	if let Some(bridge) = args.value_of("bridge") {
+		tor_config.bridge.bridge_line = Some(bridge.into());
+	}
 	if args.is_present("no_tor") {
 		tor_config.use_tor_listener = false;
 	}
@@ -512,6 +515,11 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = match args.value_of("bridge") {
+		Some(b) => Some(b.to_string()),
+		None => None,
+	};
+
 	Ok(command::SendArgs {
 		amount: amount,
 		minimum_confirmations: min_c,
@@ -527,6 +535,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		target_slate_version: target_slate_version,
 		outfile,
 		skip_tor: args.is_present("manual"),
+		bridge: bridge,
 	})
 }
 
@@ -552,11 +561,14 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = parse_optional(args, "bridge")?;
+
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
+		bridge,
 	})
 }
 
@@ -582,11 +594,14 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = parse_optional(args, "bridge")?;
+
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
+		bridge,
 	})
 }
 
@@ -741,6 +756,8 @@ pub fn parse_process_invoice_args(
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let bridge = parse_optional(args, "bridge")?;
+
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
@@ -751,6 +768,7 @@ pub fn parse_process_invoice_args(
 		ttl_blocks,
 		skip_tor: args.is_present("manual"),
 		outfile,
+		bridge,
 	})
 }
 
