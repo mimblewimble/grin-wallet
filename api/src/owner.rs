@@ -19,6 +19,7 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
+use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::impls::HttpSlateSender;
 use crate::impls::SlateSender as _;
@@ -26,9 +27,9 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
-	AcctPathMapping, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress, TxLogEntry, ViewWallet,
-	WalletInfo, WalletInst, WalletLCProvider,
+	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
+	TxLogEntry, ViewWallet, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
@@ -2403,6 +2404,18 @@ where
 		proof: &PaymentProof,
 	) -> Result<(bool, bool), Error> {
 		owner::verify_payment_proof(self.wallet_inst.clone(), keychain_mask, proof)
+	}
+
+	/// Builds an output
+	pub fn build_output(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		features: OutputFeatures,
+		amount: u64,
+	) -> Result<BuiltOutput, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::build_output(&mut **w, keychain_mask, features, amount)
 	}
 }
 
