@@ -17,8 +17,6 @@
 use uuid::Uuid;
 
 use crate::grin_core::core::hash::Hashed;
-use crate::grin_core::core::Transaction;
-use crate::grin_keychain::ViewKey;
 use crate::grin_core::core::{Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::ViewKey;
