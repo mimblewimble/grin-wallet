@@ -16,12 +16,14 @@
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
+use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	AcctPathMapping, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack, SlatepackAddress,
-	StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo, WalletLCProvider,
+	AcctPathMapping, Amount, BuiltOutput, ErrorKind, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
+	SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo,
+	WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -1831,6 +1833,50 @@ pub trait OwnerRpc {
 	```
 	*/
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind>;
+
+	/**
+	Networked version of [Owner::build_output](struct.Owner.html#method.build_output).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "build_output",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"features": "Plain",
+			"amount":  "60000000000"
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": {
+				"blind": "089705aa74b638ee391e295d227c534a50dd58e603bca97a4404747cf8a5a189",
+				"key_id": "0300000000000000000000000000000000",
+				"output": {
+					"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+					"features": "Plain",
+					"proof": "4b5d6fb1b4d143fc50c83aef61c5410be760a395ed71f3424f7746bf5ee0539ae299569d99b73ea6583b1057834551faa0ac8cfe34c75431b86d6f37dec1ff070fc01f44babf0d3446781564ff7a143242ea67cb4ff7b11fe399735695c3fe70b40b71f31b04cf73b1d1f3430fb53a8c9f990fae48c09b42f8212d60a2d3ce0b8ea4dc0d37a82c3f328162ab8d50f48c28cb9a721a87a40aa3915bf9fffc0cd820e15b758e8565ad7fbf22d03711dc83f98e7c9f955d9398a1c75bc96df2ee64751592953cced38527b3f68282d2ca2fdf2994fbd93a1642fb9d265d57c3cf7df01501da569f2b4e606a1c3084c807a39947a3e1fd41b0647891e1f64842a2b98e694b93857e30691e0b0bca7bc49dec9d6af1003a40b3431ae0bcae8454a438523d066dcac4f194d8370c5ba6567830f302e1ec2607b8d1720bb6c6c57c549f1a3ef7ad2b54dfdd0178329e0723b8a55b438a1e43a984c072d6505aa5e193042d9703484c8383e78d9553684fad5e399f11f8ae6577e4ac4e3c2478e3fd8df0164600b4816b2167c2bf5b9fd7dd29cc1041fccbf1392240fd7c1dc39dd1ebc86b882a383dfe683e9f029d40b2829e3bf56b9760e1d81b7ad4a9066b1c01ccbea6b196154443cacedaccd5ff4fd25cbd9a8f0d271d5688bbe4b956fd34d3413d0478ac9400f6f1ff3890dea10be072d2d48bfa69a6e1e1b6fffaa9db4663eb1ecc26da331072877eb6d4a05a41584d44ed5d2a96a98727563bf180768940c99a15e9183ae927f47f2c0e13d9c00d7ebf0dacb1b6c139d3e18701d10c9d1ef300eeeab756eaa4584c3f5fb42793f7c2517601ae31d887c177eec8bce35c0aa16ba6991fd885deb9ff7b44ffd489f8e9e9d0717141501143c027d33e8a4baf6d85c859ff8a04d1aafbb3d1a97dc6c8ee3642ec41b8e43a137b43c8e60d69a6f19eb9749e"
+				}
+			}
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	*/
+	fn build_output(
+		&self,
+		token: Token,
+		features: OutputFeatures,
+		amount: Amount,
+	) -> Result<BuiltOutput, ErrorKind>;
 }
 
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
@@ -2251,6 +2297,16 @@ where
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), ErrorKind> {
 		Owner::set_tor_config(self, tor_config);
 		Ok(())
+	}
+
+	fn build_output(
+		&self,
+		token: Token,
+		features: OutputFeatures,
+		amount: Amount,
+	) -> Result<BuiltOutput, ErrorKind> {
+		Owner::build_output(self, (&token.keychain_mask).as_ref(), features, amount.0)
+			.map_err(|e| e.kind())
 	}
 }
 

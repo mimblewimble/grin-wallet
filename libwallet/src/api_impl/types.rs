@@ -14,8 +14,9 @@
 
 //! Types specific to the wallet api, mostly argument serialization
 
+use crate::grin_core::core::Output;
 use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::Identifier;
+use crate::grin_keychain::{BlindingFactor, Identifier};
 use crate::grin_util::secp::pedersen;
 use crate::slate_versions::ser as dalek_ser;
 use crate::slate_versions::SlateVersion;
@@ -23,6 +24,11 @@ use crate::types::OutputData;
 use crate::SlatepackAddress;
 
 use ed25519_dalek::Signature as DalekSignature;
+
+/// Type for storing amounts (in nanogrins).
+/// Serializes as a string but can deserialize from a string or u64.
+#[derive(Serialize, Deserialize)]
+pub struct Amount(#[serde(with = "secp_ser::string_or_u64")] pub u64);
 
 /// V2 Init / Send TX API Args
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -215,4 +221,19 @@ pub struct PaymentProof {
 	/// Sender Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,
+}
+
+/// Build output result
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BuiltOutput {
+	/// Blinding Factor
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::blind_from_hex"
+	)]
+	pub blind: BlindingFactor,
+	/// Key Identifier
+	pub key_id: Identifier,
+	/// Output
+	pub output: Output,
 }
