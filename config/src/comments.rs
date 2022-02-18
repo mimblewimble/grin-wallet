@@ -223,6 +223,14 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
+		"skip_send_attempt".to_string(),
+		"
+#Whether to skip send attempts (used for debugging) 
+"
+		.to_string(),
+	);
+
+	retval.insert(
 		"use_tor_listener".to_string(),
 		"
 #Whether to start tor listener on listener startup (default true)
