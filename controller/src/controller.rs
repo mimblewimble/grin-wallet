@@ -24,6 +24,7 @@ use crate::libwallet::{
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use failure::ResultExt;
+use futures::channel::oneshot;
 use grin_wallet_api::JsonId;
 use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
 use grin_wallet_util::OnionV3Address;
@@ -261,14 +262,17 @@ where
 			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 	}
 
+	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
+		Box::leak(Box::new(oneshot::channel::<()>()));
+
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Owner API server at {}.", addr);
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread =
-		apis.start(socket_addr, router, tls_config)
-			.context(ErrorKind::GenericError(
-				"API thread failed to start".to_string(),
-			))?;
+	let api_thread = apis
+		.start(socket_addr, router, tls_config, api_chan)
+		.context(ErrorKind::GenericError(
+			"API thread failed to start".to_string(),
+		))?;
 	warn!("HTTP Owner listener started.");
 	api_thread
 		.join()
@@ -333,14 +337,17 @@ where
 		.add_route("/v2/foreign", Arc::new(api_handler_v2))
 		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
 
+	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
+		Box::leak(Box::new(oneshot::channel::<()>()));
+
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Foreign listener API server at {}.", addr);
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread =
-		apis.start(socket_addr, router, tls_config)
-			.context(ErrorKind::GenericError(
-				"API thread failed to start".to_string(),
-			))?;
+	let api_thread = apis
+		.start(socket_addr, router, tls_config, api_chan)
+		.context(ErrorKind::GenericError(
+			"API thread failed to start".to_string(),
+		))?;
 
 	warn!("HTTP Foreign listener started.");
 	if let Some(a) = address {
