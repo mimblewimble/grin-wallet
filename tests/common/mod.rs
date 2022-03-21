@@ -333,7 +333,7 @@ where
 {
 	// TODO: change create_post_request to accept a url instead of a &str
 	let req = api::client::create_post_request(url.as_str(), api_secret, input)?;
-	let res = api::client::send_request(req)?;
+	let res = api::client::send_request(req, api::client::TimeOut::default())?;
 	Ok(res)
 }
 
