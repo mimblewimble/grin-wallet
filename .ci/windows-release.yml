@@ -44,7 +44,7 @@ steps:
     displayName: Github release
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/'), eq(variables['CI_JOB'], 'release' ))
     inputs:
-      gitHubConnection: 'ignopeverell'
+      gitHubConnection: 'mw-grin-wallet'
       repositoryName: 'mimblewimble/grin-wallet'
       action: 'edit'
       target: '$(build.sourceVersion)'
