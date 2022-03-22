@@ -1259,7 +1259,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
@@ -1292,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "bit-vec",
  "bitflags 1.3.2",
@@ -1316,7 +1316,7 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1343,7 +1343,7 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1365,7 +1365,7 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "bitflags 1.3.2",
  "bytes 0.5.6",
@@ -1387,7 +1387,7 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1421,7 +1421,7 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "byteorder",
  "croaring",
@@ -1441,7 +1441,7 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#78c9794d30c21d40a24f255c411e04f3eab5d512"
+source = "git+https://github.com/mimblewimble/grin?branch=master#145d81944588ff4a1b4edfba8cb2cd02cec74de1"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "built",
  "clap",
@@ -1490,7 +1490,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_api"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "base64 0.12.3",
  "chrono",
@@ -1514,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_config"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "dirs 2.0.2",
  "grin_wallet_util",
@@ -1527,7 +1527,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_controller"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "chrono",
  "easy-jsonrpc-mw",
@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_impls"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "base64 0.12.3",
  "blake2-rfc",
@@ -1592,7 +1592,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_libwallet"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "age",
  "base64 0.9.3",
@@ -1624,7 +1624,7 @@ dependencies = [
 
 [[package]]
 name = "grin_wallet_util"
-version = "5.1.0-alpha.1"
+version = "5.2.0-alpha.1"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
@@ -2148,9 +2148,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.14"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
+checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
 dependencies = [
  "cfg-if 1.0.0",
  "serde",
