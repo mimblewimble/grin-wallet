@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_impls"
-version = "5.1.0"
+version = "5.1.1-alpha.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Concrete types derived from libwallet traits"
 license = "Apache-2.0"
@@ -37,9 +37,9 @@ sysinfo = "0.14"
 base64 = "0.12.0"
 url = "2.1"
 
-grin_wallet_util = { path = "../util", version = "5.1.0" }
-grin_wallet_config = { path = "../config", version = "5.1.0" }
-grin_wallet_libwallet = { path = "../libwallet", version = "5.1.0" }
+grin_wallet_util = { path = "../util", version = "5.1.1-alpha.1" }
+grin_wallet_config = { path = "../config", version = "5.1.1-alpha.1" }
+grin_wallet_libwallet = { path = "../libwallet", version = "5.1.1-alpha.1" }
 
 [dev-dependencies]
 "remove_dir_all" = "0.7"
