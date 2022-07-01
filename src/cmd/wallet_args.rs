@@ -811,13 +811,20 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 			}
 		},
 	};
+	let confirmed_height = match args.value_of("confirmed_height") {
+		None => None,
+		Some(tx) => Some(parse_u64(tx, "confirmed_height")? as u64),
+	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = format!(
+			"At most one of 'id' (-i),'txid' (-t) or 'confirmed_height' (-h) may be provided."
+		);
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::TxsArgs {
 		id: tx_id,
 		tx_slate_id: tx_slate_id,
+		confirmed_height: confirmed_height,
 	})
 }
 

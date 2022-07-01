@@ -156,6 +156,7 @@ pub fn txs(
 		bMG->"Creation Time",
 		bMG->"TTL Cutoff Height",
 		bMG->"Confirmed?",
+		bMG->"Confirmed Height",
 		bMG->"Confirmation Time",
 		bMG->"Num. \nInputs",
 		bMG->"Num. \nOutputs",
@@ -185,6 +186,10 @@ pub fn txs(
 			None => "None".to_owned(),
 		};
 		let confirmed = format!("{}", t.confirmed);
+		let confirmed_height = match t.confirmed_height {
+			Some(ch) => format!("{}", ch),
+			None => "None".to_owned(),
+		};
 		let num_inputs = format!("{}", t.num_inputs);
 		let num_outputs = format!("{}", t.num_outputs);
 		let amount_debited_str = core::amount_to_hr_string(t.amount_debited, true);
@@ -224,6 +229,7 @@ pub fn txs(
 				bFB->creation_ts,
 				bFB->ttl_cutoff_height,
 				bFC->confirmed,
+				bFC->confirmed_height,
 				bFB->confirmation_ts,
 				bFC->num_inputs,
 				bFC->num_outputs,
@@ -243,6 +249,7 @@ pub fn txs(
 					bFD->slate_id,
 					bFB->creation_ts,
 					bFg->confirmed,
+					bFg->confirmed_height,
 					bFB->confirmation_ts,
 					bFD->num_inputs,
 					bFD->num_outputs,
@@ -261,6 +268,7 @@ pub fn txs(
 					bFD->slate_id,
 					bFB->creation_ts,
 					bFR->confirmed,
+					bFR->confirmed_height,
 					bFB->confirmation_ts,
 					bFD->num_inputs,
 					bFD->num_outputs,

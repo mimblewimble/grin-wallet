@@ -1074,6 +1074,7 @@ where
 pub struct TxsArgs {
 	pub id: Option<u32>,
 	pub tx_slate_id: Option<Uuid>,
+	pub confirmed_height: Option<u64>,
 }
 
 pub fn txs<L, C, K>(
@@ -1091,8 +1092,10 @@ where
 	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		let res = api.node_height(m)?;
-		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
-		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
+		let (validated, txs) =
+			api.retrieve_txs(m, true, args.id, args.tx_slate_id, args.confirmed_height)?;
+		let include_status =
+			!args.id.is_some() && !args.tx_slate_id.is_some() && !args.confirmed_height.is_some();
 		display::txs(
 			&g_args.account,
 			res.height,
@@ -1116,6 +1119,13 @@ where
 		} else {
 			None
 		};
+
+		if args.confirmed_height.is_some() && txs.is_empty() {
+			println!(
+				"Could not find any transactions confirmed at the block height {}.\n",
+				args.confirmed_height.unwrap()
+			)
+		}
 
 		if id.is_some() {
 			let (_, outputs) = api.retrieve_outputs(m, true, false, id)?;
@@ -1199,7 +1209,7 @@ where
 			}
 			Some(s) => s,
 		};
-		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None)?;
+		let (_, txs) = api.retrieve_txs(m, true, Some(args.id), None, None)?;
 		match args.dump_file {
 			None => {
 				if txs[0].confirmed {

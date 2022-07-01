@@ -96,6 +96,7 @@ pub fn retrieve_txs<'a, T: ?Sized, C, K>(
 	tx_slate_id: Option<Uuid>,
 	parent_key_id: Option<&Identifier>,
 	outstanding_only: bool,
+	confirmed_height: Option<u64>,
 ) -> Result<Vec<TxLogEntry>, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -117,16 +118,20 @@ where
 				Some(t) => tx_entry.tx_slate_id == Some(t),
 				None => true,
 			};
+			let f_confirmed_height = match confirmed_height {
+				Some(t) => tx_entry.confirmed_height == Some(t),
+				None => true,
+			};
 			let f_outstanding = match outstanding_only {
 				true => {
-					!tx_entry.confirmed
+					(!tx_entry.confirmed || tx_entry.confirmed_height.is_none())
 						&& (tx_entry.tx_type == TxLogEntryType::TxReceived
 							|| tx_entry.tx_type == TxLogEntryType::TxSent
 							|| tx_entry.tx_type == TxLogEntryType::TxReverted)
 				}
 				false => true,
 			};
-			f_pk && f_tx_id && f_txs && f_outstanding
+			f_pk && f_tx_id && f_txs && f_confirmed_height && f_outstanding
 		})
 		.collect();
 	txs.sort_by_key(|tx| tx.creation_ts);
@@ -171,7 +176,7 @@ where
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
 		.collect();
 
-	let tx_entries = retrieve_txs(wallet, None, None, Some(&parent_key_id), true)?;
+	let tx_entries = retrieve_txs(wallet, None, None, Some(&parent_key_id), true, None)?;
 
 	// Only select outputs that are actually involved in an outstanding transaction
 	let unspents = match update_all {
@@ -284,6 +289,7 @@ where
 								log_id,
 							);
 							t.confirmed = true;
+							t.confirmed_height = Some(o.1);
 							t.amount_credited = output.value;
 							t.amount_debited = 0;
 							t.num_outputs = 1;
@@ -318,6 +324,7 @@ where
 								}
 								t.update_confirmation_ts();
 								t.confirmed = true;
+								t.confirmed_height = Some(o.1);
 								batch.save_tx_log_entry(t, &parent_key_id)?;
 							}
 						}
@@ -349,6 +356,7 @@ where
 					(now - t).to_std().ok()
 				});
 				tx.confirmed = false;
+				tx.confirmed_height = None;
 				batch.save_tx_log_entry(tx, &parent_key_id)?;
 			}
 		}
