@@ -25,7 +25,7 @@ use crate::grin_util::secp::{ContextFlag, Secp256k1};
 use crate::grin_util::Mutex;
 use crate::grin_util::{from_hex, ToHex};
 use crate::internal::{keys, updater};
-use crate::{types::*, ErrorKind};
+use crate::types::*;
 use crate::{wallet_lock, Error, OutputCommitMapping};
 use blake2_rfc::blake2b::blake2b;
 use std::cmp;
@@ -187,12 +187,11 @@ where
 		// Scanning outputs
 		for output in outputs.iter() {
 			let (commit, proof, is_coinbase, height, mmr_index) = output;
-			let rewind_hash = from_hex(vw.rewind_hash.as_str()).map_err(|e| {
-				ErrorKind::RewindHash(format!("Unable to decode rewind hash: {}", e))
-			})?;
+			let rewind_hash = from_hex(vw.rewind_hash.as_str())
+				.map_err(|e| Error::RewindHash(format!("Unable to decode rewind hash: {}", e)))?;
 			let rewind_nonce = blake2b(32, &commit.0, &rewind_hash);
 			let nonce = SecretKey::from_slice(&secp, rewind_nonce.as_bytes())
-				.map_err(|e| ErrorKind::Nonce(format!("Unable to create nonce: {}", e)))?;
+				.map_err(|e| Error::Nonce(format!("Unable to create nonce: {}", e)))?;
 			let info = secp.rewind_bullet_proof(*commit, nonce.clone(), None, *proof);
 
 			if info.is_err() {

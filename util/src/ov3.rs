@@ -20,12 +20,14 @@ use sha3::{Digest, Sha3_256};
 use std::convert::TryFrom;
 use std::fmt;
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, thiserror::Error, Serialize, Deserialize)]
 /// OnionV3 Address Errors
 pub enum OnionV3Error {
 	/// Error decoding an address from a string
+	#[error("Address Decoding: {0}")]
 	AddressDecoding(String),
 	/// Error with given private key
+	#[error("Invalid Private Key: {0}")]
 	InvalidPrivateKey(String),
 }
 

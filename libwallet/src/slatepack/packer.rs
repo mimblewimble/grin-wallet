@@ -16,11 +16,11 @@ use std::convert::TryFrom;
 use std::str;
 
 use super::armor::HEADER;
+use crate::Error;
 use crate::{
 	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
 	VersionedBinSlate, VersionedSlate,
 };
-use crate::{Error, ErrorKind};
 
 use grin_wallet_util::byte_ser;
 
@@ -53,7 +53,7 @@ impl<'a> Slatepacker<'a> {
 		let data_len = data.len() as u64;
 		if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
 			let msg = format!("Data invalid length");
-			return Err(ErrorKind::SlatepackDeser(msg).into());
+			return Err(Error::SlatepackDeser(msg));
 		}
 
 		let test_header = &data[..HEADER.len()];
@@ -76,11 +76,11 @@ impl<'a> Slatepacker<'a> {
 				debug!("Not a valid binary slatepack: {} - Will try JSON", e);
 				let content = String::from_utf8(data).map_err(|e| {
 					let msg = format!("{}", e);
-					ErrorKind::SlatepackDeser(msg)
+					Error::SlatepackDeser(msg)
 				})?;
 				serde_json::from_str(&content).map_err(|e| {
 					let msg = format!("Error reading JSON slatepack: {}", e);
-					ErrorKind::SlatepackDeser(msg)
+					Error::SlatepackDeser(msg)
 				})?
 			}
 		};
@@ -95,10 +95,9 @@ impl<'a> Slatepacker<'a> {
 	/// Create slatepack from slate and args
 	pub fn create_slatepack(&self, slate: &Slate) -> Result<Slatepack, Error> {
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
-		let bin_slate =
-			VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| Error::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
-		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
 		slatepack.sender = self.0.sender.clone();
 		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		Ok(slatepack)
@@ -115,7 +114,7 @@ impl<'a> Slatepacker<'a> {
 			byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload).map_err(|e| {
 				error!("Error reading slate from armored slatepack: {}", e);
 				let msg = format!("{}", e);
-				ErrorKind::SlatepackDeser(msg)
+				Error::SlatepackDeser(msg)
 			})?;
 		Ok(Slate::upgrade(slate_bin.into())?)
 	}

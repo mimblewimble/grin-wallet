@@ -113,6 +113,12 @@ pub enum ErrorKind {
 	GenericError(String),
 }
 
+/*impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		self.0.source.as_ref().map(|source| source.as_dyn_error())
+	}
+}*/
+
 impl Fail for Error {
 	fn cause(&self) -> Option<&dyn Fail> {
 		self.inner.cause()

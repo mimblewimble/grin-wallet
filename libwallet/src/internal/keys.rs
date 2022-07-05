@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! Wallet key management functions
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::types::{AcctPathMapping, NodeClient, WalletBackend};
@@ -72,7 +72,7 @@ where
 {
 	let label = label.to_owned();
 	if wallet.acct_path_iter().any(|l| l.label == label) {
-		return Err(ErrorKind::AccountLabelAlreadyExists(label).into());
+		return Err(Error::AccountLabelAlreadyExists(label));
 	}
 
 	// We're always using paths at m/k/0 for parent keys for output derivations

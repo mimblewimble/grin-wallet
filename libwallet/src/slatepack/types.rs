@@ -21,7 +21,7 @@ use x25519_dalek::StaticSecret;
 
 use crate::dalek_ser;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::{Error, ErrorKind};
+use crate::Error;
 use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
@@ -147,7 +147,7 @@ impl Slatepack {
 
 		// Create encrypted metadata, which will be length prefixed
 		let bin_meta = SlatepackEncMetadataBin(self.encrypted_meta.clone());
-		let mut to_encrypt = byte_ser::to_bytes(&bin_meta).map_err(|_| ErrorKind::SlatepackSer)?;
+		let mut to_encrypt = byte_ser::to_bytes(&bin_meta).map_err(|_| Error::SlatepackSer)?;
 
 		if self.future_test_mode {
 			Slatepack::pad_test_data(&mut to_encrypt);
@@ -213,7 +213,7 @@ impl Slatepack {
 		let meta_len = Cursor::new(len_bytes).read_u32::<BigEndian>()?;
 		self.payload = decrypted.split_off(meta_len as usize + 4);
 		let meta = byte_ser::from_bytes::<SlatepackEncMetadataBin>(&decrypted)
-			.map_err(|_| ErrorKind::SlatepackSer)?
+			.map_err(|_| Error::SlatepackSer)?
 			.0;
 		self.sender = meta.sender;
 		self.encrypted_meta.recipients = meta.recipients;

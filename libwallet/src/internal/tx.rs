@@ -29,7 +29,7 @@ use crate::slate::Slate;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
 use crate::util::OnionV3Address;
 use crate::InitTxArgs;
-use crate::{address, Error, ErrorKind};
+use crate::{address, Error};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
@@ -348,15 +348,15 @@ where
 	}
 	let tx_vec = updater::retrieve_txs(wallet, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
 	if tx_vec.len() != 1 {
-		return Err(ErrorKind::TransactionDoesntExist(tx_id_string).into());
+		return Err(Error::TransactionDoesntExist(tx_id_string));
 	}
 	let tx = tx_vec[0].clone();
 	match tx.tx_type {
 		TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {}
-		_ => return Err(ErrorKind::TransactionNotCancellable(tx_id_string).into()),
+		_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
 	}
 	if tx.confirmed {
-		return Err(ErrorKind::TransactionNotCancellable(tx_id_string).into());
+		return Err(Error::TransactionNotCancellable(tx_id_string));
 	}
 	// get outputs associated with tx
 	let res = updater::retrieve_outputs(
@@ -400,7 +400,7 @@ where
 	}
 	let mut tx = match tx {
 		Some(t) => t,
-		None => return Err(ErrorKind::TransactionDoesntExist(slate.id.to_string()).into()),
+		None => return Err(Error::TransactionDoesntExist(slate.id.to_string())),
 	};
 	let parent_key = tx.parent_key_id.clone();
 	{
@@ -482,7 +482,7 @@ pub fn create_payment_proof_signature(
 	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 		Ok(k) => k,
 		Err(e) => {
-			return Err(ErrorKind::ED25519Key(format!("{}", e)).into());
+			return Err(Error::ED25519Key(format!("{}", e)));
 		}
 	};
 	let pub_key: DalekPublicKey = (&d_skey).into();
@@ -508,56 +508,50 @@ where
 {
 	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(parent_key_id), false)?;
 	if tx_vec.is_empty() {
-		return Err(ErrorKind::PaymentProof(
+		return Err(Error::PaymentProof(
 			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
-		)
-		.into());
+		));
 	}
 
 	let orig_proof_info = tx_vec[0].clone().payment_proof;
 
 	if orig_proof_info.is_some() && slate.payment_proof.is_none() {
-		return Err(ErrorKind::PaymentProof(
+		return Err(Error::PaymentProof(
 			"Expected Payment Proof for this Transaction is not present".to_owned(),
-		)
-		.into());
+		));
 	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		let orig_proof_info = match orig_proof_info {
 			Some(p) => p.clone(),
 			None => {
-				return Err(ErrorKind::PaymentProof(
+				return Err(Error::PaymentProof(
 					"Original proof info not stored in tx".to_owned(),
-				)
-				.into());
+				));
 			}
 		};
 		let keychain = wallet.keychain(keychain_mask)?;
 		let index = match context.payment_proof_derivation_index {
 			Some(i) => i,
 			None => {
-				return Err(ErrorKind::PaymentProof(
+				return Err(Error::PaymentProof(
 					"Payment proof derivation index required".to_owned(),
-				)
-				.into());
+				));
 			}
 		};
 		let orig_sender_sk =
 			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
 		let orig_sender_address = OnionV3Address::from_private(&orig_sender_sk.0)?;
 		if p.sender_address != orig_sender_address.to_ed25519()? {
-			return Err(ErrorKind::PaymentProof(
+			return Err(Error::PaymentProof(
 				"Sender address on slate does not match original sender address".to_owned(),
-			)
-			.into());
+			));
 		}
 
 		if orig_proof_info.receiver_address != p.receiver_address {
-			return Err(ErrorKind::PaymentProof(
+			return Err(Error::PaymentProof(
 				"Recipient address on slate does not match original recipient address".to_owned(),
-			)
-			.into());
+			));
 		}
 		let msg = payment_proof_message(
 			slate.amount,
@@ -567,15 +561,14 @@ where
 		let sig = match p.receiver_signature {
 			Some(s) => s,
 			None => {
-				return Err(ErrorKind::PaymentProof(
+				return Err(Error::PaymentProof(
 					"Recipient did not provide requested proof signature".to_owned(),
-				)
-				.into());
+				));
 			}
 		};
 
 		if p.receiver_address.verify(&msg, &sig).is_err() {
-			return Err(ErrorKind::PaymentProof("Invalid proof signature".to_owned()).into());
+			return Err(Error::PaymentProof("Invalid proof signature".to_owned()));
 		};
 	}
 	Ok(())

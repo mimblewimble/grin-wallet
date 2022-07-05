@@ -16,7 +16,7 @@
 //! implementation
 
 use crate::config::{TorConfig, WalletConfig};
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Output, Transaction, TxKernel};
@@ -32,7 +32,6 @@ use crate::InitTxArgs;
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
-use failure::ResultExt;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
 use serde;
@@ -681,7 +680,7 @@ impl BlockIdentifier {
 	/// convert to hex string
 	pub fn from_hex(hex: &str) -> Result<BlockIdentifier, Error> {
 		let hash =
-			Hash::from_hex(hex).context(ErrorKind::GenericError("Invalid hex".to_owned()))?;
+			Hash::from_hex(hex).map_err(|e| Error::GenericError(format!("Invalid hex: {}", e)))?;
 		Ok(BlockIdentifier(hash))
 	}
 }

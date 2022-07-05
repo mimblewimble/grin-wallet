@@ -11,7 +11,7 @@ exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2018"
 
 [dependencies]
-failure = "0.1"
+failure = { version = "0.1", features = ["std"]}
 failure_derive = "0.1"
 futures = "0.3"
 hyper = "0.13"
