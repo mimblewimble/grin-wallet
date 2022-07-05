@@ -27,8 +27,7 @@ use ring::pbkdf2;
 
 use crate::keychain::{mnemonic, Keychain};
 use crate::util::{self, ToHex};
-use crate::{Error, ErrorKind};
-use failure::ResultExt;
+use crate::Error;
 
 pub const SEED_FILE: &str = "wallet.seed";
 
@@ -44,13 +43,13 @@ impl WalletSeed {
 		let res = mnemonic::to_entropy(&word_list);
 		match res {
 			Ok(s) => Ok(WalletSeed::from_bytes(&s)),
-			Err(_) => Err(ErrorKind::Mnemonic.into()),
+			Err(_) => Err(Error::Mnemonic.into()),
 		}
 	}
 
 	pub fn _from_hex(hex: &str) -> Result<WalletSeed, Error> {
 		let bytes = util::from_hex(&hex.to_string())
-			.map_err(|_| ErrorKind::GenericError("Invalid hex".to_owned()))?;
+			.map_err(|_| Error::GenericError("Invalid hex".to_owned()))?;
 		Ok(WalletSeed::from_bytes(&bytes))
 	}
 
@@ -62,7 +61,7 @@ impl WalletSeed {
 		let result = mnemonic::from_entropy(&self.0);
 		match result {
 			Ok(r) => Ok(r),
-			Err(_) => Err(ErrorKind::Mnemonic.into()),
+			Err(_) => Err(Error::Mnemonic.into()),
 		}
 	}
 
@@ -122,7 +121,7 @@ impl WalletSeed {
 		}
 		path.push(backup_seed_file_name.clone());
 		if fs::rename(seed_file_name, backup_seed_file_name.as_str()).is_err() {
-			return Err(ErrorKind::GenericError("Can't rename wallet seed file".to_owned()).into());
+			return Err(Error::GenericError("Can't rename wallet seed file".to_owned()).into());
 		}
 		warn!("{} backed up as {}", seed_file_name, backup_seed_file_name);
 		Ok(backup_seed_file_name)
@@ -140,7 +139,7 @@ impl WalletSeed {
 			WalletSeed::backup_seed(data_file_dir)?;
 		}
 		if !Path::new(&data_file_dir).exists() {
-			return Err(ErrorKind::WalletDoesntExist(
+			return Err(Error::WalletDoesntExist(
 				data_file_dir.to_owned(),
 				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
 					.to_owned(),
@@ -149,10 +148,10 @@ impl WalletSeed {
 		}
 		let seed = WalletSeed::from_mnemonic(word_list)?;
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
-		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).context(ErrorKind::Format)?;
-		let mut file = File::create(seed_file_path).context(ErrorKind::IO)?;
+		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).map_err(|_| Error::Format)?;
+		let mut file = File::create(seed_file_path).map_err(|_| Error::IO)?;
 		file.write_all(&enc_seed_json.as_bytes())
-			.context(ErrorKind::IO)?;
+			.map_err(|_| Error::IO)?;
 		warn!("Seed created from word list");
 		Ok(())
 	}
@@ -165,7 +164,7 @@ impl WalletSeed {
 		test_mode: bool,
 	) -> Result<WalletSeed, Error> {
 		// create directory if it doesn't exist
-		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
+		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
 
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
@@ -174,7 +173,7 @@ impl WalletSeed {
 		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
 			error!("{}", msg);
-			return Err(ErrorKind::WalletSeedExists(msg).into());
+			return Err(Error::WalletSeedExists(msg));
 		}
 
 		let seed = match recovery_phrase {
@@ -183,10 +182,10 @@ impl WalletSeed {
 		};
 
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
-		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).context(ErrorKind::Format)?;
-		let mut file = File::create(seed_file_path).context(ErrorKind::IO)?;
+		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).map_err(|_| Error::Format)?;
+		let mut file = File::create(seed_file_path).map_err(|_| Error::IO)?;
 		file.write_all(&enc_seed_json.as_bytes())
-			.context(ErrorKind::IO)?;
+			.map_err(|_| Error::IO)?;
 		Ok(seed)
 	}
 
@@ -195,18 +194,18 @@ impl WalletSeed {
 		password: util::ZeroingString,
 	) -> Result<WalletSeed, Error> {
 		// create directory if it doesn't exist
-		fs::create_dir_all(data_file_dir).context(ErrorKind::IO)?;
+		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
 
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 
 		debug!("Using wallet seed file at: {}", seed_file_path);
 
 		if Path::new(seed_file_path).exists() {
-			let mut file = File::open(seed_file_path).context(ErrorKind::IO)?;
+			let mut file = File::open(seed_file_path).map_err(|_| Error::IO)?;
 			let mut buffer = String::new();
-			file.read_to_string(&mut buffer).context(ErrorKind::IO)?;
+			file.read_to_string(&mut buffer).map_err(|_| Error::IO)?;
 			let enc_seed: EncryptedWalletSeed =
-				serde_json::from_str(&buffer).context(ErrorKind::Format)?;
+				serde_json::from_str(&buffer).map_err(|_| Error::Format)?;
 			let wallet_seed = enc_seed.decrypt(&password)?;
 			Ok(wallet_seed)
 		} else {
@@ -215,7 +214,7 @@ impl WalletSeed {
 				 Run \"grin-wallet init\" to initialize a new wallet.",
 				seed_file_path
 			);
-			Err(ErrorKind::WalletSeedDoesntExist.into())
+			Err(Error::WalletSeedDoesntExist)
 		}
 	}
 
@@ -223,7 +222,7 @@ impl WalletSeed {
 		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
 		if Path::new(seed_file_path).exists() {
 			debug!("Deleting wallet seed file at: {}", seed_file_path);
-			fs::remove_file(seed_file_path).context(ErrorKind::IO)?;
+			fs::remove_file(seed_file_path).map_err(|_| Error::IO)?;
 		}
 		Ok(())
 	}
@@ -274,7 +273,7 @@ impl EncryptedWalletSeed {
 			&mut enc_bytes,
 		);
 		if let Err(_) = res {
-			return Err(ErrorKind::Encryption.into());
+			return Err(Error::Encryption);
 		}
 
 		Ok(EncryptedWalletSeed {
@@ -288,15 +287,15 @@ impl EncryptedWalletSeed {
 	pub fn decrypt(&self, password: &str) -> Result<WalletSeed, Error> {
 		let mut encrypted_seed = match util::from_hex(&self.encrypted_seed.clone()) {
 			Ok(s) => s,
-			Err(_) => return Err(ErrorKind::Encryption.into()),
+			Err(_) => return Err(Error::Encryption),
 		};
 		let salt = match util::from_hex(&self.salt.clone()) {
 			Ok(s) => s,
-			Err(_) => return Err(ErrorKind::Encryption.into()),
+			Err(_) => return Err(Error::Encryption),
 		};
 		let nonce = match util::from_hex(&self.nonce.clone()) {
 			Ok(s) => s,
-			Err(_) => return Err(ErrorKind::Encryption.into()),
+			Err(_) => return Err(Error::Encryption),
 		};
 		let password = password.as_bytes();
 		let mut key = [0; 32];
@@ -319,7 +318,7 @@ impl EncryptedWalletSeed {
 			&mut encrypted_seed,
 		);
 		if let Err(_) = res {
-			return Err(ErrorKind::Encryption.into());
+			return Err(Error::Encryption);
 		}
 		for _ in 0..aead::AES_256_GCM.tag_len() {
 			encrypted_seed.pop();

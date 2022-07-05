@@ -18,7 +18,7 @@ use crate::grin_core::core::{committed, transaction};
 use crate::grin_core::libtx;
 use crate::grin_keychain;
 use crate::grin_util::secp;
-use crate::util;
+use crate::util::{self, grin_store};
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]
@@ -303,6 +303,12 @@ pub enum Error {
 	/// Other
 	#[error("Generic error: {0}")]
 	GenericError(String),
+}
+
+impl From<grin_store::Error> for Error {
+	fn from(error: grin_store::Error) -> Error {
+		Error::Backend(format!("{}", error))
+	}
 }
 
 impl From<age::EncryptError> for Error {

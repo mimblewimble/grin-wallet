@@ -777,8 +777,8 @@ fn slatepack_encrypted_meta() -> Result<(), Error> {
 	slatepack.add_recipient(SlatepackAddress::random());
 
 	let v_slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V4)?;
-	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| ErrorKind::SlatepackSer)?;
-	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| Error::SlatepackSer)?;
+	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
 
 	let orig_sp = slatepack.clone();
 
@@ -826,8 +826,8 @@ fn slatepack_encrypted_meta_future() -> Result<(), Error> {
 	slatepack.add_recipient(SlatepackAddress::random());
 
 	let v_slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V4)?;
-	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| ErrorKind::SlatepackSer)?;
-	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlatepackSer)?;
+	let bin_slate = VersionedBinSlate::try_from(v_slate).map_err(|_| Error::SlatepackSer)?;
+	slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
 
 	let orig_sp = slatepack.clone();
 

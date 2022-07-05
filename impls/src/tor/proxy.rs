@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Error, ErrorKind};
+use crate::Error;
 use grin_wallet_config::types::TorProxyConfig;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -72,11 +72,11 @@ impl TorProxy {
 	pub fn parse_address(addr: &str) -> Result<(String, Option<u16>), Error> {
 		let (host, str_port) = TorProxy::parse_host_port(&addr)?;
 		let host = Host::parse(&host)
-			.map_err(|_e| ErrorKind::TorProxy(format!("Invalid host address: {}", host)))?;
+			.map_err(|_e| Error::TorProxy(format!("Invalid host address: {}", host)))?;
 		let port = if let Some(p) = str_port {
 			let res = p
 				.parse::<u16>()
-				.map_err(|_e| ErrorKind::TorProxy(format!("Invalid port number: {}", p)))?;
+				.map_err(|_e| Error::TorProxy(format!("Invalid port number: {}", p)))?;
 			Some(res)
 		} else {
 			None
@@ -167,7 +167,7 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 							"Missing proxy address: {} - must be <IP:PORT> or <Hostname>",
 							transport
 						);
-						return Err(ErrorKind::TorProxy(msg).into());
+						return Err(Error::TorProxy(msg).into());
 					}
 				}
 				// Missing transport type
@@ -176,7 +176,7 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 						"Invalid proxy transport: {} - must be socks4/socks5/http(s)",
 						transport
 					);
-					Err(ErrorKind::TorProxy(msg).into())
+					Err(Error::TorProxy(msg).into())
 				}
 			}
 		} else {

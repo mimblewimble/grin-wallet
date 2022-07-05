@@ -15,13 +15,11 @@
 //! High level JSON/HTTP client API
 
 use crate::util::to_base64;
-use failure::{Backtrace, Context, Fail, ResultExt};
 use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -42,60 +40,18 @@ lazy_static! {
 	));
 }
 
-/// Errors that can be returned by an ApiEndpoint implementation.
-#[derive(Debug)]
-pub struct Error {
-	inner: Context<ErrorKind>,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug, Fail)]
-pub enum ErrorKind {
-	#[fail(display = "Internal error: {}", _0)]
+#[derive(Clone, Eq, thiserror::Error, PartialEq, Debug)]
+pub enum Error {
+	#[error("Internal error: {0}")]
 	Internal(String),
-	#[fail(display = "Bad arguments: {}", _0)]
+	#[error("Bad arguments: {0}")]
 	_Argument(String),
-	#[fail(display = "Not found.")]
+	#[error("Not found.")]
 	_NotFound,
-	#[fail(display = "Request error: {}", _0)]
+	#[error("Request error: {0}")]
 	RequestError(String),
-	#[fail(display = "ResponseError error: {}", _0)]
+	#[error("ResponseError error: {0}")]
 	ResponseError(String),
-}
-
-impl Fail for Error {
-	fn cause(&self) -> Option<&dyn Fail> {
-		self.inner.cause()
-	}
-
-	fn backtrace(&self) -> Option<&Backtrace> {
-		self.inner.backtrace()
-	}
-}
-
-impl Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		Display::fmt(&self.inner, f)
-	}
-}
-
-impl Error {
-	pub fn _kind(&self) -> &ErrorKind {
-		self.inner.get_context()
-	}
-}
-
-impl From<ErrorKind> for Error {
-	fn from(kind: ErrorKind) -> Error {
-		Error {
-			inner: Context::new(kind),
-		}
-	}
-}
-
-impl From<Context<ErrorKind>> for Error {
-	fn from(inner: Context<ErrorKind>) -> Error {
-		Error { inner: inner }
-	}
 }
 
 #[derive(Clone)]
@@ -126,13 +82,13 @@ impl Client {
 
 		if let Some(s) = socks_proxy_addr {
 			let proxy = Proxy::all(&format!("socks5h://{}:{}", s.ip(), s.port()))
-				.map_err(|e| ErrorKind::Internal(format!("Unable to create proxy: {}", e)))?;
+				.map_err(|e| Error::Internal(format!("Unable to create proxy: {}", e)))?;
 			builder = builder.proxy(proxy);
 		}
 
 		let client = builder
 			.build()
-			.map_err(|e| ErrorKind::Internal(format!("Unable to build client: {}", e)))?;
+			.map_err(|e| Error::Internal(format!("Unable to build client: {}", e)))?;
 
 		Ok(Client { client })
 	}
@@ -273,9 +229,8 @@ impl Client {
 	where
 		IN: Serialize,
 	{
-		let json = serde_json::to_string(input).context(ErrorKind::Internal(
-			"Could not serialize data to JSON".to_owned(),
-		))?;
+		let json = serde_json::to_string(input)
+			.map_err(|_| Error::Internal("Could not serialize data to JSON".to_owned()))?;
 		self.build_request(url, Method::POST, api_secret, Some(json))
 	}
 
@@ -284,10 +239,8 @@ impl Client {
 		for<'de> T: Deserialize<'de>,
 	{
 		let data = self.send_request(req)?;
-		serde_json::from_str(&data).map_err(|e| {
-			e.context(ErrorKind::ResponseError("Cannot parse response".to_owned()))
-				.into()
-		})
+		serde_json::from_str(&data)
+			.map_err(|_| Error::ResponseError("Cannot parse response".to_owned()))
 	}
 
 	async fn handle_request_async<T>(&self, req: RequestBuilder) -> Result<T, Error>
@@ -296,7 +249,7 @@ impl Client {
 	{
 		let data = self.send_request_async(req).await?;
 		let ser = serde_json::from_str(&data)
-			.map_err(|e| e.context(ErrorKind::ResponseError("Cannot parse response".to_owned())))?;
+			.map_err(|_| Error::ResponseError("Cannot parse response".to_owned()))?;
 		Ok(ser)
 	}
 
@@ -304,11 +257,11 @@ impl Client {
 		let resp = req
 			.send()
 			.await
-			.map_err(|e| ErrorKind::RequestError(format!("Cannot make request: {}", e)))?;
+			.map_err(|e| Error::RequestError(format!("Cannot make request: {}", e)))?;
 		let text = resp
 			.text()
 			.await
-			.map_err(|e| ErrorKind::ResponseError(format!("Cannot parse response: {}", e)))?;
+			.map_err(|e| Error::ResponseError(format!("Cannot parse response: {}", e)))?;
 		Ok(text)
 	}
 

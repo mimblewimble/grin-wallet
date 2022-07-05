@@ -31,8 +31,8 @@ use crate::store::{self, option_to_not_found, to_key, to_key_u64};
 use crate::core::core::Transaction;
 use crate::core::ser;
 use crate::libwallet::{
-	AcctPathMapping, Context, Error, ErrorKind, NodeClient, OutputData, ScannedBlockInfo,
-	TxLogEntry, WalletBackend, WalletInitStatus, WalletOutputBatch,
+	AcctPathMapping, Context, Error, NodeClient, OutputData, ScannedBlockInfo, TxLogEntry,
+	WalletBackend, WalletInitStatus, WalletOutputBatch,
 };
 use crate::util::secp::constants::SECRET_KEY_SIZE;
 use crate::util::secp::key::SecretKey;
@@ -238,11 +238,11 @@ where
 				hasher.update(&root_key.0[..]);
 				if *self.master_checksum != Some(hasher.finalize()) {
 					error!("Supplied keychain mask is invalid");
-					return Err(ErrorKind::InvalidKeychainMask.into());
+					return Err(Error::InvalidKeychainMask);
 				}
 				Ok(k_masked)
 			}
-			None => Err(ErrorKind::KeychainDoesntExist.into()),
+			None => Err(Error::KeychainDoesntExist),
 		}
 	}
 
@@ -281,7 +281,7 @@ where
 			self.set_parent_key_id(a.path);
 			Ok(())
 		} else {
-			Err(ErrorKind::UnknownAccountLabel(label).into())
+			Err(Error::UnknownAccountLabel(label))
 		}
 	}
 

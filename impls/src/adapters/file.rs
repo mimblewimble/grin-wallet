@@ -16,7 +16,7 @@
 use std::fs::File;
 use std::io::{Read, Write};
 
-use crate::libwallet::{Error, ErrorKind, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
+use crate::libwallet::{Error, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
 use crate::{SlateGetter, SlatePutter};
 use grin_wallet_util::byte_ser;
 use std::convert::TryFrom;
@@ -39,13 +39,12 @@ impl SlatePutter for PathToSlate {
 		// TODO:
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		if as_bin {
-			let bin_slate =
-				VersionedBinSlate::try_from(out_slate).map_err(|_| ErrorKind::SlateSer)?;
-			pub_tx.write_all(&byte_ser::to_bytes(&bin_slate).map_err(|_| ErrorKind::SlateSer)?)?;
+			let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| Error::SlateSer)?;
+			pub_tx.write_all(&byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlateSer)?)?;
 		} else {
 			pub_tx.write_all(
 				serde_json::to_string_pretty(&out_slate)
-					.map_err(|_| ErrorKind::SlateSer)?
+					.map_err(|_| Error::SlateSer)?
 					.as_bytes(),
 			)?;
 		}
@@ -68,7 +67,7 @@ impl SlateGetter for PathToSlate {
 		}
 
 		// Otherwise try json
-		let content = String::from_utf8(data).map_err(|_| ErrorKind::SlateSer)?;
+		let content = String::from_utf8(data).map_err(|_| Error::SlateSer)?;
 		Ok((Slate::deserialize_upgrade(&content)?, false))
 	}
 }
