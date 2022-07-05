@@ -19,15 +19,8 @@ use crate::core::libtx;
 use crate::impls;
 use crate::keychain;
 use crate::libwallet;
-use failure::{Backtrace, Context, Fail};
 use std::env;
 use std::fmt::{self, Display};
-
-/// Error definition
-#[derive(Debug)]
-pub struct Error {
-	pub inner: Context<ErrorKind>,
-}
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
