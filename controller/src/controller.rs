@@ -18,12 +18,11 @@ use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, T
 use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	address, Error, ErrorKind, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
+	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
 	WalletLCProvider, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
-use failure::ResultExt;
 use futures::channel::oneshot;
 use grin_wallet_api::JsonId;
 use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
@@ -69,7 +68,7 @@ fn check_middleware(
 			}
 			if let Some(s) = slate {
 				if bhv > 4 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
-					Err(ErrorKind::Compatibility(
+					Err(Error::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
 						 Please upgrade the node or use a different one."
 							.into(),
@@ -104,9 +103,9 @@ where
 	let parent_key_id = w_inst.parent_key_id();
 	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 	let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
-		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let onion_address = OnionV3Address::from_private(&sec_key.0)
-		.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 
 	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
@@ -114,19 +113,19 @@ where
 	if bridge.bridge_line.is_some() {
 		tor_timeout = 40;
 		let bridge_config = tor_bridge::TorBridge::try_from(bridge)
-			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 		hm_tor_bridge = bridge_config
 			.to_hashmap()
-			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 	}
 
 	let mut hm_tor_poxy: HashMap<String, String> = HashMap::new();
 	if tor_proxy.transport.is_some() || tor_proxy.allowed_port.is_some() {
 		let proxy_config = tor_proxy::TorProxy::try_from(tor_proxy)
-			.map_err(|e| ErrorKind::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 		hm_tor_poxy = proxy_config
 			.to_hashmap()
-			.map_err(|e| ErrorKind::TorConfig(format!("{}", e.kind()).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 	}
 
 	warn!(
@@ -140,7 +139,7 @@ where
 		hm_tor_bridge,
 		hm_tor_poxy,
 	)
-	.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+	.map_err(|e| Error::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))
@@ -148,7 +147,7 @@ where
 		.timeout(tor_timeout)
 		.completion_percent(100)
 		.launch()
-		.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e).into()))?;
+		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 	Ok((process, sp_address))
 }
 
@@ -172,10 +171,9 @@ where
 			let wallet = match wallet {
 				Some(w) => w,
 				None => {
-					return Err(ErrorKind::GenericError(format!(
+					return Err(Error::GenericError(format!(
 						"Instantiated wallet or Owner API context must be provided"
-					))
-					.into())
+					)))
 				}
 			};
 			f(&mut Owner::new(wallet, None), keychain_mask)?
@@ -250,7 +248,7 @@ where
 
 	router
 		.add_route("/v3/owner", Arc::new(api_handler_v3))
-		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+		.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
 
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
@@ -259,7 +257,7 @@ where
 			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
-			.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
 	}
 
 	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
@@ -270,13 +268,11 @@ where
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
 	let api_thread = apis
 		.start(socket_addr, router, tls_config, api_chan)
-		.context(ErrorKind::GenericError(
-			"API thread failed to start".to_string(),
-		))?;
+		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 	warn!("HTTP Owner listener started.");
 	api_thread
 		.join()
-		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
+		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)))
 }
 
 /// Listener version, providing same API but listening for requests on a
@@ -335,7 +331,7 @@ where
 
 	router
 		.add_route("/v2/foreign", Arc::new(api_handler_v2))
-		.map_err(|_| ErrorKind::GenericError("Router failed to add route".to_string()))?;
+		.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
 
 	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
 		Box::leak(Box::new(oneshot::channel::<()>()));
@@ -345,9 +341,7 @@ where
 	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
 	let api_thread = apis
 		.start(socket_addr, router, tls_config, api_chan)
-		.context(ErrorKind::GenericError(
-			"API thread failed to start".to_string(),
-		))?;
+		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 
 	warn!("HTTP Foreign listener started.");
 	if let Some(a) = address {
@@ -356,7 +350,7 @@ where
 
 	api_thread
 		.join()
-		.map_err(|e| ErrorKind::GenericError(format!("API thread panicked :{:?}", e)).into())
+		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)))
 }
 
 /// V3 API Handler/Wrapper for owner functions, which include a secure
@@ -472,7 +466,7 @@ impl OwnerV3Helpers {
 		})?;
 		let id = enc_req.id.clone();
 		let res = enc_req.decrypt(&shared_key).map_err(|e| {
-			EncryptionErrorResponse::new(1, -32002, &format!("Decryption error: {}", e.kind()))
+			EncryptionErrorResponse::new(1, -32002, &format!("Decryption error: {}", e))
 				.as_json_value()
 		})?;
 		Ok((id, res))
@@ -487,7 +481,7 @@ impl OwnerV3Helpers {
 		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
 		let enc_res = EncryptedResponse::from_json(id, res, &shared_key).map_err(|e| {
-			EncryptionErrorResponse::new(1, -32003, &format!("EncryptionError: {}", e.kind()))
+			EncryptionErrorResponse::new(1, -32003, &format!("EncryptionError: {}", e))
 				.as_json_value()
 		})?;
 		let res = enc_res.as_json_value().map_err(|e| {
@@ -869,8 +863,8 @@ where
 {
 	let body = body::to_bytes(req.into_body())
 		.await
-		.map_err(|_| ErrorKind::GenericError("Failed to read request".to_string()))?;
+		.map_err(|_| Error::GenericError("Failed to read request".to_string()))?;
 
 	serde_json::from_reader(&body[..])
-		.map_err(|e| ErrorKind::GenericError(format!("Invalid request body: {}", e)).into())
+		.map_err(|e| Error::GenericError(format!("Invalid request body: {}", e)))
 }

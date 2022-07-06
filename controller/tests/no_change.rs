@@ -206,7 +206,7 @@ fn no_change() {
 	let test_dir = "test_output/no_change";
 	setup(test_dir);
 	if let Err(e) = no_change_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

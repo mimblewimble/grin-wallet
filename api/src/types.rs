@@ -17,7 +17,6 @@ use crate::libwallet::Error;
 use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, ToHex};
 use ed25519_dalek::SecretKey as DalekSecretKey;
-use failure::ResultExt;
 
 use base64;
 use rand::{thread_rng, Rng};

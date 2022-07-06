@@ -262,7 +262,7 @@ fn wallet_file_repost() {
 	let test_dir = "test_output/file_repost";
 	setup(test_dir);
 	if let Err(e) = file_repost_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

@@ -18,7 +18,7 @@ use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
 use crate::keychain;
@@ -183,7 +183,6 @@ where
 			}
 			Err(e) => {
 				error!("View wallet check failed: {}", e);
-				error!("Backtrace: {}", e.backtrace().unwrap());
 				Err(e)
 			}
 		}
@@ -234,7 +233,7 @@ where
 			let r = t.join();
 			if let Err(_) = r {
 				error!("Error starting listener");
-				return Err(ErrorKind::ListenerError.into());
+				return Err(Error::ListenerError);
 			}
 		}
 	}
@@ -268,7 +267,7 @@ where
 		test_mode,
 	);
 	if let Err(e) = res {
-		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
+		return Err(Error::LibWallet(e));
 	}
 	Ok(())
 }
@@ -298,7 +297,7 @@ where
 		});
 		if let Err(e) = res {
 			error!("Error listing accounts: {}", e);
-			return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
+			return Err(Error::LibWallet(e));
 		}
 	} else {
 		let label = args.create.unwrap();
@@ -311,7 +310,7 @@ where
 		if let Err(e) = res {
 			thread::sleep(Duration::from_millis(200));
 			error!("Error creating account '{}': {}", label, e);
-			return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
+			return Err(Error::LibWallet(e));
 		}
 	}
 	Ok(())
@@ -593,7 +592,7 @@ where
 				}
 				None => {
 					let msg = "No slate provided via file or direct input";
-					return Err(ErrorKind::GenericError(msg.into()).into());
+					return Err(Error::GenericError(msg.into()).into());
 				}
 			}
 			slate
@@ -715,7 +714,7 @@ where
 				sp
 			}
 			None => {
-				return Err(ErrorKind::ArgumentError("Invalid Slatepack Input".into()).into());
+				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
 			}
 		},
 	};
@@ -1306,7 +1305,6 @@ where
 			}
 			Err(e) => {
 				error!("Wallet check failed: {}", e);
-				error!("Backtrace: {}", e.backtrace().unwrap());
 				Err(e)
 			}
 		}
@@ -1399,7 +1397,7 @@ where
 					"Unable to open payment proof file at {}: {}",
 					args.input_file, e
 				);
-				return Err(libwallet::ErrorKind::PaymentProofParsing(msg).into());
+				return Err(libwallet::Error::PaymentProofParsing(msg));
 			}
 		};
 		let mut proof = String::new();
@@ -1410,7 +1408,7 @@ where
 			Err(e) => {
 				let msg = format!("{}", e);
 				error!("Unable to parse payment proof file: {}", e);
-				return Err(libwallet::ErrorKind::PaymentProofParsing(msg).into());
+				return Err(libwallet::Error::PaymentProofParsing(msg));
 			}
 		};
 		let result = api.verify_payment_proof(m, &proof);

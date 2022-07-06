@@ -852,7 +852,7 @@ fn scan() {
 	let test_dir = "test_output/scan";
 	setup(test_dir);
 	if let Err(e) = scan_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -862,7 +862,7 @@ fn two_wallets_one_seed() {
 	let test_dir = "test_output/two_wallets_one_seed";
 	setup(test_dir);
 	if let Err(e) = two_wallets_one_seed_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -872,7 +872,7 @@ fn output_scanning() {
 	let test_dir = "test_output/output_scanning";
 	setup(test_dir);
 	if let Err(e) = output_scanning_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

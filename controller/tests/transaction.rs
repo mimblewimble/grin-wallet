@@ -544,7 +544,7 @@ fn db_wallet_basic_transaction_api() {
 	let test_dir = "test_output/basic_transaction_api";
 	setup(test_dir);
 	if let Err(e) = basic_transaction_api(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -554,7 +554,7 @@ fn db_wallet_tx_rollback() {
 	let test_dir = "test_output/tx_rollback";
 	setup(test_dir);
 	if let Err(e) = tx_rollback(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

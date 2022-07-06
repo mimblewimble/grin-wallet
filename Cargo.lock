@@ -1535,6 +1535,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "term 0.6.1",
+ "thiserror",
  "tokio",
  "url",
  "uuid",

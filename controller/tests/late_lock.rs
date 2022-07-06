@@ -152,7 +152,7 @@ fn late_lock() {
 	let test_dir = "test_output/late_lock";
 	setup(test_dir);
 	if let Err(e) = late_lock_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

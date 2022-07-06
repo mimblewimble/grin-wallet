@@ -142,7 +142,7 @@ fn wallet_self_send() {
 	let test_dir = "test_output/self_send";
 	setup(test_dir);
 	if let Err(e) = self_send_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

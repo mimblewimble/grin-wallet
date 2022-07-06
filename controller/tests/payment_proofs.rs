@@ -166,7 +166,7 @@ fn payment_proofs() {
 	let test_dir = "test_output/payment_proofs";
 	setup(test_dir);
 	if let Err(e) = payment_proofs_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

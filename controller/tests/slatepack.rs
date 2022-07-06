@@ -515,7 +515,7 @@ fn slatepack_exchange_json() {
 	setup(test_dir);
 	// Json output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false, false) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -526,7 +526,7 @@ fn slatepack_exchange_bin() {
 	setup(test_dir);
 	// Bin output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, false, false) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -537,7 +537,7 @@ fn slatepack_exchange_armored() {
 	setup(test_dir);
 	// Bin output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, true) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -548,7 +548,7 @@ fn slatepack_exchange_json_enc() {
 	setup(test_dir);
 	// Json output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false, true) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -559,7 +559,7 @@ fn slatepack_exchange_bin_enc() {
 	setup(test_dir);
 	// Bin output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, false, true) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -570,7 +570,7 @@ fn slatepack_exchange_armored_enc() {
 	setup(test_dir);
 	// Bin output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, true, true, true) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -581,7 +581,7 @@ fn slatepack_api() {
 	setup(test_dir);
 	// Json output
 	if let Err(e) = slatepack_api_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

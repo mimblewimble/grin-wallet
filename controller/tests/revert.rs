@@ -363,7 +363,7 @@ fn tx_revert_reconfirm() {
 	let test_dir = "test_output/revert_tx";
 	setup(test_dir);
 	if let Err(e) = revert_reconfirm_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }
@@ -373,7 +373,7 @@ fn tx_revert_cancel() {
 	let test_dir = "test_output/revert_tx_cancel";
 	setup(test_dir);
 	if let Err(e) = revert_cancel_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

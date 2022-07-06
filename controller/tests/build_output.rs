@@ -95,7 +95,7 @@ fn build_output() {
 	let test_dir = "test_output/build_output";
 	setup(test_dir);
 	if let Err(e) = build_output_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

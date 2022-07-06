@@ -165,7 +165,7 @@ fn build_chain_to_height() {
 	clean_output_dir(test_dir);
 	setup(test_dir);
 	if let Err(e) = build_chain(test_dir, 2048) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	// don't clean to get the result for testing
 }

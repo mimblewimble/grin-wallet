@@ -19,208 +19,87 @@ use crate::core::libtx;
 use crate::impls;
 use crate::keychain;
 use crate::libwallet;
-use std::env;
-use std::fmt::{self, Display};
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
-#[derive(Clone, Eq, PartialEq, Debug, Fail)]
-pub enum ErrorKind {
+#[derive(Clone, Eq, PartialEq, Debug, thiserror::Error)]
+pub enum Error {
 	/// LibTX Error
-	#[fail(display = "LibTx Error")]
-	LibTX(libtx::ErrorKind),
+	#[error("LibTx Error")]
+	LibTX(#[from] libtx::Error),
 
 	/// Impls error
-	#[fail(display = "Impls Error")]
-	Impls(impls::ErrorKind),
+	#[error("Impls Error")]
+	Impls(#[from] impls::Error),
 
 	/// LibWallet Error
-	#[fail(display = "LibWallet Error: {}", _1)]
-	LibWallet(libwallet::ErrorKind, String),
+	#[error("LibWallet Error: {0}")]
+	LibWallet(#[from] libwallet::Error),
 
 	/// Keychain error
-	#[fail(display = "Keychain error")]
-	Keychain(keychain::Error),
+	#[error("Keychain error")]
+	Keychain(#[from] keychain::Error),
 
 	/// Transaction Error
-	#[fail(display = "Transaction error")]
-	Transaction(transaction::Error),
+	#[error("Transaction error")]
+	Transaction(#[from] transaction::Error),
 
 	/// Secp Error
-	#[fail(display = "Secp error")]
+	#[error("Secp error")]
 	Secp,
 
 	/// Filewallet error
-	#[fail(display = "Wallet data error: {}", _0)]
+	#[error("Wallet data error: {0}")]
 	FileWallet(&'static str),
 
 	/// Error when formatting json
-	#[fail(display = "IO error")]
+	#[error("IO error")]
 	IO,
 
 	/// Error when formatting json
-	#[fail(display = "Serde JSON error")]
+	#[error("Serde JSON error")]
 	Format,
 
 	/// Error when contacting a node through its API
-	#[fail(display = "Node API error")]
-	Node(api::ErrorKind),
+	#[error("Node API error")]
+	Node(api::Error),
 
 	/// Error originating from hyper.
-	#[fail(display = "Hyper error")]
+	#[error("Hyper error")]
 	Hyper,
 
 	/// Error originating from hyper uri parsing.
-	#[fail(display = "Uri parsing error")]
+	#[error("Uri parsing error")]
 	Uri,
 
 	/// Attempt to use duplicate transaction id in separate transactions
-	#[fail(display = "Duplicate transaction ID error")]
+	#[error("Duplicate transaction ID error")]
 	DuplicateTransactionId,
 
 	/// Wallet seed already exists
-	#[fail(display = "Wallet seed file exists: {}", _0)]
+	#[error("Wallet seed file exists: {0}")]
 	WalletSeedExists(String),
 
 	/// Wallet seed doesn't exist
-	#[fail(display = "Wallet seed doesn't exist error")]
+	#[error("Wallet seed doesn't exist error")]
 	WalletSeedDoesntExist,
 
 	/// Enc/Decryption Error
-	#[fail(display = "Enc/Decryption error (check password?)")]
+	#[error("Enc/Decryption error (check password?)")]
 	Encryption,
 
 	/// BIP 39 word list
-	#[fail(display = "BIP39 Mnemonic (word list) Error")]
+	#[error("BIP39 Mnemonic (word list) Error")]
 	Mnemonic,
 
 	/// Command line argument error
-	#[fail(display = "{}", _0)]
+	#[error("{0}")]
 	ArgumentError(String),
 
 	/// Other
-	#[fail(display = "Listener Startup Error")]
+	#[error("Listener Startup Error")]
 	ListenerError,
 
 	/// Other
-	#[fail(display = "Generic error: {}", _0)]
+	#[error("Generic error: {0}")]
 	GenericError(String),
-}
-
-/*impl std::error::Error for Error {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		self.0.source.as_ref().map(|source| source.as_dyn_error())
-	}
-}*/
-
-impl Fail for Error {
-	fn cause(&self) -> Option<&dyn Fail> {
-		self.inner.cause()
-	}
-
-	fn backtrace(&self) -> Option<&Backtrace> {
-		self.inner.backtrace()
-	}
-}
-
-impl Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let show_bt = match env::var("RUST_BACKTRACE") {
-			Ok(r) => {
-				if r == "1" {
-					true
-				} else {
-					false
-				}
-			}
-			Err(_) => false,
-		};
-		let backtrace = match self.backtrace() {
-			Some(b) => format!("{}", b),
-			None => String::from("Unknown"),
-		};
-		let inner_output = format!("{}", self.inner,);
-		let backtrace_output = format!("\nBacktrace: {}", backtrace);
-		let mut output = inner_output.clone();
-		if show_bt {
-			output.push_str(&backtrace_output);
-		}
-		Display::fmt(&output, f)
-	}
-}
-
-impl Error {
-	/// get kind
-	pub fn kind(&self) -> ErrorKind {
-		self.inner.get_context().clone()
-	}
-	/// get cause
-	pub fn cause(&self) -> Option<&dyn Fail> {
-		self.inner.cause()
-	}
-	/// get backtrace
-	pub fn backtrace(&self) -> Option<&Backtrace> {
-		self.inner.backtrace()
-	}
-}
-
-impl From<ErrorKind> for Error {
-	fn from(kind: ErrorKind) -> Error {
-		Error {
-			inner: Context::new(kind),
-		}
-	}
-}
-
-impl From<Context<ErrorKind>> for Error {
-	fn from(inner: Context<ErrorKind>) -> Error {
-		Error { inner: inner }
-	}
-}
-
-impl From<api::Error> for Error {
-	fn from(error: api::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Node(error.kind().clone())),
-		}
-	}
-}
-
-impl From<keychain::Error> for Error {
-	fn from(error: keychain::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Keychain(error)),
-		}
-	}
-}
-
-impl From<transaction::Error> for Error {
-	fn from(error: transaction::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Transaction(error)),
-		}
-	}
-}
-
-impl From<libwallet::Error> for Error {
-	fn from(error: libwallet::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibWallet(error.kind(), format!("{}", error))),
-		}
-	}
-}
-
-impl From<libtx::Error> for Error {
-	fn from(error: libtx::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibTX(error.kind())),
-		}
-	}
-}
-
-impl From<impls::Error> for Error {
-	fn from(error: impls::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Impls(error.kind())),
-		}
-	}
 }
