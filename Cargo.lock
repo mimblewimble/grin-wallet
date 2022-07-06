@@ -936,6 +936,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "failure"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32e9bd16cc02eae7db7ef620b392808b89f6a5e16bb3497d159c6b92a0f4f86"
+dependencies = [
+ "backtrace",
+ "failure_derive",
+]
+
+[[package]]
+name = "failure_derive"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa4da3c766cd7a0db8242e326e9e4e081edd567072893ed320008189715366a4"
+dependencies = [
+ "proc-macro2 1.0.40",
+ "quote 1.0.20",
+ "syn 1.0.98",
+ "synstructure",
+]
+
+[[package]]
 name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1236,9 +1258,12 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
+ "failure",
+ "failure_derive",
  "futures 0.3.21",
  "grin_chain",
  "grin_core",
@@ -1258,7 +1283,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "thiserror",
  "tokio",
  "tokio-rustls 0.13.1",
  "url",
@@ -1267,6 +1291,7 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "bit-vec",
  "bitflags 1.3.2",
@@ -1274,6 +1299,8 @@ dependencies = [
  "chrono",
  "croaring",
  "enum_primitive",
+ "failure",
+ "failure_derive",
  "grin_core",
  "grin_keychain",
  "grin_store",
@@ -1283,12 +1310,12 @@ dependencies = [
  "lru-cache",
  "serde",
  "serde_derive",
- "thiserror",
 ]
 
 [[package]]
 name = "grin_core"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1296,6 +1323,8 @@ dependencies = [
  "chrono",
  "croaring",
  "enum_primitive",
+ "failure",
+ "failure_derive",
  "grin_keychain",
  "grin_util",
  "lazy_static",
@@ -1307,13 +1336,13 @@ dependencies = [
  "serde",
  "serde_derive",
  "siphasher",
- "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1335,6 +1364,7 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "bitflags 1.3.2",
  "bytes 0.5.6",
@@ -1356,9 +1386,12 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "blake2-rfc",
  "chrono",
+ "failure",
+ "failure_derive",
  "grin_core",
  "grin_keychain",
  "grin_util",
@@ -1366,7 +1399,6 @@ dependencies = [
  "rand 0.6.5",
  "serde",
  "serde_derive",
- "thiserror",
 ]
 
 [[package]]
@@ -1388,9 +1420,12 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "byteorder",
  "croaring",
+ "failure",
+ "failure_derive",
  "grin_core",
  "grin_util",
  "libc",
@@ -1400,12 +1435,12 @@ dependencies = [
  "serde",
  "serde_derive",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]
 name = "grin_util"
 version = "5.2.0-alpha.1"
+source = "git+https://github.com/mimblewimble/grin?branch=master#03b007c20e77c0ddf047b750e5c5ebe14f16d8e1"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
