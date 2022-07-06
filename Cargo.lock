@@ -1452,8 +1452,6 @@ dependencies = [
  "built",
  "clap",
  "easy-jsonrpc-mw",
- "failure",
- "failure_derive",
  "grin_wallet_api",
  "grin_wallet_config",
  "grin_wallet_controller",
@@ -1471,6 +1469,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "thiserror",
  "url",
 ]
 

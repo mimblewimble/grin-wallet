@@ -39,8 +39,8 @@ use grin_wallet_util::grin_api as api;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::thread;
 use std::time::Duration;
+use std::{fmt, thread};
 use url::Url;
 
 // Set up 2 wallets and launch the test proxy behind them
@@ -160,7 +160,7 @@ pub fn config_command_wallet(
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
 	if config_file_name.exists() {
-		return Err(grin_wallet_controller::ErrorKind::ArgumentError(
+		return Err(grin_wallet_controller::Error::ArgumentError(
 			"grin-wallet.toml already exists in the target directory. Please remove it first"
 				.to_owned(),
 		))?;
@@ -472,10 +472,25 @@ pub fn derive_ecdh_key(sec_key_str: &str, other_pubkey: &PublicKey) -> SecretKey
 }
 
 // Types to make working with json responses easier
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, thiserror::Error)]
 pub struct WalletAPIReturnError {
 	pub message: String,
 	pub code: i32,
+}
+
+impl std::fmt::Display for WalletAPIReturnError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{} - {}", self.code, &self.message)
+	}
+}
+
+impl From<grin_wallet_controller::Error> for WalletAPIReturnError {
+	fn from(error: grin_wallet_controller::Error) -> WalletAPIReturnError {
+		WalletAPIReturnError {
+			message: error.to_string(),
+			code: -1,
+		}
+	}
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

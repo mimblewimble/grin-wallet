@@ -61,7 +61,7 @@ pub enum Error {
 
 	/// Error when contacting a node through its API
 	#[error("Node API error")]
-	Node(api::Error),
+	Node(#[from] api::Error),
 
 	/// Error originating from hyper.
 	#[error("Hyper error")]
