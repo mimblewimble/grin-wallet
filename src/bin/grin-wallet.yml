@@ -109,7 +109,7 @@ subcommands:
       about: Builds a transaction to send coins and sends to the recipient via the Slatepack workflow
       args:
         - amount:
-            help: Number of coins to send with optional fraction, e.g. 12.423
+            help: Number of coins to send with optional fraction, e.g. 12.423. Keyword 'max' will send maximum amount.
             index: 1
         - minimum_confirmations:
             help: Minimum number of confirmations required for an output to be spendable

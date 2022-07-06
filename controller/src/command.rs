@@ -16,7 +16,9 @@
 
 use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
+use crate::command::core::amount_to_hr_string;
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
+use crate::core::libtx::tx_fee;
 use crate::core::{core, global};
 use crate::error::{Error, ErrorKind};
 use crate::impls::PathToSlatepack;
@@ -321,6 +323,7 @@ where
 #[derive(Clone)]
 pub struct SendArgs {
 	pub amount: u64,
+	pub max: bool,
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
@@ -341,7 +344,7 @@ pub fn send<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	tor_config: Option<TorConfig>,
-	args: SendArgs,
+	mut args: SendArgs,
 	dark_scheme: bool,
 	test_mode: bool,
 ) -> Result<(), Error>
@@ -350,6 +353,33 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	// If 'max' spend, calculate the 'amount' as the maximum spendable wallet balance, less fees.
+	if args.max && args.amount == 0 {
+		let current_height = owner_api.node_height(keychain_mask)?.height;
+		let utxos = owner_api.retrieve_outputs(None, false, false, None)?.1;
+		let spendable = utxos.iter().filter_map(|c| {
+			if c.output
+				.eligible_to_spend(current_height, args.minimum_confirmations)
+			{
+				Some(c.output.value)
+			} else {
+				None
+			}
+		});
+		let num_inputs = spendable.clone().count();
+		let spendable_amt = spendable.sum::<u64>();
+		let fee = tx_fee(num_inputs, 2, 1);
+		args.amount = spendable_amt.checked_sub(fee).ok_or(ErrorKind::LibWallet(
+			libwallet::ErrorKind::NotEnoughFunds {
+				available: spendable_amt,
+				available_disp: amount_to_hr_string(spendable_amt, false),
+				needed: spendable_amt + fee,
+				needed_disp: amount_to_hr_string(spendable_amt + fee, false),
+			},
+			"Wallet balance is less than fees.".to_string(),
+		))?;
+	}
+
 	let mut slate = Slate::blank(2, false);
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {

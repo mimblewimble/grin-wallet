@@ -444,7 +444,11 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
 	// amount
 	let amount = parse_required(args, "amount")?;
-	let amount = core::core::amount_from_hr_string(amount);
+	let (amount, max) = if amount.eq_ignore_ascii_case("max") {
+		(Ok(0), true)
+	} else {
+		(core::core::amount_from_hr_string(amount), false)
+	};
 	let amount = match amount {
 		Ok(a) => a,
 		Err(e) => {
@@ -522,6 +526,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	Ok(command::SendArgs {
 		amount: amount,
+		max: max,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
