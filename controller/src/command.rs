@@ -30,6 +30,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 use ::core::time;
+use qr_code::QrCode;
 use serde_json as json;
 use std::convert::TryFrom;
 use std::fs::File;
@@ -527,6 +528,10 @@ where
 	println!();
 	println!("{}", out_file_name);
 	println!();
+	if let Ok(qr_string) = QrCode::new(message) {
+		println!("{}", qr_string.to_string(false, 3));
+		println!();
+	}
 	if address.is_some() {
 		println!("The slatepack data is encrypted for the recipient only");
 	} else {
