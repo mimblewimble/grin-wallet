@@ -1018,12 +1018,7 @@ where
 		("init", Some(_)) => open_wallet = false,
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
-		("owner_api", _) => {
-			// If wallet exists, open it. Otherwise, that's fine too.
-			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider().unwrap();
-			open_wallet = lc.wallet_exists(None)?;
-		}
+		("owner_api", _) => open_wallet = false
 		_ => {}
 	}
 
