@@ -1018,7 +1018,7 @@ where
 		("init", Some(_)) => open_wallet = false,
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
-		("owner_api", _) => open_wallet = false
+		("owner_api", _) => open_wallet = false,
 		_ => {}
 	}
 
