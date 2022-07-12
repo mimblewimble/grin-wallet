@@ -1037,10 +1037,10 @@ where
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
 		("owner_api", _) => {
-			// If wallet exists, open it. Otherwise, that's fine too.
+			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
-			open_wallet = lc.wallet_exists(None)?;
+			open_wallet = wallet_args.is_present("pass") && lc.wallet_exists(None)?;
 		}
 		_ => {}
 	}
