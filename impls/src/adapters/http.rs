@@ -32,6 +32,7 @@ use crate::tor::config as tor_config;
 use crate::tor::process as tor_process;
 
 const TOR_CONFIG_PATH: &str = "tor/sender";
+const SEND_TX_TIMEOUT_DURATION_SECTIONS: u64 = 5 * 60;
 
 #[derive(Clone)]
 pub struct HttpSlateSender {
@@ -141,7 +142,7 @@ impl HttpSlateSender {
 			"params": []
 		});
 
-		let res: String = self.post(url, None, req).map_err(|e| {
+		let res: String = self.post(url, None, req, None).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
@@ -193,17 +194,18 @@ impl HttpSlateSender {
 		url: &str,
 		api_secret: Option<String>,
 		input: IN,
+		timeout: Option<u64>,
 	) -> Result<String, ClientError>
 	where
 		IN: Serialize,
 	{
 		let client =
 			if !self.use_socks {
-				Client::new()
+				Client::new(timeout)
 			} else {
 				Client::with_socks_proxy(self.socks_proxy_addr.ok_or_else(|| {
 					ClientErrorKind::Internal("No socks proxy address set".into())
-				})?)
+				})?, timeout)
 			}
 			.map_err(|_| ClientErrorKind::Internal("Unable to create http client".into()))?;
 		let req = client.create_post_request(url, api_secret, &input)?;
@@ -249,7 +251,7 @@ impl SlateSender for HttpSlateSender {
 
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = self.post(&url_str, None, req).map_err(|e| {
+		let res: String = self.post(&url_str, None, req, Some(SEND_TX_TIMEOUT_DURATION_SECTIONS)).map_err(|e| {
 			let report = format!(
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e
