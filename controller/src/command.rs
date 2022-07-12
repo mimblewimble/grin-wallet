@@ -30,6 +30,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 use ::core::time;
+use qr_code::QrCode;
 use serde_json as json;
 use std::convert::TryFrom;
 use std::fs::File;
@@ -335,6 +336,7 @@ pub struct SendArgs {
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
+	pub slatepack_qr: bool,
 }
 
 pub fn send<L, C, K>(
@@ -451,6 +453,7 @@ where
 				args.outfile,
 				true,
 				false,
+				args.slatepack_qr,
 			)?;
 		}
 		Err(e) => return Err(e.into()),
@@ -466,6 +469,7 @@ pub fn output_slatepack<L, C, K>(
 	out_file_override: Option<String>,
 	lock: bool,
 	finalizing: bool,
+	show_qr: bool,
 ) -> Result<(), libwallet::Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -527,6 +531,12 @@ where
 	println!();
 	println!("{}", out_file_name);
 	println!();
+	if show_qr {
+		if let Ok(qr_string) = QrCode::new(message) {
+			println!("{}", qr_string.to_string(false, 3));
+			println!();
+		}
+	}
 	if address.is_some() {
 		println!("The slatepack data is encrypted for the recipient only");
 	} else {
@@ -610,6 +620,7 @@ pub struct ReceiveArgs {
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
+	pub slatepack_qr: bool,
 }
 
 pub fn receive<L, C, K>(
@@ -679,6 +690,7 @@ where
 				args.outfile,
 				false,
 				false,
+				args.slatepack_qr,
 			)?;
 			Ok(())
 		}
@@ -772,6 +784,7 @@ pub struct FinalizeArgs {
 	pub fluff: bool,
 	pub nopost: bool,
 	pub outfile: Option<String>,
+	pub slatepack_qr: bool,
 }
 
 pub fn finalize<L, C, K>(
@@ -841,6 +854,7 @@ where
 		args.outfile,
 		false,
 		true,
+		args.slatepack_qr,
 	)?;
 
 	Ok(())
@@ -854,6 +868,8 @@ pub struct IssueInvoiceArgs {
 	pub issue_args: IssueInvoiceTxArgs,
 	/// output file override
 	pub outfile: Option<String>,
+	/// show slatepack as QR code
+	pub slatepack_qr: bool,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -882,6 +898,7 @@ where
 		args.outfile,
 		false,
 		false,
+		args.slatepack_qr,
 	)?;
 	Ok(())
 }
@@ -898,6 +915,7 @@ pub struct ProcessInvoiceArgs {
 	pub skip_tor: bool,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
+	pub slatepack_qr: bool,
 }
 
 /// Process invoice
@@ -1004,6 +1022,7 @@ where
 				args.outfile,
 				true,
 				false,
+				args.slatepack_qr,
 			)?;
 			Ok(())
 		}
