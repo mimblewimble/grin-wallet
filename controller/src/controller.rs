@@ -30,6 +30,7 @@ use grin_wallet_util::OnionV3Address;
 use hyper::body;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
+use qr_code::QrCode;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
@@ -345,7 +346,11 @@ where
 
 	warn!("HTTP Foreign listener started.");
 	if let Some(a) = address {
-		warn!("Slatepack Address is: {}", a);
+		let qr_string = match QrCode::new(a.to_string()) {
+			Ok(qr) => qr.to_string(false, 3),
+			Err(_) => "Failed to generate QR code!".to_string(),
+		};
+		warn!("Slatepack Address is: {}\n{}", a, qr_string);
 	}
 
 	api_thread

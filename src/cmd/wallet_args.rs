@@ -518,6 +518,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		None => None,
 	};
 
+	let slatepack_qr = args.is_present("slatepack_qr");
+
 	Ok(command::SendArgs {
 		amount: amount,
 		minimum_confirmations: min_c,
@@ -534,6 +536,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		outfile,
 		skip_tor: args.is_present("manual"),
 		bridge: bridge,
+		slatepack_qr: slatepack_qr,
 	})
 }
 
@@ -561,12 +564,15 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 
 	let bridge = parse_optional(args, "bridge")?;
 
+	let slatepack_qr = args.is_present("slatepack_qr");
+
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
 		bridge,
+		slatepack_qr: slatepack_qr,
 	})
 }
 
@@ -594,12 +600,15 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 
 	let bridge = parse_optional(args, "bridge")?;
 
+	let slatepack_qr = args.is_present("slatepack_qr");
+
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
 		skip_tor: args.is_present("manual"),
 		outfile,
 		bridge,
+		slatepack_qr: slatepack_qr,
 	})
 }
 
@@ -627,12 +636,15 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let slatepack_qr = args.is_present("slatepack_qr");
+
 	Ok(command::FinalizeArgs {
 		input_file,
 		input_slatepack_message,
 		fluff: fluff,
 		nopost: nopost,
 		outfile,
+		slatepack_qr: slatepack_qr,
 	})
 }
 
@@ -671,6 +683,8 @@ pub fn parse_issue_invoice_args(
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let slatepack_qr = args.is_present("slatepack_qr");
+
 	Ok(command::IssueInvoiceArgs {
 		dest: dest.into(),
 		issue_args: IssueInvoiceTxArgs {
@@ -679,6 +693,7 @@ pub fn parse_issue_invoice_args(
 			target_slate_version,
 		},
 		outfile,
+		slatepack_qr: slatepack_qr,
 	})
 }
 
@@ -756,6 +771,8 @@ pub fn parse_process_invoice_args(
 
 	let bridge = parse_optional(args, "bridge")?;
 
+	let slatepack_qr = args.is_present("slatepack_qr");
+
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
@@ -767,6 +784,7 @@ pub fn parse_process_invoice_args(
 		skip_tor: args.is_present("manual"),
 		outfile,
 		bridge,
+		slatepack_qr: slatepack_qr,
 	})
 }
 
@@ -1017,10 +1035,10 @@ where
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
 		("owner_api", _) => {
-			// If wallet exists, open it. Otherwise, that's fine too.
+			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
 			let lc = wallet_lock.lc_provider().unwrap();
-			open_wallet = lc.wallet_exists(None)?;
+			open_wallet = wallet_args.is_present("pass") && lc.wallet_exists(None)?;
 		}
 		_ => {}
 	}

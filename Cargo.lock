@@ -1511,6 +1511,7 @@ dependencies = [
  "lazy_static",
  "log",
  "prettytable-rs",
+ "qr_code",
  "rand 0.7.3",
  "remove_dir_all 0.7.0",
  "ring",
@@ -2844,6 +2845,12 @@ checksum = "dd96a1e8ed2596c337f8eae5f24924ec83f5ad5ab21ea8e455d3566c69fbcaf7"
 dependencies = [
  "unicode-ident",
 ]
+
+[[package]]
+name = "qr_code"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5520fbcd7da152a449261c5a533a1c7fad044e9e8aa9528cfec3f464786c7926"
 
 [[package]]
 name = "quick-error"
