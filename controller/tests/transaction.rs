@@ -354,6 +354,47 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		Ok(())
 	})?;
 
+	// try to send a transaction with amount inclusive of fees, but amount too
+	// small to cover fees. Should fail.
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+		// note this will increment the block count as part of the transaction "Posting"
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: 1,
+			amount_includes_fee: Some(true),
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let res = sender_api.init_send_tx(m, args);
+		assert!(res.is_err());
+		Ok(())
+	})?;
+
+	// try to build a transaction with amount inclusive of fees. Confirm that tx
+	// amount + fee is equal to the originally specified amount
+	let amount = 60_000_000_000;
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+		// note this will increment the block count as part of the transaction "Posting"
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount,
+			amount_includes_fee: Some(true),
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let slate_i = sender_api.init_send_tx(m, args)?;
+		assert_eq!(slate_i.state, SlateState::Standard1);
+		let total_spend: u64 = slate_i.amount + slate_i.fee_fields.fee();
+		assert_eq!(amount, total_spend);
+		Ok(())
+	})?;
+
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));
