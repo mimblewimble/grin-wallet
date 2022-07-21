@@ -644,6 +644,73 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let arg_vec = vec!["grin-wallet", "-p", "password2", "txs", "-t", &tx_id[..]];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
+	// bit of mining
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false);
+
+	// Test wallet sweep
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password1",
+		"-a",
+		"mining",
+		"send",
+		"max",
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	let file_name = format!(
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b07.S1.slatepack",
+		test_dir
+	);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password2",
+		"-a",
+		"account_1",
+		"receive",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
+	let file_name = format!(
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b07.S2.slatepack",
+		test_dir
+	);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"mining",
+		"-p",
+		"password1",
+		"finalize",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	// Mine some blocks to confirm the transaction
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false);
+
+	// Check wallet 1 is now empty, except for immature coinbase outputs from recent mining),
+	// and recently matured coinbase outputs, which were not mature at time of spending.
+	// This confirms that the TX amount was correctly computed to allow for the fee
+	grin_wallet_controller::controller::owner_single_use(
+		Some(wallet1.clone()),
+		mask1,
+		None,
+		|api, m| {
+			api.set_active_account(m, "mining")?;
+			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 10)?;
+			// Entire 'spendable' wallet balance should have been swept, except the coinbase outputs
+			// which matured in the last batch of mining. Check that the new spendable balance is
+			// exactly equal to those matured coins.
+			let amt_mined = 10 * 60_000_000_000;
+			assert_eq!(wallet1_info.amount_currently_spendable, amt_mined);
+			Ok(())
+		},
+	)?;
+
 	// let logging finish
 	thread::sleep(Duration::from_millis(200));
 	clean_output_dir(test_dir);
