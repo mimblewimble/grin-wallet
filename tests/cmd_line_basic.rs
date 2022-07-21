@@ -281,6 +281,85 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		},
 	)?;
 
+	// Send to wallet 2 with --amount_includes_fee
+	let mut old_balance = 0;
+	grin_wallet_controller::controller::owner_single_use(
+		Some(wallet1.clone()),
+		mask1,
+		None,
+		|api, m| {
+			api.set_active_account(m, "mining")?;
+			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			old_balance = wallet1_info.amount_currently_spendable;
+			Ok(())
+		},
+	)?;
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password1",
+		"-a",
+		"mining",
+		"send",
+		"--amount_includes_fee",
+		"10",
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	let file_name = format!(
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b01.S1.slatepack",
+		test_dir
+	);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password2",
+		"-a",
+		"account_1",
+		"receive",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
+	let file_name = format!(
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b01.S2.slatepack",
+		test_dir
+	);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"mining",
+		"-p",
+		"password1",
+		"finalize",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	bh += 1;
+
+	// Mine some blocks to confirm the transaction
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false);
+	bh += 10;
+
+	// Check the new balance of wallet 1 reduced by EXACTLY the tx amount (instead of amount + fee)
+	// This confirms that the TX amount was correctly computed to allow for the fee
+	grin_wallet_controller::controller::owner_single_use(
+		Some(wallet1.clone()),
+		mask1,
+		None,
+		|api, m| {
+			api.set_active_account(m, "mining")?;
+			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			// make sure the new balance is exactly equal to the old balance - the tx amount + the amount mined since then
+			let amt_mined = 10 * 60_000_000_000;
+			assert_eq!(
+				wallet1_info.amount_currently_spendable + 10_000_000_000,
+				old_balance + amt_mined
+			);
+			Ok(())
+		},
+	)?;
+
 	// Send encrypted from wallet 1 to wallet 2
 	// output wallet 2's address for test creation purposes,
 	let arg_vec = vec![
@@ -308,7 +387,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 	let file_name = format!(
-		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b01.S1.slatepack",
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b02.S1.slatepack",
 		test_dir
 	);
 	let arg_vec = vec![
@@ -324,7 +403,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 	let file_name = format!(
-		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b01.S2.slatepack",
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b02.S2.slatepack",
 		test_dir
 	);
 
@@ -381,7 +460,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 	let file_name = format!(
-		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b02.S1.slatepack",
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b03.S1.slatepack",
 		test_dir
 	);
 	let arg_vec = vec![
@@ -397,7 +476,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec.clone())?;
 
 	let file_name = format!(
-		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b02.S2.slatepack",
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b03.S2.slatepack",
 		test_dir
 	);
 
@@ -475,7 +554,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"mining",
 		"cancel",
 		"-i",
-		"25",
+		"36",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
@@ -483,7 +562,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let arg_vec = vec!["grin-wallet", "-p", "password2", "invoice", "65"];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 	let file_name = format!(
-		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b05.I1.slatepack",
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b06.I1.slatepack",
 		test_dir
 	);
 
@@ -501,7 +580,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 	let file_name = format!(
-		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b05.I2.slatepack",
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b06.I2.slatepack",
 		test_dir
 	);
 

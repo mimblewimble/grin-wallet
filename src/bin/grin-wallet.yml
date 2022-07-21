@@ -181,6 +181,9 @@ subcommands:
             help: Show slatepack data as QR code
             short: q
             long: slatepack_qr
+        - amount_includes_fee:
+            help: Transaction amount includes transaction fee. Recipient will receive (amount - fee).
+            long: amount_includes_fee
   - unpack:
       about: Unpack and display an armored Slatepack Message, decrypting if possible
       args:

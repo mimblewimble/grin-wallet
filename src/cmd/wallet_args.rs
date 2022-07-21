@@ -455,6 +455,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			return Err(ParseError::ArgumentError(msg));
 		}
 	};
+	let amount_includes_fee = args.is_present("amount_includes_fee");
 
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
@@ -524,6 +525,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	Ok(command::SendArgs {
 		amount: amount,
+		amount_includes_fee: amount_includes_fee,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,

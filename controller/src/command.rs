@@ -322,6 +322,7 @@ where
 #[derive(Clone)]
 pub struct SendArgs {
 	pub amount: u64,
+	pub amount_includes_fee: bool,
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
@@ -361,6 +362,7 @@ where
 					let init_args = InitTxArgs {
 						src_acct_name: None,
 						amount: args.amount,
+						amount_includes_fee: Some(args.amount_includes_fee),
 						minimum_confirmations: args.minimum_confirmations,
 						max_outputs: args.max_outputs as u32,
 						num_change_outputs: args.change_outputs as u32,
@@ -378,6 +380,7 @@ where
 			let init_args = InitTxArgs {
 				src_acct_name: None,
 				amount: args.amount,
+				amount_includes_fee: Some(args.amount_includes_fee),
 				minimum_confirmations: args.minimum_confirmations,
 				max_outputs: args.max_outputs as u32,
 				num_change_outputs: args.change_outputs as u32,
