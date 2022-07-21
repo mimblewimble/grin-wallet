@@ -74,15 +74,6 @@ subcommands:
             short: l
             long: port
             takes_value: true
-        - method:
-            help: Which method to use for communication
-            short: m
-            long: method
-            possible_values:
-              - http
-              - keybase
-            default_value: http
-            takes_value: true
         - no_tor:
             help: Don't start Tor listener when starting HTTP listener
             short: n
