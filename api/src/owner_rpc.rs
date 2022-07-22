@@ -1165,7 +1165,6 @@ pub trait OwnerRpc {
 				"tls_certificate_file": null,
 				"tls_certificate_key": null,
 				"dark_background_color_scheme": null,
-				"keybase_notify_ttl": null
 			},
 			"logging_config": {
 				"log_to_stdout": false,

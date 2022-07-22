@@ -113,16 +113,6 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
-		"keybase_notify_ttl".to_string(),
-		"
-#The exploding lifetime for keybase notification on coins received.
-#Unit: Minute. Default value 1440 minutes for one day.
-#Refer to https://keybase.io/blog/keybase-exploding-messages for detail.
-#To disable this notification, set it as 0.
-"
-		.to_string(),
-	);
-	retval.insert(
 		"accept_fee_base".to_string(),
 		"
 #Minimum acceptable fee per unit of transaction weight
