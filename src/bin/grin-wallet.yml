@@ -330,6 +330,11 @@ subcommands:
             short: t
             long: txid
             takes_value: true
+        - count:
+            help: Maximum number of transactions to show
+            short: c
+            long: count
+            takes_value: true
   - post:
       about: Posts a finalized transaction to the chain
       args:

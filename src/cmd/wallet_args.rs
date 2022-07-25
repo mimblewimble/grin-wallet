@@ -833,9 +833,14 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
 		return Err(ParseError::ArgumentError(msg));
 	}
+	let count = match args.value_of("count") {
+		None => None,
+		Some(c) => Some(parse_u64(c, "count")? as u32),
+	};
 	Ok(command::TxsArgs {
 		id: tx_id,
 		tx_slate_id: tx_slate_id,
+		count: count,
 	})
 }
 
