@@ -72,12 +72,9 @@ where
 		false,
 	)?;
 	if amount_includes_fee {
-		slate.amount = slate
-			.amount
-			.checked_sub(fee)
-			.ok_or(ErrorKind::GenericError(
-				format!("Transaction amount is too small to include fee").into(),
-			))?;
+		slate.amount = slate.amount.checked_sub(fee).ok_or(Error::GenericError(
+			format!("Transaction amount is too small to include fee").into(),
+		))?;
 	};
 
 	if fixed_fee.map(|f| fee != f).unwrap_or(false) {
@@ -485,7 +482,7 @@ where
 	// If original amount includes fee, the new amount should
 	// be reduced, to accommodate the fee.
 	let new_amount = match amount_includes_fee {
-		true => amount.checked_sub(fee).ok_or(ErrorKind::GenericError(
+		true => amount.checked_sub(fee).ok_or(Error::GenericError(
 			format!("Transaction amount is too small to include fee").into(),
 		))?,
 		false => amount,
