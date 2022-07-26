@@ -442,7 +442,11 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
 	// amount
 	let amount = parse_required(args, "amount")?;
-	let amount = core::core::amount_from_hr_string(amount);
+	let (amount, spend_max) = if amount.eq_ignore_ascii_case("max") {
+		(Ok(0), true)
+	} else {
+		(core::core::amount_from_hr_string(amount), false)
+	};
 	let amount = match amount {
 		Ok(a) => a,
 		Err(e) => {
@@ -453,6 +457,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 			return Err(ParseError::ArgumentError(msg));
 		}
 	};
+	let amount_includes_fee = args.is_present("amount_includes_fee") || spend_max;
 
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
@@ -522,6 +527,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	Ok(command::SendArgs {
 		amount: amount,
+		amount_includes_fee: amount_includes_fee,
+		use_max_amount: spend_max,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
@@ -831,9 +838,14 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
 		return Err(ParseError::ArgumentError(msg));
 	}
+	let count = match args.value_of("count") {
+		None => None,
+		Some(c) => Some(parse_u64(c, "count")? as u32),
+	};
 	Ok(command::TxsArgs {
 		id: tx_id,
 		tx_slate_id: tx_slate_id,
+		count: count,
 	})
 }
 

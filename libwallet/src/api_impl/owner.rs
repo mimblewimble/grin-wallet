@@ -505,6 +505,7 @@ where
 			&mut *w,
 			keychain_mask,
 			args.amount,
+			args.amount_includes_fee.unwrap_or(false),
 			args.minimum_confirmations,
 			args.max_outputs as usize,
 			args.num_change_outputs as usize,
@@ -540,6 +541,7 @@ where
 			&parent_key_id,
 			true,
 			use_test_rng,
+			args.amount_includes_fee.unwrap_or(false),
 		)?
 	};
 
@@ -693,6 +695,7 @@ where
 		&parent_key_id,
 		false,
 		use_test_rng,
+		false,
 	)?;
 
 	let keychain = w.keychain(keychain_mask)?;
@@ -820,6 +823,7 @@ where
 			parent_key_id.clone(),
 			false,
 			true,
+			false,
 		)?;
 
 		// Add inputs and outputs to original context

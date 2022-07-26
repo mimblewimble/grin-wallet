@@ -51,8 +51,6 @@ pub struct WalletConfig {
 	/// Whether to use the black background color scheme for command line
 	/// if enabled, wallet command output color will be suitable for black background terminal
 	pub dark_background_color_scheme: Option<bool>,
-	/// The exploding lifetime (minutes) for keybase notification on coins received
-	pub keybase_notify_ttl: Option<u16>,
 	/// Scaling factor from transaction weight to transaction fee
 	/// should match accept_fee_base parameter in grin-server
 	pub accept_fee_base: Option<u64>,
@@ -73,7 +71,6 @@ impl Default for WalletConfig {
 			tls_certificate_file: None,
 			tls_certificate_key: None,
 			dark_background_color_scheme: Some(true),
-			keybase_notify_ttl: Some(1440),
 			accept_fee_base: None,
 		}
 	}

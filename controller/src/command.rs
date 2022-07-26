@@ -321,6 +321,8 @@ where
 #[derive(Clone)]
 pub struct SendArgs {
 	pub amount: u64,
+	pub amount_includes_fee: bool,
+	pub use_max_amount: bool,
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
@@ -352,6 +354,15 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let mut slate = Slate::blank(2, false);
+	let mut amount = args.amount;
+	if args.use_max_amount {
+		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+			let (_, wallet_info) =
+				api.retrieve_summary_info(m, true, args.minimum_confirmations)?;
+			amount = wallet_info.amount_currently_spendable;
+			Ok(())
+		})?;
+	};
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
 			let strategies = vec!["smallest", "all"]
@@ -359,7 +370,8 @@ where
 				.map(|strategy| {
 					let init_args = InitTxArgs {
 						src_acct_name: None,
-						amount: args.amount,
+						amount: amount,
+						amount_includes_fee: Some(args.amount_includes_fee),
 						minimum_confirmations: args.minimum_confirmations,
 						max_outputs: args.max_outputs as u32,
 						num_change_outputs: args.change_outputs as u32,
@@ -371,12 +383,13 @@ where
 					Ok((strategy, slate.amount, slate.fee_fields))
 				})
 				.collect::<Result<Vec<_>, grin_wallet_libwallet::Error>>()?;
-			display::estimate(args.amount, strategies, dark_scheme);
+			display::estimate(amount, strategies, dark_scheme);
 			return Ok(());
 		} else {
 			let init_args = InitTxArgs {
 				src_acct_name: None,
-				amount: args.amount,
+				amount: amount,
+				amount_includes_fee: Some(args.amount_includes_fee),
 				minimum_confirmations: args.minimum_confirmations,
 				max_outputs: args.max_outputs as u32,
 				num_change_outputs: args.change_outputs as u32,
@@ -393,7 +406,7 @@ where
 				Ok(s) => {
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
-						core::amount_to_hr_string(args.amount, false),
+						core::amount_to_hr_string(amount, false),
 						args.dest,
 						args.selection_strategy,
 					);
@@ -1092,6 +1105,7 @@ where
 pub struct TxsArgs {
 	pub id: Option<u32>,
 	pub tx_slate_id: Option<Uuid>,
+	pub count: Option<u32>,
 }
 
 pub fn txs<L, C, K>(
@@ -1111,11 +1125,15 @@ where
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
 		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
+		// If view count is specified, restrict the TX list to `txs.len() - count`
+		let first_tx = args
+			.count
+			.map_or(0, |c| txs.len().saturating_sub(c as usize));
 		display::txs(
 			&g_args.account,
 			res.height,
 			validated || updater_running,
-			&txs,
+			&txs[first_tx..],
 			include_status,
 			dark_scheme,
 		)?;

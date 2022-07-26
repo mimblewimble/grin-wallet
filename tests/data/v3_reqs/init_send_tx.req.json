@@ -6,6 +6,7 @@
 		"args": {
 			"src_acct_name": null,
 			"amount": "600000000000",
+			"amount_includes_fee": false,
 			"minimum_confirmations": 2,
 			"max_outputs": 500,
 			"num_change_outputs": 1,
