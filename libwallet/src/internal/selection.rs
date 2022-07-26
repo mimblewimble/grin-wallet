@@ -51,6 +51,7 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	parent_key_id: Identifier,
 	use_test_nonce: bool,
 	is_initiator: bool,
+	amount_includes_fee: bool,
 ) -> Result<Context, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -61,6 +62,7 @@ where
 		wallet,
 		keychain_mask,
 		slate.amount,
+		amount_includes_fee,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -69,6 +71,14 @@ where
 		&parent_key_id,
 		false,
 	)?;
+	if amount_includes_fee {
+		slate.amount = slate
+			.amount
+			.checked_sub(fee)
+			.ok_or(ErrorKind::GenericError(
+				format!("Transaction amount is too small to include fee").into(),
+			))?;
+	};
 
 	if fixed_fee.map(|f| fee != f).unwrap_or(false) {
 		return Err(ErrorKind::Fee("The initially selected fee is not sufficient".into()).into());
@@ -312,6 +322,7 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	amount: u64,
+	amount_includes_fee: bool,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -337,6 +348,7 @@ where
 	let (coins, _total, amount, fee) = select_coins_and_fee(
 		wallet,
 		amount,
+		amount_includes_fee,
 		current_height,
 		minimum_confirmations,
 		max_outputs,
@@ -363,6 +375,7 @@ where
 pub fn select_coins_and_fee<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	amount: u64,
+	amount_includes_fee: bool,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
@@ -401,7 +414,10 @@ where
 	// First attempt to spend without change
 	let mut fee = tx_fee(coins.len(), 1, 1);
 	let mut total: u64 = coins.iter().map(|c| c.value).sum();
-	let mut amount_with_fee = amount + fee;
+	let mut amount_with_fee = match amount_includes_fee {
+		true => amount,
+		false => amount + fee,
+	};
 
 	if total == 0 {
 		return Err(ErrorKind::NotEnoughFunds {
@@ -429,7 +445,10 @@ where
 	// We need to add a change address or amount with fee is more than total
 	if total != amount_with_fee {
 		fee = tx_fee(coins.len(), num_outputs, 1);
-		amount_with_fee = amount + fee;
+		amount_with_fee = match amount_includes_fee {
+			true => amount,
+			false => amount + fee,
+		};
 
 		// Here check if we have enough outputs for the amount including fee otherwise
 		// look for other outputs and check again
@@ -458,10 +477,21 @@ where
 			.1;
 			fee = tx_fee(coins.len(), num_outputs, 1);
 			total = coins.iter().map(|c| c.value).sum();
-			amount_with_fee = amount + fee;
+			amount_with_fee = match amount_includes_fee {
+				true => amount,
+				false => amount + fee,
+			};
 		}
 	}
-	Ok((coins, total, amount, fee))
+	// If original amount includes fee, the new amount should
+	// be reduced, to accommodate the fee.
+	let new_amount = match amount_includes_fee {
+		true => amount.checked_sub(fee).ok_or(ErrorKind::GenericError(
+			format!("Transaction amount is too small to include fee").into(),
+		))?,
+		false => amount,
+	};
+	Ok((coins, total, new_amount, fee))
 }
 
 /// Selects inputs and change for a transaction
