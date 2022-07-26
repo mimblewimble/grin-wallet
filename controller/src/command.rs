@@ -1106,6 +1106,7 @@ where
 pub struct TxsArgs {
 	pub id: Option<u32>,
 	pub tx_slate_id: Option<Uuid>,
+	pub count: Option<u32>,
 }
 
 pub fn txs<L, C, K>(
@@ -1125,11 +1126,15 @@ where
 		let res = api.node_height(m)?;
 		let (validated, txs) = api.retrieve_txs(m, true, args.id, args.tx_slate_id)?;
 		let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
+		// If view count is specified, restrict the TX list to `txs.len() - count`
+		let first_tx = args
+			.count
+			.map_or(0, |c| txs.len().saturating_sub(c as usize));
 		display::txs(
 			&g_args.account,
 			res.height,
 			validated || updater_running,
-			&txs,
+			&txs[first_tx..],
 			include_status,
 			dark_scheme,
 		)?;
