@@ -493,8 +493,8 @@ fn slate_v4_serialize_deserialize() {
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
 	use crate::Slate;
-	use grin_wallet_util::grin_core::global::{set_local_chain_type, ChainTypes};
-	use grin_wallet_util::grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+	use grin_core::global::{set_local_chain_type, ChainTypes};
+	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
 	set_local_chain_type(ChainTypes::Mainnet);
 	let slate = Slate::blank(1, false);
 	let mut v4 = SlateV4::from(slate);

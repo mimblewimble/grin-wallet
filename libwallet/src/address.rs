@@ -17,7 +17,7 @@
 
 use crate::grin_util::secp::key::SecretKey;
 use crate::Error;
-use grin_wallet_util::grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
+use grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
 use crate::blake2::blake2b::blake2b;
 

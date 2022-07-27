@@ -21,7 +21,8 @@
 // Finally add armor framing and space/newline formatting as desired
 
 use crate::Error;
-use grin_wallet_util::{byte_ser, grin_core::global::max_tx_weight};
+use grin_core::global::max_tx_weight;
+use grin_wallet_util::byte_ser;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::str;

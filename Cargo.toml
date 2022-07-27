@@ -35,8 +35,32 @@ grin_wallet_impls = { path = "./impls", version = "5.2.0-alpha.1" }
 grin_wallet_libwallet = { path = "./libwallet", version = "5.2.0-alpha.1" }
 grin_wallet_controller = { path = "./controller", version = "5.2.0-alpha.1" }
 grin_wallet_config = { path = "./config", version = "5.2.0-alpha.1" }
-
 grin_wallet_util = { path = "./util", version = "5.2.0-alpha.1" }
+
+# For Release
+#grin_core = "4.0.0"
+#grin_keychain = "4.0.0"
+#grin_util = "4.0.0"
+#grin_api = "4.0.0"
+
+# For beta release
+
+# grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2"}
+# grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
+# grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
+# grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
+
+# For bleeding edge
+ grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_api = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+
+# For local testing
+# grin_core = { path = "../../grin/core"}
+# grin_keychain = { path = "../../grin/keychain"}
+# grin_util = { path = "../../grin/util"}
+# grin_api = { path = "../../grin/api"}
 
 [build-dependencies]
 built = { version = "0.4", features = ["git2"]}
@@ -48,3 +72,17 @@ serde_derive = "1"
 serde_json = "1"
 remove_dir_all = "0.7"
 easy-jsonrpc-mw = "0.5.4"
+
+# For Release
+# grin_util = "4.0.0"
+
+# For beta release
+
+# grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
+
+# For bleeding edge
+ grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+
+# For local testing
+# grin_util = { path = "../../grin/util"}
+

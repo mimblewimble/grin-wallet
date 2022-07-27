@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::grin_util::from_hex;
 use data_encoding::BASE32;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_util::from_hex;
 use sha3::{Digest, Sha3_256};
 use std::convert::TryFrom;
 use std::fmt;

@@ -17,8 +17,8 @@ extern crate log;
 extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
+use grin_core as core;
 use grin_wallet_libwallet as libwallet;
-use grin_wallet_util::grin_core as core;
 
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};

@@ -109,9 +109,9 @@ where
 	///
 	/// # Example
 	/// ```
-	/// use grin_wallet_util::grin_keychain as keychain;
-	/// use grin_wallet_util::grin_util as util;
-	/// use grin_wallet_util::grin_core;
+	/// use grin_keychain as keychain;
+	/// use grin_util as util;
+	/// use grin_core;
 	/// use grin_wallet_api as api;
 	/// use grin_wallet_config as config;
 	/// use grin_wallet_impls as impls;
@@ -2507,15 +2507,13 @@ pub fn try_slatepack_sync_workflow(
 #[macro_export]
 macro_rules! doctest_helper_setup_doc_env {
 	($wallet:ident, $wallet_config:ident) => {
+		use grin_core::{self, global};
+		use grin_keychain as keychain;
+		use grin_util as util;
 		use grin_wallet_api as api;
 		use grin_wallet_config as config;
 		use grin_wallet_impls as impls;
 		use grin_wallet_libwallet as libwallet;
-		use grin_wallet_util::grin_core;
-		use grin_wallet_util::grin_keychain as keychain;
-		use grin_wallet_util::grin_util as util;
-
-		use grin_core::global;
 
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;

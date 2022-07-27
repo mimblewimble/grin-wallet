@@ -17,12 +17,12 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_util;
 
-use grin_wallet_libwallet as libwallet;
-use grin_wallet_util::grin_core::core::OutputFeatures;
-use grin_wallet_util::grin_keychain::{
+use grin_core::core::OutputFeatures;
+use grin_keychain::{
 	mnemonic, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
 };
-use grin_wallet_util::grin_util::{secp, ZeroingString};
+use grin_util::{secp, ZeroingString};
+use grin_wallet_libwallet as libwallet;
 use impls::test_framework::LocalWalletClient;
 use rand::{thread_rng, Rng};
 use std::sync::atomic::Ordering;

@@ -16,20 +16,20 @@
 mod common;
 
 use common::{clean_output_dir, create_wallet_proxy, setup};
+use grin_chain as chain;
+use grin_core as core;
+use grin_core::core::hash::Hashed;
+use grin_core::core::Transaction;
+use grin_core::global;
+use grin_keychain::ExtKeychain;
+use grin_util::secp::key::SecretKey;
+use grin_util::Mutex;
 use grin_wallet_controller::controller::owner_single_use as owner;
 use grin_wallet_impls::test_framework::*;
 use grin_wallet_impls::{DefaultLCProvider, PathToSlate, SlatePutter};
 use grin_wallet_libwallet as libwallet;
 use grin_wallet_libwallet::api_impl::types::InitTxArgs;
 use grin_wallet_libwallet::WalletInst;
-use grin_wallet_util::grin_chain as chain;
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_core::core::hash::Hashed;
-use grin_wallet_util::grin_core::core::Transaction;
-use grin_wallet_util::grin_core::global;
-use grin_wallet_util::grin_keychain::ExtKeychain;
-use grin_wallet_util::grin_util::secp::key::SecretKey;
-use grin_wallet_util::grin_util::Mutex;
 use log::error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
