@@ -1236,7 +1236,6 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "grin_api"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
@@ -1268,7 +1267,6 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "bit-vec",
  "bitflags 1.3.2",
@@ -1291,7 +1289,6 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1317,7 +1314,6 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -1339,7 +1335,6 @@ dependencies = [
 [[package]]
 name = "grin_p2p"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "bitflags 1.3.2",
  "bytes 0.5.6",
@@ -1361,7 +1356,6 @@ dependencies = [
 [[package]]
 name = "grin_pool"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "blake2-rfc",
  "chrono",
@@ -1394,7 +1388,6 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "byteorder",
  "croaring",
@@ -1413,7 +1406,6 @@ dependencies = [
 [[package]]
 name = "grin_util"
 version = "5.2.0-alpha.1"
-source = "git+https://github.com/mimblewimble/grin?branch=master#a14a8e312345ee6f7b58e84b0cf3e59635ca15a3"
 dependencies = [
  "backtrace",
  "base64 0.12.3",
