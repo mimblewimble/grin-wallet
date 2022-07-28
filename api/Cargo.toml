@@ -10,8 +10,6 @@ exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2018"
 
 [dependencies]
-failure = "0.1"
-failure_derive = "0.1"
 log = "0.4"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 serde = "1"

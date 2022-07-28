@@ -48,7 +48,7 @@ pub use crate::adapters::{
 	SlateSender,
 };
 pub use crate::backends::{wallet_db_exists, LMDBBackend};
-pub use crate::error::{Error, ErrorKind};
+pub use crate::error::Error;
 pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::node_clients::HTTPNodeClient;
 

@@ -19,14 +19,11 @@ use crate::config::{
 };
 use crate::core::global;
 use crate::keychain::Keychain;
-use crate::libwallet::{
-	Error, ErrorKind, NodeClient, WalletBackend, WalletInitStatus, WalletLCProvider,
-};
+use crate::libwallet::{Error, NodeClient, WalletBackend, WalletInitStatus, WalletLCProvider};
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use crate::LMDBBackend;
-use failure::ResultExt;
 use grin_wallet_util::grin_util::logger::LoggingConfig;
 use std::fs;
 use std::path::PathBuf;
@@ -132,7 +129,7 @@ where
 				file_name,
 				config_file_name.to_str().unwrap()
 			);
-			return Err(ErrorKind::Lifecycle(msg).into());
+			return Err(Error::Lifecycle(msg));
 		}
 
 		// just leave as is if file exists but there's no data dir
@@ -152,7 +149,7 @@ where
 				config_file_name.to_str().unwrap(),
 				e
 			);
-			return Err(ErrorKind::Lifecycle(msg).into());
+			return Err(Error::Lifecycle(msg));
 		}
 
 		info!(
@@ -186,7 +183,7 @@ where
 		if !test_mode {
 			if let Ok(true) = exists {
 				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
-				return Err(ErrorKind::WalletSeedExists(msg).into());
+				return Err(Error::WalletSeedExists(msg));
 			}
 		}
 		WalletSeed::init_file(
@@ -196,16 +193,16 @@ where
 			password,
 			test_mode,
 		)
-		.context(ErrorKind::Lifecycle(
-			"Error creating wallet seed (is mnemonic valid?)".into(),
-		))?;
+		.map_err(|_| {
+			Error::Lifecycle("Error creating wallet seed (is mnemonic valid?)".to_owned())
+		})?;
 		info!("Wallet seed file created");
 		let mut wallet: LMDBBackend<'a, C, K> =
 			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
 					error!("{}", msg);
-					return Err(ErrorKind::Lifecycle(msg).into());
+					return Err(Error::Lifecycle(msg).into());
 				}
 				Ok(d) => d,
 			};
@@ -234,16 +231,16 @@ where
 			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, &data_dir_name);
-					return Err(ErrorKind::Lifecycle(msg).into());
+					return Err(Error::Lifecycle(msg));
 				}
 				Ok(d) => d,
 			};
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).context(
-			ErrorKind::Lifecycle("Error opening wallet (is password correct?)".into()),
-		)?;
+		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).map_err(|_| {
+			Error::Lifecycle("Error opening wallet (is password correct?)".to_owned())
+		})?;
 		let keychain = wallet_seed
 			.derive_keychain(global::is_testnet())
-			.context(ErrorKind::Lifecycle("Error deriving keychain".into()))?;
+			.map_err(|_| Error::Lifecycle("Error deriving keychain".to_owned()))?;
 
 		let mask = wallet.set_keychain(Box::new(keychain), create_mask, use_test_rng)?;
 		self.backend = Some(Box::new(wallet));
@@ -262,9 +259,8 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let res = WalletSeed::seed_file_exists(&data_dir_name).context(ErrorKind::CallbackImpl(
-			"Error checking for wallet existence",
-		))?;
+		let res = WalletSeed::seed_file_exists(&data_dir_name)
+			.map_err(|_| Error::CallbackImpl("Error checking for wallet existence"))?;
 		Ok(res)
 	}
 
@@ -276,19 +272,18 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).context(
-			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
-		)?;
+		let wallet_seed = WalletSeed::from_file(&data_dir_name, password)
+			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let res = wallet_seed
 			.to_mnemonic()
-			.context(ErrorKind::Lifecycle("Error recovering wallet seed".into()))?;
+			.map_err(|_| Error::Lifecycle("Error recovering wallet seed".into()))?;
 		Ok(ZeroingString::from(res))
 	}
 
 	fn validate_mnemonic(&self, mnemonic: ZeroingString) -> Result<(), Error> {
 		match WalletSeed::from_mnemonic(mnemonic) {
 			Ok(_) => Ok(()),
-			Err(_) => Err(ErrorKind::GenericError("Validating mnemonic".into()).into()),
+			Err(_) => Err(Error::GenericError("Validating mnemonic".into())),
 		}
 	}
 
@@ -300,9 +295,8 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		WalletSeed::recover_from_phrase(data_dir_name, mnemonic, password).context(
-			ErrorKind::Lifecycle("Error recovering from mnemonic".into()),
-		)?;
+		WalletSeed::recover_from_phrase(data_dir_name, mnemonic, password)
+			.map_err(|_| Error::Lifecycle("Error recovering from mnemonic".into()))?;
 		Ok(())
 	}
 
@@ -317,23 +311,21 @@ where
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		// get seed for later check
 
-		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old).context(
-			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
-		)?;
+		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old)
+			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let orig_mnemonic = orig_wallet_seed
 			.to_mnemonic()
-			.context(ErrorKind::Lifecycle("Error recovering mnemonic".into()))?;
+			.map_err(|_| Error::Lifecycle("Error recovering mnemonic".into()))?;
 
 		// Back up existing seed, and keep track of filename as we're deleting it
 		// once the password change is confirmed
-		let backup_name = WalletSeed::backup_seed(data_dir_name).context(ErrorKind::Lifecycle(
-			"Error temporarily backing up existing seed".into(),
-		))?;
+		let backup_name = WalletSeed::backup_seed(data_dir_name)
+			.map_err(|_| Error::Lifecycle("Error temporarily backing up existing seed".into()))?;
 
 		// Delete seed file
-		WalletSeed::delete_seed_file(data_dir_name).context(ErrorKind::Lifecycle(
-			"Unable to delete seed file for password change".into(),
-		))?;
+		WalletSeed::delete_seed_file(data_dir_name).map_err(|_| {
+			Error::Lifecycle("Unable to delete seed file for password change".into())
+		})?;
 
 		// Init a new file
 		let _ = WalletSeed::init_file(
@@ -345,19 +337,18 @@ where
 		);
 		info!("Wallet seed file created");
 
-		let new_wallet_seed = WalletSeed::from_file(&data_dir_name, new).context(
-			ErrorKind::Lifecycle("Error opening wallet seed file".into()),
-		)?;
+		let new_wallet_seed = WalletSeed::from_file(&data_dir_name, new)
+			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 
 		if orig_wallet_seed != new_wallet_seed {
 			let msg =
 				"New and Old wallet seeds are not equal on password change, not removing backups."
 					.to_string();
-			return Err(ErrorKind::Lifecycle(msg).into());
+			return Err(Error::Lifecycle(msg));
 		}
 		// Removin
 		info!("Password change confirmed, removing old seed file.");
-		fs::remove_file(backup_name).context(ErrorKind::IO)?;
+		fs::remove_file(backup_name).map_err(|e| Error::IO(e.to_string()))?;
 
 		Ok(())
 	}
@@ -368,7 +359,7 @@ where
 			"Removing all wallet data from: {}",
 			data_dir_name.to_str().unwrap()
 		);
-		fs::remove_dir_all(data_dir_name).context(ErrorKind::IO)?;
+		fs::remove_dir_all(data_dir_name).map_err(|e| Error::IO(e.to_string()))?;
 		Ok(())
 	}
 
@@ -376,7 +367,7 @@ where
 		match self.backend.as_mut() {
 			None => {
 				let msg = "Wallet has not been opened".into();
-				Err(ErrorKind::Lifecycle(msg).into())
+				Err(Error::Lifecycle(msg))
 			}
 			Some(_) => Ok(&mut *self.backend.as_mut().unwrap()),
 		}

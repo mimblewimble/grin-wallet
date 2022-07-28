@@ -30,12 +30,12 @@ use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmen
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
+use crate::Error;
 use crate::{
 	address, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, ScannedBlockInfo, Slatepack, SlatepackAddress, Slatepacker,
 	SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus, WalletInst, WalletLCProvider,
 };
-use crate::{Error, ErrorKind};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
@@ -211,9 +211,9 @@ where
 			};
 			return packer.get_slate(&slatepack);
 		}
-		return Err(ErrorKind::SlatepackDecryption(
+		return Err(Error::SlatepackDecryption(
 			"Could not decrypt slatepack with any provided index on the address derivation path"
-				.into(),
+				.to_owned(),
 		)
 		.into());
 	}
@@ -382,10 +382,9 @@ where
 	K: Keychain + 'a,
 {
 	if tx_id.is_none() && tx_slate_id.is_none() {
-		return Err(ErrorKind::PaymentProofRetrieval(
-			"Transaction ID or Slate UUID must be specified".into(),
-		)
-		.into());
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction ID or Slate UUID must be specified".to_owned(),
+		));
 	}
 	if refresh_from_node {
 		update_wallet_state(
@@ -406,17 +405,18 @@ where
 		tx_slate_id,
 	)?;
 	if txs.1.len() != 1 {
-		return Err(ErrorKind::PaymentProofRetrieval("Transaction doesn't exist".into()).into());
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction doesn't exist".to_owned(),
+		));
 	}
 	// Pull out all needed fields, returning an error if they're not present
 	let tx = txs.1[0].clone();
 	let proof = match tx.payment_proof {
 		Some(p) => p,
 		None => {
-			return Err(ErrorKind::PaymentProofRetrieval(
-				"Transaction does not contain a payment proof".into(),
-			)
-			.into());
+			return Err(Error::PaymentProofRetrieval(
+				"Transaction does not contain a payment proof".to_owned(),
+			));
 		}
 	};
 	let amount = if tx.amount_credited >= tx.amount_debited {
@@ -431,28 +431,25 @@ where
 	let excess = match tx.kernel_excess {
 		Some(e) => e,
 		None => {
-			return Err(ErrorKind::PaymentProofRetrieval(
-				"Transaction does not contain kernel excess".into(),
-			)
-			.into());
+			return Err(Error::PaymentProofRetrieval(
+				"Transaction does not contain kernel excess".to_owned(),
+			));
 		}
 	};
 	let r_sig = match proof.receiver_signature {
 		Some(e) => e,
 		None => {
-			return Err(ErrorKind::PaymentProofRetrieval(
-				"Proof does not contain receiver signature ".into(),
-			)
-			.into());
+			return Err(Error::PaymentProofRetrieval(
+				"Proof does not contain receiver signature ".to_owned(),
+			));
 		}
 	};
 	let s_sig = match proof.sender_signature {
 		Some(e) => e,
 		None => {
-			return Err(ErrorKind::PaymentProofRetrieval(
-				"Proof does not contain sender signature ".into(),
-			)
-			.into());
+			return Err(Error::PaymentProofRetrieval(
+				"Proof does not contain sender signature ".to_owned(),
+			));
 		}
 	};
 	Ok(PaymentProof {
@@ -669,7 +666,7 @@ where
 	)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxSent {
-			return Err(ErrorKind::TransactionAlreadyReceived(ret_slate.id.to_string()).into());
+			return Err(Error::TransactionAlreadyReceived(ret_slate.id.to_string()));
 		}
 	}
 
@@ -882,10 +879,9 @@ where
 		status_send_channel,
 		false,
 	)? {
-		return Err(ErrorKind::TransactionCancellationError(
+		return Err(Error::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
-		)
-		.into());
+		));
 	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
@@ -919,10 +915,9 @@ where
 	let id = match uuid {
 		Some(u) => u,
 		None => {
-			return Err(ErrorKind::StoredTx(
+			return Err(Error::StoredTx(
 				"Both the provided Transaction Id and Slate UUID are invalid.".to_owned(),
-			)
-			.into());
+			));
 		}
 	};
 	let tx_res = w.get_stored_tx(&format!("{}", id))?;
@@ -977,7 +972,7 @@ where
 	let rewind_hash = rewind_hash.to_lowercase();
 	if !(is_hex && rewind_hash.len() == 64) {
 		let msg = format!("Invalid Rewind Hash");
-		return Err(ErrorKind::RewindHash(msg).into());
+		return Err(Error::RewindHash(msg));
 	}
 
 	let tip = {
@@ -1227,7 +1222,7 @@ where
 	let last_confirmed_height = w.last_confirmed_height()?;
 	if slate.ttl_cutoff_height != 0 {
 		if last_confirmed_height >= slate.ttl_cutoff_height {
-			return Err(ErrorKind::TransactionExpired.into());
+			return Err(Error::TransactionExpired);
 		}
 	}
 	Ok(())
@@ -1260,18 +1255,16 @@ where
 	// Check kernel exists
 	match client.get_kernel(&proof.excess, None, None) {
 		Err(e) => {
-			return Err(ErrorKind::PaymentProof(format!(
+			return Err(Error::PaymentProof(format!(
 				"Error retrieving kernel from chain: {}",
 				e
-			))
-			.into());
+			)));
 		}
 		Ok(None) => {
-			return Err(ErrorKind::PaymentProof(format!(
+			return Err(Error::PaymentProof(format!(
 				"Transaction kernel with excess {:?} not found on chain",
 				proof.excess
-			))
-			.into());
+			)));
 		}
 		Ok(Some(_)) => {}
 	};
@@ -1279,12 +1272,14 @@ where
 	// Check Sigs
 	let recipient_pubkey = proof.recipient_address.pub_key;
 	if recipient_pubkey.verify(&msg, &proof.recipient_sig).is_err() {
-		return Err(ErrorKind::PaymentProof("Invalid recipient signature".to_owned()).into());
+		return Err(Error::PaymentProof(
+			"Invalid recipient signature".to_owned(),
+		));
 	};
 
 	let sender_pubkey = proof.sender_address.pub_key;
 	if sender_pubkey.verify(&msg, &proof.sender_sig).is_err() {
-		return Err(ErrorKind::PaymentProof("Invalid sender signature".to_owned()).into());
+		return Err(Error::PaymentProof("Invalid sender signature".to_owned()));
 	};
 
 	// for now, simple test as to whether one of the addresses belongs to this wallet
@@ -1292,7 +1287,7 @@ where
 	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 		Ok(k) => k,
 		Err(e) => {
-			return Err(ErrorKind::ED25519Key(format!("{}", e)).into());
+			return Err(Error::ED25519Key(format!("{}", e)));
 		}
 	};
 	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
@@ -1319,7 +1314,7 @@ where
 	match updater::refresh_outputs(&mut **w, keychain_mask, &parent_key_id, update_all) {
 		Ok(_) => Ok(true),
 		Err(e) => {
-			if let ErrorKind::InvalidKeychainMask = e.kind() {
+			if let Error::InvalidKeychainMask = e {
 				return Err(e);
 			}
 			Ok(false)

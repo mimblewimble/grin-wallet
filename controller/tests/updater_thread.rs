@@ -117,7 +117,7 @@ fn updater_thread() {
 	let test_dir = "test_output/updater_thread";
 	setup(test_dir);
 	if let Err(e) = updater_thread_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

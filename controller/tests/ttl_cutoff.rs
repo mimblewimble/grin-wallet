@@ -179,7 +179,7 @@ fn ttl_cutoff() {
 	let test_dir = "test_output/ttl_cutoff";
 	setup(test_dir);
 	if let Err(e) = ttl_cutoff_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
 }

@@ -20,11 +20,9 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 /// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
-use failure::Fail;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
-use grin_wallet_controller::command;
-use grin_wallet_controller::{Error, ErrorKind};
+use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
@@ -44,22 +42,22 @@ macro_rules! arg_parse {
 		match $r {
 			Ok(res) => res,
 			Err(e) => {
-				return Err(ErrorKind::ArgumentError(format!("{}", e)).into());
+				return Err(Error::ArgumentError(format!("{}", e)));
 			}
 		}
 	};
 }
 /// Simple error definition, just so we can return errors from all commands
 /// and let the caller figure out what to do
-#[derive(Clone, Eq, PartialEq, Debug, Fail)]
+#[derive(Clone, Eq, PartialEq, Debug, thiserror::Error)]
 pub enum ParseError {
-	#[fail(display = "Invalid Arguments: {}", _0)]
+	#[error("Invalid Arguments: {0}")]
 	ArgumentError(String),
-	#[fail(display = "Parsing IO error: {}", _0)]
+	#[error("Parsing IO error: {0}")]
 	IOError(String),
-	#[fail(display = "Wallet configuration already exists: {}", _0)]
+	#[error("Wallet configuration already exists: {0}")]
 	WalletExists(String),
-	#[fail(display = "User Cancelled")]
+	#[error("User Cancelled")]
 	CancelledError,
 }
 
@@ -722,7 +720,7 @@ where
 			// validate input
 			if !Path::new(&file).is_file() {
 				let msg = format!("File {} not found.", &file);
-				return Err(ErrorKind::GenericError(msg).into());
+				return Err(Error::GenericError(msg));
 			}
 			Some(file)
 		}
@@ -733,7 +731,7 @@ where
 	if input_file.is_none() {
 		input_slatepack_message = Some(prompt_slatepack().map_err(|e| {
 			let msg = format!("{}", e);
-			ErrorKind::GenericError(msg)
+			Error::GenericError(msg)
 		})?)
 	}
 
@@ -1299,7 +1297,7 @@ where
 		}
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
-			return Err(ErrorKind::ArgumentError(msg).into());
+			return Err(Error::ArgumentError(msg));
 		}
 	}
 }

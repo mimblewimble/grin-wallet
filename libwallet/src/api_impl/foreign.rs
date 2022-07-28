@@ -23,8 +23,8 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
-	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, SlateState, TxLogEntryType,
-	VersionInfo, WalletBackend,
+	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
+	WalletBackend,
 };
 
 const FOREIGN_API_VERSION: u16 = 2;
@@ -87,7 +87,7 @@ where
 	)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxReceived {
-			return Err(ErrorKind::TransactionAlreadyReceived(ret_slate.id.to_string()).into());
+			return Err(Error::TransactionAlreadyReceived(ret_slate.id.to_string()));
 		}
 	}
 

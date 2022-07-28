@@ -47,7 +47,7 @@ impl HTTPNodeClient {
 		node_api_secret: Option<String>,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
 		Ok(HTTPNodeClient {
-			client: Client::new().map_err(|_| libwallet::ErrorKind::Node)?,
+			client: Client::new().map_err(|_| libwallet::Error::Node)?,
 			node_url: node_url.to_owned(),
 			node_api_secret: node_api_secret,
 			node_version_info: None,
@@ -74,7 +74,7 @@ impl HTTPNodeClient {
 			Err(e) => {
 				let report = format!("Error calling {}: {}", method, e);
 				error!("{}", report);
-				Err(libwallet::ErrorKind::ClientCallback(report).into())
+				Err(libwallet::Error::ClientCallback(report))
 			}
 			Ok(inner) => match inner.clone().into_result() {
 				Ok(r) => Ok(r),
@@ -82,7 +82,7 @@ impl HTTPNodeClient {
 					error!("{:?}", inner);
 					let report = format!("Unable to parse response for {}: {}", method, e);
 					error!("{}", report);
-					Err(libwallet::ErrorKind::ClientCallback(report).into())
+					Err(libwallet::Error::ClientCallback(report))
 				}
 			},
 		}
@@ -170,7 +170,7 @@ impl NodeClient for HTTPNodeClient {
 			Err(e) => {
 				let report = format!("Error calling {}: {}", method, e);
 				error!("{}", report);
-				Err(libwallet::ErrorKind::ClientCallback(report).into())
+				Err(libwallet::Error::ClientCallback(report))
 			}
 			Ok(inner) => match inner.clone().into_result::<LocatedTxKernel>() {
 				Ok(r) => Ok(Some((r.tx_kernel, r.height, r.mmr_index))),
@@ -181,7 +181,7 @@ impl NodeClient for HTTPNodeClient {
 					} else {
 						let report = format!("Unable to parse response for {}: {}", method, e);
 						error!("{}", report);
-						Err(libwallet::ErrorKind::ClientCallback(report).into())
+						Err(libwallet::Error::ClientCallback(report))
 					}
 				}
 			},
@@ -270,7 +270,7 @@ impl NodeClient for HTTPNodeClient {
 						Err(e) => {
 							let report = format!("Unable to parse response for get_outputs: {}", e);
 							error!("{}", report);
-							return Err(libwallet::ErrorKind::ClientCallback(report).into());
+							return Err(libwallet::Error::ClientCallback(report));
 						}
 					};
 				}
@@ -279,7 +279,7 @@ impl NodeClient for HTTPNodeClient {
 			Err(e) => {
 				let report = format!("Getting outputs by id: {}", e);
 				error!("Outputs by id failed: {}", e);
-				return Err(libwallet::ErrorKind::ClientCallback(report).into());
+				return Err(libwallet::Error::ClientCallback(report));
 			}
 		};
 
@@ -288,7 +288,7 @@ impl NodeClient for HTTPNodeClient {
 				Some(h) => h,
 				None => {
 					let msg = format!("Missing block height for output {:?}", out.commit);
-					return Err(libwallet::ErrorKind::ClientCallback(msg).into());
+					return Err(libwallet::Error::ClientCallback(msg));
 				}
 			};
 			api_outputs.insert(
@@ -331,7 +331,7 @@ impl NodeClient for HTTPNodeClient {
 						out.commit, out, e
 					);
 					error!("{}", msg);
-					return Err(libwallet::ErrorKind::ClientCallback(msg).into());
+					return Err(libwallet::Error::ClientCallback(msg));
 				}
 			};
 			let block_height = match out.block_height {
@@ -342,7 +342,7 @@ impl NodeClient for HTTPNodeClient {
 						out.commit, out
 					);
 					error!("{}", msg);
-					return Err(libwallet::ErrorKind::ClientCallback(msg).into());
+					return Err(libwallet::Error::ClientCallback(msg));
 				}
 			};
 			api_outputs.push((

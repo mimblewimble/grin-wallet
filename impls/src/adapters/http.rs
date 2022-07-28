@@ -13,9 +13,9 @@
 // limitations under the License.
 
 /// HTTP Wallet 'plugin' implementation
-use crate::client_utils::{Client, ClientError, ClientErrorKind};
+use crate::client_utils::{Client, ClientError};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
-use crate::libwallet::{Error, ErrorKind, Slate};
+use crate::libwallet::{Error, Slate};
 use crate::tor::bridge::TorBridge;
 use crate::tor::proxy::TorProxy;
 use crate::SlateSender;
@@ -97,19 +97,19 @@ impl HttpSlateSender {
 			let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
 			if self.bridge.bridge_line.is_some() {
 				let bridge_struct = TorBridge::try_from(self.bridge.clone())
-					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 				hm_tor_bridge = bridge_struct
 					.to_hashmap()
-					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			}
 
 			let mut hm_tor_proxy: HashMap<String, String> = HashMap::new();
 			if self.proxy.transport.is_some() || self.proxy.allowed_port.is_some() {
 				let proxy = TorProxy::try_from(self.proxy.clone())
-					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 				hm_tor_proxy = proxy
 					.to_hashmap()
-					.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e).into()))?;
+					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			}
 
 			tor_config::output_tor_sender_config(
@@ -118,14 +118,14 @@ impl HttpSlateSender {
 				hm_tor_bridge,
 				hm_tor_proxy,
 			)
-			.map_err(|e| ErrorKind::TorConfig(format!("{:?}", e)))?;
+			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			// Start TOR process
 			tor.torrc_path(&format!("{}/torrc", &tor_dir))
 				.working_dir(&tor_dir)
 				.timeout(20)
 				.completion_percent(100)
 				.launch()
-				.map_err(|e| ErrorKind::TorProcess(format!("{:?}", e)))?;
+				.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 			self.process = Some(Arc::new(tor));
 		}
 		Ok(())
@@ -151,7 +151,7 @@ impl HttpSlateSender {
 					.to_string();
 				error!("{}", report);
 			}
-			ErrorKind::ClientCallback(report)
+			Error::ClientCallback(report)
 		})?;
 
 		let res: Value = serde_json::from_str(&res).unwrap();
@@ -162,7 +162,7 @@ impl HttpSlateSender {
 				res["error"]["code"], res["error"]["message"]
 			);
 			error!("{}", report);
-			return Err(ErrorKind::ClientCallback(report).into());
+			return Err(Error::ClientCallback(report));
 		}
 
 		let resp_value = res["result"]["Ok"].clone();
@@ -176,7 +176,7 @@ impl HttpSlateSender {
 		if foreign_api_version < 2 {
 			let report = "Other wallet reports unrecognized API format.".to_string();
 			error!("{}", report);
-			return Err(ErrorKind::ClientCallback(report).into());
+			return Err(Error::ClientCallback(report));
 		}
 
 		if supported_slate_versions.contains(&"V4".to_owned()) {
@@ -185,7 +185,7 @@ impl HttpSlateSender {
 
 		let report = "Unable to negotiate slate format with other wallet.".to_string();
 		error!("{}", report);
-		Err(ErrorKind::ClientCallback(report).into())
+		Err(Error::ClientCallback(report))
 	}
 
 	fn post<IN>(
@@ -197,15 +197,15 @@ impl HttpSlateSender {
 	where
 		IN: Serialize,
 	{
-		let client =
-			if !self.use_socks {
-				Client::new()
-			} else {
-				Client::with_socks_proxy(self.socks_proxy_addr.ok_or_else(|| {
-					ClientErrorKind::Internal("No socks proxy address set".into())
-				})?)
-			}
-			.map_err(|_| ClientErrorKind::Internal("Unable to create http client".into()))?;
+		let client = if !self.use_socks {
+			Client::new()
+		} else {
+			Client::with_socks_proxy(
+				self.socks_proxy_addr
+					.ok_or_else(|| ClientError::Internal("No socks proxy address set".into()))?,
+			)
+		}
+		.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 		let req = client.create_post_request(url, api_secret, &input)?;
 		let res = client.send_request(req)?;
 		Ok(res)
@@ -254,7 +254,7 @@ impl SlateSender for HttpSlateSender {
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e
 			);
-			ErrorKind::ClientCallback(report)
+			Error::ClientCallback(report)
 		})?;
 
 		let res: Value = serde_json::from_str(&res).unwrap();
@@ -265,7 +265,7 @@ impl SlateSender for HttpSlateSender {
 				res["error"]["code"], res["error"]["message"]
 			);
 			error!("{}", report);
-			return Err(ErrorKind::ClientCallback(report).into());
+			return Err(Error::ClientCallback(report));
 		}
 
 		let slate_value = res["result"]["Ok"].clone();
@@ -274,7 +274,7 @@ impl SlateSender for HttpSlateSender {
 		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
 			.map_err(|e| {
 				error!("Error deserializing response slate: {}", e);
-				ErrorKind::SlateDeser
+				Error::SlateDeser
 			})?;
 
 		Ok(slate)
@@ -287,6 +287,6 @@ pub struct SchemeNotHttp;
 impl Into<Error> for SchemeNotHttp {
 	fn into(self) -> Error {
 		let err_str = "url scheme must be http".to_string();
-		ErrorKind::GenericError(err_str).into()
+		Error::GenericError(err_str)
 	}
 }

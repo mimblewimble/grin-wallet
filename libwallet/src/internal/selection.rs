@@ -15,7 +15,7 @@
 //! Selection of inputs for building transactions
 
 use crate::address;
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::libtx::{
 	build,
@@ -72,16 +72,15 @@ where
 		false,
 	)?;
 	if amount_includes_fee {
-		slate.amount = slate
-			.amount
-			.checked_sub(fee)
-			.ok_or(ErrorKind::GenericError(
-				format!("Transaction amount is too small to include fee").into(),
-			))?;
+		slate.amount = slate.amount.checked_sub(fee).ok_or(Error::GenericError(
+			format!("Transaction amount is too small to include fee").into(),
+		))?;
 	};
 
 	if fixed_fee.map(|f| fee != f).unwrap_or(false) {
-		return Err(ErrorKind::Fee("The initially selected fee is not sufficient".into()).into());
+		return Err(Error::Fee(
+			"The initially selected fee is not sufficient".into(),
+		));
 	}
 
 	// Update the fee on the slate so we account for this when building the tx.
@@ -192,7 +191,7 @@ where
 			let sender_address_path = match context.payment_proof_derivation_index {
 				Some(p) => p,
 				None => {
-					return Err(ErrorKind::PaymentProof(
+					return Err(Error::PaymentProof(
 						"Payment proof derivation index required".to_owned(),
 					)
 					.into());
@@ -420,24 +419,22 @@ where
 	};
 
 	if total == 0 {
-		return Err(ErrorKind::NotEnoughFunds {
+		return Err(Error::NotEnoughFunds {
 			available: 0,
 			available_disp: amount_to_hr_string(0, false),
 			needed: amount_with_fee as u64,
 			needed_disp: amount_to_hr_string(amount_with_fee as u64, false),
-		}
-		.into());
+		});
 	}
 
 	// The amount with fee is more than the total values of our max outputs
 	if total < amount_with_fee && coins.len() == max_outputs {
-		return Err(ErrorKind::NotEnoughFunds {
+		return Err(Error::NotEnoughFunds {
 			available: total,
 			available_disp: amount_to_hr_string(total, false),
 			needed: amount_with_fee as u64,
 			needed_disp: amount_to_hr_string(amount_with_fee as u64, false),
-		}
-		.into());
+		});
 	}
 
 	let num_outputs = change_outputs + 1;
@@ -455,13 +452,12 @@ where
 		while total < amount_with_fee {
 			// End the loop if we have selected all the outputs and still not enough funds
 			if coins.len() == max_outputs {
-				return Err(ErrorKind::NotEnoughFunds {
+				return Err(Error::NotEnoughFunds {
 					available: total as u64,
 					available_disp: amount_to_hr_string(total, false),
 					needed: amount_with_fee as u64,
 					needed_disp: amount_to_hr_string(amount_with_fee as u64, false),
-				}
-				.into());
+				});
 			}
 
 			// select some spendable coins from the wallet
@@ -486,7 +482,7 @@ where
 	// If original amount includes fee, the new amount should
 	// be reduced, to accommodate the fee.
 	let new_amount = match amount_includes_fee {
-		true => amount.checked_sub(fee).ok_or(ErrorKind::GenericError(
+		true => amount.checked_sub(fee).ok_or(Error::GenericError(
 			format!("Transaction amount is too small to include fee").into(),
 		))?,
 		false => amount,
@@ -688,7 +684,7 @@ where
 	if update_fee {
 		slate.fee_fields = context
 			.fee
-			.ok_or_else(|| ErrorKind::Fee("Missing fee fields".into()))?;
+			.ok_or_else(|| Error::Fee("Missing fee fields".into()))?;
 	}
 
 	let keychain = wallet.keychain(keychain_mask)?;

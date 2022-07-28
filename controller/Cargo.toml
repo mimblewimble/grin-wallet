@@ -11,8 +11,6 @@ exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2018"
 
 [dependencies]
-failure = "0.1"
-failure_derive = "0.1"
 futures = "0.3"
 hyper = "0.13"
 rand = "0.7"
@@ -29,6 +27,7 @@ url = "2.1"
 chrono = { version = "0.4.11", features = ["serde"] }
 easy-jsonrpc-mw = "0.5.4"
 lazy_static = "1"
+thiserror = "1"
 qr_code = "1.1.0"
 
 grin_wallet_util = { path = "../util", version = "5.2.0-alpha.1" }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Error, ErrorKind};
+use crate::Error;
 use base64;
 use grin_wallet_config::types::TorBridgeConfig;
 use std::collections::HashMap;
@@ -165,13 +165,13 @@ impl Transport {
 		match arg {
 			Some(addr) => {
 				let address = addr.parse::<SocketAddr>().map_err(|_e| {
-					ErrorKind::TorBridge(format!("Invalid bridge server address: {}", addr).into())
+					Error::TorBridge(format!("Invalid bridge server address: {}", addr))
 				})?;
 				Ok(address.to_string())
 			}
 			None => {
 				let msg = format!("Missing bridge server address");
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}
@@ -185,7 +185,7 @@ impl Transport {
 				let fingerprint = fgp.to_uppercase();
 				if !(is_hex && fingerprint.len() == 40) {
 					let msg = format!("Invalid fingerprint: {}", fingerprint);
-					return Err(ErrorKind::TorBridge(msg).into());
+					return Err(Error::TorBridge(msg));
 				}
 				Ok(Some(fingerprint))
 			}
@@ -195,14 +195,14 @@ impl Transport {
 	/// Parse the certificate of the bridge line (obfs4)
 	pub fn parse_cert_arg(arg: &str) -> Result<String, Error> {
 		let cert_vec = base64::decode(arg).map_err(|_e| {
-			ErrorKind::TorBridge(format!(
+			Error::TorBridge(format!(
 				"Invalid certificate, error decoding bridge certificate: {}",
 				arg
 			))
 		})?;
 		if cert_vec.len() != 52 {
 			let msg = format!("Invalid certificate: {}", arg);
-			return Err(ErrorKind::TorBridge(msg).into());
+			return Err(Error::TorBridge(msg).into());
 		}
 		Ok(arg.to_string())
 	}
@@ -211,7 +211,7 @@ impl Transport {
 		let iatmode = arg.parse::<u8>().unwrap_or(0);
 		if !((0..3).contains(&iatmode)) {
 			let msg = format!("Invalid iatmode: {}, must be between 0 and 2", iatmode);
-			return Err(ErrorKind::TorBridge(msg).into());
+			return Err(Error::TorBridge(msg));
 		}
 		Ok(iatmode.to_string())
 	}
@@ -219,7 +219,7 @@ impl Transport {
 	/// Parse the max value for the arg -max in the client line option (snowflake)
 	fn parse_hpkp_arg(arg: &str) -> Result<String, Error> {
 		let max = arg.parse::<bool>().map_err(|_e| {
-			ErrorKind::TorBridge(
+			Error::TorBridge(
 				format!("Invalid -max value: {}, must be \"true\" or \"false\"", arg).into(),
 			)
 		})?;
@@ -289,7 +289,7 @@ impl PluginClient {
 			Some(path) => Ok(path.into_os_string().into_string().unwrap()),
 			None => {
 				let msg = format!("Transport client \"{}\" is missing, make sure it's installed and on your path.", plugin);
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}
@@ -298,15 +298,14 @@ impl PluginClient {
 	fn parse_url_arg(arg: &str) -> Result<String, Error> {
 		let url = arg
 			.parse::<Url>()
-			.map_err(|_e| ErrorKind::TorBridge(format!("Invalid -url value: {}", arg).into()))?;
+			.map_err(|_e| Error::TorBridge(format!("Invalid -url value: {}", arg)))?;
 		Ok(url.to_string())
 	}
 
 	/// Parse the DNS domain value for the arg -front in the client line option (snowflake)
 	fn parse_front_arg(arg: &str) -> Result<String, Error> {
-		let front = Host::parse(arg).map_err(|_e| {
-			ErrorKind::TorBridge(format!("Invalid -front hostname value: {}", arg).into())
-		})?;
+		let front = Host::parse(arg)
+			.map_err(|_e| Error::TorBridge(format!("Invalid -front hostname value: {}", arg)))?;
 		match front {
 			Host::Domain(_) => Ok(front.to_string()),
 			Host::Ipv4(_) | Host::Ipv6(_) => {
@@ -314,7 +313,7 @@ impl PluginClient {
 					"Invalid front argument: {}, in the client option. Must be a DNS Domain",
 					front
 				);
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}
@@ -328,13 +327,13 @@ impl PluginClient {
 			if addr.starts_with("stun:") || addr.starts_with("turn:") {
 				let address = addr.replace("stun:", "").replace("turn:", "");
 				let _p_address = TorProxy::parse_address(&address)
-					.map_err(|e| ErrorKind::TorBridge(format!("{}", e.kind()).into()))?;
+					.map_err(|e| Error::TorBridge(format!("{}", e)))?;
 			} else {
 				let msg = format!(
 					"Invalid ICE address: {}. Must be a stun or turn address",
 					addr
 				);
-				return Err(ErrorKind::TorBridge(msg).into());
+				return Err(Error::TorBridge(msg).into());
 			}
 		}
 		Ok(ice_addr.to_string())
@@ -346,7 +345,7 @@ impl PluginClient {
 			Ok(max) => Ok(max.to_string()),
 			Err(_e) => {
 				let msg = format!("Invalid -max argument: {} in the client option.", arg);
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}
@@ -358,7 +357,7 @@ impl PluginClient {
 			"ERROR" | "WARN" | "INFO" | "DEBUG" => Ok(log_level.to_string()),
 			_ => {
 				let msg = format!("Invalid log level argurment: {}, in the client option. Must be: ERROR, WARN, INFO or DEBUG", log_level);
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}
@@ -377,7 +376,7 @@ impl PluginClient {
 				} else {
 					format!("Missing ICE argurment for snowflake transport, specify \"-ice\"")
 				};
-				return Err(ErrorKind::TorBridge(msg).into());
+				return Err(Error::TorBridge(msg));
 			}
 			for (key, value) in hm_flags {
 				let p_value = match key {
@@ -517,7 +516,7 @@ impl TorBridge {
 					"Invalid transport method: {} - must be obfs4/meek_lite/meek/snowflake",
 					transport
 				);
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}
@@ -544,7 +543,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					None => {
 						let msg =
 							format!("Missing cert argurment in obfs4 transport, specify \"cert=\"");
-						return Err(ErrorKind::TorBridge(msg).into());
+						return Err(Error::TorBridge(msg));
 					}
 				};
 				let iatmode = match flags.get_key_value("iat-mode=") {
@@ -582,7 +581,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 						let msg = format!(
 							"Missing url argurment in meek_lite transport, specify \"url=\""
 						);
-						return Err(ErrorKind::TorBridge(msg).into());
+						return Err(Error::TorBridge(msg));
 					}
 				};
 				let front = match flags.get_key_value("front=") {
@@ -654,7 +653,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					"Invalid transport method: {} - must be obfs4/meek_lite/meek/snowflake",
 					transport
 				);
-				Err(ErrorKind::TorBridge(msg).into())
+				Err(Error::TorBridge(msg))
 			}
 		}
 	}

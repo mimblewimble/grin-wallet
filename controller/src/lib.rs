@@ -21,7 +21,6 @@ extern crate prettytable;
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
-use failure;
 use grin_wallet_api as apiwallet;
 use grin_wallet_config as config;
 use grin_wallet_impls as impls;
@@ -36,4 +35,4 @@ pub mod controller;
 pub mod display;
 mod error;
 
-pub use crate::error::{Error, ErrorKind};
+pub use crate::error::Error;

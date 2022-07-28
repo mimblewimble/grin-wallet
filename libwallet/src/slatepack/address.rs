@@ -24,7 +24,7 @@ use crate::grin_core::global;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use crate::grin_util::secp::key::SecretKey;
 use crate::util::OnionV3Address;
-use crate::{Error, ErrorKind};
+use crate::Error;
 
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
@@ -91,7 +91,7 @@ impl TryFrom<&str> for SlatepackAddress {
 		let pub_key = match edDalekPublicKey::from_bytes(&bytes) {
 			Ok(k) => k,
 			Err(e) => {
-				return Err(ErrorKind::ED25519Key(format!("{}", e)).into());
+				return Err(Error::ED25519Key(format!("{}", e)));
 			}
 		};
 		Ok(SlatepackAddress { hrp, pub_key })
@@ -127,9 +127,9 @@ impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 		let ep = match cep.decompress() {
 			Some(p) => p,
 			None => {
-				return Err(
-					ErrorKind::ED25519Key("Can't decompress ed25519 Edwards Point".into()).into(),
-				);
+				return Err(Error::ED25519Key(
+					"Can't decompress ed25519 Edwards Point".into(),
+				));
 			}
 		};
 		let res = xDalekPublicKey::from(ep.to_montgomery().to_bytes());
@@ -143,11 +143,10 @@ impl TryFrom<&SecretKey> for SlatepackAddress {
 		let d_skey = match edDalekSecretKey::from_bytes(&key.0) {
 			Ok(k) => k,
 			Err(e) => {
-				return Err(ErrorKind::ED25519Key(format!(
+				return Err(Error::ED25519Key(format!(
 					"Can't create slatepack address from SecretKey: {}",
 					e
-				))
-				.into());
+				)));
 			}
 		};
 		let d_pub_key: edDalekPublicKey = (&d_skey).into();

@@ -22,8 +22,7 @@ exclude = ["integration"]
 [dependencies]
 clap = { version = "2.33", features = ["yaml"] }
 rpassword = "4.0"
-failure = "0.1"
-failure_derive = "0.1"
+thiserror = "1"
 prettytable-rs = "0.8"
 log = "0.4"
 linefeed = "0.6"

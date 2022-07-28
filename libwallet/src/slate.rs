@@ -15,7 +15,7 @@
 //! Functions for building partial transactions to be passed
 //! around during an interactive wallet exchange
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
@@ -196,7 +196,7 @@ impl Slate {
 	pub fn tx_or_err(&self) -> Result<&Transaction, Error> {
 		match &self.tx {
 			Some(t) => Ok(t),
-			None => Err(ErrorKind::SlateTransactionRequired.into()),
+			None => Err(Error::SlateTransactionRequired),
 		}
 	}
 
@@ -204,7 +204,7 @@ impl Slate {
 	pub fn tx_or_err_mut(&mut self) -> Result<&mut Transaction, Error> {
 		match &mut self.tx {
 			Some(t) => Ok(t),
-			None => Err(ErrorKind::SlateTransactionRequired.into()),
+			None => Err(Error::SlateTransactionRequired),
 		}
 	}
 
@@ -220,7 +220,7 @@ impl Slate {
 	/// Throw error if this can't be done
 	pub fn deserialize_upgrade(slate_json: &str) -> Result<Slate, Error> {
 		let v_slate: VersionedSlate =
-			serde_json::from_str(slate_json).map_err(|_| ErrorKind::SlateVersionParse)?;
+			serde_json::from_str(slate_json).map_err(|_| Error::SlateVersionParse)?;
 		Slate::upgrade(v_slate)
 	}
 
@@ -352,26 +352,22 @@ impl Slate {
 			0 => Ok(KernelFeatures::Plain {
 				fee: self.fee_fields,
 			}),
-			1 => Err(ErrorKind::InvalidKernelFeatures(1).into()),
+			1 => Err(Error::InvalidKernelFeatures(1)),
 			2 => Ok(KernelFeatures::HeightLocked {
 				fee: self.fee_fields,
 				lock_height: match &self.kernel_features_args {
 					Some(a) => a.lock_height,
-					None => {
-						return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
-					}
+					None => return Err(Error::KernelFeaturesMissing(format!("lock_height"))),
 				},
 			}),
 			3 => Ok(KernelFeatures::NoRecentDuplicate {
 				fee: self.fee_fields,
 				relative_height: match &self.kernel_features_args {
 					Some(a) => NRDRelativeHeight::new(a.lock_height)?,
-					None => {
-						return Err(ErrorKind::KernelFeaturesMissing(format!("lock_height")).into())
-					}
+					None => return Err(Error::KernelFeaturesMissing(format!("lock_height"))),
 				},
 			}),
-			n => Err(ErrorKind::UnknownKernelFeatures(n).into()),
+			n => Err(Error::UnknownKernelFeatures(n)),
 		}
 	}
 
@@ -436,11 +432,11 @@ impl Slate {
 			.map(|p| &p.public_nonce)
 			.collect();
 		if pub_nonces.len() == 0 {
-			return Err(ErrorKind::Commit(format!("Participant nonces cannot be empty")).into());
+			return Err(Error::Commit(format!("Participant nonces cannot be empty")));
 		}
 		match PublicKey::from_combination(secp, pub_nonces) {
 			Ok(k) => Ok(k),
-			Err(e) => Err(ErrorKind::Secp(e).into()),
+			Err(e) => Err(Error::Secp(e)),
 		}
 	}
 
@@ -452,13 +448,13 @@ impl Slate {
 			.map(|p| &p.public_blind_excess)
 			.collect();
 		if pub_blinds.len() == 0 {
-			return Err(
-				ErrorKind::Commit(format!("Participant Blind sums cannot be empty")).into(),
-			);
+			return Err(Error::Commit(format!(
+				"Participant Blind sums cannot be empty"
+			)));
 		}
 		match PublicKey::from_combination(secp, pub_blinds) {
 			Ok(k) => Ok(k),
-			Err(e) => Err(ErrorKind::Secp(e).into()),
+			Err(e) => Err(Error::Secp(e)),
 		}
 	}
 
@@ -553,9 +549,11 @@ impl Slate {
 
 		if fee > tx.fee() {
 			// apply fee mask past HF4
-			return Err(
-				ErrorKind::Fee(format!("Fee Dispute Error: {}, {}", tx.fee(), fee,)).into(),
-			);
+			return Err(Error::Fee(format!(
+				"Fee Dispute Error: {}, {}",
+				tx.fee(),
+				fee,
+			)));
 		}
 
 		if fee > self.amount + self.fee_fields.fee() {
@@ -565,7 +563,7 @@ impl Slate {
 				amount_to_hr_string(self.amount + self.fee_fields.fee(), false)
 			);
 			info!("{}", reason);
-			return Err(ErrorKind::Fee(reason).into());
+			return Err(Error::Fee(reason));
 		}
 
 		Ok(())

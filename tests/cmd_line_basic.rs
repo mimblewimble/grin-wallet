@@ -721,6 +721,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 fn wallet_command_line() {
 	let test_dir = "target/test_output/command_line";
 	if let Err(e) = command_line_test_impl(test_dir) {
-		panic!("Libwallet Error: {} - {}", e, e.backtrace().unwrap());
+		panic!("Libwallet Error: {}", e);
 	}
 }

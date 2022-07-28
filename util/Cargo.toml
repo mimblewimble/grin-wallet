@@ -16,6 +16,7 @@ serde_derive = "1"
 ed25519-dalek = "1.0.0-pre.4"
 data-encoding = "2"
 sha3 = "0.8"
+thiserror = "1"
 
 # For Release
 #grin_core = "4.0.0"
