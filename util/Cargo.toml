@@ -18,6 +18,8 @@ data-encoding = "2"
 sha3 = "0.8"
 thiserror = "1"
 
+##### Grin Imports
+
 # For Release
 #grin_util = "4.0.0"
 
@@ -26,11 +28,13 @@ thiserror = "1"
 # grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
 
 # For bleeding edge
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
 
-grin_util = { path = "../../grin/util"}
+# grin_util = { path = "../../grin/util"}
+
+#####
 
 [dev-dependencies]
 pretty_assertions = "0.6"

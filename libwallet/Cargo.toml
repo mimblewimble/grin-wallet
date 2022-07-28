@@ -38,6 +38,8 @@ byteorder = "1.3"
 grin_wallet_util = { path = "../util", version = "5.2.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "5.2.0-alpha.1" }
 
+##### Grin Imports
+
 # For Release
 #grin_core = "4.0.0"
 #grin_keychain = "4.0.0"
@@ -51,15 +53,15 @@ grin_wallet_config = { path = "../config", version = "5.2.0-alpha.1" }
 # grin_stire = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
 
 # For bleeding edge
-# grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_store = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+ grin_store = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
- grin_core = { path = "../../grin/core"}
- grin_keychain = { path = "../../grin/keychain"}
- grin_util = { path = "../../grin/util"}
- grin_store = { path = "../../grin/store"}
+# grin_core = { path = "../../grin/core"}
+# grin_keychain = { path = "../../grin/keychain"}
+# grin_util = { path = "../../grin/util"}
+# grin_store = { path = "../../grin/store"}
 
-
+##### 
