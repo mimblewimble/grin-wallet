@@ -18,7 +18,8 @@ use crate::grin_core::core::{committed, transaction};
 use crate::grin_core::libtx;
 use crate::grin_keychain;
 use crate::grin_util::secp;
-use crate::util::{self, grin_store};
+use crate::util;
+use grin_store;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]

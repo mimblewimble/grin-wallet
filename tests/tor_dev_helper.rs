@@ -25,10 +25,10 @@ use clap::App;
 use std::thread;
 use std::time::Duration;
 
+use grin_keychain::ExtKeychain;
 use grin_wallet_impls::DefaultLCProvider;
-use grin_wallet_util::grin_keychain::ExtKeychain;
 
-use grin_wallet_util::grin_util as util;
+use grin_util as util;
 
 #[macro_use]
 mod common;

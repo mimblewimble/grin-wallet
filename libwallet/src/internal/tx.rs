@@ -35,7 +35,7 @@ use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::{Signer, Verifier};
-use grin_wallet_util::grin_core::core::FeeFields;
+use grin_core::core::FeeFields;
 
 // static for incrementing test UUIDs
 lazy_static! {

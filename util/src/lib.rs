@@ -29,10 +29,3 @@ pub use ov3::OnionV3Error as OnionV3AddressError;
 
 #[allow(missing_docs)]
 pub mod byte_ser;
-
-pub use grin_api;
-pub use grin_chain;
-pub use grin_core;
-pub use grin_keychain;
-pub use grin_store;
-pub use grin_util;

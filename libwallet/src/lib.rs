@@ -23,9 +23,10 @@
 #![warn(missing_docs)]
 
 use grin_wallet_config as config;
-use grin_wallet_util::grin_core;
-use grin_wallet_util::grin_keychain;
-use grin_wallet_util::grin_util;
+
+use grin_core;
+use grin_keychain;
+use grin_util;
 
 use grin_wallet_util as util;
 

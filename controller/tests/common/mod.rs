@@ -16,9 +16,9 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
-use grin_wallet_util::grin_util as util;
+use grin_core as core;
+use grin_keychain as keychain;
+use grin_util as util;
 
 use self::core::global;
 use self::core::global::ChainTypes;

@@ -26,12 +26,12 @@ use clap::App;
 use std::thread;
 use std::time::Duration;
 
+use grin_keychain::ExtKeychain;
 use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
-use grin_wallet_util::grin_keychain::ExtKeychain;
 use serde_json;
 
-use grin_wallet_util::grin_util::Mutex;
+use grin_util::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
 

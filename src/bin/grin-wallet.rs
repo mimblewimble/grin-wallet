@@ -22,10 +22,10 @@ use crate::config::ConfigError;
 use crate::core::global;
 use crate::util::init_logger;
 use clap::App;
+use grin_core as core;
+use grin_util as util;
 use grin_wallet_config as config;
 use grin_wallet_impls::HTTPNodeClient;
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_util as util;
 use std::env;
 use std::path::PathBuf;
 

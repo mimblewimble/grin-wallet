@@ -17,8 +17,8 @@ extern crate log;
 extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
-use grin_wallet_util::grin_core as core;
-use grin_wallet_util::grin_keychain as keychain;
+use grin_core as core;
+use grin_keychain as keychain;
 
 use self::core::global;
 use self::keychain::{ExtKeychain, Keychain};

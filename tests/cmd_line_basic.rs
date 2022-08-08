@@ -26,8 +26,8 @@ use clap::App;
 use std::thread;
 use std::time::Duration;
 
+use grin_keychain::ExtKeychain;
 use grin_wallet_impls::DefaultLCProvider;
-use grin_wallet_util::grin_keychain::ExtKeychain;
 
 mod common;
 use common::{clean_output_dir, execute_command, initial_setup_wallet, instantiate_wallet, setup};
