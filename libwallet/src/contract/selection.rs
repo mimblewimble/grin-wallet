@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //! Contract coin selection functions
+
 use crate::contract::types::{ContractSetupArgsAPI, OutputSelectionArgs};
 use crate::contract::utils::my_fee_contribution;
 use crate::grin_core::core::amount_to_hr_string;

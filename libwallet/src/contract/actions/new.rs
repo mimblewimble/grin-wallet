@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Functions for creating, signing, revoking and viewing a contract
+//! Implementation of contract new
 
 use crate::contract::actions::setup;
 use crate::contract::types::ContractSetupArgsAPI;

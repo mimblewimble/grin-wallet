@@ -21,7 +21,6 @@ use crate::grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
 	Transaction, TxKernel, Weighting,
 };
-use crate::grin_core::core::Committed;
 use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentType};

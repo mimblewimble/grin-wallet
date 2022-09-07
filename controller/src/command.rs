@@ -27,8 +27,8 @@ use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs,
 };
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, OutputData, PaymentProof, Slate, SlateState,
-	Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
+	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};

@@ -12,25 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Functions for creating, signing, revoking and viewing a contract
+//! Implementation of contract view
 
-use crate::api_impl::owner::post_tx;
-use crate::contract::selection::verify_selection_consistency;
-use crate::contract::types::{
-	ContractRevokeArgsAPI, ContractSetupArgsAPI, ContractView, OutputSelectionArgs,
-};
-use crate::contract::utils as contract_utils;
+use crate::contract::types::ContractView;
 use crate::error::Error;
-use crate::grin_core::core::Inputs::{CommitOnly, FeaturesAndCommit};
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::pedersen::Commitment;
-use crate::internal::tx;
-use crate::types::{Context, NodeClient, OutputData, OutputStatus, WalletBackend};
-
-use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
-
 use crate::slate::{Slate, SlateState};
+use crate::types::{NodeClient, WalletBackend};
 
 /// View contract
 pub fn view<'a, T: ?Sized, C, K>(

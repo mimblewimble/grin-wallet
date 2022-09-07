@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //! Types related to a contract
+
 use crate::grin_core::consensus;
 
 /// Output selection args

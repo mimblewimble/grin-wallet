@@ -14,12 +14,14 @@
 
 //! This module contains contract related actions.
 
-// mod actions_old;
 mod actions;
+mod context;
 mod selection;
+mod slate;
 pub mod types;
 mod utils;
 
 pub use self::actions::{new, revoke, setup, sign, view};
 
-pub use self::utils::{can_finalize, my_fee_contribution};
+pub use self::slate::can_finalize;
+pub use self::utils::my_fee_contribution;

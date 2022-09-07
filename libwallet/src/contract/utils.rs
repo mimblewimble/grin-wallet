@@ -14,268 +14,16 @@
 
 //! Contract building utility functions
 
-use crate::contract::selection::{prepare_outputs, verify_selection_consistency};
-use crate::contract::types::{ContractSetupArgsAPI, OutputSelectionArgs};
-
-use crate::grin_core::libtx::proof::ProofBuilder;
-use crate::grin_core::libtx::{build, tx_fee};
+use crate::contract::selection::verify_selection_consistency;
+use crate::contract::types::ContractSetupArgsAPI;
+use crate::grin_core::libtx::tx_fee;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
-use crate::internal::{keys, updater};
-use crate::slate::{Slate, SlateState};
+use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
 use crate::{Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::FeeFields;
 use uuid::Uuid;
-
-/// Creates a context for a contract
-pub fn create_contract_ctx<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-	current_height: u64,
-	// TODO: compare with &InitTxArgs to see if any information is missing
-	setup_args: &ContractSetupArgsAPI,
-	parent_key_id: &Identifier,
-	use_test_rng: bool,
-) -> Result<Context, Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	debug!("Creating a new contract context");
-	// sender should always refresh outputs
-	updater::refresh_outputs(w, keychain_mask, parent_key_id, false)?;
-
-	// Fee contribution estimation
-	let net_change = setup_args.net_change.unwrap();
-	// select inputs to estimate fee cost
-	let (inputs, _, my_fee) =
-		prepare_outputs(w, &parent_key_id, current_height, &setup_args, None)?;
-	// The number of outputs we expect is the number of custom outputs plus one change output
-	debug!(
-		"My fee contribution estimation: {} for n_inputs: {}, n_outputs: {}, n_kernels: {}, num_participants: {}",
-		my_fee.fee(), inputs.len(), setup_args.selection_args.num_custom_outputs() + 1, 1, setup_args.num_participants
-	);
-	// Make sure `my_fee < net_change` holds for the receiver. This can't be true for a self-spend, because nobody
-	// has a net_change > 0 which makes a self-spend ok to be a net negative when fees are included.
-	if net_change > 0 && my_fee.fee() > net_change.abs() as u64 {
-		panic!(
-			"My contribution as a receiver would be net negative. my_fee: {}, net_change: {}",
-			my_fee.fee(),
-			net_change
-		);
-	}
-	// Add my share of fee contribution to the slate fees
-	slate.fee_fields = FeeFields::new(0, slate.fee_fields.fee() + my_fee.fee())?;
-	debug!("Slate.fee: {}", slate.fee_fields.fee());
-
-	// Create a Context for this slate
-	let keychain = w.keychain(keychain_mask)?;
-	// TODO: it seems 'is_initiator: true' is only used in test_rng. Do we care about this?
-	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
-	// Context.fee will hold _our_ fee contribution and not the total slate fee
-	context.fee = my_fee.as_opt();
-	// Context.amount is not used in contracts, but we set it anyway.
-	context.amount = slate.amount;
-	// TODO: looking at what uses Context.late_lock_args, it seems only the args in SelectionArgs are used except
-	// for args.ttl_blocks. Is this needed? Can we refactor this?
-	context.setup_args = Some(setup_args.clone());
-	debug!(
-		"Setting Context.net_change as: {}",
-		context.get_net_change()
-	);
-
-	Ok(context)
-}
-
-/// Add payment proof data to slate
-pub fn add_payment_proof_data(slate: &mut Slate) -> Result<(), Error> {
-	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
-	// e.g. slate.add_payment_proof_data()
-	Ok(())
-}
-
-/// Verify payment proof signature
-pub fn verify_payment_proof_sig(slate: &Slate) -> Result<(), Error> {
-	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
-	// e.g. slate.verify_payment_proof_sig()
-	Ok(())
-}
-
-/// Add outputs to a contract (including spent outputs which get locked)
-pub fn add_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	context: &mut Context,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	debug!("contract_utils::add_outputs => call");
-	// Do nothing if we have already contributed our outputs. The assumption is that if this was done,
-	// our output contribution is complete.
-	if context.output_ids.len() > 0 || context.input_ids.len() > 0 {
-		debug!("contract_utils::add_outputs => outputs have already been added, returning.");
-		return Ok(());
-	}
-	let setup_args = context.setup_args.as_ref().unwrap();
-	debug!("contract_utils::add_outputs => adding outputs");
-	let current_height = w.w2n_client().get_chain_tip()?.0;
-	let parent_key_id = &context.parent_key_id;
-
-	// Select inputs for which `Σmy_inputs >= Σmy_outputs + my_fee_cost` holds. Uses committed fee if present.
-	let (inputs, my_output_amounts, my_fee) = prepare_outputs(
-		&mut *w,
-		parent_key_id,
-		current_height,
-		&setup_args,
-		context.fee,
-	)?;
-	assert_eq!(my_fee.fee(), context.fee.unwrap().fee(), "my_fee!=ctx.fee");
-	// Add selected/created inputs/outputs to the context
-	add_inputs_to_ctx(context, &inputs)?;
-	add_output_to_ctx(w, keychain_mask, context, my_output_amounts)?;
-
-	Ok(())
-}
-
-/// Add inputs to Context
-pub fn add_inputs_to_ctx(context: &mut Context, inputs: &Vec<OutputData>) -> Result<(), Error> {
-	debug!("contract_utils::add_inputs_to_ctx => adding inputs to context");
-	for input in inputs {
-		context.add_input(&input.key_id, &input.mmr_index, input.value);
-		debug!(
-			"contract_utils::add_inputs_to_ctx => input id: {}, value:{}",
-			&input.key_id, input.value
-		);
-	}
-
-	Ok(())
-}
-
-/// Add output to Context
-pub fn add_output_to_ctx<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	context: &mut Context,
-	amounts: Vec<u64>,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	for amount in amounts {
-		// TODO: it seems like next_available_key does not respect the parent_key_id. Check if it does, it probably should?
-		//  A late-lock might have a different account set to active than the one that was set to the Context
-		let key_id = keys::next_available_key(w, keychain_mask).unwrap();
-		context.add_output(&key_id, &None, amount);
-		debug!(
-			"contract_utils::add_output_to_ctx => added output to context. Output id: {}, amount: {}",
-			key_id.clone(),
-			amount
-		);
-	}
-	Ok(())
-}
-
-/// Adds inputs and outputs to slate
-pub fn contribute_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-	context: &mut Context,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	add_inputs_to_slate(w, keychain_mask, slate, context)?;
-	add_outputs_to_slate(w, keychain_mask, slate, context)?;
-	Ok(())
-}
-
-/// Contribute inputs to slate
-pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-	context: &mut Context,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	debug!("contract_utils::add_inputs_to_slate => adding inputs to slate");
-	let keychain = w.keychain(keychain_mask)?;
-	let batch = w.batch(keychain_mask)?;
-	for (key_id, mmr_index, _) in context.get_inputs() {
-		// We have no information if the input is a coinbase or not, so we fetch the data from DB
-		let coin = batch.get(&key_id, &mmr_index).unwrap();
-		if coin.is_coinbase {
-			slate.add_transaction_elements(
-				&keychain,
-				&ProofBuilder::new(&keychain),
-				vec![build::coinbase_input(coin.value, coin.key_id.clone())],
-			)?;
-			debug!(
-				"contract_utils::add_inputs_to_slate => added coinbase input id: {}, value: {}",
-				coin.key_id.clone(),
-				coin.value
-			);
-		} else {
-			slate.add_transaction_elements(
-				&keychain,
-				&ProofBuilder::new(&keychain),
-				vec![build::input(coin.value, coin.key_id.clone())],
-			)?;
-			debug!(
-				"contract_utils::add_inputs_to_slate => added regular input id: {}, value: {}",
-				coin.key_id.clone(),
-				coin.value
-			);
-		}
-	}
-
-	Ok(())
-}
-
-/// Contribute outputs to slate
-pub fn add_outputs_to_slate<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-	context: &mut Context,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	debug!("contract_utils::add_outputs_to_slate => start");
-	let keychain = w.keychain(keychain_mask)?;
-	// Iterate over outputs in the Context and add the same output to the slate
-	for (key_id, _, amount) in context.get_outputs() {
-		slate.add_transaction_elements(
-			&keychain,
-			&ProofBuilder::new(&keychain),
-			vec![build::output(amount, key_id.clone())],
-		)?;
-		debug!(
-			"contract_utils::add_outputs_to_slate => added output to slate. Output id: {}, amount: {}",
-			key_id.clone(),
-			amount
-		);
-	}
-
-	Ok(())
-}
 
 /// Creates an initial TxLogEntry without input/output or kernel information
 pub fn create_tx_log_entry(
@@ -340,6 +88,7 @@ where
 pub fn get_net_change<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
+	// TODO: make this receive only slate.id instead of passing the whole slate
 	slate: &Slate,
 	setup_args_net_change: Option<i64>,
 ) -> Result<i64, Error>
@@ -367,7 +116,7 @@ where
 			}
 			expected_net_change = Some(ctx.get_net_change());
 		}
-		Err(err) => debug!("contract::sign => context not found"),
+		Err(_) => debug!("contract::sign => context not found"),
 	};
 
 	// Fail if net_change was not passed to setup_args and was also not present in the context.
@@ -380,78 +129,6 @@ where
 	}
 
 	Ok(expected_net_change.unwrap())
-}
-
-/// Transition the slate state to the next one
-pub fn transition_slate_state(slate: &mut Slate) -> Result<(), Error> {
-	// We don't really use these states right now apart from leaving it to derive expected net_change.
-	// This suggests these can't be used for manipulation. It doesn't hurt to think a bit more if that's the case.
-	let new_state = match slate.state {
-		SlateState::Invoice1 => SlateState::Invoice2,
-		SlateState::Invoice2 => SlateState::Invoice3,
-		SlateState::Standard1 => SlateState::Standard2,
-		SlateState::Standard2 => SlateState::Standard3,
-		_ => {
-			debug!("Slate.state: {}", slate.state);
-			SlateState::Standard3
-		}
-	};
-	slate.state = new_state;
-	// NOTE: It's possible to never reach the step3. A self-spend has only 2 steps: new -> sign.
-	Ok(())
-}
-
-/// Add partial signature to the slate. This is a sign & forget pubkey+nonce implementation.
-pub fn add_partial_signature<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-	context: &Context,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	debug!("contract_utils::add_partial_signature => adding partial signature");
-	let keychain = w.keychain(keychain_mask)?;
-	slate.add_partial_sig(&keychain, &context)?;
-	debug!("contract_utils::add_partial_signature => done");
-
-	Ok(())
-}
-
-/// We can finalize if all partial sigs are present
-pub fn can_finalize(slate: &Slate) -> bool {
-	let res = slate
-		.participant_data
-		.clone()
-		.into_iter()
-		.filter(|v| !v.is_complete())
-		.count();
-
-	// We can finalize if the number of partial sigs is the same as the number of participants
-	res == 0 && slate.participant_data.len() == slate.num_participants as usize
-}
-
-/// Finalize slate
-pub fn finalize_slate<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
-) -> Result<(), Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	// Final transaction can be built by anyone at this stage
-	trace!("Slate to finalize is: {}", slate);
-	// At this point, everyone adjusted their offset, so we update the offset on the tx
-	slate.tx_or_err_mut()?.offset = slate.offset.clone();
-	slate.finalize(&w.keychain(keychain_mask)?)?;
-
-	Ok(())
 }
 
 /// Atomically locks the inputs and saves the changes of Context, TxLogEntry and OutputData.
@@ -656,24 +333,4 @@ where
 		None => w.parent_key_id(),
 	};
 	parent_key_id
-}
-
-/// Helper to print slate transaction structure
-pub fn print_tx(sl: &Slate, msg: String) {
-	let sl_temp = sl.clone();
-	debug!(
-		"contract::print_tx => {} - has_tx: {}",
-		msg,
-		sl_temp.tx.is_some()
-	);
-	let final_tx = sl_temp.tx.unwrap().body;
-
-	debug!(
-		"contract::print_tx => {} - tx inputs:{}, outputs:{}, kernels:{}, offset_is_zero: {}",
-		msg,
-		final_tx.inputs().len(),
-		final_tx.outputs().len(),
-		final_tx.kernels().len(),
-		sl_temp.offset.is_zero()
-	);
 }

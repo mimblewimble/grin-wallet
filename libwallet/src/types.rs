@@ -16,7 +16,7 @@
 //! implementation
 
 use crate::config::{TorConfig, WalletConfig};
-use crate::contract::types::{ContractSetupArgsAPI, OutputSelectionArgs};
+use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::FeeFields;

@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Functions for doing contract setup
+//! Implementation of contract setup
 
 use crate::api_impl::owner::check_ttl;
+use crate::contract;
 use crate::contract::types::ContractSetupArgsAPI;
 use crate::contract::utils as contract_utils;
 use crate::error::Error;
@@ -82,7 +83,7 @@ where
 			// Read the parent_key id which is required for creating a context
 			let parent_key_id =
 				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_ref());
-			contract_utils::create_contract_ctx(
+			contract::context::create(
 				w,
 				keychain_mask,
 				&mut sl,
@@ -110,13 +111,13 @@ where
 	debug!("contract::setup => performed key setup");
 
 	// Add payment proof data
-	contract_utils::add_payment_proof_data(&mut sl)?;
+	contract::slate::add_payment_proof_data(&mut sl)?;
 	debug!("contract::setup => added payment proof data (not implemented yet)");
 
 	// Add inputs/outputs to the Context (includes input selection)
 	if setup_args.add_outputs {
 		debug!("contract:setup => adding outputs to context");
-		contract_utils::add_outputs(&mut *w, keychain_mask, &mut context)?;
+		contract::context::add_outputs(&mut *w, keychain_mask, &mut context)?;
 	}
 
 	Ok((sl, context))

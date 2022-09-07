@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Functions for creating, signing, revoking and viewing a contract
+//! Implementation of contract sign
 
+use crate::contract;
 use crate::contract::actions::setup;
 use crate::contract::types::ContractSetupArgsAPI;
 use crate::contract::utils as contract_utils;
@@ -83,9 +84,9 @@ where
 	// Ensure Setup phase is done and that inputs/outputs have been contributed
 	let (mut sl, mut context) = setup::compute(w, keychain_mask, &mut sl, &setup_args)?;
 	// At this point we have already selected our inputs and outputs so we add them to slate
-	contract_utils::contribute_outputs(w, keychain_mask, &mut sl, &mut context)?;
+	contract::slate::add_outputs(w, keychain_mask, &mut sl, &mut context)?;
 	// Verify the payment proof signature (noop for the receiver)
-	contract_utils::verify_payment_proof_sig(&sl)?;
+	contract::slate::verify_payment_proof_sig(&sl)?;
 	debug!("contract::sign => will sign slate fees: {}", sl.fee_fields);
 
 	// The slate might not have a tx if one has not been initiated already. In this case, we
@@ -103,14 +104,14 @@ where
 		"contract::sign => is offset zero after adjusting offset: {}",
 		sl.offset.is_zero()
 	);
-	contract_utils::add_partial_signature(w, keychain_mask, &mut sl, &context)?;
+	contract::slate::add_partial_signature(w, keychain_mask, &mut sl, &context)?;
 	// We have now contributed all the transaction elements so we can transition the slate to the next step
-	contract_utils::transition_slate_state(&mut sl)?;
+	contract::slate::transition_state(&mut sl)?;
 
 	// If we have all the partial signatures, finalize the tx
-	if contract_utils::can_finalize(&sl) {
+	if contract::slate::can_finalize(&sl) {
 		debug!("contract::sign => finalizing tx");
-		contract_utils::finalize_slate(w, keychain_mask, &mut sl)?;
+		contract::slate::finalize_slate(w, keychain_mask, &mut sl)?;
 	}
 
 	Ok((sl, context))
