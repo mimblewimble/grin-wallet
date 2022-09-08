@@ -270,14 +270,14 @@ fn build_output_amount_list(
 	// TODO: Check if it's even possible for change output to be negative (it shouldn't be if the equation is correct)
 	if my_change_output_amount < 0 {
 		panic!(
-			"contract_utils::add_outputs => ERROR: This should never happen!!! Values: my_input_sum: {}, expected_net_change: {}, my_fee_cost: {}",
+			"contract::selection::build_output_amount_list => ERROR: This should never happen!!! Values: my_input_sum: {}, expected_net_change: {}, my_fee_cost: {}",
 			my_input_sum as i64, expected_net_change, my_fee_cost as i64
 		);
 	}
 	// Add our change/receiver output (which can be a zero-value output) to the list of outputs
 	my_output_amounts.push(my_change_output_amount as u64);
 	debug!(
-		"contract_utils::add_outputs => inputs sum: {}, my_output_amounts:{:#?}",
+		"contract::selection::build_output_amount_list => inputs sum: {}, my_output_amounts:{:#?}",
 		my_input_sum, my_output_amounts
 	);
 	my_output_amounts

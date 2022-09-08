@@ -52,6 +52,10 @@ where
 {
 	add_inputs_to_slate(w, keychain_mask, slate, context)?;
 	add_outputs_to_slate(w, keychain_mask, slate, context)?;
+	// Adjust the offset for the added input and outputs
+	let keychain = &w.keychain(keychain_mask)?;
+	slate.adjust_offset(keychain, &context)?;
+
 	Ok(())
 }
 

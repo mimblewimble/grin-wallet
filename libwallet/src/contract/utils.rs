@@ -116,7 +116,7 @@ where
 			}
 			expected_net_change = Some(ctx.get_net_change());
 		}
-		Err(_) => debug!("contract::sign => context not found"),
+		Err(_) => debug!("contract::utils::get_net_change => context not found"),
 	};
 
 	// Fail if net_change was not passed to setup_args and was also not present in the context.
@@ -147,7 +147,7 @@ where
 	K: Keychain + 'a,
 {
 	debug!(
-		"contract_utils::save_step => performing atomic update for slate_id: {}",
+		"contract::utils::save_step => performing atomic update for slate_id: {}",
 		slate.id
 	);
 	// Phase 1 - precompute the data needed for atomic update
@@ -237,7 +237,7 @@ where
 	batch.commit()?;
 
 	// TODO: Assert we don't have the context to avoid potentially leaking it! Also write tests around this.
-	debug!("contract_utils::save_step => Atomic updated done");
+	debug!("contract::utils::save_step => Atomic updated done");
 
 	Ok(())
 }

@@ -14,9 +14,9 @@
 
 //! Implementation of contract new
 
+use crate::contract;
 use crate::contract::actions::setup;
 use crate::contract::types::ContractSetupArgsAPI;
-use crate::contract::utils as contract_utils;
 use crate::error::Error;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -38,7 +38,7 @@ where
 	let (slate, mut context) = compute(w, keychain_mask, setup_args)?;
 
 	// Atomically commit state
-	contract_utils::save_step(
+	contract::utils::save_step(
 		w,
 		keychain_mask,
 		&slate,

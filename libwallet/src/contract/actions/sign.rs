@@ -17,7 +17,6 @@
 use crate::contract;
 use crate::contract::actions::setup;
 use crate::contract::types::ContractSetupArgsAPI;
-use crate::contract::utils as contract_utils;
 use crate::error::Error;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -45,7 +44,7 @@ where
 	let (sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;
 
 	// Atomically commit state
-	contract_utils::save_step(w, keychain_mask, &sl, &mut context, will_add_outputs, true)?;
+	contract::utils::save_step(w, keychain_mask, &sl, &mut context, will_add_outputs, true)?;
 
 	Ok(sl)
 }
@@ -63,11 +62,11 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
-	contract_utils::verify_not_signed(w, sl.id)?;
+	contract::utils::verify_not_signed(w, sl.id)?;
 
 	// Ensure net_change has been provided
 	let expected_net_change =
-		contract_utils::get_net_change(w, keychain_mask, &sl, setup_args.net_change)?;
+		contract::utils::get_net_change(w, keychain_mask, &sl, setup_args.net_change)?;
 	debug!(
 		"contract::sign => expected_net_change: {}",
 		expected_net_change
@@ -81,23 +80,11 @@ where
 
 	// Ensure Setup phase is done and that inputs/outputs have been contributed
 	let (mut sl, mut context) = setup::compute(w, keychain_mask, &mut sl, &setup_args)?;
-	// At this point we have already selected our inputs and outputs so we add them to slate
+	// 2. Add the outputs that were selected to the slate, verify the payment proof and sign the slate
 	contract::slate::add_outputs(w, keychain_mask, &mut sl, &mut context)?;
-	// Verify the payment proof signature (noop for the receiver)
-	contract::slate::verify_payment_proof(&sl)?;
+	contract::slate::verify_payment_proof(&sl)?; // noop for the receiver
+
 	debug!("contract::sign => will sign slate fees: {}", sl.fee_fields);
-
-	// The slate might not have a tx if one has not been initiated already. In this case, we
-	// create an empty transaction.
-	// TODO: do we need this? doesn't the 'slate::add_outputs' already create the tx?
-	if !sl.tx.is_some() {
-		debug!("contract::sign => slate had no slate.tx, creating empty tx");
-		sl.tx = Some(Slate::empty_transaction());
-	}
-	// Add our offset contribution before we sign the partial sig
-	let keychain = &w.keychain(keychain_mask)?;
-	sl.adjust_offset(keychain, &context)?;
-
 	contract::slate::sign(w, keychain_mask, &mut sl, &context)?;
 	// We have now contributed all the transaction elements so we can transition the slate to the next step
 	contract::slate::transition_state(&mut sl)?;

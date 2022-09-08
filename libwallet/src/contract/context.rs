@@ -25,7 +25,7 @@ use crate::types::{Context, NodeClient, WalletBackend};
 use crate::{Error, OutputData};
 use grin_core::core::FeeFields;
 
-/// Add outputs to a contract context (including spent outputs which get locked)
+/// Get or create transaction Context for the given slate
 pub fn get_or_create<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
