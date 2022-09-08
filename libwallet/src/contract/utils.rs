@@ -228,7 +228,9 @@ where
 	// Update context
 	if is_signed && !is_step2 {
 		// NOTE: We MUST forget the context when we sign. Ideally, these two would be atomic or perhaps
-		// when we add_partial_signature we could swap the secret key with a temporary one just to be safe.
+		// when we call slate::sigadd_partial_signaturen we could swap the secret key with a temporary one just to be safe.
+		// The reason we don't delete if we are at step2 is because in case we want to do safe cancel,
+		// we need to know which inputs are in the context to know which input we have to double-spend.
 		batch.delete_private_context(slate.id.as_bytes())?;
 	} else {
 		batch.save_private_context(slate.id.as_bytes(), &context)?;

@@ -85,7 +85,7 @@ where
 	contract::slate::verify_payment_proof(&sl)?; // noop for the receiver
 
 	debug!("contract::sign => will sign slate fees: {}", sl.fee_fields);
-	contract::slate::sign(w, keychain_mask, &mut sl, &context)?;
+	contract::slate::sign(w, keychain_mask, &mut sl, &mut context)?;
 	// We have now contributed all the transaction elements so we can transition the slate to the next step
 	contract::slate::transition_state(&mut sl)?;
 

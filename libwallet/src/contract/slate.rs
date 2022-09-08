@@ -22,6 +22,10 @@ use crate::slate::{Slate, SlateState};
 use crate::types::{Context, NodeClient, WalletBackend};
 use crate::Error;
 
+/// The secret key we replace the actual key with after we have signed with the Context keys. This is
+/// to prevent possibility of signing with the same key twice.
+pub const SEC_KEY_FAKE: [u8; 32] = [0; 32];
+
 /// Add payment proof data to slate
 pub fn add_payment_proof(slate: &mut Slate) -> Result<(), Error> {
 	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
@@ -161,7 +165,7 @@ pub fn sign<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	context: &Context,
+	context: &mut Context,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -172,6 +176,12 @@ where
 	let keychain = w.keychain(keychain_mask)?;
 	slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
 	debug!("contract::slate::sign => done");
+
+	// TODO: This produces a secp error, probably need a valid key. Verify that this is what we want to do.
+	// context.sec_key = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
+	// context.sec_nonce = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
+	// context.initial_sec_key = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
+	// context.initial_sec_nonce = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
 
 	Ok(())
 }

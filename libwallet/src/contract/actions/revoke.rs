@@ -96,6 +96,7 @@ where
 			},
 		},
 	)?;
+	// TODO: Think about what to do with transaction context of the cancelled slate. It should probably get deleted.
 
 	Ok(Some(finished_slate))
 }
