@@ -47,7 +47,7 @@ pub fn add_outputs<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	context: &mut Context,
+	context: &Context,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -68,7 +68,7 @@ fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	context: &mut Context,
+	context: &Context,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -114,7 +114,7 @@ fn add_outputs_to_slate<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	context: &mut Context,
+	context: &Context,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,

@@ -77,7 +77,7 @@ where
 	// Ensure Setup phase is done and that inputs/outputs have been added to the Context
 	let (mut sl, mut context) = setup::compute(w, keychain_mask, &mut sl, &setup_args)?;
 	// Add outputs to the slate, verify the payment proof and sign the slate
-	contract::slate::add_outputs(w, keychain_mask, &mut sl, &mut context)?;
+	contract::slate::add_outputs(w, keychain_mask, &mut sl, &context)?;
 	contract::slate::verify_payment_proof(&sl)?; // noop for the receiver
 	contract::slate::sign(w, keychain_mask, &mut sl, &mut context)?;
 	contract::slate::transition_state(&mut sl)?;
