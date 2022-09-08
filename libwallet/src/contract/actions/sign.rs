@@ -95,8 +95,6 @@ where
 		sl.tx = Some(Slate::empty_transaction());
 	}
 	// Add our offset contribution before we sign the partial sig
-	// // TODO: Make sure the statement below works for both flows
-	// context.initial_sec_key = context.sec_key.clone();
 	let keychain = &w.keychain(keychain_mask)?;
 	sl.adjust_offset(keychain, &context)?;
 
