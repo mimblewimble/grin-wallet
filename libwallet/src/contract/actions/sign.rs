@@ -63,9 +63,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
-	if contract_utils::check_already_signed(w, sl.id) {
-		panic!("This slate has already been signed.");
-	}
+	contract_utils::verify_not_signed(w, sl.id)?;
 
 	// Ensure net_change has been provided
 	let expected_net_change =
@@ -86,11 +84,12 @@ where
 	// At this point we have already selected our inputs and outputs so we add them to slate
 	contract::slate::add_outputs(w, keychain_mask, &mut sl, &mut context)?;
 	// Verify the payment proof signature (noop for the receiver)
-	contract::slate::verify_payment_proof_sig(&sl)?;
+	contract::slate::verify_payment_proof(&sl)?;
 	debug!("contract::sign => will sign slate fees: {}", sl.fee_fields);
 
 	// The slate might not have a tx if one has not been initiated already. In this case, we
 	// create an empty transaction.
+	// TODO: do we need this? doesn't the 'slate::add_outputs' already create the tx?
 	if !sl.tx.is_some() {
 		debug!("contract::sign => slate had no slate.tx, creating empty tx");
 		sl.tx = Some(Slate::empty_transaction());
@@ -100,18 +99,14 @@ where
 	// context.initial_sec_key = context.sec_key.clone();
 	let keychain = &w.keychain(keychain_mask)?;
 	sl.adjust_offset(keychain, &context)?;
-	debug!(
-		"contract::sign => is offset zero after adjusting offset: {}",
-		sl.offset.is_zero()
-	);
-	contract::slate::add_partial_signature(w, keychain_mask, &mut sl, &context)?;
+
+	contract::slate::sign(w, keychain_mask, &mut sl, &context)?;
 	// We have now contributed all the transaction elements so we can transition the slate to the next step
 	contract::slate::transition_state(&mut sl)?;
 
 	// If we have all the partial signatures, finalize the tx
 	if contract::slate::can_finalize(&sl) {
-		debug!("contract::sign => finalizing tx");
-		contract::slate::finalize_slate(w, keychain_mask, &mut sl)?;
+		contract::slate::finalize(w, keychain_mask, &mut sl)?;
 	}
 
 	Ok((sl, context))

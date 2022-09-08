@@ -522,25 +522,6 @@ impl Slate {
 		Ok(())
 	}
 
-	/// Perform 'setup' step for a contract. This adds our public key and nonce to the slate
-	/// The operation should be idempotent.
-	pub fn add_key_setup<K>(&mut self, keychain: &K, context: &mut Context) -> Result<(), Error>
-	where
-		K: Keychain,
-	{
-		// TODO: Is this safe from manipulation?
-		self.add_participant_info(keychain, context, None)
-	}
-
-	/// Perform 'sign' step for a contract. This adds our partial signature to the slate
-	/// The operation is idempotent.
-	pub fn add_partial_sig<K>(&mut self, keychain: &K, context: &Context) -> Result<(), Error>
-	where
-		K: Keychain,
-	{
-		self.fill_round_2(keychain, &context.sec_key, &context.sec_nonce)
-	}
-
 	/// Add our contribution to the offset based on the excess, inputs and outputs
 	pub fn adjust_offset<K: Keychain>(
 		&mut self,

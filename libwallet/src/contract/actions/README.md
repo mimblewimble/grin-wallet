@@ -32,6 +32,7 @@ Separating side effects until the 'save_step' part would make these functions mu
 
 #### TODOs
 
+ - make sure to forget the Context when we sign or at least forget the secret keys for it to avoid signing with the same nonce twice
  - make_outputs api should receive nanogrins rather than grin. We have to make the conversion before calling the API
  - sometimes the slatepack outputs with a \n for some reason which makes pasting it register \n as the end of paste and crashes?
  - remove casting decimals, we should accept value in nanogrins (including --make-outputs option), never as 0.1 Grin through the interface. Casting should be left to the gui wallet logic

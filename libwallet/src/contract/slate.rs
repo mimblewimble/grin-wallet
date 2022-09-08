@@ -23,16 +23,18 @@ use crate::types::{Context, NodeClient, WalletBackend};
 use crate::Error;
 
 /// Add payment proof data to slate
-pub fn add_payment_proof_data(slate: &mut Slate) -> Result<(), Error> {
+pub fn add_payment_proof(slate: &mut Slate) -> Result<(), Error> {
 	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
 	// e.g. slate.add_payment_proof_data()
+	debug!("contract::slate::add_payment_proof => called (not implemented yet)");
 	Ok(())
 }
 
 /// Verify payment proof signature
-pub fn verify_payment_proof_sig(slate: &Slate) -> Result<(), Error> {
+pub fn verify_payment_proof(slate: &Slate) -> Result<(), Error> {
 	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
 	// e.g. slate.verify_payment_proof_sig()
+	debug!("contract::slate::verify_payment_proof => called (not implemented yet)");
 	Ok(())
 }
 
@@ -65,7 +67,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	debug!("contract_utils::add_inputs_to_slate => adding inputs to slate");
+	debug!("contract::slate::add_inputs_to_slate => adding inputs to slate");
 	let keychain = w.keychain(keychain_mask)?;
 	let batch = w.batch(keychain_mask)?;
 	for (key_id, mmr_index, _) in context.get_inputs() {
@@ -78,7 +80,7 @@ where
 				vec![build::coinbase_input(coin.value, coin.key_id.clone())],
 			)?;
 			debug!(
-				"contract_utils::add_inputs_to_slate => added coinbase input id: {}, value: {}",
+				"contract::slate::add_inputs_to_slate => added coinbase input id: {}, value: {}",
 				coin.key_id.clone(),
 				coin.value
 			);
@@ -89,7 +91,7 @@ where
 				vec![build::input(coin.value, coin.key_id.clone())],
 			)?;
 			debug!(
-				"contract_utils::add_inputs_to_slate => added regular input id: {}, value: {}",
+				"contract::slate::add_inputs_to_slate => added regular input id: {}, value: {}",
 				coin.key_id.clone(),
 				coin.value
 			);
@@ -111,7 +113,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	debug!("contract_utils::add_outputs_to_slate => start");
+	debug!("contract::slate::add_outputs_to_slate => start");
 	let keychain = w.keychain(keychain_mask)?;
 	// Iterate over outputs in the Context and add the same output to the slate
 	for (key_id, _, amount) in context.get_outputs() {
@@ -121,7 +123,7 @@ where
 			vec![build::output(amount, key_id.clone())],
 		)?;
 		debug!(
-			"contract_utils::add_outputs_to_slate => added output to slate. Output id: {}, amount: {}",
+			"contract::slate::add_outputs_to_slate => added output to slate. Output id: {}, amount: {}",
 			key_id.clone(),
 			amount
 		);
@@ -149,8 +151,9 @@ pub fn transition_state(slate: &mut Slate) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Add partial signature to the slate. This is a sign & forget pubkey+nonce implementation.
-pub fn add_partial_signature<'a, T: ?Sized, C, K>(
+/// Add partial signature to the slate.
+// TODO: Should be a sign & forget pubkey+nonce implementation.
+pub fn sign<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
@@ -161,10 +164,10 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	debug!("contract_utils::add_partial_signature => adding partial signature");
+	debug!("contract::slate::sign => called");
 	let keychain = w.keychain(keychain_mask)?;
-	slate.add_partial_sig(&keychain, &context)?;
-	debug!("contract_utils::add_partial_signature => done");
+	slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
+	debug!("contract::slate::sign => done");
 
 	Ok(())
 }
@@ -183,7 +186,7 @@ pub fn can_finalize(slate: &Slate) -> bool {
 }
 
 /// Finalize slate
-pub fn finalize_slate<'a, T: ?Sized, C, K>(
+pub fn finalize<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
@@ -193,6 +196,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	debug!("contract::slate::finalize => called");
 	// Final transaction can be built by anyone at this stage
 	trace!("Slate to finalize is: {}", slate);
 	// At this point, everyone adjusted their offset, so we update the offset on the tx
@@ -200,4 +204,15 @@ where
 	slate.finalize(&w.keychain(keychain_mask)?)?;
 
 	Ok(())
+}
+
+/// Perform 'setup' step for a contract. This adds our public key and nonce to the slate
+/// The operation should be idempotent.
+pub fn add_keys<K>(slate: &mut Slate, keychain: &K, context: &mut Context) -> Result<(), Error>
+where
+	K: Keychain,
+{
+	debug!("contract::slate::add_keys => called");
+	// TODO: Is this safe from manipulation?
+	slate.add_participant_info(keychain, context, None)
 }

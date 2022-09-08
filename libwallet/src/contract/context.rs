@@ -16,6 +16,7 @@
 
 use crate::contract::selection::prepare_outputs;
 use crate::contract::types::ContractSetupArgsAPI;
+use crate::contract::utils as contract_utils;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{keys, updater};
@@ -24,8 +25,45 @@ use crate::types::{Context, NodeClient, WalletBackend};
 use crate::{Error, OutputData};
 use grin_core::core::FeeFields;
 
+/// Add outputs to a contract context (including spent outputs which get locked)
+pub fn get_or_create<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &mut Slate,
+	setup_args: &ContractSetupArgsAPI,
+) -> Result<Context, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	debug!("contract::context::get_or_create => called");
+	let maybe_context = w.get_private_context(keychain_mask, slate.id.as_bytes());
+
+	let context = match maybe_context {
+		Err(_) => {
+			// Get data required for creating a context
+			let height = w.w2n_client().get_chain_tip()?.0;
+			let parent_key_id =
+				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_ref());
+			self::create(
+				w,
+				keychain_mask,
+				slate,
+				height,
+				// &args,
+				setup_args,
+				&parent_key_id,
+				false,
+			)?
+		}
+		Ok(ctx) => ctx,
+	};
+	Ok(context)
+}
+
 /// Creates a context for a contract
-pub fn create<'a, T: ?Sized, C, K>(
+fn create<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
@@ -97,15 +135,15 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	debug!("contract_utils::add_outputs => call");
+	debug!("contract::utils::add_outputs => called");
 	// Do nothing if we have already contributed our outputs. The assumption is that if this was done,
 	// our output contribution is complete.
 	if context.output_ids.len() > 0 || context.input_ids.len() > 0 {
-		debug!("contract_utils::add_outputs => outputs have already been added, returning.");
+		debug!("contract::utils::add_outputs => outputs have already been added, returning.");
 		return Ok(());
 	}
 	let setup_args = context.setup_args.as_ref().unwrap();
-	debug!("contract_utils::add_outputs => adding outputs");
+	debug!("contract::utils::add_outputs => adding outputs");
 	let current_height = w.w2n_client().get_chain_tip()?.0;
 	let parent_key_id = &context.parent_key_id;
 
@@ -127,11 +165,11 @@ where
 
 /// Add inputs to Context
 fn add_inputs_to_ctx(context: &mut Context, inputs: &Vec<OutputData>) -> Result<(), Error> {
-	debug!("contract_utils::add_inputs_to_ctx => adding inputs to context");
+	debug!("contract::utils::add_inputs_to_ctx => adding inputs to context");
 	for input in inputs {
 		context.add_input(&input.key_id, &input.mmr_index, input.value);
 		debug!(
-			"contract_utils::add_inputs_to_ctx => input id: {}, value:{}",
+			"contract::utils::add_inputs_to_ctx => input id: {}, value:{}",
 			&input.key_id, input.value
 		);
 	}
@@ -157,7 +195,7 @@ where
 		let key_id = keys::next_available_key(w, keychain_mask).unwrap();
 		context.add_output(&key_id, &None, amount);
 		debug!(
-			"contract_utils::add_output_to_ctx => added output to context. Output id: {}, amount: {}",
+			"contract::utils::add_output_to_ctx => added output to context. Output id: {}, amount: {}",
 			key_id.clone(),
 			amount
 		);

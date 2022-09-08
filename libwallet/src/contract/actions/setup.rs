@@ -52,7 +52,7 @@ where
 	Ok(slate)
 }
 
-/// Compute logic for setup - adds keys, payment proof data and potentially inputs/outputs (doesn't lock them)
+/// Compute logic for setup - adds keys, payment proof data and potentially inputs/outputs (doesn't lock them, this happens at save_step)
 pub fn compute<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
@@ -64,59 +64,22 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	// We expect net_change to have been defined once we call setup
-	let expected_net_change = setup_args.net_change.unwrap();
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
 
-	// 1. Obtain transaction Context
-	let height = w.w2n_client().get_chain_tip()?.0;
-	debug!(
-		"contract::setup => expected_net_change: {} num_participants: {}",
-		expected_net_change, setup_args.num_participants
-	);
-	// Check if a context for the slate already exists
-	let maybe_context = w.get_private_context(keychain_mask, sl.id.as_bytes());
+	// 1. Get or create a transaction Context and verify consistency of setup arguments (needed in step3)
+	let mut context = contract::context::get_or_create(w, keychain_mask, &mut sl, setup_args)?;
+	contract_utils::verify_setup_args_consistency(
+		&context.setup_args.as_ref().unwrap(),
+		&setup_args,
+	)?;
 
-	let mut context = match maybe_context {
-		Err(_) => {
-			// Read the parent_key id which is required for creating a context
-			let parent_key_id =
-				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_ref());
-			contract::context::create(
-				w,
-				keychain_mask,
-				&mut sl,
-				height,
-				// &args,
-				setup_args,
-				&parent_key_id,
-				false,
-			)?
-		}
-		Ok(ctx) => {
-			// Means we are at step3 and we need to compare there are no conflicts in the setup args with
-			// the ones we provided at step1. This includes output selection arguments.
-			// TODO: verify that the parent_key_id is consistent, perhaps even with the active_account set?
-			contract_utils::verify_setup_consistency(
-				&ctx.setup_args.as_ref().unwrap(),
-				&setup_args,
-			)?;
-			ctx
-		}
-	};
 	// 2. Handle key setup, payment proofs and input/output contribution (all idempotent operations)
-	// Setup keys in case the slate doesn't have them
-	sl.add_key_setup(&w.keychain(keychain_mask)?, &mut context)?;
-	debug!("contract::setup => performed key setup");
+	contract::slate::add_keys(&mut sl, &w.keychain(keychain_mask)?, &mut context)?;
+	contract::slate::add_payment_proof(&mut sl)?;
 
-	// Add payment proof data
-	contract::slate::add_payment_proof_data(&mut sl)?;
-	debug!("contract::setup => added payment proof data (not implemented yet)");
-
-	// Add inputs/outputs to the Context (includes input selection)
+	// Add inputs/outputs to the Context if needed (includes input selection)
 	if setup_args.add_outputs {
-		debug!("contract:setup => adding outputs to context");
 		contract::context::add_outputs(&mut *w, keychain_mask, &mut context)?;
 	}
 

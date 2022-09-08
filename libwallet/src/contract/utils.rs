@@ -263,9 +263,9 @@ pub fn my_fee_contribution(
 	Ok(my_fee_fields)
 }
 
-/// Returns true if the slate has already been signed (in our local database). Even if the
-/// result is false, it's still possible it was signed but we don't have the data about it locally.
-pub fn check_already_signed<'a, T: ?Sized, C, K>(w: &mut T, slate_id: Uuid) -> bool
+/// Returns an error if the slate has already been signed (in our local database). Even if the
+/// result is Ok, it's still possible it was signed but we don't have the data about it locally.
+pub fn verify_not_signed<'a, T: ?Sized, C, K>(w: &mut T, slate_id: Uuid) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -276,12 +276,21 @@ where
 	let tx = w
 		.tx_log_iter()
 		.find(|t| t.tx_slate_id.is_some() && t.tx_slate_id.unwrap() == slate_id);
-	tx.is_some() && tx.unwrap().kernel_excess.is_some()
+	let already_signed = tx.is_some() && tx.unwrap().kernel_excess.is_some();
+	if already_signed {
+		debug!("contract::utils::verify_not_signed => The slate has already been signed.");
+		return Err(Error::GenericError(
+			format!("Slate with id:{} has already been signed.", slate_id).into(),
+		)
+		.into());
+	}
+
+	Ok(())
 }
 
 /// Compares the setup args provided at call with those in the Context and checks whether they conflict.
 /// This is relevant to see if there's any conflict in the arguments provided at step1 with step3.
-pub fn verify_setup_consistency(
+pub fn verify_setup_args_consistency(
 	ctx_setup_args: &ContractSetupArgsAPI,
 	cur_setup_args: &ContractSetupArgsAPI,
 ) -> Result<(), Error> {
@@ -301,6 +310,7 @@ pub fn verify_setup_consistency(
 		);
 	}
 	// TODO: Should we verify add_outputs?
+	// TODO: verify that the parent_key_id is consistent, perhaps even with the active_account set?
 
 	// Compare OutputSelectionArgs
 	verify_selection_consistency(
