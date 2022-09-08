@@ -127,6 +127,10 @@ where
 		)
 		.into());
 	}
+	debug!(
+		"contract::utils::get_net_change => expected_net_change: {}",
+		expected_net_change.unwrap()
+	);
 
 	Ok(expected_net_change.unwrap())
 }

@@ -67,26 +67,19 @@ where
 	// Ensure net_change has been provided
 	let expected_net_change =
 		contract::utils::get_net_change(w, keychain_mask, &sl, setup_args.net_change)?;
-	debug!(
-		"contract::sign => expected_net_change: {}",
-		expected_net_change
-	);
 
 	// Define the values that must be provided in the setup phase at the sign step
 	let mut setup_args = setup_args.clone();
 	setup_args.net_change = Some(expected_net_change);
 	setup_args.num_participants = sl.num_participants;
-	setup_args.add_outputs = true;
+	setup_args.add_outputs = true; // we add outputs to the Context in case we haven't done that yet
 
-	// Ensure Setup phase is done and that inputs/outputs have been contributed
+	// Ensure Setup phase is done and that inputs/outputs have been added to the Context
 	let (mut sl, mut context) = setup::compute(w, keychain_mask, &mut sl, &setup_args)?;
-	// 2. Add the outputs that were selected to the slate, verify the payment proof and sign the slate
+	// Add outputs to the slate, verify the payment proof and sign the slate
 	contract::slate::add_outputs(w, keychain_mask, &mut sl, &mut context)?;
 	contract::slate::verify_payment_proof(&sl)?; // noop for the receiver
-
-	debug!("contract::sign => will sign slate fees: {}", sl.fee_fields);
 	contract::slate::sign(w, keychain_mask, &mut sl, &mut context)?;
-	// We have now contributed all the transaction elements so we can transition the slate to the next step
 	contract::slate::transition_state(&mut sl)?;
 
 	// If we have all the partial signatures, finalize the tx

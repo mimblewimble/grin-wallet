@@ -175,6 +175,10 @@ where
 	debug!("contract::slate::sign => called");
 	let keychain = w.keychain(keychain_mask)?;
 	slate.fill_round_2(&keychain, &context.sec_key, &context.sec_nonce)?;
+	debug!(
+		"contract::sign => signed for slate fees: {}",
+		slate.fee_fields
+	);
 	debug!("contract::slate::sign => done");
 
 	// TODO: This produces a secp error, probably need a valid key. Verify that this is what we want to do.

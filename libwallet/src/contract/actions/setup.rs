@@ -51,7 +51,7 @@ where
 	Ok(slate)
 }
 
-/// Compute logic for setup - adds keys, payment proof data and potentially inputs/outputs (doesn't lock them, this happens at save_step)
+/// Compute logic for setup
 pub fn compute<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
@@ -66,18 +66,18 @@ where
 	let mut sl = slate.clone();
 	check_ttl(w, &sl)?;
 
-	// 1. Get or create a transaction Context and verify consistency of setup arguments (needed in step3)
+	// Get or create a transaction Context and verify consistency of setup arguments
 	let mut context = contract::context::get_or_create(w, keychain_mask, &mut sl, setup_args)?;
 	contract::utils::verify_setup_args_consistency(
 		&context.setup_args.as_ref().unwrap(),
 		&setup_args,
 	)?;
 
-	// 2. Handle key setup, payment proofs and input/output contribution (all idempotent operations)
+	// Add keys and payment proof to slate (both are idempotent operations)
 	contract::slate::add_keys(&mut sl, &w.keychain(keychain_mask)?, &mut context)?;
 	contract::slate::add_payment_proof(&mut sl)?; // noop for the sender
 
-	// Add inputs/outputs to the Context if needed (includes input selection)
+	// Add inputs/outputs to the Context if needed. No locking is done here. This happens at save_step.
 	if setup_args.add_outputs {
 		contract::context::add_outputs(&mut *w, keychain_mask, &mut context)?;
 	}
