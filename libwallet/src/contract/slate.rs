@@ -182,10 +182,11 @@ where
 	debug!("contract::slate::sign => done");
 
 	// TODO: This produces a secp error, probably need a valid key. Verify that this is what we want to do.
-	// context.sec_key = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
-	// context.sec_nonce = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
-	// context.initial_sec_key = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
-	// context.initial_sec_nonce = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
+	// let fake_key = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
+	// context.sec_key = fake_key.clone();
+	// context.sec_nonce = fake_key.clone();
+	// context.initial_sec_key = fake_key.clone();
+	// context.initial_sec_nonce = fake_key.clone();
 
 	Ok(())
 }
