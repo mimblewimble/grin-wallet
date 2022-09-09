@@ -595,8 +595,20 @@ impl fmt::Display for SlatepackOut {
 }
 
 impl SlatepackOut {
-	pub fn as_json(&self) -> String {
+	fn as_json(&self) -> String {
 		serde_json::to_string_pretty(&self).unwrap()
+	}
+
+	pub fn print(&self, as_json: bool) -> () {
+		if !self.is_finalized {
+			if as_json {
+				println!("{}", self.as_json());
+			} else {
+				println!("{}", self);
+			}
+		} else {
+			println!("Transaction was broadcasted."); // TODO: as_json makes no sense here, fix later.
+		}
 	}
 }
 
@@ -616,15 +628,7 @@ where
 	// For now, we don't compact slates with sl.compact(). We first make them work without compaction.
 	let slate_out =
 		prepare_slatepack(api, keychain_mask, &slate, &counterparty_addr, out_file).unwrap();
-	if !slate_out.is_finalized {
-		if as_json {
-			println!("{}", slate_out.as_json());
-		} else {
-			println!("{}", slate_out);
-		}
-	} else {
-		println!("Transaction was broadcasted."); // TODO: as_json makes no sense here, fix later.
-	}
+	slate_out.print(as_json);
 }
 
 pub fn prepare_slatepack<L, C, K>(
