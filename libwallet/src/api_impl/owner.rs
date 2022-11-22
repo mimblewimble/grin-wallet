@@ -334,7 +334,14 @@ where
 
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
-	let txs = updater::retrieve_txs(&mut **w, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
+	let txs = updater::retrieve_txs(
+		&mut **w,
+		tx_id,
+		tx_slate_id,
+		query_args,
+		Some(&parent_key_id),
+		false,
+	)?;
 
 	Ok((validated, txs))
 }
@@ -405,6 +412,7 @@ where
 		refresh_from_node,
 		tx_id,
 		tx_slate_id,
+		None,
 	)?;
 	if txs.1.len() != 1 {
 		return Err(Error::PaymentProofRetrieval(
@@ -663,6 +671,7 @@ where
 		&mut *w,
 		None,
 		Some(ret_slate.id),
+		None,
 		Some(&parent_key_id),
 		use_test_rng,
 	)?;
@@ -1123,7 +1132,7 @@ where
 	// Step 2: Update outstanding transactions with no change outputs by kernel
 	let mut txs = {
 		wallet_lock!(wallet_inst, w);
-		updater::retrieve_txs(&mut **w, None, None, Some(&parent_key_id), true)?
+		updater::retrieve_txs(&mut **w, None, None, None, Some(&parent_key_id), true)?
 	};
 	result = update_txs_via_kernel(wallet_inst.clone(), keychain_mask, &mut txs)?;
 	if !result {

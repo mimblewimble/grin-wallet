@@ -351,7 +351,14 @@ where
 	} else if let Some(tx_slate_id) = tx_slate_id {
 		tx_id_string = tx_slate_id.to_string();
 	}
-	let tx_vec = updater::retrieve_txs(wallet, tx_id, tx_slate_id, Some(&parent_key_id), false)?;
+	let tx_vec = updater::retrieve_txs(
+		wallet,
+		tx_id,
+		tx_slate_id,
+		None,
+		Some(&parent_key_id),
+		false,
+	)?;
 	if tx_vec.len() != 1 {
 		return Err(Error::TransactionDoesntExist(tx_id_string));
 	}
@@ -390,7 +397,7 @@ where
 	K: Keychain + 'a,
 {
 	// finalize command
-	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, false)?;
+	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, None, false)?;
 	let mut tx = None;
 	// don't want to assume this is the right tx, in case of self-sending
 	for t in tx_vec {
@@ -511,7 +518,14 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), Some(parent_key_id), false)?;
+	let tx_vec = updater::retrieve_txs(
+		wallet,
+		None,
+		Some(slate.id),
+		None,
+		Some(parent_key_id),
+		false,
+	)?;
 	if tx_vec.is_empty() {
 		return Err(Error::PaymentProof(
 			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),

@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -447,6 +448,9 @@ where
 	/// the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
 	/// the given [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) uuid.
+	/// * `tx_query_args` - If provided, use advanced query arguments as documented in
+	/// (../grin_wallet_libwallet/types.struct.RetrieveTxQueryArgs.html). If either
+	/// `tx_id` or `tx_slate_id` is provided in the same call, this argument is ignored
 	///
 	/// # Returns
 	/// * `(bool, Vec<TxLogEntry)` - A tuple:
@@ -467,7 +471,7 @@ where
 	/// let tx_slate_id = None;
 	///
 	/// // Return all TxLogEntries
-	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id);
+	/// let result = api_owner.retrieve_txs(None, update_from_node, tx_id, tx_slate_id, None);
 	///
 	/// if let Ok((was_updated, tx_log_entries)) = result {
 	///     //...
@@ -480,6 +484,7 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		tx_query_args: Option<RetrieveTxQueryArgs>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		let tx = {
 			let t = self.status_tx.lock();
@@ -496,6 +501,7 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
+			tx_query_args,
 		)?;
 		if self.doctest_mode {
 			res.1 = res

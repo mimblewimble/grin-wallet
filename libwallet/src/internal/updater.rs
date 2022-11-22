@@ -33,7 +33,7 @@ use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
-use crate::{BlockFees, CbData, OutputCommitMapping};
+use crate::{BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs};
 
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
@@ -94,6 +94,7 @@ pub fn retrieve_txs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
+	query_args: Option<RetrieveTxQueryArgs>,
 	parent_key_id: Option<&Identifier>,
 	outstanding_only: bool,
 ) -> Result<Vec<TxLogEntry>, Error>
@@ -102,34 +103,41 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut txs: Vec<TxLogEntry> = wallet
-		.tx_log_iter()
-		.filter(|tx_entry| {
-			let f_pk = match parent_key_id {
-				Some(k) => tx_entry.parent_key_id == *k,
-				None => true,
-			};
-			let f_tx_id = match tx_id {
-				Some(i) => tx_entry.id == i,
-				None => true,
-			};
-			let f_txs = match tx_slate_id {
-				Some(t) => tx_entry.tx_slate_id == Some(t),
-				None => true,
-			};
-			let f_outstanding = match outstanding_only {
-				true => {
-					!tx_entry.confirmed
-						&& (tx_entry.tx_type == TxLogEntryType::TxReceived
-							|| tx_entry.tx_type == TxLogEntryType::TxSent
-							|| tx_entry.tx_type == TxLogEntryType::TxReverted)
-				}
-				false => true,
-			};
-			f_pk && f_tx_id && f_txs && f_outstanding
-		})
-		.collect();
-	txs.sort_by_key(|tx| tx.creation_ts);
+	let mut txs: Vec<TxLogEntry> = vec![];
+	// Adding in new tranasction list query logic. If `tx_id` or `tx_slate_id`
+	// is provided, then `query_args` is ignored and old logic is followed.
+	if tx_id.is_some() || tx_slate_id.is_some() {
+		txs = wallet
+			.tx_log_iter()
+			.filter(|tx_entry| {
+				let f_pk = match parent_key_id {
+					Some(k) => tx_entry.parent_key_id == *k,
+					None => true,
+				};
+				let f_tx_id = match tx_id {
+					Some(i) => tx_entry.id == i,
+					None => true,
+				};
+				let f_txs = match tx_slate_id {
+					Some(t) => tx_entry.tx_slate_id == Some(t),
+					None => true,
+				};
+				let f_outstanding = match outstanding_only {
+					true => {
+						!tx_entry.confirmed
+							&& (tx_entry.tx_type == TxLogEntryType::TxReceived
+								|| tx_entry.tx_type == TxLogEntryType::TxSent
+								|| tx_entry.tx_type == TxLogEntryType::TxReverted)
+					}
+					false => true,
+				};
+				f_pk && f_tx_id && f_txs && f_outstanding
+			})
+			.collect();
+		txs.sort_by_key(|tx| tx.creation_ts);
+	} else {
+		// TODO: Call Query Filter Function
+	}
 	Ok(txs)
 }
 
@@ -171,7 +179,7 @@ where
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
 		.collect();
 
-	let tx_entries = retrieve_txs(wallet, None, None, Some(&parent_key_id), true)?;
+	let tx_entries = retrieve_txs(wallet, None, None, None, Some(&parent_key_id), true)?;
 
 	// Only select outputs that are actually involved in an outstanding transaction
 	let unspents = match update_all {

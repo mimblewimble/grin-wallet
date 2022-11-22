@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //! JSON-RPC Stub generation for the Owner API
+use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -307,6 +308,7 @@ pub trait OwnerRpc {
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		tx_query_args: Option<RetrieveTxQueryArgs>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error>;
 
 	/**
@@ -1912,6 +1914,7 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+		query_args: Option<RetrieveTxQueryArgs>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		Owner::retrieve_txs(
 			self,
@@ -1919,6 +1922,7 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
+			query_args,
 		)
 	}
 
