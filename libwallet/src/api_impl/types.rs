@@ -148,6 +148,34 @@ impl Default for IssueInvoiceTxArgs {
 	}
 }
 
+/// Retrieve Transaction List Pagination Arguments
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RetrieveTxQueryArgs {
+	/// Retrieve transactions with an id lower than the given, inclusive
+	/// If None, consider items from the latest transaction and earlier
+	pub before_id_inc: Option<u32>,
+	/// Retrieve tranactions with an id higher than the given, inclusive
+	/// If None, consider items from the first transaction and later
+	pub after_id_inc: Option<u32>,
+	/// The maximum number of transactions to return
+	/// if both `before_id_inc` and `after_id_inc` are supplied, this will apply
+	/// to the before and earlier set
+	pub limit: Option<u32>,
+	/// whether to include cancelled transactions in the returned set
+	pub include_cancelled: Option<bool>,
+}
+
+impl Default for RetrieveTxQueryArgs {
+	fn default() -> Self {
+		Self {
+			before_id_inc: None,
+			after_id_inc: None,
+			limit: None,
+			include_cancelled: None,
+		}
+	}
+}
+
 /// Fees in block to use for coinbase amount calculation
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockFees {
