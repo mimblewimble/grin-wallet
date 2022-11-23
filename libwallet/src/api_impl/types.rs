@@ -178,19 +178,19 @@ pub enum RetrieveTxQuerySortField {
 /// Retrieve Transaction List Pagination Arguments
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RetrieveTxQueryArgs {
-	/// Retrieve transactions with an id lower than the given, inclusive
-	/// If None, consider items from the latest transaction and earlier
-	pub before_id_inc: Option<u32>,
-	/// Retrieve tranactions with an id higher than the given, inclusive
+	/// Retrieve transactions with an id higher than or equal to the given
 	/// If None, consider items from the first transaction and later
-	pub after_id_inc: Option<u32>,
+	pub min_id_inc: Option<u32>,
+	/// Retrieve tranactions with an id less than or equal to the given
+	/// If None, consider items from the last transaction and earlier
+	pub max_id_inc: Option<u32>,
 	/// The maximum number of transactions to return
 	/// if both `before_id_inc` and `after_id_inc` are supplied, this will apply
 	/// to the before and earlier set
 	pub limit: Option<u32>,
-	/// whether to include cancelled transactions in the returned set
-	pub include_cancelled: Option<bool>,
-	/// whether to only consider non-cancelled, outstanding transactions
+	/// whether to exclude cancelled transactions in the returned set
+	pub exclude_cancelled: Option<bool>,
+	/// whether to only consider outstanding transactions
 	pub include_outstanding_only: Option<bool>,
 	/// whether to only consider confirmed-only transactions
 	pub include_confirmed_only: Option<bool>,
@@ -209,17 +209,17 @@ pub struct RetrieveTxQueryArgs {
 	/// Field within the tranasction list on which to sort
 	/// defaults to ID if not present
 	pub sort_field: Option<RetrieveTxQuerySortField>,
-	/// Sort order, defaults to DESC if not present (most recent is first)
+	/// Sort order, defaults to ASC if not present (earliest is first)
 	pub sort_order: Option<RetrieveTxQuerySortOrder>,
 }
 
 impl Default for RetrieveTxQueryArgs {
 	fn default() -> Self {
 		Self {
-			before_id_inc: None,
-			after_id_inc: None,
+			min_id_inc: None,
+			max_id_inc: None,
 			limit: None,
-			include_cancelled: Some(true),
+			exclude_cancelled: Some(false),
 			include_outstanding_only: Some(false),
 			include_confirmed_only: Some(false),
 			min_amount_inc: None,
@@ -229,7 +229,7 @@ impl Default for RetrieveTxQueryArgs {
 			min_confirmed_timestamp_inc: None,
 			max_confirmed_timestamp_inc: None,
 			sort_field: Some(RetrieveTxQuerySortField::Id),
-			sort_order: Some(RetrieveTxQuerySortOrder::Desc),
+			sort_order: Some(RetrieveTxQuerySortOrder::Asc),
 		}
 	}
 }

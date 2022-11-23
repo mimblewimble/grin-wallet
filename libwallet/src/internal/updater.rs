@@ -25,7 +25,6 @@ use crate::grin_core::global;
 use crate::grin_core::libtx::proof::ProofBuilder;
 use crate::grin_core::libtx::reward;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util as util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::static_secp_instance;
@@ -33,7 +32,11 @@ use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
-use crate::{BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs};
+use crate::{grin_util as util, Amount};
+use crate::{
+	BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs, RetrieveTxQuerySortField,
+	RetrieveTxQuerySortOrder,
+};
 
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
@@ -88,6 +91,166 @@ where
 	Ok(res)
 }
 
+/// Apply advanced filtering to resultset from retrieve_txs below
+pub fn apply_advanced_tx_list_filtering<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	query_args: &RetrieveTxQueryArgs,
+) -> Vec<TxLogEntry>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// Apply simple bool, GTE or LTE fields
+	let mut txs_iter: Box<dyn Iterator<Item = TxLogEntry>> = Box::new(
+		wallet
+			.tx_log_iter()
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.exclude_cancelled {
+					if v {
+						tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
+							&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_outstanding_only {
+					if v {
+						!tx_entry.confirmed
+							&& (tx_entry.tx_type == TxLogEntryType::TxReceived
+								|| tx_entry.tx_type == TxLogEntryType::TxSent
+								|| tx_entry.tx_type == TxLogEntryType::TxReverted)
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_confirmed_only {
+					if v {
+						tx_entry.confirmed
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_id_inc {
+					tx_entry.id >= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.max_id_inc {
+					tx_entry.id <= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_amount_inc {
+					v >= tx_entry.amount_credited - tx_entry.amount_debited
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.max_amount_inc {
+					v <= tx_entry.amount_credited - tx_entry.amount_debited
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_creation_timestamp_inc {
+					tx_entry.creation_ts >= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_confirmed_timestamp_inc {
+					tx_entry.creation_ts <= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_confirmed_timestamp_inc {
+					if let Some(t) = tx_entry.confirmation_ts {
+						t >= v
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.max_confirmed_timestamp_inc {
+					if let Some(t) = tx_entry.confirmation_ts {
+						t <= v
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			}),
+	);
+
+	// Apply limit if requested
+	if let Some(l) = query_args.limit {
+		txs_iter = Box::new(txs_iter.take(l as usize));
+	}
+
+	let mut return_txs: Vec<TxLogEntry> = txs_iter.collect();
+
+	// Now apply requested sorting
+	if let Some(ref s) = query_args.sort_field {
+		match s {
+			RetrieveTxQuerySortField::Id => {
+				return_txs.sort_by_key(|tx| tx.id);
+			}
+			RetrieveTxQuerySortField::CreationTimestamp => {
+				return_txs.sort_by_key(|tx| tx.creation_ts);
+			}
+			RetrieveTxQuerySortField::ConfirmationTimestamp => {
+				return_txs.sort_by_key(|tx| tx.confirmation_ts);
+			}
+			RetrieveTxQuerySortField::TotalAmount => {
+				return_txs.sort_by_key(|tx| tx.amount_credited - tx.amount_debited);
+			}
+			RetrieveTxQuerySortField::AmountCredited => {
+				return_txs.sort_by_key(|tx| tx.amount_credited);
+			}
+			RetrieveTxQuerySortField::AmountDebited => {
+				return_txs.sort_by_key(|tx| tx.amount_debited);
+			}
+		}
+	} else {
+		return_txs.sort_by_key(|tx| tx.id);
+	}
+
+	if let Some(ref s) = query_args.sort_order {
+		match s {
+			RetrieveTxQuerySortOrder::Desc => return_txs.reverse(),
+			_ => {}
+		}
+	}
+
+	return_txs
+}
+
 /// Retrieve all of the transaction entries, or a particular entry
 /// if `parent_key_id` is set, only return entries from that key
 pub fn retrieve_txs<'a, T: ?Sized, C, K>(
@@ -106,7 +269,9 @@ where
 	let mut txs: Vec<TxLogEntry> = vec![];
 	// Adding in new tranasction list query logic. If `tx_id` or `tx_slate_id`
 	// is provided, then `query_args` is ignored and old logic is followed.
-	if tx_id.is_some() || tx_slate_id.is_some() {
+	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
+		txs = apply_advanced_tx_list_filtering(wallet, &query_args.unwrap())
+	} else {
 		txs = wallet
 			.tx_log_iter()
 			.filter(|tx_entry| {
@@ -135,8 +300,6 @@ where
 			})
 			.collect();
 		txs.sort_by_key(|tx| tx.creation_ts);
-	} else {
-		// TODO: Call Query Filter Function
 	}
 	Ok(txs)
 }
