@@ -22,6 +22,7 @@ extern crate grin_wallet_libwallet as libwallet;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
+use libwallet::{RetrieveTxQueryArgs, RetrieveTxQuerySortField};
 
 use self::libwallet::{InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient};
@@ -54,10 +55,150 @@ fn test_wallet_tx_filtering(
 	mask: Option<&SecretKey>,
 ) -> Result<(), libwallet::Error> {
 	wallet::controller::owner_single_use(Some(wallet.clone()), mask, None, |api, _m| {
-		let tx_results = api.retrieve_txs(mask, true, None, None, None)?.1;
-		for entry in tx_results.iter() {
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.min_id_inc = Some(5);
+
+		// Min ID
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results[0].id, 5);
+		assert_eq!(tx_results[tx_results.len() - 1].id, 33);
+
+		// Max ID
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.min_id_inc = Some(5);
+		tx_query_args.max_id_inc = Some(20);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results[0].id, 5);
+		assert_eq!(tx_results[tx_results.len() - 1].id, 20);
+
+		// Exclude 1 cancelled
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.exclude_cancelled = Some(true);
+		tx_query_args.min_id_inc = Some(5);
+		tx_query_args.max_id_inc = Some(50);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 28);
+
+		// Exclude 1 cancelled, show confirmed only
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.exclude_cancelled = Some(true);
+		tx_query_args.include_confirmed_only = Some(true);
+		tx_query_args.min_id_inc = Some(5);
+		tx_query_args.max_id_inc = Some(50);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 14);
+
+		// show outstanding only (including cancelled)
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.exclude_cancelled = Some(false);
+		tx_query_args.include_outstanding_only = Some(true);
+		tx_query_args.min_id_inc = Some(5);
+		tx_query_args.max_id_inc = Some(50);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 15);
+
+		// outstanding only and confirmed only should give empty set
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.exclude_cancelled = Some(false);
+		tx_query_args.include_outstanding_only = Some(true);
+		tx_query_args.include_confirmed_only = Some(true);
+		tx_query_args.min_id_inc = Some(5);
+		tx_query_args.max_id_inc = Some(50);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 0);
+
+		// include sent only
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.include_sent_only = Some(true);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 15);
+
+		// include received only (none in this set)
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.include_received_only = Some(true);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 0);
+
+		// include reverted only (none in this set)
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.include_reverted_only = Some(true);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 0);
+
+		// include coinbase only
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.include_coinbase_only = Some(true);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 19);
+
+		// Amounts
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.min_amount_inc = Some(60_000_000_000 - 59_963_300_000);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 27);
+
+		// amount, should see as above with coinbases excluded
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.min_amount_inc = Some(60_000_000_000 - 59_963_300_000);
+		tx_query_args.max_amount_inc = Some(60_000_000_000 - 1);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 8);
+
+		// Amount - should only see coinbase (incoming)
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.min_amount_inc = Some(60_000_000_000);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results.len(), 19);
+
+		// sort order
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.sort_order = Some(libwallet::RetrieveTxQuerySortOrder::Desc);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+
+		assert_eq!(tx_results[0].id, 33);
+		assert_eq!(tx_results[tx_results.len() - 1].id, 0);
+
+		// change sort field to amount desc, should have coinbases first
+		let mut tx_query_args = RetrieveTxQueryArgs::default();
+		tx_query_args.sort_order = Some(libwallet::RetrieveTxQuerySortOrder::Desc);
+		tx_query_args.sort_field = Some(RetrieveTxQuerySortField::TotalAmount);
+		let tx_results = api
+			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
+			.1;
+		assert_eq!(tx_results[0].amount_credited, 60_000_000_000);
+
+		/*for entry in tx_results.iter() {
 			println!("{:?}", entry);
-		}
+		}*/
+
 		Ok(())
 	})?;
 	Ok(())
@@ -175,6 +316,28 @@ fn build_chain_for_tx_filtering(
 			)?;
 		}
 	}
+
+	// Cancel a tx for filtering testing
+	let amount: u64 = 1_000_000;
+	let mut slate = Slate::blank(1, false);
+	debug!("Creating TX for {}", amount);
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+		// note this will increment the block count as part of the transaction "Posting"
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: amount,
+			minimum_confirmations: 1,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: false,
+			..Default::default()
+		};
+		let slate_i = sender_api.init_send_tx(m, args)?;
+		slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
+		sender_api.tx_lock_outputs(m, &slate)?;
+		sender_api.cancel_tx(m, Some(33), None)?;
+		Ok(())
+	})?;
 
 	// Perform actual testing
 	test_wallet_tx_filtering(wallet1, mask1)?;

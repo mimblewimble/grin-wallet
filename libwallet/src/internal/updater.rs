@@ -38,6 +38,8 @@ use crate::{
 	RetrieveTxQuerySortOrder,
 };
 
+use num_bigint::BigInt;
+
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
@@ -121,9 +123,6 @@ where
 				if let Some(v) = query_args.include_outstanding_only {
 					if v {
 						!tx_entry.confirmed
-							&& (tx_entry.tx_type == TxLogEntryType::TxReceived
-								|| tx_entry.tx_type == TxLogEntryType::TxSent
-								|| tx_entry.tx_type == TxLogEntryType::TxReverted)
 					} else {
 						true
 					}
@@ -135,6 +134,52 @@ where
 				if let Some(v) = query_args.include_confirmed_only {
 					if v {
 						tx_entry.confirmed
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_sent_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxSent
+							|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_received_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxReceived
+							|| tx_entry.tx_type == TxLogEntryType::TxReceivedCancelled
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_coinbase_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::ConfirmedCoinbase
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_reverted_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxReverted
 					} else {
 						true
 					}
@@ -158,14 +203,34 @@ where
 			})
 			.filter(|tx_entry| {
 				if let Some(v) = query_args.min_amount_inc {
-					v >= tx_entry.amount_credited - tx_entry.amount_debited
+					if tx_entry.tx_type == TxLogEntryType::TxSent
+						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+					{
+						BigInt::from(tx_entry.amount_debited)
+							- BigInt::from(tx_entry.amount_credited)
+							>= BigInt::from(v)
+					} else {
+						BigInt::from(tx_entry.amount_credited)
+							- BigInt::from(tx_entry.amount_debited)
+							>= BigInt::from(v)
+					}
 				} else {
 					true
 				}
 			})
 			.filter(|tx_entry| {
 				if let Some(v) = query_args.max_amount_inc {
-					v <= tx_entry.amount_credited - tx_entry.amount_debited
+					if tx_entry.tx_type == TxLogEntryType::TxSent
+						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+					{
+						BigInt::from(tx_entry.amount_debited)
+							- BigInt::from(tx_entry.amount_credited)
+							<= BigInt::from(v)
+					} else {
+						BigInt::from(tx_entry.amount_credited)
+							- BigInt::from(tx_entry.amount_debited)
+							<= BigInt::from(v)
+					}
 				} else {
 					true
 				}
@@ -228,7 +293,15 @@ where
 				return_txs.sort_by_key(|tx| tx.confirmation_ts);
 			}
 			RetrieveTxQuerySortField::TotalAmount => {
-				return_txs.sort_by_key(|tx| tx.amount_credited - tx.amount_debited);
+				return_txs.sort_by_key(|tx| {
+					if tx.tx_type == TxLogEntryType::TxSent
+						|| tx.tx_type == TxLogEntryType::TxSentCancelled
+					{
+						BigInt::from(tx.amount_debited) - BigInt::from(tx.amount_credited)
+					} else {
+						BigInt::from(tx.amount_credited) - BigInt::from(tx.amount_debited)
+					}
+				});
 			}
 			RetrieveTxQuerySortField::AmountCredited => {
 				return_txs.sort_by_key(|tx| tx.amount_credited);

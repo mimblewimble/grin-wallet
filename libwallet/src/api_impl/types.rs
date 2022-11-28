@@ -194,6 +194,14 @@ pub struct RetrieveTxQueryArgs {
 	pub include_outstanding_only: Option<bool>,
 	/// whether to only consider confirmed-only transactions
 	pub include_confirmed_only: Option<bool>,
+	/// whether to only consider sent transactions
+	pub include_sent_only: Option<bool>,
+	/// whether to only consider received transactions
+	pub include_received_only: Option<bool>,
+	/// whether to only consider coinbase transactions
+	pub include_coinbase_only: Option<bool>,
+	/// whether to only consider reverted transactions
+	pub include_reverted_only: Option<bool>,
 	/// lower bound on the total amount (amount_credited - amount_debited), inclusive
 	pub min_amount_inc: Option<u64>,
 	/// higher bound on the total amount (amount_credited - amount_debited), inclusive
@@ -222,6 +230,10 @@ impl Default for RetrieveTxQueryArgs {
 			exclude_cancelled: Some(false),
 			include_outstanding_only: Some(false),
 			include_confirmed_only: Some(false),
+			include_sent_only: Some(false),
+			include_received_only: Some(false),
+			include_coinbase_only: Some(false),
+			include_reverted_only: Some(false),
 			min_amount_inc: None,
 			max_amount_inc: None,
 			min_creation_timestamp_inc: None,
