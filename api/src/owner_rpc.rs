@@ -2588,7 +2588,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// These cause LMDB to run out of disk space on CircleCI
 		// disable for now on windows
 		// TODO: Fix properly
-		#[cfg(not(target_os = "linux"))]
+		#[cfg(not(target_os = "windows"))]
 		{
 			use grin_wallet_api::run_doctest_owner;
 			use serde_json;
