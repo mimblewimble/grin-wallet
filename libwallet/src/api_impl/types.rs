@@ -203,8 +203,12 @@ pub struct RetrieveTxQueryArgs {
 	/// whether to only consider reverted transactions
 	pub include_reverted_only: Option<bool>,
 	/// lower bound on the total amount (amount_credited - amount_debited), inclusive
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(default)]
 	pub min_amount_inc: Option<u64>,
 	/// higher bound on the total amount (amount_credited - amount_debited), inclusive
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(default)]
 	pub max_amount_inc: Option<u64>,
 	/// lower bound on the creation timestamp, inclusive
 	pub min_creation_timestamp_inc: Option<DateTime<Utc>>,

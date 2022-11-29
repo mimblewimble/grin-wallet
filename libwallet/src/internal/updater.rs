@@ -25,6 +25,7 @@ use crate::grin_core::global;
 use crate::grin_core::libtx::proof::ProofBuilder;
 use crate::grin_core::libtx::reward;
 use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
+use crate::grin_util as util;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::static_secp_instance;
@@ -32,7 +33,6 @@ use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
-use crate::{grin_util as util, Amount};
 use crate::{
 	BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs, RetrieveTxQuerySortField,
 	RetrieveTxQuerySortOrder,
@@ -339,7 +339,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut txs: Vec<TxLogEntry> = vec![];
+	let mut txs;
 	// Adding in new tranasction list query logic. If `tx_id` or `tx_slate_id`
 	// is provided, then `query_args` is ignored and old logic is followed.
 	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {

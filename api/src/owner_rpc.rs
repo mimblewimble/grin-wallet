@@ -300,6 +300,89 @@ pub trait OwnerRpc {
 	# "#
 	# , 2, false, false, false, false);
 	```
+
+	# JSON-RPC Example, with advanced query arguments - See  (../grin_wallet_libwallet/types.struct.RetrieveTxQueryArgs.html)
+
+	```
+		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# r#"
+		{
+			"jsonrpc": "2.0",
+			"method": "retrieve_txs",
+			"params": {
+				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"refresh_from_node": true,
+				"tx_id": null,
+				"tx_slate_id": null,
+				"tx_query_args": {
+					"min_id_inc": 0,
+					"max_id_inc": 100,
+					"min_amount_inc": "0",
+					"max_amount_inc": "6000000000",
+					"sort_field": "Id",
+					"sort_order": "Desc"
+				}
+			},
+			"id": 1
+		}
+		# "#
+		# ,
+		# r#"
+		{
+		"id": 1,
+		"jsonrpc": "2.0",
+	  "result": {
+		"Ok": [
+		  true,
+		  [
+			{
+			  "amount_credited": "60000000000",
+			  "amount_debited": "0",
+			  "confirmation_ts": "2019-01-15T16:01:26Z",
+			  "confirmed": true,
+			  "creation_ts": "2019-01-15T16:01:26Z",
+			  "fee": null,
+			  "id": 0,
+			  "kernel_excess": "0838e19c490038b10f051c9c190a9b1f96d59bbd242f5d3143f50630deb74342ed",
+			  "kernel_lookup_min_height": 1,
+			  "num_inputs": 0,
+			  "num_outputs": 1,
+			  "parent_key_id": "0200000000000000000000000000000000",
+			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
+			  "tx_slate_id": null,
+			  "payment_proof": null,
+			  "reverted_after": null,
+			  "tx_type": "ConfirmedCoinbase"
+			},
+			{
+			  "amount_credited": "60000000000",
+			  "amount_debited": "0",
+			  "confirmation_ts": "2019-01-15T16:01:26Z",
+			  "confirmed": true,
+			  "creation_ts": "2019-01-15T16:01:26Z",
+			  "fee": null,
+			  "id": 1,
+			  "kernel_excess": "08cd9d890c0b6a004f700aa5939a1ce0488fe2a11fa33cf096b50732ceab0be1df",
+			  "kernel_lookup_min_height": 2,
+			  "num_inputs": 0,
+			  "num_outputs": 1,
+			  "parent_key_id": "0200000000000000000000000000000000",
+			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
+			  "payment_proof": null,
+			  "reverted_after": null,
+			  "tx_slate_id": null,
+			  "tx_type": "ConfirmedCoinbase"
+			}
+		  ]
+		]
+	  }
+	}
+	# "#
+	# , 2, false, false, false, false);
+	```
+
 	*/
 
 	fn retrieve_txs(
