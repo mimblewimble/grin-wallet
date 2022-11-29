@@ -216,6 +216,7 @@ pub trait OwnerRpc {
 	# , 2, false, false, false, false);
 	```
 	*/
+
 	fn retrieve_outputs(
 		&self,
 		token: Token,
@@ -300,27 +301,36 @@ pub trait OwnerRpc {
 	# "#
 	# , 2, false, false, false, false);
 	```
+	*/
 
-	# JSON-RPC Example, with advanced query arguments - See  (../grin_wallet_libwallet/types.struct.RetrieveTxQueryArgs.html)
+	fn retrieve_txs(
+		&self,
+		token: Token,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<(bool, Vec<TxLogEntry>), Error>;
+
+	/**
+	Networked version of [Owner::retrieve_txs](struct.Owner.html#method.retrieve_txs), which passes only the `tx_query_args`
+	parameter. See  (../grin_wallet_libwallet/types.struct.RetrieveTxQueryArgs.html)
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 		# r#"
 		{
 			"jsonrpc": "2.0",
-			"method": "retrieve_txs",
+			"method": "query_txs",
 			"params": {
 				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"refresh_from_node": true,
-				"tx_id": null,
-				"tx_slate_id": null,
-				"tx_query_args": {
+				"query": {
 					"min_id_inc": 0,
 					"max_id_inc": 100,
 					"min_amount_inc": "0",
-					"max_amount_inc": "6000000000",
+					"max_amount_inc": "60000000000",
 					"sort_field": "Id",
-					"sort_order": "Desc"
+					"sort_order": "Asc"
 				}
 			},
 			"id": 1
@@ -385,13 +395,11 @@ pub trait OwnerRpc {
 
 	*/
 
-	fn retrieve_txs(
+	fn query_txs(
 		&self,
 		token: Token,
 		refresh_from_node: bool,
-		tx_id: Option<u32>,
-		tx_slate_id: Option<Uuid>,
-		tx_query_args: Option<RetrieveTxQueryArgs>,
+		query: RetrieveTxQueryArgs,
 	) -> Result<(bool, Vec<TxLogEntry>), Error>;
 
 	/**
@@ -1997,7 +2005,6 @@ where
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
-		query_args: Option<RetrieveTxQueryArgs>,
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		Owner::retrieve_txs(
 			self,
@@ -2005,7 +2012,23 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
-			query_args,
+			None,
+		)
+	}
+
+	fn query_txs(
+		&self,
+		token: Token,
+		refresh_from_node: bool,
+		query: RetrieveTxQueryArgs,
+	) -> Result<(bool, Vec<TxLogEntry>), Error> {
+		Owner::retrieve_txs(
+			self,
+			(&token.keychain_mask).as_ref(),
+			refresh_from_node,
+			None,
+			None,
+			Some(query),
 		)
 	}
 
@@ -2565,7 +2588,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// These cause LMDB to run out of disk space on CircleCI
 		// disable for now on windows
 		// TODO: Fix properly
-		#[cfg(not(target_os = "windows"))]
+		#[cfg(not(target_os = "linux"))]
 		{
 			use grin_wallet_api::run_doctest_owner;
 			use serde_json;
