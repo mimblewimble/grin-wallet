@@ -56,7 +56,7 @@ fn test_wallet_tx_filtering(
 ) -> Result<(), libwallet::Error> {
 	wallet::controller::owner_single_use(Some(wallet.clone()), mask, None, |api, _m| {
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
-		tx_query_args.min_id_inc = Some(5);
+		tx_query_args.min_id = Some(5);
 
 		// Min ID
 		let tx_results = api
@@ -67,8 +67,8 @@ fn test_wallet_tx_filtering(
 
 		// Max ID
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
-		tx_query_args.min_id_inc = Some(5);
-		tx_query_args.max_id_inc = Some(20);
+		tx_query_args.min_id = Some(5);
+		tx_query_args.max_id = Some(20);
 		let tx_results = api
 			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
 			.1;
@@ -78,8 +78,8 @@ fn test_wallet_tx_filtering(
 		// Exclude 1 cancelled
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
 		tx_query_args.exclude_cancelled = Some(true);
-		tx_query_args.min_id_inc = Some(5);
-		tx_query_args.max_id_inc = Some(50);
+		tx_query_args.min_id = Some(5);
+		tx_query_args.max_id = Some(50);
 		let tx_results = api
 			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
 			.1;
@@ -89,8 +89,8 @@ fn test_wallet_tx_filtering(
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
 		tx_query_args.exclude_cancelled = Some(true);
 		tx_query_args.include_confirmed_only = Some(true);
-		tx_query_args.min_id_inc = Some(5);
-		tx_query_args.max_id_inc = Some(50);
+		tx_query_args.min_id = Some(5);
+		tx_query_args.max_id = Some(50);
 		let tx_results = api
 			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
 			.1;
@@ -100,8 +100,8 @@ fn test_wallet_tx_filtering(
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
 		tx_query_args.exclude_cancelled = Some(false);
 		tx_query_args.include_outstanding_only = Some(true);
-		tx_query_args.min_id_inc = Some(5);
-		tx_query_args.max_id_inc = Some(50);
+		tx_query_args.min_id = Some(5);
+		tx_query_args.max_id = Some(50);
 		let tx_results = api
 			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
 			.1;
@@ -112,8 +112,8 @@ fn test_wallet_tx_filtering(
 		tx_query_args.exclude_cancelled = Some(false);
 		tx_query_args.include_outstanding_only = Some(true);
 		tx_query_args.include_confirmed_only = Some(true);
-		tx_query_args.min_id_inc = Some(5);
-		tx_query_args.max_id_inc = Some(50);
+		tx_query_args.min_id = Some(5);
+		tx_query_args.max_id = Some(50);
 		let tx_results = api
 			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
 			.1;
@@ -162,7 +162,7 @@ fn test_wallet_tx_filtering(
 		// amount, should see as above with coinbases excluded
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
 		tx_query_args.min_amount_inc = Some(60_000_000_000 - 59_963_300_000);
-		tx_query_args.max_amount_inc = Some(60_000_000_000 - 1);
+		tx_query_args.max_amount = Some(60_000_000_000 - 1);
 		let tx_results = api
 			.retrieve_txs(mask, true, None, None, Some(tx_query_args))?
 			.1;

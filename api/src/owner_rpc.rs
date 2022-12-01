@@ -325,10 +325,10 @@ pub trait OwnerRpc {
 				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 				"refresh_from_node": true,
 				"query": {
-					"min_id_inc": 0,
-					"max_id_inc": 100,
-					"min_amount_inc": "0",
-					"max_amount_inc": "60000000000",
+					"min_id": 0,
+					"max_id": 100,
+					"min_amount": "0",
+					"max_amount": "60000000000",
 					"sort_field": "Id",
 					"sort_order": "Asc"
 				}

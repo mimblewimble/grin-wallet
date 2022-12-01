@@ -188,14 +188,14 @@ where
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_id_inc {
+				if let Some(v) = query_args.min_id {
 					tx_entry.id >= v
 				} else {
 					true
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.max_id_inc {
+				if let Some(v) = query_args.max_id {
 					tx_entry.id <= v
 				} else {
 					true
@@ -219,7 +219,7 @@ where
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.max_amount_inc {
+				if let Some(v) = query_args.max_amount {
 					if tx_entry.tx_type == TxLogEntryType::TxSent
 						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
 					{
@@ -236,21 +236,21 @@ where
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_creation_timestamp_inc {
+				if let Some(v) = query_args.min_creation_timestamp {
 					tx_entry.creation_ts >= v
 				} else {
 					true
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_confirmed_timestamp_inc {
+				if let Some(v) = query_args.min_confirmed_timestamp {
 					tx_entry.creation_ts <= v
 				} else {
 					true
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_confirmed_timestamp_inc {
+				if let Some(v) = query_args.min_confirmed_timestamp {
 					if let Some(t) = tx_entry.confirmation_ts {
 						t >= v
 					} else {
@@ -261,7 +261,7 @@ where
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.max_confirmed_timestamp_inc {
+				if let Some(v) = query_args.max_confirmed_timestamp {
 					if let Some(t) = tx_entry.confirmation_ts {
 						t <= v
 					} else {
