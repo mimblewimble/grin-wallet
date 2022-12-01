@@ -185,8 +185,8 @@ where
 				fee_with = my_fee;
 			}
 			// If we don't have a "must take" input, have contributed an input and have enough to balance the equation, we can stop
-			let could_finish = lhs >= (rhs + fee_without.fee()) && n_inputs > 0 && !must_take;
-			if could_finish {
+			let can_finish = lhs >= (rhs + fee_without.fee()) && n_inputs > 0 && !must_take;
+			if can_finish {
 				return false;
 			}
 			// Take the commitment if `lhs < rhs+fees_with` (or if we have not yet taken an input - payjoins)

@@ -32,6 +32,7 @@ Separating side effects until the 'save_step' part would make these functions mu
 
 #### TODOs
 
+ - for payjoins, instead of doing Some("any"), find an actual input and put the actual commitment in --use-inputs (only do that if none is added). Think about how to do that in a way that would be nice also for the API. Maybe the API should just take "any" which gets transformed into one of the random inputs. Maybe the "any" is ok. It seems to work fine, might be better if we selected the input though.
  - make sure to forget the Context when we sign or at least forget the secret keys for it to avoid signing with the same nonce twice
  - make_outputs api should receive nanogrins rather than grin. We have to make the conversion before calling the API
  - sometimes the slatepack outputs with a \n for some reason which makes pasting it register \n as the end of paste and crashes?
