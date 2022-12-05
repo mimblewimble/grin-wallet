@@ -202,7 +202,7 @@ where
 				}
 			})
 			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_amount_inc {
+				if let Some(v) = query_args.min_amount {
 					if tx_entry.tx_type == TxLogEntryType::TxSent
 						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
 					{
@@ -340,7 +340,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut txs;
-	// Adding in new tranasction list query logic. If `tx_id` or `tx_slate_id`
+	// Adding in new transaction list query logic. If `tx_id` or `tx_slate_id`
 	// is provided, then `query_args` is ignored and old logic is followed.
 	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
 		txs = apply_advanced_tx_list_filtering(wallet, &query_args.unwrap())

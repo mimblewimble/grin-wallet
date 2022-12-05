@@ -205,7 +205,7 @@ pub struct RetrieveTxQueryArgs {
 	/// lower bound on the total amount (amount_credited - amount_debited), inclusive
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(default)]
-	pub min_amount_inc: Option<u64>,
+	pub min_amount: Option<u64>,
 	/// higher bound on the total amount (amount_credited - amount_debited), inclusive
 	#[serde(with = "secp_ser::opt_string_or_u64")]
 	#[serde(default)]
@@ -238,7 +238,7 @@ impl Default for RetrieveTxQueryArgs {
 			include_received_only: Some(false),
 			include_coinbase_only: Some(false),
 			include_reverted_only: Some(false),
-			min_amount_inc: None,
+			min_amount: None,
 			max_amount: None,
 			min_creation_timestamp: None,
 			max_creation_timestamp: None,
