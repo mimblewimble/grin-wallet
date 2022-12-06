@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //! JSON-RPC Stub generation for the Owner API
+use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -215,6 +216,7 @@ pub trait OwnerRpc {
 	# , 2, false, false, false, false);
 	```
 	*/
+
 	fn retrieve_outputs(
 		&self,
 		token: Token,
@@ -307,6 +309,97 @@ pub trait OwnerRpc {
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
+	) -> Result<(bool, Vec<TxLogEntry>), Error>;
+
+	/**
+	Networked version of [Owner::retrieve_txs](struct.Owner.html#method.retrieve_txs), which passes only the `tx_query_args`
+	parameter. See  (../grin_wallet_libwallet/types.struct.RetrieveTxQueryArgs.html)
+
+	```
+		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+		# r#"
+		{
+			"jsonrpc": "2.0",
+			"method": "query_txs",
+			"params": {
+				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"refresh_from_node": true,
+				"query": {
+					"min_id": 0,
+					"max_id": 100,
+					"min_amount": "0",
+					"max_amount": "60000000000",
+					"sort_field": "Id",
+					"sort_order": "Asc"
+				}
+			},
+			"id": 1
+		}
+		# "#
+		# ,
+		# r#"
+		{
+		"id": 1,
+		"jsonrpc": "2.0",
+	  "result": {
+		"Ok": [
+		  true,
+		  [
+			{
+			  "amount_credited": "60000000000",
+			  "amount_debited": "0",
+			  "confirmation_ts": "2019-01-15T16:01:26Z",
+			  "confirmed": true,
+			  "creation_ts": "2019-01-15T16:01:26Z",
+			  "fee": null,
+			  "id": 0,
+			  "kernel_excess": "0838e19c490038b10f051c9c190a9b1f96d59bbd242f5d3143f50630deb74342ed",
+			  "kernel_lookup_min_height": 1,
+			  "num_inputs": 0,
+			  "num_outputs": 1,
+			  "parent_key_id": "0200000000000000000000000000000000",
+			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
+			  "tx_slate_id": null,
+			  "payment_proof": null,
+			  "reverted_after": null,
+			  "tx_type": "ConfirmedCoinbase"
+			},
+			{
+			  "amount_credited": "60000000000",
+			  "amount_debited": "0",
+			  "confirmation_ts": "2019-01-15T16:01:26Z",
+			  "confirmed": true,
+			  "creation_ts": "2019-01-15T16:01:26Z",
+			  "fee": null,
+			  "id": 1,
+			  "kernel_excess": "08cd9d890c0b6a004f700aa5939a1ce0488fe2a11fa33cf096b50732ceab0be1df",
+			  "kernel_lookup_min_height": 2,
+			  "num_inputs": 0,
+			  "num_outputs": 1,
+			  "parent_key_id": "0200000000000000000000000000000000",
+			  "stored_tx": null,
+			  "ttl_cutoff_height": null,
+			  "payment_proof": null,
+			  "reverted_after": null,
+			  "tx_slate_id": null,
+			  "tx_type": "ConfirmedCoinbase"
+			}
+		  ]
+		]
+	  }
+	}
+	# "#
+	# , 2, false, false, false, false);
+	```
+
+	*/
+
+	fn query_txs(
+		&self,
+		token: Token,
+		refresh_from_node: bool,
+		query: RetrieveTxQueryArgs,
 	) -> Result<(bool, Vec<TxLogEntry>), Error>;
 
 	/**
@@ -1919,6 +2012,23 @@ where
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
+			None,
+		)
+	}
+
+	fn query_txs(
+		&self,
+		token: Token,
+		refresh_from_node: bool,
+		query: RetrieveTxQueryArgs,
+	) -> Result<(bool, Vec<TxLogEntry>), Error> {
+		Owner::retrieve_txs(
+			self,
+			(&token.keychain_mask).as_ref(),
+			refresh_from_node,
+			None,
+			None,
+			Some(query),
 		)
 	}
 

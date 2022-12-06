@@ -1599,6 +1599,7 @@ dependencies = [
  "grin_wallet_util",
  "lazy_static",
  "log",
+ "num-bigint",
  "rand 0.6.5",
  "regex",
  "secrecy 0.6.0",

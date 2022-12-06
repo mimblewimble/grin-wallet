@@ -378,6 +378,7 @@ where
 			&mut **w,
 			output.tx_log_entry,
 			None,
+			None,
 			Some(&parent_key_id),
 			false,
 		)?;

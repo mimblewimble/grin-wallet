@@ -33,7 +33,12 @@ use crate::internal::keys;
 use crate::types::{
 	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
 };
-use crate::{BlockFees, CbData, OutputCommitMapping};
+use crate::{
+	BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs, RetrieveTxQuerySortField,
+	RetrieveTxQuerySortOrder,
+};
+
+use num_bigint::BigInt;
 
 /// Retrieve all of the outputs (doesn't attempt to update from node)
 pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
@@ -88,12 +93,244 @@ where
 	Ok(res)
 }
 
+/// Apply advanced filtering to resultset from retrieve_txs below
+pub fn apply_advanced_tx_list_filtering<'a, T: ?Sized, C, K>(
+	wallet: &mut T,
+	query_args: &RetrieveTxQueryArgs,
+) -> Vec<TxLogEntry>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// Apply simple bool, GTE or LTE fields
+	let txs_iter: Box<dyn Iterator<Item = TxLogEntry>> = Box::new(
+		wallet
+			.tx_log_iter()
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.exclude_cancelled {
+					if v {
+						tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
+							&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_outstanding_only {
+					if v {
+						!tx_entry.confirmed
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_confirmed_only {
+					if v {
+						tx_entry.confirmed
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_sent_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxSent
+							|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_received_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxReceived
+							|| tx_entry.tx_type == TxLogEntryType::TxReceivedCancelled
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_coinbase_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::ConfirmedCoinbase
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_reverted_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxReverted
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_id {
+					tx_entry.id >= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.max_id {
+					tx_entry.id <= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_amount {
+					if tx_entry.tx_type == TxLogEntryType::TxSent
+						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+					{
+						BigInt::from(tx_entry.amount_debited)
+							- BigInt::from(tx_entry.amount_credited)
+							>= BigInt::from(v)
+					} else {
+						BigInt::from(tx_entry.amount_credited)
+							- BigInt::from(tx_entry.amount_debited)
+							>= BigInt::from(v)
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.max_amount {
+					if tx_entry.tx_type == TxLogEntryType::TxSent
+						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+					{
+						BigInt::from(tx_entry.amount_debited)
+							- BigInt::from(tx_entry.amount_credited)
+							<= BigInt::from(v)
+					} else {
+						BigInt::from(tx_entry.amount_credited)
+							- BigInt::from(tx_entry.amount_debited)
+							<= BigInt::from(v)
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_creation_timestamp {
+					tx_entry.creation_ts >= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_confirmed_timestamp {
+					tx_entry.creation_ts <= v
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.min_confirmed_timestamp {
+					if let Some(t) = tx_entry.confirmation_ts {
+						t >= v
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.max_confirmed_timestamp {
+					if let Some(t) = tx_entry.confirmation_ts {
+						t <= v
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			}),
+	);
+
+	let mut return_txs: Vec<TxLogEntry> = txs_iter.collect();
+
+	// Now apply requested sorting
+	if let Some(ref s) = query_args.sort_field {
+		match s {
+			RetrieveTxQuerySortField::Id => {
+				return_txs.sort_by_key(|tx| tx.id);
+			}
+			RetrieveTxQuerySortField::CreationTimestamp => {
+				return_txs.sort_by_key(|tx| tx.creation_ts);
+			}
+			RetrieveTxQuerySortField::ConfirmationTimestamp => {
+				return_txs.sort_by_key(|tx| tx.confirmation_ts);
+			}
+			RetrieveTxQuerySortField::TotalAmount => {
+				return_txs.sort_by_key(|tx| {
+					if tx.tx_type == TxLogEntryType::TxSent
+						|| tx.tx_type == TxLogEntryType::TxSentCancelled
+					{
+						BigInt::from(tx.amount_debited) - BigInt::from(tx.amount_credited)
+					} else {
+						BigInt::from(tx.amount_credited) - BigInt::from(tx.amount_debited)
+					}
+				});
+			}
+			RetrieveTxQuerySortField::AmountCredited => {
+				return_txs.sort_by_key(|tx| tx.amount_credited);
+			}
+			RetrieveTxQuerySortField::AmountDebited => {
+				return_txs.sort_by_key(|tx| tx.amount_debited);
+			}
+		}
+	} else {
+		return_txs.sort_by_key(|tx| tx.id);
+	}
+
+	if let Some(ref s) = query_args.sort_order {
+		match s {
+			RetrieveTxQuerySortOrder::Desc => return_txs.reverse(),
+			_ => {}
+		}
+	}
+
+	// Apply limit if requested
+	if let Some(l) = query_args.limit {
+		return_txs = return_txs.into_iter().take(l as usize).collect()
+	}
+
+	return_txs
+}
+
 /// Retrieve all of the transaction entries, or a particular entry
 /// if `parent_key_id` is set, only return entries from that key
 pub fn retrieve_txs<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
+	query_args: Option<RetrieveTxQueryArgs>,
 	parent_key_id: Option<&Identifier>,
 	outstanding_only: bool,
 ) -> Result<Vec<TxLogEntry>, Error>
@@ -102,34 +339,41 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut txs: Vec<TxLogEntry> = wallet
-		.tx_log_iter()
-		.filter(|tx_entry| {
-			let f_pk = match parent_key_id {
-				Some(k) => tx_entry.parent_key_id == *k,
-				None => true,
-			};
-			let f_tx_id = match tx_id {
-				Some(i) => tx_entry.id == i,
-				None => true,
-			};
-			let f_txs = match tx_slate_id {
-				Some(t) => tx_entry.tx_slate_id == Some(t),
-				None => true,
-			};
-			let f_outstanding = match outstanding_only {
-				true => {
-					!tx_entry.confirmed
-						&& (tx_entry.tx_type == TxLogEntryType::TxReceived
-							|| tx_entry.tx_type == TxLogEntryType::TxSent
-							|| tx_entry.tx_type == TxLogEntryType::TxReverted)
-				}
-				false => true,
-			};
-			f_pk && f_tx_id && f_txs && f_outstanding
-		})
-		.collect();
-	txs.sort_by_key(|tx| tx.creation_ts);
+	let mut txs;
+	// Adding in new transaction list query logic. If `tx_id` or `tx_slate_id`
+	// is provided, then `query_args` is ignored and old logic is followed.
+	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
+		txs = apply_advanced_tx_list_filtering(wallet, &query_args.unwrap())
+	} else {
+		txs = wallet
+			.tx_log_iter()
+			.filter(|tx_entry| {
+				let f_pk = match parent_key_id {
+					Some(k) => tx_entry.parent_key_id == *k,
+					None => true,
+				};
+				let f_tx_id = match tx_id {
+					Some(i) => tx_entry.id == i,
+					None => true,
+				};
+				let f_txs = match tx_slate_id {
+					Some(t) => tx_entry.tx_slate_id == Some(t),
+					None => true,
+				};
+				let f_outstanding = match outstanding_only {
+					true => {
+						!tx_entry.confirmed
+							&& (tx_entry.tx_type == TxLogEntryType::TxReceived
+								|| tx_entry.tx_type == TxLogEntryType::TxSent
+								|| tx_entry.tx_type == TxLogEntryType::TxReverted)
+					}
+					false => true,
+				};
+				f_pk && f_tx_id && f_txs && f_outstanding
+			})
+			.collect();
+		txs.sort_by_key(|tx| tx.creation_ts);
+	}
 	Ok(txs)
 }
 
@@ -171,7 +415,7 @@ where
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
 		.collect();
 
-	let tx_entries = retrieve_txs(wallet, None, None, Some(&parent_key_id), true)?;
+	let tx_entries = retrieve_txs(wallet, None, None, None, Some(&parent_key_id), true)?;
 
 	// Only select outputs that are actually involved in an outstanding transaction
 	let unspents = match update_all {

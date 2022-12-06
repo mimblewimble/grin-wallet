@@ -23,6 +23,7 @@ use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 use crate::SlatepackAddress;
 
+use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
 
 /// Type for storing amounts (in nanogrins).
@@ -144,6 +145,107 @@ impl Default for IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount: 0,
 			target_slate_version: None,
+		}
+	}
+}
+
+/// Sort tx retrieval order
+#[derive(Clone, Serialize, Deserialize)]
+pub enum RetrieveTxQuerySortOrder {
+	/// Ascending
+	Asc,
+	/// Descending
+	Desc,
+}
+
+/// Valid sort fields for a transaction list retrieval query
+#[derive(Clone, Serialize, Deserialize)]
+pub enum RetrieveTxQuerySortField {
+	/// Transaction Id
+	Id,
+	/// Creation Timestamp
+	CreationTimestamp,
+	/// Confirmation Timestamp
+	ConfirmationTimestamp,
+	/// TotalAmount (AmountCredited-AmountDebited)
+	TotalAmount,
+	/// Amount Credited
+	AmountCredited,
+	/// Amount Debited
+	AmountDebited,
+}
+
+/// Retrieve Transaction List Pagination Arguments
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RetrieveTxQueryArgs {
+	/// Retrieve transactions with an id higher than or equal to the given
+	/// If None, consider items from the first transaction and later
+	pub min_id: Option<u32>,
+	/// Retrieve tranactions with an id less than or equal to the given
+	/// If None, consider items from the last transaction and earlier
+	pub max_id: Option<u32>,
+	/// The maximum number of transactions to return
+	/// if both `before_id_inc` and `after_id_inc` are supplied, this will apply
+	/// to the before and earlier set
+	pub limit: Option<u32>,
+	/// whether to exclude cancelled transactions in the returned set
+	pub exclude_cancelled: Option<bool>,
+	/// whether to only consider outstanding transactions
+	pub include_outstanding_only: Option<bool>,
+	/// whether to only consider confirmed-only transactions
+	pub include_confirmed_only: Option<bool>,
+	/// whether to only consider sent transactions
+	pub include_sent_only: Option<bool>,
+	/// whether to only consider received transactions
+	pub include_received_only: Option<bool>,
+	/// whether to only consider coinbase transactions
+	pub include_coinbase_only: Option<bool>,
+	/// whether to only consider reverted transactions
+	pub include_reverted_only: Option<bool>,
+	/// lower bound on the total amount (amount_credited - amount_debited), inclusive
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(default)]
+	pub min_amount: Option<u64>,
+	/// higher bound on the total amount (amount_credited - amount_debited), inclusive
+	#[serde(with = "secp_ser::opt_string_or_u64")]
+	#[serde(default)]
+	pub max_amount: Option<u64>,
+	/// lower bound on the creation timestamp, inclusive
+	pub min_creation_timestamp: Option<DateTime<Utc>>,
+	/// higher bound on on the creation timestamp, inclusive
+	pub max_creation_timestamp: Option<DateTime<Utc>>,
+	/// lower bound on the confirmation timestamp, inclusive
+	pub min_confirmed_timestamp: Option<DateTime<Utc>>,
+	/// higher bound on the confirmation timestamp, inclusive
+	pub max_confirmed_timestamp: Option<DateTime<Utc>>,
+	/// Field within the tranasction list on which to sort
+	/// defaults to ID if not present
+	pub sort_field: Option<RetrieveTxQuerySortField>,
+	/// Sort order, defaults to ASC if not present (earliest is first)
+	pub sort_order: Option<RetrieveTxQuerySortOrder>,
+}
+
+impl Default for RetrieveTxQueryArgs {
+	fn default() -> Self {
+		Self {
+			min_id: None,
+			max_id: None,
+			limit: None,
+			exclude_cancelled: Some(false),
+			include_outstanding_only: Some(false),
+			include_confirmed_only: Some(false),
+			include_sent_only: Some(false),
+			include_received_only: Some(false),
+			include_coinbase_only: Some(false),
+			include_reverted_only: Some(false),
+			min_amount: None,
+			max_amount: None,
+			min_creation_timestamp: None,
+			max_creation_timestamp: None,
+			min_confirmed_timestamp: None,
+			max_confirmed_timestamp: None,
+			sort_field: Some(RetrieveTxQuerySortField::Id),
+			sort_order: Some(RetrieveTxQuerySortOrder::Asc),
 		}
 	}
 }
