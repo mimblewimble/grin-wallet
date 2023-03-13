@@ -23,7 +23,7 @@ exclude = ["integration"]
 clap = { version = "2.33", features = ["yaml"] }
 rpassword = "4.0"
 thiserror = "1"
-prettytable-rs = "0.8"
+prettytable-rs = "0.10"
 log = "0.4"
 linefeed = "0.6"
 semver = "0.10"
