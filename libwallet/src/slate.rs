@@ -276,8 +276,12 @@ impl Slate {
 			kernel_features_args: None,
 		}
 	}
+
 	/// Removes any signature data that isn't mine, for compacting
 	/// slates for a return journey
+	// TODO: Check if this is a noop when we have only 2 parties. The first sig appears at
+	// 	step2 and removing everything except your sig means you remove nothing. For more than
+	//  2 parties, we should probably never remove the part_sigs so that everyone can verify them.
 	pub fn remove_other_sigdata<K>(
 		&mut self,
 		keychain: &K,
@@ -310,13 +314,22 @@ impl Slate {
 		K: Keychain,
 		B: ProofBuild,
 	{
+		debug!("slate::add_transaction_elements => start");
 		self.update_kernel()?;
+
+		debug!("slate::add_transaction_elements => kernel updated");
 		if elems.is_empty() {
+			debug!("slate::add_transaction_elements => elems is empty, returning");
 			return Ok(BlindingFactor::zero());
 		}
+
 		let (tx, blind) =
 			build::partial_transaction(self.tx_or_err()?.clone(), &elems, keychain, builder)?;
+
+		debug!("slate::add_transaction_elements => built partial transaction");
 		self.tx = Some(tx);
+
+		debug!("slate::add_transaction_elements => slate.tx is set");
 		Ok(blind)
 	}
 

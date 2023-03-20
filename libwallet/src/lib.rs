@@ -45,6 +45,7 @@ extern crate strum_macros;
 
 pub mod address;
 pub mod api_impl;
+pub mod contract;
 mod error;
 mod internal;
 mod slate;
@@ -76,6 +77,8 @@ pub use types::{
 	ViewWallet, WalletBackend, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
 	WalletOutputBatch,
 };
+
+pub use contract::can_finalize;
 
 /// Helper for taking a lock on the wallet instance
 #[macro_export]

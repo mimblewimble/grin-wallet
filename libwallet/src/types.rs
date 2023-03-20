@@ -16,6 +16,7 @@
 //! implementation
 
 use crate::config::{TorConfig, WalletConfig};
+use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::FeeFields;
@@ -189,7 +190,15 @@ where
 	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
 
 	/// Get an (Optional) tx log entry by uuid
-	fn get_tx_log_entry(&self, uuid: &Uuid) -> Result<Option<TxLogEntry>, Error>;
+	// TODO: I think this can be deleted
+	// fn get_tx_log_entry(&self, uuid: &Uuid) -> Result<Option<TxLogEntry>, Error>;
+
+	/// Get an (Optional) tx log entry by uuid
+	fn get_tx_log_entry(
+		&self,
+		parent_id: Identifier,
+		log_id: u32,
+	) -> Result<Option<TxLogEntry>, Error>;
 
 	/// Retrieves the private context associated with a given slate id
 	fn get_private_context(
@@ -563,6 +572,13 @@ pub struct Context {
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
+	/// Arguments that define which outputs to pick for a contract
+	pub setup_args: Option<ContractSetupArgsAPI>,
+	/// TxLogEntry id (needed to avoid a linear scan)
+	// Services that keep a long history might need to search
+	// through a list when they need to update a txlogentry.
+	// This is why we keep the id in the context.
+	pub log_id: Option<u32>,
 }
 
 impl Context {
@@ -612,6 +628,8 @@ impl Context {
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
+			setup_args: None,
+			log_id: None,
 		}
 	}
 }
@@ -651,6 +669,11 @@ impl Context {
 			PublicKey::from_secret_key(secp, &self.sec_key).unwrap(),
 			PublicKey::from_secret_key(secp, &self.sec_nonce).unwrap(),
 		)
+	}
+
+	/// Returns net_change for the contract
+	pub fn get_net_change(&self) -> i64 {
+		self.setup_args.as_ref().unwrap().net_change.unwrap()
 	}
 }
 

@@ -26,13 +26,14 @@ use crate::grin_util::ToHex;
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
+use crate::contract::types::{ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI};
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::Error;
 use crate::{
-	address, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	address, contract, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus,
 	WalletInst, WalletLCProvider,
@@ -1425,4 +1426,68 @@ where
 		key_id: key_id,
 		output: output,
 	})
+}
+
+// Contract implementation
+
+/// Initialize transaction contract
+pub fn contract_new<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractNewArgsAPI,
+	// use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	contract::new(&mut *w, keychain_mask, &args.setup_args)
+}
+
+// /// Setup transaction contract
+// pub fn contract_setup<'a, T: ?Sized, C, K>(
+// 	w: &mut T,
+// 	keychain_mask: Option<&SecretKey>,
+// 	args: &ContractSetupArgsAPI,
+// 	slate: &Slate,
+// 	// use_test_rng: bool,
+// ) -> Result<Slate, Error>
+// where
+// 	T: WalletBackend<'a, C, K>,
+// 	C: NodeClient + 'a,
+// 	K: Keychain + 'a,
+// {
+// 	contract::setup(&mut *w, keychain_mask, slate, &args)
+// }
+
+/// Sign transaction contract
+pub fn contract_sign<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractSetupArgsAPI,
+	slate: &Slate,
+	// use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	contract::sign(&mut *w, keychain_mask, slate, &args)
+}
+
+/// Revoke transaction contract
+pub fn contract_revoke<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractRevokeArgsAPI,
+	// use_test_rng: bool,
+) -> Result<Option<Slate>, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	contract::revoke(&mut *w, keychain_mask, &args)
 }

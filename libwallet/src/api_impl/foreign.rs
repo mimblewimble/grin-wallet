@@ -15,8 +15,11 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
+use crate::api_impl::owner::contract_new as owner_contract_new;
+use crate::api_impl::owner::contract_sign as owner_contract_sign;
 use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -172,4 +175,49 @@ where
 		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
 	}
 	Ok(sl)
+}
+
+/// Initialize a receive transaction contract
+pub fn contract_new<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractNewArgsAPI,
+	// use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let net_change = args.setup_args.net_change.unwrap();
+	if net_change <= 0 {
+		return Err(Error::GenericError(
+			"Can't create a non-receiving contract from a foreign API.".to_string(),
+		)
+		.into());
+	}
+	owner_contract_new(&mut *w, keychain_mask, args)
+}
+
+/// Sign a receive transaction contract
+pub fn contract_sign<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractSetupArgsAPI,
+	slate: &Slate,
+	// use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let net_change = args.net_change.unwrap();
+	if net_change <= 0 {
+		return Err(Error::GenericError(
+			"Can't sign a non-receiving contract from a foreign API.".to_string(),
+		)
+		.into());
+	}
+	owner_contract_sign(&mut *w, keychain_mask, args, slate)
 }
