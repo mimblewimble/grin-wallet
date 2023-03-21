@@ -92,7 +92,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	// Assert changes in receive wallet
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		let (_, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
-		let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(wallet_info.last_confirmed_height, bh);
 		assert!(refreshed);
 		assert_eq!(txs.len(), 5); // 4 mined and 1 received
@@ -119,7 +119,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	// Assert changes in send wallet
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		let (_, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
-		let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(wallet_info.last_confirmed_height, bh);
 		assert!(refreshed);
 		assert_eq!(txs.len() as u64, bh - 4 + 1); // send_wallet didn't mine 4 blocks and made 1 tx

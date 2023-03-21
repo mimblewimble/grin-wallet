@@ -64,7 +64,7 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 		assert_eq!(wallet1_info.last_confirmed_height, 10);
 		assert_eq!(wallet1_info.total, 1 * reward);
 		assert_eq!(wallet1_info.amount_currently_spendable, 1 * reward);
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 1);
 		Ok(())
 	})?;
@@ -84,7 +84,7 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 		assert_eq!(wallet1_info.total, 2 * reward);
 		assert_eq!(wallet1_info.amount_currently_spendable, 2 * reward);
 		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 2);
 		Ok(())
 	})?;
@@ -158,7 +158,7 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 			3 * reward + core::libtx::tx_fee(2, 2, 1) // we have received a block reward and the tx fee (payjoin)
 		);
 		assert_eq!(wallet1_info.amount_currently_spendable, 2 * reward);
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 3);
 		Ok(())
 	})?;
@@ -176,7 +176,7 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 			wallet1_info.total,
 			1 * reward - 5_000_000_000 - my_fee_contribution(1, 1, 1, 2)?.fee() // we subtract also our fee contribution
 		);
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 2);
 		Ok(())
 	})?;
@@ -194,7 +194,7 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 			wallet2_info.total,
 			4 * reward + 5_000_000_000 - my_fee_contribution(1, 1, 1, 2)?.fee() // we subtract also our fee contribution for a payjoin
 		);
-		let (_, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(txs.len(), 5);
 		Ok(())
 	})?;
