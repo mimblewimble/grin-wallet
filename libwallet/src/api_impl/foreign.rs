@@ -116,14 +116,16 @@ where
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
-		let sig = tx::create_payment_proof_signature(
-			ret_slate.amount,
-			&excess,
-			p.sender_address,
-			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
-		)?;
+		if let Some(saddr) = p.sender_address {
+			let sig = tx::create_payment_proof_signature(
+				ret_slate.amount,
+				&excess,
+				saddr,
+				address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+			)?;
 
-		p.receiver_signature = Some(sig);
+			p.promise_signature = Some(sig);
+		}
 	}
 
 	ret_slate.amount = 0;

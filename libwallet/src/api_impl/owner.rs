@@ -568,9 +568,9 @@ where
 		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
-			sender_address: sender_address.to_ed25519()?,
+			sender_address: Some(sender_address.to_ed25519()?),
 			receiver_address: a.pub_key,
-			receiver_signature: None,
+			promise_signature: None,
 		});
 
 		context.payment_proof_derivation_index = Some(deriv_path);

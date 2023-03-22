@@ -30,6 +30,8 @@ pub mod ser;
 pub mod v4;
 #[allow(missing_docs)]
 pub mod v4_bin;
+#[allow(missing_docs)]
+pub mod v5;
 
 /// The most recent version of the slate
 pub const CURRENT_SLATE_VERSION: u16 = 4;

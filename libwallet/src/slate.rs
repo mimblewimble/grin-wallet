@@ -39,6 +39,10 @@ use crate::slate_versions::v4::{
 	CommitsV4, KernelFeaturesArgsV4, OutputFeaturesV4, ParticipantDataV4, PaymentInfoV4,
 	SlateStateV4, SlateV4, VersionCompatInfoV4,
 };
+use crate::slate_versions::v5::{
+	CommitsV5, KernelFeaturesArgsV5, OutputFeaturesV5, ParticipantDataV5, PaymentInfoV5,
+	SlateStateV5, SlateV5, VersionCompatInfoV5,
+};
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
@@ -46,11 +50,11 @@ use crate::Context;
 #[derive(Debug, Clone)]
 pub struct PaymentInfo {
 	/// Sender address
-	pub sender_address: DalekPublicKey,
+	pub sender_address: Option<DalekPublicKey>,
 	/// Receiver address
 	pub receiver_address: DalekPublicKey,
-	/// Receiver signature
-	pub receiver_signature: Option<DalekSignature>,
+	/// Promise signature
+	pub promise_signature: Option<DalekSignature>,
 }
 
 /// Public data for each participant in the slate
@@ -888,7 +892,7 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 		let PaymentInfo {
 			sender_address,
 			receiver_address,
-			receiver_signature,
+			promise_signature: receiver_signature,
 		} = data;
 		let sender_address = *sender_address;
 		let receiver_address = *receiver_address;
@@ -908,6 +912,16 @@ impl From<OutputFeatures> for OutputFeaturesV4 {
 			OutputFeatures::Coinbase => 1,
 		};
 		OutputFeaturesV4(index)
+	}
+}
+
+impl From<OutputFeatures> for OutputFeaturesV5 {
+	fn from(of: OutputFeatures) -> OutputFeaturesV5 {
+		let index = match of {
+			OutputFeatures::Plain => 0,
+			OutputFeatures::Coinbase => 1,
+		};
+		OutputFeaturesV5(index)
 	}
 }
 
@@ -1099,7 +1113,7 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 		PaymentInfo {
 			sender_address,
 			receiver_address,
-			receiver_signature,
+			promise_signature: receiver_signature,
 		}
 	}
 }
