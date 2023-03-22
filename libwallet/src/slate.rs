@@ -895,10 +895,20 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 			promise_signature: receiver_signature,
 		} = data;
 		let sender_address = *sender_address;
+		// TODO: If not provided and we need to downgrade to V4,
+		// Provide a blank key insted. Consider whether this should fail
+		// instead, noting that `try_from`isn't currently used in any versioning
+		// logic
+		// Also note the zeroized ed25519 public key has a known private key, check if
+		// this could ever possibly become an issue
+		let saddr = match sender_address {
+			Some(a) => a,
+			None => DalekPublicKey::from_bytes(&[0u8; 32]).unwrap(),
+		};
 		let receiver_address = *receiver_address;
 		let receiver_signature = *receiver_signature;
 		PaymentInfoV4 {
-			saddr: sender_address,
+			saddr,
 			raddr: receiver_address,
 			rsig: receiver_signature,
 		}
@@ -1111,7 +1121,7 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 		let receiver_address = *receiver_address;
 		let receiver_signature = *receiver_signature;
 		PaymentInfo {
-			sender_address,
+			sender_address: Some(sender_address),
 			receiver_address,
 			promise_signature: receiver_signature,
 		}
