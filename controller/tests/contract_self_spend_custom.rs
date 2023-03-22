@@ -99,7 +99,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	// Assert changes in send wallet
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		let (_, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
-		let (refreshed, txs) = api.retrieve_txs(m, true, None, None)?;
+		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert_eq!(wallet_info.last_confirmed_height, bh);
 		assert!(refreshed);
 		assert_eq!(txs.len() as u64, bh + 1); // send wallet didn't mine 4 blocks and made 1 tx
