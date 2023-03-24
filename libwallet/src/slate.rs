@@ -27,6 +27,7 @@ use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentT
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
+use crate::grin_util::ToHex;
 use crate::grin_util::{secp, static_secp_instance};
 use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -235,10 +236,11 @@ impl Slate {
 
 	/// Upgrade a versioned slate
 	pub fn upgrade(v_slate: VersionedSlate) -> Result<Slate, Error> {
-		let v4: SlateV4 = match v_slate {
-			VersionedSlate::V4(s) => s,
+		let internal: Slate = match v_slate {
+			VersionedSlate::V4(s) => s.into(),
+			VersionedSlate::V5(s) => s.into(),
 		};
-		Ok(v4.into())
+		Ok(internal.into())
 	}
 	/// Compact the slate for initial sending, storing the excess + offset explicit
 	/// and removing my input/output data
@@ -708,13 +710,453 @@ impl Serialize for Slate {
 	where
 		S: Serializer,
 	{
-		let v4 = SlateV4::from(self);
-		v4.serialize(serializer)
+		let v5 = SlateV5::from(self);
+		v5.serialize(serializer)
 	}
 }
 // Current slate version to versioned conversions
 
-// Slate to versioned
+////// V5
+impl From<Slate> for SlateV5 {
+	fn from(slate: Slate) -> SlateV5 {
+		let Slate {
+			num_participants: num_parts,
+			id,
+			state,
+			tx: _,
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height: ttl,
+			offset: off,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		} = slate.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let ver = VersionCompatInfoV5::from(&version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV5::from(&p)),
+			None => None,
+		};
+		let feat_args = match kernel_features_args {
+			Some(a) => Some(KernelFeaturesArgsV5::from(&a)),
+			None => None,
+		};
+		let sta = SlateStateV5::from(&state);
+		SlateV5 {
+			num_parts,
+			id,
+			sta,
+			coms: (&slate).into(),
+			amt: amount,
+			fee: fee_fields,
+			feat: kernel_features,
+			ttl,
+			off,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		}
+	}
+}
+
+impl From<&Slate> for SlateV5 {
+	fn from(slate: &Slate) -> SlateV5 {
+		let Slate {
+			num_participants: num_parts,
+			id,
+			state,
+			tx: _,
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height: ttl,
+			offset,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		} = slate;
+		let num_parts = *num_parts;
+		let id = *id;
+		let amount = *amount;
+		let fee_fields = *fee_fields;
+		let feat = *kernel_features;
+		let ttl = *ttl;
+		let off = offset.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let ver = VersionCompatInfoV5::from(version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV5::from(p)),
+			None => None,
+		};
+		let sta = SlateStateV5::from(state);
+		let feat_args = match kernel_features_args {
+			Some(a) => Some(KernelFeaturesArgsV5::from(a)),
+			None => None,
+		};
+		SlateV5 {
+			num_parts,
+			id,
+			sta,
+			coms: slate.into(),
+			amt: amount,
+			fee: fee_fields,
+			feat,
+			ttl,
+			off,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		}
+	}
+}
+
+impl From<&Slate> for Option<Vec<CommitsV5>> {
+	fn from(slate: &Slate) -> Self {
+		match slate.tx {
+			None => None,
+			Some(ref tx) => {
+				let mut ret_vec = vec![];
+				match tx.inputs() {
+					Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
+					Inputs::FeaturesAndCommit(ref inputs) => {
+						for input in inputs {
+							ret_vec.push(input.into());
+						}
+					}
+				}
+				for output in tx.outputs() {
+					ret_vec.push(output.into());
+				}
+				Some(ret_vec)
+			}
+		}
+	}
+}
+
+impl From<&ParticipantData> for ParticipantDataV5 {
+	fn from(data: &ParticipantData) -> ParticipantDataV5 {
+		let ParticipantData {
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+		} = data;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		ParticipantDataV5 {
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
+		}
+	}
+}
+
+impl From<&SlateState> for SlateStateV5 {
+	fn from(data: &SlateState) -> SlateStateV5 {
+		match data {
+			SlateState::Unknown => SlateStateV5::Unknown,
+			SlateState::Standard1 => SlateStateV5::Standard1,
+			SlateState::Standard2 => SlateStateV5::Standard2,
+			SlateState::Standard3 => SlateStateV5::Standard3,
+			SlateState::Invoice1 => SlateStateV5::Invoice1,
+			SlateState::Invoice2 => SlateStateV5::Invoice2,
+			SlateState::Invoice3 => SlateStateV5::Invoice3,
+		}
+	}
+}
+
+impl From<&KernelFeaturesArgs> for KernelFeaturesArgsV5 {
+	fn from(data: &KernelFeaturesArgs) -> KernelFeaturesArgsV5 {
+		let KernelFeaturesArgs { lock_height } = data;
+		let lock_hgt = *lock_height;
+		KernelFeaturesArgsV5 { lock_hgt }
+	}
+}
+
+impl From<&VersionCompatInfo> for VersionCompatInfoV5 {
+	fn from(data: &VersionCompatInfo) -> VersionCompatInfoV5 {
+		let VersionCompatInfo {
+			version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfoV5 {
+			version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<&PaymentInfo> for PaymentInfoV5 {
+	fn from(data: &PaymentInfo) -> PaymentInfoV5 {
+		let PaymentInfo {
+			sender_address,
+			receiver_address,
+			promise_signature,
+			timestamp,
+			memo,
+		} = data;
+		let sender_address = *sender_address;
+		// TODO: If not provided and we need to downgrade to V5,
+		// Provide a blank key insted. Consider whether this should fail
+		// instead, noting that `try_from`isn't currently used in any versioning
+		// logic
+		// Also note the zeroized ed25519 public key has a known private key, check if
+		// this could ever possibly become an issue
+		let saddr = match sender_address {
+			Some(a) => a,
+			None => DalekPublicKey::from_bytes(&[0u8; 32]).unwrap(),
+		};
+		let receiver_address = *receiver_address;
+		let promise_signature = *promise_signature;
+		let timestamp = *timestamp;
+		let memo = match memo {
+			Some(m) => Some(m.to_hex()),
+			None => None,
+		};
+		PaymentInfoV5 {
+			saddr,
+			raddr: receiver_address,
+			psig: promise_signature,
+			ts: timestamp,
+			memo: memo,
+		}
+	}
+}
+
+impl From<OutputFeatures> for OutputFeaturesV5 {
+	fn from(of: OutputFeatures) -> OutputFeaturesV5 {
+		let index = match of {
+			OutputFeatures::Plain => 0,
+			OutputFeatures::Coinbase => 1,
+		};
+		OutputFeaturesV5(index)
+	}
+}
+
+///// V4
+impl From<SlateV5> for Slate {
+	fn from(slate: SlateV5) -> Slate {
+		let SlateV5 {
+			num_parts: num_participants,
+			id,
+			sta,
+			coms: _,
+			amt: amount,
+			fee: fee_fields,
+			feat: kernel_features,
+			ttl: ttl_cutoff_height,
+			off: offset,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		} = slate.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
+		let version_info = VersionCompatInfo::from(&ver);
+		let payment_proof = match &payment_proof {
+			Some(p) => Some(PaymentInfo::from(p)),
+			None => None,
+		};
+		let kernel_features_args = match &feat_args {
+			Some(a) => Some(KernelFeaturesArgs::from(a)),
+			None => None,
+		};
+		let state = SlateState::from(&sta);
+		Slate {
+			num_participants,
+			id,
+			state,
+			tx: (&slate).into(),
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height,
+			offset,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		}
+	}
+}
+
+pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
+	let coms = match slate.coms.as_ref() {
+		Some(c) => c,
+		None => return None,
+	};
+	let secp = static_secp_instance();
+	let secp = secp.lock();
+	let mut calc_slate = Slate::blank(2, false);
+	calc_slate.fee_fields = slate.fee;
+	for d in slate.sigs.iter() {
+		calc_slate.participant_data.push(ParticipantData {
+			public_blind_excess: d.xs,
+			public_nonce: d.nonce,
+			part_sig: d.part,
+		});
+	}
+	let excess = match calc_slate.calc_excess(&secp) {
+		Ok(e) => e,
+		Err(_) => Commitment::from_vec(vec![0]),
+	};
+	let excess_sig = match calc_slate.finalize_signature(&secp) {
+		Ok(s) => s,
+		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
+	};
+	let kernel = TxKernel {
+		features: match slate.feat {
+			0 => KernelFeatures::Plain { fee: slate.fee },
+			1 => KernelFeatures::HeightLocked {
+				fee: slate.fee,
+				lock_height: match slate.feat_args.as_ref() {
+					Some(a) => a.lock_hgt,
+					None => 0,
+				},
+			},
+			_ => KernelFeatures::Plain { fee: slate.fee },
+		},
+		excess,
+		excess_sig,
+	};
+	let mut tx = Slate::empty_transaction().with_kernel(kernel);
+
+	let mut outputs = vec![];
+	let mut inputs = vec![];
+
+	for c in coms.iter() {
+		match &c.p {
+			Some(p) => {
+				outputs.push(Output::new(c.f.into(), c.c, p.clone()));
+			}
+			None => {
+				inputs.push(Input {
+					features: c.f.into(),
+					commit: c.c,
+				});
+			}
+		}
+	}
+
+	tx.body = tx
+		.body
+		.replace_inputs(inputs.as_slice().into())
+		.replace_outputs(outputs.as_slice());
+	tx.offset = slate.off.clone();
+	Some(tx)
+}
+
+// Node's Transaction object and lock height to SlateV5 `coms`
+impl From<&SlateV5> for Option<Transaction> {
+	fn from(slate: &SlateV5) -> Option<Transaction> {
+		tx_from_slate_v5(slate)
+	}
+}
+
+impl From<&ParticipantDataV5> for ParticipantData {
+	fn from(data: &ParticipantDataV5) -> ParticipantData {
+		let ParticipantDataV5 {
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
+		} = data;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		ParticipantData {
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+		}
+	}
+}
+
+impl From<&KernelFeaturesArgsV5> for KernelFeaturesArgs {
+	fn from(data: &KernelFeaturesArgsV5) -> KernelFeaturesArgs {
+		let KernelFeaturesArgsV5 { lock_hgt } = data;
+		let lock_height = *lock_hgt;
+		KernelFeaturesArgs { lock_height }
+	}
+}
+
+impl From<&SlateStateV5> for SlateState {
+	fn from(data: &SlateStateV5) -> SlateState {
+		match data {
+			SlateStateV5::Unknown => SlateState::Unknown,
+			SlateStateV5::Standard1 => SlateState::Standard1,
+			SlateStateV5::Standard2 => SlateState::Standard2,
+			SlateStateV5::Standard3 => SlateState::Standard3,
+			SlateStateV5::Invoice1 => SlateState::Invoice1,
+			SlateStateV5::Invoice2 => SlateState::Invoice2,
+			SlateStateV5::Invoice3 => SlateState::Invoice3,
+		}
+	}
+}
+
+impl From<&VersionCompatInfoV5> for VersionCompatInfo {
+	fn from(data: &VersionCompatInfoV5) -> VersionCompatInfo {
+		let VersionCompatInfoV5 {
+			version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfo {
+			version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<&PaymentInfoV5> for PaymentInfo {
+	fn from(data: &PaymentInfoV5) -> PaymentInfo {
+		let PaymentInfoV5 {
+			saddr: sender_address,
+			raddr: receiver_address,
+			psig: promise_signature,
+			ts: timestamp,
+			memo,
+		} = data;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let promise_signature = *promise_signature;
+		let timestamp = *timestamp;
+		let mut memo_ret = [0u8; 32];
+		let memo: Option<[u8; 32]> = match memo {
+			Some(m) => {
+				memo_ret.copy_from_slice(&grin_util::from_hex(m).unwrap_or_default()[0..32]);
+				Some(memo_ret)
+			}
+			None => None,
+		};
+		PaymentInfo {
+			sender_address: Some(sender_address),
+			receiver_address,
+			promise_signature: promise_signature,
+			timestamp,
+			memo,
+		}
+	}
+}
+
+impl From<OutputFeaturesV5> for OutputFeatures {
+	fn from(of: OutputFeaturesV5) -> OutputFeatures {
+		match of.0 {
+			1 => OutputFeatures::Coinbase,
+			0 | _ => OutputFeatures::Plain,
+		}
+	}
+}
+
+///////// V4
 impl From<Slate> for SlateV4 {
 	fn from(slate: Slate) -> SlateV4 {
 		let Slate {
@@ -898,8 +1340,8 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 			sender_address,
 			receiver_address,
 			promise_signature: receiver_signature,
-			timestamp,
-			memo,
+			timestamp: _,
+			memo: _,
 		} = data;
 		let sender_address = *sender_address;
 		// TODO: If not provided and we need to downgrade to V4,
@@ -929,16 +1371,6 @@ impl From<OutputFeatures> for OutputFeaturesV4 {
 			OutputFeatures::Coinbase => 1,
 		};
 		OutputFeaturesV4(index)
-	}
-}
-
-impl From<OutputFeatures> for OutputFeaturesV5 {
-	fn from(of: OutputFeatures) -> OutputFeaturesV5 {
-		let index = match of {
-			OutputFeatures::Plain => 0,
-			OutputFeatures::Coinbase => 1,
-		};
-		OutputFeaturesV5(index)
 	}
 }
 

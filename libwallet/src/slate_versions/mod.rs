@@ -20,6 +20,7 @@
 use crate::slate::Slate;
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::slate_versions::v4_bin::SlateV4Bin;
+use crate::slate_versions::v5::{CoinbaseV5, SlateV5};
 use crate::types::CbData;
 use crate::Error;
 use std::convert::TryFrom;
@@ -34,7 +35,7 @@ pub mod v4_bin;
 pub mod v5;
 
 /// The most recent version of the slate
-pub const CURRENT_SLATE_VERSION: u16 = 4;
+pub const CURRENT_SLATE_VERSION: u16 = 5;
 
 /// The grin block header this slate is intended to be compatible with
 pub const GRIN_BLOCK_HEADER_VERSION: u16 = 3;
@@ -42,7 +43,9 @@ pub const GRIN_BLOCK_HEADER_VERSION: u16 = 3;
 /// Existing versions of the slate
 #[derive(EnumIter, Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum SlateVersion {
-	/// V4 (most current)
+	/// V5 (Most Current)
+	V5,
+	/// V4
 	V4,
 }
 
@@ -51,7 +54,9 @@ pub enum SlateVersion {
 /// Versions are ordered newest to oldest so serde attempts to
 /// deserialize newer versions first, then falls back to older versions.
 pub enum VersionedSlate {
-	/// Current (4.0.0 Onwards )
+	/// Current (5.0.0 Onwards?)
+	V5(SlateV5),
+	/// Current (4.0.0)
 	V4(SlateV4),
 }
 
@@ -59,6 +64,7 @@ impl VersionedSlate {
 	/// Return slate version
 	pub fn version(&self) -> SlateVersion {
 		match *self {
+			VersionedSlate::V5(_) => SlateVersion::V4,
 			VersionedSlate::V4(_) => SlateVersion::V4,
 		}
 	}
@@ -66,6 +72,7 @@ impl VersionedSlate {
 	/// convert this slate type to a specified older version
 	pub fn into_version(slate: Slate, version: SlateVersion) -> Result<VersionedSlate, Error> {
 		match version {
+			SlateVersion::V5 => Ok(VersionedSlate::V5(slate.into())),
 			SlateVersion::V4 => Ok(VersionedSlate::V4(slate.into())),
 		}
 	}
@@ -74,6 +81,7 @@ impl VersionedSlate {
 impl From<VersionedSlate> for Slate {
 	fn from(slate: VersionedSlate) -> Slate {
 		match slate {
+			VersionedSlate::V5(s) => Slate::from(s),
 			VersionedSlate::V4(s) => Slate::from(s),
 		}
 	}
@@ -92,6 +100,7 @@ impl TryFrom<VersionedSlate> for VersionedBinSlate {
 	type Error = Error;
 	fn try_from(slate: VersionedSlate) -> Result<VersionedBinSlate, Error> {
 		match slate {
+			VersionedSlate::V5(s) => Ok(VersionedBinSlate::V5(SlateV5Bin(s))),
 			VersionedSlate::V4(s) => Ok(VersionedBinSlate::V4(SlateV4Bin(s))),
 		}
 	}
@@ -111,6 +120,8 @@ impl From<VersionedBinSlate> for VersionedSlate {
 /// deserialize newer versions first, then falls back to older versions.
 pub enum VersionedCoinbase {
 	/// Current supported coinbase version.
+	V5(CoinbaseV5),
+	/// Previous version (no difference)
 	V4(CoinbaseV4),
 }
 
@@ -118,6 +129,7 @@ impl VersionedCoinbase {
 	/// convert this coinbase data to a specific versioned representation for the json api.
 	pub fn into_version(cb: CbData, version: SlateVersion) -> VersionedCoinbase {
 		match version {
+			SlateVersion::V5 => VersionedCoinbase::V5(cb.into()),
 			SlateVersion::V4 => VersionedCoinbase::V4(cb.into()),
 		}
 	}

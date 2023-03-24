@@ -35,7 +35,7 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::{slate_versions::ser, CbData};
-use chrono::prelude::{DateTime, NaiveDateTime, Utc};
+use chrono::prelude::{DateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
