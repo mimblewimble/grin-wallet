@@ -38,6 +38,7 @@ use crate::{
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus,
 	WalletInst, WalletLCProvider,
 };
+use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
@@ -571,6 +572,8 @@ where
 			sender_address: Some(sender_address.to_ed25519()?),
 			receiver_address: a.pub_key,
 			promise_signature: None,
+			timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+			memo: None,
 		});
 
 		context.payment_proof_derivation_index = Some(deriv_path);

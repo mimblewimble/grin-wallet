@@ -23,7 +23,8 @@
 //! #### PaymentInfoV5
 //! * `saddr`, i.e. `sender_address` in main Slate becomes optional
 //! * `rsig` is renamed to `psig`, corresponding to rename of `receiver_signature` to `promise_signature` in main Slate
-//!
+//! * `ts` added (`timestamp` in main Slate) (Epoch Time)
+//! * `memo` added as optional [u8;32]
 
 use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Input, Output, TxKernel};
@@ -34,6 +35,7 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::{slate_versions::ser, CbData};
+use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use uuid::Uuid;
@@ -198,6 +200,9 @@ pub struct PaymentInfoV5 {
 	#[serde(with = "ser::option_dalek_sig_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub psig: Option<DalekSignature>,
+	pub ts: DateTime<Utc>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub memo: Option<String>,
 }
 
 fn default_promise_signature_none() -> Option<DalekSignature> {

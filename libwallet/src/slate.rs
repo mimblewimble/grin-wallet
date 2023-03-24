@@ -28,6 +28,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, static_secp_instance};
+use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use serde::ser::{Serialize, Serializer};
@@ -55,6 +56,10 @@ pub struct PaymentInfo {
 	pub receiver_address: DalekPublicKey,
 	/// Promise signature
 	pub promise_signature: Option<DalekSignature>,
+	/// Timestamp
+	pub timestamp: DateTime<Utc>,
+	/// Memo
+	pub memo: Option<[u8; 32]>,
 }
 
 /// Public data for each participant in the slate
@@ -893,6 +898,8 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 			sender_address,
 			receiver_address,
 			promise_signature: receiver_signature,
+			timestamp,
+			memo,
 		} = data;
 		let sender_address = *sender_address;
 		// TODO: If not provided and we need to downgrade to V4,
@@ -1124,6 +1131,8 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 			sender_address: Some(sender_address),
 			receiver_address,
 			promise_signature: receiver_signature,
+			timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+			memo: None,
 		}
 	}
 }
