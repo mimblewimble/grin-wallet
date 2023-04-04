@@ -21,6 +21,7 @@ use crate::slate::Slate;
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::slate_versions::v4_bin::SlateV4Bin;
 use crate::slate_versions::v5::{CoinbaseV5, SlateV5};
+use crate::slate_versions::v5_bin::SlateV5Bin;
 use crate::types::CbData;
 use crate::Error;
 use std::convert::TryFrom;
@@ -33,6 +34,8 @@ pub mod v4;
 pub mod v4_bin;
 #[allow(missing_docs)]
 pub mod v5;
+#[allow(missing_docs)]
+pub mod v5_bin;
 
 /// The most recent version of the slate
 pub const CURRENT_SLATE_VERSION: u16 = 5;
@@ -94,6 +97,8 @@ impl From<VersionedSlate> for Slate {
 pub enum VersionedBinSlate {
 	/// Version 4, binary
 	V4(SlateV4Bin),
+	/// Version 5, binary
+	V5(SlateV5Bin),
 }
 
 impl TryFrom<VersionedSlate> for VersionedBinSlate {
@@ -109,6 +114,7 @@ impl TryFrom<VersionedSlate> for VersionedBinSlate {
 impl From<VersionedBinSlate> for VersionedSlate {
 	fn from(slate: VersionedBinSlate) -> VersionedSlate {
 		match slate {
+			VersionedBinSlate::V5(s) => VersionedSlate::V5(s.0),
 			VersionedBinSlate::V4(s) => VersionedSlate::V4(s.0),
 		}
 	}

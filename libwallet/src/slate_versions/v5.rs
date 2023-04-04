@@ -190,19 +190,29 @@ fn default_part_sig_none() -> Option<Signature> {
 	None
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct PaymentMemoV5 {
+	// The type of memo
+	// 0x00 is directly embedded additional payment details
+	// 0x01 represents the blake2b hash of an arbitrary invoice document
+	pub memo_type: u8,
+	// memo data itself
+	pub memo: [u8; 32],
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfoV5 {
 	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub saddr: DalekPublicKey,
 	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub raddr: DalekPublicKey,
+	pub ts: DateTime<Utc>,
 	#[serde(default = "default_promise_signature_none")]
 	#[serde(with = "ser::option_dalek_sig_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub psig: Option<DalekSignature>,
-	pub ts: DateTime<Utc>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub memo: Option<String>,
+	pub memo: Option<PaymentMemoV5>,
 }
 
 fn default_promise_signature_none() -> Option<DalekSignature> {

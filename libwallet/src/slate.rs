@@ -27,7 +27,6 @@ use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentT
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
-use crate::grin_util::ToHex;
 use crate::grin_util::{secp, static_secp_instance};
 use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -43,11 +42,21 @@ use crate::slate_versions::v4::{
 };
 use crate::slate_versions::v5::{
 	CommitsV5, KernelFeaturesArgsV5, OutputFeaturesV5, ParticipantDataV5, PaymentInfoV5,
-	SlateStateV5, SlateV5, VersionCompatInfoV5,
+	PaymentMemoV5, SlateStateV5, SlateV5, VersionCompatInfoV5,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
+
+#[derive(Debug, Clone)]
+pub struct PaymentMemo {
+	// The type of memo
+	// 0x00 is directly embedded additional payment details
+	// 0x01 represents the blake2b hash of an arbitrary invoice document
+	pub memo_type: u8,
+	// memo data itself
+	pub memo: [u8; 32],
+}
 
 #[derive(Debug, Clone)]
 pub struct PaymentInfo {
@@ -60,7 +69,7 @@ pub struct PaymentInfo {
 	/// Timestamp
 	pub timestamp: DateTime<Utc>,
 	/// Memo
-	pub memo: Option<[u8; 32]>,
+	pub memo: Option<PaymentMemo>,
 }
 
 /// Public data for each participant in the slate
@@ -918,7 +927,10 @@ impl From<&PaymentInfo> for PaymentInfoV5 {
 		let promise_signature = *promise_signature;
 		let timestamp = *timestamp;
 		let memo = match memo {
-			Some(m) => Some(m.to_hex()),
+			Some(m) => Some(PaymentMemoV5 {
+				memo_type: m.memo_type,
+				memo: m.memo,
+			}),
 			None => None,
 		};
 		PaymentInfoV5 {
@@ -1129,11 +1141,13 @@ impl From<&PaymentInfoV5> for PaymentInfo {
 		let receiver_address = *receiver_address;
 		let promise_signature = *promise_signature;
 		let timestamp = *timestamp;
-		let mut memo_ret = [0u8; 32];
-		let memo: Option<[u8; 32]> = match memo {
+		let memo: Option<PaymentMemo> = match memo {
 			Some(m) => {
-				memo_ret.copy_from_slice(&grin_util::from_hex(m).unwrap_or_default()[0..32]);
-				Some(memo_ret)
+				//memo_ret.copy_from_slice(&grin_util::from_hex(m.memo).unwrap_or_default()[0..32]);
+				Some(PaymentMemo {
+					memo_type: m.memo_type,
+					memo: m.memo,
+				})
 			}
 			None => None,
 		};
