@@ -487,7 +487,9 @@ fn slate_v5_serialize_deserialize() {
 	let raw_pubkey_str = "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb";
 	let b = from_hex(raw_pubkey_str).unwrap();
 	let d_pkey = DalekPublicKey::from_bytes(&b).unwrap();
-	let ts = Utc::now();
+	// Need to remove milliseconds component for comparison. Won't be serialized
+	let ts = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+	let ts = DateTime::<Utc>::from_utc(ts, Utc);
 	let pm = PaymentMemoV5 {
 		memo_type: 0,
 		memo: [9; 32],

@@ -38,6 +38,7 @@ use crate::{slate_versions::ser, CbData};
 use chrono::prelude::{DateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
+use serde_with::TimestampSeconds;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -200,12 +201,14 @@ pub struct PaymentMemoV5 {
 	pub memo: [u8; 32],
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfoV5 {
 	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub saddr: DalekPublicKey,
 	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub raddr: DalekPublicKey,
+	#[serde_as(as = "TimestampSeconds<i64>")]
 	pub ts: DateTime<Utc>,
 	#[serde(default = "default_promise_signature_none")]
 	#[serde(with = "ser::option_dalek_sig_serde")]
