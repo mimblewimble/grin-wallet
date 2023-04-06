@@ -142,7 +142,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "S1",
-				"ver": "4:2"
+				"ver": "5:2"
 			},
 			null,
 			null
@@ -177,7 +177,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "S2",
-				"ver": "4:2"
+				"ver": "5:2"
 			}
 		}
 	}
@@ -206,7 +206,7 @@ pub trait ForeignRpc {
 		"method": "finalize_tx",
 		"id": 1,
 		"params": [{
-			"ver": "4:2",
+			"ver": "5:2",
 			"id": "0436430c-2b02-624c-2032-570501212b00",
 			"sta": "I2",
 			"off": "383bc9df0dd332629520a0a72f8dd7f0e97d579dccb4dbdc8592aa3d424c846c",
@@ -276,7 +276,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "I3",
-				"ver": "4:2"
+				"ver": "5:2"
 			}
 		}
 	}

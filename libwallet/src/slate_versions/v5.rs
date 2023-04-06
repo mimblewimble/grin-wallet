@@ -23,8 +23,13 @@
 //! #### PaymentInfoV5
 //! * `saddr`, i.e. `sender_address` in main Slate becomes optional
 //! * `rsig` is renamed to `psig`, corresponding to rename of `receiver_signature` to `promise_signature` in main Slate
-//! * `ts` added (`timestamp` in main Slate) (Epoch Time)
-//! * `memo` added as optional [u8;32]
+//!
+//! * `ts` added (`timestamp` in main slate). Serialized as i64 representing epoch time in seconds
+//! * `memo` added as optional MemoV5 Struct, which contains:
+//!   * `memo_type`: u8
+//!      * 0x00 = payment details directly embedded
+//!      * 0x01 = Blake2b hash of an arbitrary invoice document
+//!   * `memo`: [u8;32] the memo data itself
 
 use crate::grin_core::core::FeeFields;
 use crate::grin_core::core::{Input, Output, TxKernel};
