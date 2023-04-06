@@ -234,6 +234,7 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 		}
 		match &self.0.memo {
 			Some(s) => {
+				writer.write_u8(1)?;
 				writer.write_u8(s.memo_type)?;
 				writer.write_fixed_bytes(&s.memo)?;
 			}
@@ -487,13 +488,16 @@ fn slate_v5_serialize_deserialize() {
 	let b = from_hex(raw_pubkey_str).unwrap();
 	let d_pkey = DalekPublicKey::from_bytes(&b).unwrap();
 	let ts = Utc::now();
+	let pm = PaymentMemoV5 {
+		memo_type: 0,
+		memo: [9; 32],
+	};
 	v5.proof = Some(PaymentInfoV5 {
 		raddr: d_pkey.clone(),
 		saddr: d_pkey.clone(),
 		ts: ts.clone(),
 		psig: None,
-		// TODO: Just getting things to compile, need to focus on testing this part
-		memo: None,
+		memo: Some(pm),
 	});
 	v5.coms = None;
 	let v5_1 = v5.clone();

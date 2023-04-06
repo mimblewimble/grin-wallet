@@ -66,7 +66,7 @@ pub struct PaymentInfo {
 	pub receiver_address: DalekPublicKey,
 	/// Promise signature
 	pub promise_signature: Option<DalekSignature>,
-	/// Timestamp
+	/// Timestamp (seconds)
 	pub timestamp: DateTime<Utc>,
 	/// Memo
 	pub memo: Option<PaymentMemo>,
