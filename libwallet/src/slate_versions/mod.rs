@@ -140,3 +140,117 @@ impl VersionedCoinbase {
 		}
 	}
 }
+#[cfg(test)]
+mod tests {
+	use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
+	use crate::grin_util::from_hex;
+	use crate::grin_util::secp::key::PublicKey;
+	use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+	use crate::grin_util::secp::Signature;
+	use crate::slate::{KernelFeaturesArgs, ParticipantData, PaymentInfo, PaymentMemo};
+	use crate::slate_versions::v5::{CommitsV5, SlateV5};
+	use crate::{slate, Error, Slate, VersionedSlate};
+	use chrono::{DateTime, NaiveDateTime, Utc};
+	use ed25519_dalek::PublicKey as DalekPublicKey;
+	use ed25519_dalek::Signature as DalekSignature;
+	use grin_core::global::{set_local_chain_type, ChainTypes};
+	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+	use grin_wallet_util::byte_ser::from_bytes;
+
+	// Populate a test internal slate with all fields to test conversions
+	fn populate_test_slate() -> Result<Slate, Error> {
+		let keychain = ExtKeychain::from_random_seed(true).unwrap();
+		let switch = SwitchCommitmentType::Regular;
+
+		let mut slate_internal = Slate::blank(2, false);
+		let id1 = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
+		let id2 = ExtKeychain::derive_key_id(1, 1, 1, 0, 0);
+		let skey1 = keychain.derive_key(0, &id1, switch).unwrap();
+		let skey2 = keychain.derive_key(0, &id2, switch).unwrap();
+		let xs = PublicKey::from_secret_key(keychain.secp(), &skey1).unwrap();
+		let nonce = PublicKey::from_secret_key(keychain.secp(), &skey2).unwrap();
+
+		let part = ParticipantData {
+			public_blind_excess: xs,
+			public_nonce: nonce,
+			part_sig: None,
+		};
+		let part2 = ParticipantData {
+			public_blind_excess: xs,
+			public_nonce: nonce,
+			part_sig: Some(Signature::from_raw_data(&[11; 64]).unwrap()),
+		};
+		slate_internal.participant_data.push(part.clone());
+		slate_internal.participant_data.push(part2);
+		slate_internal.participant_data.push(part);
+
+		// Another temp slate to convert commit data into internal 'transaction' like data
+		// add some random commit data
+		let slate_tmp = Slate::blank(1, false);
+		let mut v5 = SlateV5::from(slate_tmp);
+
+		let com1 = CommitsV5 {
+			f: OutputFeatures::Plain.into(),
+			c: Commitment::from_vec([3u8; 1].to_vec()),
+			p: None,
+		};
+		let com2 = CommitsV5 {
+			f: OutputFeatures::Plain.into(),
+			c: Commitment::from_vec([4u8; 1].to_vec()),
+			p: Some(RangeProof::zero()),
+		};
+
+		let mut coms = vec![];
+		coms.push(com1.clone());
+		coms.push(com1.clone());
+		coms.push(com1.clone());
+		coms.push(com2);
+
+		v5.coms = Some(coms);
+
+		slate_internal.tx = slate::tx_from_slate_v5(&v5);
+
+		// basic fields
+		slate_internal.amount = 23820323;
+		slate_internal.kernel_features = 1;
+		slate_internal.num_participants = 2;
+		slate_internal.kernel_features_args = Some(KernelFeaturesArgs {
+			lock_height: 2323223,
+		});
+
+		// current style payment proof
+		let raw_pubkey_str = "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb";
+		let b = from_hex(raw_pubkey_str).unwrap();
+		let d_pkey = DalekPublicKey::from_bytes(&b).unwrap();
+		// Need to remove milliseconds component for comparison. Won't be serialized
+		let ts = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+		let ts = DateTime::<Utc>::from_utc(ts, Utc);
+		let pm = PaymentMemo {
+			memo_type: 0,
+			memo: [9; 32],
+		};
+		slate_internal.payment_proof = Some(PaymentInfo {
+			sender_address: Some(d_pkey.clone()),
+			receiver_address: d_pkey.clone(),
+			timestamp: ts.clone(),
+			promise_signature: None,
+			memo: Some(pm),
+		});
+
+		Ok(slate_internal)
+	}
+
+	#[test]
+	fn slatepack_version_v4_v5() -> Result<(), Error> {
+		set_local_chain_type(ChainTypes::Mainnet);
+		let slate_internal = populate_test_slate()?;
+
+		let v4 = VersionedSlate::V4(slate_internal.clone().into());
+		let v5 = VersionedSlate::V5(slate_internal.into());
+
+		println!("{:?}", v5);
+		println!("{:?}", v4);
+
+		Ok(())
+	}
+}
