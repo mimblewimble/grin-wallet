@@ -149,13 +149,14 @@ mod tests {
 	use crate::grin_util::secp::Signature;
 	use crate::slate::{KernelFeaturesArgs, ParticipantData, PaymentInfo, PaymentMemo};
 	use crate::slate_versions::v5::{CommitsV5, SlateV5};
-	use crate::{slate, Error, Slate, VersionedSlate};
+	use crate::{slate, Error, Slate, VersionedBinSlate, VersionedSlate};
 	use chrono::{DateTime, NaiveDateTime, Utc};
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use ed25519_dalek::Signature as DalekSignature;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
 	use grin_wallet_util::byte_ser::from_bytes;
+	use std::convert::TryInto;
 
 	// Populate a test internal slate with all fields to test conversions
 	fn populate_test_slate() -> Result<Slate, Error> {
@@ -229,11 +230,13 @@ mod tests {
 			memo_type: 0,
 			memo: [9; 32],
 		};
+
+		let psig = DalekSignature::from_bytes(&[0u8; 64]).unwrap();
 		slate_internal.payment_proof = Some(PaymentInfo {
 			sender_address: Some(d_pkey.clone()),
 			receiver_address: d_pkey.clone(),
 			timestamp: ts.clone(),
-			promise_signature: None,
+			promise_signature: Some(psig),
 			memo: Some(pm),
 		});
 
@@ -243,13 +246,62 @@ mod tests {
 	#[test]
 	fn slatepack_version_v4_v5() -> Result<(), Error> {
 		set_local_chain_type(ChainTypes::Mainnet);
+
+		// Convert V5 slate into V4 slate, check result
 		let slate_internal = populate_test_slate()?;
+		let v5 = VersionedSlate::V5(slate_internal.clone().into());
+		let v4 = VersionedSlate::V4(slate_internal.into());
 
-		let v4 = VersionedSlate::V4(slate_internal.clone().into());
-		let v5 = VersionedSlate::V5(slate_internal.into());
+		let v5_converted: Slate = v5.into();
+		let v4_converted: Slate = v4.into();
 
-		println!("{:?}", v5);
-		println!("{:?}", v4);
+		assert!(v5_converted.payment_proof.as_ref().unwrap().memo.is_some());
+
+		// Converted from v4 will not have memos and ts will be zeroed out
+		assert!(v4_converted.payment_proof.as_ref().unwrap().memo.is_none());
+		assert_eq!(
+			v4_converted
+				.payment_proof
+				.as_ref()
+				.unwrap()
+				.timestamp
+				.timestamp(),
+			0
+		);
+
+		Ok(())
+	}
+
+	#[test]
+	fn slatepack_version_v4_v5_bin() -> Result<(), Error> {
+		set_local_chain_type(ChainTypes::Mainnet);
+
+		// Convert V5 slate into V4 slate, check result
+		let slate_internal = populate_test_slate()?;
+		let v5 = VersionedSlate::V5(slate_internal.clone().into());
+		let v5_bin: VersionedBinSlate = v5.try_into().unwrap();
+
+		let v4 = VersionedSlate::V4(slate_internal.into());
+		let v4_bin: VersionedBinSlate = v4.try_into().unwrap();
+
+		let v5_versioned: VersionedSlate = v5_bin.into();
+		let v4_versioned: VersionedSlate = v4_bin.into();
+
+		let v5_converted: Slate = v5_versioned.into();
+		let v4_converted: Slate = v4_versioned.into();
+
+		assert!(v5_converted.payment_proof.as_ref().unwrap().memo.is_some());
+		// Converted from v4 will not have memos and ts will be zeroed out
+		assert!(v4_converted.payment_proof.as_ref().unwrap().memo.is_none());
+		assert_eq!(
+			v4_converted
+				.payment_proof
+				.as_ref()
+				.unwrap()
+				.timestamp
+				.timestamp(),
+			0
+		);
 
 		Ok(())
 	}
