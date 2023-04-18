@@ -33,7 +33,7 @@ use grin_wallet_util as util;
 use blake2_rfc as blake2;
 
 #[macro_use]
-extern crate serde_derive;
+extern crate serde_with;
 #[macro_use]
 extern crate log;
 #[macro_use]

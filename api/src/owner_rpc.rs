@@ -504,7 +504,7 @@ pub trait OwnerRpc {
 						}
 					],
 					"sta": "S1",
-					"ver": "4:2"
+					"ver": "5:2"
 				}
 			}
 		}
@@ -570,7 +570,7 @@ pub trait OwnerRpc {
 						}
 					],
 					"sta": "I1",
-					"ver": "4:2"
+					"ver": "5:2"
 				}
 			}
 		}
@@ -941,7 +941,7 @@ pub trait OwnerRpc {
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sigs": [],
 				"sta": "S3",
-				"ver": "4:3"
+				"ver": "5:3"
 			}
 		}
 	}
