@@ -81,6 +81,38 @@ impl Default for OutputSelectionArgs {
 	}
 }
 
+/// Types of proof that can be generated
+/// as per https://github.com/tromp/grin-rfcs/blob/early-payment-proofs/text/0000-early-payment-proofs.md
+/// TODO: Update when RFC is merged
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum ProofType {
+	/// Legacy (0x00)
+	Legacy,
+	/// Invoice (0x01, Default)
+	Invoice,
+	/// Sender Nonce (0x02)
+	SenderNonce,
+}
+
+/// Proof generation parameters that can be provided during new or sign phases
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct ProofArgs {
+	/// If net change is positive during this step, whether to suppress the creation of payment proof
+	pub suppress_proof: bool,
+	/// Type of proof (Default 'Invoice')
+	pub proof_type: ProofType,
+}
+
+impl Default for ProofArgs {
+	fn default() -> ProofArgs {
+		ProofArgs {
+			suppress_proof: false,
+			proof_type: ProofType::Legacy,
+		}
+	}
+}
+
 /// Contract Setup - defines how we pick inputs/outputs and what we expect from a contract. Both
 /// 'new' and 'sign' actions perform a setup phase which is why their endpoints take these parameters.
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -99,6 +131,8 @@ pub struct ContractSetupArgsAPI {
 	pub add_outputs: bool,
 	/// Output selection arguments
 	pub selection_args: OutputSelectionArgs,
+	/// Proof arguments
+	pub proof_args: ProofArgs,
 }
 
 impl Default for ContractSetupArgsAPI {
@@ -111,6 +145,7 @@ impl Default for ContractSetupArgsAPI {
 			selection_args: OutputSelectionArgs {
 				..Default::default()
 			},
+			proof_args: ProofArgs::default(),
 		}
 	}
 }
@@ -139,6 +174,7 @@ impl Default for ContractNewArgsAPI {
 				selection_args: OutputSelectionArgs {
 					..Default::default()
 				},
+				proof_args: ProofArgs::default(),
 			},
 		}
 	}

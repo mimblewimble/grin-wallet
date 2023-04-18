@@ -43,6 +43,19 @@ where
 	// Compute state for 'sign'
 	let (sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;
 
+	// If we're a recipient, generate proof unless explicity told not to
+	if let Some(ref c) = setup_args.net_change {
+		if *c > 0 && !setup_args.proof_args.suppress_proof {
+			contract::proofs::add_payment_proof(
+				w,
+				keychain_mask,
+				&sl,
+				&context,
+				&setup_args.proof_args,
+			)?;
+		}
+	}
+
 	// Atomically commit state
 	contract::utils::save_step(w, keychain_mask, &sl, &mut context, will_add_outputs, true)?;
 

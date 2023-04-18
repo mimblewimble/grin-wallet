@@ -14,6 +14,8 @@
 
 //! Implementation of contract revoke
 
+use std::default;
+
 use crate::contract::types::{ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs};
 use crate::contract::{new, sign};
 use crate::error::Error;
@@ -78,6 +80,7 @@ where
 				use_inputs: Some(String::from(input_commit)),
 				..Default::default()
 			},
+			proof_args: Default::default(),
 		},
 	)?;
 	let finished_slate = sign(
@@ -94,6 +97,7 @@ where
 				use_inputs: Some(String::from(input_commit)),
 				..Default::default()
 			},
+			proof_args: Default::default(),
 		},
 	)?;
 	// TODO: Think about what to do with transaction context of the cancelled slate. It should probably get deleted.

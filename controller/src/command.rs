@@ -1682,6 +1682,7 @@ impl ContractNewArgs {
 					},
 					..Default::default()
 				},
+				proof_args: Default::default(),
 			},
 			..Default::default()
 		}
