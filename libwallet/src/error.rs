@@ -253,6 +253,10 @@ pub enum Error {
 	#[error("Proof Address decoding: {0}")]
 	AddressDecoding(String),
 
+	// Payment proof - no sender address provided or found in slate
+	#[error("Sender address has not been provided")]
+	NoSenderAddressProvided,
+
 	/// Transaction has expired it's TTL
 	#[error("Transaction Expired")]
 	TransactionExpired,

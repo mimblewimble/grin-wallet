@@ -48,6 +48,8 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
+	let mut sender_address = None;
+
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		// Send wallet inititates a standard transaction with --send=5
 		let args = &ContractNewArgsAPI {
@@ -58,16 +60,19 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 			..Default::default()
 		};
 		slate = api.contract_new(m, args)?;
+		sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Standard1);
 
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		// Receive wallet calls --receive=5
-		let args = &ContractSetupArgsAPI {
+		let mut args = &mut ContractSetupArgsAPI {
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
+		// Note sender address explicity added here
+		args.proof_args.sender_address = sender_address;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;

@@ -15,6 +15,8 @@
 //! Types related to a contract
 
 use crate::grin_core::consensus;
+use crate::slate_versions::ser as dalek_ser;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 
 /// Output selection args
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -102,6 +104,9 @@ pub struct ProofArgs {
 	pub suppress_proof: bool,
 	/// Type of proof (Default 'Invoice')
 	pub proof_type: ProofType,
+	/// Sender address (required at some stage, may not necessarily be in slate so can be provided explicitly)
+	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
+	pub sender_address: Option<DalekPublicKey>,
 }
 
 impl Default for ProofArgs {
@@ -109,6 +114,7 @@ impl Default for ProofArgs {
 		ProofArgs {
 			suppress_proof: false,
 			proof_type: ProofType::Legacy,
+			sender_address: None,
 		}
 	}
 }

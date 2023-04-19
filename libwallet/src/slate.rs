@@ -51,8 +51,9 @@ use crate::Context;
 #[derive(Debug, Clone)]
 pub struct PaymentMemo {
 	// The type of memo
-	// 0x00 is directly embedded additional payment details
-	// 0x01 represents the blake2b hash of an arbitrary invoice document
+	// 0x00 is the absence of any specific memo data
+	// 0x01 is directly embedded additional payment details
+	// 0x02 represents the blake2b hash of an arbitrary invoice document
 	pub memo_type: u8,
 	// memo data itself
 	pub memo: [u8; 32],
