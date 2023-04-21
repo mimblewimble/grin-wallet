@@ -48,7 +48,7 @@ use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PaymentMemo {
 	// The type of memo
 	// 0x00 is the absence of any specific memo data

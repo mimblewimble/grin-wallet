@@ -41,7 +41,7 @@ where
 		Err(_) => true,
 	};
 	// Compute state for 'sign'
-	let (sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;
+	let (mut sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;
 
 	// If we're a recipient, generate proof unless explicity told not to
 	if let Some(ref c) = setup_args.net_change {
@@ -49,7 +49,7 @@ where
 			contract::proofs::add_payment_proof(
 				w,
 				keychain_mask,
-				&sl,
+				&mut sl,
 				&context,
 				&setup_args.proof_args,
 			)?;

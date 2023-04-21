@@ -18,18 +18,25 @@
 
 use crate::contract::types::ProofArgs;
 use crate::grin_core::ser as grin_ser;
-use crate::grin_core::ser::{Writeable, Writer};
+use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::static_secp_instance;
-use crate::slate::{PaymentMemo, Slate};
+use crate::slate::{PaymentInfo, PaymentMemo, Slate};
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
-use crate::{Error, OutputData, OutputStatus, TxLogEntry};
+use crate::util::OnionV3Address;
+use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
+use chrono::{DateTime, NaiveDateTime, Utc};
+use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
+use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::{Signer, Verifier};
+use std::convert::TryInto;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct InvoiceProof {
 	proof_type: u8,
 	amount: u64,
@@ -43,8 +50,18 @@ struct InvoiceProof {
 impl Writeable for InvoiceProof {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		writer.write_u8(1)?;
-		//TODO: Should be 7 bytes
-		writer.write_u64(self.amount)?;
+
+		// Amount field is 7 bytes, throw error if value is greater
+		let mut amount_bytes = [0; 8];
+		BigEndian::write_u64(&mut amount_bytes, self.amount);
+
+		if amount_bytes[0] > 0 {
+			return Err(grin_ser::Error::UnexpectedData {
+				expected: [0u8].to_vec(),
+				received: [amount_bytes[0]].to_vec(),
+			});
+		}
+		writer.write_fixed_bytes(amount_bytes[1..].to_vec())?;
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
@@ -55,6 +72,7 @@ impl Writeable for InvoiceProof {
 					.serialize_vec(&static_secp, true),
 			)?;
 		}
+		writer.write_fixed_bytes(self.sender_address.as_bytes())?;
 		writer.write_i64(self.timestamp)?;
 		match &self.memo {
 			Some(s) => {
@@ -67,6 +85,65 @@ impl Writeable for InvoiceProof {
 			}
 		}
 		Ok(())
+	}
+}
+
+/// Not strictly necessary, but useful for tests
+impl Readable for InvoiceProof {
+	fn read<R: Reader>(reader: &mut R) -> Result<InvoiceProof, grin_ser::Error> {
+		// first 8 bytes are proof type + 7 bytes worth of amount
+		let mut amount = reader.read_u64()?;
+		let proof_type: u8 = ((amount & 0xFF00_0000_0000_0000) >> 56).try_into().unwrap();
+		amount &= 0x00FF_FFFF_FFFF_FFFF;
+
+		let receiver_public_nonce;
+		let receiver_public_excess;
+		{
+			let static_secp = static_secp_instance();
+			let static_secp = static_secp.lock();
+			receiver_public_nonce =
+				PublicKey::from_slice(&static_secp, &reader.read_fixed_bytes(33)?).unwrap();
+			receiver_public_excess =
+				PublicKey::from_slice(&static_secp, &reader.read_fixed_bytes(33)?).unwrap();
+		}
+
+		let sender_address_vec = reader.read_fixed_bytes(32)?;
+		let sender_address = DalekPublicKey::from_bytes(&sender_address_vec).unwrap();
+
+		let timestamp = reader.read_i64()?;
+
+		let memo_type = reader.read_u8()?;
+		let memo = reader.read_fixed_bytes(32)?;
+		let mut memo_bytes: [u8; 32] = [0u8; 32];
+		memo_bytes.copy_from_slice(&memo);
+
+		Ok(InvoiceProof {
+			proof_type,
+			amount,
+			receiver_public_nonce,
+			receiver_public_excess,
+			sender_address,
+			timestamp,
+			memo: match memo_type {
+				0 => None,
+				_ => Some(PaymentMemo {
+					memo_type,
+					memo: memo_bytes,
+				}),
+			},
+		})
+	}
+}
+
+impl serde::Serialize for InvoiceProof {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		let mut vec = vec![];
+		grin_ser::serialize(&mut vec, grin_ser::ProtocolVersion(4), self)
+			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		serializer.serialize_bytes(&vec)
 	}
 }
 
@@ -108,15 +185,29 @@ impl InvoiceProof {
 		})
 	}
 
-	/*pub fn sign() -> DalekSignature {
-
-	}*/
+	pub fn sign(&self, sec_key: &SecretKey) -> Result<(DalekSignature, DalekPublicKey), Error> {
+		let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
+			Ok(k) => k,
+			Err(e) => {
+				return Err(Error::ED25519Key(format!("{}", e)));
+			}
+		};
+		let pub_key: DalekPublicKey = (&d_skey).into();
+		let keypair = DalekKeypair {
+			public: pub_key,
+			secret: d_skey,
+		};
+		let mut sig_data_bin = Vec::new();
+		let _ =
+			grin_ser::serialize_default(&mut sig_data_bin, &self).expect("serialization failed");
+		Ok((keypair.sign(&sig_data_bin), pub_key))
+	}
 }
 
 pub fn add_payment_proof<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
+	slate: &mut Slate,
 	context: &Context,
 	proof_args: &ProofArgs,
 ) -> Result<(), Error>
@@ -126,29 +217,74 @@ where
 	K: Keychain + 'a,
 {
 	// TODO: Just generating invoice (type 1) for now
-	generate_invoice_signature(wallet, keychain_mask, slate, context, proof_args)
+	let (invoice_proof, promise_signature, receiver_address) =
+		generate_invoice_signature(wallet, keychain_mask, slate, context, proof_args)?;
+	let timestamp = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+	let timestamp = DateTime::<Utc>::from_utc(timestamp, Utc);
+
+	let proof = PaymentInfo {
+		sender_address: proof_args.sender_address.clone(),
+		receiver_address,
+		timestamp,
+		promise_signature: Some(promise_signature),
+		memo: invoice_proof.memo,
+	};
+	slate.payment_proof = Some(proof);
+	Ok(())
 }
 
 /// Generates a signature for proof type 'Invoice'
-pub fn generate_invoice_signature<'a, T: ?Sized, C, K>(
+fn generate_invoice_signature<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
+	slate: &mut Slate,
 	context: &Context,
 	proof_args: &ProofArgs,
-) -> Result<(), Error>
+) -> Result<(InvoiceProof, DalekSignature, DalekPublicKey), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
 	//TODO: Hardcoded 1
-	let sig_data = InvoiceProof::from_slate(&slate, 1, proof_args.sender_address)?;
-	let mut sig_data_bin = Vec::new();
-	let _ =
-		grin_ser::serialize_default(&mut sig_data_bin, &sig_data).expect("serialization failed");
+	let mut invoice_proof = InvoiceProof::from_slate(&slate, 1, proof_args.sender_address)?;
+	let derivation_index = match context.payment_proof_derivation_index {
+		Some(i) => i,
+		None => 0,
+	};
+	let keychain = wallet.keychain(keychain_mask)?;
+	let parent_key_id = wallet.parent_key_id();
+	let sender_key =
+		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 
-	error!("SIG DATA: {:?}", sig_data);
-	error!("SIG DATA BIN: {:?}", sig_data_bin);
-	Ok(())
+	invoice_proof.timestamp = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0).timestamp();
+	let (sig, addr) = invoice_proof.sign(&sender_key)?;
+	Ok((invoice_proof, sig, addr))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::slate_versions::tests::populate_test_slate;
+
+	#[test]
+	fn ser_invoice_proof() -> Result<(), Error> {
+		let mut slate = populate_test_slate()?;
+		slate.amount |= 0xFF00_0000_0000_0000;
+
+		// Should fail, amount too big
+		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+		let mut vec = Vec::new();
+		assert!(grin_ser::serialize_default(&mut vec, &invoice_proof).is_err());
+
+		// Should be okay now
+		slate.amount = 1234;
+		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+		let mut vec = Vec::new();
+		grin_ser::serialize_default(&mut vec, &invoice_proof).expect("Serialization Failed");
+
+		let proof_deser: InvoiceProof = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
+		assert_eq!(invoice_proof, proof_deser);
+		Ok(())
+	}
 }

@@ -141,7 +141,7 @@ impl VersionedCoinbase {
 	}
 }
 #[cfg(test)]
-mod tests {
+pub mod tests {
 	use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
@@ -159,7 +159,7 @@ mod tests {
 	use std::convert::TryInto;
 
 	// Populate a test internal slate with all fields to test conversions
-	fn populate_test_slate() -> Result<Slate, Error> {
+	pub fn populate_test_slate() -> Result<Slate, Error> {
 		let keychain = ExtKeychain::from_random_seed(true).unwrap();
 		let switch = SwitchCommitmentType::Regular;
 
@@ -227,7 +227,7 @@ mod tests {
 		let ts = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
 		let ts = DateTime::<Utc>::from_utc(ts, Utc);
 		let pm = PaymentMemo {
-			memo_type: 0,
+			memo_type: 1,
 			memo: [9; 32],
 		};
 

@@ -61,6 +61,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		};
 		slate = api.contract_new(m, args)?;
 		sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
+		println!("SET UP SLATE: {}", slate);
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Standard1);
@@ -74,6 +75,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		// Note sender address explicity added here
 		args.proof_args.sender_address = sender_address;
 		slate = api.contract_sign(m, &slate, args)?;
+		println!("(SHOULD BE) SIGNED SLATE: {}", slate);
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Standard2);
