@@ -16,7 +16,7 @@
 
 mod actions;
 mod context;
-mod proofs;
+pub mod proofs;
 mod selection;
 mod slate;
 pub mod types;

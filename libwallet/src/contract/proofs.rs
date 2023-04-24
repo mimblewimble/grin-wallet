@@ -21,6 +21,7 @@ use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentInfo, PaymentMemo, Slate};
 use crate::slate_versions::ser;
@@ -35,13 +36,20 @@ use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::{Signer, Verifier};
 use std::convert::TryInto;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ProofWitness {}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ProofWitness {
+	/// Kernel index, supplied so verifiers can look up kernel
+	/// without an expensive lookup operation
+	kernel_index: u64,
+	/// Kernel commitment, supplied so prover can recompute index
+	/// if required after a reorg
+	kernel_commitment: Commitment,
+}
 
 // Payment proof, to be extracted from slates for
 // signing (when wrapped as PaymentProofBin) or json export
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-struct InvoiceProof {
+pub struct InvoiceProof {
 	proof_type: u8,
 	amount: u64,
 	receiver_public_nonce: PublicKey,
@@ -54,6 +62,10 @@ struct InvoiceProof {
 	/// Not serialized in binary format
 	#[serde(with = "ser::option_dalek_sig_serde")]
 	promise_signature: Option<DalekSignature>,
+	/// Not serialized in binary format, just a convenient place to insert
+	/// the witness kernel commitment index
+	#[serde(skip_serializing_if = "Option::is_none")]
+	witness_data: Option<ProofWitness>,
 }
 
 struct InvoiceProofBin(InvoiceProof);
@@ -147,6 +159,7 @@ impl Readable for InvoiceProofBin {
 				}),
 			},
 			promise_signature: None,
+			witness_data: None,
 		};
 
 		Ok(InvoiceProofBin(res))
@@ -154,6 +167,7 @@ impl Readable for InvoiceProofBin {
 }
 
 impl InvoiceProof {
+	/// Extracts as much data as possible from the slate to create an invoice proof
 	pub fn from_slate(
 		slate: &Slate,
 		participant_index: usize,
@@ -175,6 +189,11 @@ impl InvoiceProof {
 			}
 		};
 
+		let timestamp = match slate.payment_proof.as_ref() {
+			Some(p) => NaiveDateTime::from_timestamp(p.timestamp.timestamp(), 0).timestamp(),
+			None => 0,
+		};
+
 		let memo = match slate.payment_proof.as_ref() {
 			Some(p) => p.memo.clone(),
 			None => None,
@@ -191,9 +210,10 @@ impl InvoiceProof {
 			receiver_public_nonce: slate.participant_data[participant_index].public_nonce,
 			receiver_public_excess: slate.participant_data[participant_index].public_blind_excess,
 			sender_address,
-			timestamp: 0,
+			timestamp,
 			memo,
 			promise_signature,
+			witness_data: None,
 		})
 	}
 
@@ -214,6 +234,10 @@ impl InvoiceProof {
 			.expect("serialization failed");
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
+
+	pub fn verify(&self) -> Result<(), Error> {
+		Ok(())
+	}
 }
 
 impl serde::Serialize for InvoiceProofBin {
@@ -228,6 +252,7 @@ impl serde::Serialize for InvoiceProofBin {
 	}
 }
 
+/// Adds all info needed for a payment proof to a slate, complete with signed receipient data
 pub fn add_payment_proof<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,

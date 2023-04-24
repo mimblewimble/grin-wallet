@@ -26,6 +26,7 @@ use grin_wallet_libwallet as libwallet;
 
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
+use libwallet::contract::proofs::InvoiceProof;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
@@ -138,6 +139,10 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		assert_eq!(tx_log.fee, Some(my_fee_contribution(1, 1, 1, 2)?));
 		Ok(())
 	})?;
+
+	// Now extract the payment proof info from the slate, add witness data, and verify
+	let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+	println!("INVOICE PROOF: {:?}", invoice_proof);
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
