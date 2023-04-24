@@ -78,4 +78,4 @@ grin_wallet_libwallet = { path = "../libwallet", version = "5.2.0-alpha.1" }
 #####
 
 [dev-dependencies]
-"remove_dir_all" = "0.7"
+"remove_dir_all" = "0.8"
