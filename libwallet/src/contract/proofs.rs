@@ -20,14 +20,13 @@ use crate::contract::types::ProofArgs;
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::PublicKey;
-use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentInfo, PaymentMemo, Slate};
-use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
-use crate::util::OnionV3Address;
-use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
-use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
+use crate::slate_versions::ser;
+use crate::types::{Context, NodeClient, WalletBackend};
+use crate::{address, Error};
+use byteorder::{BigEndian, ByteOrder};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -37,23 +36,35 @@ use ed25519_dalek::{Signer, Verifier};
 use std::convert::TryInto;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct ProofWitness {}
+
+// Payment proof, to be extracted from slates for
+// signing (when wrapped as PaymentProofBin) or json export
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 struct InvoiceProof {
 	proof_type: u8,
 	amount: u64,
 	receiver_public_nonce: PublicKey,
 	receiver_public_excess: PublicKey,
+	#[serde(with = "ser::dalek_pubkey_serde")]
 	sender_address: DalekPublicKey,
 	timestamp: i64,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	memo: Option<PaymentMemo>,
+	/// Not serialized in binary format
+	#[serde(with = "ser::option_dalek_sig_serde")]
+	promise_signature: Option<DalekSignature>,
 }
 
-impl Writeable for InvoiceProof {
+struct InvoiceProofBin(InvoiceProof);
+
+impl Writeable for InvoiceProofBin {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		writer.write_u8(1)?;
 
 		// Amount field is 7 bytes, throw error if value is greater
 		let mut amount_bytes = [0; 8];
-		BigEndian::write_u64(&mut amount_bytes, self.amount);
+		BigEndian::write_u64(&mut amount_bytes, self.0.amount);
 
 		if amount_bytes[0] > 0 {
 			return Err(grin_ser::Error::UnexpectedData {
@@ -65,16 +76,20 @@ impl Writeable for InvoiceProof {
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
-			writer
-				.write_fixed_bytes(self.receiver_public_nonce.serialize_vec(&static_secp, true))?;
 			writer.write_fixed_bytes(
-				self.receiver_public_excess
+				self.0
+					.receiver_public_nonce
+					.serialize_vec(&static_secp, true),
+			)?;
+			writer.write_fixed_bytes(
+				self.0
+					.receiver_public_excess
 					.serialize_vec(&static_secp, true),
 			)?;
 		}
-		writer.write_fixed_bytes(self.sender_address.as_bytes())?;
-		writer.write_i64(self.timestamp)?;
-		match &self.memo {
+		writer.write_fixed_bytes(self.0.sender_address.as_bytes())?;
+		writer.write_i64(self.0.timestamp)?;
+		match &self.0.memo {
 			Some(s) => {
 				writer.write_u8(s.memo_type)?;
 				writer.write_fixed_bytes(&s.memo.to_vec())?;
@@ -89,8 +104,8 @@ impl Writeable for InvoiceProof {
 }
 
 /// Not strictly necessary, but useful for tests
-impl Readable for InvoiceProof {
-	fn read<R: Reader>(reader: &mut R) -> Result<InvoiceProof, grin_ser::Error> {
+impl Readable for InvoiceProofBin {
+	fn read<R: Reader>(reader: &mut R) -> Result<InvoiceProofBin, grin_ser::Error> {
 		// first 8 bytes are proof type + 7 bytes worth of amount
 		let mut amount = reader.read_u64()?;
 		let proof_type: u8 = ((amount & 0xFF00_0000_0000_0000) >> 56).try_into().unwrap();
@@ -117,7 +132,7 @@ impl Readable for InvoiceProof {
 		let mut memo_bytes: [u8; 32] = [0u8; 32];
 		memo_bytes.copy_from_slice(&memo);
 
-		Ok(InvoiceProof {
+		let res = InvoiceProof {
 			proof_type,
 			amount,
 			receiver_public_nonce,
@@ -131,19 +146,10 @@ impl Readable for InvoiceProof {
 					memo: memo_bytes,
 				}),
 			},
-		})
-	}
-}
+			promise_signature: None,
+		};
 
-impl serde::Serialize for InvoiceProof {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: serde::Serializer,
-	{
-		let mut vec = vec![];
-		grin_ser::serialize(&mut vec, grin_ser::ProtocolVersion(4), self)
-			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
-		serializer.serialize_bytes(&vec)
+		Ok(InvoiceProofBin(res))
 	}
 }
 
@@ -174,6 +180,11 @@ impl InvoiceProof {
 			None => None,
 		};
 
+		let promise_signature = match slate.payment_proof.as_ref() {
+			Some(p) => p.promise_signature.clone(),
+			None => None,
+		};
+
 		Ok(Self {
 			proof_type: 1u8,
 			amount: slate.amount,
@@ -182,6 +193,7 @@ impl InvoiceProof {
 			sender_address,
 			timestamp: 0,
 			memo,
+			promise_signature,
 		})
 	}
 
@@ -198,9 +210,21 @@ impl InvoiceProof {
 			secret: d_skey,
 		};
 		let mut sig_data_bin = Vec::new();
-		let _ =
-			grin_ser::serialize_default(&mut sig_data_bin, &self).expect("serialization failed");
+		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
+			.expect("serialization failed");
 		Ok((keypair.sign(&sig_data_bin), pub_key))
+	}
+}
+
+impl serde::Serialize for InvoiceProofBin {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		let mut vec = vec![];
+		grin_ser::serialize(&mut vec, grin_ser::ProtocolVersion(4), self)
+			.map_err(|err| serde::ser::Error::custom(err.to_string()))?;
+		serializer.serialize_bytes(&vec)
 	}
 }
 
@@ -268,23 +292,26 @@ mod tests {
 	use crate::slate_versions::tests::populate_test_slate;
 
 	#[test]
-	fn ser_invoice_proof() -> Result<(), Error> {
+	fn ser_invoice_proof_bin() -> Result<(), Error> {
 		let mut slate = populate_test_slate()?;
 		slate.amount |= 0xFF00_0000_0000_0000;
+		// Bin serialization doesn't include promise sig as it's used to create signature data
+		slate.payment_proof.as_mut().unwrap().promise_signature = None;
 
 		// Should fail, amount too big
 		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
 		let mut vec = Vec::new();
-		assert!(grin_ser::serialize_default(&mut vec, &invoice_proof).is_err());
+		assert!(grin_ser::serialize_default(&mut vec, &InvoiceProofBin(invoice_proof)).is_err());
 
 		// Should be okay now
 		slate.amount = 1234;
 		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
 		let mut vec = Vec::new();
-		grin_ser::serialize_default(&mut vec, &invoice_proof).expect("Serialization Failed");
+		grin_ser::serialize_default(&mut vec, &InvoiceProofBin(invoice_proof.clone()))
+			.expect("Serialization Failed");
 
-		let proof_deser: InvoiceProof = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
-		assert_eq!(invoice_proof, proof_deser);
+		let proof_deser: InvoiceProofBin = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
+		assert_eq!(invoice_proof, proof_deser.0);
 		Ok(())
 	}
 }
