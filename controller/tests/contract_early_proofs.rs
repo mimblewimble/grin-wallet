@@ -144,7 +144,8 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	})?;
 
 	// Now extract the payment proof info from the slate, add witness data, and verify
-	let mut invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+	let mut invoice_proof = InvoiceProof::from_slate(&slate, 0, None)?;
+	print!("PRE INVOICE PROOF SLATE: {}", slate);
 	println!("INVOICE PROOF: {:?}", invoice_proof);
 
 	// going as far as to extract the kernel and index

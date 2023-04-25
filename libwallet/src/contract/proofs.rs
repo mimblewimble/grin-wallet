@@ -232,6 +232,9 @@ impl InvoiceProof {
 		let mut sig_data_bin = Vec::new();
 		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
 			.expect("serialization failed");
+		println!("SIGN PUB KEY: {:?}", pub_key);
+		println!("SIGN MESSAGE: {:?}", sig_data_bin);
+		println!("SELF: {:?}", self);
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
 
@@ -243,6 +246,12 @@ impl InvoiceProof {
 		let mut sig_data_bin = Vec::new();
 		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
 			.expect("serialization failed");
+
+		println!("VERIFY KEY: {:?}", recipient_address);
+		println!("MESSAGE: {:?}", sig_data_bin);
+		println!("SELF: {:?}", self);
+
+		// validate the promise signature
 		if recipient_address
 			.verify(&sig_data_bin, self.promise_signature.as_ref().unwrap())
 			.is_err()
@@ -318,11 +327,11 @@ where
 	};
 	let keychain = wallet.keychain(keychain_mask)?;
 	let parent_key_id = wallet.parent_key_id();
-	let sender_key =
+	let recp_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 
 	invoice_proof.timestamp = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0).timestamp();
-	let (sig, addr) = invoice_proof.sign(&sender_key)?;
+	let (sig, addr) = invoice_proof.sign(&recp_key)?;
 	Ok((invoice_proof, sig, addr))
 }
 
