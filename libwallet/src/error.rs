@@ -249,6 +249,10 @@ pub enum Error {
 	#[error("Payment Proof parsing error: {0}")]
 	PaymentProofParsing(String),
 
+	/// Retrieving Payment Proof
+	#[error("Unable to verify payment proof: {0}")]
+	PaymentProofValidation(String),
+
 	/// Decoding OnionV3 addresses to payment proof addresses
 	#[error("Proof Address decoding: {0}")]
 	AddressDecoding(String),

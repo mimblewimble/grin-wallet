@@ -40,32 +40,32 @@ use std::convert::TryInto;
 pub struct ProofWitness {
 	/// Kernel index, supplied so verifiers can look up kernel
 	/// without an expensive lookup operation
-	kernel_index: u64,
+	pub kernel_index: u64,
 	/// Kernel commitment, supplied so prover can recompute index
 	/// if required after a reorg
-	kernel_commitment: Commitment,
+	pub kernel_commitment: Commitment,
 }
 
 // Payment proof, to be extracted from slates for
 // signing (when wrapped as PaymentProofBin) or json export
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct InvoiceProof {
-	proof_type: u8,
-	amount: u64,
-	receiver_public_nonce: PublicKey,
-	receiver_public_excess: PublicKey,
+	pub proof_type: u8,
+	pub amount: u64,
+	pub receiver_public_nonce: PublicKey,
+	pub receiver_public_excess: PublicKey,
 	#[serde(with = "ser::dalek_pubkey_serde")]
-	sender_address: DalekPublicKey,
-	timestamp: i64,
+	pub sender_address: DalekPublicKey,
+	pub timestamp: i64,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	memo: Option<PaymentMemo>,
+	pub memo: Option<PaymentMemo>,
 	/// Not serialized in binary format
 	#[serde(with = "ser::option_dalek_sig_serde")]
-	promise_signature: Option<DalekSignature>,
+	pub promise_signature: Option<DalekSignature>,
 	/// Not serialized in binary format, just a convenient place to insert
 	/// the witness kernel commitment index
 	#[serde(skip_serializing_if = "Option::is_none")]
-	witness_data: Option<ProofWitness>,
+	pub witness_data: Option<ProofWitness>,
 }
 
 struct InvoiceProofBin(InvoiceProof);
@@ -235,7 +235,22 @@ impl InvoiceProof {
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
 
-	pub fn verify(&self) -> Result<(), Error> {
+	pub fn verify(&self, recipient_address: &DalekPublicKey) -> Result<(), Error> {
+		if self.witness_data.is_none() {
+			return Err(Error::PaymentProofValidation("Missing witness data".into()));
+		}
+		// Rebuild message
+		let mut sig_data_bin = Vec::new();
+		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
+			.expect("serialization failed");
+		if recipient_address
+			.verify(&sig_data_bin, self.promise_signature.as_ref().unwrap())
+			.is_err()
+		{
+			return Err(Error::PaymentProof(
+				"Invalid recipient signature".to_owned(),
+			));
+		};
 		Ok(())
 	}
 }
@@ -252,7 +267,7 @@ impl serde::Serialize for InvoiceProofBin {
 	}
 }
 
-/// Adds all info needed for a payment proof to a slate, complete with signed receipient data
+/// Adds all info needed for a payment proof to a slate, complete with signed recipient data
 pub fn add_payment_proof<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,

@@ -24,9 +24,10 @@ extern crate log;
 
 use grin_wallet_libwallet as libwallet;
 
+use grin_util::static_secp_instance;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::proofs::InvoiceProof;
+use libwallet::contract::proofs::{InvoiceProof, ProofWitness};
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
@@ -67,6 +68,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	})?;
 	assert_eq!(slate.state, SlateState::Standard1);
 
+	let mut recipient_address = None;
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		// Receive wallet calls --receive=5
 		let mut args = &mut ContractSetupArgsAPI {
@@ -76,6 +78,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		// Note sender address explicity added here
 		args.proof_args.sender_address = sender_address;
 		slate = api.contract_sign(m, &slate, args)?;
+		recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
 		println!("(SHOULD BE) SIGNED SLATE: {}", slate);
 		Ok(())
 	})?;
@@ -141,8 +144,34 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	})?;
 
 	// Now extract the payment proof info from the slate, add witness data, and verify
-	let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+	let mut invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
 	println!("INVOICE PROOF: {:?}", invoice_proof);
+
+	// going as far as to extract the kernel and index
+	let (commit, index) = {
+		let static_secp = static_secp_instance();
+		let static_secp = static_secp.lock();
+		let excess = slate.calc_excess(&static_secp)?;
+		let retrieved_kernel = chain
+			.get_kernel_height(&excess, None, None)
+			.unwrap()
+			.unwrap();
+		(retrieved_kernel.0.excess, retrieved_kernel.2)
+	};
+
+	println!("Commit: {:?}, index: {}", commit, index);
+	let recipient_address = recipient_address.unwrap();
+
+	// Missing witness data
+	assert!(invoice_proof.verify(&recipient_address).is_err());
+
+	invoice_proof.witness_data = Some(ProofWitness {
+		kernel_index: index,
+		kernel_commitment: commit,
+	});
+
+	// Straight up simple verification
+	invoice_proof.verify(&recipient_address)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
