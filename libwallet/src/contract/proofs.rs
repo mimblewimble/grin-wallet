@@ -17,11 +17,13 @@
 //! by legacy transactions
 
 use crate::contract::types::ProofArgs;
+use crate::grin_core::libtx::aggsig;
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
+use crate::grin_util::secp::Signature;
 use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentInfo, PaymentMemo, Slate};
 use crate::slate_versions::ser;
@@ -44,6 +46,11 @@ pub struct ProofWitness {
 	/// Kernel commitment, supplied so prover can recompute index
 	/// if required after a reorg
 	pub kernel_commitment: Commitment,
+	/// sender partial signature, used to recover receiver partial signature
+	pub sender_partial_sig: Signature,
+	/// Sender excess sig (to leave matters of kernel lookup to modules outside this one)
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub kernel_excess: Option<Signature>,
 }
 
 // Payment proof, to be extracted from slates for
@@ -238,20 +245,21 @@ impl InvoiceProof {
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
 
-	pub fn verify(&self, recipient_address: &DalekPublicKey) -> Result<(), Error> {
-		if self.witness_data.is_none() {
-			return Err(Error::PaymentProofValidation("Missing witness data".into()));
+	pub fn verify_promise_signature(
+		&self,
+		recipient_address: &DalekPublicKey,
+	) -> Result<(), Error> {
+		if self.promise_signature.is_none() {
+			return Err(Error::PaymentProofValidation(
+				"Missing promise signature".into(),
+			));
 		}
+
 		// Rebuild message
 		let mut sig_data_bin = Vec::new();
 		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
 			.expect("serialization failed");
 
-		println!("VERIFY KEY: {:?}", recipient_address);
-		println!("MESSAGE: {:?}", sig_data_bin);
-		println!("SELF: {:?}", self);
-
-		// validate the promise signature
 		if recipient_address
 			.verify(&sig_data_bin, self.promise_signature.as_ref().unwrap())
 			.is_err()
@@ -260,6 +268,29 @@ impl InvoiceProof {
 				"Invalid recipient signature".to_owned(),
 			));
 		};
+		Ok(())
+	}
+
+	pub fn verify_witness(&self) -> Result<(), Error> {
+		if self.witness_data.is_none() {
+			return Err(Error::PaymentProofValidation("Missing witness data".into()));
+		}
+
+		// Calculate SR
+		let wd = self.witness_data.as_ref().unwrap().clone();
+		if wd.kernel_excess.is_none() {
+			return Err(Error::PaymentProofValidation(
+				"Corresponding kernel excess signature must be provided".into(),
+			));
+		}
+		let kernel_excess = wd.kernel_excess.unwrap().clone();
+		let part_sigs = vec![kernel_excess, wd.sender_partial_sig];
+		{
+			let static_secp = static_secp_instance();
+			let static_secp = static_secp.lock();
+			//let receiver_part_sig = aggsig::add_signatures(static_secp, part_sigs, nonce_sum);
+		}
+
 		Ok(())
 	}
 }
