@@ -52,16 +52,16 @@ grin_wallet_config = { path = "../config", version = "5.2.0-alpha.1" }
 # grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
 
 # For bleeding edge
- grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
- grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
- grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
- grin_api = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+# grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+# grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+# grin_api = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
-# grin_core = { path = "../../grin/core"}
-# grin_keychain = { path = "../../grin/keychain"}
-# grin_util = { path = "../../grin/util"}
-# grin_api = { path = "../../grin/api"}
+ grin_core = { path = "../../grin/core"}
+ grin_keychain = { path = "../../grin/keychain"}
+ grin_util = { path = "../../grin/util"}
+ grin_api = { path = "../../grin/api"}
 
 #####
 
@@ -79,10 +79,10 @@ remove_dir_all = "0.7"
 # grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
 
 # For bleeding edge
-  grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+#  grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
-# grin_chain = { path = "../../grin/chain"}
+ grin_chain = { path = "../../grin/chain"}
 
 ##### 
 

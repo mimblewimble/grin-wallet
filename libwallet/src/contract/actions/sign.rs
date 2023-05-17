@@ -45,7 +45,7 @@ where
 
 	// If we're a recipient, generate proof unless explicity told not to
 	if let Some(ref c) = setup_args.net_change {
-		if *c > 0 && !setup_args.proof_args.suppress_proof {
+		if *c > 0 && !setup_args.proof_args.suppress_proof && sl.payment_proof.is_none() {
 			contract::proofs::add_payment_proof(
 				w,
 				keychain_mask,

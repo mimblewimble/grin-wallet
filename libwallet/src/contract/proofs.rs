@@ -211,6 +211,8 @@ impl InvoiceProof {
 			None => None,
 		};
 
+		println!("PARTICIPANT INDEX>>>>   {}", participant_index);
+
 		Ok(Self {
 			proof_type: 1u8,
 			amount: slate.amount,
@@ -288,7 +290,48 @@ impl InvoiceProof {
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
-			//let receiver_part_sig = aggsig::add_signatures(static_secp, part_sigs, nonce_sum);
+
+			let receiver_part_sig =
+				aggsig::subtract_signature(&static_secp, &kernel_excess, &wd.sender_partial_sig)?;
+			println!("provided kernel excess : {:?}", wd.kernel_excess);
+			println!("calculated receiver part sig: {:?}", receiver_part_sig.0);
+			println!(
+				"calculated receiver part sig alternate: {:?}",
+				receiver_part_sig.1
+			);
+			println!("");
+
+			let mut compressed_pub_nonce = [3u8; 33];
+			compressed_pub_nonce[1..33].copy_from_slice(&receiver_part_sig.0[0..32]);
+
+			let calculated_receiver_public_nonce =
+				PublicKey::from_slice(&static_secp, &compressed_pub_nonce)?;
+			println!("receiver_public_nonce: {:?}", self.receiver_public_nonce);
+			println!(
+				"calculated receiver_public_nonce: {:?}",
+				calculated_receiver_public_nonce
+			);
+			println!("");
+
+			// Calculate s (receiver partial sig) * G
+			let sk = SecretKey::from_slice(&static_secp, &receiver_part_sig.0[32..64])?;
+			let pk_sg = PublicKey::from_secret_key(&static_secp, &sk)?;
+			println!("calculated s*G: {:?}", pk_sg);
+
+			// s*G = R + e*X
+			// X = receiver public excess for (PublicKey), self.reciever_public_excess
+			// R = receiver public nonce (PublicKey), self.receiver_public_nonce
+
+			//println!("receiver public nonce: {:?}", self.receiver_public_nonce);
+
+			let sum = PublicKey::from_combination(
+				&static_secp,
+				vec![
+					&calculated_receiver_public_nonce,
+					&self.receiver_public_excess,
+				],
+			)?;
+			println!("calculated sum R + e*X: {:?}", sum);
 		}
 
 		Ok(())
@@ -350,13 +393,13 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	//TODO: Hardcoded 1
-	let mut invoice_proof = InvoiceProof::from_slate(&slate, 1, proof_args.sender_address)?;
+	let keychain = wallet.keychain(keychain_mask)?;
+	let index = slate.find_index_matching_context(&keychain, context)?;
+	let mut invoice_proof = InvoiceProof::from_slate(&slate, index, proof_args.sender_address)?;
 	let derivation_index = match context.payment_proof_derivation_index {
 		Some(i) => i,
 		None => 0,
 	};
-	let keychain = wallet.keychain(keychain_mask)?;
 	let parent_key_id = wallet.parent_key_id();
 	let recp_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;

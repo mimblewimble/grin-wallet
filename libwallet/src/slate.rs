@@ -411,6 +411,28 @@ impl Slate {
 		Ok(msg)
 	}
 
+	/// Matches a participant index on the slate with the stored context
+	pub fn find_index_matching_context<K>(
+		&mut self,
+		keychain: &K,
+		context: &Context,
+	) -> Result<usize, Error>
+	where
+		K: Keychain,
+	{
+		for i in 0..self.num_participants() as usize {
+			let calc_pub_excess = PublicKey::from_secret_key(keychain.secp(), &context.sec_key)?;
+			let calc_pub_nonce = PublicKey::from_secret_key(keychain.secp(), &context.sec_nonce)?;
+
+			// find my entry
+			if self.participant_data[i].public_blind_excess == calc_pub_excess
+				|| self.participant_data[i].public_nonce == calc_pub_nonce
+			{
+				return Ok(i);
+			}
+		}
+		return Err(Error::ContextToIndex);
+	}
 	/// Completes caller's part of round 2, completing signatures
 	pub fn fill_round_2<K>(
 		&mut self,

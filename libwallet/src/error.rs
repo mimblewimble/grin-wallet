@@ -309,6 +309,10 @@ pub enum Error {
 	#[error("Stored Tx error: {0}")]
 	StoredTx(String),
 
+	/// Trying to match index to context
+	#[error("Cannot match transaction context to slate index")]
+	ContextToIndex,
+
 	/// Other
 	#[error("Generic error: {0}")]
 	GenericError(String),

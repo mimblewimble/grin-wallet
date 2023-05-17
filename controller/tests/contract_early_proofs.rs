@@ -95,6 +95,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
 		invoice_proof.verify_promise_signature(&recipient_address.as_ref().unwrap())?;
 		slate = api.contract_sign(m, &slate, args)?;
+		println!("(FINAL) SIGNED SLATE: {}", slate);
 		// Store this in process for the time being, eventually this will need to be stored
 		// indefinitely along with the rest of the proof data
 		sender_part_sig = Some(slate.participant_data[0].part_sig.unwrap());
@@ -175,6 +176,14 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 
 	println!("Commit: {:?}, index: {}", commit, index);
 
+	//println!("PART SIG 0: {:?}", slate.participant_data[0].part_sig);
+	println!("PART SIG 1: {:?}", slate.participant_data[1].part_sig);
+	println!("NONCE 1: {:?}", slate.participant_data[1].public_nonce);
+	println!("NONCE 0: {:?}", slate.participant_data[0].public_nonce);
+	println!(
+		"BLIND XS 1: {:?}",
+		slate.participant_data[1].public_blind_excess
+	);
 	// Missing witness data
 	assert!(invoice_proof.verify_witness().is_err());
 
