@@ -1494,3 +1494,20 @@ where
 {
 	contract::revoke(&mut *w, keychain_mask, &args)
 }
+
+/// Revoke transaction contract
+pub fn get_slate_index_matching_my_context<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	// use_test_rng: bool,
+) -> Result<usize, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = w.keychain(keychain_mask)?;
+	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+	slate.find_index_matching_context(&keychain, &context)
+}

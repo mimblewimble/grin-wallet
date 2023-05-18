@@ -36,6 +36,7 @@ use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::{Signer, Verifier};
+use grin_util::secp::Message;
 use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -51,6 +52,9 @@ pub struct ProofWitness {
 	/// Sender excess sig (to leave matters of kernel lookup to modules outside this one)
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub kernel_excess: Option<Signature>,
+	/// Kernel message
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub kernel_message: Option<Message>,
 }
 
 // Payment proof, to be extracted from slates for
@@ -181,6 +185,7 @@ impl InvoiceProof {
 		sender_address: Option<DalekPublicKey>,
 	) -> Result<Self, Error> {
 		// Sender address is either provided or in slate (or error)
+		println!("SLATE ON EXTRACTING PROOF: {}", slate);
 		let sender_address = match sender_address {
 			Some(a) => a,
 			None => {
@@ -273,12 +278,19 @@ impl InvoiceProof {
 		Ok(())
 	}
 
-	pub fn verify_witness(&self) -> Result<(), Error> {
+	pub fn verify_witness(&self, recipient_address: Option<&DalekPublicKey>) -> Result<(), Error> {
 		if self.witness_data.is_none() {
 			return Err(Error::PaymentProofValidation("Missing witness data".into()));
 		}
 
-		// Calculate SR
+		if let Some(a) = recipient_address {
+			println!(
+				"receiver_public_excess on sig verify: {:?}",
+				self.receiver_public_excess
+			);
+			self.verify_promise_signature(a)?;
+		};
+
 		let wd = self.witness_data.as_ref().unwrap().clone();
 		if wd.kernel_excess.is_none() {
 			return Err(Error::PaymentProofValidation(
@@ -286,13 +298,14 @@ impl InvoiceProof {
 			));
 		}
 		let kernel_excess = wd.kernel_excess.unwrap().clone();
-		let part_sigs = vec![kernel_excess, wd.sender_partial_sig];
+		let msg = wd.kernel_message.unwrap().clone();
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
 
 			let receiver_part_sig =
 				aggsig::subtract_signature(&static_secp, &kernel_excess, &wd.sender_partial_sig)?;
+
 			println!("provided kernel excess : {:?}", wd.kernel_excess);
 			println!("calculated receiver part sig: {:?}", receiver_part_sig.0);
 			println!(
@@ -301,37 +314,44 @@ impl InvoiceProof {
 			);
 			println!("");
 
-			let mut compressed_pub_nonce = [3u8; 33];
-			compressed_pub_nonce[1..33].copy_from_slice(&receiver_part_sig.0[0..32]);
+			// Retrieve the public nonce sum from the kernel excess signature
+			let mut pub_nonce_sum_bytes = [3u8; 33];
+			pub_nonce_sum_bytes[1..33].copy_from_slice(&kernel_excess[0..32]);
+			let pub_nonce_sum = PublicKey::from_slice(&static_secp, &pub_nonce_sum_bytes)?;
 
-			let calculated_receiver_public_nonce =
-				PublicKey::from_slice(&static_secp, &compressed_pub_nonce)?;
-			println!("receiver_public_nonce: {:?}", self.receiver_public_nonce);
-			println!(
-				"calculated receiver_public_nonce: {:?}",
-				calculated_receiver_public_nonce
-			);
-			println!("");
+			// Retrieve the public key sum from the kernel excess
+			let pub_blind_sum = wd.kernel_commitment.to_pubkey(&static_secp)?;
 
-			// Calculate s (receiver partial sig) * G
-			let sk = SecretKey::from_slice(&static_secp, &receiver_part_sig.0[32..64])?;
-			let pk_sg = PublicKey::from_secret_key(&static_secp, &sk)?;
-			println!("calculated s*G: {:?}", pk_sg);
+			println!("VERIFYING MSG: {:?}", msg);
+			println!("RECEIVER PART SIG {:?}", receiver_part_sig.0);
+			println!("PUB NONCE SUM {:?}", pub_nonce_sum);
+			println!("PUB BLIND EXCESS {:?}", &self.receiver_public_excess);
+			println!("PUB KEY SUM {:?}", pub_blind_sum);
 
-			// s*G = R + e*X
-			// X = receiver public excess for (PublicKey), self.reciever_public_excess
-			// R = receiver public nonce (PublicKey), self.receiver_public_nonce
-
-			//println!("receiver public nonce: {:?}", self.receiver_public_nonce);
-
-			let sum = PublicKey::from_combination(
+			if let Err(_) = aggsig::verify_partial_sig(
 				&static_secp,
-				vec![
-					&calculated_receiver_public_nonce,
-					&self.receiver_public_excess,
-				],
-			)?;
-			println!("calculated sum R + e*X: {:?}", sum);
+				&receiver_part_sig.0,
+				&pub_nonce_sum,
+				&self.receiver_public_excess,
+				Some(&pub_blind_sum),
+				&msg,
+			) {
+				// Try other possibility
+				if let Some(s) = receiver_part_sig.1 {
+					aggsig::verify_partial_sig(
+						&static_secp,
+						&s,
+						&pub_nonce_sum,
+						&self.receiver_public_excess,
+						Some(&pub_blind_sum),
+						&msg,
+					)?;
+				} else {
+					return Err(Error::PaymentProofValidation(
+						"Signature subtraction failed".into(),
+					));
+				}
+			}
 		}
 
 		Ok(())
@@ -396,6 +416,10 @@ where
 	let keychain = wallet.keychain(keychain_mask)?;
 	let index = slate.find_index_matching_context(&keychain, context)?;
 	let mut invoice_proof = InvoiceProof::from_slate(&slate, index, proof_args.sender_address)?;
+	println!(
+		"INVOICE PROOF ON INVOICE SIGNATURE CREATION: {:?}",
+		invoice_proof
+	);
 	let derivation_index = match context.payment_proof_derivation_index {
 		Some(i) => i,
 		None => 0,

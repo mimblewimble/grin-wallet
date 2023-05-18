@@ -807,6 +807,17 @@ where
 	}
 
 	/// TODO
+	pub fn get_slate_index_matching_my_context(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<usize, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_slate_index_matching_my_context(&mut **w, keychain_mask, &slate)
+	}
+
+	/// TODO
 	pub fn contract_revoke(
 		&self,
 		keychain_mask: Option<&SecretKey>,

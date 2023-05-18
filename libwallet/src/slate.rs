@@ -413,7 +413,7 @@ impl Slate {
 
 	/// Matches a participant index on the slate with the stored context
 	pub fn find_index_matching_context<K>(
-		&mut self,
+		&self,
 		keychain: &K,
 		context: &Context,
 	) -> Result<usize, Error>
@@ -630,6 +630,30 @@ impl Slate {
 		// collect public nonces
 		for p in self.participant_data.iter() {
 			if p.is_complete() {
+				println!("ORIG VALIDATION VALUES");
+				println!("----------------------");
+				println!(
+					"PART SIG MSG VERIFYING DURING SIGN: {:?}",
+					&self.msg_to_sign()?
+				);
+				println!(
+					"PART SIG PART SIG VERIFYING DURING SIGN: {:?}",
+					p.part_sig.as_ref().unwrap()
+				);
+				println!(
+					"PART SIG PUB NONCE SUM VERIFYING DURING SIGN: {:?}",
+					&self.pub_nonce_sum(secp).unwrap()
+				);
+				println!(
+					"PART SIG PUB BLIND EXCESS VERIFYING DURING SIGN: {:?}",
+					p.public_blind_excess
+				);
+				println!(
+					"PART SIG PUB KEY SUM VERIFYING DURING SIGN: {:?}",
+					&self.pub_blind_sum(secp).unwrap()
+				);
+				println!("----------------------");
+
 				aggsig::verify_partial_sig(
 					secp,
 					p.part_sig.as_ref().unwrap(),
@@ -976,7 +1000,7 @@ impl From<OutputFeatures> for OutputFeaturesV5 {
 	}
 }
 
-///// V4
+///// V5
 impl From<SlateV5> for Slate {
 	fn from(slate: SlateV5) -> Slate {
 		let SlateV5 {

@@ -78,6 +78,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		};
 		// Note sender address explicity added here
 		args.proof_args.sender_address = sender_address;
+		println!("SENDER IS CALLING");
 		slate = api.contract_sign(m, &slate, args)?;
 		recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
 		println!("(SHOULD BE) SIGNED SLATE: {}", slate);
@@ -98,7 +99,11 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		println!("(FINAL) SIGNED SLATE: {}", slate);
 		// Store this in process for the time being, eventually this will need to be stored
 		// indefinitely along with the rest of the proof data
-		sender_part_sig = Some(slate.participant_data[0].part_sig.unwrap());
+
+		// First find out who I am, cause order can end up reversed
+		// TODO: Need to get this definitively
+		//let my_index = api.get_slate_index_matching_my_context(m, &slate)?;
+		sender_part_sig = Some(slate.participant_data[1].part_sig.unwrap());
 
 		Ok(())
 	})?;
@@ -159,7 +164,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	println!("INVOICE PROOF: {:?}", invoice_proof);
 
 	// going as far as to extract the kernel and index
-	let (commit, index, excess_sig) = {
+	let (commit, index, excess_sig, msg) = {
 		let static_secp = static_secp_instance();
 		let static_secp = static_secp.lock();
 		let excess = slate.calc_excess(&static_secp)?;
@@ -171,6 +176,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 			retrieved_kernel.0.excess,
 			retrieved_kernel.2,
 			retrieved_kernel.0.excess_sig,
+			retrieved_kernel.0.features.kernel_sig_msg()?,
 		)
 	};
 
@@ -185,16 +191,19 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		slate.participant_data[1].public_blind_excess
 	);
 	// Missing witness data
-	assert!(invoice_proof.verify_witness().is_err());
+	assert!(invoice_proof
+		.verify_witness(recipient_address.as_ref())
+		.is_err());
 
 	invoice_proof.witness_data = Some(ProofWitness {
 		kernel_index: index,
 		kernel_commitment: commit,
 		sender_partial_sig: sender_part_sig.unwrap(),
 		kernel_excess: Some(excess_sig),
+		kernel_message: Some(msg),
 	});
 
-	invoice_proof.verify_witness()?;
+	invoice_proof.verify_witness(recipient_address.as_ref())?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
