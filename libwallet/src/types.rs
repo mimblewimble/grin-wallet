@@ -860,6 +860,9 @@ pub struct TxLogEntry {
 	/// Additional info needed to stored payment proof
 	#[serde(default)]
 	pub payment_proof: Option<StoredProofInfo>,
+	/// Payment Proofs V2 (invoice and sender nonce)
+	#[serde(default)]
+	pub payment_proof_2: Option<StoredProofInfo2>,
 	/// Track the time it took for a transaction to get reverted
 	#[serde(with = "option_duration_as_secs", default)]
 	pub reverted_after: Option<Duration>,
@@ -899,6 +902,7 @@ impl TxLogEntry {
 			kernel_excess: None,
 			kernel_lookup_min_height: None,
 			payment_proof: None,
+			payment_proof_2: None,
 			reverted_after: None,
 		}
 	}

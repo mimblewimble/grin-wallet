@@ -16,6 +16,7 @@
 
 use uuid::Uuid;
 
+use crate::contract::proofs::InvoiceProof;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
@@ -472,6 +473,67 @@ where
 		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
 	})
+}
+
+/// Retrieve payment proof
+/// TODO: Experimental, determine whether we want to pull some fields
+/// out of the store TX info as above or store as is
+pub fn retrieve_payment_proof_2<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	refresh_from_node: bool,
+	tx_id: Option<u32>,
+	tx_slate_id: Option<Uuid>,
+) -> Result<InvoiceProof, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if tx_id.is_none() && tx_slate_id.is_none() {
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction ID or Slate UUID must be specified".to_owned(),
+		));
+	}
+	if refresh_from_node {
+		update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?
+	} else {
+		false
+	};
+	let txs = retrieve_txs(
+		wallet_inst.clone(),
+		keychain_mask,
+		status_send_channel,
+		refresh_from_node,
+		tx_id,
+		tx_slate_id,
+		None,
+	)?;
+	if txs.1.len() != 1 {
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction doesn't exist".to_owned(),
+		));
+	}
+	// Pull out all needed fields, returning an error if they're not present
+	let tx = txs.1[0].clone();
+	let proof = match tx.payment_proof_2 {
+		Some(p) => InvoiceProof {
+			stored_info: p,
+			witness_data: None,
+		},
+		None => {
+			return Err(Error::PaymentProofRetrieval(
+				"Transaction does not contain a payment proof v2".to_owned(),
+			));
+		}
+	};
+	Ok(proof)
 }
 
 /// Initiate tx as sender

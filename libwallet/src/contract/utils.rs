@@ -21,9 +21,12 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
-use crate::{Error, OutputData, OutputStatus, TxLogEntry};
+use crate::util::OnionV3Address;
+use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::FeeFields;
 use uuid::Uuid;
+
+use super::proofs::InvoiceProof;
 
 /// Creates an initial TxLogEntry without input/output or kernel information
 pub fn create_tx_log_entry(
@@ -80,6 +83,26 @@ where
 		Err(_) => panic!("We can't update tx log entry. Excess could not be computed."),
 	};
 	tx_log_entry.kernel_lookup_min_height = Some(current_height);
+
+	// If we're sending and there's payment proof info in the slate added by recipient, store as well
+	if let Some(ref p) = slate.payment_proof {
+		if tx_log_entry.amount_debited > 0 {
+			let derivation_index = match context.payment_proof_derivation_index {
+				Some(i) => i,
+				None => 0,
+			};
+			let parent_key_id = wallet.parent_key_id();
+			let sender_key =
+				address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
+			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
+
+			let my_index = slate.find_index_matching_context(&keychain, context)?;
+			tx_log_entry.payment_proof_2 = Some(
+				InvoiceProof::from_slate(&slate, my_index, Some(sender_address.to_ed25519()?))?
+					.stored_info,
+			);
+		}
+	};
 
 	Ok(())
 }
@@ -229,6 +252,7 @@ where
 			batch.lock_output(&mut coin)?;
 		}
 	}
+
 	// Update context
 	if is_signed && !is_step2 {
 		// NOTE: We MUST forget the context when we sign. Ideally, these two would be atomic or perhaps

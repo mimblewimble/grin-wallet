@@ -103,7 +103,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		// First find out who I am, cause order can end up reversed
 		// TODO: Need to get this definitively
 		//let my_index = api.get_slate_index_matching_my_context(m, &slate)?;
-		sender_part_sig = Some(slate.participant_data[1].part_sig.unwrap());
+		//sender_part_sig = Some(slate.participant_data[1].part_sig.unwrap());
 
 		Ok(())
 	})?;
