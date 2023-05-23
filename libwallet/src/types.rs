@@ -26,8 +26,9 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::grin_util::secp::{self, pedersen, Secp256k1, Signature};
 use crate::grin_util::{ToHex, ZeroingString};
+use crate::slate::PaymentMemo;
 use crate::slate_versions::ser as dalek_ser;
 use crate::InitTxArgs;
 use chrono::prelude::*;
@@ -947,6 +948,31 @@ impl ser::Readable for StoredProofInfo {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
+}
+
+// Payment proof, to be extracted from slates for
+// signing (when wrapped as PaymentProofBin) or json export
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct StoredProofInfo2 {
+	/// Proof type, 0x00 legacy (though this will use StoredProofInfo above, 1 invoice, 2 Sender nonce)
+	pub proof_type: u8,
+	/// TODO, duplicated from TX info, but convenient to store here, consider
+	pub amount: u64,
+	/// receiver's public nonce from signing
+	pub receiver_public_nonce: PublicKey,
+	/// receiver's public excess from signing
+	pub receiver_public_excess: PublicKey,
+	/// Sender's address
+	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	pub sender_address: DalekPublicKey,
+	/// Timestamp provided by recipient when signing
+	pub timestamp: i64,
+	/// Optional payment memo
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub memo: Option<PaymentMemo>,
+	/// Not serialized in binary format
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub promise_signature: Option<DalekSignature>,
 }
 
 /// Map of named accounts to BIP32 paths

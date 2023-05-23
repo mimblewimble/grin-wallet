@@ -26,8 +26,7 @@ use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentInfo, PaymentMemo, Slate};
-use crate::slate_versions::ser;
-use crate::types::{Context, NodeClient, WalletBackend};
+use crate::types::{Context, NodeClient, StoredProofInfo2, WalletBackend};
 use crate::{address, Error};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -61,18 +60,10 @@ pub struct ProofWitness {
 // signing (when wrapped as PaymentProofBin) or json export
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct InvoiceProof {
-	pub proof_type: u8,
-	pub amount: u64,
-	pub receiver_public_nonce: PublicKey,
-	pub receiver_public_excess: PublicKey,
-	#[serde(with = "ser::dalek_pubkey_serde")]
-	pub sender_address: DalekPublicKey,
-	pub timestamp: i64,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub memo: Option<PaymentMemo>,
-	/// Not serialized in binary format
-	#[serde(with = "ser::option_dalek_sig_serde")]
-	pub promise_signature: Option<DalekSignature>,
+	/// The portion of the proof that will end up serialized and stored
+	/// along with transaction info, this should support Invoice and Sender Nonce types
+	/// with legacy stored as StoredProofInfo for now
+	pub stored_info: StoredProofInfo2,
 	/// Not serialized in binary format, just a convenient place to insert
 	/// the witness kernel commitment index
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -87,7 +78,7 @@ impl Writeable for InvoiceProofBin {
 
 		// Amount field is 7 bytes, throw error if value is greater
 		let mut amount_bytes = [0; 8];
-		BigEndian::write_u64(&mut amount_bytes, self.0.amount);
+		BigEndian::write_u64(&mut amount_bytes, self.0.stored_info.amount);
 
 		if amount_bytes[0] > 0 {
 			return Err(grin_ser::Error::UnexpectedData {
@@ -101,18 +92,20 @@ impl Writeable for InvoiceProofBin {
 			let static_secp = static_secp.lock();
 			writer.write_fixed_bytes(
 				self.0
+					.stored_info
 					.receiver_public_nonce
 					.serialize_vec(&static_secp, true),
 			)?;
 			writer.write_fixed_bytes(
 				self.0
+					.stored_info
 					.receiver_public_excess
 					.serialize_vec(&static_secp, true),
 			)?;
 		}
-		writer.write_fixed_bytes(self.0.sender_address.as_bytes())?;
-		writer.write_i64(self.0.timestamp)?;
-		match &self.0.memo {
+		writer.write_fixed_bytes(self.0.stored_info.sender_address.as_bytes())?;
+		writer.write_i64(self.0.stored_info.timestamp)?;
+		match &self.0.stored_info.memo {
 			Some(s) => {
 				writer.write_u8(s.memo_type)?;
 				writer.write_fixed_bytes(&s.memo.to_vec())?;
@@ -156,20 +149,22 @@ impl Readable for InvoiceProofBin {
 		memo_bytes.copy_from_slice(&memo);
 
 		let res = InvoiceProof {
-			proof_type,
-			amount,
-			receiver_public_nonce,
-			receiver_public_excess,
-			sender_address,
-			timestamp,
-			memo: match memo_type {
-				0 => None,
-				_ => Some(PaymentMemo {
-					memo_type,
-					memo: memo_bytes,
-				}),
+			stored_info: StoredProofInfo2 {
+				proof_type,
+				amount,
+				receiver_public_nonce,
+				receiver_public_excess,
+				sender_address,
+				timestamp,
+				memo: match memo_type {
+					0 => None,
+					_ => Some(PaymentMemo {
+						memo_type,
+						memo: memo_bytes,
+					}),
+				},
+				promise_signature: None,
 			},
-			promise_signature: None,
 			witness_data: None,
 		};
 
@@ -219,14 +214,17 @@ impl InvoiceProof {
 		println!("PARTICIPANT INDEX>>>>   {}", participant_index);
 
 		Ok(Self {
-			proof_type: 1u8,
-			amount: slate.amount,
-			receiver_public_nonce: slate.participant_data[participant_index].public_nonce,
-			receiver_public_excess: slate.participant_data[participant_index].public_blind_excess,
-			sender_address,
-			timestamp,
-			memo,
-			promise_signature,
+			stored_info: StoredProofInfo2 {
+				proof_type: 1u8,
+				amount: slate.amount,
+				receiver_public_nonce: slate.participant_data[participant_index].public_nonce,
+				receiver_public_excess: slate.participant_data[participant_index]
+					.public_blind_excess,
+				sender_address,
+				timestamp,
+				memo,
+				promise_signature,
+			},
 			witness_data: None,
 		})
 	}
@@ -256,7 +254,7 @@ impl InvoiceProof {
 		&self,
 		recipient_address: &DalekPublicKey,
 	) -> Result<(), Error> {
-		if self.promise_signature.is_none() {
+		if self.stored_info.promise_signature.is_none() {
 			return Err(Error::PaymentProofValidation(
 				"Missing promise signature".into(),
 			));
@@ -268,7 +266,10 @@ impl InvoiceProof {
 			.expect("serialization failed");
 
 		if recipient_address
-			.verify(&sig_data_bin, self.promise_signature.as_ref().unwrap())
+			.verify(
+				&sig_data_bin,
+				self.stored_info.promise_signature.as_ref().unwrap(),
+			)
 			.is_err()
 		{
 			return Err(Error::PaymentProof(
@@ -286,7 +287,7 @@ impl InvoiceProof {
 		if let Some(a) = recipient_address {
 			println!(
 				"receiver_public_excess on sig verify: {:?}",
-				self.receiver_public_excess
+				self.stored_info.receiver_public_excess
 			);
 			self.verify_promise_signature(a)?;
 		};
@@ -325,14 +326,17 @@ impl InvoiceProof {
 			println!("VERIFYING MSG: {:?}", msg);
 			println!("RECEIVER PART SIG {:?}", receiver_part_sig.0);
 			println!("PUB NONCE SUM {:?}", pub_nonce_sum);
-			println!("PUB BLIND EXCESS {:?}", &self.receiver_public_excess);
+			println!(
+				"PUB BLIND EXCESS {:?}",
+				&self.stored_info.receiver_public_excess
+			);
 			println!("PUB KEY SUM {:?}", pub_blind_sum);
 
 			if let Err(_) = aggsig::verify_partial_sig(
 				&static_secp,
 				&receiver_part_sig.0,
 				&pub_nonce_sum,
-				&self.receiver_public_excess,
+				&self.stored_info.receiver_public_excess,
 				Some(&pub_blind_sum),
 				&msg,
 			) {
@@ -342,7 +346,7 @@ impl InvoiceProof {
 						&static_secp,
 						&s,
 						&pub_nonce_sum,
-						&self.receiver_public_excess,
+						&self.stored_info.receiver_public_excess,
 						Some(&pub_blind_sum),
 						&msg,
 					)?;
@@ -394,7 +398,7 @@ where
 		receiver_address,
 		timestamp,
 		promise_signature: Some(promise_signature),
-		memo: invoice_proof.memo,
+		memo: invoice_proof.stored_info.memo,
 	};
 	slate.payment_proof = Some(proof);
 	Ok(())
@@ -428,7 +432,8 @@ where
 	let recp_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 
-	invoice_proof.timestamp = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0).timestamp();
+	invoice_proof.stored_info.timestamp =
+		NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0).timestamp();
 	let (sig, addr) = invoice_proof.sign(&recp_key)?;
 	Ok((invoice_proof, sig, addr))
 }
