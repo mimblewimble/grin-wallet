@@ -475,10 +475,9 @@ where
 	})
 }
 
-/// Retrieve payment proof
-/// TODO: Experimental, determine whether we want to pull some fields
-/// out of the store TX info as above or store as is
-pub fn retrieve_payment_proof_2<'a, L, C, K>(
+/// Retrieve invoice payment proof
+/// TODO: Need to unify with legacy above
+pub fn retrieve_payment_proof_invoice<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
@@ -522,14 +521,55 @@ where
 	}
 	// Pull out all needed fields, returning an error if they're not present
 	let tx = txs.1[0].clone();
-	let proof = match tx.payment_proof_2 {
-		Some(p) => InvoiceProof {
-			stored_info: p,
-			witness_data: None,
-		},
+	let amount = if tx.amount_credited >= tx.amount_debited {
+		tx.amount_credited - tx.amount_debited
+	} else {
+		let fee = match tx.fee {
+			Some(f) => f.fee(), // apply fee mask past HF4
+			None => 0,
+		};
+		tx.amount_debited - tx.amount_credited - fee
+	};
+
+	let proof = match tx.payment_proof {
+		Some(p) => {
+			if p.receiver_public_nonce.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored receiver public nonce".into(),
+				));
+			};
+			if p.receiver_public_excess.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored receiver public excess".into(),
+				));
+			};
+			if p.timestamp.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored timestamp".into(),
+				));
+			};
+			if p.sender_part_sig.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored sender partial signature".into(),
+				));
+			};
+
+			InvoiceProof {
+				proof_type: if let Some(t) = p.proof_type { t } else { 1u8 },
+				amount,
+				receiver_public_nonce: p.receiver_public_nonce.unwrap(),
+				receiver_public_excess: p.receiver_public_excess.unwrap(),
+				sender_address: p.sender_address,
+				timestamp: p.timestamp.unwrap().timestamp(),
+				memo: p.memo,
+				promise_signature: p.promise_signature,
+				witness_data: None,
+				sender_partial_sig: p.sender_part_sig,
+			}
+		}
 		None => {
 			return Err(Error::PaymentProofRetrieval(
-				"Transaction does not contain a payment proof v2".to_owned(),
+				"Transaction does not contain a payment proof".to_owned(),
 			));
 		}
 	};

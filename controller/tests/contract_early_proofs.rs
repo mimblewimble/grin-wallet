@@ -52,7 +52,6 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
 	let mut sender_address = None;
-
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		// Send wallet inititates a standard transaction with --send=5
 		let args = &ContractNewArgsAPI {
@@ -87,7 +86,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	assert_eq!(slate.state, SlateState::Standard2);
 
 	// Send wallet finalizes and posts
-	let mut sender_part_sig = None;
+	//let mut sender_part_sig = None;
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		let args = &ContractSetupArgsAPI {
 			..Default::default()
@@ -158,8 +157,47 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		Ok(())
 	})?;
 
+	// Now some time has passed, sender retrieves and verify the payment proof
+	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
+		// Extract the stored data as an invoice proof
+		let mut invoice_proof =
+			api.retrieve_payment_proof_invoice(send_mask, true, None, Some(slate.id))?;
+		println!("INVOICE PROOF: {:?}", invoice_proof);
+		// Retrieve the tx data, which should have a kernel index by now
+		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id), None)?;
+		let tx = txs[0].clone();
+
+		// Retrieve commit from a node, manual for now but this logic needs to go into owner API function
+		let (commit, index, excess_sig, msg) = {
+			let static_secp = static_secp_instance();
+			let static_secp = static_secp.lock();
+			let retrieved_kernel = chain
+				.get_kernel_height(&tx.kernel_excess.unwrap(), None, None)
+				.unwrap()
+				.unwrap();
+			(
+				retrieved_kernel.0.excess,
+				retrieved_kernel.2,
+				retrieved_kernel.0.excess_sig,
+				retrieved_kernel.0.features.kernel_sig_msg()?,
+			)
+		};
+
+		invoice_proof.witness_data = Some(ProofWitness {
+			kernel_index: index,
+			kernel_commitment: commit,
+			sender_partial_sig: invoice_proof.sender_partial_sig.unwrap(),
+			kernel_excess: Some(excess_sig),
+			kernel_message: Some(msg),
+		});
+
+		invoice_proof.verify_witness(recipient_address.as_ref())?;
+
+		Ok(())
+	})?;
+
 	// Now extract the payment proof info from the slate, add witness data, and verify
-	let mut invoice_proof = InvoiceProof::from_slate(&slate, 0, None)?;
+	/*let mut invoice_proof = InvoiceProof::from_slate(&slate, 0, None)?;
 	print!("PRE INVOICE PROOF SLATE: {}", slate);
 	println!("INVOICE PROOF: {:?}", invoice_proof);
 
@@ -203,7 +241,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		kernel_message: Some(msg),
 	});
 
-	invoice_proof.verify_witness(recipient_address.as_ref())?;
+	invoice_proof.verify_witness(recipient_address.as_ref())?;*/
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

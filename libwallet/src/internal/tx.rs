@@ -433,12 +433,21 @@ where
 				address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 			let sig = create_payment_proof_signature(slate.amount, &excess, saddr, sender_key)?;
+
 			tx.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address,
 				receiver_signature: p.promise_signature,
 				sender_address_path: derivation_index,
 				sender_address: sender_address.to_ed25519()?,
 				sender_signature: Some(sig),
+				// Filled in during contract flow proofs for now
+				proof_type: None,
+				receiver_public_nonce: None,
+				receiver_public_excess: None,
+				timestamp: None,
+				memo: None,
+				promise_signature: None,
+				sender_part_sig: None,
 			})
 		} else {
 		}

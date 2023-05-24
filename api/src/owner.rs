@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_wallet_libwallet::contract::proofs::InvoiceProof;
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
@@ -2408,6 +2409,32 @@ where
 			false => refresh_from_node,
 		};
 		owner::retrieve_payment_proof(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)
+	}
+
+	/// TODO: Temporary, likely should merge with above
+	pub fn retrieve_payment_proof_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<InvoiceProof, Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
+		owner::retrieve_payment_proof_invoice(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,

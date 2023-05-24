@@ -860,9 +860,6 @@ pub struct TxLogEntry {
 	/// Additional info needed to stored payment proof
 	#[serde(default)]
 	pub payment_proof: Option<StoredProofInfo>,
-	/// Payment Proofs V2 (invoice and sender nonce)
-	#[serde(default)]
-	pub payment_proof_2: Option<StoredProofInfo2>,
 	/// Track the time it took for a transaction to get reverted
 	#[serde(with = "option_duration_as_secs", default)]
 	pub reverted_after: Option<Duration>,
@@ -902,7 +899,6 @@ impl TxLogEntry {
 			kernel_excess: None,
 			kernel_lookup_min_height: None,
 			payment_proof: None,
-			payment_proof_2: None,
 			reverted_after: None,
 		}
 	}
@@ -939,6 +935,23 @@ pub struct StoredProofInfo {
 	/// sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
+	// Fields beyond here are specific to early payment proofs,
+	// invoice and sender nonce
+	/// Assumed to be 0x00 (Legacy) if missing
+	pub proof_type: Option<u8>,
+	/// receiver's public nonce from signing
+	pub receiver_public_nonce: Option<PublicKey>,
+	/// receiver's public excess from signing
+	pub receiver_public_excess: Option<PublicKey>,
+	/// Timestamp provided by recipient when signing
+	pub timestamp: Option<DateTime<Utc>>,
+	/// Optional payment memo
+	pub memo: Option<PaymentMemo>,
+	/// recipient promise signature
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub promise_signature: Option<DalekSignature>,
+	/// Original Sender partial key
+	pub sender_part_sig: Option<Signature>,
 }
 
 impl ser::Writeable for StoredProofInfo {
@@ -952,31 +965,6 @@ impl ser::Readable for StoredProofInfo {
 		let data = reader.read_bytes_len_prefix()?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
-}
-
-// Payment proof, to be extracted from slates for
-// signing (when wrapped as PaymentProofBin) or json export
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct StoredProofInfo2 {
-	/// Proof type, 0x00 legacy (though this will use StoredProofInfo above, 1 invoice, 2 Sender nonce)
-	pub proof_type: u8,
-	/// TODO, duplicated from TX info, but convenient to store here, consider
-	pub amount: u64,
-	/// receiver's public nonce from signing
-	pub receiver_public_nonce: PublicKey,
-	/// receiver's public excess from signing
-	pub receiver_public_excess: PublicKey,
-	/// Sender's address
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
-	pub sender_address: DalekPublicKey,
-	/// Timestamp provided by recipient when signing
-	pub timestamp: i64,
-	/// Optional payment memo
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub memo: Option<PaymentMemo>,
-	/// Not serialized in binary format
-	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
-	pub promise_signature: Option<DalekSignature>,
 }
 
 /// Map of named accounts to BIP32 paths
