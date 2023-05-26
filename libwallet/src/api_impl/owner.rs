@@ -524,11 +524,8 @@ where
 	let amount = if tx.amount_credited >= tx.amount_debited {
 		tx.amount_credited - tx.amount_debited
 	} else {
-		let fee = match tx.fee {
-			Some(f) => f.fee(), // apply fee mask past HF4
-			None => 0,
-		};
-		tx.amount_debited - tx.amount_credited - fee
+		// TODO: Invoice proof not expecting fee included here
+		tx.amount_debited - tx.amount_credited
 	};
 
 	let proof = match tx.payment_proof {

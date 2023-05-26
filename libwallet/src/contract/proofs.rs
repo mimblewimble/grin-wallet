@@ -197,7 +197,6 @@ impl InvoiceProof {
 		sender_address: Option<DalekPublicKey>,
 	) -> Result<Self, Error> {
 		// Sender address is either provided or in slate (or error)
-		println!("SLATE ON EXTRACTING PROOF: {}", slate);
 		let sender_address = match sender_address {
 			Some(a) => a,
 			None => {
@@ -228,8 +227,6 @@ impl InvoiceProof {
 			None => None,
 		};
 
-		println!("PARTICIPANT INDEX>>>>   {}", participant_index);
-
 		Ok(Self {
 			proof_type: 1u8,
 			amount: slate.amount,
@@ -259,9 +256,7 @@ impl InvoiceProof {
 		let mut sig_data_bin = Vec::new();
 		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
 			.expect("serialization failed");
-		println!("SIGN PUB KEY: {:?}", pub_key);
-		println!("SIGN MESSAGE: {:?}", sig_data_bin);
-		println!("SELF: {:?}", self);
+
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
 
@@ -297,10 +292,6 @@ impl InvoiceProof {
 		}
 
 		if let Some(a) = recipient_address {
-			println!(
-				"receiver_public_excess on sig verify: {:?}",
-				self.receiver_public_excess
-			);
 			self.verify_promise_signature(a)?;
 		};
 
@@ -319,14 +310,6 @@ impl InvoiceProof {
 			let receiver_part_sig =
 				aggsig::subtract_signature(&static_secp, &kernel_excess, &wd.sender_partial_sig)?;
 
-			println!("provided kernel excess : {:?}", wd.kernel_excess);
-			println!("calculated receiver part sig: {:?}", receiver_part_sig.0);
-			println!(
-				"calculated receiver part sig alternate: {:?}",
-				receiver_part_sig.1
-			);
-			println!("");
-
 			// Retrieve the public nonce sum from the kernel excess signature
 			let mut pub_nonce_sum_bytes = [3u8; 33];
 			pub_nonce_sum_bytes[1..33].copy_from_slice(&kernel_excess[0..32]);
@@ -334,12 +317,6 @@ impl InvoiceProof {
 
 			// Retrieve the public key sum from the kernel excess
 			let pub_blind_sum = wd.kernel_commitment.to_pubkey(&static_secp)?;
-
-			println!("VERIFYING MSG: {:?}", msg);
-			println!("RECEIVER PART SIG {:?}", receiver_part_sig.0);
-			println!("PUB NONCE SUM {:?}", pub_nonce_sum);
-			println!("PUB BLIND EXCESS {:?}", &self.receiver_public_excess);
-			println!("PUB KEY SUM {:?}", pub_blind_sum);
 
 			if let Err(_) = aggsig::verify_partial_sig(
 				&static_secp,
@@ -429,10 +406,6 @@ where
 	let keychain = wallet.keychain(keychain_mask)?;
 	let index = slate.find_index_matching_context(&keychain, context)?;
 	let mut invoice_proof = InvoiceProof::from_slate(&slate, index, proof_args.sender_address)?;
-	println!(
-		"INVOICE PROOF ON INVOICE SIGNATURE CREATION: {:?}",
-		invoice_proof
-	);
 	let derivation_index = match context.payment_proof_derivation_index {
 		Some(i) => i,
 		None => 0,
