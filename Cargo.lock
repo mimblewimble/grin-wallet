@@ -1335,12 +1335,12 @@ dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
  "futures 0.3.28",
- "grin_chain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
  "grin_p2p",
  "grin_pool",
- "grin_store 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_store",
+ "grin_util",
  "http",
  "hyper",
  "hyper-rustls 0.20.0",
@@ -1362,28 +1362,6 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-alpha.2"
-dependencies = [
- "bit-vec",
- "bitflags 1.3.2",
- "byteorder",
- "chrono",
- "croaring",
- "enum_primitive",
- "grin_core 5.2.0-alpha.2",
- "grin_keychain 5.2.0-alpha.2",
- "grin_store 5.2.0-alpha.2",
- "grin_util 5.2.0-alpha.2",
- "lazy_static",
- "log",
- "lru-cache",
- "serde",
- "serde_derive",
- "thiserror",
-]
-
-[[package]]
-name = "grin_chain"
-version = "5.2.0-alpha.2"
 source = "git+https://github.com/mimblewimble/grin?branch=master#c31921f4d9b228338682068155167583f007b0d0"
 dependencies = [
  "bit-vec",
@@ -1392,41 +1370,16 @@ dependencies = [
  "chrono",
  "croaring",
  "enum_primitive",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_store",
+ "grin_util",
  "lazy_static",
  "log",
  "lru-cache",
  "serde",
  "serde_derive",
  "thiserror",
-]
-
-[[package]]
-name = "grin_core"
-version = "5.2.0-alpha.2"
-dependencies = [
- "blake2-rfc",
- "byteorder",
- "bytes 0.5.6",
- "chrono",
- "croaring",
- "enum_primitive",
- "grin_keychain 5.2.0-alpha.2",
- "grin_util 5.2.0-alpha.2",
- "lazy_static",
- "log",
- "lru-cache",
- "num",
- "num-bigint",
- "rand 0.6.5",
- "serde",
- "serde_derive",
- "siphasher",
- "thiserror",
- "zeroize",
 ]
 
 [[package]]
@@ -1440,8 +1393,8 @@ dependencies = [
  "chrono",
  "croaring",
  "enum_primitive",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_keychain",
+ "grin_util",
  "lazy_static",
  "log",
  "lru-cache",
@@ -1458,33 +1411,12 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-alpha.2"
-dependencies = [
- "blake2-rfc",
- "byteorder",
- "digest 0.9.0",
- "grin_util 5.2.0-alpha.2",
- "hmac 0.11.0",
- "lazy_static",
- "log",
- "pbkdf2 0.8.0",
- "rand 0.6.5",
- "ripemd160",
- "serde",
- "serde_derive",
- "serde_json",
- "sha2 0.9.9",
- "zeroize",
-]
-
-[[package]]
-name = "grin_keychain"
-version = "5.2.0-alpha.2"
 source = "git+https://github.com/mimblewimble/grin?branch=master#c31921f4d9b228338682068155167583f007b0d0"
 dependencies = [
  "blake2-rfc",
  "byteorder",
  "digest 0.9.0",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_util",
  "hmac 0.11.0",
  "lazy_static",
  "log",
@@ -1507,10 +1439,10 @@ dependencies = [
  "bytes 0.5.6",
  "chrono",
  "enum_primitive",
- "grin_chain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
+ "grin_store",
+ "grin_util",
  "log",
  "lru-cache",
  "num",
@@ -1527,9 +1459,9 @@ source = "git+https://github.com/mimblewimble/grin?branch=master#c31921f4d9b2283
 dependencies = [
  "blake2-rfc",
  "chrono",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "log",
  "rand 0.6.5",
  "serde",
@@ -1556,30 +1488,12 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.2.0-alpha.2"
-dependencies = [
- "byteorder",
- "croaring",
- "grin_core 5.2.0-alpha.2",
- "grin_util 5.2.0-alpha.2",
- "libc",
- "lmdb-zero",
- "log",
- "memmap",
- "serde",
- "serde_derive",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "grin_store"
-version = "5.2.0-alpha.2"
 source = "git+https://github.com/mimblewimble/grin?branch=master#c31921f4d9b228338682068155167583f007b0d0"
 dependencies = [
  "byteorder",
  "croaring",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_util",
  "libc",
  "lmdb-zero",
  "log",
@@ -1588,26 +1502,6 @@ dependencies = [
  "serde_derive",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "grin_util"
-version = "5.2.0-alpha.2"
-dependencies = [
- "backtrace",
- "base64 0.12.3",
- "byteorder",
- "grin_secp256k1zkp",
- "lazy_static",
- "log",
- "log4rs",
- "parking_lot 0.10.2",
- "rand 0.6.5",
- "serde",
- "serde_derive",
- "walkdir",
- "zeroize",
- "zip",
 ]
 
 [[package]]
@@ -1639,9 +1533,9 @@ dependencies = [
  "clap",
  "easy-jsonrpc-mw",
  "grin_api",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "grin_wallet_api",
  "grin_wallet_config",
  "grin_wallet_controller",
@@ -1671,9 +1565,9 @@ dependencies = [
  "chrono",
  "easy-jsonrpc-mw",
  "ed25519-dalek",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "grin_wallet_config",
  "grin_wallet_impls",
  "grin_wallet_libwallet",
@@ -1693,8 +1587,8 @@ name = "grin_wallet_config"
 version = "5.2.0-alpha.1"
 dependencies = [
  "dirs 2.0.2",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_util",
  "grin_wallet_util",
  "pretty_assertions",
  "rand 0.6.5",
@@ -1712,10 +1606,10 @@ dependencies = [
  "ed25519-dalek",
  "futures 0.3.28",
  "grin_api",
- "grin_chain 5.2.0-alpha.2",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "grin_wallet_api",
  "grin_wallet_config",
  "grin_wallet_impls",
@@ -1751,11 +1645,11 @@ dependencies = [
  "ed25519-dalek",
  "futures 0.3.28",
  "grin_api",
- "grin_chain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
+ "grin_keychain",
+ "grin_store",
+ "grin_util",
  "grin_wallet_config",
  "grin_wallet_libwallet",
  "grin_wallet_util",
@@ -1791,10 +1685,10 @@ dependencies = [
  "chrono",
  "curve25519-dalek 2.1.3",
  "ed25519-dalek",
- "grin_core 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_store",
+ "grin_util",
  "grin_wallet_config",
  "grin_wallet_util",
  "lazy_static",
@@ -1821,7 +1715,7 @@ version = "5.2.0-alpha.1"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
- "grin_util 5.2.0-alpha.2 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_util",
  "pretty_assertions",
  "rand 0.6.5",
  "serde",
