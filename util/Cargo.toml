@@ -28,11 +28,11 @@ thiserror = "1"
 # grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
 
 # For bleeding edge
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
 
- grin_util = { path = "../../grin/util"}
+# grin_util = { path = "../../grin/util"}
 
 #####
 
