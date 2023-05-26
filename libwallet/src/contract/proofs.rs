@@ -88,9 +88,6 @@ pub struct InvoiceProof {
 	/// the witness kernel commitment index
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub witness_data: Option<ProofWitness>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub sender_partial_sig: Option<Signature>,
 }
 
 struct InvoiceProofBin(InvoiceProof);
@@ -185,7 +182,6 @@ impl Readable for InvoiceProofBin {
 			},
 			promise_signature: None,
 			witness_data: None,
-			sender_partial_sig: None,
 		};
 
 		Ok(InvoiceProofBin(res))
@@ -240,7 +236,6 @@ impl InvoiceProof {
 			memo,
 			promise_signature,
 			witness_data: None,
-			sender_partial_sig: None,
 		})
 	}
 

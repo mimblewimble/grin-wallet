@@ -529,7 +529,7 @@ where
 		tx.amount_debited - tx.amount_credited
 	};
 
-	let mut proof = match tx.payment_proof {
+	let (mut proof, sender_part_sig) = match tx.payment_proof {
 		Some(p) => {
 			if p.receiver_public_nonce.is_none() {
 				return Err(Error::PaymentProofRetrieval(
@@ -552,18 +552,20 @@ where
 				));
 			};
 
-			InvoiceProof {
-				proof_type: if let Some(t) = p.proof_type { t } else { 1u8 },
-				amount,
-				receiver_public_nonce: p.receiver_public_nonce.unwrap(),
-				receiver_public_excess: p.receiver_public_excess.unwrap(),
-				sender_address: p.sender_address,
-				timestamp: p.timestamp.unwrap().timestamp(),
-				memo: p.memo,
-				promise_signature: p.promise_signature,
-				witness_data: None,
-				sender_partial_sig: p.sender_part_sig,
-			}
+			(
+				InvoiceProof {
+					proof_type: if let Some(t) = p.proof_type { t } else { 1u8 },
+					amount,
+					receiver_public_nonce: p.receiver_public_nonce.unwrap(),
+					receiver_public_excess: p.receiver_public_excess.unwrap(),
+					sender_address: p.sender_address,
+					timestamp: p.timestamp.unwrap().timestamp(),
+					memo: p.memo,
+					promise_signature: p.promise_signature,
+					witness_data: None,
+				},
+				p.sender_part_sig.unwrap(),
+			)
 		}
 		None => {
 			return Err(Error::PaymentProofRetrieval(
@@ -607,7 +609,7 @@ where
 	proof.witness_data = Some(ProofWitness {
 		kernel_index: index,
 		kernel_commitment: retrieved_kernel.excess,
-		sender_partial_sig: proof.sender_partial_sig.unwrap().clone(),
+		sender_partial_sig: sender_part_sig,
 	});
 
 	Ok(proof)
