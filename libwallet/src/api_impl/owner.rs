@@ -16,7 +16,7 @@
 
 use uuid::Uuid;
 
-use crate::contract::proofs::InvoiceProof;
+use crate::contract::proofs::{InvoiceProof, ProofWitness};
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
@@ -45,6 +45,7 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 
 use std::convert::{TryFrom, TryInto};
+use std::ops::Index;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -528,7 +529,7 @@ where
 		tx.amount_debited - tx.amount_credited
 	};
 
-	let proof = match tx.payment_proof {
+	let mut proof = match tx.payment_proof {
 		Some(p) => {
 			if p.receiver_public_nonce.is_none() {
 				return Err(Error::PaymentProofRetrieval(
@@ -570,6 +571,49 @@ where
 			));
 		}
 	};
+
+	// Now to kernel lookup, to fill in the witness data
+	// Check kernel exists
+	let (mut client, parent_key_id, keychain) = {
+		wallet_lock!(wallet_inst, w);
+		(
+			w.w2n_client().clone(),
+			w.parent_key_id(),
+			w.keychain(keychain_mask)?,
+		)
+	};
+
+	let kernel_excess = match tx.kernel_excess {
+		Some(k) => k,
+		None => {
+			return Err(Error::PaymentProofRetrieval(format!(
+				"Invoice proof transaction kernel excess missing",
+			)))
+		}
+	};
+
+	let (retrieved_kernel, index) = match client.get_kernel(&kernel_excess, None, None) {
+		Err(e) => {
+			return Err(Error::PaymentProof(format!(
+				"Error retrieving kernel from chain: {}",
+				e
+			)));
+		}
+		Ok(None) => {
+			return Err(Error::PaymentProof(format!(
+				"Transaction kernel with excess {:?} not found on chain",
+				kernel_excess
+			)));
+		}
+		Ok(Some((k, _, index))) => (k, index),
+	};
+
+	proof.witness_data = Some(ProofWitness {
+		kernel_index: index,
+		kernel_commitment: retrieved_kernel.excess,
+		sender_partial_sig: proof.sender_partial_sig.unwrap().clone(),
+	});
+
 	Ok(proof)
 }
 

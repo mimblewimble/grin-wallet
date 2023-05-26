@@ -18,6 +18,7 @@
 
 use crate::contract::types::ProofArgs;
 use crate::grin_core::libtx::aggsig;
+use crate::grin_core::libtx::secp_ser;
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::Keychain;
@@ -43,18 +44,18 @@ use std::convert::TryInto;
 pub struct ProofWitness {
 	/// Kernel index, supplied so verifiers can look up kernel
 	/// without an expensive lookup operation
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub kernel_index: u64,
 	/// Kernel commitment, supplied so prover can recompute index
 	/// if required after a reorg
+	#[serde(
+		serialize_with = "secp_ser::as_hex",
+		deserialize_with = "secp_ser::commitment_from_hex"
+	)]
 	pub kernel_commitment: Commitment,
 	/// sender partial signature, used to recover receiver partial signature
+	#[serde(with = "secp_ser::sig_serde")]
 	pub sender_partial_sig: Signature,
-	/// Sender excess sig (to leave matters of kernel lookup to modules outside this one)
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub kernel_excess: Option<Signature>,
-	/// Kernel message
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub kernel_message: Option<Message>,
 }
 
 // Payment proof, to be extracted from slates for
@@ -63,11 +64,14 @@ pub struct ProofWitness {
 pub struct InvoiceProof {
 	/// Proof type, 0x00 legacy (though this will use StoredProofInfo above, 1 invoice, 2 Sender nonce)
 	pub proof_type: u8,
-	/// TODO, duplicated from TX info, but convenient to store here, consider
+	/// amount
+	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// receiver's public nonce from signing
+	#[serde(with = "secp_ser::pubkey_serde")]
 	pub receiver_public_nonce: PublicKey,
 	/// receiver's public excess from signing
+	#[serde(with = "secp_ser::pubkey_serde")]
 	pub receiver_public_excess: PublicKey,
 	/// Sender's address
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
@@ -87,6 +91,7 @@ pub struct InvoiceProof {
 	/// Also convenient place to return sender part sig when retrieving from DB
 	/// TODO: check if needed
 	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(with = "secp_ser::option_sig_serde")]
 	pub sender_partial_sig: Option<Signature>,
 }
 
@@ -286,7 +291,12 @@ impl InvoiceProof {
 		Ok(())
 	}
 
-	pub fn verify_witness(&self, recipient_address: Option<&DalekPublicKey>) -> Result<(), Error> {
+	pub fn verify_witness(
+		&self,
+		recipient_address: Option<&DalekPublicKey>,
+		excess_sig: &Signature,
+		msg: &Message,
+	) -> Result<(), Error> {
 		if self.witness_data.is_none() {
 			return Err(Error::PaymentProofValidation("Missing witness data".into()));
 		}
@@ -296,23 +306,16 @@ impl InvoiceProof {
 		};
 
 		let wd = self.witness_data.as_ref().unwrap().clone();
-		if wd.kernel_excess.is_none() {
-			return Err(Error::PaymentProofValidation(
-				"Corresponding kernel excess signature must be provided".into(),
-			));
-		}
-		let kernel_excess = wd.kernel_excess.unwrap().clone();
-		let msg = wd.kernel_message.unwrap().clone();
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
 
 			let receiver_part_sig =
-				aggsig::subtract_signature(&static_secp, &kernel_excess, &wd.sender_partial_sig)?;
+				aggsig::subtract_signature(&static_secp, &excess_sig, &wd.sender_partial_sig)?;
 
 			// Retrieve the public nonce sum from the kernel excess signature
 			let mut pub_nonce_sum_bytes = [3u8; 33];
-			pub_nonce_sum_bytes[1..33].copy_from_slice(&kernel_excess[0..32]);
+			pub_nonce_sum_bytes[1..33].copy_from_slice(&excess_sig[0..32]);
 			let pub_nonce_sum = PublicKey::from_slice(&static_secp, &pub_nonce_sum_bytes)?;
 
 			// Retrieve the public key sum from the kernel excess

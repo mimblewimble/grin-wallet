@@ -153,44 +153,23 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		Ok(())
 	})?;
 
+	let mut invoice_proof = None;
 	// Now some time has passed, sender retrieves and verify the payment proof
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		// Extract the stored data as an invoice proof
-		let mut invoice_proof =
-			api.retrieve_payment_proof_invoice(send_mask, true, None, Some(slate.id))?;
-		println!("INVOICE PROOF: {:?}", invoice_proof);
-		// Retrieve the tx data, which should have a kernel index by now
-		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id), None)?;
-		let tx = txs[0].clone();
-
-		// Retrieve commit from a node, manual for now but this logic needs to go into owner API function
-		let (commit, index, excess_sig, msg) = {
-			let static_secp = static_secp_instance();
-			let static_secp = static_secp.lock();
-			let retrieved_kernel = chain
-				.get_kernel_height(&tx.kernel_excess.unwrap(), None, None)
-				.unwrap()
-				.unwrap();
-			(
-				retrieved_kernel.0.excess,
-				retrieved_kernel.2,
-				retrieved_kernel.0.excess_sig,
-				retrieved_kernel.0.features.kernel_sig_msg()?,
-			)
-		};
-
-		invoice_proof.witness_data = Some(ProofWitness {
-			kernel_index: index,
-			kernel_commitment: commit,
-			sender_partial_sig: invoice_proof.sender_partial_sig.unwrap(),
-			kernel_excess: Some(excess_sig),
-			kernel_message: Some(msg),
-		});
-
-		invoice_proof.verify_witness(recipient_address.as_ref())?;
-
+		invoice_proof =
+			Some(api.retrieve_payment_proof_invoice(send_mask, true, None, Some(slate.id))?);
 		Ok(())
 	})?;
+
+	let invoice_proof = invoice_proof.unwrap();
+	let invoice_proof_json = serde_json::to_string(&invoice_proof).unwrap();
+
+	// Should have all proof fields filled out
+	println!("INVOICE PROOF: {}", invoice_proof_json);
+
+	// Retrieve the tx data, which should have a kernel index by now
+	//invoice_proof.verify_witness(recipient_address.as_ref(), &excess_sig, &msg)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

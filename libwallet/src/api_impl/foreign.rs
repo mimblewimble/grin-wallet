@@ -13,12 +13,14 @@
 // limitations under the License.
 
 //! Generic implementation of owner API functions
+use grin_util::secp::pedersen::Commitment;
 use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::contract_new as owner_contract_new;
 use crate::api_impl::owner::contract_sign as owner_contract_sign;
 use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::contract::proofs::InvoiceProof;
 use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
@@ -223,3 +225,60 @@ where
 	}
 	owner_contract_sign(&mut *w, keychain_mask, args, slate)
 }
+
+/*
+/// Verify an invoice payment proof
+pub fn verify_payment_proof_invoice<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	proof: &InvoiceProof,
+) -> Result<(bool, bool), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let (mut client, parent_key_id, keychain) = {
+		(
+			w.w2n_client().clone(),
+			w.parent_key_id(),
+			w.keychain(keychain_mask)?,
+		)
+	};
+
+	let wd = match proof.witness_data {
+		Some(w) => w,
+		None =>
+			return Err(Error::PaymentProof(format!(
+				"Cannot verify invoice proof with no witness data",
+			))),
+	};
+
+	/*let kernel_commitment = match wd.kernel_commitment {
+		Some(k) => k,
+		None =>
+			return Err(Error::PaymentProof(format!(
+				"Invoice proof witness kernel excess missing",
+			))),
+	};*/
+
+	// Check kernel exists
+	match client.get_kernel(&wd.kernel_commitment, None, None) {
+		Err(e) => {
+			return Err(Error::PaymentProof(format!(
+				"Error retrieving kernel from chain: {}",
+				e
+			)));
+		}
+		Ok(None) => {
+			return Err(Error::PaymentProof(format!(
+				"Transaction kernel with excess {:?} not found on chain",
+				wd.kernel_commitment
+			)));
+		}
+		Ok(Some(_)) => {}
+	};
+
+
+
+}*/
