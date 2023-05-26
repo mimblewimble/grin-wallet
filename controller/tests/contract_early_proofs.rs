@@ -168,8 +168,19 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	// Should have all proof fields filled out
 	println!("INVOICE PROOF: {}", invoice_proof_json);
 
-	// Retrieve the tx data, which should have a kernel index by now
-	//invoice_proof.verify_witness(recipient_address.as_ref(), &excess_sig, &msg)?;
+	wallet::controller::foreign_single_use(recv_wallet.clone(), recv_mask.cloned(), |api| {
+		let mut proof = serde_json::from_str(&invoice_proof_json).unwrap();
+		api.verify_payment_proof_invoice(recv_mask, recipient_address.as_ref().unwrap(), &proof)?;
+		// tweak something and it shouldn't verify
+		proof.amount = 400000;
+		let retval = api.verify_payment_proof_invoice(
+			recv_mask,
+			recipient_address.as_ref().unwrap(),
+			&proof,
+		);
+		assert!(retval.is_err());
+		Ok(())
+	})?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

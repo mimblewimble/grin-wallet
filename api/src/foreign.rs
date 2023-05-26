@@ -17,6 +17,7 @@
 use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
+use crate::libwallet::contract::proofs::InvoiceProof;
 use crate::libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
@@ -25,6 +26,7 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
+use ed25519_dalek::PublicKey as DalekPublicKey;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -476,6 +478,18 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		foreign::contract_sign(&mut **w, keychain_mask, &args, &slate)
+	}
+
+	/// TODO
+	pub fn verify_payment_proof_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		recipient_address: &DalekPublicKey,
+		proof: &InvoiceProof,
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		foreign::verify_payment_proof_invoice(&mut **w, keychain_mask, recipient_address, proof)
 	}
 }
 

@@ -31,6 +31,7 @@ use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
 	WalletBackend,
 };
+use ed25519_dalek::PublicKey as DalekPublicKey;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -226,13 +227,13 @@ where
 	owner_contract_sign(&mut *w, keychain_mask, args, slate)
 }
 
-/*
 /// Verify an invoice payment proof
 pub fn verify_payment_proof_invoice<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
+	recipient_address: &DalekPublicKey,
 	proof: &InvoiceProof,
-) -> Result<(bool, bool), Error>
+) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
@@ -246,24 +247,16 @@ where
 		)
 	};
 
-	let wd = match proof.witness_data {
+	let wd = match proof.witness_data.clone() {
 		Some(w) => w,
-		None =>
+		None => {
 			return Err(Error::PaymentProof(format!(
 				"Cannot verify invoice proof with no witness data",
-			))),
+			)))
+		}
 	};
 
-	/*let kernel_commitment = match wd.kernel_commitment {
-		Some(k) => k,
-		None =>
-			return Err(Error::PaymentProof(format!(
-				"Invoice proof witness kernel excess missing",
-			))),
-	};*/
-
-	// Check kernel exists
-	match client.get_kernel(&wd.kernel_commitment, None, None) {
+	let (retrieved_kernel, index) = match client.get_kernel(&wd.kernel_commitment, None, None) {
 		Err(e) => {
 			return Err(Error::PaymentProof(format!(
 				"Error retrieving kernel from chain: {}",
@@ -276,9 +269,13 @@ where
 				wd.kernel_commitment
 			)));
 		}
-		Ok(Some(_)) => {}
+		Ok(Some((k, _, index))) => (k, index),
 	};
 
-
-
-}*/
+	// Now verify with retrieved data
+	proof.verify_witness(
+		recipient_address,
+		&retrieved_kernel.excess_sig,
+		&retrieved_kernel.msg_to_sign()?,
+	)
+}

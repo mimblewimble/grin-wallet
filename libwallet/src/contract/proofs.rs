@@ -88,8 +88,6 @@ pub struct InvoiceProof {
 	/// the witness kernel commitment index
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub witness_data: Option<ProofWitness>,
-	/// Also convenient place to return sender part sig when retrieving from DB
-	/// TODO: check if needed
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub sender_partial_sig: Option<Signature>,
@@ -293,7 +291,7 @@ impl InvoiceProof {
 
 	pub fn verify_witness(
 		&self,
-		recipient_address: Option<&DalekPublicKey>,
+		recipient_address: &DalekPublicKey,
 		excess_sig: &Signature,
 		msg: &Message,
 	) -> Result<(), Error> {
@@ -301,9 +299,7 @@ impl InvoiceProof {
 			return Err(Error::PaymentProofValidation("Missing witness data".into()));
 		}
 
-		if let Some(a) = recipient_address {
-			self.verify_promise_signature(a)?;
-		};
+		self.verify_promise_signature(recipient_address)?;
 
 		let wd = self.witness_data.as_ref().unwrap().clone();
 		{
@@ -346,7 +342,6 @@ impl InvoiceProof {
 				}
 			}
 		}
-
 		Ok(())
 	}
 }

@@ -574,13 +574,9 @@ where
 
 	// Now to kernel lookup, to fill in the witness data
 	// Check kernel exists
-	let (mut client, parent_key_id, keychain) = {
+	let mut client = {
 		wallet_lock!(wallet_inst, w);
-		(
-			w.w2n_client().clone(),
-			w.parent_key_id(),
-			w.keychain(keychain_mask)?,
-		)
+		w.w2n_client().clone()
 	};
 
 	let kernel_excess = match tx.kernel_excess {
