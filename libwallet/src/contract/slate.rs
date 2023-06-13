@@ -22,23 +22,54 @@ use crate::slate::{Slate, SlateState};
 use crate::types::{Context, NodeClient, WalletBackend};
 use crate::Error;
 
+use super::types::ProofArgs;
+use crate::contract::proofs::InvoiceProof;
+use ed25519_dalek::PublicKey as DalekPublicKey;
+
 /// The secret key we replace the actual key with after we have signed with the Context keys. This is
 /// to prevent possibility of signing with the same key twice.
 pub const SEC_KEY_FAKE: [u8; 32] = [0; 32];
 
-/// Add payment proof data to slate
-pub fn add_payment_proof(slate: &mut Slate) -> Result<(), Error> {
+/// Add payment proof data to slate, noop for sender
+pub fn add_payment_proof<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	slate: &mut Slate,
+	keychain_mask: Option<&SecretKey>,
+	context: &Context,
+	net_change: &Option<i64>,
+	proof_args: &ProofArgs,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
 	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
 	// e.g. slate.add_payment_proof_data()
-	debug!("contract::slate::add_payment_proof => called (not implemented yet)");
+	trace!("contract::slate::add_payment_proof => called");
+	// If we're a recipient, generate proof unless explicity told not to
+	if let Some(ref c) = net_change {
+		if *c > 0 && !proof_args.suppress_proof && slate.payment_proof.is_none() {
+			super::proofs::add_payment_proof(w, keychain_mask, slate, &context, proof_args)?;
+		}
+	}
+
 	Ok(())
 }
 
 /// Verify payment proof signature
-pub fn verify_payment_proof(slate: &Slate) -> Result<(), Error> {
+pub fn verify_payment_proof(
+	slate: &Slate,
+	net_change: i64,
+	recipient_address: &DalekPublicKey,
+) -> Result<(), Error> {
 	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
 	// e.g. slate.verify_payment_proof_sig()
-	debug!("contract::slate::verify_payment_proof => called (not implemented yet)");
+	debug!("contract::slate::verify_payment_proof => called");
+	if net_change > 0 && slate.payment_proof.is_some() {
+		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+		invoice_proof.verify_promise_signature(&recipient_address)?;
+	}
 	Ok(())
 }
 

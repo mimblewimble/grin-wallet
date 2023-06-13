@@ -41,21 +41,7 @@ where
 		Err(_) => true,
 	};
 	// Compute state for 'sign'
-	let (mut sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;
-
-	// If we're a recipient, generate proof unless explicity told not to
-	if let Some(ref c) = setup_args.net_change {
-		if *c > 0 && !setup_args.proof_args.suppress_proof && sl.payment_proof.is_none() {
-			println!("ADDING PROOF NOW");
-			contract::proofs::add_payment_proof(
-				w,
-				keychain_mask,
-				&mut sl,
-				&context,
-				&setup_args.proof_args,
-			)?;
-		}
-	}
+	let (sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;
 
 	// Atomically commit state
 	contract::utils::save_step(w, keychain_mask, &sl, &mut context, will_add_outputs, true)?;
@@ -92,7 +78,10 @@ where
 	let (mut sl, mut context) = setup::compute(w, keychain_mask, &mut sl, &setup_args)?;
 	// Add outputs to the slate, verify the payment proof and sign the slate
 	contract::slate::add_outputs(w, keychain_mask, &mut sl, &context)?;
-	contract::slate::verify_payment_proof(&sl)?; // noop for the receiver
+	if let Some(ref p) = sl.payment_proof {
+		contract::slate::verify_payment_proof(&sl, expected_net_change, &p.receiver_address)?;
+		// noop for the receiver
+	}
 	contract::slate::sign(w, keychain_mask, &mut sl, &mut context)?;
 	contract::slate::transition_state(&mut sl)?;
 

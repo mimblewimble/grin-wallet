@@ -88,18 +88,8 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 		let args = &ContractSetupArgsAPI {
 			..Default::default()
 		};
-		// Verify promise signature before signing
-		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
-		invoice_proof.verify_promise_signature(&recipient_address.as_ref().unwrap())?;
+
 		slate = api.contract_sign(m, &slate, args)?;
-		// Store this in process for the time being, eventually this will need to be stored
-		// indefinitely along with the rest of the proof data
-
-		// First find out who I am, cause order can end up reversed
-		// TODO: Need to get this definitively
-		//let my_index = api.get_slate_index_matching_my_context(m, &slate)?;
-		//sender_part_sig = Some(slate.participant_data[1].part_sig.unwrap());
-
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Standard3);

@@ -75,7 +75,14 @@ where
 
 	// Add keys and payment proof to slate (both are idempotent operations)
 	contract::slate::add_keys(&mut sl, &w.keychain(keychain_mask)?, &mut context)?;
-	contract::slate::add_payment_proof(&mut sl)?; // noop for the sender
+	contract::slate::add_payment_proof(
+		w,
+		&mut sl,
+		keychain_mask,
+		&mut context,
+		&setup_args.net_change,
+		&setup_args.proof_args,
+	)?; // noop for the sender
 
 	// Add inputs/outputs to the Context if needed. No locking is done here. This happens at save_step.
 	if setup_args.add_outputs {
