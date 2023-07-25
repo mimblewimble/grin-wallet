@@ -181,7 +181,7 @@ impl TorProcess {
 			})?;
 
 		if let Some(ref d) = self.working_dir {
-			// split out the process id, so if we don't exit cleanly
+			// Split out the process id, so if we don't exit cleanly
 			// we can take it down on the next run
 			let pid_file_name = format!("{}{}pid", d, MAIN_SEPARATOR);
 			let mut file = File::create(pid_file_name).map_err(Error::IO)?;
