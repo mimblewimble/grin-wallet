@@ -32,11 +32,7 @@ use tokio::runtime::{Builder, Handle, Runtime};
 // See: https://github.com/seanmonstar/reqwest/pull/1076
 lazy_static! {
 	pub static ref RUNTIME: Arc<Mutex<Runtime>> = Arc::new(Mutex::new(
-		Builder::new()
-			.threaded_scheduler()
-			.enable_all()
-			.build()
-			.unwrap()
+		Builder::new_multi_thread().enable_all().build().unwrap()
 	));
 }
 
