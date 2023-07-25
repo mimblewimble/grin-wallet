@@ -21,7 +21,7 @@ log = "0.4"
 prettytable-rs = "0.10"
 ring = "0.16"
 term = "0.6"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 url = "2.1"
 chrono = { version = "0.4.11", features = ["serde"] }
