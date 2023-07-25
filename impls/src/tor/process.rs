@@ -161,8 +161,7 @@ impl TorProcess {
 				let pid = pid
 					.parse::<i32>()
 					.map_err(|err| Error::PID(format!("{:?}", err)))?;
-				let process = self.get_process(pid);
-				if let Some(p) = process {
+				if let Some(p) = self.get_process(pid) {
 					let _ = p.kill();
 				}
 			}
