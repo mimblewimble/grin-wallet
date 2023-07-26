@@ -101,7 +101,7 @@ impl TorProcess {
 			working_dir: None,
 			stdout: None,
 			process: None,
-			sys: System::new_all(),
+			sys: System::new(),
 		}
 	}
 
