@@ -63,7 +63,8 @@ jobs:
                 dest: grin-wallet-${{  github.ref_name }}-win-x86_64.zip
           - name: Create Checksum
             working-directory: target/release
-            run: powershell -Command "get-filehash -algorithm sha256 grin-wallet-${{  github.ref_name }}-win-x86_64.zip | Format-List |  Out-String | ForEach-Object { $_.Trim() } > grin-wallet-${{  github.ref_name }}-win-x86_64-sha256sum.txt"
+            shell: pwsh
+            run: get-filehash -algorithm sha256 grin-wallet-${{  github.ref_name }}-win-x86_64.zip | Format-List |  Out-String | ForEach-Object { $_.Trim() } > grin-wallet-${{  github.ref_name }}-win-x86_64-sha256sum.txt
           - name: Release
             uses: softprops/action-gh-release@v1
             with:
