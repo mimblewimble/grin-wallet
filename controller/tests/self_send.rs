@@ -133,7 +133,7 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
-	thread::sleep(Duration::from_millis(200));
+	thread::sleep(Duration::from_millis(1000));
 	Ok(())
 }
 
