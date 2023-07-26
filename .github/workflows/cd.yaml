@@ -60,7 +60,7 @@ jobs:
             uses: vimtor/action-zip@v1
             with:
                 files: target/release/grin-wallet.exe
-                dest: grin-wallet-${{  github.ref_name }}-win-x86_64.zip
+                dest: target/release/grin-wallet-${{  github.ref_name }}-win-x86_64.zip
           - name: Create Checksum
             working-directory: target/release
             shell: pwsh
