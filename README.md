@@ -6,6 +6,7 @@
 [![Release Version](https://img.shields.io/github/release/mimblewimble/grin-wallet.svg)](https://github.com/mimblewimble/grin-wallet/releases)
 [![License](https://img.shields.io/github/license/mimblewimble/grin-wallet.svg)](https://github.com/mimblewimble/grin-wallet/blob/master/LICENSE)
 
+
 # Grin Wallet
 
 This is the reference implementation of [Grin's](https://github.com/mimblewimble/grin) wallet. It consists of 2 major pieces:
