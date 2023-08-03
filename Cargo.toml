@@ -65,7 +65,7 @@ grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3"
 # grin_util = { path = "../grin/util"}
 # grin_api = { path = "../grin/api"}
 
-##### 
+###### 
 
 [build-dependencies]
 built = { version = "0.4", features = ["git2"]}
