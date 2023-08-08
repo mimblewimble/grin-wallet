@@ -48,11 +48,12 @@ use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct PaymentMemo {
 	// The type of memo
-	// 0x00 is directly embedded additional payment details
-	// 0x01 represents the blake2b hash of an arbitrary invoice document
+	// 0x00 is the absence of any specific memo data
+	// 0x01 is directly embedded additional payment details
+	// 0x02 represents the blake2b hash of an arbitrary invoice document
 	pub memo_type: u8,
 	// memo data itself
 	pub memo: [u8; 32],
@@ -410,6 +411,28 @@ impl Slate {
 		Ok(msg)
 	}
 
+	/// Matches a participant index on the slate with the stored context
+	pub fn find_index_matching_context<K>(
+		&self,
+		keychain: &K,
+		context: &Context,
+	) -> Result<usize, Error>
+	where
+		K: Keychain,
+	{
+		for i in 0..self.num_participants() as usize {
+			let calc_pub_excess = PublicKey::from_secret_key(keychain.secp(), &context.sec_key)?;
+			let calc_pub_nonce = PublicKey::from_secret_key(keychain.secp(), &context.sec_nonce)?;
+
+			// find my entry
+			if self.participant_data[i].public_blind_excess == calc_pub_excess
+				|| self.participant_data[i].public_nonce == calc_pub_nonce
+			{
+				return Ok(i);
+			}
+		}
+		return Err(Error::ContextToIndex);
+	}
 	/// Completes caller's part of round 2, completing signatures
 	pub fn fill_round_2<K>(
 		&mut self,
@@ -953,7 +976,7 @@ impl From<OutputFeatures> for OutputFeaturesV5 {
 	}
 }
 
-///// V4
+///// V5
 impl From<SlateV5> for Slate {
 	fn from(slate: SlateV5) -> Slate {
 		let SlateV5 {

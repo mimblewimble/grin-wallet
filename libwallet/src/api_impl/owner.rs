@@ -16,6 +16,7 @@
 
 use uuid::Uuid;
 
+use crate::contract::proofs::{InvoiceProof, ProofWitness};
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
@@ -44,6 +45,7 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 
 use std::convert::{TryFrom, TryInto};
+use std::ops::Index;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -472,6 +474,145 @@ where
 		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
 	})
+}
+
+/// Retrieve invoice payment proof
+/// TODO: Need to unify with legacy above
+pub fn retrieve_payment_proof_invoice<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	refresh_from_node: bool,
+	tx_id: Option<u32>,
+	tx_slate_id: Option<Uuid>,
+) -> Result<InvoiceProof, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if tx_id.is_none() && tx_slate_id.is_none() {
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction ID or Slate UUID must be specified".to_owned(),
+		));
+	}
+	if refresh_from_node {
+		update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?
+	} else {
+		false
+	};
+	let txs = retrieve_txs(
+		wallet_inst.clone(),
+		keychain_mask,
+		status_send_channel,
+		refresh_from_node,
+		tx_id,
+		tx_slate_id,
+		None,
+	)?;
+	if txs.1.len() != 1 {
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction doesn't exist".to_owned(),
+		));
+	}
+	// Pull out all needed fields, returning an error if they're not present
+	let tx = txs.1[0].clone();
+	let amount = if tx.amount_credited >= tx.amount_debited {
+		tx.amount_credited - tx.amount_debited
+	} else {
+		// TODO: Invoice proof not expecting fee included here
+		tx.amount_debited - tx.amount_credited
+	};
+
+	let (mut proof, sender_part_sig) = match tx.payment_proof {
+		Some(p) => {
+			if p.receiver_public_nonce.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored receiver public nonce".into(),
+				));
+			};
+			if p.receiver_public_excess.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored receiver public excess".into(),
+				));
+			};
+			if p.timestamp.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored timestamp".into(),
+				));
+			};
+			if p.sender_part_sig.is_none() {
+				return Err(Error::PaymentProofRetrieval(
+					"Invoice Proof requires stored sender partial signature".into(),
+				));
+			};
+
+			(
+				InvoiceProof {
+					proof_type: if let Some(t) = p.proof_type { t } else { 1u8 },
+					amount,
+					receiver_public_nonce: p.receiver_public_nonce.unwrap(),
+					receiver_public_excess: p.receiver_public_excess.unwrap(),
+					sender_address: p.sender_address,
+					timestamp: p.timestamp.unwrap().timestamp(),
+					memo: p.memo,
+					promise_signature: p.promise_signature,
+					witness_data: None,
+				},
+				p.sender_part_sig.unwrap(),
+			)
+		}
+		None => {
+			return Err(Error::PaymentProofRetrieval(
+				"Transaction does not contain a payment proof".to_owned(),
+			));
+		}
+	};
+
+	// Now to kernel lookup, to fill in the witness data
+	// Check kernel exists
+	let mut client = {
+		wallet_lock!(wallet_inst, w);
+		w.w2n_client().clone()
+	};
+
+	let kernel_excess = match tx.kernel_excess {
+		Some(k) => k,
+		None => {
+			return Err(Error::PaymentProofRetrieval(format!(
+				"Invoice proof transaction kernel excess missing",
+			)))
+		}
+	};
+
+	let (retrieved_kernel, index) = match client.get_kernel(&kernel_excess, None, None) {
+		Err(e) => {
+			return Err(Error::PaymentProof(format!(
+				"Error retrieving kernel from chain: {}",
+				e
+			)));
+		}
+		Ok(None) => {
+			return Err(Error::PaymentProof(format!(
+				"Transaction kernel with excess {:?} not found on chain",
+				kernel_excess
+			)));
+		}
+		Ok(Some((k, _, index))) => (k, index),
+	};
+
+	proof.witness_data = Some(ProofWitness {
+		kernel_index: index,
+		kernel_commitment: retrieved_kernel.excess,
+		sender_partial_sig: sender_part_sig,
+	});
+
+	Ok(proof)
 }
 
 /// Initiate tx as sender
@@ -1493,4 +1634,21 @@ where
 	K: Keychain + 'a,
 {
 	contract::revoke(&mut *w, keychain_mask, &args)
+}
+
+/// Revoke transaction contract
+pub fn get_slate_index_matching_my_context<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	// use_test_rng: bool,
+) -> Result<usize, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let keychain = w.keychain(keychain_mask)?;
+	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+	slate.find_index_matching_context(&keychain, &context)
 }

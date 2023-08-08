@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_wallet_libwallet::contract::proofs::InvoiceProof;
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
@@ -804,6 +805,17 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::contract_sign(&mut **w, keychain_mask, &args, &slate)
+	}
+
+	/// TODO
+	pub fn get_slate_index_matching_my_context(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<usize, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_slate_index_matching_my_context(&mut **w, keychain_mask, &slate)
 	}
 
 	/// TODO
@@ -2397,6 +2409,32 @@ where
 			false => refresh_from_node,
 		};
 		owner::retrieve_payment_proof(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)
+	}
+
+	/// TODO: Temporary, likely should merge with above
+	pub fn retrieve_payment_proof_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<InvoiceProof, Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
+		owner::retrieve_payment_proof_invoice(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,

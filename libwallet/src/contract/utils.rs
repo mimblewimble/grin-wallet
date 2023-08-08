@@ -20,10 +20,13 @@ use crate::grin_core::libtx::tx_fee;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, TxLogEntryType, WalletBackend};
-use crate::{Error, OutputData, OutputStatus, TxLogEntry};
+use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
+use crate::util::OnionV3Address;
+use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::FeeFields;
 use uuid::Uuid;
+
+use super::proofs::InvoiceProof;
 
 /// Creates an initial TxLogEntry without input/output or kernel information
 pub fn create_tx_log_entry(
@@ -69,6 +72,7 @@ where
 {
 	// This is expected to be called when we are signing the contract and have already contributed inputs & outputs
 	let keychain = wallet.keychain(keychain_mask)?;
+	let parent_key_id = context.parent_key_id.clone();
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	// We have already contributed inputs and outputs so we know how much of each we contribute
 	tx_log_entry.num_outputs = context.output_ids.len();
@@ -80,6 +84,44 @@ where
 		Err(_) => panic!("We can't update tx log entry. Excess could not be computed."),
 	};
 	tx_log_entry.kernel_lookup_min_height = Some(current_height);
+
+	// If we're sending and there's payment proof info in the slate added by recipient, store as well
+	if let Some(ref p) = slate.payment_proof {
+		if tx_log_entry.amount_debited > 0 {
+			// note we only use a single path for now
+			let sender_address_path = 0u32;
+			let sender_key = address::address_from_derivation_path(
+				&keychain,
+				&parent_key_id,
+				sender_address_path,
+			)?;
+			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
+
+			// We're looking for the OTHER party here, the recipient
+			let sender_index = slate.find_index_matching_context(&keychain, context)?;
+			let recipient_index = sender_index ^ 1;
+
+			tx_log_entry.payment_proof = Some(StoredProofInfo {
+				receiver_address: p.receiver_address,
+				receiver_signature: p.promise_signature,
+				sender_address: sender_address.to_ed25519()?,
+				sender_address_path,
+				sender_signature: None,
+				/// TODO: Will fill these as separate steps for now, check whether this
+				/// can be merged in a general case (which means knowing which nonces here belong to
+				/// the recipient)
+				proof_type: Some(1u8),
+				receiver_public_nonce: Some(slate.participant_data[recipient_index].public_nonce),
+				receiver_public_excess: Some(
+					slate.participant_data[recipient_index].public_blind_excess,
+				),
+				timestamp: Some(p.timestamp),
+				memo: p.memo.clone(),
+				promise_signature: p.promise_signature,
+				sender_part_sig: slate.participant_data[sender_index].part_sig,
+			});
+		}
+	}
 
 	Ok(())
 }
@@ -229,6 +271,7 @@ where
 			batch.lock_output(&mut coin)?;
 		}
 	}
+
 	// Update context
 	if is_signed && !is_step2 {
 		// NOTE: We MUST forget the context when we sign. Ideally, these two would be atomic or perhaps

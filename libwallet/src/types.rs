@@ -26,8 +26,9 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::grin_util::secp::{self, pedersen, Secp256k1, Signature};
 use crate::grin_util::{ToHex, ZeroingString};
+use crate::slate::PaymentMemo;
 use crate::slate_versions::ser as dalek_ser;
 use crate::InitTxArgs;
 use chrono::prelude::*;
@@ -934,6 +935,23 @@ pub struct StoredProofInfo {
 	/// sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
+	// Fields beyond here are specific to early payment proofs,
+	// invoice and sender nonce
+	/// Assumed to be 0x00 (Legacy) if missing
+	pub proof_type: Option<u8>,
+	/// receiver's public nonce from signing
+	pub receiver_public_nonce: Option<PublicKey>,
+	/// receiver's public excess from signing
+	pub receiver_public_excess: Option<PublicKey>,
+	/// Timestamp provided by recipient when signing
+	pub timestamp: Option<DateTime<Utc>>,
+	/// Optional payment memo
+	pub memo: Option<PaymentMemo>,
+	/// recipient promise signature
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub promise_signature: Option<DalekSignature>,
+	/// Original Sender partial key
+	pub sender_part_sig: Option<Signature>,
 }
 
 impl ser::Writeable for StoredProofInfo {
