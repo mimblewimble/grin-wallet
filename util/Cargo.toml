@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_util"
-version = "5.2.0-alpha.1"
+version = "5.2.0-beta.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Util, for generic utilities and to re-export grin crates"
 license = "Apache-2.0"
@@ -25,10 +25,10 @@ thiserror = "1"
 
 # For beta release
 
-# grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.0.0-beta.2" }
+grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
 
 # For bleeding edge
- grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
 
