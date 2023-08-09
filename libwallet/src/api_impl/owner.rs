@@ -45,7 +45,6 @@ use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 
 use std::convert::{TryFrom, TryInto};
-use std::ops::Index;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -713,7 +712,10 @@ where
 			sender_address: Some(sender_address.to_ed25519()?),
 			receiver_address: a.pub_key,
 			promise_signature: None,
-			timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+			timestamp: DateTime::<Utc>::from_utc(
+				NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
+				Utc,
+			),
 			memo: None,
 		});
 

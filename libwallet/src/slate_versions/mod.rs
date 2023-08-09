@@ -142,7 +142,7 @@ impl VersionedCoinbase {
 }
 #[cfg(test)]
 pub mod tests {
-	use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
+	use crate::grin_core::core::transaction::OutputFeatures;
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
 	use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
@@ -155,7 +155,6 @@ pub mod tests {
 	use ed25519_dalek::Signature as DalekSignature;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
-	use grin_wallet_util::byte_ser::from_bytes;
 	use std::convert::TryInto;
 
 	// Populate a test internal slate with all fields to test conversions
@@ -224,7 +223,7 @@ pub mod tests {
 		let b = from_hex(raw_pubkey_str).unwrap();
 		let d_pkey = DalekPublicKey::from_bytes(&b).unwrap();
 		// Need to remove milliseconds component for comparison. Won't be serialized
-		let ts = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+		let ts = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
 		let ts = DateTime::<Utc>::from_utc(ts, Utc);
 		let pm = PaymentMemo {
 			memo_type: 1,

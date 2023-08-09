@@ -1600,7 +1600,10 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 			sender_address: Some(sender_address),
 			receiver_address,
 			promise_signature: receiver_signature,
-			timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+			timestamp: DateTime::<Utc>::from_utc(
+				NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
+				Utc,
+			),
 			memo: None,
 		}
 	}

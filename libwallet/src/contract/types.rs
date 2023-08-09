@@ -219,6 +219,8 @@ impl Default for ContractView {
 		}
 	}
 }
+
+/// Arguments for contract revoke function
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ContractRevokeArgsAPI {
 	/// Tx id to cancel

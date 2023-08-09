@@ -13,9 +13,6 @@
 // limitations under the License.
 
 //! Implementation of contract revoke
-
-use std::default;
-
 use crate::contract::types::{ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs};
 use crate::contract::{new, sign};
 use crate::error::Error;

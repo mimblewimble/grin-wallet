@@ -14,7 +14,7 @@
 
 //! Wraps a V5 Slate into a V5 Binary slate
 
-use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
+use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::BlindingFactor;
@@ -24,9 +24,7 @@ use crate::grin_util::secp::Signature;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
-use grin_wallet_util::byte_ser::from_bytes;
 use std::convert::{TryFrom, TryInto};
-use uuid::Uuid;
 
 use crate::slate_versions::v5::{
 	CommitsV5, KernelFeaturesArgsV5, ParticipantDataV5, PaymentInfoV5, PaymentMemoV5, SlateStateV5,
@@ -249,7 +247,8 @@ impl Readable for ProofWrap {
 		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let ts_raw: i64 = reader.read_i64().unwrap();
-		let ts = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(ts_raw, 0), Utc);
+		let ts =
+			DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_raw, 0).unwrap(), Utc);
 		let psig = match reader.read_u8()? {
 			0 => None,
 			1 | _ => Some(DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..]).unwrap()),
@@ -488,7 +487,7 @@ fn slate_v5_serialize_deserialize() {
 	let b = from_hex(raw_pubkey_str).unwrap();
 	let d_pkey = DalekPublicKey::from_bytes(&b).unwrap();
 	// Need to remove milliseconds component for comparison. Won't be serialized
-	let ts = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+	let ts = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
 	let ts = DateTime::<Utc>::from_utc(ts, Utc);
 	let pm = PaymentMemoV5 {
 		memo_type: 0,

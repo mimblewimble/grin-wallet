@@ -26,9 +26,10 @@ use super::types::ProofArgs;
 use crate::contract::proofs::InvoiceProof;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 
+/// TODO: Removed for now, consider secp error in sign function
 /// The secret key we replace the actual key with after we have signed with the Context keys. This is
 /// to prevent possibility of signing with the same key twice.
-pub const SEC_KEY_FAKE: [u8; 32] = [0; 32];
+/// pub const SEC_KEY_FAKE: [u8; 32] = [0; 32];
 
 /// Add payment proof data to slate, noop for sender
 pub fn add_payment_proof<'a, T: ?Sized, C, K>(
