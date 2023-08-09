@@ -144,6 +144,7 @@ fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
+	let mut sender_address = None;
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		// Send wallet inititates a standard transaction with --send=5
 		let args = &ContractNewArgsAPI {
@@ -154,17 +155,21 @@ fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 			..Default::default()
 		};
 		slate = api.contract_new(m, args)?;
+		sender_address = Some(api.get_slatepack_address(mask1, 0)?.pub_key);
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Standard1);
 
+	let mut recipient_address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		// Receive wallet calls --receive=5
-		let args = &ContractSetupArgsAPI {
+		let args = &mut ContractSetupArgsAPI {
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
+		args.proof_args.sender_address = sender_address;
 		slate = api.contract_sign(m, &slate, args)?;
+		recipient_address = Some(api.get_slatepack_address(mask2, 0)?.pub_key);
 		Ok(())
 	})?;
 	assert_eq!(slate.state, SlateState::Standard2);

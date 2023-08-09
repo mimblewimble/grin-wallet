@@ -113,10 +113,11 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 	}
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		// Receive wallet calls --receive=5
-		let args = &ContractSetupArgsAPI {
+		let args = &mut ContractSetupArgsAPI {
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
+		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;

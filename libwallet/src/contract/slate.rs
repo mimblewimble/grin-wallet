@@ -47,7 +47,7 @@ where
 {
 	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
 	// e.g. slate.add_payment_proof_data()
-	trace!("contract::slate::add_payment_proof => called");
+	debug!("contract::slate::add_payment_proof => called");
 	// If we're a recipient, generate proof unless explicity told not to
 	if let Some(ref c) = net_change {
 		if *c > 0 && !proof_args.suppress_proof && slate.payment_proof.is_none() {

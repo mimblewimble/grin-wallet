@@ -45,7 +45,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		// Send wallet inititates a standard transaction with --send=5
-		let args = &ContractNewArgsAPI {
+		let args = &mut ContractNewArgsAPI {
 			setup_args: ContractSetupArgsAPI {
 				net_change: Some(-5_000_000_000),
 				..Default::default()
@@ -59,10 +59,11 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		// Receive wallet calls --receive=5
-		let args = &ContractSetupArgsAPI {
+		let args = &mut ContractSetupArgsAPI {
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
+		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;
@@ -70,9 +71,10 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	// Send wallet finalizes and posts
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
-		let args = &ContractSetupArgsAPI {
+		let args = &mut ContractSetupArgsAPI {
 			..Default::default()
 		};
+		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;
