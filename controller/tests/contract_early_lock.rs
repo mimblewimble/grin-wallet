@@ -20,10 +20,9 @@ extern crate log;
 use grin_wallet_libwallet as libwallet;
 
 use grin_core::consensus;
-use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs};
-use libwallet::{OutputCommitMapping, OutputStatus, Slate, SlateState, TxLogEntryType};
+use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
+use libwallet::{OutputStatus, Slate, SlateState};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -35,7 +34,7 @@ use common::{clean_output_dir, create_wallets, setup};
 /// contract new with --add-outputs
 fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// create a single wallet and mine 5 blocks
-	let (wallets, chain, stopper, mut bh) =
+	let (wallets, _chain, stopper, _bh) =
 		create_wallets(vec![vec![("default", 5)]], test_dir).unwrap();
 	let send_wallet = wallets[0].0.clone();
 	let send_mask = wallets[0].1.as_ref();

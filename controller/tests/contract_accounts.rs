@@ -24,9 +24,8 @@ use self::core::global;
 use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self};
-use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::{Slate, SlateState, TxLogEntryType};
+use libwallet::{Slate, SlateState};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -38,7 +37,7 @@ use common::{clean_output_dir, create_wallets, setup};
 /// contract accounts testing (mostly the same as accounts.rs)
 fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// create two wallets with some extra accounts and don't mine anything in them
-	let (wallets, chain, stopper, mut bh) = create_wallets(
+	let (wallets, chain, stopper, _bh) = create_wallets(
 		vec![
 			vec![
 				("default", 0),
@@ -184,7 +183,6 @@ fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
-	bh += 1;
 
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;

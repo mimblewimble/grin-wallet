@@ -18,15 +18,10 @@ extern crate grin_wallet_impls as impls;
 extern crate log;
 
 use grin_core as core;
-use grin_keychain as keychain;
-
-use self::core::global;
-use self::keychain::{ExtKeychain, Keychain};
 use grin_wallet_libwallet as libwallet;
-use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::{Slate, SlateState, TxLogEntryType};
+use libwallet::{Slate, SlateState};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -38,7 +33,7 @@ use common::{clean_output_dir, create_wallets, setup};
 /// contract accounts testing when switching between accounts during transaction building
 fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// create two wallets with some extra accounts and don't mine anything in them
-	let (wallets, chain, stopper, mut bh) = create_wallets(
+	let (wallets, _chain, stopper, _bh) = create_wallets(
 		vec![
 			vec![("default", 0), ("account1", 1), ("account2", 2)],
 			vec![("default", 0), ("account1", 3), ("account2", 4)],

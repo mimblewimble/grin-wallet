@@ -21,8 +21,6 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 
-use uuid::Uuid;
-
 use crate::blake2::blake2b::{Blake2b, Blake2bResult};
 
 use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
