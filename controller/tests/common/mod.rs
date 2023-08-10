@@ -184,6 +184,7 @@ pub fn open_local_wallet(
 }
 
 // Creates the given number of wallets and spawns a thread that runs the wallet proxy
+#[allow(dead_code)]
 pub fn create_wallets(
 	wallets_def: Vec<Vec<(&'static str, u64)>>, // a vector of boolean that represent whether we mine into a wallet
 	test_dir: &'static str,

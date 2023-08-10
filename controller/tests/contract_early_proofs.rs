@@ -22,13 +22,10 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate log;
 
-use grin_core::consensus::KERNEL_WEIGHT;
 use grin_wallet_libwallet as libwallet;
 
-use grin_util::static_secp_instance;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::proofs::{InvoiceProof, ProofWitness};
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
@@ -70,7 +67,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	let mut recipient_address = None;
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		// Receive wallet calls --receive=5
-		let mut args = &mut ContractSetupArgsAPI {
+		let args = &mut ContractSetupArgsAPI {
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
@@ -145,7 +142,7 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 
 	let mut invoice_proof = None;
 	// Now some time has passed, sender retrieves and verify the payment proof
-	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
+	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, _m| {
 		// Extract the stored data as an invoice proof
 		invoice_proof =
 			Some(api.retrieve_payment_proof_invoice(send_mask, true, None, Some(slate.id))?);
@@ -160,14 +157,10 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 
 	wallet::controller::foreign_single_use(recv_wallet.clone(), recv_mask.cloned(), |api| {
 		let mut proof = serde_json::from_str(&invoice_proof_json).unwrap();
-		api.verify_payment_proof_invoice(recv_mask, recipient_address.as_ref().unwrap(), &proof)?;
+		api.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &proof)?;
 		// tweak something and it shouldn't verify
 		proof.amount = 400000;
-		let retval = api.verify_payment_proof_invoice(
-			recv_mask,
-			recipient_address.as_ref().unwrap(),
-			&proof,
-		);
+		let retval = api.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &proof);
 		assert!(retval.is_err());
 		Ok(())
 	})?;

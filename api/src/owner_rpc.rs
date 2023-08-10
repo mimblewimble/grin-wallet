@@ -513,21 +513,43 @@ pub trait OwnerRpc {
 	```
 	*/
 
+	/**
+	   TODO: Full docs once API has stabilised
+	*/
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
-	fn contract_new(&self, token: Token, args: ContractNewArgsAPI)
-		-> Result<VersionedSlate, Error>;
+
+	/**
+	   TODO: Implement
+	*/
 	// fn contract_setup(
 	// 	&self,
 	// 	token: Token,
 	// 	slate: VersionedSlate,
 	// 	args: ContractSetupArgsAPI,
 	// ) -> Result<VersionedSlate, Error>;
+
+	/**
+	   TODO: Full docs once API has stabilised
+	*/
+
+	fn contract_new(&self, token: Token, args: ContractNewArgsAPI)
+		-> Result<VersionedSlate, Error>;
+
+	/**
+	   TODO: Full docs once API has stabilised
+	*/
+
 	fn contract_sign(
 		&self,
 		token: Token,
 		slate: VersionedSlate,
 		args: ContractSetupArgsAPI,
 	) -> Result<VersionedSlate, Error>;
+
+	/**
+	   TODO: Full docs once API has stabilised
+	*/
+
 	fn contract_revoke(
 		&self,
 		token: Token,

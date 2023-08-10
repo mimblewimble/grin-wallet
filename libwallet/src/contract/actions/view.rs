@@ -23,10 +23,10 @@ use crate::types::{NodeClient, WalletBackend};
 
 /// View contract
 pub fn view<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
+	_w: &mut T,
+	_keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	encrypted_for: &str,
+	_encrypted_for: &str,
 ) -> Result<ContractView, Error>
 where
 	T: WalletBackend<'a, C, K>,

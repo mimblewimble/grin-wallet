@@ -40,6 +40,7 @@ use ed25519_dalek::{Signer, Verifier};
 use grin_util::secp::Message;
 use std::convert::TryInto;
 
+/// All elements required to validate a proof within a single struct
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ProofWitness {
 	/// Kernel index, supplied so verifiers can look up kernel
@@ -58,8 +59,8 @@ pub struct ProofWitness {
 	pub sender_partial_sig: Signature,
 }
 
-// Payment proof, to be extracted from slates for
-// signing (when wrapped as PaymentProofBin) or json export from stored tx data
+/// Payment proof, to be extracted from slates for
+/// signing (when wrapped as PaymentProofBin) or json export from stored tx data
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct InvoiceProof {
 	/// Proof type, 0x00 legacy (though this will use StoredProofInfo above, 1 invoice, 2 Sender nonce)
@@ -212,7 +213,9 @@ impl InvoiceProof {
 		};
 
 		let timestamp = match slate.payment_proof.as_ref() {
-			Some(p) => NaiveDateTime::from_timestamp(p.timestamp.timestamp(), 0).timestamp(),
+			Some(p) => NaiveDateTime::from_timestamp_opt(p.timestamp.timestamp(), 0)
+				.unwrap()
+				.timestamp(),
 			None => 0,
 		};
 
@@ -239,6 +242,7 @@ impl InvoiceProof {
 		})
 	}
 
+	/// Sign the invoice proof, provided all fields are populated
 	pub fn sign(&self, sec_key: &SecretKey) -> Result<(DalekSignature, DalekPublicKey), Error> {
 		let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 			Ok(k) => k,
@@ -258,6 +262,7 @@ impl InvoiceProof {
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
 
+	/// Verify the signature of the invoice proof
 	pub fn verify_promise_signature(
 		&self,
 		recipient_address: &DalekPublicKey,
@@ -284,6 +289,8 @@ impl InvoiceProof {
 		Ok(())
 	}
 
+	/// Verify signature and proof against a given kernel message (kernel lookup is beyond the scope
+	/// of this module)
 	pub fn verify_witness(
 		&self,
 		recipient_address: &DalekPublicKey,
@@ -369,7 +376,7 @@ where
 	// TODO: Just generating invoice (type 1) for now
 	let (invoice_proof, promise_signature, receiver_address) =
 		generate_invoice_signature(wallet, keychain_mask, slate, context, proof_args)?;
-	let timestamp = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+	let timestamp = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
 	let timestamp = DateTime::<Utc>::from_utc(timestamp, Utc);
 
 	let proof = PaymentInfo {
@@ -407,7 +414,9 @@ where
 	let recp_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 
-	invoice_proof.timestamp = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0).timestamp();
+	invoice_proof.timestamp = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0)
+		.unwrap()
+		.timestamp();
 	let (sig, addr) = invoice_proof.sign(&recp_key)?;
 	Ok((invoice_proof, sig, addr))
 }

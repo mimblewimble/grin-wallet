@@ -26,8 +26,6 @@ use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::FeeFields;
 use uuid::Uuid;
 
-use super::proofs::InvoiceProof;
-
 /// Creates an initial TxLogEntry without input/output or kernel information
 pub fn create_tx_log_entry(
 	slate: &Slate,

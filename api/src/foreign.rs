@@ -483,13 +483,12 @@ where
 	/// TODO
 	pub fn verify_payment_proof_invoice(
 		&self,
-		keychain_mask: Option<&SecretKey>,
 		recipient_address: &DalekPublicKey,
 		proof: &InvoiceProof,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		foreign::verify_payment_proof_invoice(&mut **w, keychain_mask, recipient_address, proof)
+		foreign::verify_payment_proof_invoice(&mut **w, recipient_address, proof)
 	}
 }
 

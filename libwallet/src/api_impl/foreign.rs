@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //! Generic implementation of owner API functions
-use grin_util::secp::pedersen::Commitment;
 use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::contract_new as owner_contract_new;
@@ -230,7 +229,6 @@ where
 /// Verify an invoice payment proof
 pub fn verify_payment_proof_invoice<'a, T: ?Sized, C, K>(
 	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
 	recipient_address: &DalekPublicKey,
 	proof: &InvoiceProof,
 ) -> Result<(), Error>
@@ -239,13 +237,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let (mut client, parent_key_id, keychain) = {
-		(
-			w.w2n_client().clone(),
-			w.parent_key_id(),
-			w.keychain(keychain_mask)?,
-		)
-	};
+	let mut client = w.w2n_client().clone();
 
 	let wd = match proof.witness_data.clone() {
 		Some(w) => w,
@@ -256,7 +248,7 @@ where
 		}
 	};
 
-	let (retrieved_kernel, index) = match client.get_kernel(&wd.kernel_commitment, None, None) {
+	let (retrieved_kernel, _) = match client.get_kernel(&wd.kernel_commitment, None, None) {
 		Err(e) => {
 			return Err(Error::PaymentProof(format!(
 				"Error retrieving kernel from chain: {}",

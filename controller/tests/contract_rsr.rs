@@ -45,13 +45,14 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		// Receive wallet inititates an invoice transaction with --receive=5
-		let args = &ContractNewArgsAPI {
+		let args = &mut ContractNewArgsAPI {
 			setup_args: ContractSetupArgsAPI {
 				net_change: Some(5_000_000_000),
 				..Default::default()
 			},
 			..Default::default()
 		};
+		args.setup_args.proof_args.suppress_proof = true;
 		slate = api.contract_new(m, args)?;
 		Ok(())
 	})?;
@@ -70,9 +71,11 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	// Receive wallet finalizes and posts
 	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
-		let args = &ContractSetupArgsAPI {
+		let args = &mut ContractSetupArgsAPI {
 			..Default::default()
 		};
+		// TODO: This possibly shouldn't be needed here if no proof?
+		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;
