@@ -36,8 +36,8 @@ use std::time::Duration;
 mod common;
 use common::{clean_output_dir, create_wallets, setup};
 
-/// Development + Tests of early payment proof functionality
-fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+/// Development + Tests of early payment proof functionality - RSR workflow
+fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// create two wallets and mine 4 blocks in each (we want both to have balance to get a payjoin)
 	let (wallets, chain, stopper, mut bh) =
 		create_wallets(vec![vec![("default", 4)], vec![("default", 4)]], test_dir).unwrap();
@@ -49,47 +49,51 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
 	let mut sender_address = None;
+	// Get sender address explicitly
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
-		// Send wallet inititates a standard transaction with --send=5
-		let args = &ContractNewArgsAPI {
+		sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
+		Ok(())
+	})?;
+
+	let mut recipient_address = None;
+	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
+		// Receive wallet (invoice) calls --receive=5
+		let args = &mut ContractNewArgsAPI {
 			setup_args: ContractSetupArgsAPI {
-				net_change: Some(-5_000_000_000),
+				net_change: Some(5_000_000_000),
 				..Default::default()
 			},
 			..Default::default()
 		};
+		args.setup_args.proof_args.sender_address = sender_address;
 		slate = api.contract_new(m, args)?;
-		sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
-		Ok(())
-	})?;
-	assert_eq!(slate.state, SlateState::Standard1);
-
-	let mut recipient_address = None;
-	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
-		// Receive wallet calls --receive=5
-		let args = &mut ContractSetupArgsAPI {
-			net_change: Some(5_000_000_000),
-			..Default::default()
-		};
-		// Note sender address explicity added here
-		args.proof_args.sender_address = sender_address;
-		slate = api.contract_sign(m, &slate, args)?;
 		recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
 		Ok(())
 	})?;
-	assert_eq!(slate.state, SlateState::Standard2);
 
-	// Send wallet finalizes and posts
-	//let mut sender_part_sig = None;
+	assert_eq!(slate.state, SlateState::Invoice1);
+
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
+		// Sending wallet (invoice) signs
 		let args = &ContractSetupArgsAPI {
+			net_change: Some(-5_000_000_000),
 			..Default::default()
 		};
-
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;
-	assert_eq!(slate.state, SlateState::Standard3);
+
+	assert_eq!(slate.state, SlateState::Invoice2);
+
+	// Send wallet finalizes and posts
+	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
+		let args = &ContractSetupArgsAPI {
+			..Default::default()
+		};
+		slate = api.contract_sign(m, &slate, args)?;
+		Ok(())
+	})?;
+	assert_eq!(slate.state, SlateState::Invoice3);
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		api.post_tx(m, &slate, false)?;
@@ -173,10 +177,10 @@ fn contract_early_proofs_test_impl(test_dir: &'static str) -> Result<(), libwall
 }
 
 #[test]
-fn contract_early_proofs() -> Result<(), libwallet::Error> {
-	let test_dir = "test_output/contract_early_proofs";
+fn contract_early_proofs_rsr() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/contract_early_proofs_rsr";
 	setup(test_dir);
-	contract_early_proofs_test_impl(test_dir)?;
+	contract_early_proofs_rsr_test_impl(test_dir)?;
 	clean_output_dir(test_dir);
 	Ok(())
 }
