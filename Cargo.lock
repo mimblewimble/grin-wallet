@@ -1691,6 +1691,7 @@ dependencies = [
  "ed25519-dalek",
  "grin_core",
  "grin_keychain",
+ "grin_secp256k1zkp",
  "grin_store",
  "grin_util",
  "grin_wallet_config",
