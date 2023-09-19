@@ -1,3 +1,19 @@
+// Copyright 2023 The Grin Developers
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Comsig modules for mxmixnet
+
 use secp256k1zkp::{self, pedersen::Commitment, ContextFlag, Secp256k1, SecretKey};
 
 use blake2_rfc::blake2b::Blake2b;
@@ -17,8 +33,10 @@ pub struct ComSignature {
 /// Error types for Commitment Signatures
 #[derive(Error, Debug)]
 pub enum ComSigError {
+	/// Invalid com sig
 	#[error("Commitment signature is invalid")]
 	InvalidSig,
+	/// SECP Error Wrapper
 	#[error("Secp256k1zkp error: {0:?}")]
 	Secp256k1zkp(secp256k1zkp::Error),
 }
@@ -30,6 +48,7 @@ impl From<secp256k1zkp::Error> for ComSigError {
 }
 
 impl ComSignature {
+	/// Create new Com signature from commit and keys
 	pub fn new(pub_nonce: &Commitment, s: &SecretKey, t: &SecretKey) -> ComSignature {
 		ComSignature {
 			pub_nonce: pub_nonce.to_owned(),
@@ -39,6 +58,7 @@ impl ComSignature {
 	}
 
 	#[allow(dead_code)]
+	/// Sign com signature with kernel values
 	pub fn sign(
 		amount: u64,
 		blind: &SecretKey,
@@ -72,6 +92,7 @@ impl ComSignature {
 	}
 
 	#[allow(non_snake_case)]
+	/// Verify a com sig
 	pub fn verify(&self, commit: &Commitment, msg: &Vec<u8>) -> Result<(), ComSigError> {
 		let secp = Secp256k1::with_caps(ContextFlag::Commit);
 

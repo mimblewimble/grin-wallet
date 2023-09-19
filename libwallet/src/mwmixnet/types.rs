@@ -1,4 +1,4 @@
-// Copyright 2023 The Grin Developers
+// Copyright 2022 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Onion modules for mxmixnet
-pub mod onion;
-pub mod types;
+//! Types related to mwmixnet requests required by rest of lib crate apis
+//! Should rexport all needed types here
+
+pub use super::onion::crypto::comsig::{self, ComSignature};
+pub use super::onion::onion::Onion;
+use serde::{Deserialize, Serialize};
+
+/// A Swap request
+#[derive(Serialize, Deserialize)]
+pub struct SwapReq {
+	onion: Onion,
+	#[serde(with = "comsig::comsig_serde")]
+	comsig: ComSignature,
+}

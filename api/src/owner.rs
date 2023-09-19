@@ -829,6 +829,11 @@ where
 		owner::contract_revoke(&mut **w, keychain_mask, &args)
 	}
 
+	/// TODO
+	pub fn create_mwmixnet_req(&self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
+		Ok(())
+	}
+
 	/// Processes an invoice tranaction created by another party, essentially
 	/// a `request for payment`. The incoming slate should contain a requested
 	/// amount, an output created by the invoicer convering the amount, and

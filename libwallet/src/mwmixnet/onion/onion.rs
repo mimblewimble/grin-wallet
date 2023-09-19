@@ -1,5 +1,21 @@
-use crate::crypto::secp::{self, Commitment, RangeProof, SecretKey};
-use crate::util::{read_optional, vec_to_array, write_optional};
+// Copyright 2023 The Grin Developers
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Onion defn for mwmixnet
+
+use super::crypto::secp::{self, Commitment, RangeProof, SecretKey};
+use super::util::{read_optional, vec_to_array, write_optional};
 
 use chacha20::cipher::{NewCipher, StreamCipher};
 use chacha20::{ChaCha20, Key, Nonce};
@@ -11,6 +27,7 @@ use hmac::{Hmac, Mac};
 use serde::ser::SerializeStruct;
 use serde::Deserialize;
 use sha2::Sha256;
+use std::convert::TryFrom;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::result::Result;
@@ -18,6 +35,7 @@ use thiserror::Error;
 use x25519_dalek::{PublicKey as xPublicKey, SharedSecret, StaticSecret};
 
 type HmacSha256 = Hmac<Sha256>;
+/// Wrap u8 vec
 pub type RawBytes = Vec<u8>;
 
 const CURRENT_ONION_VERSION: u8 = 0;
@@ -57,18 +75,24 @@ impl Hash for Onion {
 /// A single, decrypted/peeled layer of an Onion.
 #[derive(Debug, Clone)]
 pub struct Payload {
+	/// next ephemeral pk
 	pub next_ephemeral_pk: xPublicKey,
+	/// excess
 	pub excess: SecretKey,
+	/// fee
 	pub fee: FeeFields,
+	/// proof
 	pub rangeproof: Option<RangeProof>,
 }
 
 impl Payload {
+	/// Deser a payload
 	pub fn deserialize(bytes: &Vec<u8>) -> Result<Payload, ser::Error> {
 		let payload: Payload = ser::deserialize_default(&mut &bytes[..])?;
 		Ok(payload)
 	}
 
+	/// Serialize a payload
 	pub fn serialize(&self) -> Result<Vec<u8>, ser::Error> {
 		let mut vec = vec![];
 		ser::serialize_default(&mut vec, &self)?;
@@ -118,6 +142,7 @@ pub struct PeeledOnion {
 }
 
 impl Onion {
+	/// Serialize onion
 	pub fn serialize(&self) -> Result<Vec<u8>, ser::Error> {
 		let mut vec = vec![];
 		ser::serialize_default(&mut vec, &self)?;
@@ -164,6 +189,7 @@ impl Onion {
 	}
 }
 
+/// Create new stream cypher from shared secret
 pub fn new_stream_cipher(shared_secret: &SharedSecret) -> Result<ChaCha20, OnionError> {
 	let mut mu_hmac = HmacSha256::new_from_slice(b"MWIXNET")?;
 	mu_hmac.update(shared_secret.as_bytes());
@@ -300,16 +326,22 @@ impl<'de> serde::de::Deserialize<'de> for Onion {
 /// Error types for creating and peeling Onions
 #[derive(Clone, Error, Debug, PartialEq)]
 pub enum OnionError {
+	/// Invalid Key Length
 	#[error("Invalid key length for MAC initialization")]
 	InvalidKeyLength,
+	/// Serialization error
 	#[error("Serialization error occurred: {0:?}")]
 	SerializationError(ser::Error),
+	/// Deserialization error
 	#[error("Deserialization error occurred: {0:?}")]
 	DeserializationError(ser::Error),
+	/// Error calculating blinding factor
 	#[error("Error calculating blinding factor: {0:?}")]
 	CalcBlindError(secp256k1zkp::Error),
+	/// Error calculating ephemeral key
 	#[error("Error calculating ephemeral pubkey: {0:?}")]
 	CalcPubKeyError(secp256k1zkp::Error),
+	/// Error calculating commitment
 	#[error("Error calculating commitment: {0:?}")]
 	CalcCommitError(secp256k1zkp::Error),
 }
@@ -329,8 +361,8 @@ impl From<ser::Error> for OnionError {
 #[cfg(test)]
 pub mod tests {
 	use super::*;
-	use crate::crypto::secp::random_secret;
-	use crate::{new_hop, Hop};
+	use crate::mwmixnet::onion::crypto::secp::random_secret;
+	use crate::mwmixnet::onion::{new_hop, Hop};
 
 	use grin_core::core::FeeFields;
 
@@ -376,7 +408,7 @@ pub mod tests {
 			hops.push(hop);
 		}
 
-		let mut onion_packet = test_util::create_onion(&commitment, &hops).unwrap();
+		let mut onion_packet = crate::mwmixnet::onion::create_onion(&commitment, &hops).unwrap();
 
 		let mut payload = Payload {
 			next_ephemeral_pk: onion_packet.ephemeral_pubkey.clone(),
