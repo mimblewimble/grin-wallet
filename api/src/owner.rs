@@ -31,6 +31,7 @@ use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI,
 };
+use crate::libwallet::mwmixnet::types::{MixnetReqCreationParams, SwapReq};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -829,9 +830,17 @@ where
 		owner::contract_revoke(&mut **w, keychain_mask, &args)
 	}
 
-	/// TODO
-	pub fn create_mwmixnet_req(&self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
-		Ok(())
+	/// Create MXMixnet request
+	pub fn create_mwmixnet_req(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		params: &MixnetReqCreationParams,
+		slate: &Slate,
+		// use_test_rng: bool,
+	) -> Result<SwapReq, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::create_mwmixnet_req(&mut **w, keychain_mask, params, slate)
 	}
 
 	/// Processes an invoice tranaction created by another party, essentially

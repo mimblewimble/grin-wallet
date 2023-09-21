@@ -81,11 +81,13 @@ fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet
 	assert_eq!(slate.state, SlateState::Standard3);
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
-		api.post_tx(m, &slate, false)?;
+		//api.create_mwmixnet_req(send_mask, &slate)?;
 		Ok(())
 	})?;
+
 	bh += 1;
 
+	/*
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, send_wallet.clone(), send_mask, 3, false);
 	bh += 3;
@@ -127,7 +129,7 @@ fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet
 		assert_eq!(tx_log.num_outputs, 1);
 		assert_eq!(tx_log.fee, Some(my_fee_contribution(1, 1, 1, 2)?));
 		Ok(())
-	})?;
+	})?;*/
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

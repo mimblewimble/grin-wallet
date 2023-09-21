@@ -22,13 +22,18 @@ use crate::grin_core::core::{Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::Mutex;
-use crate::grin_util::ToHex;
+use crate::grin_util::secp::pedersen;
+use crate::grin_util::{static_secp_instance, Mutex, ToHex};
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::contract::types::{ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI};
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
+use crate::mwmixnet::onion::create_onion;
+use crate::mwmixnet::types::{
+	add_excess, new_hop, random_secret, ComSignature, Hop, MixnetReqCreationParams, SwapReq,
+};
+
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
@@ -1653,4 +1658,63 @@ where
 	let keychain = w.keychain(keychain_mask)?;
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
 	slate.find_index_matching_context(&keychain, &context)
+}
+
+/// Create MXMixnet request
+pub fn create_mwmixnet_req<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	params: &MixnetReqCreationParams,
+	slate: &Slate,
+	// use_test_rng: bool,
+) -> Result<SwapReq, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+
+	let my_keys = context.get_private_keys();
+	let kernel = slate.tx_or_err()?.kernels()[0];
+
+	let msg = kernel.msg_to_sign()?;
+
+	let comsig = ComSignature::sign(slate.amount, &my_keys.0, &msg.to_hex().as_bytes().to_vec())?;
+
+	let mut hops: Vec<Hop> = Vec::new();
+	let mut final_commit = kernel.excess.clone();
+	let mut final_blind = my_keys.0.clone();
+
+	for i in 0..params.server_keys.len() {
+		let excess = params.server_keys[i].clone();
+
+		let secp = secp256k1zkp::Secp256k1::with_caps(secp256k1zkp::ContextFlag::Commit);
+		final_blind.add_assign(&secp, &excess).unwrap();
+		final_commit = add_excess(&final_commit, &excess).unwrap();
+		let proof = if i == params.server_keys.len() - 1 {
+			let n1 = random_secret();
+			let rp = secp.bullet_proof(
+				slate.amount - (params.fee_per_hop * params.server_keys.len() as u32) as u64,
+				final_blind.clone(),
+				n1.clone(),
+				n1.clone(),
+				None,
+				None,
+			);
+			assert!(secp.verify_bullet_proof(final_commit, rp, None).is_ok());
+			Some(rp)
+		} else {
+			None
+		};
+
+		let hop = new_hop(&params.server_keys[i], &excess, params.fee_per_hop, proof);
+		hops.push(hop);
+	}
+
+	let onion = create_onion(&kernel.excess, &hops)?;
+
+	Ok(SwapReq { comsig, onion })
+
+	//slate.find_index_matching_context(&keychain, &context)
 }

@@ -31,7 +31,7 @@ pub struct ComSignature {
 }
 
 /// Error types for Commitment Signatures
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ComSigError {
 	/// Invalid com sig
 	#[error("Commitment signature is invalid")]

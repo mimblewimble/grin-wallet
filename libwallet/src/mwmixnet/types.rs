@@ -16,13 +16,27 @@
 //! Should rexport all needed types here
 
 pub use super::onion::crypto::comsig::{self, ComSignature};
+pub use super::onion::crypto::secp::{add_excess, random_secret};
 pub use super::onion::onion::Onion;
+pub use super::onion::{new_hop, Hop};
+use crate::grin_util::secp::key::SecretKey;
 use serde::{Deserialize, Serialize};
 
 /// A Swap request
 #[derive(Serialize, Deserialize)]
 pub struct SwapReq {
-	onion: Onion,
+	/// Com signature
 	#[serde(with = "comsig::comsig_serde")]
-	comsig: ComSignature,
+	pub comsig: ComSignature,
+	/// Onion
+	pub onion: Onion,
+}
+
+/// MWMixnetRequest Creation Params
+
+pub struct MixnetReqCreationParams {
+	/// List of all the server keys
+	pub server_keys: Vec<SecretKey>,
+	/// Fees per hop
+	pub fee_per_hop: u32,
 }
