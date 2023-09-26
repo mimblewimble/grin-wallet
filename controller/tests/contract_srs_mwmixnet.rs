@@ -22,6 +22,8 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
+use libwallet::mwmixnet::onion::crypto::secp;
+use libwallet::mwmixnet::types::MixnetReqCreationParams;
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -81,7 +83,13 @@ fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet
 	assert_eq!(slate.state, SlateState::Standard3);
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
-		//api.create_mwmixnet_req(send_mask, &slate)?;
+		let server_key_1 = secp::random_secret();
+		let server_key_2 = secp::random_secret();
+		let params = MixnetReqCreationParams {
+			server_keys: vec![server_key_1, server_key_2],
+			fee_per_hop: 50_000_000,
+		};
+		//api.create_mwmixnet_req(send_mask, &params, &slate)?;
 		Ok(())
 	})?;
 
@@ -139,7 +147,7 @@ fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet
 }
 
 #[test]
-fn wallet_contract_srs_tx() -> Result<(), libwallet::Error> {
+fn wallet_contract_srs_mwmixnet_tx() -> Result<(), libwallet::Error> {
 	let test_dir = "test_output/contract_srs_mwmixnet_tx";
 	setup(test_dir);
 	contract_srs_mwmixnet_tx_impl(test_dir)?;
