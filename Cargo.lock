@@ -42,7 +42,7 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "lazy_static",
- "nom 7.1.3",
+ "nom",
  "pin-project",
  "rand 0.7.3",
  "rand 0.8.5",
@@ -64,7 +64,7 @@ dependencies = [
  "chacha20poly1305",
  "cookie-factory",
  "hkdf",
- "nom 7.1.3",
+ "nom",
  "rand 0.8.5",
  "secrecy 0.8.0",
  "sha2 0.9.9",
@@ -244,35 +244,12 @@ checksum = "cf9ff0bbfd639f15c74af777d81383cf53efb7c93613f6cab67c6c11e05bbf8b"
 
 [[package]]
 name = "bindgen"
-version = "0.56.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2da379dbebc0b76ef63ca68d8fc6e71c0f13e59432e0987e508c1820e6ab5239"
-dependencies = [
- "bitflags 1.3.2",
- "cexpr 0.4.0",
- "clang-sys",
- "clap",
- "env_logger",
- "lazy_static",
- "lazycell",
- "log",
- "peeking_take_while",
- "proc-macro2 1.0.67",
- "quote 1.0.33",
- "regex",
- "rustc-hash",
- "shlex 0.1.1",
- "which",
-]
-
-[[package]]
-name = "bindgen"
 version = "0.59.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bd2a9a458e8f4304c52c43ebb0cfbd520289f8379a52e329a38afda99bf8eb8"
 dependencies = [
  "bitflags 1.3.2",
- "cexpr 0.6.0",
+ "cexpr",
  "clang-sys",
  "lazy_static",
  "lazycell",
@@ -281,7 +258,7 @@ dependencies = [
  "quote 1.0.33",
  "regex",
  "rustc-hash",
- "shlex 1.2.0",
+ "shlex",
 ]
 
 [[package]]
@@ -448,20 +425,11 @@ dependencies = [
 
 [[package]]
 name = "cexpr"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4aedb84272dbe89af497cf81375129abda4fc0a9e7c5d317498c15cc30c0d27"
-dependencies = [
- "nom 5.1.3",
-]
-
-[[package]]
-name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
 dependencies = [
- "nom 7.1.3",
+ "nom",
 ]
 
 [[package]]
@@ -625,34 +593,12 @@ dependencies = [
 
 [[package]]
 name = "croaring"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00d14ad7d8cc067d7a5c93e8563791bfec3f7182361db955530db11d94ed63c"
-dependencies = [
- "byteorder",
- "croaring-sys 0.4.6",
- "libc",
-]
-
-[[package]]
-name = "croaring"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aff1eea8a79ffa2a743c1322d5c3853d45699b7842197160c7c32a18c32c1866"
 dependencies = [
  "byteorder",
- "croaring-sys 0.5.2",
- "libc",
-]
-
-[[package]]
-name = "croaring-sys"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5d6a46501bb403a61e43bc7cd19977b4f9c54efd703949b00259cc61afb5a86"
-dependencies = [
- "bindgen 0.56.0",
- "cc",
+ "croaring-sys",
  "libc",
 ]
 
@@ -662,7 +608,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21d77e33a1d5e04573f79846692e72f2e02e0fdd942b90f023c45f146d3447db"
 dependencies = [
- "bindgen 0.59.2",
+ "bindgen",
  "cc",
  "libc",
 ]
@@ -1037,19 +983,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_logger"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
-dependencies = [
- "atty",
- "humantime 2.1.0",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1372,12 +1305,12 @@ dependencies = [
  "bytes 0.5.6",
  "easy-jsonrpc-mw",
  "futures 0.3.28",
- "grin_chain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
  "grin_p2p",
  "grin_pool",
- "grin_store 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_store",
+ "grin_util",
  "http",
  "hyper",
  "hyper-rustls 0.20.0",
@@ -1399,41 +1332,18 @@ dependencies = [
 [[package]]
 name = "grin_chain"
 version = "5.2.0-beta.3"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3#94277bba9db2e31e713f2a4cfdc37b11e46a1630"
-dependencies = [
- "bit-vec",
- "bitflags 1.3.2",
- "byteorder",
- "chrono",
- "croaring 0.4.6",
- "enum_primitive",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "grin_store 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "lazy_static",
- "log",
- "lru-cache",
- "serde",
- "serde_derive",
- "thiserror",
-]
-
-[[package]]
-name = "grin_chain"
-version = "5.2.0-beta.3"
 source = "git+https://github.com/mimblewimble/grin?branch=master#5e2aa59a15c08b41fa68e9e30d0d1d3e176c2271"
 dependencies = [
  "bit-vec",
  "bitflags 1.3.2",
  "byteorder",
  "chrono",
- "croaring 0.5.2",
+ "croaring",
  "enum_primitive",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_store",
+ "grin_util",
  "lazy_static",
  "log",
  "lru-cache",
@@ -1445,42 +1355,16 @@ dependencies = [
 [[package]]
 name = "grin_core"
 version = "5.2.0-beta.3"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3#94277bba9db2e31e713f2a4cfdc37b11e46a1630"
-dependencies = [
- "blake2-rfc",
- "byteorder",
- "bytes 0.5.6",
- "chrono",
- "croaring 0.4.6",
- "enum_primitive",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "lazy_static",
- "log",
- "lru-cache",
- "num",
- "num-bigint",
- "rand 0.6.5",
- "serde",
- "serde_derive",
- "siphasher",
- "thiserror",
- "zeroize",
-]
-
-[[package]]
-name = "grin_core"
-version = "5.2.0-beta.3"
 source = "git+https://github.com/mimblewimble/grin?branch=master#5e2aa59a15c08b41fa68e9e30d0d1d3e176c2271"
 dependencies = [
  "blake2-rfc",
  "byteorder",
  "bytes 0.5.6",
  "chrono",
- "croaring 0.5.2",
+ "croaring",
  "enum_primitive",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_keychain",
+ "grin_util",
  "lazy_static",
  "log",
  "lru-cache",
@@ -1497,34 +1381,12 @@ dependencies = [
 [[package]]
 name = "grin_keychain"
 version = "5.2.0-beta.3"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3#94277bba9db2e31e713f2a4cfdc37b11e46a1630"
-dependencies = [
- "blake2-rfc",
- "byteorder",
- "digest 0.9.0",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "hmac 0.11.0",
- "lazy_static",
- "log",
- "pbkdf2 0.8.0",
- "rand 0.6.5",
- "ripemd160",
- "serde",
- "serde_derive",
- "serde_json",
- "sha2 0.9.9",
- "zeroize",
-]
-
-[[package]]
-name = "grin_keychain"
-version = "5.2.0-beta.3"
 source = "git+https://github.com/mimblewimble/grin?branch=master#5e2aa59a15c08b41fa68e9e30d0d1d3e176c2271"
 dependencies = [
  "blake2-rfc",
  "byteorder",
  "digest 0.9.0",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_util",
  "hmac 0.11.0",
  "lazy_static",
  "log",
@@ -1547,10 +1409,10 @@ dependencies = [
  "bytes 0.5.6",
  "chrono",
  "enum_primitive",
- "grin_chain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
+ "grin_store",
+ "grin_util",
  "log",
  "lru-cache",
  "num",
@@ -1567,9 +1429,9 @@ source = "git+https://github.com/mimblewimble/grin?branch=master#5e2aa59a15c08b4
 dependencies = [
  "blake2-rfc",
  "chrono",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "log",
  "rand 0.6.5",
  "serde",
@@ -1596,31 +1458,12 @@ dependencies = [
 [[package]]
 name = "grin_store"
 version = "5.2.0-beta.3"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3#94277bba9db2e31e713f2a4cfdc37b11e46a1630"
-dependencies = [
- "byteorder",
- "croaring 0.4.6",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "libc",
- "lmdb-zero",
- "log",
- "memmap",
- "serde",
- "serde_derive",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "grin_store"
-version = "5.2.0-beta.3"
 source = "git+https://github.com/mimblewimble/grin?branch=master#5e2aa59a15c08b41fa68e9e30d0d1d3e176c2271"
 dependencies = [
  "byteorder",
- "croaring 0.5.2",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "croaring",
+ "grin_core",
+ "grin_util",
  "libc",
  "lmdb-zero",
  "log",
@@ -1629,27 +1472,6 @@ dependencies = [
  "serde_derive",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "grin_util"
-version = "5.2.0-beta.3"
-source = "git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3#94277bba9db2e31e713f2a4cfdc37b11e46a1630"
-dependencies = [
- "backtrace",
- "base64 0.12.3",
- "byteorder",
- "grin_secp256k1zkp",
- "lazy_static",
- "log",
- "log4rs",
- "parking_lot 0.10.2",
- "rand 0.6.5",
- "serde",
- "serde_derive",
- "walkdir",
- "zeroize",
- "zip",
 ]
 
 [[package]]
@@ -1681,9 +1503,9 @@ dependencies = [
  "clap",
  "easy-jsonrpc-mw",
  "grin_api",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "grin_wallet_api",
  "grin_wallet_config",
  "grin_wallet_controller",
@@ -1713,9 +1535,9 @@ dependencies = [
  "chrono",
  "easy-jsonrpc-mw",
  "ed25519-dalek",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "grin_wallet_config",
  "grin_wallet_impls",
  "grin_wallet_libwallet",
@@ -1735,8 +1557,8 @@ name = "grin_wallet_config"
 version = "5.2.0-beta.1"
 dependencies = [
  "dirs 2.0.2",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_util",
  "grin_wallet_util",
  "pretty_assertions",
  "rand 0.6.5",
@@ -1754,10 +1576,10 @@ dependencies = [
  "ed25519-dalek",
  "futures 0.3.28",
  "grin_api",
- "grin_chain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?tag=v5.2.0-beta.3)",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
+ "grin_keychain",
+ "grin_util",
  "grin_wallet_api",
  "grin_wallet_config",
  "grin_wallet_impls",
@@ -1793,11 +1615,11 @@ dependencies = [
  "ed25519-dalek",
  "futures 0.3.28",
  "grin_api",
- "grin_chain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_store 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_chain",
+ "grin_core",
+ "grin_keychain",
+ "grin_store",
+ "grin_util",
  "grin_wallet_config",
  "grin_wallet_libwallet",
  "grin_wallet_util",
@@ -1834,11 +1656,11 @@ dependencies = [
  "chrono",
  "curve25519-dalek 2.1.3",
  "ed25519-dalek",
- "grin_core 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_keychain 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_core",
+ "grin_keychain",
  "grin_secp256k1zkp",
- "grin_store 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_store",
+ "grin_util",
  "grin_wallet_config",
  "grin_wallet_util",
  "hmac 0.12.1",
@@ -1866,7 +1688,7 @@ version = "5.2.0-beta.1"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
- "grin_util 5.2.0-beta.3 (git+https://github.com/mimblewimble/grin?branch=master)",
+ "grin_util",
  "pretty_assertions",
  "rand 0.6.5",
  "serde",
@@ -2001,12 +1823,6 @@ checksum = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
 dependencies = [
  "quick-error",
 ]
-
-[[package]]
-name = "humantime"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
@@ -2467,7 +2283,7 @@ dependencies = [
  "chrono",
  "flate2",
  "fnv",
- "humantime 1.3.0",
+ "humantime",
  "libc",
  "log",
  "log-mdc",
@@ -2683,16 +2499,6 @@ name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72ef4a56884ca558e5ddb05a1d1e7e1bfd9a68d9ed024c21704cc98872dae1bb"
-
-[[package]]
-name = "nom"
-version = "5.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08959a387a676302eebf4ddbcbc611da04285579f76f88ee0506c63b1a61dd4b"
-dependencies = [
- "memchr",
- "version_check",
-]
 
 [[package]]
 name = "nom"
@@ -4014,12 +3820,6 @@ dependencies = [
 
 [[package]]
 name = "shlex"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
-
-[[package]]
-name = "shlex"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7cee0529a6d40f580e7a5e6c495c8fbfe21b7b52795ed4bb5e62cdf92bc6380"
@@ -4211,15 +4011,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "termcolor"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6093bad37da69aab9d123a8091e4be0aa4a03e4d601ec641c327398315f62b64"
-dependencies = [
- "winapi-util",
-]
-
-[[package]]
 name = "terminfo"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4227,7 +4018,7 @@ checksum = "666cd3a6681775d22b200409aad3b089c5b99fb11ecdd8a204d9d62f8148498f"
 dependencies = [
  "dirs 4.0.0",
  "fnv",
- "nom 7.1.3",
+ "nom",
  "phf",
  "phf_codegen",
 ]
@@ -4790,15 +4581,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f20dea7535251981a9670857150d571846545088359b28e4951d350bdaf179f"
 dependencies = [
  "webpki",
-]
-
-[[package]]
-name = "which"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
-dependencies = [
- "libc",
 ]
 
 [[package]]
