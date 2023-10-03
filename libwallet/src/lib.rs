@@ -51,6 +51,8 @@ mod internal;
 mod slate;
 pub mod slate_versions;
 pub mod slatepack;
+
+pub mod mwmixnet;
 mod types;
 
 pub use crate::error::Error;

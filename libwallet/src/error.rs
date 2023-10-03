@@ -65,6 +65,14 @@ pub enum Error {
 	#[error("Onion V3 Address Error: {0}")]
 	OnionV3Address(#[from] util::OnionV3AddressError),
 
+	/// Comsig error
+	#[error("Comsig error: {0}")]
+	ComSig(#[from] crate::mwmixnet::onion::crypto::comsig::ComSigError),
+
+	/// MwMixnet Onion error
+	#[error("Onion error: {0}")]
+	Onion(#[from] crate::mwmixnet::onion::onion::OnionError),
+
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]
 	CallbackImpl(&'static str),
