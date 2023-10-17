@@ -33,10 +33,14 @@ pub fn create_tx_log_entry(
 	parent_key_id: Identifier,
 	log_id: u32,
 ) -> Result<TxLogEntry, Error> {
-	let log_type = if net_change > 0 {
-		TxLogEntryType::TxReceived
+	let log_type = if slate.num_participants == 1 {
+		TxLogEntryType::TxSelfSpend
 	} else {
-		TxLogEntryType::TxSent
+		if net_change > 0 {
+			TxLogEntryType::TxReceived
+		} else {
+			TxLogEntryType::TxSent
+		}
 	};
 	let mut t = TxLogEntry::new(parent_key_id.clone(), log_type, log_id);
 	// TODO: TxLogEntry has stored_tx field. Check what this needs to be set to and check other fields as well
@@ -209,6 +213,7 @@ where
 				.unwrap()
 		}
 	};
+
 	// Update TxLogEntry if we have signed the contract (we have data about the kernel)
 	if is_signed {
 		update_tx_log_entry(w, keychain_mask, &slate, &context, &mut tx_log_entry)?;

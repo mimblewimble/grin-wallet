@@ -791,6 +791,10 @@ pub enum TxLogEntryType {
 	TxReceivedCancelled,
 	/// Sent transaction that was rolled back by user
 	TxSentCancelled,
+	/// Self spend, as per contracts and mwmixnet
+	TxSelfSpend,
+	/// Self Spend Cancelled (has to happen before sent to chain, flag rather than delete)
+	TxSelfSpendCancelled,
 	/// Received transaction that was reverted on-chain
 	TxReverted,
 }
@@ -804,6 +808,8 @@ impl fmt::Display for TxLogEntryType {
 			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx\n- Cancelled"),
 			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx\n- Cancelled"),
 			TxLogEntryType::TxReverted => write!(f, "Received Tx\n- Reverted"),
+			TxLogEntryType::TxSelfSpend => write!(f, "Self Spend"),
+			TxLogEntryType::TxSelfSpendCancelled => write!(f, "Self Spend\n- Cancelled"),
 		}
 	}
 }
