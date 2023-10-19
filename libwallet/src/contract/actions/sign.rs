@@ -82,6 +82,7 @@ where
 		contract::slate::verify_payment_proof(&sl, expected_net_change, &p.receiver_address)?;
 		// noop for the receiver
 	}
+
 	contract::slate::sign(w, keychain_mask, &mut sl, &mut context)?;
 	contract::slate::transition_state(&mut sl)?;
 

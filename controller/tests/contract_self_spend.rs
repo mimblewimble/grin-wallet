@@ -85,7 +85,7 @@ fn contract_self_spend_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 		assert!(refreshed);
 		assert_eq!(txs.len() as u64, bh + 1); // send wallet didn't mine 4 blocks and made 1 tx
 		let tx_log = txs[txs.len() - 5].clone(); // TODO: why -5 and not -4?
-		assert_eq!(tx_log.tx_type, TxLogEntryType::TxSent);
+		assert_eq!(tx_log.tx_type, TxLogEntryType::TxSelfSpend);
 		assert_eq!(tx_log.amount_credited, 0);
 		assert_eq!(tx_log.amount_debited, 0);
 		assert_eq!(tx_log.num_inputs, 1);

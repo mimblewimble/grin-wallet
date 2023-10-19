@@ -200,6 +200,8 @@ pub struct RetrieveTxQueryArgs {
 	pub include_received_only: Option<bool>,
 	/// whether to only consider coinbase transactions
 	pub include_coinbase_only: Option<bool>,
+	/// whether to only consider self spend transactions
+	pub include_self_spend_only: Option<bool>,
 	/// whether to only consider reverted transactions
 	pub include_reverted_only: Option<bool>,
 	/// lower bound on the total amount (amount_credited - amount_debited), inclusive
@@ -237,6 +239,7 @@ impl Default for RetrieveTxQueryArgs {
 			include_sent_only: Some(false),
 			include_received_only: Some(false),
 			include_coinbase_only: Some(false),
+			include_self_spend_only: Some(false),
 			include_reverted_only: Some(false),
 			min_amount: None,
 			max_amount: None,

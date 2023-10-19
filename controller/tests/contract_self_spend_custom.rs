@@ -44,6 +44,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		let (_, commits) = api.retrieve_outputs(m, true, false, None)?;
+		println!("OOOT: {:?}", commits[0].output);
 		use_inputs = format!(
 			"{},{}",
 			commits[0].output.commit.as_ref().unwrap(),
@@ -104,7 +105,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 		assert!(refreshed);
 		assert_eq!(txs.len() as u64, bh + 1); // send wallet didn't mine 4 blocks and made 1 tx
 		let tx_log = txs[txs.len() - 5].clone(); // TODO: why -5 and not -4?
-		assert_eq!(tx_log.tx_type, TxLogEntryType::TxSent);
+		assert_eq!(tx_log.tx_type, TxLogEntryType::TxSelfSpend);
 		assert_eq!(tx_log.amount_credited, 0);
 		assert_eq!(tx_log.amount_debited, 0);
 		assert_eq!(tx_log.num_inputs, 3);
