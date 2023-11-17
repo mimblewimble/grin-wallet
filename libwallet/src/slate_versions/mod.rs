@@ -94,7 +94,8 @@ impl From<VersionedSlate> for Slate {
 #[serde(untagged)]
 /// Binary versions, can only be parsed 1:1 into the appropriate
 /// version, and VersionedSlate can up/downgrade from there
-/// NB (IMPORTANT): Ensure the latest version of the slate is the first enum element
+/// NB (IMPORTANT): Ensure the slates are listed in reverse chronological
+/// order (latest first)
 pub enum VersionedBinSlate {
 	/// Version 5, binary
 	V5(SlateV5Bin),
