@@ -94,7 +94,7 @@ impl<'a> Slatepacker<'a> {
 
 	/// Create slatepack from slate and args
 	pub fn create_slatepack(&self, slate: &Slate) -> Result<Slatepack, Error> {
-		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
+		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V5)?;
 		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| Error::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;

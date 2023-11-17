@@ -59,7 +59,7 @@ pub struct PaymentMemo {
 	pub memo: [u8; 32],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfo {
 	/// Sender address
 	pub sender_address: Option<DalekPublicKey>,

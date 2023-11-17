@@ -27,7 +27,7 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::{Slate, SlateState, TxLogEntryType};
+use libwallet::{Slate, SlateState, Slatepack, Slatepacker, SlatepackerArgs, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -66,12 +66,27 @@ fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), lib
 			..Default::default()
 		};
 		args.setup_args.proof_args.sender_address = sender_address;
+		println!("SENDER ADDRESS: {:?}", sender_address);
 		slate = api.contract_new(m, args)?;
 		recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
 		Ok(())
 	})?;
 
 	assert_eq!(slate.state, SlateState::Invoice1);
+	println!("I1 State slate: {}", slate);
+
+	// Serialize slate into slatepack
+	let slatepacker_args = SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	};
+
+	let slate_packer = Slatepacker::new(slatepacker_args);
+	let slate_packed = slate_packer.create_slatepack(&slate).unwrap();
+
+	let slate_unpacked = slate_packer.get_slate(&slate_packed).unwrap();
+	println!("I2 Slate unpacked: {}", slate_unpacked);
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		// Sending wallet (invoice) signs
@@ -79,9 +94,10 @@ fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), lib
 			net_change: Some(-5_000_000_000),
 			..Default::default()
 		};
-		slate = api.contract_sign(m, &slate, args)?;
+		slate = api.contract_sign(m, &slate_unpacked, args)?;
 		Ok(())
 	})?;
+	println!("I2 State slate: {}", slate);
 
 	assert_eq!(slate.state, SlateState::Invoice2);
 
