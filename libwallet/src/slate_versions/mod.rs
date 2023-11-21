@@ -94,11 +94,13 @@ impl From<VersionedSlate> for Slate {
 #[serde(untagged)]
 /// Binary versions, can only be parsed 1:1 into the appropriate
 /// version, and VersionedSlate can up/downgrade from there
+/// NB (IMPORTANT): Ensure the slates are listed in reverse chronological
+/// order (latest first)
 pub enum VersionedBinSlate {
-	/// Version 4, binary
-	V4(SlateV4Bin),
 	/// Version 5, binary
 	V5(SlateV5Bin),
+	/// Version 4, binary
+	V4(SlateV4Bin),
 }
 
 impl TryFrom<VersionedSlate> for VersionedBinSlate {
@@ -149,7 +151,9 @@ pub mod tests {
 	use crate::grin_util::secp::Signature;
 	use crate::slate::{KernelFeaturesArgs, ParticipantData, PaymentInfo, PaymentMemo};
 	use crate::slate_versions::v5::{CommitsV5, SlateV5};
-	use crate::{slate, Error, Slate, VersionedBinSlate, VersionedSlate};
+	use crate::{
+		slate, Error, Slate, Slatepacker, SlatepackerArgs, VersionedBinSlate, VersionedSlate,
+	};
 	use chrono::{DateTime, NaiveDateTime, Utc};
 	use ed25519_dalek::PublicKey as DalekPublicKey;
 	use ed25519_dalek::Signature as DalekSignature;
@@ -240,6 +244,27 @@ pub mod tests {
 		});
 
 		Ok(slate_internal)
+	}
+
+	#[test]
+	fn ser_deser_current_slate() -> Result<(), Error> {
+		let slate_internal = populate_test_slate()?;
+		// Serialize slate into slatepack
+		let slatepacker_args = SlatepackerArgs {
+			sender: None,
+			recipients: vec![],
+			dec_key: None,
+		};
+
+		let slate_packer = Slatepacker::new(slatepacker_args);
+		let slate_packed = slate_packer.create_slatepack(&slate_internal).unwrap();
+
+		let slate_unpacked = slate_packer.get_slate(&slate_packed).unwrap();
+
+		// Just verifying payment proof for now, extend later to cover EQ for full slate if needs
+		// be
+		assert_eq!(slate_internal.payment_proof, slate_unpacked.payment_proof);
+		Ok(())
 	}
 
 	#[test]

@@ -25,6 +25,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
 use std::convert::{TryFrom, TryInto};
+use std::f64::consts::E;
 
 use crate::slate_versions::v5::{
 	CommitsV5, KernelFeaturesArgsV5, ParticipantDataV5, PaymentInfoV5, PaymentMemoV5, SlateStateV5,
@@ -246,9 +247,15 @@ impl Readable for ProofWrap {
 	fn read<R: Reader>(reader: &mut R) -> Result<ProofWrap, grin_ser::Error> {
 		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
-		let ts_raw: i64 = reader.read_i64().unwrap();
-		let ts =
-			DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_raw, 0).unwrap(), Utc);
+		let ts_raw: i64 = match reader.read_i64() {
+			Ok(v) => v,
+			Err(_) => return Err(grin_ser::Error::CorruptedData),
+		};
+		let ts_opt = match NaiveDateTime::from_timestamp_opt(ts_raw, 0) {
+			Some(o) => o,
+			None => return Err(grin_ser::Error::CorruptedData),
+		};
+		let ts = DateTime::<Utc>::from_utc(ts_opt, Utc);
 		let psig = match reader.read_u8()? {
 			0 => None,
 			1 | _ => Some(DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..]).unwrap()),
