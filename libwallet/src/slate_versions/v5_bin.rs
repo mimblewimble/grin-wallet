@@ -249,10 +249,13 @@ impl Readable for ProofWrap {
 		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
 		let ts_raw: i64 = match reader.read_i64() {
 			Ok(v) => v,
-			Err(e) => return Err(grin_ser::Error::CorruptedData),
+			Err(_) => return Err(grin_ser::Error::CorruptedData),
 		};
-		let ts =
-			DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_raw, 0).unwrap(), Utc);
+		let ts_opt = match NaiveDateTime::from_timestamp_opt(ts_raw, 0) {
+			Some(o) => o,
+			None => return Err(grin_ser::Error::CorruptedData),
+		};
+		let ts = DateTime::<Utc>::from_utc(ts_opt, Utc);
 		let psig = match reader.read_u8()? {
 			0 => None,
 			1 | _ => Some(DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..]).unwrap()),
