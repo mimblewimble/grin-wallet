@@ -112,6 +112,7 @@ where
 					if v {
 						tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
 							&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
+							&& tx_entry.tx_type != TxLogEntryType::TxSelfSpendCancelled
 					} else {
 						true
 					}
@@ -491,6 +492,7 @@ where
 		TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {
 			tx.tx_type = TxLogEntryType::TxReceivedCancelled
 		}
+		TxLogEntryType::TxSelfSpend => tx.tx_type = TxLogEntryType::TxSelfSpendCancelled,
 		_ => {}
 	}
 	batch.save_tx_log_entry(tx, parent_key_id)?;
