@@ -363,8 +363,12 @@ where
 		return Err(Error::TransactionDoesntExist(tx_id_string));
 	}
 	let tx = tx_vec[0].clone();
+	debug!("cancel_tx: tx: {}", tx.tx_type);
 	match tx.tx_type {
-		TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {}
+		TxLogEntryType::TxSent
+		| TxLogEntryType::TxReceived
+		| TxLogEntryType::TxReverted
+		| TxLogEntryType::TxSelfSpend => {}
 		_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
 	}
 	if tx.confirmed {
