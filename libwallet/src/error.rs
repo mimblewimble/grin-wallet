@@ -189,6 +189,10 @@ pub enum Error {
 	#[error("Can't Deserialize slate")]
 	SlateDeser,
 
+	/// Invalid slate state
+	#[error("Invalid slate state")]
+	SlateState,
+
 	/// Can't serialize slate pack
 	#[error("Can't Serialize slatepack")]
 	SlatepackSer,
