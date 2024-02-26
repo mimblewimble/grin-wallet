@@ -22,7 +22,7 @@ ring = "0.16"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "1.18", features = ["full"] }
 reqwest = { version = "0.10", features = ["rustls-tls", "socks"] }
 
 #Socks/Tor/Bridge/Proxy
