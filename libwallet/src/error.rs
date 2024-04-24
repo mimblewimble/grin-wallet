@@ -153,6 +153,10 @@ pub enum Error {
 	#[error("Transaction {0} has already been received")]
 	TransactionAlreadyReceived(String),
 
+	/// Transaction has been cancelled
+	#[error("Transaction {0} has been cancelled")]
+	TransactionWasCancelled(String),
+
 	/// Attempt to repost a transaction that's not completed and stored
 	#[error("Transaction building not completed: {0}")]
 	TransactionBuildingNotCompleted(u32),

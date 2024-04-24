@@ -246,6 +246,48 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 	assert_eq!(slate.state, SlateState::Invoice3);
 
+	// test that payee can only cancel once
+	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
+	bh += 3;
+
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+		// Wallet 2 inititates an invoice transaction, requesting payment
+		let args = IssueInvoiceTxArgs {
+			amount: reward * 2,
+			..Default::default()
+		};
+		slate = api.issue_invoice_tx(m, args)?;
+		Ok(())
+	})?;
+	assert_eq!(slate.state, SlateState::Invoice1);
+
+	let orig_slate = slate.clone();
+
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		// Wallet 1 receives the invoice transaction
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: slate.amount,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		slate = api.process_invoice_tx(m, &slate, args.clone())?;
+		api.tx_lock_outputs(m, &slate)?;
+
+		// Wallet 1 cancels the invoice transaction
+		api.cancel_tx(m, None, Some(slate.id))?;
+
+		// Wallet 1 attempts to repay again
+		let res = api.process_invoice_tx(m, &orig_slate, args);
+		assert!(res.is_err());
+
+		Ok(())
+	})?;
+	assert_eq!(slate.state, SlateState::Invoice2);
+
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));
