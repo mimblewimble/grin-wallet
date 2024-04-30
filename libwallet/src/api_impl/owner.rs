@@ -16,6 +16,7 @@
 
 use uuid::Uuid;
 
+use crate::api_impl::foreign::finalize_tx as foreign_finalize;
 use crate::contract::proofs::{InvoiceProof, ProofWitness};
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{Output, OutputFeatures, Transaction};
@@ -831,6 +832,9 @@ where
 		if t.tx_type == TxLogEntryType::TxSent {
 			return Err(Error::TransactionAlreadyReceived(ret_slate.id.to_string()));
 		}
+		if t.tx_type == TxLogEntryType::TxSentCancelled {
+			return Err(Error::TransactionWasCancelled(ret_slate.id.to_string()));
+		}
 	}
 
 	let height = w.w2n_client().get_chain_tip()?.0;
@@ -959,68 +963,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut sl = slate.clone();
-	check_ttl(w, &sl)?;
-	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
-	let keychain = w.keychain(keychain_mask)?;
-	let parent_key_id = w.parent_key_id();
-
-	if let Some(args) = context.late_lock_args.take() {
-		// Transaction was late locked, select inputs+change now
-		// and insert into original context
-
-		let current_height = w.w2n_client().get_chain_tip()?.0;
-		let mut temp_sl =
-			tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
-		let temp_context = selection::build_send_tx(
-			w,
-			&keychain,
-			keychain_mask,
-			&mut temp_sl,
-			current_height,
-			args.minimum_confirmations,
-			args.max_outputs as usize,
-			args.num_change_outputs as usize,
-			args.selection_strategy_is_use_all,
-			Some(context.fee.map(|f| f.fee()).unwrap_or(0)),
-			parent_key_id.clone(),
-			false,
-			true,
-			false,
-		)?;
-
-		// Add inputs and outputs to original context
-		context.input_ids = temp_context.input_ids;
-		context.output_ids = temp_context.output_ids;
-
-		// Store the updated context
-		{
-			let mut batch = w.batch(keychain_mask)?;
-			batch.save_private_context(sl.id.as_bytes(), &context)?;
-			batch.commit()?;
-		}
-
-		// Now do the actual locking
-		tx_lock_outputs(w, keychain_mask, &sl)?;
-	}
-
-	// Add our contribution to the offset
-	sl.adjust_offset(&keychain, &context)?;
-
-	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
-
-	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
-	{
-		let mut batch = w.batch(keychain_mask)?;
-		batch.delete_private_context(sl.id.as_bytes())?;
-		batch.commit()?;
-	}
-	sl.state = SlateState::Standard3;
-	sl.amount = 0;
-
-	Ok(sl)
+	foreign_finalize(w, keychain_mask, slate, false)
 }
 
 /// cancel tx

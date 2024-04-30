@@ -17,7 +17,6 @@ use strum::IntoEnumIterator;
 
 use crate::api_impl::owner::contract_new as owner_contract_new;
 use crate::api_impl::owner::contract_sign as owner_contract_sign;
-use crate::api_impl::owner::finalize_tx as owner_finalize;
 use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::contract::proofs::InvoiceProof;
 use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
@@ -31,6 +30,8 @@ use crate::{
 	WalletBackend,
 };
 use ed25519_dalek::PublicKey as DalekPublicKey;
+
+use super::owner::tx_lock_outputs;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -151,10 +152,9 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
+	check_ttl(w, &sl)?;
 	if sl.state == SlateState::Invoice2 {
-		check_ttl(w, &sl)?;
-
 		// Add our contribution to the offset
 		sl.adjust_offset(&w.keychain(keychain_mask)?, &context)?;
 
@@ -172,8 +172,66 @@ where
 		}
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
+	} else if sl.state == SlateState::Standard2 {
+		let keychain = w.keychain(keychain_mask)?;
+		let parent_key_id = w.parent_key_id();
+
+		if let Some(args) = context.late_lock_args.take() {
+			// Transaction was late locked, select inputs+change now
+			// and insert into original context
+
+			let current_height = w.w2n_client().get_chain_tip()?.0;
+			let mut temp_sl =
+				tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
+			let temp_context = selection::build_send_tx(
+				w,
+				&keychain,
+				keychain_mask,
+				&mut temp_sl,
+				current_height,
+				args.minimum_confirmations,
+				args.max_outputs as usize,
+				args.num_change_outputs as usize,
+				args.selection_strategy_is_use_all,
+				Some(context.fee.map(|f| f.fee()).unwrap_or(0)),
+				parent_key_id.clone(),
+				false,
+				true,
+				false,
+			)?;
+
+			// Add inputs and outputs to original context
+			context.input_ids = temp_context.input_ids;
+			context.output_ids = temp_context.output_ids;
+
+			// Store the updated context
+			{
+				let mut batch = w.batch(keychain_mask)?;
+				batch.save_private_context(sl.id.as_bytes(), &context)?;
+				batch.commit()?;
+			}
+
+			// Now do the actual locking
+			tx_lock_outputs(w, keychain_mask, &sl)?;
+		}
+
+		// Add our contribution to the offset
+		sl.adjust_offset(&keychain, &context)?;
+
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+
+		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+		tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+		{
+			let mut batch = w.batch(keychain_mask)?;
+			batch.delete_private_context(sl.id.as_bytes())?;
+			batch.commit()?;
+		}
+		sl.state = SlateState::Standard3;
+		sl.amount = 0;
 	} else {
-		sl = owner_finalize(w, keychain_mask, slate)?;
+		return Err(Error::SlateState);
 	}
 	if post_automatically {
 		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
