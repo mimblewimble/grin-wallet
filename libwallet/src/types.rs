@@ -839,6 +839,8 @@ pub struct TxLogEntry {
 	/// Track the time it took for a transaction to get reverted
 	#[serde(with = "option_duration_as_secs", default)]
 	pub reverted_after: Option<Duration>,
+	/// Height of the block kernel included in
+	pub kernel_height: Option<u64>,
 }
 
 impl ser::Writeable for TxLogEntry {
@@ -876,6 +878,7 @@ impl TxLogEntry {
 			kernel_lookup_min_height: None,
 			payment_proof: None,
 			reverted_after: None,
+			kernel_height: None,
 		}
 	}
 

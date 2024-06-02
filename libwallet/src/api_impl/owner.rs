@@ -1320,6 +1320,7 @@ where
 				wallet_lock!(wallet_inst, w);
 				let mut batch = w.batch(keychain_mask)?;
 				tx.confirmed = true;
+				tx.kernel_height = Some(k.1);
 				tx.update_confirmation_ts();
 				batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 				batch.commit()?;
