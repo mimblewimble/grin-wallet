@@ -840,6 +840,7 @@ pub struct TxLogEntry {
 	#[serde(with = "option_duration_as_secs", default)]
 	pub reverted_after: Option<Duration>,
 	/// Height of the block kernel included in
+	#[serde(default)]
 	pub kernel_height: Option<u64>,
 }
 
