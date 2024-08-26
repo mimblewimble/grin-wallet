@@ -14,7 +14,7 @@
 // Derived from https://github.com/apoelstra/rust-jsonrpc
 
 //! JSON RPC Types for V2 node client
-
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct GetTipResp {
 	pub height: u64,
