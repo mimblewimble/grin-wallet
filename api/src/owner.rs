@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_wallet_libwallet::contract::proofs::InvoiceProof;
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
@@ -27,6 +28,10 @@ use crate::impls::SlateSender as _;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::contract::types::{
+	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI,
+};
+use crate::libwallet::mwmixnet::types::{MixnetReqCreationParams, SwapReq};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -764,6 +769,78 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
+	}
+
+	/// TODO
+	pub fn contract_new(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractNewArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		// TODO: self.doctest_mode ?
+		owner::contract_new(&mut **w, keychain_mask, &args)
+	}
+
+	// /// TODO
+	// pub fn contract_setup(
+	// 	&self,
+	// 	keychain_mask: Option<&SecretKey>,
+	// 	slate: &Slate,
+	// 	args: &ContractSetupArgsAPI,
+	// ) -> Result<Slate, Error> {
+	// 	let mut w_lock = self.wallet_inst.lock();
+	// 	let w = w_lock.lc_provider()?.wallet_inst()?;
+	// 	// TODO: self.doctest_mode ?
+	// 	owner::contract_setup(&mut **w, keychain_mask, &args, &slate)
+	// }
+
+	/// TODO
+	pub fn contract_sign(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		args: &ContractSetupArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_sign(&mut **w, keychain_mask, &args, &slate)
+	}
+
+	/// TODO
+	pub fn get_slate_index_matching_my_context(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<usize, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_slate_index_matching_my_context(&mut **w, keychain_mask, &slate)
+	}
+
+	/// TODO
+	pub fn contract_revoke(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractRevokeArgsAPI,
+	) -> Result<Option<Slate>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_revoke(&mut **w, keychain_mask, &args)
+	}
+
+	/// Create MXMixnet request
+	pub fn create_mwmixnet_req(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		params: &MixnetReqCreationParams,
+		slate: &Slate,
+		// use_test_rng: bool,
+	) -> Result<SwapReq, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::create_mwmixnet_req(&mut **w, keychain_mask, params, slate)
 	}
 
 	/// Processes an invoice tranaction created by another party, essentially
@@ -2346,6 +2423,32 @@ where
 			false => refresh_from_node,
 		};
 		owner::retrieve_payment_proof(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)
+	}
+
+	/// TODO: Temporary, likely should merge with above
+	pub fn retrieve_payment_proof_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<InvoiceProof, Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
+		owner::retrieve_payment_proof_invoice(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,

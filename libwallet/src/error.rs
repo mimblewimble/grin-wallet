@@ -65,6 +65,14 @@ pub enum Error {
 	#[error("Onion V3 Address Error: {0}")]
 	OnionV3Address(#[from] util::OnionV3AddressError),
 
+	/// Comsig error
+	#[error("Comsig error: {0}")]
+	ComSig(#[from] crate::mwmixnet::onion::crypto::comsig::ComSigError),
+
+	/// MwMixnet Onion error
+	#[error("Onion error: {0}")]
+	Onion(#[from] crate::mwmixnet::onion::onion::OnionError),
+
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]
 	CallbackImpl(&'static str),
@@ -257,9 +265,17 @@ pub enum Error {
 	#[error("Payment Proof parsing error: {0}")]
 	PaymentProofParsing(String),
 
+	/// Retrieving Payment Proof
+	#[error("Unable to verify payment proof: {0}")]
+	PaymentProofValidation(String),
+
 	/// Decoding OnionV3 addresses to payment proof addresses
 	#[error("Proof Address decoding: {0}")]
 	AddressDecoding(String),
+
+	/// Payment proof - no sender address provided or found in slate
+	#[error("Sender address has not been provided")]
+	NoSenderAddressProvided,
 
 	/// Transaction has expired it's TTL
 	#[error("Transaction Expired")]
@@ -308,6 +324,10 @@ pub enum Error {
 	/// Retrieving Stored Tx
 	#[error("Stored Tx error: {0}")]
 	StoredTx(String),
+
+	/// Trying to match index to context
+	#[error("Cannot match transaction context to slate index")]
+	ContextToIndex,
 
 	/// Other
 	#[error("Generic error: {0}")]

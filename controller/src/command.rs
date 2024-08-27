@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //! Grin wallet command-line function implementations
-
 use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
@@ -22,6 +21,11 @@ use crate::error::Error;
 use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
 use crate::keychain;
+use crate::libwallet::api_impl::owner;
+use crate::libwallet::contract::can_finalize;
+use crate::libwallet::contract::types::{
+	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs,
+};
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
@@ -31,9 +35,12 @@ use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 use ::core::time;
 use qr_code::QrCode;
+use serde::{Deserialize, Serialize};
 use serde_json as json;
 use std::convert::TryFrom;
+use std::fmt;
 use std::fs::File;
+use std::io;
 use std::io::{Read, Write};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -556,6 +563,140 @@ where
 	}
 	println!();
 	Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SlatepackOut {
+	/// Is slatepack encrypted
+	pub is_encrypted: bool,
+	/// Is slatepack finalized
+	pub is_finalized: bool,
+	/// File where slatepack is saved
+	pub out_file: String,
+	/// Slatepack message. Encrypted or not.
+	pub message: String,
+}
+
+impl fmt::Display for SlatepackOut {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let start_meta = "--------------- SLATEPACK METADATA --------------";
+		let meta = format!(
+			"Slate encrypted: {}\nSlate finalized: {}\nSlate saved to file: {}",
+			self.is_encrypted, self.is_finalized, self.out_file
+		);
+		let start_slatepack = "-------------- CUT BELOW THIS LINE --------------";
+		let end_slatepack = "-------------- CUT ABOVE THIS LINE --------------";
+		write!(
+			f,
+			"{start_meta}\n\n{meta}\n\n{start_slatepack}\n\n{}\n\n{end_slatepack}",
+			self.message
+		)
+	}
+}
+
+impl SlatepackOut {
+	fn as_json(&self) -> String {
+		serde_json::to_string_pretty(&self).unwrap()
+	}
+
+	pub fn print(&self, as_json: bool) -> () {
+		if !self.is_finalized {
+			if as_json {
+				println!("{}", self.as_json());
+			} else {
+				println!("{}", self);
+			}
+		} else {
+			println!("Transaction was broadcasted."); // TODO: as_json makes no sense here, fix later.
+		}
+	}
+}
+
+pub fn print_slatepack<L, C, K>(
+	api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	counterparty_addr: &str,
+	out_file: Option<String>,
+	as_json: bool,
+) -> ()
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	// For now, we don't compact slates with sl.compact(). We first make them work without compaction.
+	let slate_out =
+		prepare_slatepack(api, keychain_mask, &slate, &counterparty_addr, out_file).unwrap();
+	slate_out.print(as_json);
+}
+
+pub fn prepare_slatepack<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: &str,
+	out_file_override: Option<String>,
+) -> Result<SlatepackOut, libwallet::Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	// Same as output_slatepack except that we don't write to stdout, care about locking or whether the slate was finalized.
+
+	// Output the slatepack file to stdout and to a file
+	let mut message = String::from("");
+	let mut address = None;
+	let mut tld = String::from("");
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		address = match SlatepackAddress::try_from(dest) {
+			Ok(a) => Some(a),
+			Err(_) => None,
+		};
+		// encrypt for recipient by default
+		let recipients = match address.clone() {
+			Some(a) => vec![a],
+			None => vec![],
+		};
+		// TODO: what is sender_index?
+		message = api.create_slatepack_message(m, &slate, Some(0), recipients)?;
+		// Trim the \n at the end.
+		let len_withoutcrlf = message.trim_end().len();
+		message.truncate(len_withoutcrlf);
+
+		tld = api.get_top_level_directory()?;
+		Ok(())
+	})?;
+
+	// create a directory to which files will be output
+	let slate_dir = format!("{}/{}", tld, "slatepack");
+	let _ = std::fs::create_dir_all(slate_dir.clone());
+	let out_file_name = match out_file_override {
+		None => format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state),
+		Some(f) => f,
+	};
+
+	let mut output = File::create(out_file_name.clone())?;
+	output.write_all(&message.as_bytes())?;
+	output.sync_all()?;
+
+	// Since we always finalize if we can, we can also use this to know if the tx is finalized
+	let is_finalized = can_finalize(slate);
+
+	let slate_out = SlatepackOut {
+		is_encrypted: address.is_some(),
+		is_finalized: is_finalized,
+		out_file: out_file_name,
+		message: message,
+	};
+
+	// TODO: We save the slatepack, but it is encrypted for the counterparty. It seems hard to
+	// know which slatepack is which if we can't decrypt them. Either add some more metadata
+	// to slatepacks e.g. timestamp, counterparty address or save also a version that is encrypted with
+	// our own address so we can view it.
+
+	Ok(slate_out)
 }
 
 // Parse a slate and slatepack from a message
@@ -1472,5 +1613,343 @@ where
 			}
 		}
 	})?;
+	Ok(())
+}
+
+/// Create new contract command arguments
+#[derive(Clone)]
+pub struct ContractNewArgs {
+	/// Address of the counterparty
+	pub counterparty_addr: String,
+	/// Receive amount
+	pub receive: Option<u64>,
+	/// Send amount
+	pub send: Option<u64>,
+	/// The human readable account name from which to draw outputs
+	/// for the transaction, overriding whatever the active account is as set via the
+	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
+	pub src_acct_name: Option<String>,
+	/// Number of participants in a contract (either 1 or 2)
+	pub num_participants: u8,
+	/// Show the resulting slatepack as JSON
+	pub as_json: bool,
+	/// Use the specified inputs (comma separated input commitments)
+	pub use_inputs: Option<String>,
+	/// How to separate outputs (command separated amounts)
+	pub make_outputs: Option<String>,
+
+	// Future features
+	/// Custom fee contribution
+	pub fee_rate: Option<u32>,
+	/// Save slatepack to a specific filename
+	pub outfile: Option<String>,
+	/// Select outputs early
+	pub add_outputs: bool,
+}
+
+impl ContractNewArgs {
+	fn get_net_change(&self) -> i64 {
+		// TODO: could the cast 'as i64' overflow or something?
+		match self.receive {
+			None => match self.send {
+				None => panic!("Send or receive not specified."),
+				Some(v) => -(v as i64), // negative net change on send
+			},
+			Some(v) => v as i64, // positive net change on receive
+		}
+	}
+
+	// Create a ContractNewArgsAPI from the ContractNewArgs
+	fn to_api_args(&self) -> ContractNewArgsAPI {
+		let net_change = self.get_net_change();
+		ContractNewArgsAPI {
+			setup_args: ContractSetupArgsAPI {
+				src_acct_name: match self.src_acct_name.as_ref() {
+					Some(v) => Some(v.to_string()),
+					None => None,
+				},
+				net_change: Some(net_change),
+				num_participants: self.num_participants,
+				add_outputs: self.add_outputs,
+				selection_args: OutputSelectionArgs {
+					use_inputs: match self.use_inputs.as_ref() {
+						Some(v) => Some(v.to_string()),
+						None => None,
+					},
+					make_outputs: match self.make_outputs.as_ref() {
+						Some(v) => Some(v.to_string()),
+						None => None,
+					},
+					..Default::default()
+				},
+				proof_args: Default::default(),
+			},
+			..Default::default()
+		}
+	}
+}
+
+pub fn contract_new<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: ContractNewArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let contract_new_args = args.to_api_args();
+
+		let slate = api.contract_new(m, &contract_new_args)?;
+
+		print_slatepack(
+			api,
+			keychain_mask,
+			&slate,
+			&args.counterparty_addr,
+			args.outfile,
+			args.as_json,
+		);
+
+		Ok(())
+	})?;
+
+	Ok(())
+}
+
+/// Sign contract command argument
+#[derive(Clone)]
+pub struct ContractSetupArgs {
+	/// Address of the counterparty
+	pub counterparty_addr: Option<String>,
+	/// Receive amount
+	pub receive: Option<u64>,
+	/// Send amount
+	pub send: Option<u64>,
+	/// Show the resulting slatepack as JSON
+	pub as_json: bool,
+	/// Use the specified inputs (comma separated input commitments)
+	pub use_inputs: Option<String>,
+	/// How to separate outputs (command separated amounts)
+	pub make_outputs: Option<String>,
+
+	// Future features
+	/// Whether we should automatically sign a receive of any value
+	// pub auto_receive: Option<bool>,
+	/// Custom fee contribution
+	pub fee_rate: Option<u32>,
+	/// Save slatepack to a specific filename
+	pub outfile: Option<String>,
+	/// Add outputs
+	pub add_outputs: bool, // lock outputs early
+}
+
+impl ContractSetupArgs {
+	fn get_net_change(&self) -> Option<i64> {
+		let mut net_change: Option<i64> = None;
+		// TODO: Check bounds before casting to i64.
+		if self.receive.is_some() && self.send.is_some() {
+			panic!("Can't pass both --receive and --send parameters.");
+		}
+		if self.receive.is_some() {
+			net_change = Some(self.receive.unwrap() as i64);
+		}
+		if self.send.is_some() {
+			net_change = Some(-(self.send.unwrap() as i64));
+		}
+		net_change
+	}
+
+	// Create a ContractSetupArgsAPI from the ContractSetupArgs
+	fn to_api_args(&self) -> ContractSetupArgsAPI {
+		let net_change = self.get_net_change();
+		ContractSetupArgsAPI {
+			// TODO: num_participants is derived here. It should be an Option and read from the slate.
+			// Need to check no attack are possible regarding kernel fee contribution.
+			net_change: net_change,
+			add_outputs: self.add_outputs,
+			selection_args: OutputSelectionArgs {
+				use_inputs: match self.use_inputs.as_ref() {
+					Some(v) => Some(v.to_string()),
+					None => None,
+				},
+				make_outputs: match self.make_outputs.as_ref() {
+					Some(v) => Some(v.to_string()),
+					None => None,
+				},
+				..Default::default()
+			},
+			..Default::default()
+		}
+	}
+}
+
+// pub fn contract_setup<L, C, K>(
+// 	owner_api: &mut Owner<L, C, K>,
+// 	keychain_mask: Option<&SecretKey>,
+// 	args: ContractSetupArgs,
+// ) -> Result<(), Error>
+// where
+// 	L: WalletLCProvider<'static, C, K>,
+// 	C: NodeClient + 'static,
+// 	K: keychain::Keychain + 'static,
+// {
+// 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+// 		// Read the slatepack from stdin
+// 		println!("Paste slatepack:");
+// 		let mut slatepack_msg = String::new();
+// 		io::stdin()
+// 			.read_line(&mut slatepack_msg)
+// 			.expect("Failed to read from stdin");
+
+// 		let mut contract_setup_args = args.to_api_args();
+
+// 		// Decrypt the slate, perform setup on it and encrypt it for the next party
+// 		// TODO: Make sure you get the counterparty_addr and slate with 1 call.
+// 		let slatepack = owner::decode_slatepack_message(
+// 			api.wallet_inst.clone(),
+// 			keychain_mask,
+// 			String::from(slatepack_msg.clone()),
+// 			vec![0],
+// 		)?;
+
+// 		let counterparty_addr =
+// 			if args.counterparty_addr.is_some() {
+// 				args.counterparty_addr.unwrap()
+// 			} else {
+// 				if !slatepack.sender.is_some() {
+// 					panic!("No address to encrypt for. Contracts only support encrypted slates right now.");
+// 				}
+// 				String::try_from(&slatepack.sender.unwrap())?
+// 			};
+// 		let mut slate = owner::slate_from_slatepack_message(
+// 			api.wallet_inst.clone(),
+// 			keychain_mask,
+// 			String::from(slatepack_msg),
+// 			vec![0],
+// 		)?;
+// 		// We read the number of participants from the slate that was already created. We need this to
+// 		// avoid taking the default value of 2 in case of 3-party computation and thus incorrectly computing
+// 		// our kernel cost contribution.
+// 		contract_setup_args.num_participants = slate.num_participants;
+
+// 		slate = api.contract_setup(m, &slate, &contract_setup_args)?;
+
+// 		print_slatepack(
+// 			api,
+// 			keychain_mask,
+// 			&slate,
+// 			&counterparty_addr,
+// 			args.outfile,
+// 			args.as_json,
+// 		);
+
+// 		Ok(())
+// 	})?;
+
+// 	Ok(())
+// }
+
+pub fn contract_sign<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: ContractSetupArgs,
+	broadcast_tx: bool,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		// Read the slatepack from stdin
+		println!("Paste slatepack:");
+		let mut slatepack_msg = String::new();
+		io::stdin()
+			.read_line(&mut slatepack_msg)
+			.expect("Failed to read from stdin");
+
+		// Args for signing are just setup args
+		let contract_sign_args = args.to_api_args();
+
+		// Decrypt the slate, sign it and encrypt it for the next party
+		// TODO: Make sure you get the counterparty_addr and slate with 1 call.
+		let slatepack = owner::decode_slatepack_message(
+			api.wallet_inst.clone(),
+			keychain_mask,
+			String::from(slatepack_msg.clone()),
+			vec![0],
+		)?;
+
+		let counterparty_addr =
+			if args.counterparty_addr.is_some() {
+				args.counterparty_addr.unwrap()
+			} else {
+				if !slatepack.sender.is_some() {
+					panic!("No address to encrypt for. Contracts only support encrypted slates right now.");
+				}
+				String::try_from(&slatepack.sender.unwrap())?
+			};
+		let mut slate = owner::slate_from_slatepack_message(
+			api.wallet_inst.clone(),
+			keychain_mask,
+			String::from(slatepack_msg),
+			vec![0],
+		)?;
+
+		slate = api.contract_sign(m, &slate, &contract_sign_args)?;
+
+		print_slatepack(
+			api,
+			keychain_mask,
+			&slate,
+			&counterparty_addr,
+			args.outfile,
+			args.as_json,
+		);
+
+		if broadcast_tx {
+			let is_finalized = can_finalize(&slate);
+			if is_finalized {
+				api.post_tx(keychain_mask, &slate, true)?;
+			}
+		}
+
+		Ok(())
+	})?;
+
+	Ok(())
+}
+
+#[derive(Clone)]
+pub struct ContractRevokeArgs {
+	/// Id of a transaction we want to cancel
+	pub tx_id: u32,
+}
+
+pub fn contract_revoke<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: ContractRevokeArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K>,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+		let slate_opt = api.contract_revoke(m, &ContractRevokeArgsAPI { tx_id: args.tx_id })?;
+		// TODO: replace dest="nope" with our own address and add --as-json support
+		if slate_opt.is_some() {
+			let slate_out =
+				prepare_slatepack(api, keychain_mask, &slate_opt.unwrap(), "nope", None)?;
+			println!("{}", slate_out);
+		}
+
+		Ok(())
+	})?;
+
 	Ok(())
 }

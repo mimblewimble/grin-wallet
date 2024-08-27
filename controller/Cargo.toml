@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_controller"
-version = "5.4.0-alpha.1"
+version = "5.4.0-contracts.0"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Controllers for grin wallet instantiation"
 license = "Apache-2.0"
@@ -30,19 +30,19 @@ lazy_static = "1"
 thiserror = "1"
 qr_code = "1.1.0"
 
-grin_wallet_util = { path = "../util", version = "5.4.0-alpha.1" }
-grin_wallet_api = { path = "../api", version = "5.4.0-alpha.1" }
-grin_wallet_impls = { path = "../impls", version = "5.4.0-alpha.1" }
-grin_wallet_libwallet = { path = "../libwallet", version = "5.4.0-alpha.1" }
-grin_wallet_config = { path = "../config", version = "5.4.0-alpha.1" }
+grin_wallet_util = { path = "../util", version = "5.4.0-contracts.0" }
+grin_wallet_api = { path = "../api", version = "5.4.0-contracts.0" }
+grin_wallet_impls = { path = "../impls", version = "5.4.0-contracts.0" }
+grin_wallet_libwallet = { path = "../libwallet", version = "5.4.0-contracts.0" }
+grin_wallet_config = { path = "../config", version = "5.4.0-contracts.0" }
 
 ##### Grin Imports
 
 # For Release
-# grin_core = "5.4.0-alpha.1"
-# grin_keychain = "5.4.0-alpha.1"
-# grin_util = "5.4.0-alpha.1"
-# grin_api = "5.4.0-alpha.1"
+# grin_core = "5.4.0-contracts.0"
+# grin_keychain = "5.4.0-contracts.0"
+# grin_util = "5.4.0-contracts.0"
+# grin_api = "5.4.0-contracts.0"
 
 # For beta release
 
@@ -72,7 +72,7 @@ remove_dir_all = "0.7"
 ##### Grin Imports
 
 # For Release
-# grin_chain = "5.4.0-alpha.1"
+# grin_chain = "5.4.0-contracts.0"
 
 # For beta release
 

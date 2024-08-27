@@ -179,6 +179,10 @@ impl HttpSlateSender {
 			return Err(Error::ClientCallback(report));
 		}
 
+		if supported_slate_versions.contains(&"V5".to_owned()) {
+			return Ok(SlateVersion::V5);
+		}
+
 		if supported_slate_versions.contains(&"V4".to_owned()) {
 			return Ok(SlateVersion::V4);
 		}
@@ -223,6 +227,7 @@ impl SlateSender for HttpSlateSender {
 		self.launch_tor()?;
 
 		let slate_send = match self.check_other_version(&url_str)? {
+			SlateVersion::V5 => VersionedSlate::into_version(slate.clone(), SlateVersion::V5)?,
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate

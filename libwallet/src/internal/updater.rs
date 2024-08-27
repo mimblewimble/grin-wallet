@@ -112,6 +112,7 @@ where
 					if v {
 						tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
 							&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
+							&& tx_entry.tx_type != TxLogEntryType::TxSelfSpendCancelled
 					} else {
 						true
 					}
@@ -146,6 +147,7 @@ where
 					if v {
 						tx_entry.tx_type == TxLogEntryType::TxSent
 							|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+							|| tx_entry.tx_type == TxLogEntryType::TxSelfSpend
 					} else {
 						true
 					}
@@ -158,6 +160,7 @@ where
 					if v {
 						tx_entry.tx_type == TxLogEntryType::TxReceived
 							|| tx_entry.tx_type == TxLogEntryType::TxReceivedCancelled
+							|| tx_entry.tx_type == TxLogEntryType::TxSelfSpend
 					} else {
 						true
 					}
@@ -169,6 +172,17 @@ where
 				if let Some(v) = query_args.include_coinbase_only {
 					if v {
 						tx_entry.tx_type == TxLogEntryType::ConfirmedCoinbase
+					} else {
+						true
+					}
+				} else {
+					true
+				}
+			})
+			.filter(|tx_entry| {
+				if let Some(v) = query_args.include_self_spend_only {
+					if v {
+						tx_entry.tx_type == TxLogEntryType::TxSelfSpend
 					} else {
 						true
 					}
@@ -365,7 +379,8 @@ where
 						!tx_entry.confirmed
 							&& (tx_entry.tx_type == TxLogEntryType::TxReceived
 								|| tx_entry.tx_type == TxLogEntryType::TxSent
-								|| tx_entry.tx_type == TxLogEntryType::TxReverted)
+								|| tx_entry.tx_type == TxLogEntryType::TxReverted
+								|| tx_entry.tx_type == TxLogEntryType::TxSelfSpend)
 					}
 					false => true,
 				};
@@ -477,6 +492,7 @@ where
 		TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {
 			tx.tx_type = TxLogEntryType::TxReceivedCancelled
 		}
+		TxLogEntryType::TxSelfSpend => tx.tx_type = TxLogEntryType::TxSelfSpendCancelled,
 		_ => {}
 	}
 	batch.save_tx_log_entry(tx, parent_key_id)?;
