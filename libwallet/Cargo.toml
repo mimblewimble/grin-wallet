@@ -42,7 +42,7 @@ grin_wallet_config = { path = "../config", version = "5.4.0-contracts.0" }
 
 grin_secp256k1zkp = { version = "0.7.12", features = ["bullet-proof-sizing"]}
 
-#mwmixnet onion
+#mwixnet onion
 chacha20 = "0.8.1"
 hmac = { version = "0.12.0", features = ["std"]}
 

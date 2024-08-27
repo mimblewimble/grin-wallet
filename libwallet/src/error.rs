@@ -22,7 +22,7 @@ use crate::util;
 use grin_store;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
-#[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, thiserror::Error)]
 pub enum Error {
 	/// Not enough funds
 	#[error("Not enough funds. Required: {needed_disp:?}, Available: {available_disp:?}")]
@@ -67,11 +67,11 @@ pub enum Error {
 
 	/// Comsig error
 	#[error("Comsig error: {0}")]
-	ComSig(#[from] crate::mwmixnet::onion::crypto::comsig::ComSigError),
+	ComSig(#[from] crate::mwixnet::onion::crypto::comsig::ComSigError),
 
-	/// MwMixnet Onion error
+	/// mwixnet Onion error
 	#[error("Onion error: {0}")]
-	Onion(#[from] crate::mwmixnet::onion::onion::OnionError),
+	Onion(#[from] crate::mwixnet::onion::onion::OnionError),
 
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]

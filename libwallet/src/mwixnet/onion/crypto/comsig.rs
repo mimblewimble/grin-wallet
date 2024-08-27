@@ -33,10 +33,8 @@ pub struct ComSignature {
 /// Error types for Commitment Signatures
 #[derive(Error, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ComSigError {
-	/// Invalid com sig
 	#[error("Commitment signature is invalid")]
 	InvalidSig,
-	/// SECP Error Wrapper
 	#[error("Secp256k1zkp error: {0:?}")]
 	Secp256k1zkp(secp256k1zkp::Error),
 }
@@ -48,7 +46,6 @@ impl From<secp256k1zkp::Error> for ComSigError {
 }
 
 impl ComSignature {
-	/// Create new Com signature from commit and keys
 	pub fn new(pub_nonce: &Commitment, s: &SecretKey, t: &SecretKey) -> ComSignature {
 		ComSignature {
 			pub_nonce: pub_nonce.to_owned(),
@@ -58,7 +55,6 @@ impl ComSignature {
 	}
 
 	#[allow(dead_code)]
-	/// Sign com signature with kernel values
 	pub fn sign(
 		amount: u64,
 		blind: &SecretKey,
@@ -92,7 +88,6 @@ impl ComSignature {
 	}
 
 	#[allow(non_snake_case)]
-	/// Verify a com sig
 	pub fn verify(&self, commit: &Commitment, msg: &Vec<u8>) -> Result<(), ComSigError> {
 		let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
