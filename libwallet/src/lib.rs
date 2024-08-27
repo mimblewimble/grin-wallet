@@ -52,7 +52,7 @@ mod slate;
 pub mod slate_versions;
 pub mod slatepack;
 
-pub mod mwmixnet;
+pub mod mwixnet;
 mod types;
 
 pub use crate::error::Error;

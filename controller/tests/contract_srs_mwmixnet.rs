@@ -22,8 +22,8 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::mwmixnet::onion::crypto::secp;
-use libwallet::mwmixnet::types::MixnetReqCreationParams;
+use libwallet::mwixnet::onion::crypto::secp;
+use libwallet::mwixnet::types::MixnetReqCreationParams;
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -33,8 +33,8 @@ use std::time::Duration;
 mod common;
 use common::{clean_output_dir, create_wallets, setup};
 
-/// contract SRS flow - just creating an mwmixnet tx at the moment
-fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+/// contract SRS flow - just creating an mwixnet tx at the moment
+fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// create two wallets and mine 4 blocks in each (we want both to have balance to get a payjoin)
 	let (wallets, chain, stopper, mut bh) =
 		create_wallets(vec![vec![("default", 4)], vec![("default", 4)]], test_dir).unwrap();
@@ -89,7 +89,7 @@ fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet
 			server_keys: vec![server_key_1, server_key_2],
 			fee_per_hop: 50_000_000,
 		};
-		//api.create_mwmixnet_req(send_mask, &params, &slate)?;
+		//api.create_mwixnet_req(send_mask, &params, &slate)?;
 		Ok(())
 	})?;
 
@@ -147,10 +147,10 @@ fn contract_srs_mwmixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet
 }
 
 #[test]
-fn wallet_contract_srs_mwmixnet_tx() -> Result<(), libwallet::Error> {
-	let test_dir = "test_output/contract_srs_mwmixnet_tx";
+fn wallet_contract_srs_mwixnet_tx() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/contract_srs_mwixnet_tx";
 	setup(test_dir);
-	contract_srs_mwmixnet_tx_impl(test_dir)?;
+	contract_srs_mwixnet_tx_impl(test_dir)?;
 	clean_output_dir(test_dir);
 	Ok(())
 }

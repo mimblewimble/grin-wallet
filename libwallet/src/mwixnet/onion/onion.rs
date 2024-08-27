@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Onion defn for mwmixnet
+//! Onion defn for mwixnet
 
 use super::crypto::secp::{self, Commitment, RangeProof, SecretKey};
 use super::util::{read_optional, vec_to_array, write_optional};
+
+use std::convert::TryFrom;
+use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::result::Result;
 
 use chacha20::cipher::{NewCipher, StreamCipher};
 use chacha20::{ChaCha20, Key, Nonce};
@@ -27,15 +32,11 @@ use hmac::{Hmac, Mac};
 use serde::ser::SerializeStruct;
 use serde::Deserialize;
 use sha2::Sha256;
-use std::convert::TryFrom;
-use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::result::Result;
 use thiserror::Error;
 use x25519_dalek::{PublicKey as xPublicKey, SharedSecret, StaticSecret};
 
 type HmacSha256 = Hmac<Sha256>;
-/// Wrap u8 vec
+/// Raw bytes alias
 pub type RawBytes = Vec<u8>;
 
 const CURRENT_ONION_VERSION: u8 = 0;
@@ -75,24 +76,24 @@ impl Hash for Onion {
 /// A single, decrypted/peeled layer of an Onion.
 #[derive(Debug, Clone)]
 pub struct Payload {
-	/// next ephemeral pk
+	/// PK of next server
 	pub next_ephemeral_pk: xPublicKey,
-	/// excess
+	/// Excess calculation
 	pub excess: SecretKey,
-	/// fee
+	/// Fee
 	pub fee: FeeFields,
-	/// proof
+	/// Rangeproof
 	pub rangeproof: Option<RangeProof>,
 }
 
 impl Payload {
-	/// Deser a payload
+	/// Deserialize
 	pub fn deserialize(bytes: &Vec<u8>) -> Result<Payload, ser::Error> {
 		let payload: Payload = ser::deserialize_default(&mut &bytes[..])?;
 		Ok(payload)
 	}
 
-	/// Serialize a payload
+	/// Serialize
 	pub fn serialize(&self) -> Result<Vec<u8>, ser::Error> {
 		let mut vec = vec![];
 		ser::serialize_default(&mut vec, &self)?;
@@ -142,7 +143,7 @@ pub struct PeeledOnion {
 }
 
 impl Onion {
-	/// Serialize onion
+	/// Serialize to binary
 	pub fn serialize(&self) -> Result<Vec<u8>, ser::Error> {
 		let mut vec = vec![];
 		ser::serialize_default(&mut vec, &self)?;
@@ -189,7 +190,7 @@ impl Onion {
 	}
 }
 
-/// Create new stream cypher from shared secret
+/// Create a new stream cipher
 pub fn new_stream_cipher(shared_secret: &SharedSecret) -> Result<ChaCha20, OnionError> {
 	let mut mu_hmac = HmacSha256::new_from_slice(b"MWIXNET")?;
 	mu_hmac.update(shared_secret.as_bytes());
@@ -329,19 +330,19 @@ pub enum OnionError {
 	/// Invalid Key Length
 	#[error("Invalid key length for MAC initialization")]
 	InvalidKeyLength,
-	/// Serialization error
+	/// Serialization Error
 	#[error("Serialization error occurred: {0:?}")]
 	SerializationError(ser::Error),
-	/// Deserialization error
+	/// Deserialization Error
 	#[error("Deserialization error occurred: {0:?}")]
 	DeserializationError(ser::Error),
 	/// Error calculating blinding factor
 	#[error("Error calculating blinding factor: {0:?}")]
 	CalcBlindError(secp256k1zkp::Error),
-	/// Error calculating ephemeral key
+	/// Error calculating ephemeral pubkey
 	#[error("Error calculating ephemeral pubkey: {0:?}")]
 	CalcPubKeyError(secp256k1zkp::Error),
-	/// Error calculating commitment
+	/// Error calculating commit
 	#[error("Error calculating commitment: {0:?}")]
 	CalcCommitError(secp256k1zkp::Error),
 }
@@ -361,8 +362,8 @@ impl From<ser::Error> for OnionError {
 #[cfg(test)]
 pub mod tests {
 	use super::*;
-	use crate::mwmixnet::onion::crypto::secp::random_secret;
-	use crate::mwmixnet::onion::{new_hop, Hop};
+	use crate::mwixnet::onion::crypto::secp::random_secret;
+	use crate::mwixnet::onion::{new_hop, Hop};
 
 	use grin_core::core::FeeFields;
 
@@ -408,12 +409,12 @@ pub mod tests {
 			hops.push(hop);
 		}
 
-		let mut onion_packet = crate::mwmixnet::onion::create_onion(&commitment, &hops).unwrap();
+		let mut onion_packet = crate::mwixnet::onion::create_onion(&commitment, &hops).unwrap();
 
 		let mut payload = Payload {
 			next_ephemeral_pk: onion_packet.ephemeral_pubkey.clone(),
 			excess: random_secret(),
-			fee: FeeFields::from(fee_per_hop as u32),
+			fee: FeeFields::from(fee_per_hop),
 			rangeproof: None,
 		};
 		for i in 0..5 {
@@ -425,6 +426,6 @@ pub mod tests {
 		assert!(payload.rangeproof.is_some());
 		assert_eq!(payload.rangeproof.unwrap(), hops[4].rangeproof.unwrap());
 		assert_eq!(secp::commit(out_value, &final_blind).unwrap(), final_commit);
-		assert_eq!(payload.fee, FeeFields::from(fee_per_hop as u32));
+		assert_eq!(payload.fee, FeeFields::from(fee_per_hop));
 	}
 }

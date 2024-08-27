@@ -30,8 +30,8 @@ use crate::util::{OnionV3Address, OnionV3AddressError};
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::contract::types::{ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI};
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
-use crate::mwmixnet::onion::create_onion;
-use crate::mwmixnet::types::{
+use crate::mwixnet::onion::create_onion;
+use crate::mwixnet::types::{
 	add_excess, new_hop, random_secret, ComSignature, Hop, MixnetReqCreationParams, SwapReq,
 };
 
@@ -1604,7 +1604,7 @@ where
 }
 
 /// Create MXMixnet request
-pub fn create_mwmixnet_req<'a, T: ?Sized, C, K>(
+pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	params: &MixnetReqCreationParams,

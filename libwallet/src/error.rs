@@ -67,11 +67,11 @@ pub enum Error {
 
 	/// Comsig error
 	#[error("Comsig error: {0}")]
-	ComSig(#[from] crate::mwmixnet::onion::crypto::comsig::ComSigError),
+	ComSig(#[from] crate::mwixnet::onion::crypto::comsig::ComSigError),
 
-	/// MwMixnet Onion error
+	/// mwixnet Onion error
 	#[error("Onion error: {0}")]
-	Onion(#[from] crate::mwmixnet::onion::onion::OnionError),
+	Onion(#[from] crate::mwixnet::onion::onion::OnionError),
 
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]

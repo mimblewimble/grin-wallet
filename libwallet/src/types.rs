@@ -791,7 +791,7 @@ pub enum TxLogEntryType {
 	TxReceivedCancelled,
 	/// Sent transaction that was rolled back by user
 	TxSentCancelled,
-	/// Self spend, as per contracts and mwmixnet
+	/// Self spend, as per contracts and mwixnet
 	TxSelfSpend,
 	/// Self Spend Cancelled (has to happen before sent to chain, flag rather than delete)
 	TxSelfSpendCancelled,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Dalek key wrapper for mwmixnet primitives
+//! Dalek key wrapper for mwixnet primitives
 
 use super::secp::SecretKey;
 
@@ -183,7 +183,7 @@ pub fn sign(sk: &SecretKey, message: &[u8]) -> Result<DalekSignature, DalekError
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mwmixnet::onion::test_util::rand_keypair;
+	use crate::mwixnet::onion::test_util::rand_keypair;
 	use grin_core::ser::{self, ProtocolVersion};
 	use grin_util::ToHex;
 	use rand::Rng;

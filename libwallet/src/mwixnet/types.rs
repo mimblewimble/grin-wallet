@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Types related to mwmixnet requests required by rest of lib crate apis
+//! Types related to mwixnet requests required by rest of lib crate apis
 //! Should rexport all needed types here
 
 pub use super::onion::crypto::comsig::{self, ComSignature};
@@ -32,7 +32,7 @@ pub struct SwapReq {
 	pub onion: Onion,
 }
 
-/// MWMixnetRequest Creation Params
+/// mwixnetRequest Creation Params
 
 pub struct MixnetReqCreationParams {
 	/// List of all the server keys
