@@ -325,7 +325,7 @@ impl<'de> serde::de::Deserialize<'de> for Onion {
 }
 
 /// Error types for creating and peeling Onions
-#[derive(Clone, Error, Debug, Eq, PartialEq, Deserialize)]
+#[derive(Clone, Error, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum OnionError {
 	/// Invalid Key Length
 	#[error("Invalid key length for MAC initialization")]

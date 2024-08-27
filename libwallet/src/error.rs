@@ -22,7 +22,7 @@ use crate::util;
 use grin_store;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
-#[derive(Clone, Eq, PartialEq, Debug, thiserror::Error)]
+#[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]
 pub enum Error {
 	/// Not enough funds
 	#[error("Not enough funds. Required: {needed_disp:?}, Available: {available_disp:?}")]
