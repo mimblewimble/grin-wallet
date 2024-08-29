@@ -17,12 +17,12 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate log;
 
+use grin_util::{secp::SecretKey, static_secp_instance};
 use grin_wallet_libwallet as libwallet;
 
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::mwixnet::onion::crypto::secp;
 use libwallet::mwixnet::types::MixnetReqCreationParams;
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
@@ -83,13 +83,28 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	assert_eq!(slate.state, SlateState::Standard3);
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
-		let server_key_1 = secp::random_secret();
-		let server_key_2 = secp::random_secret();
+		let secp_locked = static_secp_instance();
+		let secp = secp_locked.lock();
+		let server_pubkey_str_1 =
+			"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332";
+		let server_pubkey_str_2 =
+			"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e";
+		let server_pubkey_str_3 =
+			"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5";
+		let server_key_1 =
+			SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_1).unwrap())
+				.unwrap();
+		let server_key_2 =
+			SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_2).unwrap())
+				.unwrap();
+		let server_key_3 =
+			SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())
+				.unwrap();
 		let params = MixnetReqCreationParams {
-			server_keys: vec![server_key_1, server_key_2],
+			server_keys: vec![server_key_1, server_key_2, server_key_3],
 			fee_per_hop: 50_000_000,
 		};
-		//api.create_mwixnet_req(send_mask, &params, &slate)?;
+		api.create_mwixnet_req(send_mask, &params, &slate)?;
 		Ok(())
 	})?;
 
