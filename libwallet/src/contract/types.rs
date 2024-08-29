@@ -137,6 +137,8 @@ pub struct ContractSetupArgsAPI {
 	pub add_outputs: bool,
 	/// Output selection arguments
 	pub selection_args: OutputSelectionArgs,
+	/// If false, don't delete context when finalizing (to facilitate mwixnet transactions)
+	pub delete_context_on_final_sign: bool,
 	/// Proof arguments
 	pub proof_args: ProofArgs,
 }
@@ -148,6 +150,7 @@ impl Default for ContractSetupArgsAPI {
 			net_change: None,
 			num_participants: 2,
 			add_outputs: false,
+			delete_context_on_final_sign: true,
 			selection_args: OutputSelectionArgs {
 				..Default::default()
 			},
@@ -177,6 +180,7 @@ impl Default for ContractNewArgsAPI {
 				net_change: None,
 				num_participants: 2,
 				add_outputs: false,
+				delete_context_on_final_sign: true,
 				selection_args: OutputSelectionArgs {
 					..Default::default()
 				},

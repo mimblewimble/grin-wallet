@@ -45,6 +45,7 @@ where
 		&mut context,
 		setup_args.add_outputs,
 		false,
+		setup_args.delete_context_on_final_sign,
 	)?;
 
 	Ok(slate)

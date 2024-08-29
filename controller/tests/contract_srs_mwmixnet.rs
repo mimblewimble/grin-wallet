@@ -74,6 +74,7 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	// Send wallet finalizes and posts
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		let args = &mut ContractSetupArgsAPI {
+			delete_context_on_final_sign: false,
 			..Default::default()
 		};
 		args.proof_args.suppress_proof = true;
