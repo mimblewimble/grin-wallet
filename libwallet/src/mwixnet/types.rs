@@ -23,7 +23,7 @@ use crate::grin_util::secp::key::SecretKey;
 use serde::{Deserialize, Serialize};
 
 /// A Swap request
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SwapReq {
 	/// Com signature
 	#[serde(with = "comsig::comsig_serde")]

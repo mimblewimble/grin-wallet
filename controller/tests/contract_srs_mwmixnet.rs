@@ -74,7 +74,6 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	// Send wallet finalizes and posts
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		let args = &mut ContractSetupArgsAPI {
-			delete_context_on_final_sign: false,
 			..Default::default()
 		};
 		args.proof_args.suppress_proof = true;
@@ -84,6 +83,17 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	assert_eq!(slate.state, SlateState::Standard3);
 
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
+		api.post_tx(m, &slate, false)?;
+		Ok(())
+	})?;
+	bh += 1;
+
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, send_wallet.clone(), send_mask, 3, false);
+	bh += 3;
+
+	// Recipient wallet sends outputs to mwixnet
+	wallet::controller::owner_single_use(Some(recv_wallet.clone()), recv_mask, None, |api, m| {
 		let secp_locked = static_secp_instance();
 		let secp = secp_locked.lock();
 		let server_pubkey_str_1 =
@@ -105,7 +115,13 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 			server_keys: vec![server_key_1, server_key_2, server_key_3],
 			fee_per_hop: 50_000_000,
 		};
-		api.create_mwixnet_req(send_mask, &params, &slate)?;
+		let outputs = api.retrieve_outputs(recv_mask, false, false, None)?;
+		// get last output
+		let last_output = outputs.1[outputs.1.len() - 1].clone();
+
+		let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit)?;
+
+		println!("MWIXNET REQ: {:?}", mwixnet_req);
 		Ok(())
 	})?;
 

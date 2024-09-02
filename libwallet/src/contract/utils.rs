@@ -189,7 +189,6 @@ pub fn save_step<'a, T: ?Sized, C, K>(
 	context: &mut Context,
 	step_added_outputs: bool,
 	is_signed: bool,
-	delete_on_final: bool,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -278,7 +277,7 @@ where
 	}
 
 	// Update context
-	if is_signed && !is_step2 && delete_on_final {
+	if is_signed && !is_step2 {
 		// NOTE: We MUST forget the context when we sign. Ideally, these two would be atomic or perhaps
 		// when we call slate::sigadd_partial_signaturen we could swap the secret key with a temporary one just to be safe.
 		// The reason we don't delete if we are at step2 is because in case we want to do safe cancel,

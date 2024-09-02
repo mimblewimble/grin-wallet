@@ -73,7 +73,6 @@ where
 			net_change: Some(0), // self-spend
 			num_participants: 1,
 			add_outputs: false,
-			delete_context_on_final_sign: true,
 			selection_args: OutputSelectionArgs {
 				use_inputs: Some(String::from(input_commit)),
 				..Default::default()
@@ -91,7 +90,6 @@ where
 			net_change: None, // we already have it in the context as 0 now
 			num_participants: 1,
 			add_outputs: false,
-			delete_context_on_final_sign: true,
 			selection_args: OutputSelectionArgs {
 				use_inputs: Some(String::from(input_commit)),
 				..Default::default()

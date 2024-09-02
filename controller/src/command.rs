@@ -1671,7 +1671,6 @@ impl ContractNewArgs {
 				net_change: Some(net_change),
 				num_participants: self.num_participants,
 				add_outputs: self.add_outputs,
-				delete_context_on_final_sign: true,
 				selection_args: OutputSelectionArgs {
 					use_inputs: match self.use_inputs.as_ref() {
 						Some(v) => Some(v.to_string()),
