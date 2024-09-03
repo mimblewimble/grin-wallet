@@ -39,6 +39,7 @@ use crate::libwallet::{
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
+use crate::util::secp::pedersen;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use std::convert::TryFrom;
@@ -835,12 +836,12 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		params: &MixnetReqCreationParams,
-		slate: &Slate,
-		// use_test_rng: bool,
+		commitment: &pedersen::Commitment,
+		lock_output: bool, // use_test_rng: bool,
 	) -> Result<SwapReq, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_mwixnet_req(&mut **w, keychain_mask, params, slate)
+		owner::create_mwixnet_req(&mut **w, keychain_mask, params, commitment, lock_output)
 	}
 
 	/// Processes an invoice tranaction created by another party, essentially

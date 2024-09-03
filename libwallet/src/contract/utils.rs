@@ -24,6 +24,7 @@ use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletB
 use crate::util::OnionV3Address;
 use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::FeeFields;
+use grin_util::file::delete;
 use uuid::Uuid;
 
 /// Creates an initial TxLogEntry without input/output or kernel information

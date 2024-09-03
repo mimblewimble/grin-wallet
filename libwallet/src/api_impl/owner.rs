@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
 use crate::contract::proofs::{InvoiceProof, ProofWitness};
 use crate::grin_core::core::hash::Hashed;
-use crate::grin_core::core::{Output, OutputFeatures, Transaction};
+use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::key::SecretKey;
@@ -49,6 +49,7 @@ use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
+use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
 
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
@@ -1608,56 +1609,88 @@ pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	params: &MixnetReqCreationParams,
-	slate: &Slate,
-	// use_test_rng: bool,
+	commitment: &pedersen::Commitment,
+	lock_output: bool,
 ) -> Result<SwapReq, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+	let parent_key_id = w.parent_key_id();
+	let keychain = w.keychain(keychain_mask)?;
+	let outputs = updater::retrieve_outputs(w, keychain_mask, false, None, Some(&parent_key_id))?;
 
-	let my_keys = context.get_private_keys();
-	let kernel = slate.tx_or_err()?.kernels()[0];
-
-	let msg = kernel.msg_to_sign()?;
-
-	let comsig = ComSignature::sign(slate.amount, &my_keys.0, &msg.to_hex().as_bytes().to_vec())?;
-
-	let mut hops: Vec<Hop> = Vec::new();
-	let mut final_commit = kernel.excess.clone();
-	let mut final_blind = my_keys.0.clone();
-
-	for i in 0..params.server_keys.len() {
-		let excess = params.server_keys[i].clone();
-
-		let secp = secp256k1zkp::Secp256k1::with_caps(secp256k1zkp::ContextFlag::Commit);
-		final_blind.add_assign(&secp, &excess).unwrap();
-		final_commit = add_excess(&final_commit, &excess).unwrap();
-		let proof = if i == params.server_keys.len() - 1 {
-			let n1 = random_secret();
-			let rp = secp.bullet_proof(
-				slate.amount - (params.fee_per_hop * params.server_keys.len() as u32) as u64,
-				final_blind.clone(),
-				n1.clone(),
-				n1.clone(),
-				None,
-				None,
-			);
-			assert!(secp.verify_bullet_proof(final_commit, rp, None).is_ok());
-			Some(rp)
-		} else {
-			None
-		};
-
-		let hop = new_hop(&params.server_keys[i], &excess, params.fee_per_hop, proof);
-		hops.push(hop);
+	let mut output = None;
+	for o in &outputs {
+		if o.commit == *commitment {
+			output = Some(o.output.clone());
+			break;
+		}
 	}
 
-	let onion = create_onion(&kernel.excess, &hops)?;
+	if output.is_none() {
+		return Err(Error::GenericError(String::from("output not found")));
+	}
+
+	let amount = output.clone().unwrap().value;
+	let input_blind = keychain.derive_key(
+		amount,
+		&output.clone().unwrap().key_id,
+		SwitchCommitmentType::Regular,
+	)?;
+
+	let mut server_pubkeys = vec![];
+	for i in 0..params.server_keys.len() {
+		server_pubkeys.push(xPublicKey::from(&StaticSecret::from(
+			params.server_keys[i].0,
+		)));
+	}
+
+	let fee = grin_core::libtx::tx_fee(1, 1, 1);
+	let new_amount = amount - (fee * server_pubkeys.len() as u64);
+	let new_output = build_output(w, keychain_mask, OutputFeatures::Plain, new_amount)?;
+	let secp = keychain.secp();
+
+	let mut blind_sum = new_output
+		.blind
+		.split(&BlindingFactor::from_secret_key(input_blind.clone()), &secp)?;
+
+	let hops = server_pubkeys
+		.iter()
+		.enumerate()
+		.map(|(i, &p)| {
+			if (i + 1) == server_pubkeys.len() {
+				Hop {
+					server_pubkey: p.clone(),
+					excess: blind_sum.secret_key(&secp).unwrap(),
+					fee: FeeFields::from(fee as u32),
+					rangeproof: Some(new_output.output.proof.clone()),
+				}
+			} else {
+				let hop_excess = BlindingFactor::rand(&secp);
+				blind_sum = blind_sum.split(&hop_excess, &secp).unwrap();
+				Hop {
+					server_pubkey: p.clone(),
+					excess: hop_excess.secret_key(&secp).unwrap(),
+					fee: FeeFields::from(fee as u32),
+					rangeproof: None,
+				}
+			}
+		})
+		.collect();
+
+	let onion = create_onion(&commitment, &hops).unwrap();
+	let comsig = ComSignature::sign(amount, &input_blind, &onion.serialize().unwrap()).unwrap();
+
+	// Lock output if requested
+	if lock_output {
+		let mut batch = w.batch(keychain_mask)?;
+		let mut update_output = batch.get(&output.as_ref().unwrap().key_id, &None)?;
+		update_output.lock();
+		batch.lock_output(&mut update_output)?;
+		batch.commit()?;
+	}
 
 	Ok(SwapReq { comsig, onion })
-
-	//slate.find_index_matching_context(&keychain, &context)
 }
