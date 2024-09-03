@@ -119,9 +119,16 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 		// get last output
 		let last_output = outputs.1[outputs.1.len() - 1].clone();
 
-		let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit)?;
+		let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
 
 		println!("MWIXNET REQ: {:?}", mwixnet_req);
+
+		// check output we created comsig for is indeed locked
+		let outputs = api.retrieve_outputs(recv_mask, false, false, None)?;
+		// get last output
+		let last_output = outputs.1[outputs.1.len() - 1].clone();
+		assert!(last_output.output.status == libwallet::OutputStatus::Locked);
+
 		Ok(())
 	})?;
 

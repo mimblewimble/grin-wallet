@@ -1610,6 +1610,7 @@ pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	params: &MixnetReqCreationParams,
 	commitment: &pedersen::Commitment,
+	lock_output: bool,
 ) -> Result<SwapReq, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -1682,7 +1683,14 @@ where
 	let onion = create_onion(&commitment, &hops).unwrap();
 	let comsig = ComSignature::sign(amount, &input_blind, &onion.serialize().unwrap()).unwrap();
 
-	Ok(SwapReq { comsig, onion })
+	// Lock output if requested
+	if lock_output {
+		let mut batch = w.batch(keychain_mask)?;
+		let mut update_output = batch.get(&output.as_ref().unwrap().key_id, &None)?;
+		update_output.lock();
+		batch.lock_output(&mut update_output)?;
+		batch.commit()?;
+	}
 
-	//slate.find_index_matching_context(&keychain, &context)
+	Ok(SwapReq { comsig, onion })
 }

@@ -837,11 +837,11 @@ where
 		keychain_mask: Option<&SecretKey>,
 		params: &MixnetReqCreationParams,
 		commitment: &pedersen::Commitment,
-		// use_test_rng: bool,
+		lock_output: bool, // use_test_rng: bool,
 	) -> Result<SwapReq, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_mwixnet_req(&mut **w, keychain_mask, params, commitment)
+		owner::create_mwixnet_req(&mut **w, keychain_mask, params, commitment, lock_output)
 	}
 
 	/// Processes an invoice tranaction created by another party, essentially

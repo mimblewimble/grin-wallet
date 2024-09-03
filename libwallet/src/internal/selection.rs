@@ -210,9 +210,9 @@ where
 				sender_address: sender_address.to_ed25519()?,
 				sender_address_path,
 				sender_signature: None,
-				/// TODO: Will fill these as separate steps for now, check whether this
-				/// can be merged in a general case (which means knowing which nonces here belong to
-				/// the recipient)
+				// TODO: Will fill these as separate steps for now, check whether this
+				// can be merged in a general case (which means knowing which nonces here belong to
+				// the recipient)
 				proof_type: None,
 				receiver_public_nonce: None,
 				receiver_public_excess: None,
