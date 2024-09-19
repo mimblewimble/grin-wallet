@@ -72,14 +72,18 @@ remove_dir_all = "0.7"
 ##### Grin Imports
 
 # For Release
+<<<<<<< HEAD
 grin_chain = "5.3.1"
+=======
+# grin_chain = "5.4.0-alpha.1"
+>>>>>>> master
 
 # For beta release
 
 # grin_chain = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
 
 # For bleeding edge
-# grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+grin_chain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
 
 # For local testing
 # grin_chain = { path = "../../grin/chain"}
