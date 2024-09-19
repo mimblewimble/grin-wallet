@@ -17,35 +17,27 @@
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
-use crate::contract::proofs::{InvoiceProof, ProofWitness};
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::pedersen;
-use crate::grin_util::{static_secp_instance, Mutex, ToHex};
+use crate::grin_util::Mutex;
+use crate::grin_util::ToHex;
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::contract::types::{ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI};
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
-use crate::mwmixnet::onion::create_onion;
-use crate::mwmixnet::types::{
-	add_excess, new_hop, random_secret, ComSignature, Hop, MixnetReqCreationParams, SwapReq,
-};
-
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::Error;
 use crate::{
-	address, contract, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	address, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus,
 	WalletInst, WalletLCProvider,
 };
-use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
@@ -481,145 +473,6 @@ where
 	})
 }
 
-/// Retrieve invoice payment proof
-/// TODO: Need to unify with legacy above
-pub fn retrieve_payment_proof_invoice<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	keychain_mask: Option<&SecretKey>,
-	status_send_channel: &Option<Sender<StatusMessage>>,
-	refresh_from_node: bool,
-	tx_id: Option<u32>,
-	tx_slate_id: Option<Uuid>,
-) -> Result<InvoiceProof, Error>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	if tx_id.is_none() && tx_slate_id.is_none() {
-		return Err(Error::PaymentProofRetrieval(
-			"Transaction ID or Slate UUID must be specified".to_owned(),
-		));
-	}
-	if refresh_from_node {
-		update_wallet_state(
-			wallet_inst.clone(),
-			keychain_mask,
-			status_send_channel,
-			false,
-		)?
-	} else {
-		false
-	};
-	let txs = retrieve_txs(
-		wallet_inst.clone(),
-		keychain_mask,
-		status_send_channel,
-		refresh_from_node,
-		tx_id,
-		tx_slate_id,
-		None,
-	)?;
-	if txs.1.len() != 1 {
-		return Err(Error::PaymentProofRetrieval(
-			"Transaction doesn't exist".to_owned(),
-		));
-	}
-	// Pull out all needed fields, returning an error if they're not present
-	let tx = txs.1[0].clone();
-	let amount = if tx.amount_credited >= tx.amount_debited {
-		tx.amount_credited - tx.amount_debited
-	} else {
-		// TODO: Invoice proof not expecting fee included here
-		tx.amount_debited - tx.amount_credited
-	};
-
-	let (mut proof, sender_part_sig) = match tx.payment_proof {
-		Some(p) => {
-			if p.receiver_public_nonce.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored receiver public nonce".into(),
-				));
-			};
-			if p.receiver_public_excess.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored receiver public excess".into(),
-				));
-			};
-			if p.timestamp.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored timestamp".into(),
-				));
-			};
-			if p.sender_part_sig.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored sender partial signature".into(),
-				));
-			};
-
-			(
-				InvoiceProof {
-					proof_type: if let Some(t) = p.proof_type { t } else { 1u8 },
-					amount,
-					receiver_public_nonce: p.receiver_public_nonce.unwrap(),
-					receiver_public_excess: p.receiver_public_excess.unwrap(),
-					sender_address: p.sender_address,
-					timestamp: p.timestamp.unwrap().timestamp(),
-					memo: p.memo,
-					promise_signature: p.promise_signature,
-					witness_data: None,
-				},
-				p.sender_part_sig.unwrap(),
-			)
-		}
-		None => {
-			return Err(Error::PaymentProofRetrieval(
-				"Transaction does not contain a payment proof".to_owned(),
-			));
-		}
-	};
-
-	// Now to kernel lookup, to fill in the witness data
-	// Check kernel exists
-	let mut client = {
-		wallet_lock!(wallet_inst, w);
-		w.w2n_client().clone()
-	};
-
-	let kernel_excess = match tx.kernel_excess {
-		Some(k) => k,
-		None => {
-			return Err(Error::PaymentProofRetrieval(format!(
-				"Invoice proof transaction kernel excess missing",
-			)))
-		}
-	};
-
-	let (retrieved_kernel, index) = match client.get_kernel(&kernel_excess, None, None) {
-		Err(e) => {
-			return Err(Error::PaymentProof(format!(
-				"Error retrieving kernel from chain: {}",
-				e
-			)));
-		}
-		Ok(None) => {
-			return Err(Error::PaymentProof(format!(
-				"Transaction kernel with excess {:?} not found on chain",
-				kernel_excess
-			)));
-		}
-		Ok(Some((k, _, index))) => (k, index),
-	};
-
-	proof.witness_data = Some(ProofWitness {
-		kernel_index: index,
-		kernel_commitment: retrieved_kernel.excess,
-		sender_partial_sig: sender_part_sig,
-	});
-
-	Ok(proof)
-}
-
 /// Initiate tx as sender
 pub fn init_send_tx<'a, T: ?Sized, C, K>(
 	w: &mut T,
@@ -715,14 +568,9 @@ where
 		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
-			sender_address: Some(sender_address.to_ed25519()?),
+			sender_address: sender_address.to_ed25519()?,
 			receiver_address: a.pub_key,
-			promise_signature: None,
-			timestamp: DateTime::<Utc>::from_utc(
-				NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
-				Utc,
-			),
-			memo: None,
+			receiver_signature: None,
 		});
 
 		context.payment_proof_derivation_index = Some(deriv_path);
@@ -1520,144 +1368,4 @@ where
 		key_id: key_id,
 		output: output,
 	})
-}
-
-// Contract implementation
-
-/// Initialize transaction contract
-pub fn contract_new<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	args: &ContractNewArgsAPI,
-	// use_test_rng: bool,
-) -> Result<Slate, Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	contract::new(&mut *w, keychain_mask, &args.setup_args)
-}
-
-// /// Setup transaction contract
-// pub fn contract_setup<'a, T: ?Sized, C, K>(
-// 	w: &mut T,
-// 	keychain_mask: Option<&SecretKey>,
-// 	args: &ContractSetupArgsAPI,
-// 	slate: &Slate,
-// 	// use_test_rng: bool,
-// ) -> Result<Slate, Error>
-// where
-// 	T: WalletBackend<'a, C, K>,
-// 	C: NodeClient + 'a,
-// 	K: Keychain + 'a,
-// {
-// 	contract::setup(&mut *w, keychain_mask, slate, &args)
-// }
-
-/// Sign transaction contract
-pub fn contract_sign<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	args: &ContractSetupArgsAPI,
-	slate: &Slate,
-	// use_test_rng: bool,
-) -> Result<Slate, Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	contract::sign(&mut *w, keychain_mask, slate, &args)
-}
-
-/// Revoke transaction contract
-pub fn contract_revoke<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	args: &ContractRevokeArgsAPI,
-	// use_test_rng: bool,
-) -> Result<Option<Slate>, Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	contract::revoke(&mut *w, keychain_mask, &args)
-}
-
-/// Revoke transaction contract
-pub fn get_slate_index_matching_my_context<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
-	// use_test_rng: bool,
-) -> Result<usize, Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let keychain = w.keychain(keychain_mask)?;
-	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
-	slate.find_index_matching_context(&keychain, &context)
-}
-
-/// Create MXMixnet request
-pub fn create_mwmixnet_req<'a, T: ?Sized, C, K>(
-	w: &mut T,
-	keychain_mask: Option<&SecretKey>,
-	params: &MixnetReqCreationParams,
-	slate: &Slate,
-	// use_test_rng: bool,
-) -> Result<SwapReq, Error>
-where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
-
-	let my_keys = context.get_private_keys();
-	let kernel = slate.tx_or_err()?.kernels()[0];
-
-	let msg = kernel.msg_to_sign()?;
-
-	let comsig = ComSignature::sign(slate.amount, &my_keys.0, &msg.to_hex().as_bytes().to_vec())?;
-
-	let mut hops: Vec<Hop> = Vec::new();
-	let mut final_commit = kernel.excess.clone();
-	let mut final_blind = my_keys.0.clone();
-
-	for i in 0..params.server_keys.len() {
-		let excess = params.server_keys[i].clone();
-
-		let secp = secp256k1zkp::Secp256k1::with_caps(secp256k1zkp::ContextFlag::Commit);
-		final_blind.add_assign(&secp, &excess).unwrap();
-		final_commit = add_excess(&final_commit, &excess).unwrap();
-		let proof = if i == params.server_keys.len() - 1 {
-			let n1 = random_secret();
-			let rp = secp.bullet_proof(
-				slate.amount - (params.fee_per_hop * params.server_keys.len() as u32) as u64,
-				final_blind.clone(),
-				n1.clone(),
-				n1.clone(),
-				None,
-				None,
-			);
-			assert!(secp.verify_bullet_proof(final_commit, rp, None).is_ok());
-			Some(rp)
-		} else {
-			None
-		};
-
-		let hop = new_hop(&params.server_keys[i], &excess, params.fee_per_hop, proof);
-		hops.push(hop);
-	}
-
-	let onion = create_onion(&kernel.excess, &hops)?;
-
-	Ok(SwapReq { comsig, onion })
-
-	//slate.find_index_matching_context(&keychain, &context)
 }

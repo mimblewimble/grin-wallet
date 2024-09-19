@@ -21,6 +21,8 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::path::Path;
 
+use uuid::Uuid;
+
 use crate::blake2::blake2b::{Blake2b, Blake2bResult};
 
 use crate::keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchCommitmentType};
@@ -316,41 +318,9 @@ where
 		Box::new(iter)
 	}
 
-	// TODO: I think this can be deleted
-	// fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
-	// 	let key = to_key(TX_LOG_ENTRY_PREFIX, &mut u.as_bytes().to_vec());
-
-	// 	self.db.get_ser(&key, None).map_err(|e| e.into())
-	// }
-
-	fn get_tx_log_entry(
-		&self,
-		parent_id: Identifier,
-		log_id: u32,
-	) -> Result<Option<TxLogEntry>, Error> {
-		let tx_log_key = to_key_u64(
-			TX_LOG_ENTRY_PREFIX,
-			&mut parent_id.to_bytes().to_vec(),
-			log_id as u64,
-		);
-		self.db.get_ser(&tx_log_key, None).map_err(|e| e.into())
-		/*
-		fn save_tx_log_entry(
-			&mut self,
-			tx_in: TxLogEntry,
-			parent_id: &Identifier,
-		) -> Result<(), Error> {
-			let tx_log_key = to_key_u64(
-				TX_LOG_ENTRY_PREFIX,
-				&mut parent_id.to_bytes().to_vec(),
-				tx_in.id as u64,
-			);
-			self.db
-				.borrow()
-				.as_ref()
-				.unwrap()
-				.put_ser(&tx_log_key, &tx_in)?;
-			*/
+	fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
+		let key = to_key(TX_LOG_ENTRY_PREFIX, &mut u.as_bytes().to_vec());
+		self.db.get_ser(&key, None).map_err(|e| e.into())
 	}
 
 	// TODO - fix this awkward conversion between PrefixIterator and our Box<dyn Iterator>

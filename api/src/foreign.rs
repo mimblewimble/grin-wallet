@@ -17,8 +17,6 @@
 use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
-use crate::libwallet::contract::proofs::InvoiceProof;
-use crate::libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,
@@ -26,7 +24,6 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -452,43 +449,6 @@ where
 			slate,
 			post_automatically,
 		)
-	}
-
-	// Below is a foreign wrapper around owner calls to 'new' and 'sign' which are only executed
-	// if this is a receiving contract. This preserves the ability to receive on a foreign interface.
-	/// TODO
-	pub fn contract_new(
-		&self,
-		keychain_mask: Option<&SecretKey>,
-		args: &ContractNewArgsAPI,
-	) -> Result<Slate, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		// TODO: self.doctest_mode ?
-		foreign::contract_new(&mut **w, keychain_mask, &args)
-	}
-
-	/// TODO
-	pub fn contract_sign(
-		&self,
-		keychain_mask: Option<&SecretKey>,
-		slate: &Slate,
-		args: &ContractSetupArgsAPI,
-	) -> Result<Slate, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		foreign::contract_sign(&mut **w, keychain_mask, &args, &slate)
-	}
-
-	/// TODO
-	pub fn verify_payment_proof_invoice(
-		&self,
-		recipient_address: &DalekPublicKey,
-		proof: &InvoiceProof,
-	) -> Result<(), Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		foreign::verify_payment_proof_invoice(&mut **w, recipient_address, proof)
 	}
 }
 

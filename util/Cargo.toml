@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_util"
-version = "5.4.0-contracts.0"
+version = "5.4.0-alpha.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Util, for generic utilities and to re-export grin crates"
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ thiserror = "1"
 ##### Grin Imports
 
 # For Release
-# grin_util = "5.4.0-contracts.0"
+# grin_util = "5.4.0-alpha.1"
 
 # For beta release
 

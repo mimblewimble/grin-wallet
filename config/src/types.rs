@@ -28,9 +28,6 @@ pub struct WalletConfig {
 	pub chain_type: Option<ChainTypes>,
 	/// The port this wallet will run on
 	pub api_listen_port: u16,
-	/// Listen interface for the owner API, should be hidden from config by default
-	#[serde(skip_serializing)]
-	pub owner_api_listen_interface: Option<String>,
 	/// The port this wallet's owner API will run on
 	pub owner_api_listen_port: Option<u16>,
 	/// Location of the secret for basic auth on the Owner API
@@ -64,7 +61,6 @@ impl Default for WalletConfig {
 		WalletConfig {
 			chain_type: Some(ChainTypes::Mainnet),
 			api_listen_port: 3415,
-			owner_api_listen_interface: Some(WalletConfig::default_owner_api_listen_interface()),
 			owner_api_listen_port: Some(WalletConfig::default_owner_api_listen_port()),
 			api_secret_path: Some(".owner_api_secret".to_string()),
 			node_api_secret_path: Some(".foreign_api_secret".to_string()),
@@ -87,11 +83,6 @@ impl WalletConfig {
 	}
 
 	/// Default listener port
-	pub fn default_owner_api_listen_interface() -> String {
-		"127.0.0.1".to_string()
-	}
-
-	/// Default listener port
 	pub fn default_owner_api_listen_port() -> u16 {
 		3420
 	}
@@ -102,13 +93,6 @@ impl WalletConfig {
 	}
 
 	/// Use value from config file, defaulting to sensible value if missing.
-	pub fn owner_api_listen_interface(&self) -> String {
-		self.owner_api_listen_interface
-			.clone()
-			.unwrap_or_else(|| WalletConfig::default_owner_api_listen_interface())
-	}
-
-	/// Use value from config file, defaulting to sensible value if missing.
 	pub fn owner_api_listen_port(&self) -> u16 {
 		self.owner_api_listen_port
 			.unwrap_or_else(WalletConfig::default_owner_api_listen_port)
@@ -116,11 +100,7 @@ impl WalletConfig {
 
 	/// Owner API listen address
 	pub fn owner_api_listen_addr(&self) -> String {
-		format!(
-			"{}:{}",
-			self.owner_api_listen_interface(),
-			self.owner_api_listen_port()
-		)
+		format!("127.0.0.1:{}", self.owner_api_listen_port())
 	}
 
 	/// Accept fee base

@@ -64,7 +64,7 @@ impl Readable for SlateStateV4 {
 }
 
 /// Allow serializing of Uuids not defined in crate
-pub struct UuidWrap(pub Uuid);
+struct UuidWrap(Uuid);
 
 impl Writeable for UuidWrap {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
@@ -82,7 +82,7 @@ impl Readable for UuidWrap {
 }
 
 /// Helper struct to serialize optional fields efficiently
-pub struct SlateOptFields {
+struct SlateOptFields {
 	/// num parts, default 2
 	pub num_parts: u8,
 	/// amt, default 0

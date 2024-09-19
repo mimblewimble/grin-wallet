@@ -203,23 +203,12 @@ where
 				sender_address_path,
 			)?;
 			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
-
 			t.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address,
-				receiver_signature: p.promise_signature,
+				receiver_signature: p.receiver_signature,
 				sender_address: sender_address.to_ed25519()?,
 				sender_address_path,
 				sender_signature: None,
-				/// TODO: Will fill these as separate steps for now, check whether this
-				/// can be merged in a general case (which means knowing which nonces here belong to
-				/// the recipient)
-				proof_type: None,
-				receiver_public_nonce: None,
-				receiver_public_excess: None,
-				timestamp: None,
-				memo: None,
-				promise_signature: None,
-				sender_part_sig: None,
 			});
 		};
 

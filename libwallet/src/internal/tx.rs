@@ -359,32 +359,27 @@ where
 		Some(&parent_key_id),
 		false,
 	)?;
-	if tx_vec.len() == 0 {
+	if tx_vec.len() != 1 {
 		return Err(Error::TransactionDoesntExist(tx_id_string));
 	}
-	for tx in tx_vec {
-		debug!("cancel_tx: tx: {}", tx.tx_type);
-		match tx.tx_type {
-			TxLogEntryType::TxSent
-			| TxLogEntryType::TxReceived
-			| TxLogEntryType::TxReverted
-			| TxLogEntryType::TxSelfSpend => {}
-			_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
-		}
-		if tx.confirmed {
-			return Err(Error::TransactionNotCancellable(tx_id_string));
-		}
-		// get outputs associated with tx
-		let res = updater::retrieve_outputs(
-			wallet,
-			keychain_mask,
-			false,
-			Some(tx.id),
-			Some(&parent_key_id),
-		)?;
-		let outputs = res.iter().map(|m| m.output.clone()).collect();
-		updater::cancel_tx_and_outputs(wallet, keychain_mask, tx, outputs, parent_key_id)?;
+	let tx = tx_vec[0].clone();
+	match tx.tx_type {
+		TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {}
+		_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
 	}
+	if tx.confirmed {
+		return Err(Error::TransactionNotCancellable(tx_id_string));
+	}
+	// get outputs associated with tx
+	let res = updater::retrieve_outputs(
+		wallet,
+		keychain_mask,
+		false,
+		Some(tx.id),
+		Some(&parent_key_id),
+	)?;
+	let outputs = res.iter().map(|m| m.output.clone()).collect();
+	updater::cancel_tx_and_outputs(wallet, keychain_mask, tx, outputs, parent_key_id)?;
 	Ok(())
 }
 
@@ -426,36 +421,25 @@ where
 	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
-		if let Some(saddr) = p.sender_address {
-			let derivation_index = match context.payment_proof_derivation_index {
-				Some(i) => i,
-				None => 0,
-			};
-			let keychain = wallet.keychain(keychain_mask)?;
-			let parent_key_id = wallet.parent_key_id();
-			let excess = slate.calc_excess(keychain.secp())?;
-			let sender_key =
-				address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
-			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
-			let sig = create_payment_proof_signature(slate.amount, &excess, saddr, sender_key)?;
-
-			tx.payment_proof = Some(StoredProofInfo {
-				receiver_address: p.receiver_address,
-				receiver_signature: p.promise_signature,
-				sender_address_path: derivation_index,
-				sender_address: sender_address.to_ed25519()?,
-				sender_signature: Some(sig),
-				// Filled in during contract flow proofs for now
-				proof_type: None,
-				receiver_public_nonce: None,
-				receiver_public_excess: None,
-				timestamp: None,
-				memo: None,
-				promise_signature: None,
-				sender_part_sig: None,
-			})
-		} else {
-		}
+		let derivation_index = match context.payment_proof_derivation_index {
+			Some(i) => i,
+			None => 0,
+		};
+		let keychain = wallet.keychain(keychain_mask)?;
+		let parent_key_id = wallet.parent_key_id();
+		let excess = slate.calc_excess(keychain.secp())?;
+		let sender_key =
+			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
+		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
+		let sig =
+			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
+		tx.payment_proof = Some(StoredProofInfo {
+			receiver_address: p.receiver_address,
+			receiver_signature: p.receiver_signature,
+			sender_address_path: derivation_index,
+			sender_address: sender_address.to_ed25519()?,
+			sender_signature: Some(sig),
+		})
 	}
 
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
@@ -577,15 +561,9 @@ where
 		let orig_sender_sk =
 			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
 		let orig_sender_address = OnionV3Address::from_private(&orig_sender_sk.0)?;
-		if let Some(saddr) = p.sender_address {
-			if saddr != orig_sender_address.to_ed25519()? {
-				return Err(Error::PaymentProof(
-					"Sender address on slate does not match original sender address".to_owned(),
-				));
-			}
-		} else {
+		if p.sender_address != orig_sender_address.to_ed25519()? {
 			return Err(Error::PaymentProof(
-				"Sender address on slate is not provided".to_owned(),
+				"Sender address on slate does not match original sender address".to_owned(),
 			));
 		}
 
@@ -599,7 +577,7 @@ where
 			&slate.calc_excess(&keychain.secp())?,
 			orig_sender_address.to_ed25519()?,
 		)?;
-		let sig = match p.promise_signature {
+		let sig = match p.receiver_signature {
 			Some(s) => s,
 			None => {
 				return Err(Error::PaymentProof(

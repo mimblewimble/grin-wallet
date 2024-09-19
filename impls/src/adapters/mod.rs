@@ -17,7 +17,7 @@ pub mod http;
 mod slatepack;
 
 pub use self::file::PathToSlate;
-pub use self::http::HttpSlateSender;
+pub use self::http::{HttpSlateSender, SchemeNotHttp};
 pub use self::slatepack::PathToSlatepack;
 
 use crate::config::WalletConfig;
