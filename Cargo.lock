@@ -1521,6 +1521,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "grin_wallet_doc"
+version = "5.4.0-alpha.1"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "grin_wallet_impls"
 version = "5.4.0-alpha.1"
 dependencies = [
