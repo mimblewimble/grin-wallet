@@ -19,6 +19,7 @@ serde_derive = "1"
 serde_json = "1"
 log = "0.4"
 ring = "0.16"
+sha2 = "0.10.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
@@ -35,6 +36,12 @@ timer = "0.2"
 sysinfo = "0.29"
 base64 = "0.12.0"
 url = "2.1"
+
+#mwixnet onion
+chacha20 = "0.8.1"
+hmac = { version = "0.12.0", features = ["std"]}
+
+grin_secp256k1zkp = { version = "0.7.12", features = ["bullet-proof-sizing"]}
 
 grin_wallet_util = { path = "../util", version = "5.4.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "5.4.0-alpha.1" }
