@@ -188,11 +188,11 @@ fn format_slatepack(slatepack: &str) -> Result<String, Error> {
 
 // Returns the first four bytes of a double sha256 hash of some bytes
 fn generate_check(payload: &[u8]) -> Result<Vec<u8>, Error> {
-	let mut first_hash = Sha256::new();
-	first_hash.input(payload);
-	let mut second_hash = Sha256::new();
-	second_hash.input(first_hash.result());
-	let checksum = second_hash.result();
+	let mut first_hasher = Sha256::new();
+	first_hasher.update(payload);
+	let mut second_hasher = Sha256::new();
+	second_hasher.update(first_hasher.finalize());
+	let checksum = second_hasher.finalize();
 	let check_bytes: Vec<u8> = checksum[0..4].to_vec();
 	Ok(check_bytes)
 }
