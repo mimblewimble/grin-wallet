@@ -1,4 +1,4 @@
-// Copyright 2023 The Grin Developers
+// Copyright 2024 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! SECP wrapper functions for onion/comsig
-//! TODO: Likely redundant stuff in here, trim
+//! SECP operations for comsig
 
-pub use secp256k1zkp::aggsig;
-pub use secp256k1zkp::constants::{
-	AGG_SIGNATURE_SIZE, COMPRESSED_PUBLIC_KEY_SIZE, MAX_PROOF_SIZE, PEDERSEN_COMMITMENT_SIZE,
-	SECRET_KEY_SIZE,
+pub use grin_util::secp::{
+	self as secp256k1zkp, aggsig,
+	constants::SECRET_KEY_SIZE,
+	key::{PublicKey, SecretKey, ZERO_KEY},
+	pedersen::Commitment,
+	rand::thread_rng,
+	ContextFlag, Message, Secp256k1, Signature,
 };
-pub use secp256k1zkp::ecdh::SharedSecret;
-pub use secp256k1zkp::key::{PublicKey, SecretKey, ZERO_KEY};
-pub use secp256k1zkp::pedersen::{Commitment, RangeProof};
-pub use secp256k1zkp::{ContextFlag, Message, Secp256k1, Signature};
 
 use grin_core::ser::{self, Reader};
-use secp256k1zkp::rand::thread_rng;
 
 /// Generate a random SecretKey.
 pub fn random_secret() -> SecretKey {

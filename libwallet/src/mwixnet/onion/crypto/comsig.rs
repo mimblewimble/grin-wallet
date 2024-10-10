@@ -14,12 +14,13 @@
 
 //! Comsig modules for mxmixnet
 
-use secp256k1zkp::{self, pedersen::Commitment, ContextFlag, Secp256k1, SecretKey};
+use grin_util::secp::{
+	self as secp256k1zkp, pedersen::Commitment, rand::thread_rng, ContextFlag, Secp256k1, SecretKey,
+};
 
 use blake2_rfc::blake2b::Blake2b;
 use byteorder::{BigEndian, ByteOrder};
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use secp256k1zkp::rand::thread_rng;
 use thiserror::Error;
 
 /// A generalized Schnorr signature with a pedersen commitment value & blinding factors as the keys
@@ -178,8 +179,8 @@ impl Writeable for ComSignature {
 mod tests {
 	use super::{ComSigError, ComSignature, ContextFlag, Secp256k1, SecretKey};
 
+	use grin_util::secp::rand::{thread_rng, RngCore};
 	use rand::Rng;
-	use secp256k1zkp::rand::{thread_rng, RngCore};
 
 	/// Test signing and verification of ComSignatures
 	#[test]

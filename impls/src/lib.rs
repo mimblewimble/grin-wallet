@@ -39,7 +39,6 @@ mod backends;
 mod client_utils;
 mod error;
 mod lifecycle;
-mod mwixnet;
 mod node_clients;
 pub mod test_framework;
 pub mod tor;

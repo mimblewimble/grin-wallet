@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Onion and comsig modules for mxmixnet
+//! Onion modules for mxmixnet
+mod onion;
+mod types;
 
-pub mod comsig;
-pub mod dalek;
-pub mod secp;
+pub use onion::{
+	create_onion, onion::Onion, onion::OnionError, ComSigError, ComSignature, MwixnetPublicKey,
+};
+
+pub use types::{Hop, MixnetReqCreationParams, SwapReq};

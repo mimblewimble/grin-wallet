@@ -14,7 +14,7 @@
 
 //! Dalek key wrapper for mwixnet primitives
 
-use super::secp::SecretKey;
+use grin_util::secp::key::SecretKey;
 
 use ed25519_dalek::{Keypair, PublicKey, Signature, Signer, Verifier};
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};

@@ -1,4 +1,4 @@
-// Copyright 2023 The Grin Developers
+// Copyright 2024 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,25 @@
 
 //! Onion module definition
 
-pub mod crypto;
+mod crypto;
 pub mod onion;
 pub mod util;
 
-use crypto::secp::{random_secret, Commitment, SecretKey};
-use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
+pub use crypto::{
+	comsig_serde, dalek::DalekPublicKey as MwixnetPublicKey, ComSigError, ComSignature,
+};
 
 use chacha20::cipher::StreamCipher;
 use grin_core::core::FeeFields;
-use secp256k1zkp::pedersen::RangeProof;
+use grin_util::secp::{
+	pedersen::{Commitment, RangeProof},
+	SecretKey,
+};
 use x25519_dalek::PublicKey as xPublicKey;
 use x25519_dalek::{SharedSecret, StaticSecret};
+
+use crypto::secp::random_secret;
+use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
 
 /// Onion hop struct
 #[derive(Clone)]
@@ -113,9 +120,9 @@ pub mod test_util {
 	use crypto::secp;
 
 	use grin_core::core::hash::Hash;
+	use grin_util::secp::Secp256k1;
 	use grin_util::ToHex;
 	use rand::{thread_rng, RngCore};
-	use secp256k1zkp::Secp256k1;
 
 	pub fn rand_onion() -> Onion {
 		let commit = rand_commit();

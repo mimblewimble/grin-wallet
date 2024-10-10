@@ -14,7 +14,6 @@
 
 //! Onion defn for mwixnet
 
-use super::crypto::secp::{self, Commitment, RangeProof, SecretKey};
 use super::util::{read_optional, vec_to_array, write_optional};
 
 use std::convert::TryFrom;
@@ -26,6 +25,11 @@ use chacha20::cipher::{NewCipher, StreamCipher};
 use chacha20::{ChaCha20, Key, Nonce};
 use grin_core::core::FeeFields;
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
+use grin_util::secp::{
+	self as secp256k1zkp,
+	key::SecretKey,
+	pedersen::{Commitment, RangeProof},
+};
 use grin_util::{self, ToHex};
 use hmac::digest::InvalidLength;
 use hmac::{Hmac, Mac};
@@ -34,6 +38,8 @@ use serde::Deserialize;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{PublicKey as xPublicKey, SharedSecret, StaticSecret};
+
+use super::crypto::secp;
 
 type HmacSha256 = Hmac<Sha256>;
 /// Raw bytes alias

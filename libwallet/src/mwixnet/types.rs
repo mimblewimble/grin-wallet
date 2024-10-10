@@ -15,18 +15,19 @@
 //! Types related to mwixnet requests required by rest of lib crate apis
 //! Should rexport all needed types here
 
-pub use super::onion::crypto::comsig::{self, ComSignature};
-pub use super::onion::crypto::secp::{add_excess, random_secret};
-pub use super::onion::onion::Onion;
-pub use super::onion::{new_hop, Hop};
+use super::onion::comsig_serde;
 use grin_util::secp::key::SecretKey;
 use serde::{Deserialize, Serialize};
+
+pub use super::onion::{
+	create_onion, onion::Onion, onion::OnionError, ComSigError, ComSignature, Hop,
+};
 
 /// A Swap request
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SwapReq {
 	/// Com signature
-	#[serde(with = "comsig::comsig_serde")]
+	#[serde(with = "comsig_serde")]
 	pub comsig: ComSignature,
 	/// Onion
 	pub onion: Onion,
