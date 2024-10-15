@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
@@ -33,7 +34,7 @@ use crate::libwallet::{
 	TxLogEntry, ViewWallet, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
-use crate::util::secp::key::SecretKey;
+use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use std::convert::TryFrom;
@@ -2422,6 +2423,25 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::build_output(&mut **w, keychain_mask, features, amount)
+	}
+
+	// MWIXNET
+
+	/// Creates an mwixnet request [](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)
+	/// from a completed transaction within the wallet.
+	/// DOCS + DOCTEST TBD
+	///
+
+	pub fn create_mwixnet_req(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		params: &MixnetReqCreationParams,
+		commitment: &Commitment,
+		lock_output: bool, // use_test_rng: bool,
+	) -> Result<SwapReq, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::create_mwixnet_req(&mut **w, keychain_mask, params, commitment, lock_output)
 	}
 }
 

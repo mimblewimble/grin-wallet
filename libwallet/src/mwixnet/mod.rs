@@ -17,7 +17,8 @@ mod onion;
 mod types;
 
 pub use onion::{
-	create_onion, onion::Onion, onion::OnionError, ComSigError, ComSignature, MwixnetPublicKey,
+	create_onion, onion::Onion, onion::OnionError, util as onion_util, ComSigError, ComSignature,
+	MwixnetPublicKey,
 };
 
 pub use types::{Hop, MixnetReqCreationParams, SwapReq};
