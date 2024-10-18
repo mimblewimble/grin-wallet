@@ -48,6 +48,7 @@ pub struct Hop {
 }
 
 /// Crate a new hop
+#[cfg(test)]
 pub fn new_hop(
 	server_key: &SecretKey,
 	hop_excess: &SecretKey,
@@ -113,7 +114,8 @@ pub fn create_onion(commitment: &Commitment, hops: &Vec<Hop>) -> Result<Onion, O
 }
 
 /// Internal tests
-#[allow(missing_docs)]
+#[allow(missing_docs, dead_code)]
+#[cfg(test)]
 pub mod test_util {
 	use super::*;
 	use crypto::dalek::DalekPublicKey;

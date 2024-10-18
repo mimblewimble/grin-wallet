@@ -16,7 +16,7 @@
 
 use grin_util::secp::key::SecretKey;
 
-use ed25519_dalek::{Keypair, PublicKey, Signature, Signer, Verifier};
+use ed25519_dalek::{PublicKey, Signature, Verifier};
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use grin_util::ToHex;
 use thiserror::Error;
@@ -68,6 +68,7 @@ impl AsRef<PublicKey> for DalekPublicKey {
 	}
 }
 
+#[cfg(test)]
 /// Serializes an Option<DalekPublicKey> to and from hex
 pub mod option_dalek_pubkey_serde {
 	use super::DalekPublicKey;
@@ -144,6 +145,7 @@ impl AsRef<Signature> for DalekSignature {
 }
 
 /// Serializes a DalekSignature to and from hex
+#[cfg(test)]
 pub mod dalek_sig_serde {
 	use super::DalekSignature;
 	use grin_util::ToHex;
@@ -171,7 +173,9 @@ pub mod dalek_sig_serde {
 
 /// Dalek signature sign wrapper
 // TODO: This is likely duplicated throughout crate, check
+#[cfg(test)]
 pub fn sign(sk: &SecretKey, message: &[u8]) -> Result<DalekSignature, DalekError> {
+	use ed25519_dalek::{Keypair, Signer};
 	let secret =
 		ed25519_dalek::SecretKey::from_bytes(&sk.0).map_err(|_| DalekError::KeyParseError)?;
 	let public: PublicKey = (&secret).into();

@@ -15,12 +15,12 @@
 //! SECP operations for comsig
 
 pub use grin_util::secp::{
-	self as secp256k1zkp, aggsig,
+	self as secp256k1zkp,
 	constants::SECRET_KEY_SIZE,
-	key::{PublicKey, SecretKey, ZERO_KEY},
+	key::{SecretKey, ZERO_KEY},
 	pedersen::Commitment,
 	rand::thread_rng,
-	ContextFlag, Message, Secp256k1, Signature,
+	ContextFlag, Secp256k1,
 };
 
 use grin_core::ser::{self, Reader};
@@ -40,6 +40,7 @@ pub fn read_secret_key<R: Reader>(reader: &mut R) -> Result<SecretKey, ser::Erro
 }
 
 /// Build a Pedersen Commitment using the provided value and blinding factor
+#[cfg(test)]
 pub fn commit(value: u64, blind: &SecretKey) -> Result<Commitment, secp256k1zkp::Error> {
 	let secp = Secp256k1::with_caps(ContextFlag::Commit);
 	let commit = secp.commit(value, blind.clone())?;
@@ -68,9 +69,23 @@ pub fn sub_value(commitment: &Commitment, value: u64) -> Result<Commitment, secp
 }
 
 /// Signs the message with the provided SecretKey
-pub fn sign(sk: &SecretKey, msg: &Message) -> Result<Signature, secp256k1zkp::Error> {
+#[cfg(test)]
+#[allow(dead_code)]
+pub fn sign(
+	sk: &SecretKey,
+	msg: &grin_util::secp::Message,
+) -> Result<grin_util::secp::Signature, secp256k1zkp::Error> {
 	let secp = Secp256k1::with_caps(ContextFlag::Full);
-	let pubkey = PublicKey::from_secret_key(&secp, &sk)?;
-	let sig = aggsig::sign_single(&secp, &msg, &sk, None, None, None, Some(&pubkey), None)?;
+	let pubkey = grin_util::secp::PublicKey::from_secret_key(&secp, &sk)?;
+	let sig = grin_util::secp::aggsig::sign_single(
+		&secp,
+		&msg,
+		&sk,
+		None,
+		None,
+		None,
+		Some(&pubkey),
+		None,
+	)?;
 	Ok(sig)
 }

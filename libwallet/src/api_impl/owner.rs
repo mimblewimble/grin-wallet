@@ -34,9 +34,7 @@ use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, Walle
 use crate::Error;
 use crate::{
 	address,
-	mwixnet::{
-		create_onion, ComSignature, Hop, MixnetReqCreationParams, MwixnetPublicKey, SwapReq,
-	},
+	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
 	wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus,

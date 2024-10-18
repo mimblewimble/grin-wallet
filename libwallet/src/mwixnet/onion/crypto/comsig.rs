@@ -34,8 +34,10 @@ pub struct ComSignature {
 /// Error types for Commitment Signatures
 #[derive(Error, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ComSigError {
+	/// Invalid commitment signature
 	#[error("Commitment signature is invalid")]
 	InvalidSig,
+	/// Secp256k1zkp error
 	#[error("Secp256k1zkp error: {0:?}")]
 	Secp256k1zkp(secp256k1zkp::Error),
 }
@@ -47,6 +49,7 @@ impl From<secp256k1zkp::Error> for ComSigError {
 }
 
 impl ComSignature {
+	/// Create a new ComSignature
 	pub fn new(pub_nonce: &Commitment, s: &SecretKey, t: &SecretKey) -> ComSignature {
 		ComSignature {
 			pub_nonce: pub_nonce.to_owned(),
@@ -55,7 +58,7 @@ impl ComSignature {
 		}
 	}
 
-	#[allow(dead_code)]
+	/// Sign commitment with amount, blinding factor, and message
 	pub fn sign(
 		amount: u64,
 		blind: &SecretKey,
@@ -88,20 +91,20 @@ impl ComSignature {
 		Ok(ComSignature::new(&nonce_commitment, &s, &t))
 	}
 
-	#[allow(non_snake_case)]
+	/// Verify the commitment signature
 	pub fn verify(&self, commit: &Commitment, msg: &Vec<u8>) -> Result<(), ComSigError> {
 		let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
-		let S1 = secp.commit_blind(self.s.clone(), self.t.clone())?;
+		let s1 = secp.commit_blind(self.s.clone(), self.t.clone())?;
 
-		let mut Ce = commit.to_pubkey(&secp)?;
+		let mut ce = commit.to_pubkey(&secp)?;
 		let e = ComSignature::calc_challenge(&secp, &commit, &self.pub_nonce, &msg)?;
-		Ce.mul_assign(&secp, &e)?;
+		ce.mul_assign(&secp, &e)?;
 
-		let commits = vec![Commitment::from_pubkey(&secp, &Ce)?, self.pub_nonce.clone()];
-		let S2 = secp.commit_sum(commits, Vec::new())?;
+		let commits = vec![Commitment::from_pubkey(&secp, &ce)?, self.pub_nonce.clone()];
+		let s2 = secp.commit_sum(commits, Vec::new())?;
 
-		if S1 != S2 {
+		if s1 != s2 {
 			return Err(ComSigError::InvalidSig);
 		}
 

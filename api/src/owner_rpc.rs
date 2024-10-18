@@ -14,6 +14,7 @@
 
 //! JSON-RPC Stub generation for the Owner API
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
+use libwallet::mwixnet::SwapReq;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -21,14 +22,15 @@ use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
-	SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo,
-	WalletLCProvider,
+	mwixnet::MixnetReqCreationParams, AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs,
+	IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, PaymentProof, Slate,
+	SlateVersion, Slatepack, SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate,
+	ViewWallet, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
-use crate::util::{static_secp_instance, Mutex, ZeroingString};
+use crate::util::secp::pedersen::Commitment;
+use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
 use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
@@ -1963,6 +1965,62 @@ pub trait OwnerRpc {
 		features: OutputFeatures,
 		amount: Amount,
 	) -> Result<BuiltOutput, Error>;
+
+	/**
+	Networked version of [Owner::build_output](struct.Owner.html#method.create_mwixnet_req).
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "create_mwixnet_req",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"params": {
+				"server_keys": [
+					"86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26a",
+					"86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26b",
+					"86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26c"
+				],
+				"fee_per_hop": "1000000"
+			},
+			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+			"lock_output": true
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": {
+				"comsig": "0835f4b8b9cd286c9e35475f575c3e4ae71ceb4ff36598504662627afd628a17d6ba7dedb1aa4c47f0fabad026b76fc86d06f3bef8d0621b8ac4601d4b1b98401586ca3374a401508f32049212478ae91cfa474dfaa5ef2c3dd559d5a292e02334",
+				"onion": {
+					"commit": "099a8922343f242dd3da29935ba5bbc7e38bf68eccfb8c96aec87aec0535199139",
+					"data":[
+						"758bc7339edfe8a1f117ef2ef02de58b33d99e820ffd2c21a3d108f4cbdadfbcbc061b705fc351ae2fb34a855bb64180fe8b4913ea13b3bf826773e4b293166cdad1fdf59cadd7d33f73a8f3fc0f339a849f9c505c573d8cc2f006082d8f5bf2c2c84c18d5873a821d9f60bcdd44cf0566d04d761a1eda005cd19ab0b1c593da4656dd2a09322fe1d725f61e8855c927844ec9e80b9260a58012f7c519c5ca3d9b192ab1104d30ac09fb844bd7f692214e5cf0f6cdf1477c20708c2f3ecb098dce6be661907593918840b0fe8eb5043996dace45f2fb66e8f1e2a732035b4e6447b8904f313badebcba99f75c003e297d8dd815915f534dfa7ed416af0c415b60d2a0186752af6af33b781f31fdd3016aeee3bd2e47743fe2ce391b3354b9036b56ec38ed7539adafbc96bef1dbaf354a805b03ac0df7a0d32cff91716926bce68c8ccebb607340f2ffe09c08a9c9fd282ea19b33c69107ed5c54d4872eb0ed83c38d7e07606722069d7709fb914e1e02ea23323f3ae9252902dbfa6f15bd83a3f64587c9ae23aaf96b2a95e1341da12a6e423cf95375184752e10c1dd1a599db74ac0c3d74ec270c589f6a3bdd0877eb986d9a58a8548b917e22bfb93a4a06c36d7cad8d4a8791a8d1e1dc683429b440b136c43ad2f664dafc5156b808050a3c4d28771877d3f1d3a9daa2585eae259aaa64745c6cd260f577e538e27be3c985db41b7c456b63c5b18d7d17420a277d4abc04ae892ceb26940b09fb322445846c14898f5f59305490b1338c56384cd0c7bf5950a0a403aec4d2c2f5e2378b5eb7b1e7fcdbd8d6cc547f3b5a372b22e50e37d858bb197392a10fb9e6e292d6ed6bd8eab1fef7f2d069b6250a0e3e597ccf9a062e04b68821f5c57328ddab775d141147b71c1764c911bad03d8b88e2e62034bc899395514ecab4dec8ab341ba114f0a4e5d1dcfa182396c0e4826ddee187b07bb524dfeaa5297f7a5465f99eaaaa37f082c787b94811feb15b57d68369e6a7e3761d"
+					],
+					"pubkey": "033946e6a495e7278027b38be3d500cfc23d3e0836f1b7e24513841437f316ccb0"
+				}
+			}
+		}
+	}
+	# "#
+	# , 0, false, false, false, false);
+	```
+	 *
+	 */
+
+	fn create_mwixnet_req(
+		&self,
+		token: Token,
+		params: MixnetReqCreationParams,
+		commitment: String,
+		lock_output: bool,
+	) -> Result<SwapReq, Error>;
 }
 
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
@@ -2371,6 +2429,24 @@ where
 		amount: Amount,
 	) -> Result<BuiltOutput, Error> {
 		Owner::build_output(self, (&token.keychain_mask).as_ref(), features, amount.0)
+	}
+
+	fn create_mwixnet_req(
+		&self,
+		token: Token,
+		params: MixnetReqCreationParams,
+		commitment: String,
+		lock_output: bool,
+	) -> Result<SwapReq, Error> {
+		let commit =
+			Commitment::from_vec(from_hex(&commitment).map_err(|e| Error::CommitDeser(e))?);
+		Owner::create_mwixnet_req(
+			self,
+			(&token.keychain_mask).as_ref(),
+			&params,
+			&commit,
+			lock_output,
+		)
 	}
 }
 

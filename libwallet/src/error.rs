@@ -181,6 +181,10 @@ pub enum Error {
 	#[error("Committed Error: {0}")]
 	Commit(String),
 
+	/// Error Deserializing commit
+	#[error("Commit Deserialize Error: {0}")]
+	CommitDeser(String),
+
 	/// Can't parse slate version
 	#[error("Can't parse slate version")]
 	SlateVersionParse,

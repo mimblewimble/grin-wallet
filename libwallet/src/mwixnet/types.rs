@@ -19,9 +19,7 @@ use super::onion::comsig_serde;
 use grin_util::secp::key::SecretKey;
 use serde::{Deserialize, Serialize};
 
-pub use super::onion::{
-	create_onion, onion::Onion, onion::OnionError, ComSigError, ComSignature, Hop,
-};
+pub use super::onion::{onion::Onion, ComSignature, Hop};
 
 /// A Swap request
 #[derive(Serialize, Deserialize, Debug)]
@@ -34,10 +32,10 @@ pub struct SwapReq {
 }
 
 /// mwixnetRequest Creation Params
-
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MixnetReqCreationParams {
 	/// List of all the server keys
 	pub server_keys: Vec<SecretKey>,
 	/// Fees per hop
-	pub fee_per_hop: u32,
+	pub fee_per_hop: u64,
 }
