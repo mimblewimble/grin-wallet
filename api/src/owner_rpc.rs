@@ -1976,13 +1976,13 @@ pub trait OwnerRpc {
 		"method": "create_mwixnet_req",
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
-			"params": {
+			"server_params": {
 				"server_keys": [
-					"86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26a",
-					"86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26b",
-					"86cca2aedea7989dfcca62e54477301d098bac260656d11373e314c099f0b26c"
+					"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
+					"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e",
+					"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5"
 				],
-				"fee_per_hop": "1000000"
+				"fee_per_hop": "5000000"
 			},
 			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
 			"lock_output": true
@@ -2017,10 +2017,10 @@ pub trait OwnerRpc {
 	fn create_mwixnet_req(
 		&self,
 		token: Token,
-		params: MixnetReqCreationParams,
+		server_params: MixnetReqCreationParams,
 		commitment: String,
 		lock_output: bool,
-	) -> Result<SwapReq, Error>;
+	) -> Result<(), Error>;
 }
 
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
@@ -2434,19 +2434,20 @@ where
 	fn create_mwixnet_req(
 		&self,
 		token: Token,
-		params: MixnetReqCreationParams,
+		server_params: MixnetReqCreationParams,
 		commitment: String,
 		lock_output: bool,
-	) -> Result<SwapReq, Error> {
+	) -> Result<(), Error> {
 		let commit =
 			Commitment::from_vec(from_hex(&commitment).map_err(|e| Error::CommitDeser(e))?);
-		Owner::create_mwixnet_req(
+		/*Owner::create_mwixnet_req(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&params,
+			&server_params,
 			&commit,
 			lock_output,
-		)
+		)*/
+		Ok(())
 	}
 }
 

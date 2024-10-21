@@ -16,6 +16,7 @@
 //! Should rexport all needed types here
 
 use super::onion::comsig_serde;
+use grin_core::libtx::secp_ser::string_or_u64;
 use grin_util::secp::key::SecretKey;
 use serde::{Deserialize, Serialize};
 
@@ -37,5 +38,6 @@ pub struct MixnetReqCreationParams {
 	/// List of all the server keys
 	pub server_keys: Vec<SecretKey>,
 	/// Fees per hop
+	#[serde(with = "string_or_u64")]
 	pub fee_per_hop: u64,
 }
