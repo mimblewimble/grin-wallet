@@ -1381,6 +1381,7 @@ pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
 	params: &MixnetReqCreationParams,
 	commitment: &Commitment,
 	lock_output: bool,
+	use_test_rng: bool,
 ) -> Result<SwapReq, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -1438,7 +1439,12 @@ where
 					rangeproof: Some(new_output.output.proof.clone()),
 				}
 			} else {
-				let hop_excess = BlindingFactor::rand(&secp);
+				let hop_excess;
+				if use_test_rng {
+					hop_excess = BlindingFactor::zero();
+				} else {
+					hop_excess = BlindingFactor::rand(&secp);
+				}
 				blind_sum = blind_sum.split(&hop_excess, &secp).unwrap();
 				Hop {
 					server_pubkey: p.clone(),
@@ -1450,8 +1456,14 @@ where
 		})
 		.collect();
 
-	let onion = create_onion(&commitment, &hops).unwrap();
-	let comsig = ComSignature::sign(amount, &input_blind, &onion.serialize().unwrap()).unwrap();
+	let onion = create_onion(&commitment, &hops, use_test_rng).unwrap();
+	let comsig = ComSignature::sign(
+		amount,
+		&input_blind,
+		&onion.serialize().unwrap(),
+		use_test_rng,
+	)
+	.unwrap();
 
 	// Lock output if requested
 	if lock_output {

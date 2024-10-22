@@ -380,7 +380,7 @@ pub mod tests {
 		let fee_per_hop: u32 = 2;
 		let in_value: u64 = 1000;
 		let out_value: u64 = in_value - total_fee;
-		let blind = random_secret();
+		let blind = random_secret(false);
 		let commitment = secp::commit(in_value, &blind).unwrap();
 
 		let mut hops: Vec<Hop> = Vec::new();
@@ -388,15 +388,15 @@ pub mod tests {
 		let mut final_commit = secp::commit(out_value, &blind).unwrap();
 		let mut final_blind = blind.clone();
 		for i in 0..5 {
-			keys.push(random_secret());
+			keys.push(random_secret(false));
 
-			let excess = random_secret();
+			let excess = random_secret(false);
 
 			let secp = secp256k1zkp::Secp256k1::with_caps(secp256k1zkp::ContextFlag::Commit);
 			final_blind.add_assign(&secp, &excess).unwrap();
 			final_commit = secp::add_excess(&final_commit, &excess).unwrap();
 			let proof = if i == 4 {
-				let n1 = random_secret();
+				let n1 = random_secret(false);
 				let rp = secp.bullet_proof(
 					out_value,
 					final_blind.clone(),
@@ -415,11 +415,12 @@ pub mod tests {
 			hops.push(hop);
 		}
 
-		let mut onion_packet = crate::mwixnet::onion::create_onion(&commitment, &hops).unwrap();
+		let mut onion_packet =
+			crate::mwixnet::onion::create_onion(&commitment, &hops, false).unwrap();
 
 		let mut payload = Payload {
 			next_ephemeral_pk: onion_packet.ephemeral_pubkey.clone(),
-			excess: random_secret(),
+			excess: random_secret(false),
 			fee: FeeFields::from(fee_per_hop),
 			rangeproof: None,
 		};

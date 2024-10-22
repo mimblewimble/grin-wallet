@@ -24,11 +24,18 @@ pub use grin_util::secp::{
 };
 
 use grin_core::ser::{self, Reader};
+use rand::rngs::mock::StepRng;
 
 /// Generate a random SecretKey.
-pub fn random_secret() -> SecretKey {
+pub fn random_secret(use_test_rng: bool) -> SecretKey {
 	let secp = Secp256k1::new();
-	SecretKey::new(&secp, &mut thread_rng())
+	if use_test_rng {
+		// allow for consistent test results
+		let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
+		SecretKey::new(&secp, &mut test_rng)
+	} else {
+		SecretKey::new(&secp, &mut thread_rng())
+	}
 }
 
 /// Deserialize a SecretKey from a Reader

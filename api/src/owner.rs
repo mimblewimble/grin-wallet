@@ -2441,7 +2441,14 @@ where
 	) -> Result<SwapReq, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_mwixnet_req(&mut **w, keychain_mask, params, commitment, lock_output)
+		owner::create_mwixnet_req(
+			&mut **w,
+			keychain_mask,
+			params,
+			commitment,
+			lock_output,
+			self.doctest_mode,
+		)
 	}
 }
 

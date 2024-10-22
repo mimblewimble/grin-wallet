@@ -185,6 +185,14 @@ pub enum Error {
 	#[error("Commit Deserialize Error: {0}")]
 	CommitDeser(String),
 
+	/// Error Deserializing key
+	#[error("Server Key Deserialize Error: {0}")]
+	ServerKeyDeser(String),
+
+	/// Parsing integert
+	#[error("Can't parse as u64: {0}")]
+	U64Deser(String),
+
 	/// Can't parse slate version
 	#[error("Can't parse slate version")]
 	SlateVersionParse,

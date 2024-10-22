@@ -1976,16 +1976,14 @@ pub trait OwnerRpc {
 		"method": "create_mwixnet_req",
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
-			"server_params": {
-				"server_keys": [
-					"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
-					"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e",
-					"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5"
-				],
-				"fee_per_hop": "5000000"
-			},
 			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
-			"lock_output": true
+			"fee_per_hop": "5000000",
+			"lock_output": true,
+			"server_keys": [
+				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
+				"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e",
+				"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5"
+			]
 		},
 		"id": 1
 	}
@@ -1997,19 +1995,21 @@ pub trait OwnerRpc {
 		"jsonrpc": "2.0",
 		"result": {
 			"Ok": {
-				"comsig": "0835f4b8b9cd286c9e35475f575c3e4ae71ceb4ff36598504662627afd628a17d6ba7dedb1aa4c47f0fabad026b76fc86d06f3bef8d0621b8ac4601d4b1b98401586ca3374a401508f32049212478ae91cfa474dfaa5ef2c3dd559d5a292e02334",
+				"comsig": "099561ed0be59f6502ee358ee4f6760cd16d6be04d58d7a2c1bf2fd09dd7fd2d291beaae5483c6f18d1ceaae6321f06f9ba129a1ee9e7d15f152c67397a621538b5c10bbeb95140dee815c02657c91152939afe389458dc59af095e8e8e5c81a08",
 				"onion": {
-					"commit": "099a8922343f242dd3da29935ba5bbc7e38bf68eccfb8c96aec87aec0535199139",
-					"data":[
-						"758bc7339edfe8a1f117ef2ef02de58b33d99e820ffd2c21a3d108f4cbdadfbcbc061b705fc351ae2fb34a855bb64180fe8b4913ea13b3bf826773e4b293166cdad1fdf59cadd7d33f73a8f3fc0f339a849f9c505c573d8cc2f006082d8f5bf2c2c84c18d5873a821d9f60bcdd44cf0566d04d761a1eda005cd19ab0b1c593da4656dd2a09322fe1d725f61e8855c927844ec9e80b9260a58012f7c519c5ca3d9b192ab1104d30ac09fb844bd7f692214e5cf0f6cdf1477c20708c2f3ecb098dce6be661907593918840b0fe8eb5043996dace45f2fb66e8f1e2a732035b4e6447b8904f313badebcba99f75c003e297d8dd815915f534dfa7ed416af0c415b60d2a0186752af6af33b781f31fdd3016aeee3bd2e47743fe2ce391b3354b9036b56ec38ed7539adafbc96bef1dbaf354a805b03ac0df7a0d32cff91716926bce68c8ccebb607340f2ffe09c08a9c9fd282ea19b33c69107ed5c54d4872eb0ed83c38d7e07606722069d7709fb914e1e02ea23323f3ae9252902dbfa6f15bd83a3f64587c9ae23aaf96b2a95e1341da12a6e423cf95375184752e10c1dd1a599db74ac0c3d74ec270c589f6a3bdd0877eb986d9a58a8548b917e22bfb93a4a06c36d7cad8d4a8791a8d1e1dc683429b440b136c43ad2f664dafc5156b808050a3c4d28771877d3f1d3a9daa2585eae259aaa64745c6cd260f577e538e27be3c985db41b7c456b63c5b18d7d17420a277d4abc04ae892ceb26940b09fb322445846c14898f5f59305490b1338c56384cd0c7bf5950a0a403aec4d2c2f5e2378b5eb7b1e7fcdbd8d6cc547f3b5a372b22e50e37d858bb197392a10fb9e6e292d6ed6bd8eab1fef7f2d069b6250a0e3e597ccf9a062e04b68821f5c57328ddab775d141147b71c1764c911bad03d8b88e2e62034bc899395514ecab4dec8ab341ba114f0a4e5d1dcfa182396c0e4826ddee187b07bb524dfeaa5297f7a5465f99eaaaa37f082c787b94811feb15b57d68369e6a7e3761d"
+					"commit": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
+					"data": [
+						"37f68116475e1aa6b58fc911addbd0e04e7aa19ab3e82e7b5cfcaf57d82cf35e7388ce51711cc5ef8cf7630f7dc7229878f91c7ec85991a7fc0051a7bbc66569db3a3aa89ef490055f3c",
+						"b9ff8c0c1699808efce46d581647c65764a28e813023ae677d688282422a07505ae1a051037d7ba58f3279846d0300800fc1c5bfcc548dab815e9fd2f29df9515170c41fa6e4e44b8bcb",
+						"62ea6b8369686a0415e1e752b9b4d6e66cf5b6066a2d3c60d8818890a55f3adff4601466f4c6e6b646568b99ae93549a3595b7a7b4be815ced87d9297cabbd69518d7b2ed6edd14007528fd346aaea765a1165fe886666627ebcab9588b8ee1c9e98395ae67913c48eb6e924581b40182fce807f97312fb07fd5e216d99941f2b488babce4078a50cd66b28b30a66c4f54fcc127437408a99b30ffd6c3d0d8c7d39e864fc04e321b8c10138c8852d4cad0a4f2780412b9dadcc6e0f2657b7803a81bccb809ca392464be2e01755be7377d0e815698ad6ea51d4617cc92c3ccf852f038e33cc9c90992438ba5c49cca7cc188b682da684e2f4c9733a84a7b64ac5c2216ebf5926f0ee67b664fb5bab799109cbee755ce1aebc8cd352fea51cd84c333cb958093c53544c3f3ab05dba64d8f041c3b179796b476ec04b11044e39db6994ab767315e52cc0ef023432ec88ade2911612db7e74e0923889f765b58b00e3869c5072a4e882c1b721913f63bda986b8c97b7ae575f0d4be596a1ac3cd0db96ce6074ee000b32018b3bda16d7dba34a13ba9c3ce983946414c16e278351a3411cb8ef2cb8ef5b6e1667c4c58bc797c0324ae4fec8960d684e561c0e833ee4c3331c6c439b59042a62993535e23cc8a8a4cf705c0f9b1d62db4e3d76c22c01138800414b143ddff471e4df4413e842a1b41f43cc9647e47145fd6c86d4d1a34fb2f62f5a55b31c9353ee34743c548eff955f2d2143c1a86cbcb452104f96d0142db31153021bbeed995c71a92de8fb1f97269533a508085c543fcb3ee57000bb265e74187b858403aa97b6c7b085e5d5b6025cbfe5f6926d33c835f90e60fc62013e80bbe0a855da5938b4b8f83ac29c5e8251827795356222079a6d1612e2fdf93bd7836d1613c7a353ada48ce256f880bbbb3108e037e3b5647101bd4d549101b0ee73d2248a932a802a3b1beb0b69d777c4285d57e91d83e96fe2f8a1a2f182fe2c6ca37b18460cf8d7f56c201147b9be19f1d01f8ad305c1e9c4dd79b5d8719d6550432352cf737082b1e9de7a083ffbe1"
 					],
-					"pubkey": "033946e6a495e7278027b38be3d500cfc23d3e0836f1b7e24513841437f316ccb0"
+					"pubkey": "e7ee7d51b11d09f268ade98bc9d7ae9be3c4ac124ce1c3a40e50d34460fa5f08"
 				}
 			}
 		}
 	}
 	# "#
-	# , 0, false, false, false, false);
+	# , 5, true, true, false, false);
 	```
 	 *
 	 */
@@ -2017,10 +2017,11 @@ pub trait OwnerRpc {
 	fn create_mwixnet_req(
 		&self,
 		token: Token,
-		server_params: MixnetReqCreationParams,
 		commitment: String,
+		fee_per_hop: String,
 		lock_output: bool,
-	) -> Result<(), Error>;
+		server_keys: Vec<String>,
+	) -> Result<SwapReq, Error>;
 }
 
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
@@ -2434,20 +2435,39 @@ where
 	fn create_mwixnet_req(
 		&self,
 		token: Token,
-		server_params: MixnetReqCreationParams,
 		commitment: String,
+		fee_per_hop: String,
 		lock_output: bool,
-	) -> Result<(), Error> {
+		server_keys: Vec<String>,
+	) -> Result<SwapReq, Error> {
 		let commit =
 			Commitment::from_vec(from_hex(&commitment).map_err(|e| Error::CommitDeser(e))?);
-		/*Owner::create_mwixnet_req(
+
+		let secp_inst = static_secp_instance();
+		let secp = secp_inst.lock();
+
+		let mut keys = vec![];
+		for key in server_keys {
+			keys.push(SecretKey::from_slice(
+				&secp,
+				&grin_util::from_hex(&key).map_err(|e| Error::ServerKeyDeser(e))?,
+			)?)
+		}
+
+		let req_params = MixnetReqCreationParams {
+			server_keys: keys,
+			fee_per_hop: fee_per_hop
+				.parse::<u64>()
+				.map_err(|_| Error::U64Deser(fee_per_hop))?,
+		};
+
+		Owner::create_mwixnet_req(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&server_params,
+			&req_params,
 			&commit,
 			lock_output,
-		)*/
-		Ok(())
+		)
 	}
 }
 

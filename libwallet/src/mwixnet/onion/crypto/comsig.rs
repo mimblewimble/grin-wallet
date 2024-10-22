@@ -21,6 +21,7 @@ use grin_util::secp::{
 use blake2_rfc::blake2b::Blake2b;
 use byteorder::{BigEndian, ByteOrder};
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
+use rand::rngs::mock::StepRng;
 use thiserror::Error;
 
 /// A generalized Schnorr signature with a pedersen commitment value & blinding factors as the keys
@@ -63,20 +64,36 @@ impl ComSignature {
 		amount: u64,
 		blind: &SecretKey,
 		msg: &Vec<u8>,
+		use_test_rng: bool,
 	) -> Result<ComSignature, ComSigError> {
 		let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
 		let mut amt_bytes = [0; 32];
 		BigEndian::write_u64(&mut amt_bytes[24..32], amount);
 		let k_amt = SecretKey::from_slice(&secp, &amt_bytes)?;
+		let k_1;
+		let k_2;
 
-		let k_1 = SecretKey::new(&secp, &mut thread_rng());
-		let k_2 = SecretKey::new(&secp, &mut thread_rng());
+		if use_test_rng {
+			// allow for consistent test results
+			let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
+			k_1 = SecretKey::new(&secp, &mut test_rng);
+			k_2 = SecretKey::new(&secp, &mut test_rng);
+		} else {
+			k_1 = SecretKey::new(&secp, &mut thread_rng());
+			k_2 = SecretKey::new(&secp, &mut thread_rng());
+		}
 
 		let commitment = secp.commit(amount, blind.clone())?;
 		let nonce_commitment = secp.commit_blind(k_1.clone(), k_2.clone())?;
 
-		let e = ComSignature::calc_challenge(&secp, &commitment, &nonce_commitment, &msg)?;
+		let e = ComSignature::calc_challenge(
+			&secp,
+			&commitment,
+			&nonce_commitment,
+			&msg,
+			use_test_rng,
+		)?;
 
 		// s = k_1 + (e * amount)
 		let mut s = k_amt.clone();
@@ -98,7 +115,7 @@ impl ComSignature {
 		let s1 = secp.commit_blind(self.s.clone(), self.t.clone())?;
 
 		let mut ce = commit.to_pubkey(&secp)?;
-		let e = ComSignature::calc_challenge(&secp, &commit, &self.pub_nonce, &msg)?;
+		let e = ComSignature::calc_challenge(&secp, &commit, &self.pub_nonce, &msg, false)?;
 		ce.mul_assign(&secp, &e)?;
 
 		let commits = vec![Commitment::from_pubkey(&secp, &ce)?, self.pub_nonce.clone()];
@@ -116,8 +133,12 @@ impl ComSignature {
 		commit: &Commitment,
 		nonce_commit: &Commitment,
 		msg: &Vec<u8>,
+		use_test_rng: bool,
 	) -> Result<SecretKey, ComSigError> {
 		let mut challenge_hasher = Blake2b::new(32);
+		if use_test_rng {
+			return Ok(super::secp::random_secret(use_test_rng));
+		}
 		challenge_hasher.update(&commit.0);
 		challenge_hasher.update(&nonce_commit.0);
 		challenge_hasher.update(msg);
@@ -193,7 +214,7 @@ mod tests {
 		let amount = thread_rng().next_u64();
 		let blind = SecretKey::new(&secp, &mut thread_rng());
 		let msg: [u8; 16] = rand::thread_rng().gen();
-		let comsig = ComSignature::sign(amount, &blind, &msg.to_vec())?;
+		let comsig = ComSignature::sign(amount, &blind, &msg.to_vec(), false)?;
 
 		let commit = secp.commit(amount, blind.clone())?;
 		assert!(comsig.verify(&commit, &msg.to_vec()).is_ok());
