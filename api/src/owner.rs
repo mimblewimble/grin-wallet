@@ -2590,13 +2590,17 @@ macro_rules! doctest_helper_setup_doc_env {
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
 
+		use grin_util::secp::pedersen::Commitment;
 		use std::sync::Arc;
 		use util::{Mutex, ZeroingString};
 
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
-		use libwallet::{BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate, WalletInst};
+		use libwallet::{
+			mwixnet::MixnetReqCreationParams, BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate,
+			WalletInst,
+		};
 
 		use uuid::Uuid;
 
