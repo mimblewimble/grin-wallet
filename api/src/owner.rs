@@ -16,6 +16,7 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
 
@@ -33,7 +34,7 @@ use crate::libwallet::{
 	TxLogEntry, ViewWallet, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
-use crate::util::secp::key::SecretKey;
+use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use std::convert::TryFrom;
@@ -2423,6 +2424,71 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::build_output(&mut **w, keychain_mask, features, amount)
 	}
+
+	// MWIXNET
+
+	/// Creates an mwixnet request [SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)
+	/// from a given output commitment under this wallet's control.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `params` - A [MixnetReqCreationParams](../grin_wallet_libwallet/api_impl/types/struct.MixnetReqCreationParams.html)
+	/// struct containing the parameters for the request, which include:
+	/// 	`server_keys` - The public keys of the servers participating in the mixnet (each encoded internally as a `SecretKey`)
+	/// 	`fee_per_hop` - The fee to be paid to each server for each hop in the mixnet
+	/// * `commitment` - The commitment of the output to be mixed
+	/// * `lock_output` - Whether to lock the referenced output after creating the request
+	///
+	/// # Returns
+	/// * Ok([SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)) if successful
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let keychain_mask = None;
+	/// let params = MixnetReqCreationParams {
+	///   server_keys: vec![], // Public keys here in secret key representation
+	///   fee_per_hop: 100,
+	/// };
+	///
+	/// let commitment = Commitment::from_vec(vec![0; 32]);
+	/// let lock_output = true;
+	///
+	/// let result = api_owner.create_mwixnet_req(
+	///    keychain_mask,
+	///    &params,
+	///    &commitment,
+	///    lock_output,
+	/// );
+	///
+	/// if let Ok(req) = result {
+	///    //...
+	/// }
+	/// ```
+
+	pub fn create_mwixnet_req(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		params: &MixnetReqCreationParams,
+		commitment: &Commitment,
+		lock_output: bool, // use_test_rng: bool,
+	) -> Result<SwapReq, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::create_mwixnet_req(
+			&mut **w,
+			keychain_mask,
+			params,
+			commitment,
+			lock_output,
+			self.doctest_mode,
+		)
+	}
 }
 
 /// attempt to send slate synchronously with TOR
@@ -2524,13 +2590,17 @@ macro_rules! doctest_helper_setup_doc_env {
 		use keychain::ExtKeychain;
 		use tempfile::tempdir;
 
+		use grin_util::secp::pedersen::Commitment;
 		use std::sync::Arc;
 		use util::{Mutex, ZeroingString};
 
 		use api::{Foreign, Owner};
 		use config::WalletConfig;
 		use impls::{DefaultLCProvider, DefaultWalletImpl, HTTPNodeClient};
-		use libwallet::{BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate, WalletInst};
+		use libwallet::{
+			mwixnet::MixnetReqCreationParams, BlockFees, InitTxArgs, IssueInvoiceTxArgs, Slate,
+			WalletInst,
+		};
 
 		use uuid::Uuid;
 
