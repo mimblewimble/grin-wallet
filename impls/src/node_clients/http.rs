@@ -129,6 +129,7 @@ impl NodeClient for HTTPNodeClient {
 					});
 				} else {
 					error!("Unable to contact Node to get version info: {}", e);
+					warn!("Warning: You might need to correct 'node_api_secret_path' in your 'grin-wallet.toml' file");
 					return None;
 				}
 			}

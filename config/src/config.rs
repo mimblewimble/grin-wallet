@@ -83,6 +83,22 @@ fn check_config_current_dir(path: &str) -> Option<PathBuf> {
 	None
 }
 
+/// Checks if the node api secret in wallet dir, else return default path
+fn check_node_api_exists(path: &str) -> Option<PathBuf> {
+	let p = env::current_dir();
+	let mut c = match p {
+		Ok(c) => c,
+		Err(_) => {
+			return None;
+		}
+	};
+	c.push(path);
+	if c.exists() {
+		return Some(c);
+	}
+	None
+}
+
 /// Whether a config file exists at the given directory
 pub fn config_file_exists(path: &str) -> bool {
 	let mut path = PathBuf::from(path);
@@ -279,8 +295,13 @@ impl GlobalWalletConfig {
 			Some(secret_path.to_str().unwrap().to_owned());
 		let mut node_secret_path = wallet_home.clone();
 		node_secret_path.push(API_SECRET_FILE_NAME);
-		self.members.as_mut().unwrap().wallet.node_api_secret_path =
-			Some(node_secret_path.to_str().unwrap().to_owned());
+		// Set node API secret path to the wallet dir if it exists, else keep default home dir
+		// if node_secret_path.exists(){
+		// 	self.members.as_mut().unwrap().wallet.node_api_secret_path =
+		// 	Some(node_secret_path.to_str().unwrap().to_owned());
+		// 	println!("It node path does actually exists")
+		// }
+
 		let mut log_path = wallet_home.clone();
 		log_path.push(WALLET_LOG_FILE_NAME);
 		self.members
