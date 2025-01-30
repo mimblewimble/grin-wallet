@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //! Default wallet lifecycle provider
-
 use crate::config::{
 	config, GlobalWalletConfig, GlobalWalletConfigMembers, TorConfig, WalletConfig, GRIN_WALLET_DIR,
 };
@@ -137,10 +136,13 @@ where
 			return Ok(());
 		}
 
-		let mut abs_path = std::env::current_dir()?;
-		abs_path.push(self.data_dir.clone());
+		// let mut abs_path_node = std::env::current_dir()?;
+		// let mut abs_path_wallet = std::env::current_dir()?;
+		// abs_path_wallet.push(self.data_dir.clone());
+		// abs_path_node.push(self.data_dir.clone());
+		// default_config.update_paths(&abs_path_wallet,&abs_path_node);
+		// println!("here, updating and writing config in default");
 
-		default_config.update_paths(&abs_path);
 		let res =
 			default_config.write_to_file(config_file_name.to_str().unwrap(), false, None, None);
 		if let Err(e) = res {

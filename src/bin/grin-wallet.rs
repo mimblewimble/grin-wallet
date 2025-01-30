@@ -110,6 +110,7 @@ fn real_main() -> i32 {
 
 	// Load relevant config, try and load a wallet config file
 	// Use defaults for configuration if config file not found anywhere
+	dbg!(&current_dir, &create_path);
 	let mut config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
 		Ok(c) => c,
 		Err(e) => match e {
@@ -138,7 +139,7 @@ fn real_main() -> i32 {
 		"Using wallet configuration file at {}",
 		config.config_file_path.as_ref().unwrap().to_str().unwrap()
 	);
-
+	println!("here3");
 	log_build_info();
 
 	global::init_global_chain_type(
@@ -152,11 +153,14 @@ fn real_main() -> i32 {
 			.unwrap()
 			.clone(),
 	);
-
+	println!("here4");
 	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
 
 	let wallet_config = config.clone().members.unwrap().wallet;
+	println!("here5");
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-
+	println!("here6");
+	//dbg!(&config.check_node_api_http_addr, None).unwrap();
+	println!("here7");
 	cmd::wallet_command(&args, config, node_client)
 }
