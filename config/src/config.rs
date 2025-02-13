@@ -14,7 +14,6 @@
 
 //! Configuration file management
 
-use dirs;
 use rand::distributions::{Alphanumeric, Distribution};
 use rand::thread_rng;
 use std::env;
@@ -43,7 +42,7 @@ pub const API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
 /// Owner API secret
 pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
-fn get_grin_path(
+fn get_wallet_path(
 	chain_type: &global::ChainTypes,
 	create_path: bool,
 ) -> Result<PathBuf, ConfigError> {
@@ -66,6 +65,48 @@ fn get_grin_path(
 	} else {
 		Ok(grin_path)
 	}
+}
+
+// Smart function to find the most likely .api_secret location for the node
+fn get_node_path(
+	data_path: Option<PathBuf>,
+	chain_type: &global::ChainTypes,
+) -> Result<PathBuf, ConfigError> {
+	let node_path = match data_path {
+		// 1) A If top dir provided and api_secret exist, return top dir
+		Some(path) => {
+			let mut node_path = path;
+			node_path.push(GRIN_HOME);
+			node_path.push(chain_type.shortname());
+			node_path.push(API_SECRET_FILE_NAME);
+			if node_path.exists() {
+				node_path.pop();
+				Ok(node_path)
+
+			// 1) B If top dir exists, but no config there, return home dir
+			} else {
+				let mut node_path = match dirs::home_dir() {
+					Some(p) => p,
+					None => PathBuf::new(),
+				};
+				node_path.push(GRIN_HOME);
+				node_path.push(chain_type.shortname());
+				Ok(node_path)
+			}
+		}
+
+		// 2) If there is no top_dir provided, always return home dir
+		None => {
+			let mut node_path = match dirs::home_dir() {
+				Some(p) => p,
+				None => PathBuf::new(),
+			};
+			node_path.push(GRIN_HOME);
+			node_path.push(chain_type.shortname());
+			Ok(node_path)
+		}
+	};
+	node_path
 }
 
 fn check_config_current_dir(path: &str) -> Option<PathBuf> {
@@ -122,7 +163,7 @@ fn check_api_secret_file(
 ) -> Result<(), ConfigError> {
 	let grin_path = match data_path {
 		Some(p) => p,
-		None => get_grin_path(chain_type, false)?,
+		None => get_node_path(data_path, chain_type)?,
 	};
 	let mut api_secret_path = grin_path;
 	api_secret_path.push(file_name);
@@ -144,55 +185,32 @@ pub fn initial_setup_wallet(
 			fs::create_dir_all(p)?;
 		}
 	}
-	// Use config file in current directory if it exists, .grin home otherwise
+	// Use config file in a) current directory, or b) in top path, or c) .grin home
 	let (path, config) = if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
 		let mut path = p.clone();
 		path.pop();
-		dbg!("This means the config file already exists!");
 		(path, GlobalWalletConfig::new(p.to_str().unwrap())?)
 	} else {
-		// Check if grin dir exists
-		let node_path = get_grin_path(chain_type, false)?;
-		dbg!("in init function 1", &node_path);
-		let grin_path = match data_path {
+		let wallet_path = match data_path {
 			Some(p) => p,
-			None => node_path.clone(),
+			None => get_wallet_path(chain_type, create_path)?,
 		};
 
+		// Get path to wallet and node dir(s)
+		let node_path = get_node_path(Some(wallet_path.clone()), chain_type)?;
+
 		// Get path to default config file
-		let mut config_path = grin_path.clone();
+		let mut config_path = wallet_path.clone();
 		config_path.push(WALLET_CONFIG_FILE_NAME);
 
-		// Return defaults if file doesn't exist
+		// Return defaults config updated with node and wallet dir and chain dir
 		match config_path.clone().exists() {
 			false => {
 				let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 				default_config.config_file_path = Some(config_path);
-				// update paths relative to current dir, assumes node secret is in user home
-				dbg!(
-					"This is the node_path before asking update_paths {}",
-					&node_path
-				);
-				default_config.update_paths(&grin_path, &node_path);
-				dbg!(
-					"This path, after this line write to config file before default will do so: {}",
-					&default_config
-						.members
-						.as_mut()
-						.unwrap()
-						.wallet
-						.node_api_secret_path
-				);
+				// Update paths relative to current dir, assumes node secret is in user home
+				default_config.update_paths(&wallet_path, &node_path);
 				// Write config file, otherwise defaults will be writen
-				dbg!(
-					"This path, after this line write to config file before default will do so: {}",
-					&default_config
-						.members
-						.as_mut()
-						.unwrap()
-						.wallet
-						.node_api_secret_path
-				);
 				default_config.write_to_file(
 					&default_config
 						.config_file_path
@@ -204,29 +222,12 @@ pub fn initial_setup_wallet(
 					None,
 					None,
 				);
-
-				// After writing the updated config, load it as strig
-				let mut path = default_config.config_file_path.clone();
-				path.pop();
-				dbg!(
-					"Here we load from the cofig we just wrote {}",
-					&config_path.clone().exists()
-				);
-				(
-					path.unwrap(),
-					GlobalWalletConfig::new(config_path.to_str().unwrap())?,
-				)
-
-				// Before it would retuur
-				// (grin_path, default_config)
+				(wallet_path, default_config)
 			}
+
 			true => {
 				let mut path = config_path.clone();
 				path.pop();
-				dbg!(
-					"This means the file exists already.... arm on in match in connfig init {}",
-					&config_path.clone().exists()
-				);
 				(
 					path,
 					GlobalWalletConfig::new(config_path.to_str().unwrap())?,
@@ -234,13 +235,9 @@ pub fn initial_setup_wallet(
 			}
 		}
 	};
+
 	check_api_secret_file(chain_type, Some(path.clone()), OWNER_API_SECRET_FILE_NAME)?;
 	check_api_secret_file(chain_type, Some(path), API_SECRET_FILE_NAME)?;
-	println!(
-		"{:#?}",
-		&config.members.clone().unwrap().wallet.node_api_secret_path
-	);
-	// println!("CONFIG APPEARS TO BE OK");
 	Ok(config)
 }
 

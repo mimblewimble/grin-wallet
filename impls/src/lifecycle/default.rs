@@ -133,7 +133,8 @@ where
 
 		// just leave as is if file exists but there's no data dir
 		if config_file_name.exists() {
-			return Ok(());
+			panic!("Crash and burn!!!!!");
+			//return Ok(());
 		}
 
 		// let mut abs_path_node = std::env::current_dir()?;

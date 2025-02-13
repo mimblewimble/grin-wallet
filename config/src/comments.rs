@@ -74,7 +74,7 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
-		"node_api_secret_path".to_string(),
+		"node_api_secret_path".to_string().replace("/", "\\"),
 		"
 #location of the node api secret for basic auth on the Grin API
 "
