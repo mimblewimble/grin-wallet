@@ -16,8 +16,8 @@
 
 use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
-use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
-use crate::core::{core, global};
+use crate::config::{TorConfig, WalletConfig};
+use crate::core::core;
 use crate::error::Error;
 use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
@@ -82,12 +82,13 @@ where
 	K: keychain::Keychain + 'static,
 {
 	// Assume global chain type has already been initialized.
-	let chain_type = global::get_chain_type();
-
 	let mut w_lock = owner_api.wallet_inst.lock();
 	let p = w_lock.lc_provider()?;
-	// Config and updating of config was moved to main, avoid overwriting with default value
-	//p.create_config(&chain_type, WALLET_CONFIG_FILE_NAME, None, None, None)?;
+	// Config creation was moved to main, only create new if config is ot in arguments
+	// let chain_type = global::get_chain_type();
+	// args.config, config: &WalletConfig) {
+	//	p.create_config(&chain_type, WALLET_CONFIG_FILE_NAME, None, None, None)?;
+	// }
 	p.create_wallet(
 		None,
 		args.recovery_phrase,

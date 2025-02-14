@@ -34,6 +34,7 @@ use crate::util::logger::LoggingConfig;
 /// Wallet configuration file name
 pub const WALLET_CONFIG_FILE_NAME: &str = "grin-wallet.toml";
 const WALLET_LOG_FILE_NAME: &str = "grin-wallet.log";
+/// .grin folder, usually in home/.grin
 pub const GRIN_HOME: &str = ".grin";
 /// Wallet data directory
 pub const GRIN_WALLET_DIR: &str = "wallet_data";
@@ -211,22 +212,26 @@ pub fn initial_setup_wallet(
 				// Update paths relative to current dir, assumes node secret is in user home
 				default_config.update_paths(&wallet_path, &node_path);
 				// Write config file, otherwise defaults will be writen
-				default_config.write_to_file(
-					&default_config
-						.config_file_path
-						.clone()
-						.unwrap()
-						.to_str()
-						.unwrap(),
-					false,
-					None,
-					None,
-				);
+				default_config
+					.write_to_file(
+						&default_config
+							.config_file_path
+							.clone()
+							.unwrap()
+							.to_str()
+							.unwrap(),
+						false,
+						None,
+						None,
+					)
+					.unwrap_or_else(|e| {
+						panic!("Error creating config file: {}", e);
+					});
 				(wallet_path, default_config)
 			}
 
 			true => {
-				let mut path = config_path.clone();
+				let mut path = wallet_path.clone();
 				path.pop();
 				(
 					path,
@@ -335,13 +340,8 @@ impl GlobalWalletConfig {
 			Some(secret_path.to_str().unwrap().to_owned());
 		let mut node_secret_path = node_home.clone();
 		node_secret_path.push(API_SECRET_FILE_NAME);
-		dbg!("Voor update, path to node to set to:{}", &node_secret_path);
 		self.members.as_mut().unwrap().wallet.node_api_secret_path =
 			Some(node_secret_path.to_str().unwrap().to_owned());
-		dbg!(
-			"Na update, path to node:{}",
-			&self.members.as_mut().unwrap().wallet.node_api_secret_path
-		);
 		let mut log_path = wallet_home.clone();
 		log_path.push(WALLET_LOG_FILE_NAME);
 		self.members
