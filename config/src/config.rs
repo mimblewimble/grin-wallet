@@ -178,7 +178,7 @@ fn check_api_secret_file(
 }
 
 /// Handles setup and detection of paths for wallet
-// Use config file in a) current directory as template, or b) in top path, or c) .grin home
+/// Use config file in a) current dir as template, b) in top path, or c) .grin home
 pub fn initial_setup_wallet(
 	chain_type: &global::ChainTypes,
 	data_path: Option<PathBuf>,
@@ -224,25 +224,8 @@ pub fn initial_setup_wallet(
 				default_config.config_file_path = Some(config_path);
 				// Update paths relative to current dir
 				default_config.update_paths(&wallet_path, &node_path);
-				// Write config file, otherwise defaults will be writen
-				// default_config
-				// 	.write_to_file(
-				// 		&default_config
-				// 			.config_file_path
-				// 			.clone()
-				// 			.unwrap()
-				// 			.to_str()
-				// 			.unwrap(),
-				// 		false,
-				// 		None,
-				// 		None,
-				// 	)
-				// 	.unwrap_or_else(|e| {
-				// 		panic!("Error creating config file: {}", e);
-				// 	});
 				(wallet_path, default_config)
 			}
-
 			true => {
 				let mut path = wallet_path.clone();
 				path.pop();
@@ -253,7 +236,7 @@ pub fn initial_setup_wallet(
 			}
 		}
 	};
-
+	// Check API secrets, if ok, return config
 	check_api_secret_file(chain_type, Some(path.clone()), OWNER_API_SECRET_FILE_NAME)?;
 	check_api_secret_file(chain_type, Some(path), API_SECRET_FILE_NAME)?;
 	Ok(config)
