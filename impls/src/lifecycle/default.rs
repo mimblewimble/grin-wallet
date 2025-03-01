@@ -137,8 +137,8 @@ where
 		if config_file_name.exists() {
 			return Ok(());
 		}
-
-		let mut abs_path_node = get_node_path?;
+		// default settings are updated if no config was provided, no support for top_dir/here
+		let mut abs_path_node = std::env::current_dir()?;
 		abs_path_node.push(self.data_dir.clone());
 		let mut absolute_path_wallet = std::env::current_dir()?;
 		absolute_path_wallet.push(self.data_dir.clone());
