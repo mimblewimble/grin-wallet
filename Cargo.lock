@@ -1531,7 +1531,6 @@ dependencies = [
  "byteorder",
  "chrono",
  "data-encoding",
- "dirs 2.0.2",
  "ed25519-dalek",
  "futures 0.3.31",
  "grin_api",

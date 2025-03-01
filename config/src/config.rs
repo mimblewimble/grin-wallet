@@ -43,7 +43,8 @@ pub const API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
 /// Owner API secret
 pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
-fn get_wallet_path(
+/// Function to get wallet dir and create dirs if not existing
+pub fn get_wallet_path(
 	chain_type: &global::ChainTypes,
 	create_path: bool,
 ) -> Result<PathBuf, ConfigError> {
@@ -68,8 +69,8 @@ fn get_wallet_path(
 	}
 }
 
-// Smart function to find the most likely .api_secret location for the node
-fn get_node_path(
+/// Smart function to find the most likely .api_secret location for the node
+pub fn get_node_path(
 	data_path: Option<PathBuf>,
 	chain_type: &global::ChainTypes,
 ) -> Result<PathBuf, ConfigError> {
@@ -110,6 +111,7 @@ fn get_node_path(
 	node_path
 }
 
+/// Checks if config in current working dir
 fn check_config_current_dir(path: &str) -> Option<PathBuf> {
 	let p = env::current_dir();
 	let mut c = match p {
@@ -176,6 +178,7 @@ fn check_api_secret_file(
 }
 
 /// Handles setup and detection of paths for wallet
+// Use config file in a) current directory as template, or b) in top path, or c) .grin home
 pub fn initial_setup_wallet(
 	chain_type: &global::ChainTypes,
 	data_path: Option<PathBuf>,
@@ -186,47 +189,57 @@ pub fn initial_setup_wallet(
 			fs::create_dir_all(p)?;
 		}
 	}
-	// Use config file in a) current directory, or b) in top path, or c) .grin home
+
+	// Get wallet data_dir path, create it if it does not exist
+	let wallet_path = match data_path {
+		Some(p) => {
+			let mut abs_wallet_path = std::env::current_dir()?;
+			abs_wallet_path.push(p);
+			abs_wallet_path
+		}
+		None => get_wallet_path(chain_type, create_path)?,
+	};
+
+	// Get path to the node dir(s), first try top dir, if no node api_secret return home./grin
+	let node_path = get_node_path(Some(wallet_path.clone()), chain_type)?;
+
+	// Get path to the newwly to be created config file
+	let mut config_path = wallet_path.clone();
+	config_path.push(WALLET_CONFIG_FILE_NAME);
+
+	// Check if config exists in working dir, if so, use it as template for newly created config
 	let (path, config) = if let Some(p) = check_config_current_dir(WALLET_CONFIG_FILE_NAME) {
 		let mut path = p.clone();
 		path.pop();
-		(path, GlobalWalletConfig::new(p.to_str().unwrap())?)
+		let mut config = GlobalWalletConfig::new(p.to_str().unwrap())?;
+		// Use template config, update data_dir, network and api secrets
+		config.config_file_path = Some(config_path);
+		config.update_paths(&wallet_path, &node_path);
+		(path, config)
 	} else {
-		let wallet_path = match data_path {
-			Some(p) => p,
-			None => get_wallet_path(chain_type, create_path)?,
-		};
-
-		// Get path to wallet and node dir(s)
-		let node_path = get_node_path(Some(wallet_path.clone()), chain_type)?;
-
-		// Get path to default config file
-		let mut config_path = wallet_path.clone();
-		config_path.push(WALLET_CONFIG_FILE_NAME);
-
 		// Return defaults config updated with node and wallet dir and chain dir
 		match config_path.clone().exists() {
 			false => {
 				let mut default_config = GlobalWalletConfig::for_chain(chain_type);
 				default_config.config_file_path = Some(config_path);
-				// Update paths relative to current dir, assumes node secret is in user home
+				// Update paths relative to current dir
 				default_config.update_paths(&wallet_path, &node_path);
 				// Write config file, otherwise defaults will be writen
-				default_config
-					.write_to_file(
-						&default_config
-							.config_file_path
-							.clone()
-							.unwrap()
-							.to_str()
-							.unwrap(),
-						false,
-						None,
-						None,
-					)
-					.unwrap_or_else(|e| {
-						panic!("Error creating config file: {}", e);
-					});
+				// default_config
+				// 	.write_to_file(
+				// 		&default_config
+				// 			.config_file_path
+				// 			.clone()
+				// 			.unwrap()
+				// 			.to_str()
+				// 			.unwrap(),
+				// 		false,
+				// 		None,
+				// 		None,
+				// 	)
+				// 	.unwrap_or_else(|e| {
+				// 		panic!("Error creating config file: {}", e);
+				// 	});
 				(wallet_path, default_config)
 			}
 
