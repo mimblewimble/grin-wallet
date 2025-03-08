@@ -87,7 +87,7 @@ fn real_main() -> i32 {
 		let res = args.value_of("top_level_dir");
 		match res {
 			Some(d) => {
-				current_dir = Some(PathBuf::from(d.replace("/", "\\")));
+				current_dir = Some(PathBuf::from(d));
 			}
 			None => {
 				warn!("Argument --top_level_dir needs a value. Defaulting to current directory")
@@ -138,6 +138,7 @@ fn real_main() -> i32 {
 		"Using wallet configuration file at {}",
 		config.config_file_path.as_ref().unwrap().to_str().unwrap()
 	);
+
 	log_build_info();
 
 	global::init_global_chain_type(
@@ -151,9 +152,11 @@ fn real_main() -> i32 {
 			.unwrap()
 			.clone(),
 	);
+
 	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
 
 	let wallet_config = config.clone().members.unwrap().wallet;
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+
 	cmd::wallet_command(&args, config, node_client)
 }

@@ -128,8 +128,7 @@ impl NodeClient for HTTPNodeClient {
 						verified: Some(false),
 					});
 				} else {
-					error!("Unable to contact Node to get version info: {}, check your node is running", e);
-					warn!("Warning: a) Node is offline, or b) 'node_api_secret_path' in 'grin-wallet.toml' is set incorrectly");
+					error!("Unable to contact Node to get version info: {}", e);
 					return None;
 				}
 			}
