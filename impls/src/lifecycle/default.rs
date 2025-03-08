@@ -87,11 +87,12 @@ where
 				None => None,
 			},
 		};
-		let wallet = match wallet_config {
-			Some(w) => w,
+		// Check if config was provided, if not load default and set update to "true"
+		let (wallet, update) = match wallet_config {
+			Some(w) => (w, false),
 			None => match default_config.members.as_ref() {
-				Some(m) => m.clone().wallet,
-				None => WalletConfig::default(),
+				Some(m) => (m.clone().wallet, true),
+				None => (WalletConfig::default(), true),
 			},
 		};
 		let tor = match tor_config {
@@ -136,11 +137,16 @@ where
 		if config_file_name.exists() {
 			return Ok(());
 		}
+		// default settings are updated if no config was provided, no support for top_dir/here
+		let mut abs_path_node = std::env::current_dir()?;
+		abs_path_node.push(self.data_dir.clone());
+		let mut absolute_path_wallet = std::env::current_dir()?;
+		absolute_path_wallet.push(self.data_dir.clone());
 
-		let mut abs_path = std::env::current_dir()?;
-		abs_path.push(self.data_dir.clone());
-
-		default_config.update_paths(&abs_path);
+		// if no config provided, update defaults
+		if update == true {
+			default_config.update_paths(&abs_path_node, &absolute_path_wallet);
+		};
 		let res =
 			default_config.write_to_file(config_file_name.to_str().unwrap(), false, None, None);
 		if let Err(e) = res {
