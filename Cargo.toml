@@ -16,7 +16,7 @@ name = "grin-wallet"
 path = "src/bin/grin-wallet.rs"
 
 [workspace]
-members = ["api", "config", "controller", "impls", "libwallet", "util"]
+members = ["api", "config", "controller", "impls", "libwallet", "util", "doc"]
 exclude = ["integration"]
 
 [dependencies]
