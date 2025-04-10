@@ -687,7 +687,7 @@ where
 		Ok(Some(_)) => {
 			println!();
 			println!(
-				"Transaction recieved and sent back to sender at {} for finalization.",
+				"Transaction received and sent back to sender at {} for finalization.",
 				dest
 			);
 			println!();
