@@ -200,9 +200,10 @@ impl HttpSlateSender {
 		let client = if !self.use_socks {
 			Client::new()
 		} else {
-			Client::with_socks_proxy(
+			Client::with_proxy(
 				self.socks_proxy_addr
 					.ok_or_else(|| ClientError::Internal("No socks proxy address set".into()))?,
+				"socks5h://",
 			)
 		}
 		.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
