@@ -27,7 +27,7 @@ use futures::channel::oneshot;
 use grin_wallet_api::JsonId;
 use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
 use grin_wallet_util::OnionV3Address;
-use hyper::body;
+use hyper::body::to_bytes;
 use hyper::header::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode};
 use qr_code::QrCode;
@@ -866,7 +866,7 @@ async fn parse_body<T>(req: Request<Body>) -> Result<T, Error>
 where
 	for<'de> T: Deserialize<'de> + Send + 'static,
 {
-	let body = body::to_bytes(req.into_body())
+	let body = to_bytes(req.into_body())
 		.await
 		.map_err(|_| Error::GenericError("Failed to read request".to_string()))?;
 

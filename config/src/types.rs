@@ -106,7 +106,7 @@ impl WalletConfig {
 	/// Accept fee base
 	pub fn accept_fee_base(&self) -> u64 {
 		self.accept_fee_base
-			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())
+			.unwrap_or_else(WalletConfig::default_accept_fee_base)
 	}
 }
 /// Error type wrapping config errors.
@@ -192,21 +192,12 @@ impl Default for TorConfig {
 }
 
 /// Tor Bridge Config
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorBridgeConfig {
 	/// Bridge Line
 	pub bridge_line: Option<String>,
 	/// Client Option
 	pub client_option: Option<String>,
-}
-
-impl Default for TorBridgeConfig {
-	fn default() -> TorBridgeConfig {
-		TorBridgeConfig {
-			bridge_line: None,
-			client_option: None,
-		}
-	}
 }
 
 impl fmt::Display for TorBridgeConfig {
@@ -216,7 +207,7 @@ impl fmt::Display for TorBridgeConfig {
 }
 
 /// Tor Proxy configuration (useful for protocols such as shadowsocks)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorProxyConfig {
 	/// socks4 |socks5 | http(s)
 	pub transport: Option<String>,
@@ -228,18 +219,6 @@ pub struct TorProxyConfig {
 	pub password: Option<String>,
 	/// allowed port - proxy
 	pub allowed_port: Option<Vec<u16>>,
-}
-
-impl Default for TorProxyConfig {
-	fn default() -> TorProxyConfig {
-		TorProxyConfig {
-			transport: None,
-			address: None,
-			username: None,
-			password: None,
-			allowed_port: None,
-		}
-	}
 }
 
 impl fmt::Display for TorProxyConfig {

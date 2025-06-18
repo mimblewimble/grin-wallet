@@ -22,15 +22,14 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
+use blake2_rfc as blake2;
 use grin_wallet_config as config;
-
-use grin_core;
-use grin_keychain;
-use grin_util;
-
 use grin_wallet_util as util;
 
-use blake2_rfc as blake2;
+// Re-export the crates at the same path that users previously accessed them at
+pub use grin_core;
+pub use grin_keychain;
+pub use grin_util;
 
 #[macro_use]
 extern crate serde_derive;

@@ -122,6 +122,7 @@ pub struct DalekSignature(Signature);
 
 impl DalekSignature {
 	/// Convert hex string to DalekSignature.
+	#[allow(dead_code)]
 	pub fn from_hex(hex: &str) -> Result<Self, DalekError> {
 		let bytes = grin_util::from_hex(hex)
 			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
@@ -131,6 +132,7 @@ impl DalekSignature {
 	}
 
 	/// Verifies DalekSignature
+	#[allow(dead_code)]
 	pub fn verify(&self, pk: &DalekPublicKey, msg: &[u8]) -> Result<(), DalekError> {
 		pk.as_ref()
 			.verify(&msg, &self.0)

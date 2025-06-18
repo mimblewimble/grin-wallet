@@ -21,7 +21,7 @@ use std::env;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use toml;
 
 use crate::comments::{insert_comments, migrate_comments};
@@ -211,7 +211,7 @@ impl GlobalWalletConfig {
 	pub fn for_chain(chain_type: &global::ChainTypes) -> GlobalWalletConfig {
 		let mut defaults_conf = GlobalWalletConfig::default();
 		let defaults = &mut defaults_conf.members.as_mut().unwrap().wallet;
-		defaults.chain_type = Some(chain_type.clone());
+		defaults.chain_type = Some(*chain_type);
 
 		match *chain_type {
 			global::ChainTypes::Mainnet => {}
@@ -268,20 +268,20 @@ impl GlobalWalletConfig {
 	}
 
 	/// Update paths
-	pub fn update_paths(&mut self, wallet_home: &PathBuf) {
-		let mut wallet_path = wallet_home.clone();
+	pub fn update_paths(&mut self, wallet_home: &Path) {
+		let mut wallet_path = wallet_home.to_path_buf();
 		wallet_path.push(GRIN_WALLET_DIR);
 		self.members.as_mut().unwrap().wallet.data_file_dir =
 			wallet_path.to_str().unwrap().to_owned();
-		let mut secret_path = wallet_home.clone();
+		let mut secret_path = wallet_home.to_path_buf();
 		secret_path.push(OWNER_API_SECRET_FILE_NAME);
 		self.members.as_mut().unwrap().wallet.api_secret_path =
 			Some(secret_path.to_str().unwrap().to_owned());
-		let mut node_secret_path = wallet_home.clone();
+		let mut node_secret_path = wallet_home.to_path_buf();
 		node_secret_path.push(API_SECRET_FILE_NAME);
 		self.members.as_mut().unwrap().wallet.node_api_secret_path =
 			Some(node_secret_path.to_str().unwrap().to_owned());
-		let mut log_path = wallet_home.clone();
+		let mut log_path = wallet_home.to_path_buf();
 		log_path.push(WALLET_LOG_FILE_NAME);
 		self.members
 			.as_mut()
@@ -290,7 +290,7 @@ impl GlobalWalletConfig {
 			.as_mut()
 			.unwrap()
 			.log_file_path = log_path.to_str().unwrap().to_owned();
-		let tor_path = wallet_home.clone();
+		let tor_path = wallet_home.to_path_buf();
 		self.members
 			.as_mut()
 			.unwrap()
@@ -339,7 +339,7 @@ impl GlobalWalletConfig {
 	) -> Result<String, ConfigError> {
 		let config: GlobalWalletConfigMembers =
 			toml::from_str(&GlobalWalletConfig::fix_warning_level(config_str.clone())).unwrap();
-		if config.config_file_version != None {
+		if config.config_file_version.is_some() {
 			return Ok(config_str);
 		}
 		let adjusted_config = GlobalWalletConfigMembers {
@@ -347,7 +347,7 @@ impl GlobalWalletConfig {
 			tor: Some(TorConfig {
 				bridge: TorBridgeConfig::default(),
 				proxy: TorProxyConfig::default(),
-				..config.tor.unwrap_or(TorConfig::default())
+				..config.tor.unwrap_or_default()
 			}),
 			..config
 		};

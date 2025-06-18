@@ -26,17 +26,10 @@ use std::time::Duration;
 use tokio::runtime::{Builder, Handle, Runtime};
 
 // Global Tokio runtime.
-// Needs a `Mutex` because `Runtime::block_on` requires mutable access.
-// Tokio v0.3 requires immutable self, but we are waiting on upstream
-// updates before we can upgrade.
-// See: https://github.com/seanmonstar/reqwest/pull/1076
+// With tokio 1.0, Runtime::block_on no longer requires mutable access
 lazy_static! {
 	pub static ref RUNTIME: Arc<Mutex<Runtime>> = Arc::new(Mutex::new(
-		Builder::new()
-			.threaded_scheduler()
-			.enable_all()
-			.build()
-			.unwrap()
+		Builder::new_multi_thread().enable_all().build().unwrap()
 	));
 }
 
