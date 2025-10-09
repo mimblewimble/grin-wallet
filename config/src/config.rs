@@ -42,7 +42,7 @@ pub const API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
 /// Owner API secret
 pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
-/// Function to locate the wallet dir and wallet.toml in the order
+/// Function to locate the wallet dir and grin-wallet.toml in the order
 /// a) config in top-dir if provided, b) in working dir, c) default dir
 /// Function to get wallet dir and create dirs if not existing
 pub fn get_wallet_path(
@@ -54,7 +54,7 @@ pub fn get_wallet_path(
 	config_path.push(WALLET_CONFIG_FILE_NAME);
 	if create_path == false && config_path.exists() {
 		config_path.pop();
-		println!("Detected 'wallet.toml' in working dir - opening associated wallet");
+		println!("Detected 'grin-wallet.toml' in working dir - opening associated wallet");
 		return Ok(config_path);
 	};
 	// B - Select home directory
@@ -78,8 +78,8 @@ pub fn get_wallet_path(
 	}
 }
 
-/// Smart function to detect the the nodes .api_secret in the order
-/// a) top-dir, b) home directory, create directory if needed
+/// Smart function to detect the nodes .foreign_api_secret file in the order
+/// a) top-dir, b) home directory - create directory if needed
 pub fn get_node_path(
 	data_path: Option<PathBuf>,
 	chain_type: &global::ChainTypes,
@@ -120,6 +120,7 @@ pub fn get_node_path(
 }
 
 /// Checks if config in current working dir
+#[allow(dead_code)]
 fn check_config_current_dir(path: &str) -> Option<PathBuf> {
 	let p = env::current_dir();
 	let mut c = match p {
@@ -224,7 +225,7 @@ pub fn initial_setup_wallet(
 		Some(p) => p,
 		None => get_wallet_path(chain_type, create_path)?,
 	};
-	println!("wallet path: {}", wallet_path.display());
+	println!("Wallet path: {}", wallet_path.display());
 	// Get path to the node directory,
 	let node_path = get_node_path(Some(wallet_path.clone()), chain_type)?;
 
