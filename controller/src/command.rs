@@ -28,13 +28,14 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
-use crate::{controller, display};
+use crate::{controller, display, multisig};
 use ::core::time;
 use qr_code::QrCode;
 use serde_json as json;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
@@ -355,6 +356,7 @@ where
 {
 	let mut slate = Slate::blank(2, false);
 	let mut amount = args.amount;
+	let multisig_root = PathBuf::from(owner_api.get_top_level_directory()?);
 	if args.use_max_amount {
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 			let (_, wallet_info) =
@@ -425,6 +427,8 @@ where
 		return Ok(());
 	}
 
+	multisig::create_pending_session(&multisig_root, &slate)?;
+
 	let tor_config = match tor_config {
 		Some(mut c) => {
 			if let Some(b) = args.bridge.clone() {
@@ -440,9 +444,14 @@ where
 
 	match res {
 		Ok(Some(s)) => {
+			let multisig_root_clone = multisig_root.clone();
 			controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+				multisig::ensure_threshold(&multisig_root_clone, &s)
+					.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 				api.tx_lock_outputs(m, &s)?;
 				let ret_slate = api.finalize_tx(m, &s)?;
+				multisig::mark_finalized(&multisig_root_clone, &ret_slate)
+					.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 				let result = api.post_tx(m, &ret_slate, args.fluff);
 				match result {
 					Ok(_) => {
@@ -799,6 +808,23 @@ pub struct FinalizeArgs {
 	pub slatepack_qr: bool,
 }
 
+#[derive(Clone)]
+pub enum MultisigArgs {
+	Init {
+		threshold: u8,
+		holders: Vec<String>,
+	},
+	Status,
+	Sessions {
+		include_finalized: bool,
+	},
+	Approve {
+		session: String,
+		holder: String,
+		token: String,
+	},
+}
+
 pub fn finalize<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -815,6 +841,8 @@ where
 		args.input_file.clone(),
 		args.input_slatepack_message.clone(),
 	)?;
+	let multisig_root = PathBuf::from(owner_api.get_top_level_directory()?);
+	multisig::create_pending_session(&multisig_root, &slate)?;
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
@@ -826,13 +854,23 @@ where
 			None => None,
 			Some(&m) => Some(m.to_owned()),
 		};
+		let multisig_root_clone = multisig_root.clone();
 		controller::foreign_single_use(owner_api.wallet_inst.clone(), km, |api| {
+			multisig::ensure_threshold(&multisig_root_clone, &slate)
+				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 			slate = api.finalize_tx(&slate, false)?;
+			multisig::mark_finalized(&multisig_root_clone, &slate)
+				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 			Ok(())
 		})?;
 	} else {
+		let multisig_root_clone = multisig_root.clone();
 		controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
+			multisig::ensure_threshold(&multisig_root_clone, &slate)
+				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 			slate = api.finalize_tx(m, &slate)?;
+			multisig::mark_finalized(&multisig_root_clone, &slate)
+				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 			Ok(())
 		})?;
 	}
@@ -870,6 +908,132 @@ where
 	)?;
 
 	Ok(())
+}
+
+pub fn multisig<L, C, K>(owner_api: &mut Owner<L, C, K>, args: MultisigArgs) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let base_dir = PathBuf::from(owner_api.get_top_level_directory()?);
+	match args {
+		MultisigArgs::Init { threshold, holders } => {
+			let results = multisig::initialize(&base_dir, threshold, holders)?;
+			println!();
+			println!("Multi-signature configuration initialized:");
+			println!("  Threshold: {} approvals", threshold);
+			println!("  Participant storage files:");
+			for entry in results {
+				println!("    - {} => {}", entry.id, entry.storage_path.display());
+			}
+			println!();
+			println!("Distribute each holder's storage file securely and instruct them to keep their approval token private.");
+			Ok(())
+		}
+		MultisigArgs::Status => match multisig::status(&base_dir)? {
+			Some(config) => {
+				println!();
+				println!("Multi-signature configuration");
+				println!("--------------------------------");
+				println!("Threshold: {}", config.threshold);
+				println!("Participants:");
+				for participant in config.participants {
+					let path = base_dir.join(&participant.storage_file);
+					println!("  - {} (storage: {})", participant.id, path.display());
+				}
+				println!();
+				Ok(())
+			}
+			None => {
+				println!("Multi-signature policy is not configured for this wallet.");
+				Ok(())
+			}
+		},
+		MultisigArgs::Sessions { include_finalized } => {
+			let sessions = multisig::list_sessions(&base_dir, include_finalized)?;
+			if sessions.is_empty() {
+				if include_finalized {
+					println!("No recorded multi-signature sessions found.");
+				} else {
+					println!("No pending multi-signature sessions found.");
+				}
+				return Ok(());
+			}
+			println!();
+			println!("Multi-signature sessions");
+			println!("------------------------");
+			for session in sessions {
+				let approved = session.approvals.len();
+				let amount_hr = core::amount_to_hr_string(session.amount, false);
+				println!(
+					"- Slate {} | Amount {} | Approvals {}/{} | Status {:?}",
+					session.slate_id,
+					amount_hr,
+					approved,
+					session.required_approvals,
+					session.status
+				);
+				if !session.approvals.is_empty() {
+					let names: Vec<_> = session
+						.approvals
+						.iter()
+						.map(|a| a.participant_id.as_str())
+						.collect();
+					println!("    Approved by: {}", names.join(", "));
+				}
+				let pending: Vec<_> = session
+					.participants
+					.iter()
+					.filter(|id| !session.approvals.iter().any(|a| &a.participant_id == *id))
+					.cloned()
+					.collect();
+				if !pending.is_empty() {
+					println!("    Pending: {}", pending.join(", "));
+				}
+			}
+			println!();
+			Ok(())
+		}
+		MultisigArgs::Approve {
+			session,
+			holder,
+			token,
+		} => {
+			let session_state = multisig::approve(&base_dir, &session, &holder, &token)?;
+			let approved = session_state.approvals.len();
+			let amount_hr = core::amount_to_hr_string(session_state.amount, false);
+			println!(
+				"Approval registered for slate {} ({}) by {} ({} of {} approvals recorded).",
+				session_state.slate_id,
+				amount_hr,
+				holder,
+				approved,
+				session_state.required_approvals
+			);
+			if session_state.status == multisig::SessionStatus::Pending {
+				let pending: Vec<_> = session_state
+					.participants
+					.iter()
+					.filter(|id| {
+						!session_state
+							.approvals
+							.iter()
+							.any(|a| &a.participant_id == *id)
+					})
+					.cloned()
+					.collect();
+				if pending.is_empty() {
+					println!("All required approvals have now been collected.");
+				} else {
+					println!("Pending approvals: {}", pending.join(", "));
+				}
+			} else {
+				println!("This session is already finalized.");
+			}
+			Ok(())
+		}
+	}
 }
 
 /// Issue Invoice Args

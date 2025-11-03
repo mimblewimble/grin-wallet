@@ -234,6 +234,55 @@ subcommands:
             help: Show slatepack data as QR code
             short: q
             long: slatepack_qr
+  - multisig:
+      about: Manage local multi-signature approval policy
+      subcommands:
+        - init:
+            about: Initialize multi-signature configuration
+            args:
+              - threshold:
+                  help: Number of holder approvals required before funds can be spent
+                  short: t
+                  long: threshold
+                  takes_value: true
+                  required: true
+              - holder:
+                  help: Identifier for a key holder (repeat for multiple holders)
+                  short: H
+                  long: holder
+                  takes_value: true
+                  multiple: true
+                  required: true
+        - status:
+            about: Show the current multi-signature configuration
+        - sessions:
+            about: List multi-signature approval sessions
+            args:
+              - all:
+                  help: Include finalized sessions in the output
+                  short: a
+                  long: all
+        - approve:
+            about: Approve a pending spend using a holder token
+            args:
+              - session:
+                  help: Slate identifier of the session to approve
+                  short: s
+                  long: session
+                  takes_value: true
+                  required: true
+              - holder:
+                  help: Holder identifier recorded during initialization
+                  short: H
+                  long: holder
+                  takes_value: true
+                  required: true
+              - token:
+                  help: Approval token from the holder's storage file
+                  short: k
+                  long: token
+                  takes_value: true
+                  required: true
   - invoice:
       about: Initialize an invoice transaction, outputting a Slatepack Message with the result
       args:

@@ -102,4 +102,8 @@ pub enum Error {
 	/// Other
 	#[error("Generic error: {0}")]
 	GenericError(String),
+
+	/// Multisig policy error
+	#[error("Multisig policy error: {0}")]
+	Multisig(String),
 }

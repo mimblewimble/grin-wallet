@@ -655,6 +655,60 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 	})
 }
 
+pub fn parse_multisig_args(args: &ArgMatches) -> Result<command::MultisigArgs, ParseError> {
+	match args.subcommand() {
+		("init", Some(init_args)) => {
+			let threshold_str = parse_required(init_args, "threshold")?;
+			let threshold_value = parse_u64(&threshold_str, "threshold")?;
+			if threshold_value == 0 {
+				return Err(ParseError::ArgumentError(
+					"Threshold must be greater than zero".to_string(),
+				));
+			}
+			if threshold_value > u8::MAX as u64 {
+				return Err(ParseError::ArgumentError(format!(
+					"Threshold {} exceeds maximum supported value {}",
+					threshold_value,
+					u8::MAX
+				)));
+			}
+			let holders: Vec<String> = match init_args.values_of("holder") {
+				Some(values) => values
+					.map(|v| v.trim().to_owned())
+					.filter(|v| !v.is_empty())
+					.collect(),
+				None => vec![],
+			};
+			if holders.is_empty() {
+				return Err(ParseError::ArgumentError(
+					"At least one participant holder must be provided".to_string(),
+				));
+			}
+			Ok(command::MultisigArgs::Init {
+				threshold: threshold_value as u8,
+				holders,
+			})
+		}
+		("status", Some(_)) => Ok(command::MultisigArgs::Status),
+		("sessions", Some(session_args)) => Ok(command::MultisigArgs::Sessions {
+			include_finalized: session_args.is_present("all"),
+		}),
+		("approve", Some(approve_args)) => {
+			let session = parse_required(approve_args, "session")?;
+			let holder = parse_required(approve_args, "holder")?;
+			let token = parse_required(approve_args, "token")?;
+			Ok(command::MultisigArgs::Approve {
+				session: session.to_owned(),
+				holder: holder.to_owned(),
+				token: token.to_owned(),
+			})
+		}
+		_ => Err(ParseError::ArgumentError(
+			"Invalid or missing multisig subcommand".to_string(),
+		)),
+	}
+}
+
 pub fn parse_issue_invoice_args(
 	args: &ArgMatches,
 ) -> Result<command::IssueInvoiceArgs, ParseError> {
@@ -1215,6 +1269,10 @@ where
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
 			command::finalize(owner_api, km, a)
+		}
+		("multisig", Some(args)) => {
+			let a = arg_parse!(parse_multisig_args(&args));
+			command::multisig(owner_api, a)
 		}
 		("invoice", Some(args)) => {
 			let a = arg_parse!(parse_issue_invoice_args(&args));

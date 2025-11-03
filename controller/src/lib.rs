@@ -34,5 +34,6 @@ pub mod command;
 pub mod controller;
 pub mod display;
 mod error;
+pub mod multisig;
 
 pub use crate::error::Error;
