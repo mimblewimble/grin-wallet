@@ -28,13 +28,15 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
-	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
-	TxLogEntry, ViewWallet, WalletInfo, WalletInst, WalletLCProvider,
+	AcctPathMapping, BuiltOutput, Error, FrostSession, FrostSigningState, InitTxArgs,
+	IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, PaymentProof, Slate,
+	Slatepack, SlatepackAddress, TxLogEntry, ViewWallet, WalletInfo, WalletInst, WalletLCProvider,
 };
+use crate::types::Token;
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use base64;
 use grin_wallet_util::OnionV3Address;
 use std::convert::TryFrom;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1186,6 +1188,100 @@ where
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
 		owner::get_stored_tx(&**w, tx_id, slate_id)
+	}
+
+	fn decode_multisig_payload(&self, payload: &str) -> Result<Vec<u8>, Error> {
+		let trimmed = payload.trim();
+		if trimmed.is_empty() {
+			return Err(Error::Frost("encoded payload cannot be empty".to_owned()));
+		}
+		if let Ok(bytes) = from_hex(trimmed) {
+			return Ok(bytes);
+		}
+		base64::decode(trimmed).map_err(|_| {
+			Error::Frost("encoded payload must be provided as hex or base64 string".to_owned())
+		})
+	}
+
+	/// Initialize a FROST signing session for the provided slate id.
+	pub fn init_frost_session(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		threshold: u16,
+		labels: Vec<String>,
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::init_frost_session(
+			&mut **w,
+			token.keychain_mask.as_ref(),
+			&slate_id,
+			threshold,
+			labels,
+		)
+	}
+
+	/// Retrieve the stored FROST session metadata for a slate, if it exists.
+	pub fn get_frost_session(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+	) -> Result<Option<FrostSession>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_frost_session(&mut **w, token.keychain_mask.as_ref(), &slate_id)
+	}
+
+	/// Retrieve the stored FROST signing state (commitments and partial signatures).
+	pub fn get_frost_signing_state(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+	) -> Result<Option<FrostSigningState>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_frost_signing_state(&mut **w, token.keychain_mask.as_ref(), &slate_id)
+	}
+
+	/// Record a participant's round-1 commitment for a FROST signing session.
+	pub fn submit_frost_round1_commitment(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		label: String,
+		commitment: String,
+	) -> Result<(), Error> {
+		let bytes = self.decode_multisig_payload(&commitment)?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::submit_frost_round1_commitment(
+			&mut **w,
+			token.keychain_mask.as_ref(),
+			&slate_id,
+			&label,
+			&bytes,
+		)
+	}
+
+	/// Record a participant's round-2 signature share for a FROST signing session.
+	pub fn submit_frost_round2_signature(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		label: String,
+		signature: String,
+	) -> Result<(), Error> {
+		let bytes = self.decode_multisig_payload(&signature)?;
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::submit_frost_round2_signature(
+			&mut **w,
+			token.keychain_mask.as_ref(),
+			&slate_id,
+			&label,
+			&bytes,
+		)
 	}
 
 	/// Return the rewind hash of the wallet.

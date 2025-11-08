@@ -421,7 +421,36 @@ impl Slate {
 		K: Keychain,
 	{
 		let final_sig = self.finalize_signature(keychain.secp())?;
-		self.finalize_transaction(keychain, &final_sig)
+		self.finalize_transaction(keychain, &final_sig, None)
+	}
+
+	/// Finalize the slate using an externally aggregated signature and
+	/// corresponding public key (e.g. produced via FROST).
+	pub fn finalize_with_signature<K>(
+		&mut self,
+		keychain: &K,
+		final_sig: &Signature,
+		final_pubkey: &PublicKey,
+	) -> Result<(), Error>
+	where
+		K: Keychain,
+	{
+		let expected_pubkey = self.pub_blind_sum(keychain.secp())?;
+		if expected_pubkey != *final_pubkey {
+			return Err(Error::Frost(
+				"aggregated FROST public key does not match slate excess".to_owned(),
+			));
+		}
+
+		aggsig::verify_completed_sig(
+			keychain.secp(),
+			final_sig,
+			final_pubkey,
+			Some(final_pubkey),
+			&self.msg_to_sign()?,
+		)?;
+
+		self.finalize_transaction(keychain, final_sig, Some(final_pubkey))
 	}
 
 	/// Return the sum of public nonces
@@ -638,13 +667,18 @@ impl Slate {
 		&mut self,
 		keychain: &K,
 		final_sig: &secp::Signature,
+		override_pubkey: Option<&PublicKey>,
 	) -> Result<(), Error>
 	where
 		K: Keychain,
 	{
 		self.check_fees()?;
 		// build the final excess based on final tx and offset
-		let final_excess = self.calc_excess(keychain.secp())?;
+		let final_pubkey = match override_pubkey {
+			Some(pk) => pk.clone(),
+			None => self.pub_blind_sum(keychain.secp())?,
+		};
+		let final_excess = Commitment::from_pubkey(keychain.secp(), &final_pubkey)?;
 
 		debug!("Final Tx excess: {:?}", final_excess);
 

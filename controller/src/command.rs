@@ -23,19 +23,24 @@ use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
 use crate::keychain;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
+	self, FrostSession, FrostSigningState, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	PaymentProof, Slate, SlateState, Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs,
+	WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display, multisig};
 use ::core::time;
+use grin_util::ToHex;
+use grin_wallet_api::Token;
 use qr_code::QrCode;
 use serde_json as json;
+use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
@@ -48,6 +53,99 @@ fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("{}", &*phrase);
 	println!();
 	println!("Please back-up these words in a non-digital format.");
+}
+
+fn encode_payload_from_path(path: &Path) -> Result<String, Error> {
+	let data = fs::read(path)
+		.map_err(|e| Error::GenericError(format!("Unable to read {}: {}", path.display(), e)))?;
+	if data.is_empty() {
+		return Err(Error::GenericError(format!(
+			"File {} does not contain any data",
+			path.display()
+		)));
+	}
+	if let Ok(text) = std::str::from_utf8(&data) {
+		let trimmed = text.trim();
+		if !trimmed.is_empty() {
+			return Ok(trimmed.to_owned());
+		}
+	}
+	Ok(data.to_hex())
+}
+
+fn bytes_to_hex(data: &[u8]) -> String {
+	data.to_vec().to_hex()
+}
+
+fn frost_session_to_json(session: &FrostSession) -> json::Value {
+	let participants: Vec<_> = session
+		.participants
+		.iter()
+		.map(|p| {
+			json::json!({
+				"label": p.label,
+				"identifier": bytes_to_hex(&p.identifier),
+				"key_package": bytes_to_hex(&p.key_package),
+			})
+		})
+		.collect();
+	json::json!({
+		"threshold": session.threshold,
+		"max_signers": session.max_signers,
+		"verifying_key": bytes_to_hex(&session.verifying_key),
+		"participants": participants,
+	})
+}
+
+fn frost_state_summary(
+	state: Option<&FrostSigningState>,
+) -> (json::Value, HashSet<String>, HashSet<String>) {
+	if let Some(state) = state {
+		let commitments: Vec<_> = state
+			.commitments
+			.iter()
+			.map(|c| {
+				json::json!({
+					"label": c.label,
+					"commitment": bytes_to_hex(&c.commitment),
+				})
+			})
+			.collect();
+		let signatures: Vec<_> = state
+			.partial_signatures
+			.iter()
+			.map(|s| {
+				json::json!({
+					"label": s.label,
+					"signature": bytes_to_hex(&s.signature),
+				})
+			})
+			.collect();
+		let commitment_labels: HashSet<String> =
+			state.commitments.iter().map(|c| c.label.clone()).collect();
+		let signature_labels: HashSet<String> = state
+			.partial_signatures
+			.iter()
+			.map(|s| s.label.clone())
+			.collect();
+		(
+			json::json!({
+				"commitments": commitments,
+				"signatures": signatures,
+			}),
+			commitment_labels,
+			signature_labels,
+		)
+	} else {
+		(
+			json::json!({
+				"commitments": [],
+				"signatures": [],
+			}),
+			HashSet::new(),
+			HashSet::new(),
+		)
+	}
 }
 
 /// Arguments common to all wallet commands
@@ -823,6 +921,30 @@ pub enum MultisigArgs {
 		holder: String,
 		token: String,
 	},
+	FrostInit {
+		input_file: Option<String>,
+		input_slatepack_message: Option<String>,
+		session_out: Option<String>,
+	},
+	FrostSession {
+		slate_id: String,
+		outfile: Option<String>,
+	},
+	FrostSigningPackage {
+		input_file: Option<String>,
+		input_slatepack_message: Option<String>,
+		outfile: Option<String>,
+	},
+	FrostRecordCommitment {
+		slate_id: String,
+		label: String,
+		data_path: PathBuf,
+	},
+	FrostRecordSignature {
+		slate_id: String,
+		label: String,
+		data_path: PathBuf,
+	},
 }
 
 pub fn finalize<L, C, K>(
@@ -1031,6 +1153,276 @@ where
 			} else {
 				println!("This session is already finalized.");
 			}
+			Ok(())
+		}
+		MultisigArgs::FrostInit {
+			input_file,
+			input_slatepack_message,
+			session_out,
+		} => {
+			let (slate, _address) =
+				parse_slatepack(owner_api, None, input_file, input_slatepack_message)?;
+			let multisig_root = base_dir.clone();
+			multisig::create_pending_session(&multisig_root, &slate)?;
+			let config = multisig::status(&multisig_root)?.ok_or_else(|| {
+				Error::Multisig("Multi-signature has not been initialized".to_string())
+			})?;
+			if config.participants.is_empty() {
+				return Err(Error::Multisig(
+					"Multi-signature participant list is empty".to_string(),
+				));
+			}
+			let labels: Vec<String> = config.participants.iter().map(|p| p.id.clone()).collect();
+			let threshold = config.threshold as u16;
+			controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+				let token = Token {
+					keychain_mask: m.cloned(),
+				};
+				api.init_frost_session(token, slate.id, threshold, labels.clone())?;
+				Ok(())
+			})?;
+
+			let mut session: Option<FrostSession> = None;
+			let mut signing_state: Option<FrostSigningState> = None;
+			controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+				let token = Token {
+					keychain_mask: m.cloned(),
+				};
+				session = api.get_frost_session(token.clone(), slate.id)?;
+				signing_state = api.get_frost_signing_state(token, slate.id)?;
+				Ok(())
+			})?;
+
+			let session = session.ok_or_else(|| {
+				Error::Multisig(
+					"FROST session metadata was not stored after initialization".to_string(),
+				)
+			})?;
+			let session_json = frost_session_to_json(&session);
+			let (state_json, commitment_labels, signature_labels) =
+				frost_state_summary(signing_state.as_ref());
+			let participant_labels: Vec<String> = session
+				.participants
+				.iter()
+				.map(|p| p.label.clone())
+				.collect();
+			let missing_commitments: Vec<String> = participant_labels
+				.iter()
+				.filter(|label| !commitment_labels.contains(*label))
+				.cloned()
+				.collect();
+			let missing_signatures: Vec<String> = participant_labels
+				.iter()
+				.filter(|label| !signature_labels.contains(*label))
+				.cloned()
+				.collect();
+			let output_json = json::json!({
+				"session": session_json,
+				"state": state_json,
+				"missing_commitments": missing_commitments,
+				"missing_signatures": missing_signatures,
+			});
+			let serialized = serde_json::to_string_pretty(&output_json).map_err(|e| {
+				Error::GenericError(format!("Unable to serialize FROST session: {}", e))
+			})?;
+			if let Some(path) = session_out {
+				fs::write(&path, serialized.as_bytes())
+					.map_err(|e| Error::GenericError(format!("Unable to write {}: {}", path, e)))?;
+				println!("FROST session data written to {}", path);
+			} else {
+				println!("{}", serialized);
+			}
+			Ok(())
+		}
+		MultisigArgs::FrostSession { slate_id, outfile } => {
+			let uuid = Uuid::parse_str(&slate_id).map_err(|e| {
+				Error::GenericError(format!("Invalid slate identifier '{}': {}", slate_id, e))
+			})?;
+			let mut session: Option<FrostSession> = None;
+			let mut signing_state: Option<FrostSigningState> = None;
+			controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+				let token = Token {
+					keychain_mask: m.cloned(),
+				};
+				session = api.get_frost_session(token.clone(), uuid)?;
+				signing_state = api.get_frost_signing_state(token, uuid)?;
+				Ok(())
+			})?;
+			if let Some(session) = session {
+				let session_json = frost_session_to_json(&session);
+				let (state_json, commitment_labels, signature_labels) =
+					frost_state_summary(signing_state.as_ref());
+				let participant_labels: Vec<String> = session
+					.participants
+					.iter()
+					.map(|p| p.label.clone())
+					.collect();
+				let missing_commitments: Vec<String> = participant_labels
+					.iter()
+					.filter(|label| !commitment_labels.contains(*label))
+					.cloned()
+					.collect();
+				let missing_signatures: Vec<String> = participant_labels
+					.iter()
+					.filter(|label| !signature_labels.contains(*label))
+					.cloned()
+					.collect();
+				let output_json = json::json!({
+					"session": session_json,
+					"state": state_json,
+					"missing_commitments": missing_commitments,
+					"missing_signatures": missing_signatures,
+				});
+				let serialized = serde_json::to_string_pretty(&output_json).map_err(|e| {
+					Error::GenericError(format!("Unable to serialize FROST session: {}", e))
+				})?;
+				if let Some(path) = outfile {
+					fs::write(&path, serialized.as_bytes()).map_err(|e| {
+						Error::GenericError(format!("Unable to write {}: {}", path, e))
+					})?;
+					println!("FROST session data written to {}", path);
+				} else {
+					println!("{}", serialized);
+				}
+			} else {
+				println!("No FROST session metadata is stored for slate {}", uuid);
+			}
+			Ok(())
+		}
+		MultisigArgs::FrostSigningPackage {
+			input_file,
+			input_slatepack_message,
+			outfile,
+		} => {
+			let (slate, _address) =
+				parse_slatepack(owner_api, None, input_file, input_slatepack_message)?;
+			let multisig_root = base_dir.clone();
+			multisig::ensure_threshold(&multisig_root, &slate)?;
+			let mut session: Option<FrostSession> = None;
+			let mut signing_state: Option<FrostSigningState> = None;
+			controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+				let token = Token {
+					keychain_mask: m.cloned(),
+				};
+				session = api.get_frost_session(token.clone(), slate.id)?;
+				signing_state = api.get_frost_signing_state(token, slate.id)?;
+				Ok(())
+			})?;
+			let session = session
+				.ok_or_else(|| Error::Multisig("FROST session metadata not found".to_string()))?;
+			let state = signing_state.ok_or_else(|| {
+				Error::Multisig("No FROST signing state recorded for this slate".to_string())
+			})?;
+			let recorded_commitments = state.commitments.len();
+			if recorded_commitments < session.threshold as usize {
+				return Err(Error::Multisig(format!(
+					"Only {} round-1 commitments recorded (threshold is {})",
+					recorded_commitments, session.threshold
+				)));
+			}
+			let session_json = frost_session_to_json(&session);
+			let (state_json, commitment_labels, signature_labels) =
+				frost_state_summary(Some(&state));
+			let participant_labels: Vec<String> = session
+				.participants
+				.iter()
+				.map(|p| p.label.clone())
+				.collect();
+			let missing_commitments: Vec<String> = participant_labels
+				.iter()
+				.filter(|label| !commitment_labels.contains(*label))
+				.cloned()
+				.collect();
+			if !missing_commitments.is_empty() {
+				return Err(Error::Multisig(format!(
+					"Missing commitments from: {}",
+					missing_commitments.join(", ")
+				)));
+			}
+			let missing_signatures: Vec<String> = participant_labels
+				.iter()
+				.filter(|label| !signature_labels.contains(*label))
+				.cloned()
+				.collect();
+			let commitments_json: Vec<_> = state
+				.commitments
+				.iter()
+				.map(|c| {
+					json::json!({
+						"label": c.label,
+						"commitment": bytes_to_hex(&c.commitment),
+					})
+				})
+				.collect();
+			let message_hex = slate.msg_to_sign()?.as_ref().to_vec().to_hex();
+			let signing_package = json::json!({
+				"slate_id": slate.id.to_string(),
+				"threshold": session.threshold,
+				"message": message_hex,
+				"verifying_key": bytes_to_hex(&session.verifying_key),
+				"commitments": commitments_json,
+			});
+			let output_json = json::json!({
+				"session": session_json,
+				"state": state_json,
+				"signing_package": signing_package,
+				"missing_commitments": missing_commitments,
+				"missing_signatures": missing_signatures,
+			});
+			let serialized = serde_json::to_string_pretty(&output_json).map_err(|e| {
+				Error::GenericError(format!("Unable to serialize signing package: {}", e))
+			})?;
+			if let Some(path) = outfile {
+				fs::write(&path, serialized.as_bytes())
+					.map_err(|e| Error::GenericError(format!("Unable to write {}: {}", path, e)))?;
+				println!("FROST signing package written to {}", path);
+			} else {
+				println!("{}", serialized);
+			}
+			Ok(())
+		}
+		MultisigArgs::FrostRecordCommitment {
+			slate_id,
+			label,
+			data_path,
+		} => {
+			let uuid = Uuid::parse_str(&slate_id).map_err(|e| {
+				Error::GenericError(format!("Invalid slate identifier '{}': {}", slate_id, e))
+			})?;
+			let payload = encode_payload_from_path(&data_path)?;
+			controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+				let token = Token {
+					keychain_mask: m.cloned(),
+				};
+				api.submit_frost_round1_commitment(token, uuid, label.clone(), payload.clone())?;
+				Ok(())
+			})?;
+			println!(
+				"Recorded round-1 commitment for '{}' on slate {}",
+				label, uuid
+			);
+			Ok(())
+		}
+		MultisigArgs::FrostRecordSignature {
+			slate_id,
+			label,
+			data_path,
+		} => {
+			let uuid = Uuid::parse_str(&slate_id).map_err(|e| {
+				Error::GenericError(format!("Invalid slate identifier '{}': {}", slate_id, e))
+			})?;
+			let payload = encode_payload_from_path(&data_path)?;
+			controller::owner_single_use(None, None, Some(owner_api), |api, m| {
+				let token = Token {
+					keychain_mask: m.cloned(),
+				};
+				api.submit_frost_round2_signature(token, uuid, label.clone(), payload.clone())?;
+				Ok(())
+			})?;
+			println!(
+				"Recorded round-2 signature share for '{}' on slate {}",
+				label, uuid
+			);
 			Ok(())
 		}
 	}

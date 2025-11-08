@@ -530,6 +530,93 @@ impl fmt::Display for OutputStatus {
 	}
 }
 
+/// Serialized share information for a participant in a FROST session.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct FrostParticipantShare {
+	/// Human readable label for the participant (e.g. "alice").
+	pub label: String,
+	/// Serialized identifier bytes used by FROST (scalar encoding).
+	pub identifier: Vec<u8>,
+	/// Serialized [`KeyPackage`] bytes for this participant.
+	pub key_package: Vec<u8>,
+}
+
+/// Persisted information about a FROST signing session.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct FrostSession {
+	/// Threshold required for signing.
+	pub threshold: u16,
+	/// Total number of participants included in the session.
+	pub max_signers: u16,
+	/// Serialized share information for each participant.
+	#[serde(default)]
+	pub participants: Vec<FrostParticipantShare>,
+	/// Serialized group verifying key (compressed secp256k1 encoding).
+	#[serde(default)]
+	pub verifying_key: Vec<u8>,
+}
+
+/// Serialized round-1 commitment produced by a participant.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct FrostRound1Commitment {
+	/// Participant label.
+	pub label: String,
+	/// Serialized commitment bytes.
+	pub commitment: Vec<u8>,
+}
+
+/// Serialized round-2 signature share produced by a participant.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct FrostRound2Signature {
+	/// Participant label.
+	pub label: String,
+	/// Serialized signature share bytes.
+	pub signature: Vec<u8>,
+}
+
+/// Aggregated FROST signing state persisted for a transaction.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+pub struct FrostSigningState {
+	/// Stored round-1 commitments.
+	#[serde(default)]
+	pub commitments: Vec<FrostRound1Commitment>,
+	/// Stored round-2 signature shares.
+	#[serde(default)]
+	pub partial_signatures: Vec<FrostRound2Signature>,
+}
+
+impl FrostSigningState {
+	/// Record or update a participant's round-1 commitment.
+	pub fn upsert_commitment(&mut self, label: String, commitment: Vec<u8>) {
+		if let Some(entry) = self.commitments.iter_mut().find(|c| c.label == label) {
+			entry.commitment = commitment;
+		} else {
+			self.commitments
+				.push(FrostRound1Commitment { label, commitment });
+		}
+	}
+
+	/// Record or update a participant's round-2 signature share.
+	pub fn upsert_signature(&mut self, label: String, signature: Vec<u8>) {
+		if let Some(entry) = self
+			.partial_signatures
+			.iter_mut()
+			.find(|s| s.label == label)
+		{
+			entry.signature = signature;
+		} else {
+			self.partial_signatures
+				.push(FrostRound2Signature { label, signature });
+		}
+	}
+
+	/// Clear all recorded commitments and signatures.
+	pub fn clear(&mut self) {
+		self.commitments.clear();
+		self.partial_signatures.clear();
+	}
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 /// Holds the context for a single aggsig transaction
 pub struct Context {
@@ -563,6 +650,12 @@ pub struct Context {
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
+	/// Optional FROST session metadata captured during transaction building.
+	#[serde(default)]
+	pub frost: Option<FrostSession>,
+	/// Optional FROST signing state (commitments, partial signatures).
+	#[serde(default)]
+	pub frost_state: Option<FrostSigningState>,
 }
 
 impl Context {
@@ -612,6 +705,8 @@ impl Context {
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
+			frost: None,
+			frost_state: None,
 		}
 	}
 }
@@ -643,6 +738,40 @@ impl Context {
 	/// Returns private key, private nonce
 	pub fn get_private_keys(&self) -> (SecretKey, SecretKey) {
 		(self.sec_key.clone(), self.sec_nonce.clone())
+	}
+
+	/// Returns the stored FROST session, if present.
+	pub fn frost_session(&self) -> Option<&FrostSession> {
+		self.frost.as_ref()
+	}
+
+	/// Replace the stored FROST session data.
+	pub fn set_frost_session(&mut self, session: FrostSession) {
+		self.frost = Some(session);
+	}
+
+	/// Remove any stored FROST session information.
+	pub fn clear_frost_session(&mut self) {
+		self.frost = None;
+	}
+
+	/// Access the stored FROST signing state, creating if needed.
+	pub fn frost_signing_state_mut(&mut self) -> &mut FrostSigningState {
+		self.frost_state
+			.get_or_insert_with(FrostSigningState::default)
+	}
+
+	/// Retrieve the stored FROST signing state.
+	pub fn frost_signing_state(&self) -> Option<&FrostSigningState> {
+		self.frost_state.as_ref()
+	}
+
+	/// Clear stored FROST signing data.
+	pub fn clear_frost_signing_state(&mut self) {
+		if let Some(state) = self.frost_state.as_mut() {
+			state.clear();
+		}
+		self.frost_state = None;
 	}
 
 	/// Returns public key, public nonce

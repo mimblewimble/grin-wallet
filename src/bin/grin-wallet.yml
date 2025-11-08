@@ -283,6 +283,98 @@ subcommands:
                   long: token
                   takes_value: true
                   required: true
+        - frost-init:
+            about: Initialize a FROST signing session for a pending slate
+            args:
+              - input:
+                  help: Slatepack file containing the pending slate
+                  short: i
+                  long: input
+                  takes_value: true
+              - slatepack:
+                  help: Inline Slatepack message for the pending slate
+                  short: s
+                  long: slatepack
+                  takes_value: true
+              - session_out:
+                  help: Write FROST session data to the specified file instead of stdout
+                  short: o
+                  long: session-out
+                  takes_value: true
+        - frost-session:
+            about: Display stored FROST session metadata for a slate
+            args:
+              - slate_id:
+                  help: Slate identifier (UUID) to inspect
+                  short: s
+                  long: slate-id
+                  takes_value: true
+                  required: true
+              - outfile:
+                  help: Write session data to the specified file instead of stdout
+                  short: o
+                  long: outfile
+                  takes_value: true
+        - frost-signing-package:
+            about: Build the round-2 signing package from recorded commitments
+            args:
+              - input:
+                  help: Slatepack file containing the pending slate
+                  short: i
+                  long: input
+                  takes_value: true
+              - slatepack:
+                  help: Inline Slatepack message for the pending slate
+                  short: s
+                  long: slatepack
+                  takes_value: true
+              - outfile:
+                  help: Write the signing package JSON to the specified file instead of stdout
+                  short: o
+                  long: outfile
+                  takes_value: true
+        - frost-commitment:
+            about: Record a participant's round-1 FROST commitment
+            args:
+              - slate_id:
+                  help: Slate identifier (UUID)
+                  short: s
+                  long: slate-id
+                  takes_value: true
+                  required: true
+              - label:
+                  help: Participant label corresponding to the commitment
+                  short: l
+                  long: label
+                  takes_value: true
+                  required: true
+              - file:
+                  help: File containing the serialized commitment payload (hex, base64, or binary)
+                  short: f
+                  long: file
+                  takes_value: true
+                  required: true
+        - frost-signature:
+            about: Record a participant's round-2 FROST signature share
+            args:
+              - slate_id:
+                  help: Slate identifier (UUID)
+                  short: s
+                  long: slate-id
+                  takes_value: true
+                  required: true
+              - label:
+                  help: Participant label corresponding to the signature share
+                  short: l
+                  long: label
+                  takes_value: true
+                  required: true
+              - file:
+                  help: File containing the serialized signature share (hex, base64, or binary)
+                  short: f
+                  long: file
+                  takes_value: true
+                  required: true
   - invoice:
       about: Initialize an invoice transaction, outputting a Slatepack Message with the result
       args:

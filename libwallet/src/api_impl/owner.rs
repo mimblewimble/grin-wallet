@@ -27,10 +27,14 @@ use crate::grin_util::ToHex;
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
+use crate::crypto::frost;
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
-use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
+use crate::types::{
+	AcctPathMapping, FrostSession, FrostSigningState, NodeClient, TxLogEntry, WalletBackend,
+	WalletInfo,
+};
 use crate::Error;
 use crate::{
 	address, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
@@ -887,6 +891,127 @@ where
 		}
 		None => Ok(None),
 	}
+}
+
+/// Initialize a FROST session for the given slate using the provided labels and threshold.
+pub fn init_frost_session<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: &Uuid,
+	threshold: u16,
+	labels: Vec<String>,
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut context = w.get_private_context(keychain_mask, slate_id.as_bytes())?;
+	frost::initialize_context_frost_session(&mut context, threshold, &labels)?;
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_private_context(slate_id.as_bytes(), &context)?;
+	batch.commit()?;
+	Ok(())
+}
+
+/// Retrieve the stored FROST session for the provided slate, if any.
+pub fn get_frost_session<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: &Uuid,
+) -> Result<Option<FrostSession>, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let context = w.get_private_context(keychain_mask, slate_id.as_bytes())?;
+	Ok(context.frost_session().cloned())
+}
+
+/// Retrieve the stored FROST signing state for the provided slate, if any.
+pub fn get_frost_signing_state<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: &Uuid,
+) -> Result<Option<FrostSigningState>, Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let context = w.get_private_context(keychain_mask, slate_id.as_bytes())?;
+	Ok(context.frost_signing_state().cloned())
+}
+
+/// Record a participant's round-1 commitment for an in-flight FROST signing
+/// session associated with the provided slate.
+pub fn submit_frost_round1_commitment<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: &Uuid,
+	label: &str,
+	commitment: &[u8],
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut context = w.get_private_context(keychain_mask, slate_id.as_bytes())?;
+	let has_participant = {
+		let session = context
+			.frost_session()
+			.ok_or_else(|| Error::Frost("FROST session not initialized for slate".to_owned()))?;
+		session.participants.iter().any(|p| p.label == label)
+	};
+	if !has_participant {
+		return Err(Error::Frost(format!(
+			"unknown FROST participant label '{}'",
+			label
+		)));
+	}
+	let commitment = frost::deserialize_round1_commitments(commitment)?;
+	frost::record_round1_commitment(&mut context, label.to_owned(), &commitment)?;
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_private_context(slate_id.as_bytes(), &context)?;
+	batch.commit()?;
+	Ok(())
+}
+
+/// Record a participant's round-2 signature share for an in-flight FROST
+/// signing session associated with the provided slate.
+pub fn submit_frost_round2_signature<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: &Uuid,
+	label: &str,
+	signature: &[u8],
+) -> Result<(), Error>
+where
+	T: WalletBackend<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let mut context = w.get_private_context(keychain_mask, slate_id.as_bytes())?;
+	let has_participant = {
+		let session = context
+			.frost_session()
+			.ok_or_else(|| Error::Frost("FROST session not initialized for slate".to_owned()))?;
+		session.participants.iter().any(|p| p.label == label)
+	};
+	if !has_participant {
+		return Err(Error::Frost(format!(
+			"unknown FROST participant label '{}'",
+			label
+		)));
+	}
+	let share = frost::deserialize_round2_signature(signature)?;
+	frost::record_round2_signature(&mut context, label.to_owned(), &share)?;
+	let mut batch = w.batch(keychain_mask)?;
+	batch.save_private_context(slate_id.as_bytes(), &context)?;
+	batch.commit()?;
+	Ok(())
 }
 
 /// Posts a transaction to the chain

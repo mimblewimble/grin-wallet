@@ -29,6 +29,8 @@ easy-jsonrpc-mw = "0.5.4"
 lazy_static = "1"
 thiserror = "1"
 qr_code = "1.1.0"
+frost-core = "2.2.0"
+frost-secp256k1 = "2.2.0"
 
 grin_wallet_util = { path = "../util", version = "5.3.0" }
 grin_wallet_api = { path = "../api", version = "5.3.0" }

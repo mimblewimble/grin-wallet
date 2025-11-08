@@ -45,6 +45,7 @@ extern crate strum_macros;
 
 pub mod address;
 pub mod api_impl;
+pub mod crypto;
 mod error;
 mod internal;
 mod slate;
@@ -71,10 +72,11 @@ pub use api_impl::types::{
 pub use internal::scan::scan;
 pub use slate_versions::ser as dalek_ser;
 pub use types::{
-	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
-	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
-	ViewWallet, WalletBackend, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
-	WalletOutputBatch,
+	AcctPathMapping, BlockIdentifier, CbData, Context, FrostParticipantShare,
+	FrostRound1Commitment, FrostRound2Signature, FrostSession, FrostSigningState, NodeClient,
+	NodeVersionInfo, OutputData, OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry,
+	TxLogEntryType, TxWrapper, ViewWallet, WalletBackend, WalletInfo, WalletInitStatus, WalletInst,
+	WalletLCProvider, WalletOutputBatch,
 };
 
 /// Helper for taking a lock on the wallet instance

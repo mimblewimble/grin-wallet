@@ -156,7 +156,7 @@ where
 		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
 
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &mut context)?;
 		tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
 		{
 			let mut batch = w.batch(keychain_mask)?;
@@ -213,7 +213,7 @@ where
 
 		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
 
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
+		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &mut context)?;
 		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
 		tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
 		{

@@ -703,6 +703,60 @@ pub fn parse_multisig_args(args: &ArgMatches) -> Result<command::MultisigArgs, P
 				token: token.to_owned(),
 			})
 		}
+		("frost-init", Some(frost_args)) => {
+			let input_file = parse_optional(frost_args, "input")?;
+			let mut input_slatepack_message = parse_optional(frost_args, "slatepack")?;
+			if input_file.is_none() && input_slatepack_message.is_none() {
+				input_slatepack_message = Some(prompt_slatepack()?);
+			}
+			let session_out = parse_optional(frost_args, "session_out")?;
+			Ok(command::MultisigArgs::FrostInit {
+				input_file,
+				input_slatepack_message,
+				session_out,
+			})
+		}
+		("frost-session", Some(session_args)) => {
+			let slate_id = parse_required(session_args, "slate_id")?;
+			let outfile = parse_optional(session_args, "outfile")?;
+			Ok(command::MultisigArgs::FrostSession {
+				slate_id: slate_id.to_owned(),
+				outfile,
+			})
+		}
+		("frost-signing-package", Some(pkg_args)) => {
+			let input_file = parse_optional(pkg_args, "input")?;
+			let mut input_slatepack_message = parse_optional(pkg_args, "slatepack")?;
+			if input_file.is_none() && input_slatepack_message.is_none() {
+				input_slatepack_message = Some(prompt_slatepack()?);
+			}
+			let outfile = parse_optional(pkg_args, "outfile")?;
+			Ok(command::MultisigArgs::FrostSigningPackage {
+				input_file,
+				input_slatepack_message,
+				outfile,
+			})
+		}
+		("frost-commitment", Some(commit_args)) => {
+			let slate_id = parse_required(commit_args, "slate_id")?;
+			let label = parse_required(commit_args, "label")?;
+			let file_path = parse_required(commit_args, "file")?;
+			Ok(command::MultisigArgs::FrostRecordCommitment {
+				slate_id: slate_id.to_owned(),
+				label: label.to_owned(),
+				data_path: PathBuf::from(file_path),
+			})
+		}
+		("frost-signature", Some(sig_args)) => {
+			let slate_id = parse_required(sig_args, "slate_id")?;
+			let label = parse_required(sig_args, "label")?;
+			let file_path = parse_required(sig_args, "file")?;
+			Ok(command::MultisigArgs::FrostRecordSignature {
+				slate_id: slate_id.to_owned(),
+				label: label.to_owned(),
+				data_path: PathBuf::from(file_path),
+			})
+		}
 		_ => Err(ParseError::ArgumentError(
 			"Invalid or missing multisig subcommand".to_string(),
 		)),

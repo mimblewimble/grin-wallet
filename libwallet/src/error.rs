@@ -14,6 +14,7 @@
 
 //! Error types for libwallet
 
+use crate::crypto::frost::FrostConversionError;
 use crate::grin_core::core::{committed, transaction};
 use crate::grin_core::libtx;
 use crate::grin_keychain;
@@ -293,6 +294,10 @@ pub enum Error {
 	#[error("Age error: {0}")]
 	Age(String),
 
+	/// FROST conversion error
+	#[error("FROST error: {0}")]
+	Frost(String),
+
 	/// Rewind Hash parsing error
 	#[error("Rewind Hash error: {0}")]
 	RewindHash(String),
@@ -329,6 +334,12 @@ impl From<age::EncryptError> for Error {
 impl From<age::DecryptError> for Error {
 	fn from(error: age::DecryptError) -> Error {
 		Error::Age(format!("{}", error))
+	}
+}
+
+impl From<FrostConversionError> for Error {
+	fn from(error: FrostConversionError) -> Error {
+		Error::Frost(error.to_string())
 	}
 }
 

@@ -21,10 +21,10 @@ use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
-	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
-	SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo,
-	WalletLCProvider,
+	AcctPathMapping, Amount, BuiltOutput, Error, FrostSession, FrostSigningState, InitTxArgs,
+	IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, PaymentProof, Slate,
+	SlateVersion, Slatepack, SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate,
+	ViewWallet, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -933,6 +933,58 @@ pub trait OwnerRpc {
 		id: Option<u32>,
 		slate_id: Option<Uuid>,
 	) -> Result<Option<VersionedSlate>, Error>;
+
+	/**
+	Initialize a FROST signing session for the given slate, returning participant share
+	information that should be distributed to the holders.
+	*/
+	fn init_frost_session(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		threshold: u16,
+		labels: Vec<String>,
+	) -> Result<(), Error>;
+
+	/**
+	Fetch the stored FROST session metadata for the provided slate, if available.
+	*/
+	fn get_frost_session(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+	) -> Result<Option<FrostSession>, Error>;
+
+	/**
+	Fetch the recorded FROST signing state (commitments and partial signatures) for a slate.
+	*/
+	fn get_frost_signing_state(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+	) -> Result<Option<FrostSigningState>, Error>;
+
+	/**
+	Record a participant's round-1 FROST commitment payload for the given slate.
+	*/
+	fn submit_frost_round1_commitment(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		label: String,
+		commitment: String,
+	) -> Result<(), Error>;
+
+	/**
+	Record a participant's round-2 FROST signature share for the given slate.
+	*/
+	fn submit_frost_round2_signature(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		label: String,
+		signature: String,
+	) -> Result<(), Error>;
 
 	/**
 	Networked version of [Owner::get_rewind_hash](struct.Owner.html#method.get_rewind_hash).
@@ -2124,6 +2176,52 @@ where
 			}
 			None => Ok(None),
 		}
+	}
+
+	fn init_frost_session(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		threshold: u16,
+		labels: Vec<String>,
+	) -> Result<(), Error> {
+		Owner::init_frost_session(self, token, slate_id, threshold, labels)
+	}
+
+	fn get_frost_session(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+	) -> Result<Option<FrostSession>, Error> {
+		Owner::get_frost_session(self, token, slate_id)
+	}
+
+	fn get_frost_signing_state(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+	) -> Result<Option<FrostSigningState>, Error> {
+		Owner::get_frost_signing_state(self, token, slate_id)
+	}
+
+	fn submit_frost_round1_commitment(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		label: String,
+		commitment: String,
+	) -> Result<(), Error> {
+		Owner::submit_frost_round1_commitment(self, token, slate_id, label, commitment)
+	}
+
+	fn submit_frost_round2_signature(
+		&self,
+		token: Token,
+		slate_id: Uuid,
+		label: String,
+		signature: String,
+	) -> Result<(), Error> {
+		Owner::submit_frost_round2_signature(self, token, slate_id, label, signature)
 	}
 
 	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), Error> {

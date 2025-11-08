@@ -18,6 +18,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use uuid::Uuid;
 
+use crate::crypto::frost;
 use crate::grin_core::consensus::valid_header_version;
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_keychain::{Identifier, Keychain};
@@ -304,13 +305,31 @@ pub fn complete_tx<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
-	context: &Context,
+	context: &mut Context,
 ) -> Result<(), Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let keychain = wallet.keychain(keychain_mask)?;
+
+	if context.frost_session().is_some() {
+		let msg = slate.msg_to_sign()?;
+		let mut msg_bytes = [0u8; 32];
+		msg_bytes.copy_from_slice(msg.as_ref());
+		let aggregated = frost::aggregate_signature(context, &msg_bytes)?;
+		let expected_pubkey = slate.pub_blind_sum(keychain.secp())?;
+		if aggregated.aggregated_pubkey != expected_pubkey {
+			return Err(Error::Frost(
+				"aggregated FROST public key does not match slate excess".to_owned(),
+			));
+		}
+		slate.finalize_with_signature(&keychain, &aggregated.signature, &expected_pubkey)?;
+		context.clear_frost_signing_state();
+		return Ok(());
+	}
+
 	// when self sending invoice tx, use initiator nonce to finalize
 	let (sec_key, sec_nonce) = {
 		if context.initial_sec_key != context.sec_key
@@ -324,11 +343,11 @@ where
 			(context.sec_key.clone(), context.sec_nonce.clone())
 		}
 	};
-	slate.fill_round_2(&wallet.keychain(keychain_mask)?, &sec_key, &sec_nonce)?;
+	slate.fill_round_2(&keychain, &sec_key, &sec_nonce)?;
 
 	// Final transaction can be built by anyone at this stage
 	trace!("Slate to finalize is: {}", slate);
-	slate.finalize(&wallet.keychain(keychain_mask)?)?;
+	slate.finalize(&keychain)?;
 	Ok(())
 }
 
