@@ -1479,6 +1479,7 @@ dependencies = [
  "grin_core",
  "grin_util",
  "grin_wallet_util",
+ "log",
  "pretty_assertions",
  "rand 0.6.5",
  "serde",

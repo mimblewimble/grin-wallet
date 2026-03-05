@@ -11,3 +11,5 @@ grin.log
 wallet.seed
 test_output
 .idea/
+*.vs
+.gitattributes

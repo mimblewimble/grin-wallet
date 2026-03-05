@@ -333,10 +333,9 @@ pub fn migrate_comments(
 					None
 				}
 				false => {
-					let comments: String =
-						vec_old_conf.iter().map(|s| s.chars()).flatten().collect();
+					let comments: String = vec_old_conf.iter().flat_map(|s| s.chars()).collect();
 					let key = get_key(line_nospace);
-					match !(key == "NOT_FOUND") {
+					match key != "NOT_FOUND" {
 						true => {
 							vec_old_conf.clear();
 							hm_key_cmt_old.insert(key.clone(), comments);
@@ -356,10 +355,10 @@ pub fn migrate_comments(
 		.filter_map(|line| {
 			let line_nospace = line.trim();
 			let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
-			match !(line.contains("#") || is_ascii_control) {
+			match !line.contains("#") && !is_ascii_control {
 				true => {
 					let key = get_key(line_nospace);
-					match !(key == "NOT_FOUND") {
+					match key != "NOT_FOUND" {
 						true => Some((key, line_nospace.to_string())),
 						false => None,
 					}

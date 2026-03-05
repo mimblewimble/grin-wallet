@@ -24,12 +24,12 @@ use crate::util::init_logger;
 use clap::App;
 use grin_core as core;
 use grin_util as util;
+use grin_wallet::cmd;
 use grin_wallet_config as config;
 use grin_wallet_impls::HTTPNodeClient;
 use std::env;
 use std::path::PathBuf;
-
-use grin_wallet::cmd;
+use std::path::MAIN_SEPARATOR;
 
 // include build information
 pub mod built_info {
@@ -53,6 +53,13 @@ pub fn info_strings() -> (String, String) {
 		)
 		.to_string(),
 	)
+}
+
+// Helper fuction to format paths according to OS, avoids bugs on Linux
+pub fn fmt_path(path: String) -> String {
+	let sep = &MAIN_SEPARATOR.to_string();
+	let path = path.replace("/", &sep).replace("\\", &sep);
+	path
 }
 
 fn log_build_info() {
@@ -82,11 +89,11 @@ fn real_main() -> i32 {
 
 	let mut current_dir = None;
 	let mut create_path = false;
-
 	if args.is_present("top_level_dir") {
 		let res = args.value_of("top_level_dir");
 		match res {
 			Some(d) => {
+				let d = fmt_path(d.to_owned().to_string()); // Fix for fs to work with paths on Linux
 				current_dir = Some(PathBuf::from(d));
 			}
 			None => {
@@ -138,7 +145,6 @@ fn real_main() -> i32 {
 		"Using wallet configuration file at {}",
 		config.config_file_path.as_ref().unwrap().to_str().unwrap()
 	);
-
 	log_build_info();
 
 	global::init_global_chain_type(
@@ -154,9 +160,7 @@ fn real_main() -> i32 {
 	);
 
 	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
-
 	let wallet_config = config.clone().members.unwrap().wallet;
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-
 	cmd::wallet_command(&args, config, node_client)
 }
