@@ -96,6 +96,7 @@ where
 /// Apply advanced filtering to resultset from retrieve_txs below
 pub fn apply_advanced_tx_list_filtering<'a, T: ?Sized, C, K>(
 	wallet: &mut T,
+	parent_key_id: Option<&Identifier>,
 	query_args: &RetrieveTxQueryArgs,
 ) -> Vec<TxLogEntry>
 where
@@ -107,6 +108,10 @@ where
 	let txs_iter: Box<dyn Iterator<Item = TxLogEntry>> = Box::new(
 		wallet
 			.tx_log_iter()
+			.filter(|tx_entry| match parent_key_id {
+				Some(k) => tx_entry.parent_key_id == *k,
+				None => true,
+			})
 			.filter(|tx_entry| {
 				if let Some(v) = query_args.exclude_cancelled {
 					if v {
@@ -343,7 +348,7 @@ where
 	// Adding in new transaction list query logic. If `tx_id` or `tx_slate_id`
 	// is provided, then `query_args` is ignored and old logic is followed.
 	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
-		txs = apply_advanced_tx_list_filtering(wallet, &query_args.unwrap())
+		txs = apply_advanced_tx_list_filtering(wallet, parent_key_id, &query_args.unwrap())
 	} else {
 		txs = wallet
 			.tx_log_iter()
