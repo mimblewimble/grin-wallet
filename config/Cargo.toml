@@ -21,8 +21,8 @@ grin_wallet_util = { path = "../util", version = "5.4.0-alpha.1" }
 ##### Grin Imports
 
 # For Release
-grin_core = "5.3.3"
-grin_util = "5.3.3"
+grin_core = "5.4.0"
+grin_util = "5.4.0"
 
 # For beta release
 

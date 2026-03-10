@@ -43,12 +43,12 @@ grin_wallet_libwallet = { path = "../libwallet", version = "5.4.0-alpha.1" }
 ##### Grin Imports
 
 # For Release
-grin_core = "5.3.3"
-grin_keychain = "5.3.3"
-grin_chain = "5.3.3"
-grin_util = "5.3.3"
-grin_api = "5.3.3"
-grin_store = "5.3.3"
+grin_core = "5.4.0"
+grin_keychain = "5.4.0"
+grin_chain = "5.4.0"
+grin_util = "5.4.0"
+grin_api = "5.4.0"
+grin_store = "5.4.0"
 
 # For beta release
 

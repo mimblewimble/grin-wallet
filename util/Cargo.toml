@@ -21,7 +21,7 @@ thiserror = "1"
 ##### Grin Imports
 
 # For Release
-grin_util = "5.3.3"
+grin_util = "5.4.0"
 
 # For beta release
 
