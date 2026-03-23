@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::blake2;
 use core::num::NonZeroU32;
+use rand::{thread_rng, Rng};
+use serde_json;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 use std::path::MAIN_SEPARATOR;
-
-use crate::blake2;
-use rand::{thread_rng, Rng};
-use serde_json;
 
 use ring::aead;
 use ring::pbkdf2;
@@ -57,6 +56,13 @@ impl WalletSeed {
 		self.0.to_vec().to_hex()
 	}
 
+	// Helper fuction to format paths according to OS, avoids bugs on Linux
+	pub fn fmt_path(path: String) -> String {
+		let sep = &MAIN_SEPARATOR.to_string();
+		let path = path.replace("/", &sep);
+		let path = path.replace("\\", &sep);
+		path
+	}
 	pub fn to_mnemonic(&self) -> Result<String, Error> {
 		let result = mnemonic::from_entropy(&self.0);
 		match result {
@@ -97,7 +103,12 @@ impl WalletSeed {
 	}
 
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
-		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		let seed_file_path = &format!(
+			"{}{}{}",
+			Self::fmt_path(data_file_dir.to_string()),
+			MAIN_SEPARATOR,
+			SEED_FILE,
+		);
 		debug!("Seed file path: {}", seed_file_path);
 		if Path::new(seed_file_path).exists() {
 			Ok(true)
@@ -132,7 +143,12 @@ impl WalletSeed {
 		word_list: util::ZeroingString,
 		password: util::ZeroingString,
 	) -> Result<(), Error> {
-		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		let seed_file_path = &format!(
+			"{}{}{}",
+			Self::fmt_path(data_file_dir.to_string()),
+			MAIN_SEPARATOR,
+			SEED_FILE,
+		);
 		debug!("data file dir: {}", data_file_dir);
 		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir) {
 			debug!("seed file exists");
@@ -166,10 +182,15 @@ impl WalletSeed {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
 
-		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
-
+		let seed_file_path = &format!(
+			"{}{}{}",
+			Self::fmt_path(data_file_dir.to_string()),
+			MAIN_SEPARATOR,
+			SEED_FILE,
+		);
+		let data_file_dir = Self::fmt_path(data_file_dir.to_string());
 		warn!("Generating wallet seed file at: {}", seed_file_path);
-		let exists = WalletSeed::seed_file_exists(data_file_dir)?;
+		let exists = WalletSeed::seed_file_exists(&data_file_dir)?;
 		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
 			error!("{}", msg);
@@ -196,7 +217,12 @@ impl WalletSeed {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
 
-		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		let seed_file_path = &format!(
+			"{}{}{}",
+			Self::fmt_path(data_file_dir.to_string()),
+			MAIN_SEPARATOR,
+			SEED_FILE,
+		);
 
 		debug!("Using wallet seed file at: {}", seed_file_path);
 
@@ -219,7 +245,12 @@ impl WalletSeed {
 	}
 
 	pub fn delete_seed_file(data_file_dir: &str) -> Result<(), Error> {
-		let seed_file_path = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+		let seed_file_path = &format!(
+			"{}{}{}",
+			Self::fmt_path(data_file_dir.to_string()),
+			MAIN_SEPARATOR,
+			SEED_FILE,
+		);
 		if Path::new(seed_file_path).exists() {
 			debug!("Deleting wallet seed file at: {}", seed_file_path);
 			fs::remove_file(seed_file_path).map_err(|_| Error::IO)?;
