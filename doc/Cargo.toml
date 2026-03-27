@@ -1,0 +1,19 @@
+[package]
+name = "grin_wallet_doc"
+version = "5.4.0-alpha.1"
+authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
+description = "Grin Wallet Documentation Macros"
+license = "Apache-2.0"
+repository = "https://github.com/mimblewimble/grin-wallet"
+keywords = [ "crypto", "grin", "mimblewimble" ]
+exclude = ["**/*.grin", "**/*.grin2"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+
