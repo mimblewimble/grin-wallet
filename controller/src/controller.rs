@@ -130,8 +130,8 @@ where
 	}
 
 	warn!(
-		"Starting Tor Hidden Service for API listener at address {}, binding to {}",
-		onion_address, addr
+		"Starting Tor Hidden Service for API listener at address {}.onion, binding to {}, your slatepack address is {}",
+		onion_address, addr, sp_address
 	);
 	tor_config::output_tor_listener_config(
 		&tor_dir,
