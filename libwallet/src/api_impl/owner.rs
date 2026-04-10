@@ -983,6 +983,7 @@ where
 		wallet_inst.clone(),
 		keychain_mask,
 		delete_unconfirmed,
+		None,
 		start_height,
 		tip.0,
 		status_send_channel,
@@ -1110,12 +1111,14 @@ where
 	let last_scanned_block = {
 		wallet_lock!(wallet_inst, w);
 		match w.init_status()? {
-			WalletInitStatus::InitNeedsScanning => ScannedBlockInfo {
-				height: 0,
-				hash: "".to_owned(),
-				start_pmmr_index: 0,
-				last_pmmr_index: 0,
-			},
+			WalletInitStatus::InitNeedsScanning => {
+				w.last_scanned_block().unwrap_or(ScannedBlockInfo {
+					height: 0,
+					hash: "".to_owned(),
+					start_pmmr_index: 0,
+					last_pmmr_index: 0,
+				})
+			}
 			WalletInitStatus::InitNoScanning => ScannedBlockInfo {
 				height: tip.clone().0,
 				hash: tip.clone().1,
@@ -1126,7 +1129,12 @@ where
 		}
 	};
 
-	let start_index = last_scanned_block.height.saturating_sub(100);
+	let start_height = last_scanned_block.height.saturating_sub(100);
+
+	debug!(
+		"update_wallet_state: last_scanned_block: {:?}",
+		last_scanned_block
+	);
 
 	if last_scanned_block.height == 0 {
 		let msg = "This wallet has not been scanned against the current chain. Beginning full scan... (this first scan may take a while, but subsequent scans will be much quicker)".to_string();
@@ -1135,11 +1143,18 @@ where
 		}
 	}
 
+	let start_pmmr_index = if last_scanned_block.start_pmmr_index == 0 {
+		None
+	} else {
+		Some(last_scanned_block.start_pmmr_index)
+	};
+
 	let mut info = scan::scan(
 		wallet_inst.clone(),
 		keychain_mask,
 		false,
-		start_index,
+		start_pmmr_index,
+		start_height,
 		tip.0,
 		status_send_channel,
 	)?;
