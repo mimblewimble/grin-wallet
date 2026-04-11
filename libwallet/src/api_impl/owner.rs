@@ -1111,21 +1111,13 @@ where
 	let last_scanned_block = {
 		wallet_lock!(wallet_inst, w);
 		match w.init_status()? {
-			WalletInitStatus::InitNeedsScanning => {
-				w.last_scanned_block().unwrap_or(ScannedBlockInfo {
-					height: 0,
-					hash: "".to_owned(),
-					start_pmmr_index: 0,
-					last_pmmr_index: 0,
-				})
-			}
 			WalletInitStatus::InitNoScanning => ScannedBlockInfo {
 				height: tip.clone().0,
 				hash: tip.clone().1,
 				start_pmmr_index: 0,
 				last_pmmr_index: 0,
 			},
-			WalletInitStatus::InitComplete => w.last_scanned_block()?,
+			_ => w.last_scanned_block()?,
 		}
 	};
 

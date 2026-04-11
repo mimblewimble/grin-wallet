@@ -231,6 +231,7 @@ fn collect_chain_outputs<'a, L, C, K>(
 	keychain_mask: &Option<&SecretKey>,
 	keychain: &K,
 	client: C,
+	start_height: u64,
 	start_index: u64,
 	end_index: Option<u64>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
@@ -274,15 +275,15 @@ where
 			keychain,
 			outputs.clone(),
 			status_send_channel,
-			perc_complete as u8,
+			perc_complete,
 		)?);
 
-		// Save last scanned block info.
+		// Save last scanned block info to continue from same index in case of interruption.
 		{
 			wallet_lock!(wallet_inst, w);
 			let mut batch = w.batch(*keychain_mask)?;
 			batch.save_last_scanned_block(ScannedBlockInfo {
-				height: 0,
+				height: start_height,
 				hash: "".to_string(),
 				start_pmmr_index: start_index,
 				last_pmmr_index: last_retrieved_index,
@@ -511,6 +512,7 @@ where
 		&keychain_mask,
 		&keychain,
 		client,
+		start_height,
 		start_pmmr_index,
 		Some(pmmr_range.1),
 		status_send_channel,
