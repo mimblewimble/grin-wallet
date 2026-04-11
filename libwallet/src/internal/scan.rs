@@ -226,14 +226,18 @@ where
 	Ok(vw)
 }
 
-fn collect_chain_outputs<'a, C, K>(
+fn collect_chain_outputs<'a, L, C, K>(
+	wallet_inst: &Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: &Option<&SecretKey>,
 	keychain: &K,
 	client: C,
+	start_height: u64,
 	start_index: u64,
 	end_index: Option<u64>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 ) -> Result<(Vec<OutputResult>, u64), Error>
 where
+	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
@@ -242,6 +246,13 @@ where
 	let mut start_index = start_index;
 	let mut result_vec: Vec<OutputResult> = vec![];
 	let last_retrieved_return_index;
+
+	debug!(
+		"collect_chain_outputs: start_index {}, end_index {}",
+		start_index,
+		end_index.unwrap_or(0)
+	);
+
 	loop {
 		let (highest_index, last_retrieved_index, outputs) =
 			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
@@ -264,8 +275,23 @@ where
 			keychain,
 			outputs.clone(),
 			status_send_channel,
-			perc_complete as u8,
+			perc_complete,
 		)?);
+
+		// Save last scanned block info to continue from same index in case of interruption.
+		{
+			wallet_lock!(wallet_inst, w);
+			let mut batch = w.batch(*keychain_mask)?;
+			batch.save_last_scanned_block(ScannedBlockInfo {
+				height: start_height,
+				hash: "".to_string(),
+				start_pmmr_index: start_index,
+				last_pmmr_index: last_retrieved_index,
+			})?;
+			batch.commit()?;
+
+			debug!("collect_chain_outputs: save_last_scanned_block: start_index {}, last_pmmr_index {}", start_index, last_retrieved_index);
+		}
 
 		if highest_index <= last_retrieved_index {
 			last_retrieved_return_index = last_retrieved_index;
@@ -458,6 +484,7 @@ pub fn scan<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
+	start_pmmr_index: Option<u64>,
 	start_height: u64,
 	end_height: u64,
 	status_send_channel: &Option<Sender<StatusMessage>>,
@@ -479,10 +506,14 @@ where
 	// Retrieve the actual PMMR index range we're looking for
 	let pmmr_range = client.height_range_to_pmmr_indices(start_height, Some(end_height))?;
 
+	let start_pmmr_index = start_pmmr_index.unwrap_or(pmmr_range.0);
 	let (chain_outs, last_index) = collect_chain_outputs(
+		&wallet_inst,
+		&keychain_mask,
 		&keychain,
 		client,
-		pmmr_range.0,
+		start_height,
+		start_pmmr_index,
 		Some(pmmr_range.1),
 		status_send_channel,
 	)?;
