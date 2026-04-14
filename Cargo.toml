@@ -41,10 +41,10 @@ grin_wallet_util = { path = "./util", version = "5.4.0-alpha.1" }
 ##### Grin Imports
 
 # For Release
-grin_core = "5.3.3"
-grin_keychain = "5.3.3"
-grin_util = "5.3.3"
-grin_api = "5.3.3"
+grin_core = "5.4.0"
+grin_keychain = "5.4.0"
+grin_util = "5.4.0"
+grin_api = "5.4.0"
 
 # For beta release
 
@@ -68,7 +68,7 @@ grin_api = "5.3.3"
 ###### 
 
 [build-dependencies]
-built = { version = "0.7", features = ["git2"]}
+built = { version = "0.8.0", features = ["git2"]}
 
 [dev-dependencies]
 url = "2.1"

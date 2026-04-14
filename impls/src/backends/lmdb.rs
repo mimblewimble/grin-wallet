@@ -696,6 +696,16 @@ where
 		Ok(())
 	}
 
+	fn delete_tx_log_entry(&mut self, tx_id: u32, parent_id: &Identifier) -> Result<(), Error> {
+		let tx_log_key = to_key_u64(
+			TX_LOG_ENTRY_PREFIX,
+			&mut parent_id.to_bytes().to_vec(),
+			tx_id as u64,
+		);
+		self.db.borrow().as_ref().unwrap().delete(&tx_log_key)?;
+		Ok(())
+	}
+
 	fn save_acct_path(&mut self, mapping: AcctPathMapping) -> Result<(), Error> {
 		let acct_key = to_key(
 			ACCOUNT_PATH_MAPPING_PREFIX,
