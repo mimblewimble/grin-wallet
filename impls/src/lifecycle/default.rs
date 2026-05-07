@@ -202,7 +202,7 @@ where
 		let exists = WalletSeed::seed_file_exists(&data_dir_name);
 		if !test_mode {
 			if let Ok(true) = exists {
-				let msg = format!("Wallet seed already exists at4565: {}", data_dir_name);
+				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
 				return Err(Error::WalletSeedExists(msg));
 			}
 		}
