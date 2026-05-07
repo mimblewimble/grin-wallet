@@ -24,7 +24,7 @@ use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{config_file_exists, TorConfig, WalletConfig};
+use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
@@ -332,7 +332,7 @@ pub fn parse_init_args<L, C, K>(
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
-	test_mode: bool,
+	_test_mode: bool,
 ) -> Result<command::InitArgs, ParseError>
 where
 	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
@@ -340,10 +340,6 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	if config_file_exists(&config.data_file_dir) && !test_mode {
-		return Err(ParseError::WalletExists(config.data_file_dir.clone()));
-	}
-
 	let list_length = match args.is_present("short_wordlist") {
 		false => 32,
 		true => 16,
@@ -1004,7 +1000,7 @@ where
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
 	// legacy hack to avoid the need for changes in existing grin-wallet.toml files
-	// remove `wallet_data` from end of path as
+	// remove `wallet_data` from end of path
 	// new lifecycle provider assumes grin_wallet.toml is in root of data directory
 	let mut top_level_wallet_dir = PathBuf::from(wallet_config.clone().data_file_dir);
 	if top_level_wallet_dir.ends_with(GRIN_WALLET_DIR) {

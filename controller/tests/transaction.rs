@@ -442,7 +442,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
 	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
-									  // mine a few blocks
+									   // mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 
 	let amount = 30_000_000_000;
