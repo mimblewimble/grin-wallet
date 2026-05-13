@@ -14,6 +14,7 @@
 
 //! Generic implementation of owner API functions
 
+use std::cmp;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
@@ -974,26 +975,30 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
-	let start_height = match start_height {
-		Some(h) => h,
-		None => 1,
-	};
+	let start_height = start_height.unwrap_or_else(|| 1);
 
-	let mut info = scan::scan(
-		wallet_inst.clone(),
-		keychain_mask,
-		delete_unconfirmed,
-		None,
-		start_height,
-		tip.0,
-		status_send_channel,
-	)?;
-	info.hash = tip.1;
+	// Scan every 10k heights to save data between batches in case of interruption.
+	let mut total_pmmr_range = None;
+	for h in (start_height..tip.0).step_by(10001) {
+		let (mut info, range) = scan::scan(
+			wallet_inst.clone(),
+			keychain_mask,
+			delete_unconfirmed,
+			h,
+			cmp::min(tip.0, h + 10000),
+			start_height,
+			tip.0,
+			total_pmmr_range,
+			status_send_channel,
+		)?;
+		info.hash = tip.1.clone();
+		total_pmmr_range = Some(range);
 
-	wallet_lock!(wallet_inst, w);
-	let mut batch = w.batch(keychain_mask)?;
-	batch.save_last_scanned_block(info)?;
-	batch.commit()?;
+		wallet_lock!(wallet_inst, w);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_last_scanned_block(info)?;
+		batch.commit()?;
+	}
 
 	Ok(())
 }
@@ -1135,25 +1140,23 @@ where
 		}
 	}
 
-	let start_pmmr_index = if last_scanned_block.start_pmmr_index == 0 {
-		None
-	} else {
-		Some(last_scanned_block.start_pmmr_index)
-	};
+	// Scan every 10k heights to save data between batches in case of interruption.
+	let mut total_pmmr_range = None;
+	for h in (start_height..tip.0).step_by(10001) {
+		let (mut info, range) = scan::scan(
+			wallet_inst.clone(),
+			keychain_mask,
+			false,
+			h,
+			cmp::min(tip.0, h + 10000),
+			start_height,
+			tip.0,
+			total_pmmr_range,
+			status_send_channel,
+		)?;
+		info.hash = tip.1.clone();
+		total_pmmr_range = Some(range);
 
-	let mut info = scan::scan(
-		wallet_inst.clone(),
-		keychain_mask,
-		false,
-		start_pmmr_index,
-		start_height,
-		tip.0,
-		status_send_channel,
-	)?;
-
-	info.hash = tip.1;
-
-	{
 		wallet_lock!(wallet_inst, w);
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_last_scanned_block(info)?;

@@ -226,40 +226,33 @@ where
 	Ok(vw)
 }
 
-fn collect_chain_outputs<'a, L, C, K>(
-	wallet_inst: &Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	keychain_mask: &Option<&SecretKey>,
+fn collect_chain_outputs<'a, C, K>(
 	keychain: &K,
 	client: C,
-	start_height: u64,
+	batch_start_index: u64,
+	batch_end_index: u64,
 	start_index: u64,
-	end_index: Option<u64>,
+	end_index: u64,
 	status_send_channel: &Option<Sender<StatusMessage>>,
-) -> Result<(Vec<OutputResult>, u64), Error>
+) -> Result<(Vec<OutputResult>, u64, u8), Error>
 where
-	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
 	let batch_size = 1000;
 	let start_index_stat = start_index;
-	let mut start_index = start_index;
+	let mut start_index = batch_start_index;
 	let mut result_vec: Vec<OutputResult> = vec![];
 	let last_retrieved_return_index;
 
-	debug!(
-		"collect_chain_outputs: start_index {}, end_index {}",
-		start_index,
-		end_index.unwrap_or(0)
-	);
-
+	let mut perc_complete;
 	loop {
 		let (highest_index, last_retrieved_index, outputs) =
-			client.get_outputs_by_pmmr_index(start_index, end_index, batch_size)?;
+			client.get_outputs_by_pmmr_index(start_index, Some(batch_end_index), batch_size)?;
 
-		let range = highest_index as f64 - start_index_stat as f64;
+		let range = end_index as f64 - start_index_stat as f64;
 		let progress = last_retrieved_index as f64 - start_index_stat as f64;
-		let perc_complete = cmp::min(((progress / range) * 100.0) as u8, 99);
+		perc_complete = cmp::min(((progress / range) * 100.0) as u8, 99);
 
 		let msg = format!(
 			"Checking {} outputs, up to index {}. (Highest index: {})",
@@ -278,20 +271,10 @@ where
 			perc_complete,
 		)?);
 
-		// Save last scanned block info to continue from same index in case of interruption.
-		{
-			wallet_lock!(wallet_inst, w);
-			let mut batch = w.batch(*keychain_mask)?;
-			batch.save_last_scanned_block(ScannedBlockInfo {
-				height: start_height,
-				hash: "".to_string(),
-				start_pmmr_index: start_index,
-				last_pmmr_index: last_retrieved_index,
-			})?;
-			batch.commit()?;
-
-			debug!("collect_chain_outputs: save_last_scanned_block: start_index {}, last_pmmr_index {}", start_index, last_retrieved_index);
-		}
+		debug!(
+			"collect_chain_outputs: start_index {}, last_pmmr_index {}",
+			start_index, last_retrieved_index
+		);
 
 		if highest_index <= last_retrieved_index {
 			last_retrieved_return_index = last_retrieved_index;
@@ -299,7 +282,7 @@ where
 		}
 		start_index = last_retrieved_index + 1;
 	}
-	Ok((result_vec, last_retrieved_return_index))
+	Ok((result_vec, last_retrieved_return_index, perc_complete))
 }
 
 ///
@@ -484,11 +467,13 @@ pub fn scan<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
-	start_pmmr_index: Option<u64>,
+	batch_start_height: u64,
+	batch_end_height: u64,
 	start_height: u64,
 	end_height: u64,
+	total_pmmr_range: Option<(u64, u64)>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
-) -> Result<ScannedBlockInfo, Error>
+) -> Result<(ScannedBlockInfo, (u64, u64)), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -496,34 +481,46 @@ where
 {
 	// First, get a definitive list of outputs we own from the chain
 	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::Scanning("Starting UTXO scan".to_owned(), 0));
+		if start_height == batch_start_height {
+			let _ = s.send(StatusMessage::Scanning("Starting UTXO scan".to_owned(), 0));
+		}
 	}
 	let (client, keychain) = {
 		wallet_lock!(wallet_inst, w);
 		(w.w2n_client().clone(), w.keychain(keychain_mask)?)
 	};
 
-	// Retrieve the actual PMMR index range we're looking for
-	let pmmr_range = client.height_range_to_pmmr_indices(start_height, Some(end_height))?;
+	// Retrieve total PMMR index range we're looking for
+	let total_pmmr_range = if let Some(total_range) = total_pmmr_range {
+		total_range
+	} else {
+		client.height_range_to_pmmr_indices(start_height, Some(end_height))?
+	};
 
-	let start_pmmr_index = start_pmmr_index.unwrap_or(pmmr_range.0);
-	let (chain_outs, last_index) = collect_chain_outputs(
-		&wallet_inst,
-		&keychain_mask,
+	// Retrieve current batch PMMR index range
+	let pmmr_range =
+		client.height_range_to_pmmr_indices(batch_start_height, Some(batch_end_height))?;
+
+	debug!(
+		"scan: from: {}, to: {}",
+		batch_start_height, batch_end_height
+	);
+
+	let (chain_outs, last_index, perc_complete) = collect_chain_outputs(
 		&keychain,
 		client,
-		start_height,
-		start_pmmr_index,
-		Some(pmmr_range.1),
+		pmmr_range.0,
+		pmmr_range.1,
+		total_pmmr_range.0,
+		total_pmmr_range.1,
 		status_send_channel,
 	)?;
 	let msg = format!(
 		"Identified {} wallet_outputs as belonging to this wallet",
 		chain_outs.len(),
 	);
-
 	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::Scanning(msg, 99));
+		let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 	}
 
 	// Now, get all outputs owned by this wallet (regardless of account)
@@ -561,7 +558,7 @@ where
 			o.value, o.key_id, m.1.commit,
 		);
 		if let Some(ref s) = status_send_channel {
-			let _ = s.send(StatusMessage::Scanning(msg, 99));
+			let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 		}
 		o.status = OutputStatus::Unspent;
 		// any transactions associated with this should be cancelled
@@ -582,7 +579,7 @@ where
 				m.value, m.key_id, m.commit, m.mmr_index
 			);
 		if let Some(ref s) = status_send_channel {
-			let _ = s.send(StatusMessage::Scanning(msg, 99));
+			let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 		}
 		restore_missing_output(
 			wallet_inst.clone(),
@@ -603,7 +600,7 @@ where
 				o.value, o.key_id, m.1.commit,
 			);
 			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::Scanning(msg, 99));
+				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 			}
 			o.status = OutputStatus::Unspent;
 			cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
@@ -626,7 +623,7 @@ where
 				o.value, o.key_id, m.commit,
 			);
 			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::Scanning(msg, 99));
+				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 			}
 			cancel_tx_log_entry(wallet_inst.clone(), keychain_mask, &o)?;
 			wallet_lock!(wallet_inst, w);
@@ -647,7 +644,7 @@ where
 			let label = format!("{}_{}", label_base, acct_index);
 			let msg = format!("Setting account {} at path {}", label, path);
 			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::Scanning(msg, 99));
+				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 			}
 			keys::set_acct_path(&mut **w, keychain_mask, &label, path)?;
 			acct_index += 1;
@@ -662,15 +659,20 @@ where
 	}
 
 	if let Some(ref s) = status_send_channel {
-		let _ = s.send(StatusMessage::ScanningComplete(
-			"Scanning Complete".to_owned(),
-		));
+		if end_height == batch_end_height {
+			let _ = s.send(StatusMessage::ScanningComplete(
+				"Scanning Complete".to_owned(),
+			));
+		}
 	}
 
-	Ok(ScannedBlockInfo {
-		height: end_height,
-		hash: "".to_owned(),
-		start_pmmr_index: pmmr_range.0,
-		last_pmmr_index: last_index,
-	})
+	Ok((
+		ScannedBlockInfo {
+			height: batch_end_height,
+			hash: "".to_owned(),
+			start_pmmr_index: pmmr_range.0,
+			last_pmmr_index: last_index,
+		},
+		total_pmmr_range,
+	))
 }
