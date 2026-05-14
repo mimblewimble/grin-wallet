@@ -7,7 +7,7 @@ license = "Apache-2.0"
 repository = "https://github.com/mimblewimble/grin-wallet"
 keywords = [ "crypto", "grin", "mimblewimble" ]
 exclude = ["**/*.grin", "**/*.grin2"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 blake2-rfc = "0.2"

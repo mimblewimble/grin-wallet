@@ -82,7 +82,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-// Assume global chain type has already been initialized.
+	// Assume global chain type has already been initialized.
 	let chain_type = global::get_chain_type();
 
 	let mut w_lock = owner_api.wallet_inst.lock();
