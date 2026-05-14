@@ -494,4 +494,5 @@ impl From<grin_wallet_controller::Error> for WalletAPIReturnError {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RetrieveSummaryInfoResp(pub bool, pub WalletInfo);
