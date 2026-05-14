@@ -1043,6 +1043,9 @@ where
 	}
 }
 
+/// Wallet scan window in blocks (48 hours).
+pub const REORG_RESCAN_WINDOW: u64 = 24 * 60 * 2;
+
 /// Experimental, wrap the entire definition of how a wallet's state is updated
 pub fn update_wallet_state<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
@@ -1131,7 +1134,9 @@ where
 		}
 	};
 
-	let start_height = last_scanned_block.height.saturating_sub(100);
+	let start_height = last_scanned_block
+		.height
+		.saturating_sub(REORG_RESCAN_WINDOW);
 
 	debug!(
 		"update_wallet_state: last_scanned_block: {:?}",
