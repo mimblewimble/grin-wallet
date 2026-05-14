@@ -979,19 +979,24 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..=tip.0).step_by(10001) {
+	for h in (start_height..tip.0).step_by(10001) {
+		let batch_end_height = cmp::min(tip.0, h + 10000);
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
 			keychain_mask,
 			delete_unconfirmed,
 			h,
-			cmp::min(tip.0, h + 10000),
+			batch_end_height,
 			start_height,
 			tip.0,
 			total_pmmr_range,
 			status_send_channel,
 		)?;
-		info.hash = tip.1.clone();
+		info.hash = if batch_end_height == tip.0 {
+			tip.1.clone()
+		} else {
+			"".to_owned()
+		};
 		total_pmmr_range = Some(range);
 
 		wallet_lock!(wallet_inst, w);
@@ -1142,19 +1147,24 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..=tip.0).step_by(10001) {
+	for h in (start_height..tip.0).step_by(10001) {
+		let batch_end_height = cmp::min(tip.0, h + 10000);
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
 			keychain_mask,
 			false,
 			h,
-			cmp::min(tip.0, h + 10000),
+			batch_end_height,
 			start_height,
 			tip.0,
 			total_pmmr_range,
 			status_send_channel,
 		)?;
-		info.hash = tip.1.clone();
+		info.hash = if batch_end_height == tip.0 {
+			tip.1.clone()
+		} else {
+			"".to_owned()
+		};
 		total_pmmr_range = Some(range);
 
 		wallet_lock!(wallet_inst, w);
