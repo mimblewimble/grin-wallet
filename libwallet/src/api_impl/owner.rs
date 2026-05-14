@@ -979,7 +979,7 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..tip.0).step_by(10001) {
+	for h in (start_height..=tip.0).step_by(10001) {
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
 			keychain_mask,
@@ -1142,7 +1142,7 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..tip.0).step_by(10001) {
+	for h in (start_height..=tip.0).step_by(10001) {
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
 			keychain_mask,
