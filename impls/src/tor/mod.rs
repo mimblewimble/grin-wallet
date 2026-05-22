@@ -16,3 +16,14 @@ pub mod bridge;
 pub mod config;
 pub mod process;
 pub mod proxy;
+pub mod arti;
+
+/// Running Tor instance control.
+pub struct Tor {
+    /// External to process control.
+    pub process: Option<process::TorProcess>,
+    /// Integrated service.
+    pub service: Option<std::sync::Arc<tor_hsservice::RunningOnionService>>,
+    /// Integrated client.
+    pub client: Option<arti_client::TorClient<tor_rtcompat::tokio::TokioNativeTlsRuntime>>
+}

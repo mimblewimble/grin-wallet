@@ -224,7 +224,7 @@ where
 				g_args.tls_conf.clone(),
 				tor_config.use_tor_listener,
 				test_mode,
-				Some(tor_config.clone()),
+				tor_config,
 			);
 			if let Err(e) = res {
 				error!("Error starting listener: {}", e);
