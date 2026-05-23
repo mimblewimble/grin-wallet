@@ -132,7 +132,7 @@ fn init_tor_listener(
 	Ok(Tor {
 		process: Some(process),
 		service: None,
-		client: None
+		client: None,
 	})
 }
 
@@ -307,13 +307,13 @@ where
 			)
 		};
 		match res {
-            Ok(service) => {
+			Ok(service) => {
 				warn!(
 					"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 					onion_address, addr
 				);
 				Some(service)
-			},
+			}
 			Err(e) => {
 				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
 				error!("Tor Error: {}", e);
@@ -325,8 +325,12 @@ where
 		None
 	};
 
-	let api_handler_v2 =
-		ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(Some(tor_config)));
+	let api_handler_v2 = ForeignAPIHandlerV2::new(
+		wallet,
+		keychain_mask,
+		test_mode,
+		Mutex::new(Some(tor_config)),
+	);
 	let mut router = Router::new();
 
 	router

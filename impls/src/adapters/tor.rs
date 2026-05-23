@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use grin_wallet_config::TorConfig;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -19,17 +20,16 @@ use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use grin_wallet_config::TorConfig;
 
 use crate::client_utils::{Client, ClientError};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, Slate};
-use crate::tor::bridge::TorBridge;
-use crate::tor::proxy::TorProxy;
-use crate::SlateSender;
-use crate::tor::{config as tor_config, Tor};
 use crate::tor::arti::{start_tor_client, tor_post};
+use crate::tor::bridge::TorBridge;
 use crate::tor::process::TorProcess;
+use crate::tor::proxy::TorProxy;
+use crate::tor::{config as tor_config, Tor};
+use crate::SlateSender;
 
 #[derive(Clone)]
 pub struct TorSlateSender {
@@ -66,13 +66,13 @@ impl TorSlateSender {
 	/// Launch external Tor process.
 	fn launch_tor_process(config: &TorConfig, tor_dir: &PathBuf) -> Result<Tor, Error> {
 		let mut tor = TorProcess::new();
-		let socks_proxy_addr = SocketAddr::V4(config.socks_proxy_addr.parse()
-			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?
+		let socks_proxy_addr = SocketAddr::V4(
+			config
+				.socks_proxy_addr
+				.parse()
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?,
 		);
-		info!(
-				"Starting TOR Process for send at {:?}",
-				socks_proxy_addr
-			);
+		info!("Starting TOR Process for send at {:?}", socks_proxy_addr);
 
 		let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
 		if config.bridge.bridge_line.is_some() {
@@ -98,7 +98,7 @@ impl TorSlateSender {
 			hm_tor_bridge,
 			hm_tor_proxy,
 		)
-			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 		// Start TOR process
 		let mut path = tor_dir.clone();
 		path.push("torrc");
@@ -171,18 +171,15 @@ impl TorSlateSender {
 		Err(Error::ClientCallback(report))
 	}
 
-	fn post<IN>(
-		&self,
-		url: &str,
-		input: IN,
-	) -> Result<String, ClientError>
+	fn post<IN>(&self, url: &str, input: IN) -> Result<String, ClientError>
 	where
 		IN: Serialize,
 	{
 		let res = if self.tor.process.is_some() {
-			let socks_proxy_addr = SocketAddr::V4(self.config.socks_proxy_addr.parse()
-				.map_err(|_| ClientError::Internal("Socks proxy address is not set".to_string()))?
-			);
+			let socks_proxy_addr =
+				SocketAddr::V4(self.config.socks_proxy_addr.parse().map_err(|_| {
+					ClientError::Internal("Socks proxy address is not set".to_string())
+				})?);
 			let client = Client::with_proxy(socks_proxy_addr, "socks5h://")
 				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 			let req = client.create_post_request(url, None, &input)?;
@@ -193,7 +190,7 @@ impl TorSlateSender {
 				tor_post(client.clone(), &input, url)
 					.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
 			} else {
-				return Err(ClientError::Internal("Tor is not configured".to_string()))
+				return Err(ClientError::Internal("Tor is not configured".to_string()));
 			}
 		};
 		Ok(res)

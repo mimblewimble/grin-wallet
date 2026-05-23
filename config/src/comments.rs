@@ -217,7 +217,7 @@ fn comments() -> HashMap<String, String> {
 		"
 #Whether to use integrated Tor library
 "
-			.to_string(),
+		.to_string(),
 	);
 
 	retval.insert(

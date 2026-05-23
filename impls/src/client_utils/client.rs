@@ -27,11 +27,8 @@ use tokio::runtime::{Builder, Handle, Runtime};
 
 // Global Tokio runtime.
 lazy_static! {
-	pub static ref RUNTIME: Arc<Runtime> = Arc::new(Builder::new_multi_thread()
-				.enable_all()
-				.build()
-				.unwrap()
-	);
+	pub static ref RUNTIME: Arc<Runtime> =
+		Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 }
 
 #[derive(Clone, Eq, thiserror::Error, PartialEq, Debug)]
@@ -267,11 +264,9 @@ impl Client {
 		if Handle::try_current().is_ok() {
 			let rt = RUNTIME.clone();
 			let client = self.clone();
-			std::thread::spawn(move || {
-				rt.block_on(async { client.send_request_async(req).await })
-			})
-			.join()
-			.unwrap()
+			std::thread::spawn(move || rt.block_on(async { client.send_request_async(req).await }))
+				.join()
+				.unwrap()
 		} else {
 			RUNTIME.block_on(self.send_request_async(req))
 		}
