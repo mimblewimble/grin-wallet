@@ -18,11 +18,16 @@ use std::thread;
 use std::time::Duration;
 use arti_client::config::{BridgeConfigBuilder, TorClientConfigBuilder};
 use arti_client::config::pt::TransportConfigBuilder;
-use arti_client::TorClient;
+use arti_client::{TorClient, TorClientConfig};
 use curve25519_dalek::digest::Digest;
 use arti_ed25519_dalek::hazmat::ExpandedSecretKey;
+use bytes::Bytes;
 use fs_mistrust::Mistrust;
 use grin_util::secp::SecretKey;
+use http_body_util::{BodyExt, Full};
+use hyper::{Request, Uri};
+use hyper_util::rt::TokioIo;
+use serde::Serialize;
 use sha2::Sha512;
 use tor_hscrypto::pk::{HsIdKey, HsIdKeypair};
 use tor_hsrproxy::config::{Encapsulation, ProxyAction, ProxyConfigBuilder, ProxyPattern, ProxyRule, TargetAddr};
@@ -39,9 +44,113 @@ use grin_wallet_libwallet::Error;
 use grin_wallet_util::OnionV3Address;
 use crate::tor::Tor;
 
-pub fn start_tor_service(key: SecretKey, tor_dir: &String, addr: &str, config: TorConfig) -> Result<Tor, Error> {
+/// Start Tor service from provided key.
+pub fn start_tor_service(key: SecretKey, tor_dir: &str, addr: &str, config: TorConfig) -> Result<Tor, Error> {
     let state_path = Path::new(&tor_dir).join("state");
     let cache_path = Path::new(&tor_dir).join("cache");
+    let (client, config) = init_client(&state_path, &cache_path, config)?;
+
+    // Add service key to keystore.
+    let onion_address = OnionV3Address::from_private(&key.0)
+        .map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+    let hs = HsNickname::new(onion_address.to_string()).unwrap();
+    let keystore_path = Path::new(&state_path).join("keystore");
+    let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path).map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+
+    // Launch Onion service.
+    let service_config = OnionServiceConfigBuilder::default()
+        .nickname(hs.clone())
+        .build()
+        .unwrap();
+    let running_onion_service = match client.launch_onion_service(service_config) {
+        Ok(res) => {
+            if let Some((service, request)) = res {
+                // Launch service proxy.
+                let addr: SocketAddr = addr.parse().map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+                let c = client.clone();
+                thread::spawn(move || {
+                    c.clone().runtime().block_on(async move {
+                        match run_service_proxy(c, addr, request, hs.clone()).await {
+                            Ok(_) => info!("Tor proxy stopped"),
+                            Err(e) => error!("Tor proxy error: {:?}", e),
+                        }
+                    })
+                });
+                service
+            } else {
+                return Err(Error::TorProcess("Can not launch onion service".to_owned()));
+            }
+        }
+        Err(e) => return Err(Error::TorProcess(format!("{:?}", e)))
+    };
+    Ok(Tor {
+        process: None,
+        service: Some(running_onion_service),
+        client: Some(client),
+    })
+}
+
+/// Start Tor client to send requests.
+pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> {
+    let state_path = Path::new(tor_dir).join("state");
+    let cache_path = Path::new(tor_dir).join("cache");
+    let (client, _) = init_client(&state_path, &cache_path, config)?;
+    Ok(Tor {
+        process: None,
+        service: None,
+        client: Some(client),
+    })
+}
+
+/// Make POST request with provided client.
+pub fn tor_post<IN>(client: TorClient<TokioNativeTlsRuntime>, input: &IN, url: &str) -> Result<String, Error>
+where
+    IN: Serialize,
+{
+    let json = serde_json::to_string(input)
+        .map_err(|_| Error::GenericError("Could not serialize data to JSON".to_owned()))?;
+    let url = url.to_string();
+    let url: Uri = url.parse()
+        .map_err(|_| Error::GenericError("Bad URL".to_owned()))?;
+    let res: Result<String, Error> = thread::spawn(move || {
+        let c = client.clone();
+        client.runtime().block_on(async move {
+            let stream = c.connect((url.host().unwrap(), url.port_u16().unwrap_or(80)))
+                .await
+                .map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+            let (mut request_sender, connection) =
+                hyper::client::conn::http1::handshake(TokioIo::new(stream))
+                    .await
+                    .map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+
+            // Spawn a task to poll the connection and drive the HTTP state.
+            tokio::spawn(async move {
+                connection.await.unwrap();
+            });
+
+            let resp = request_sender
+                .send_request(
+                    Request::builder()
+                        .uri(url)
+                        .method("POST")
+                        .body::<Full<Bytes>>(Full::from(json))
+                        .map_err(|e| Error::TorProcess(format!("{:?}", e)))?
+                )
+                .await.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+
+            eprintln!("[+] Response status: {}", resp.status());
+            let body_resp = resp.into_body().collect().await.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+            let body = body_resp.to_bytes().into();
+            let body_text = String::from_utf8(body).map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+            eprintln!("[+] Response body: {}", body_text);
+            Ok(body_text)
+        })
+    }).join().unwrap();
+    res
+}
+
+/// Create Tor client.
+fn init_client(state_path: &PathBuf, cache_path: &PathBuf, config: TorConfig) -> Result<(TorClient<TokioNativeTlsRuntime>, TorClientConfig), Error> {
     let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
     builder.address_filter().allow_onion_addrs(true);
 
@@ -77,12 +186,17 @@ pub fn start_tor_service(key: SecretKey, tor_dir: &String, addr: &str, config: T
     let r = runtime.clone();
     let res = thread::spawn(move || {
         r.block_on(async move {
-            debug!("start bootstrap");
             let res = c.bootstrap().await;
             if res.is_ok() {
-                while c.bootstrap_status().as_frac() != 1.0 {
-                    debug!("wait for bootstrapped");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                let mut percent = 0.0;
+                let mut prev_percent = 0.0;
+                while percent != 1.0 {
+                    percent = c.bootstrap_status().as_frac();
+                    if percent != prev_percent {
+                        info!("Starting Tor {}%", percent * 100.0);
+                    }
+                    prev_percent = percent;
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
                 }
             }
             res
@@ -92,45 +206,7 @@ pub fn start_tor_service(key: SecretKey, tor_dir: &String, addr: &str, config: T
         Ok(_) => info!("Tor client bootstrapped successfully"),
         Err(e) => return Err(Error::TorProcess(format!("{:?}", e)))
     }
-
-    // Add service key to keystore.
-    let onion_address = OnionV3Address::from_private(&key.0)
-        .map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-    let hs = HsNickname::new(onion_address.to_string()).unwrap();
-    let keystore_path = Path::new(&state_path).join("keystore");
-    let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path).map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-
-    // Launch Onion service.
-    let service_config = OnionServiceConfigBuilder::default()
-        .nickname(hs.clone())
-        .build()
-        .unwrap();
-    let running_onion_service = match client.launch_onion_service(service_config) {
-        Ok(res) => {
-            if let Some((service, request)) = res {
-                // Launch service proxy.
-                let addr: SocketAddr = addr.parse().map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-                let c = client.clone();
-                thread::spawn(move || {
-                    runtime.block_on(async move {
-                        match run_service_proxy(c, addr, request, hs.clone()).await {
-                            Ok(_) => info!("Tor proxy stopped"),
-                            Err(e) => error!("Tor proxy error: {:?}", e),
-                        }
-                    })
-                });
-                service
-            } else {
-                return Err(Error::TorProcess("Can not launch onion service".to_owned()));
-            }
-        }
-        Err(e) => return Err(Error::TorProcess(format!("{:?}", e)))
-    };
-    Ok(Tor {
-        process: None,
-        service: Some(running_onion_service),
-        client: Some(client),
-    })
+    Ok((client, config))
 }
 
 /// Launch Onion service proxy.

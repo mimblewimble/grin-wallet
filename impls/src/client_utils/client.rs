@@ -21,22 +21,17 @@ use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::{Builder, Handle, Runtime};
 
 // Global Tokio runtime.
-// Needs a `Mutex` because `Runtime::block_on` requires mutable access.
-// Tokio v0.3 requires immutable self, but we are waiting on upstream
-// updates before we can upgrade.
-// See: https://github.com/seanmonstar/reqwest/pull/1076
 lazy_static! {
-	pub static ref RUNTIME: Arc<Mutex<Runtime>> = Arc::new(Mutex::new(
-		Builder::new_multi_thread()
+	pub static ref RUNTIME: Arc<Runtime> = Arc::new(Builder::new_multi_thread()
 				.enable_all()
 				.build()
 				.unwrap()
-	));
+	);
 }
 
 #[derive(Clone, Eq, thiserror::Error, PartialEq, Debug)]
@@ -273,17 +268,12 @@ impl Client {
 			let rt = RUNTIME.clone();
 			let client = self.clone();
 			std::thread::spawn(move || {
-				rt.lock()
-					.unwrap()
-					.block_on(async { client.send_request_async(req).await })
+				rt.block_on(async { client.send_request_async(req).await })
 			})
 			.join()
 			.unwrap()
 		} else {
-			RUNTIME
-				.lock()
-				.unwrap()
-				.block_on(self.send_request_async(req))
+			RUNTIME.block_on(self.send_request_async(req))
 		}
 	}
 }

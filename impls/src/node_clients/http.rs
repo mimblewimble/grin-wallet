@@ -272,7 +272,7 @@ impl NodeClient for HTTPNodeClient {
 
 		let rt = RUNTIME.clone();
 		let res: Result<Vec<_>, _> =
-			std::thread::spawn(move || rt.lock().unwrap().block_on(async move { task.await }))
+			std::thread::spawn(move || rt.block_on(async move { task.await }))
 				.join()
 				.unwrap();
 
