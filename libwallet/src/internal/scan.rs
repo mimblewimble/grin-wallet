@@ -460,9 +460,19 @@ where
 	Ok(chain_outs)
 }
 
-/// Check / repair wallet contents by scanning against chain
-/// assume wallet contents have been freshly updated with contents
-/// of latest block
+/// Scan chain outputs and repair the wallet state where needed.
+///
+/// This is the low-level worker used by the owner API. Callers should normally
+/// use the owner scan/update methods instead of calling this directly, unless
+/// they need to drive a scan in batches and save progress between those batches.
+///
+/// `batch_start_height` and `batch_end_height` describe the part of the chain
+/// scanned by this call. `start_height` and `end_height` describe the full scan
+/// range, so progress and PMMR bounds still reflect the whole scan.
+///
+/// The returned `ScannedBlockInfo` is the progress marker to persist after the
+/// batch. The returned PMMR range can be passed into the next batch to avoid
+/// looking up the full range again.
 pub fn scan<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
