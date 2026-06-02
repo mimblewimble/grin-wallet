@@ -943,7 +943,9 @@ fn multi_batch_scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	Ok(())
 }
 
-fn resume_interrupted_scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+fn restore_corrupted_outputs_across_batches_impl(
+	test_dir: &'static str,
+) -> Result<(), libwallet::Error> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
 	let stopper = wallet_proxy.running.clone();
@@ -1081,10 +1083,10 @@ fn multi_batch_scan() {
 }
 
 #[test]
-fn resume_interrupted_scan() {
-	let test_dir = "test_output/resume_interrupted_scan";
+fn restore_corrupted_outputs_across_batches() {
+	let test_dir = "test_output/restore_corrupted_outputs_across_batches";
 	setup(test_dir);
-	if let Err(e) = resume_interrupted_scan_impl(test_dir) {
+	if let Err(e) = restore_corrupted_outputs_across_batches_impl(test_dir) {
 		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
