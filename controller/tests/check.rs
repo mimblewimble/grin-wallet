@@ -26,6 +26,7 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlatePutter as _};
 use libwallet::{InitTxArgs, NodeClient};
+use std::cmp;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -847,6 +848,200 @@ fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	Ok(())
 }
 
+fn multi_batch_scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
+
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let mask1 = (&mask1_i).as_ref();
+
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	let reward = consensus::REWARD;
+	let bh = 12u64;
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+
+	let mut output_commits = vec![];
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let (_, info) = api.retrieve_summary_info(m, true, 1)?;
+		assert_eq!(info.last_confirmed_height, bh);
+		assert_eq!(info.total, bh * reward);
+		output_commits = api.retrieve_outputs(m, false, true, None)?.1;
+		Ok(())
+	})?;
+
+	{
+		wallet_inst!(wallet1, w);
+		let mut batch = w.batch(mask1)?;
+		batch.delete(&output_commits[8].output.key_id, &None)?;
+		batch.commit()?;
+	}
+
+	let tip = {
+		wallet_inst!(wallet1, w);
+		w.w2n_client().get_chain_tip()?
+	};
+
+	let start_height = 1;
+	let batch_size = 5;
+	let mut total_pmmr_range = None;
+	let mut batches = 0;
+	let status_send_channel = None;
+	for h in (start_height..tip.0).step_by((batch_size + 1) as usize) {
+		let batch_end_height = cmp::min(tip.0, h + batch_size);
+		let (mut info, range) = libwallet::scan(
+			wallet1.clone(),
+			mask1,
+			false,
+			h,
+			batch_end_height,
+			start_height,
+			tip.0,
+			total_pmmr_range,
+			&status_send_channel,
+		)?;
+		info.hash = if batch_end_height == tip.0 {
+			tip.1.clone()
+		} else {
+			"".to_owned()
+		};
+		total_pmmr_range = Some(range);
+		batches += 1;
+
+		wallet_inst!(wallet1, w);
+		let mut batch = w.batch(mask1)?;
+		batch.save_last_scanned_block(info)?;
+		batch.commit()?;
+	}
+	assert!(batches > 1);
+
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let (_, restored_outputs) = api.retrieve_outputs(m, false, true, None)?;
+		let (_, info) = api.retrieve_summary_info(m, false, 1)?;
+		assert_eq!(info.total, bh * reward);
+		assert_eq!(restored_outputs.len(), bh as usize);
+		Ok(())
+	})?;
+
+	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
+	Ok(())
+}
+
+fn restore_corrupted_outputs_across_batches_impl(
+	test_dir: &'static str,
+) -> Result<(), libwallet::Error> {
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
+
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let mask1 = (&mask1_i).as_ref();
+
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	let reward = consensus::REWARD;
+	let bh = 12u64;
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+
+	let mut output_commits = vec![];
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let (_, info) = api.retrieve_summary_info(m, true, 1)?;
+		assert_eq!(info.total, bh * reward);
+		output_commits = api.retrieve_outputs(m, false, true, None)?.1;
+		Ok(())
+	})?;
+
+	{
+		wallet_inst!(wallet1, w);
+		let mut batch = w.batch(mask1)?;
+		batch.delete(&output_commits[2].output.key_id, &None)?;
+		batch.delete(&output_commits[8].output.key_id, &None)?;
+		batch.commit()?;
+	}
+
+	let tip = {
+		wallet_inst!(wallet1, w);
+		w.w2n_client().get_chain_tip()?
+	};
+	let status_send_channel = None;
+	let (info, _) = libwallet::scan(
+		wallet1.clone(),
+		mask1,
+		false,
+		1,
+		6,
+		1,
+		tip.0,
+		None,
+		&status_send_channel,
+	)?;
+	{
+		wallet_inst!(wallet1, w);
+		{
+			let mut batch = w.batch(mask1)?;
+			batch.save_last_scanned_block(info)?;
+			batch.commit()?;
+		}
+		let last_scanned = w.last_scanned_block()?;
+		assert_eq!(last_scanned.height, 6);
+		assert_eq!(last_scanned.hash, "");
+	}
+
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let (_, outputs_after_first_batch) = api.retrieve_outputs(m, false, false, None)?;
+		assert_eq!(outputs_after_first_batch.len(), (bh - 1) as usize);
+
+		let (_, info) = api.retrieve_summary_info(m, true, 1)?;
+		let (_, restored_outputs) = api.retrieve_outputs(m, false, true, None)?;
+		let unique_keys = restored_outputs
+			.iter()
+			.map(|o| o.output.key_id.clone())
+			.collect::<std::collections::HashSet<_>>();
+
+		assert_eq!(info.total, bh * reward);
+		assert_eq!(restored_outputs.len(), bh as usize);
+		assert_eq!(unique_keys.len(), bh as usize);
+		assert!(restored_outputs
+			.iter()
+			.all(|o| o.output.status == libwallet::OutputStatus::Unspent));
+		Ok(())
+	})?;
+
+	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
+	Ok(())
+}
+
 #[test]
 fn scan() {
 	let test_dir = "test_output/scan";
@@ -872,6 +1067,26 @@ fn output_scanning() {
 	let test_dir = "test_output/output_scanning";
 	setup(test_dir);
 	if let Err(e) = output_scanning_impl(test_dir) {
+		panic!("Libwallet Error: {}", e);
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn multi_batch_scan() {
+	let test_dir = "test_output/multi_batch_scan";
+	setup(test_dir);
+	if let Err(e) = multi_batch_scan_impl(test_dir) {
+		panic!("Libwallet Error: {}", e);
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn restore_corrupted_outputs_across_batches() {
+	let test_dir = "test_output/restore_corrupted_outputs_across_batches";
+	setup(test_dir);
+	if let Err(e) = restore_corrupted_outputs_across_batches_impl(test_dir) {
 		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
