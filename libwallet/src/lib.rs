@@ -33,6 +33,8 @@ use grin_wallet_util as util;
 use blake2_rfc as blake2;
 
 #[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate serde_with;
 #[macro_use]
 extern crate log;
@@ -48,11 +50,10 @@ pub mod api_impl;
 pub mod contract;
 mod error;
 mod internal;
+pub mod mwixnet;
 mod slate;
 pub mod slate_versions;
 pub mod slatepack;
-
-pub mod mwixnet;
 mod types;
 
 pub use crate::error::Error;

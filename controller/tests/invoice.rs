@@ -82,16 +82,16 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("mining")?;
 	}
-	let mut bh = 10u64;
+	let mut _bh = 10u64;
 	let _ =
-		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, _bh as usize, false);
 
 	// Sanity check wallet 1 contents
 	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward);
+		assert_eq!(wallet1_info.last_confirmed_height, _bh);
+		assert_eq!(wallet1_info.total, _bh * reward);
 		Ok(())
 	})?;
 
@@ -138,10 +138,10 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
-	bh += 1;
+	_bh += 1;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
-	bh += 3;
+	_bh += 3;
 
 	// Check transaction log for wallet 2
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
@@ -151,7 +151,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		assert!(txs.len() == 1);
 		println!(
 			"last confirmed height: {}, bh: {}",
-			wallet2_info.last_confirmed_height, bh
+			wallet2_info.last_confirmed_height, _bh
 		);
 		assert!(refreshed);
 		Ok(())
@@ -163,10 +163,10 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert!(refreshed);
-		assert_eq!(txs.len() as u64, bh + 1);
+		assert_eq!(txs.len() as u64, _bh + 1);
 		println!(
 			"Wallet 1: last confirmed height: {}, bh: {}",
-			wallet1_info.last_confirmed_height, bh
+			wallet1_info.last_confirmed_height, _bh
 		);
 		Ok(())
 	})?;
@@ -248,7 +248,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// test that payee can only cancel once
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
-	bh += 3;
+	_bh += 3;
 
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 		// Wallet 2 inititates an invoice transaction, requesting payment

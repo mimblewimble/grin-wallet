@@ -67,11 +67,11 @@ pub enum Error {
 
 	/// Comsig error
 	#[error("Comsig error: {0}")]
-	ComSig(#[from] crate::mwixnet::onion::crypto::comsig::ComSigError),
+	ComSig(#[from] crate::mwixnet::ComSigError),
 
 	/// mwixnet Onion error
 	#[error("Onion error: {0}")]
-	Onion(#[from] crate::mwixnet::onion::onion::OnionError),
+	Onion(#[from] crate::mwixnet::OnionError),
 
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]
@@ -188,6 +188,18 @@ pub enum Error {
 	/// Error from summing commitments
 	#[error("Committed Error: {0}")]
 	Commit(String),
+
+	/// Error Deserializing commit
+	#[error("Commit Deserialize Error: {0}")]
+	CommitDeser(String),
+
+	/// Error Deserializing key
+	#[error("Server Key Deserialize Error: {0}")]
+	ServerKeyDeser(String),
+
+	/// Parsing integert
+	#[error("Can't parse as u64: {0}")]
+	U64Deser(String),
 
 	/// Can't parse slate version
 	#[error("Can't parse slate version")]

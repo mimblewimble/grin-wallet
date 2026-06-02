@@ -26,6 +26,8 @@ use crate::SlatepackAddress;
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
 
+pub use crate::mwixnet::{Hop, MixnetReqCreationParams, SwapReq};
+
 /// Type for storing amounts (in nanogrins).
 /// Serializes as a string but can deserialize from a string or u64.
 #[derive(Serialize, Deserialize)]

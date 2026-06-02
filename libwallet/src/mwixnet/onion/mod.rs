@@ -1,4 +1,4 @@
-// Copyright 2023 The Grin Developers
+// Copyright 2024 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,25 @@
 
 //! Onion module definition
 
-pub mod crypto;
+mod crypto;
 pub mod onion;
 pub mod util;
 
-use crypto::secp::{random_secret, Commitment, SecretKey};
-use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
+pub use crypto::{
+	comsig_serde, dalek::DalekPublicKey as MwixnetPublicKey, ComSigError, ComSignature,
+};
 
 use chacha20::cipher::StreamCipher;
 use grin_core::core::FeeFields;
-use secp256k1zkp::pedersen::RangeProof;
+use grin_util::secp::{
+	pedersen::{Commitment, RangeProof},
+	SecretKey,
+};
 use x25519_dalek::PublicKey as xPublicKey;
 use x25519_dalek::{SharedSecret, StaticSecret};
+
+use crypto::secp::random_secret;
+use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
 
 /// Onion hop struct
 #[derive(Clone)]
@@ -41,6 +48,7 @@ pub struct Hop {
 }
 
 /// Crate a new hop
+#[cfg(test)]
 pub fn new_hop(
 	server_key: &SecretKey,
 	hop_excess: &SecretKey,
@@ -56,7 +64,11 @@ pub fn new_hop(
 }
 
 /// Create an Onion for the Commitment, encrypting the payload for each hop
-pub fn create_onion(commitment: &Commitment, hops: &Vec<Hop>) -> Result<Onion, OnionError> {
+pub fn create_onion(
+	commitment: &Commitment,
+	hops: &Vec<Hop>,
+	use_test_rng: bool,
+) -> Result<Onion, OnionError> {
 	if hops.is_empty() {
 		return Ok(Onion {
 			ephemeral_pubkey: xPublicKey::from([0u8; 32]),
@@ -67,14 +79,14 @@ pub fn create_onion(commitment: &Commitment, hops: &Vec<Hop>) -> Result<Onion, O
 
 	let mut shared_secrets: Vec<SharedSecret> = Vec::new();
 	let mut enc_payloads: Vec<RawBytes> = Vec::new();
-	let mut ephemeral_sk = StaticSecret::from(random_secret().0);
+	let mut ephemeral_sk = StaticSecret::from(random_secret(use_test_rng).0);
 	let onion_ephemeral_pk = xPublicKey::from(&ephemeral_sk);
 	for i in 0..hops.len() {
 		let hop = &hops[i];
 		let shared_secret = ephemeral_sk.diffie_hellman(&hop.server_pubkey);
 		shared_secrets.push(shared_secret);
 
-		ephemeral_sk = StaticSecret::from(random_secret().0);
+		ephemeral_sk = StaticSecret::from(random_secret(use_test_rng).0);
 		let next_ephemeral_pk = if i < (hops.len() - 1) {
 			xPublicKey::from(&ephemeral_sk)
 		} else {
@@ -106,16 +118,17 @@ pub fn create_onion(commitment: &Commitment, hops: &Vec<Hop>) -> Result<Onion, O
 }
 
 /// Internal tests
-#[allow(missing_docs)]
+#[allow(missing_docs, dead_code)]
+#[cfg(test)]
 pub mod test_util {
 	use super::*;
 	use crypto::dalek::DalekPublicKey;
 	use crypto::secp;
 
 	use grin_core::core::hash::Hash;
+	use grin_util::secp::Secp256k1;
 	use grin_util::ToHex;
 	use rand::{thread_rng, RngCore};
-	use secp256k1zkp::Secp256k1;
 
 	pub fn rand_onion() -> Onion {
 		let commit = rand_commit();
@@ -128,32 +141,32 @@ pub mod test_util {
 				None
 			};
 			let hop = new_hop(
-				&random_secret(),
-				&random_secret(),
+				&random_secret(false),
+				&random_secret(false),
 				thread_rng().next_u32(),
 				rangeproof,
 			);
 			hops.push(hop);
 		}
 
-		create_onion(&commit, &hops).unwrap()
+		create_onion(&commit, &hops, false).unwrap()
 	}
 
 	pub fn rand_commit() -> Commitment {
-		secp::commit(rand::thread_rng().next_u64(), &secp::random_secret()).unwrap()
+		secp::commit(rand::thread_rng().next_u64(), &secp::random_secret(false)).unwrap()
 	}
 
 	pub fn rand_hash() -> Hash {
-		Hash::from_hex(secp::random_secret().to_hex().as_str()).unwrap()
+		Hash::from_hex(secp::random_secret(false).to_hex().as_str()).unwrap()
 	}
 
 	pub fn rand_proof() -> RangeProof {
 		let secp = Secp256k1::new();
 		secp.bullet_proof(
 			rand::thread_rng().next_u64(),
-			secp::random_secret(),
-			secp::random_secret(),
-			secp::random_secret(),
+			secp::random_secret(false),
+			secp::random_secret(false),
+			secp::random_secret(false),
 			None,
 			None,
 		)
@@ -177,8 +190,8 @@ pub mod test_util {
 		let rp = secp.bullet_proof(
 			out_value,
 			blind.clone(),
-			secp::random_secret(),
-			secp::random_secret(),
+			secp::random_secret(false),
+			secp::random_secret(false),
 			None,
 			None,
 		);
@@ -187,7 +200,7 @@ pub mod test_util {
 	}
 
 	pub fn rand_keypair() -> (SecretKey, DalekPublicKey) {
-		let sk = random_secret();
+		let sk = random_secret(false);
 		let pk = DalekPublicKey::from_secret(&sk);
 		(sk, pk)
 	}

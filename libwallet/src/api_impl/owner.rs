@@ -24,23 +24,22 @@ use crate::grin_core::libtx::proof;
 use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
+use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::{static_secp_instance, Mutex, ToHex};
 use crate::util::{OnionV3Address, OnionV3AddressError};
 
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::contract::types::{ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI};
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
-use crate::mwixnet::onion::create_onion;
-use crate::mwixnet::types::{
-	add_excess, new_hop, random_secret, ComSignature, Hop, MixnetReqCreationParams, SwapReq,
-};
 
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
 use crate::Error;
 use crate::{
-	address, contract, wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	address, contract,
+	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
+	wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus,
 	WalletInst, WalletLCProvider,
@@ -1609,8 +1608,9 @@ pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
 	params: &MixnetReqCreationParams,
-	commitment: &pedersen::Commitment,
+	commitment: &Commitment,
 	lock_output: bool,
+	use_test_rng: bool,
 ) -> Result<SwapReq, Error>
 where
 	T: WalletBackend<'a, C, K>,
@@ -1668,7 +1668,12 @@ where
 					rangeproof: Some(new_output.output.proof.clone()),
 				}
 			} else {
-				let hop_excess = BlindingFactor::rand(&secp);
+				let hop_excess;
+				if use_test_rng {
+					hop_excess = BlindingFactor::zero();
+				} else {
+					hop_excess = BlindingFactor::rand(&secp);
+				}
 				blind_sum = blind_sum.split(&hop_excess, &secp).unwrap();
 				Hop {
 					server_pubkey: p.clone(),
@@ -1680,8 +1685,14 @@ where
 		})
 		.collect();
 
-	let onion = create_onion(&commitment, &hops).unwrap();
-	let comsig = ComSignature::sign(amount, &input_blind, &onion.serialize().unwrap()).unwrap();
+	let onion = create_onion(&commitment, &hops, use_test_rng).unwrap();
+	let comsig = ComSignature::sign(
+		amount,
+		&input_blind,
+		&onion.serialize().unwrap(),
+		use_test_rng,
+	)
+	.unwrap();
 
 	// Lock output if requested
 	if lock_output {

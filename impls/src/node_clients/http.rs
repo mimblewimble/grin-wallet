@@ -15,17 +15,17 @@
 //! Client functions, implementations of the NodeClient trait
 
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
+use crate::client_utils::{Client, RUNTIME};
 use crate::core::core::{Transaction, TxKernel};
+use crate::libwallet;
 use crate::libwallet::{NodeClient, NodeVersionInfo};
+use crate::util::secp::pedersen;
+use crate::util::ToHex;
 use futures::stream::FuturesUnordered;
 use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
-
-use crate::client_utils::{Client, RUNTIME};
-use crate::libwallet;
-use crate::util::secp::pedersen;
-use crate::util::ToHex;
+use std::net::SocketAddr;
 
 use super::resp_types::*;
 use crate::client_utils::json_rpc::*;
@@ -46,8 +46,22 @@ impl HTTPNodeClient {
 		node_url: &str,
 		node_api_secret: Option<String>,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
+		Self::new_proxy(node_url, node_api_secret, None)
+	}
+
+	/// Create a new client with proxy
+	pub fn new_proxy(
+		node_url: &str,
+		node_api_secret: Option<String>,
+		proxy: Option<(SocketAddr, &'static str)>,
+	) -> Result<HTTPNodeClient, libwallet::Error> {
+		let client = if let Some((a, s)) = proxy {
+			Client::with_proxy(a, s)
+		} else {
+			Client::new()
+		};
 		Ok(HTTPNodeClient {
-			client: Client::new().map_err(|_| libwallet::Error::Node)?,
+			client: client.map_err(|_| libwallet::Error::Node)?,
 			node_url: node_url.to_owned(),
 			node_api_secret: node_api_secret,
 			node_version_info: None,

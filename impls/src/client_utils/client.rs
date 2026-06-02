@@ -65,11 +65,11 @@ impl Client {
 		Self::build(None)
 	}
 
-	pub fn with_socks_proxy(socks_proxy_addr: SocketAddr) -> Result<Self, Error> {
-		Self::build(Some(socks_proxy_addr))
+	pub fn with_proxy(socks_proxy_addr: SocketAddr, scheme: &'static str) -> Result<Self, Error> {
+		Self::build(Some((socks_proxy_addr, scheme)))
 	}
 
-	fn build(socks_proxy_addr: Option<SocketAddr>) -> Result<Self, Error> {
+	fn build(proxy: Option<(SocketAddr, &str)>) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
@@ -80,8 +80,9 @@ impl Client {
 			.use_rustls_tls()
 			.default_headers(headers);
 
-		if let Some(s) = socks_proxy_addr {
-			let proxy = Proxy::all(&format!("socks5h://{}:{}", s.ip(), s.port()))
+		if let Some(p) = proxy {
+			let (addr, scheme) = p;
+			let proxy = Proxy::all(&format!("{}{}:{}", scheme, addr.ip(), addr.port()))
 				.map_err(|e| Error::Internal(format!("Unable to create proxy: {}", e)))?;
 			builder = builder.proxy(proxy);
 		}
