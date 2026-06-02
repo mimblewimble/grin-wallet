@@ -67,7 +67,7 @@ impl VersionedSlate {
 	/// Return slate version
 	pub fn version(&self) -> SlateVersion {
 		match *self {
-			VersionedSlate::V5(_) => SlateVersion::V4,
+			VersionedSlate::V5(_) => SlateVersion::V5,
 			VersionedSlate::V4(_) => SlateVersion::V4,
 		}
 	}
