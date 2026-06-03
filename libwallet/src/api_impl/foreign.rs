@@ -15,7 +15,9 @@
 //! Generic implementation of owner API functions
 use strum::IntoEnumIterator;
 
+use super::owner::tx_lock_outputs;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::backend::WalletBackend;
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -23,10 +25,7 @@ use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
-	WalletBackend,
 };
-
-use super::owner::tx_lock_outputs;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -39,32 +38,30 @@ pub fn check_version() -> VersionInfo {
 }
 
 /// Build a coinbase transaction
-pub fn build_coinbase<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn build_coinbase<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	updater::build_coinbase(&mut *w, keychain_mask, block_fees, test_mode)
 }
 
 /// Receive a tx as recipient
-pub fn receive_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn receive_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
@@ -133,16 +130,15 @@ where
 }
 
 /// Receive a tx that this wallet has issued
-pub fn finalize_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn finalize_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	post_automatically: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut sl = slate.clone();
 	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;

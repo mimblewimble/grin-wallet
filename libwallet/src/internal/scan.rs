@@ -66,14 +66,14 @@ struct RestoredTxStats {
 	pub num_outputs: usize,
 }
 
-fn identify_utxo_outputs<'a, K>(
+fn identify_utxo_outputs<K>(
 	keychain: &K,
 	outputs: Vec<(pedersen::Commitment, pedersen::RangeProof, bool, u64, u64)>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	percentage_complete: u8,
 ) -> Result<Vec<OutputResult>, Error>
 where
-	K: Keychain + 'a,
+	K: Keychain,
 {
 	let mut wallet_outputs: Vec<OutputResult> = Vec::new();
 
@@ -137,7 +137,7 @@ where
 			n_child: key_id.to_path().last_path_index(),
 			value: amount,
 			height: *height,
-			lock_height: lock_height,
+			lock_height,
 			is_coinbase: *is_coinbase,
 			mmr_index: *mmr_index,
 		});
@@ -145,7 +145,7 @@ where
 	Ok(wallet_outputs)
 }
 
-fn collect_chain_outputs_rewind_hash<'a, C>(
+fn collect_chain_outputs_rewind_hash<C>(
 	client: C,
 	rewind_hash: String,
 	start_index: u64,
@@ -153,13 +153,13 @@ fn collect_chain_outputs_rewind_hash<'a, C>(
 	status_send_channel: &Option<Sender<StatusMessage>>,
 ) -> Result<ViewWallet, Error>
 where
-	C: NodeClient + 'a,
+	C: NodeClient,
 {
 	let batch_size = 1000;
 	let start_index_stat = start_index;
 	let mut start_index = start_index;
 	let mut vw = ViewWallet {
-		rewind_hash: rewind_hash,
+		rewind_hash,
 		output_result: vec![],
 		total_balance: 0,
 		last_pmmr_index: 0,
@@ -198,7 +198,7 @@ where
 				continue;
 			}
 
-			let info = info.unwrap();
+			let info = info?;
 			vw.total_balance += info.value;
 			let lock_height = if *is_coinbase {
 				*height + global::coinbase_maturity()
@@ -212,7 +212,7 @@ where
 				height: *height,
 				mmr_index: *mmr_index,
 				is_coinbase: *is_coinbase,
-				lock_height: lock_height,
+				lock_height,
 			};
 
 			vw.output_result.push(output_info);
@@ -285,7 +285,6 @@ where
 	Ok((result_vec, last_retrieved_return_index, perc_complete))
 }
 
-///
 fn restore_missing_output<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
@@ -384,7 +383,7 @@ where
 	wallet_lock!(wallet_inst, w);
 	let updated_tx_entry = if output.tx_log_entry.is_some() {
 		let entries = updater::retrieve_txs(
-			&mut **w,
+			w,
 			output.tx_log_entry,
 			None,
 			None,
@@ -536,7 +535,7 @@ where
 	// Now, get all outputs owned by this wallet (regardless of account)
 	let wallet_outputs = {
 		wallet_lock!(wallet_inst, w);
-		updater::retrieve_outputs(&mut **w, keychain_mask, true, None, None)?
+		updater::retrieve_outputs(w, keychain_mask, true, None, None)?
 	};
 
 	let mut missing_outs = vec![];
@@ -656,7 +655,7 @@ where
 			if let Some(ref s) = status_send_channel {
 				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 			}
-			keys::set_acct_path(&mut **w, keychain_mask, &label, path)?;
+			keys::set_acct_path(w, keychain_mask, &label, path)?;
 			acct_index += 1;
 		}
 		let current_child_index = w.current_child_index(&path)?;

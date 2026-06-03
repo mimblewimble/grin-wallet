@@ -21,14 +21,14 @@ thiserror = "1"
 ##### Grin Imports
 
 # For Release
-grin_util = "5.4.0"
+#grin_util = "5.4.0"
 
 # For beta release
 
 # grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
 
 # For bleeding edge
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
+grin_util = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
 
 # For local testing
 
