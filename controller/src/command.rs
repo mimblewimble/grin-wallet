@@ -77,6 +77,7 @@ pub struct InitArgs {
 	pub restore: bool,
 }
 
+/// Write config (default if None), initiate the wallet
 pub fn init<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	_g_args: &GlobalArgs,

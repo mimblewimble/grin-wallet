@@ -7,7 +7,7 @@ license = "Apache-2.0"
 repository = "https://github.com/mimblewimble/grin-wallet"
 keywords = [ "crypto", "grin", "mimblewimble" ]
 workspace = ".."
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 rand = "0.6"
@@ -21,7 +21,7 @@ thiserror = "1"
 ##### Grin Imports
 
 # For Release
-grin_util = "5.3.3"
+grin_util = "5.4.0"
 
 # For beta release
 

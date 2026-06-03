@@ -14,6 +14,7 @@
 
 //! Generic implementation of owner API functions
 
+use std::cmp;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
@@ -1122,25 +1123,35 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
-	let start_height = match start_height {
-		Some(h) => h,
-		None => 1,
-	};
+	let start_height = start_height.unwrap_or_else(|| 1);
 
-	let mut info = scan::scan(
-		wallet_inst.clone(),
-		keychain_mask,
-		delete_unconfirmed,
-		start_height,
-		tip.0,
-		status_send_channel,
-	)?;
-	info.hash = tip.1;
+	// Scan every 10k heights to save data between batches in case of interruption.
+	let mut total_pmmr_range = None;
+	for h in (start_height..tip.0).step_by(10001) {
+		let batch_end_height = cmp::min(tip.0, h + 10000);
+		let (mut info, range) = scan::scan(
+			wallet_inst.clone(),
+			keychain_mask,
+			delete_unconfirmed,
+			h,
+			batch_end_height,
+			start_height,
+			tip.0,
+			total_pmmr_range,
+			status_send_channel,
+		)?;
+		info.hash = if batch_end_height == tip.0 {
+			tip.1.clone()
+		} else {
+			"".to_owned()
+		};
+		total_pmmr_range = Some(range);
 
-	wallet_lock!(wallet_inst, w);
-	let mut batch = w.batch(keychain_mask)?;
-	batch.save_last_scanned_block(info)?;
-	batch.commit()?;
+		wallet_lock!(wallet_inst, w);
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_last_scanned_block(info)?;
+		batch.commit()?;
+	}
 
 	Ok(())
 }
@@ -1179,6 +1190,9 @@ where
 		}
 	}
 }
+
+/// Wallet scan window in blocks (48 hours).
+pub const REORG_RESCAN_WINDOW: u64 = 24 * 60 * 2;
 
 /// Experimental, wrap the entire definition of how a wallet's state is updated
 pub fn update_wallet_state<'a, L, C, K>(
@@ -1258,23 +1272,24 @@ where
 	let last_scanned_block = {
 		wallet_lock!(wallet_inst, w);
 		match w.init_status()? {
-			WalletInitStatus::InitNeedsScanning => ScannedBlockInfo {
-				height: 0,
-				hash: "".to_owned(),
-				start_pmmr_index: 0,
-				last_pmmr_index: 0,
-			},
 			WalletInitStatus::InitNoScanning => ScannedBlockInfo {
 				height: tip.clone().0,
 				hash: tip.clone().1,
 				start_pmmr_index: 0,
 				last_pmmr_index: 0,
 			},
-			WalletInitStatus::InitComplete => w.last_scanned_block()?,
+			_ => w.last_scanned_block()?,
 		}
 	};
 
-	let start_index = last_scanned_block.height.saturating_sub(100);
+	let start_height = last_scanned_block
+		.height
+		.saturating_sub(REORG_RESCAN_WINDOW);
+
+	debug!(
+		"update_wallet_state: last_scanned_block: {:?}",
+		last_scanned_block
+	);
 
 	if last_scanned_block.height == 0 {
 		let msg = "This wallet has not been scanned against the current chain. Beginning full scan... (this first scan may take a while, but subsequent scans will be much quicker)".to_string();
@@ -1283,18 +1298,28 @@ where
 		}
 	}
 
-	let mut info = scan::scan(
-		wallet_inst.clone(),
-		keychain_mask,
-		false,
-		start_index,
-		tip.0,
-		status_send_channel,
-	)?;
+	// Scan every 10k heights to save data between batches in case of interruption.
+	let mut total_pmmr_range = None;
+	for h in (start_height..tip.0).step_by(10001) {
+		let batch_end_height = cmp::min(tip.0, h + 10000);
+		let (mut info, range) = scan::scan(
+			wallet_inst.clone(),
+			keychain_mask,
+			false,
+			h,
+			batch_end_height,
+			start_height,
+			tip.0,
+			total_pmmr_range,
+			status_send_channel,
+		)?;
+		info.hash = if batch_end_height == tip.0 {
+			tip.1.clone()
+		} else {
+			"".to_owned()
+		};
+		total_pmmr_range = Some(range);
 
-	info.hash = tip.1;
-
-	{
 		wallet_lock!(wallet_inst, w);
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_last_scanned_block(info)?;
