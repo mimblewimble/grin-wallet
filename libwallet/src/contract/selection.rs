@@ -72,7 +72,7 @@ where
 		inputs.clone().iter().map(|out| out.value).sum::<u64>(),
 		fee.fee(),
 		setup_args,
-	);
+	)?;
 	Ok((inputs, output_amounts, fee))
 }
 
@@ -258,7 +258,7 @@ fn build_output_amount_list(
 	my_input_sum: u64,
 	my_fee_cost: u64,
 	setup_args: &ContractSetupArgsAPI,
-) -> Vec<u64> {
+) -> Result<Vec<u64>, Error> {
 	let expected_net_change = setup_args.net_change.unwrap();
 	let mut my_output_amounts = setup_args.selection_args.output_amounts();
 	let custom_outputs_sum = my_output_amounts.iter().sum::<u64>();
@@ -269,10 +269,10 @@ fn build_output_amount_list(
 		(my_input_sum - custom_outputs_sum) as i64 + expected_net_change - my_fee_cost as i64;
 	// TODO: Check if it's even possible for change output to be negative (it shouldn't be if the equation is correct)
 	if my_change_output_amount < 0 {
-		panic!(
-			"contract::selection::build_output_amount_list => ERROR: This should never happen!!! Values: my_input_sum: {}, expected_net_change: {}, my_fee_cost: {}",
+		return Err(Error::GenericError(format!(
+			"contract::selection::build_output_amount_list => negative change output. Values: my_input_sum: {}, expected_net_change: {}, my_fee_cost: {}",
 			my_input_sum as i64, expected_net_change, my_fee_cost as i64
-		);
+		)));
 	}
 	// Add our change/receiver output (which can be a zero-value output) to the list of outputs
 	my_output_amounts.push(my_change_output_amount as u64);
@@ -280,7 +280,7 @@ fn build_output_amount_list(
 		"contract::selection::build_output_amount_list => inputs sum: {}, my_output_amounts:{:#?}",
 		my_input_sum, my_output_amounts
 	);
-	my_output_amounts
+	Ok(my_output_amounts)
 }
 
 /// Compares the output selection args provided at call with those from Context and checks whether they conflict
@@ -292,7 +292,10 @@ pub fn verify_selection_consistency(
 	// default or exactly the same strategy we defined when doing the setup phase.
 	// TODO: Test that this works. Perhaps we'd have to define how to compare the two?
 	if cur_args != ctx_args && cur_args != &OutputSelectionArgs::default() {
-		panic!("Can't define selection args now because we've already done the setup phase. ctx_selection_args:{:#?}, cur_selection_args:{:#?}", ctx_args, cur_args);
+		return Err(Error::GenericError(format!(
+			"Can't define selection args now because we've already done the setup phase. ctx_selection_args:{:#?}, cur_selection_args:{:#?}",
+			ctx_args, cur_args
+		)));
 	}
 	// NOTE: The logic above isn't perfect. This is because the user could define arguments that are the default. In this case
 	// we'd simply silently use the arguments provided in the setup phase. This could be confusing for the user.

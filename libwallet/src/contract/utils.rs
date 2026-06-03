@@ -82,10 +82,7 @@ where
 	tx_log_entry.num_inputs = context.input_ids.len();
 	tx_log_entry.fee = context.fee;
 	// Set kernel information
-	match slate.calc_excess(keychain.secp()) {
-		Ok(e) => tx_log_entry.kernel_excess = Some(e),
-		Err(_) => panic!("We can't update tx log entry. Excess could not be computed."),
-	};
+	tx_log_entry.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
 	tx_log_entry.kernel_lookup_min_height = Some(current_height);
 
 	// If we're sending and there's payment proof info in the slate added by recipient, store as well
@@ -151,10 +148,10 @@ where
 			match expected_net_change {
 				Some(args_net_change) => {
 					if ctx.get_net_change() != args_net_change {
-						panic!(
+						return Err(Error::GenericError(format!(
 							"Expected net change mismatch! Context.net_change: {}, setup_args.net_change: {}",
 							ctx.get_net_change(), args_net_change
-						);
+						)));
 					}
 				}
 				None => (),
@@ -349,18 +346,18 @@ pub fn verify_setup_args_consistency(
 ) -> Result<(), Error> {
 	// Compare net_change
 	if ctx_setup_args.net_change.unwrap() != cur_setup_args.net_change.unwrap() {
-		panic!(
+		return Err(Error::GenericError(format!(
 			"Inconsistent net change. Ctx net_change:{}, Current net_change: {}",
 			ctx_setup_args.net_change.unwrap(),
 			cur_setup_args.net_change.unwrap()
-		);
+		)));
 	}
 	// Compare num_participants
 	if ctx_setup_args.num_participants != cur_setup_args.num_participants {
-		panic!(
+		return Err(Error::GenericError(format!(
 			"Inconsistent num_participants. Ctx num_participants:{}, Current num_participants: {}",
 			ctx_setup_args.num_participants, cur_setup_args.num_participants
-		);
+		)));
 	}
 	// TODO: Should we verify add_outputs?
 	// TODO: verify that the parent_key_id is consistent, perhaps even with the active_account set?

@@ -95,11 +95,11 @@ where
 	// Make sure `my_fee < net_change` holds for the receiver. This can't be true for a self-spend, because nobody
 	// has a net_change > 0 which makes a self-spend ok to be a net negative when fees are included.
 	if net_change > 0 && my_fee.fee() > net_change.abs() as u64 {
-		panic!(
+		return Err(Error::GenericError(format!(
 			"My contribution as a receiver would be net negative. my_fee: {}, net_change: {}",
 			my_fee.fee(),
 			net_change
-		);
+		)));
 	}
 	// Add my share of fee contribution to the slate fees
 	slate.fee_fields = FeeFields::new(0, slate.fee_fields.fee() + my_fee.fee())?;
