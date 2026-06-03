@@ -26,11 +26,6 @@ use super::types::ProofArgs;
 use crate::contract::proofs::InvoiceProof;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 
-/// TODO: Removed for now, consider secp error in sign function
-/// The secret key we replace the actual key with after we have signed with the Context keys. This is
-/// to prevent possibility of signing with the same key twice.
-/// pub const SEC_KEY_FAKE: [u8; 32] = [0; 32];
-
 /// Add payment proof data to slate, noop for sender
 pub fn add_payment_proof<'a, T: ?Sized, C, K>(
 	w: &mut T,
@@ -192,7 +187,10 @@ pub fn transition_state(slate: &mut Slate) -> Result<(), Error> {
 }
 
 /// Add partial signature to the slate.
-// TODO: Should be a sign & forget pubkey+nonce implementation.
+// Nonce reuse is prevented by forgetting the signing context after a signed step:
+// save_step deletes the private context (which holds sec_key/sec_nonce) once is_signed
+// (except the deliberately-retained step2 context used for safe cancel). The context is
+// keyed by slate.id, so a given nonce is only ever used for one message.
 pub fn sign<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
@@ -212,13 +210,6 @@ where
 		slate.fee_fields
 	);
 	debug!("contract::slate::sign => done");
-
-	// TODO: This produces a secp error, probably need a valid key. Verify that this is what we want to do.
-	// let fake_key = SecretKey::from_slice(keychain.secp(), &SEC_KEY_FAKE)?;
-	// context.sec_key = fake_key.clone();
-	// context.sec_nonce = fake_key.clone();
-	// context.initial_sec_key = fake_key.clone();
-	// context.initial_sec_nonce = fake_key.clone();
 
 	Ok(())
 }

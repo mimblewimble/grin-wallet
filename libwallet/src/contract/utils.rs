@@ -285,8 +285,22 @@ where
 	}
 
 	batch.commit()?;
+	drop(batch);
 
-	// TODO: Assert we don't have the context to avoid potentially leaking it! Also write tests around this.
+	// Defense in depth: once we have signed (and are past the step2 context that is kept
+	// deliberately for safe cancel), the signing context holding sec_key/sec_nonce must be
+	// gone so the nonce can never be reused. It is deleted in the is_signed && !is_step2
+	// branch above; verify the deletion actually took effect.
+	if is_signed && !is_step2 {
+		if w
+			.get_private_context(keychain_mask, slate.id.as_bytes())
+			.is_ok()
+		{
+			return Err(Error::GenericError(
+				"signing context was not removed after signing".into(),
+			));
+		}
+	}
 	debug!("contract::utils::save_step => Atomic updated done");
 
 	Ok(())
