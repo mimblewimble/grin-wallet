@@ -23,7 +23,7 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::mwixnet::types::MixnetReqCreationParams;
+use libwallet::mwixnet::MixnetReqCreationParams;
 use libwallet::{Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
