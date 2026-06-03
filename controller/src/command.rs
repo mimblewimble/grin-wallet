@@ -1887,8 +1887,10 @@ where
 			if args.counterparty_addr.is_some() {
 				args.counterparty_addr.unwrap()
 			} else {
-				if !slatepack.sender.is_some() {
-					panic!("No address to encrypt for. Contracts only support encrypted slates right now.");
+				if slatepack.sender.is_none() {
+					return Err(grin_wallet_libwallet::Error::GenericError(
+						"No address to encrypt for: pass --encrypt-for. Contracts only support encrypted slates.".into(),
+					));
 				}
 				String::try_from(&slatepack.sender.unwrap())?
 			};

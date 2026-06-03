@@ -1000,6 +1000,11 @@ pub fn parse_contract_new_args(
 			"You can only specify receive or send, not both.",
 		)));
 	};
+	if receive.is_none() && send.is_none() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You must specify either --receive or --send.",
+		)));
+	};
 	// TODO: verify this is correct e.g. which values are passed here by default etc.
 	let src_acct_name = Some(String::from(account));
 	let add_outputs = args.is_present("add-outputs");
@@ -1024,7 +1029,14 @@ pub fn parse_contract_new_args(
 		}
 	};
 	let make_outputs = match args.value_of("make-outputs") {
-		Some(v) => Some(String::from(v)),
+		Some(v) => {
+			// Validate each comma-separated amount here so a bad value returns a
+			// ParseError instead of panicking later in output_amounts().
+			for amt in v.split(',') {
+				parse_grin_amount(amt, "make-outputs")?;
+			}
+			Some(String::from(v))
+		}
 		None => None,
 	};
 
@@ -1096,7 +1108,14 @@ pub fn parse_contract_setup_args(
 		}
 	};
 	let make_outputs = match args.value_of("make-outputs") {
-		Some(v) => Some(String::from(v)),
+		Some(v) => {
+			// Validate each comma-separated amount here so a bad value returns a
+			// ParseError instead of panicking later in output_amounts().
+			for amt in v.split(',') {
+				parse_grin_amount(amt, "make-outputs")?;
+			}
+			Some(String::from(v))
+		}
 		None => None,
 	};
 	// TODO: should we catch if the person calls "--receive=5" when it should be "--send=5"?
