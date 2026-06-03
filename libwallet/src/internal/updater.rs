@@ -30,28 +30,25 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::static_secp_instance;
 use crate::internal::keys;
-use crate::types::{
-	NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletBackend, WalletInfo,
-};
+use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletInfo};
 use crate::{
 	BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs, RetrieveTxQuerySortField,
-	RetrieveTxQuerySortOrder,
+	RetrieveTxQuerySortOrder, WalletBackend,
 };
 
 use num_bigint::BigInt;
 
-/// Retrieve all of the outputs (doesn't attempt to update from node)
-pub fn retrieve_outputs<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+/// Retrieve all the outputs (don't attempt to update from node)
+pub fn retrieve_outputs<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	show_spent: bool,
 	tx_id: Option<u32>,
 	parent_key_id: Option<&Identifier>,
 ) -> Result<Vec<OutputCommitMapping>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// just read the wallet here, no need for a write lock
 	let mut outputs = wallet
@@ -94,15 +91,14 @@ where
 }
 
 /// Apply advanced filtering to resultset from retrieve_txs below
-pub fn apply_advanced_tx_list_filtering<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn apply_advanced_tx_list_filtering<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	parent_key_id: Option<&Identifier>,
 	query_args: &RetrieveTxQueryArgs,
 ) -> Vec<TxLogEntry>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Apply simple bool, GTE or LTE fields
 	let txs_iter: Box<dyn Iterator<Item = TxLogEntry>> = Box::new(
@@ -329,10 +325,10 @@ where
 	return_txs
 }
 
-/// Retrieve all of the transaction entries, or a particular entry
+/// Retrieve all the transaction entries, or a particular entry
 /// if `parent_key_id` is set, only return entries from that key
-pub fn retrieve_txs<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn retrieve_txs<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 	query_args: Option<RetrieveTxQueryArgs>,
@@ -340,9 +336,8 @@ pub fn retrieve_txs<'a, T: ?Sized, C, K>(
 	outstanding_only: bool,
 ) -> Result<Vec<TxLogEntry>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut txs;
 	// Adding in new transaction list query logic. If `tx_id` or `tx_slate_id`
@@ -384,16 +379,15 @@ where
 
 /// Refreshes the outputs in a wallet with the latest information
 /// from a node
-pub fn refresh_outputs<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn refresh_outputs<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	update_all: bool,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let height = wallet.w2n_client().get_chain_tip()?.0;
 	refresh_output_state(wallet, keychain_mask, height, parent_key_id, update_all)?;
@@ -402,16 +396,15 @@ where
 
 /// build a local map of wallet outputs keyed by commit
 /// and a list of outputs we want to query the node for
-pub fn map_wallet_outputs<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn map_wallet_outputs<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	update_all: bool,
 ) -> Result<HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut wallet_outputs = HashMap::new();
 	let keychain = wallet.keychain(keychain_mask)?;
@@ -453,17 +446,16 @@ where
 }
 
 /// Cancel transaction and associated outputs
-pub fn cancel_tx_and_outputs<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn cancel_tx_and_outputs<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	mut tx: TxLogEntry,
 	outputs: Vec<OutputData>,
 	parent_key_id: &Identifier,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut batch = wallet.batch(keychain_mask)?;
 
@@ -490,8 +482,8 @@ where
 }
 
 /// Apply refreshed API output data to the wallet
-pub fn apply_api_outputs<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn apply_api_outputs<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
 	api_outputs: &HashMap<pedersen::Commitment, (String, u64, u64)>,
@@ -500,9 +492,8 @@ pub fn apply_api_outputs<'a, T: ?Sized, C, K>(
 	parent_key_id: &Identifier,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// now for each commit, find the output in the wallet and the corresponding
 	// api output (if it exists) and refresh it in-place in the wallet.
@@ -590,6 +581,7 @@ where
 			}
 		}
 
+		let mut txs_to_save = vec![];
 		for mut tx in batch.tx_log_iter() {
 			if reverted_kernels.contains(&tx.id) && tx.parent_key_id == *parent_key_id {
 				tx.tx_type = TxLogEntryType::TxReverted;
@@ -598,8 +590,11 @@ where
 					(now - t).to_std().ok()
 				});
 				tx.confirmed = false;
-				batch.save_tx_log_entry(tx, &parent_key_id)?;
+				txs_to_save.push(tx);
 			}
+		}
+		for tx in txs_to_save {
+			batch.save_tx_log_entry(tx, &parent_key_id)?;
 		}
 
 		{
@@ -612,17 +607,16 @@ where
 
 /// Builds a single api query to retrieve the latest output data from the node.
 /// So we can refresh the local wallet outputs.
-fn refresh_output_state<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+fn refresh_output_state<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	height: u64,
 	parent_key_id: &Identifier,
 	update_all: bool,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("Refreshing wallet outputs");
 
@@ -654,16 +648,15 @@ where
 	Ok(())
 }
 
-fn find_reverted_kernels<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+fn find_reverted_kernels<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
 	api_outputs: &HashMap<pedersen::Commitment, (String, u64, u64)>,
 	parent_key_id: &Identifier,
 ) -> Result<HashSet<u32>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut client = wallet.w2n_client().clone();
 	let mut ids = HashSet::new();
@@ -701,15 +694,14 @@ where
 	Ok(reverted)
 }
 
-fn clean_old_unconfirmed<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+fn clean_old_unconfirmed<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	height: u64,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	if height < 50 {
 		return Ok(());
@@ -734,15 +726,14 @@ where
 
 /// Retrieve summary info about the wallet
 /// caller should refresh first if desired
-pub fn retrieve_info<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn retrieve_info<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	parent_key_id: &Identifier,
 	minimum_confirmations: u64,
 ) -> Result<WalletInfo, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let current_height = wallet.last_confirmed_height()?;
 	let outputs = wallet
@@ -800,16 +791,15 @@ where
 }
 
 /// Build a coinbase output and insert into wallet
-pub fn build_coinbase<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn build_coinbase<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let (out, kern, block_fees) = receive_coinbase(wallet, keychain_mask, block_fees, test_mode)?;
 
@@ -822,16 +812,15 @@ where
 
 //TODO: Split up the output creation and the wallet insertion
 /// Build a coinbase output and the corresponding kernel
-pub fn receive_coinbase<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn receive_coinbase<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<(Output, TxKernel, BlockFees), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let height = block_fees.height;
 	let lock_height = height + global::coinbase_maturity();
@@ -856,11 +845,11 @@ where
 			key_id: key_id.clone(),
 			n_child: key_id.to_path().last_path_index(),
 			mmr_index: None,
-			commit: commit,
+			commit,
 			value: amount,
 			status: OutputStatus::Unconfirmed,
-			height: height,
-			lock_height: lock_height,
+			height,
+			lock_height,
 			is_coinbase: true,
 			tx_log_entry: None,
 		})?;
