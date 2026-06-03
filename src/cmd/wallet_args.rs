@@ -288,6 +288,17 @@ fn parse_u64_or_none(arg: Option<&str>) -> Option<u64> {
 	}
 }
 
+// Parse a value expressed in Grin (e.g. "1.5") into nanograms.
+fn parse_grin_amount(arg: &str, name: &str) -> Result<u64, ParseError> {
+	match arg.parse::<f64>() {
+		Ok(g) => Ok((g * consensus::GRIN_BASE as f64) as u64),
+		Err(e) => Err(ParseError::ArgumentError(format!(
+			"Could not parse {} '{}' as a number. e={}",
+			name, arg, e
+		))),
+	}
+}
+
 pub fn parse_global_args(
 	config: &WalletConfig,
 	args: &ArgMatches,
@@ -971,17 +982,17 @@ pub fn parse_contract_new_args(
 	args: &ArgMatches,
 	account: &String,
 ) -> Result<command::ContractNewArgs, ParseError> {
-	let counterparty_addr = args.value_of("encrypt-for").unwrap();
+	let counterparty_addr = parse_required(args, "encrypt-for")?;
 
 	// TODO: Make sure the values are in some expected bounds.
 	// TODO: How to deal with decimals and precision? we probably want users to express the value in Grin.
 	// Parse receive and send params and convert them to nano grin
 	let receive = match args.value_of("receive") {
-		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		Some(g) => Some(parse_grin_amount(g, "receive")?),
 		None => None,
 	};
 	let send = match args.value_of("send") {
-		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		Some(g) => Some(parse_grin_amount(g, "send")?),
 		None => None,
 	};
 	if receive.is_some() && send.is_some() {
@@ -997,7 +1008,9 @@ pub fn parse_contract_new_args(
 	let use_inputs = match args.value_of("use-inputs") {
 		Some(v) => {
 			if no_payjoin {
-				panic!("Can't use --no-payjoin with --use-inputs.");
+				return Err(ParseError::ArgumentError(String::from(
+					"Can't use --no-payjoin with --use-inputs.",
+				)));
 			}
 			Some(String::from(v))
 		}
@@ -1015,11 +1028,12 @@ pub fn parse_contract_new_args(
 		None => None,
 	};
 
-	let num_participants = args
-		.value_of("num-participants")
-		.unwrap()
-		.parse::<u8>()
-		.unwrap();
+	let num_participants = match args.value_of("num-participants") {
+		Some(v) => v.parse::<u8>().map_err(|e| {
+			ParseError::ArgumentError(format!("Could not parse num-participants '{}'. e={}", v, e))
+		})?,
+		None => 2,
+	};
 
 	Ok(command::ContractNewArgs {
 		counterparty_addr: String::from(counterparty_addr),
@@ -1049,11 +1063,11 @@ pub fn parse_contract_setup_args(
 	};
 	// Parse receive and send params and convert them to nano grin
 	let receive = match args.value_of("receive") {
-		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		Some(g) => Some(parse_grin_amount(g, "receive")?),
 		None => None,
 	};
 	let send = match args.value_of("send") {
-		Some(g) => Some((g.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64),
+		Some(g) => Some(parse_grin_amount(g, "send")?),
 		None => None,
 	};
 	if receive.is_some() && send.is_some() {
@@ -1066,7 +1080,9 @@ pub fn parse_contract_setup_args(
 	let use_inputs = match args.value_of("use-inputs") {
 		Some(v) => {
 			if no_payjoin {
-				panic!("Can't use --no-payjoin with --use-inputs.");
+				return Err(ParseError::ArgumentError(String::from(
+					"Can't use --no-payjoin with --use-inputs.",
+				)));
 			}
 			Some(String::from(v))
 		}
@@ -1103,7 +1119,10 @@ pub fn parse_contract_setup_args(
 pub fn parse_contract_revoke_args(
 	args: &ArgMatches,
 ) -> Result<command::ContractRevokeArgs, ParseError> {
-	let tx_id = args.value_of("tx-id").unwrap().parse::<u32>().unwrap();
+	let tx_id_str = parse_required(args, "tx-id")?;
+	let tx_id = tx_id_str.parse::<u32>().map_err(|e| {
+		ParseError::ArgumentError(format!("Could not parse tx-id '{}'. e={}", tx_id_str, e))
+	})?;
 
 	Ok(command::ContractRevokeArgs { tx_id: tx_id })
 }
