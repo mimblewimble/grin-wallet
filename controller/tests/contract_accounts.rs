@@ -167,6 +167,8 @@ fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
+		// Proofs are opt-in; enable and supply the sender address.
+		args.proof_args.suppress_proof = false;
 		args.proof_args.sender_address = sender_address;
 		slate = api.contract_sign(m, &slate, args)?;
 		recipient_address = Some(api.get_slatepack_address(mask2, 0)?.pub_key);

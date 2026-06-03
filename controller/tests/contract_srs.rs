@@ -63,7 +63,6 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
-		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;
@@ -74,7 +73,6 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		let args = &mut ContractSetupArgsAPI {
 			..Default::default()
 		};
-		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;

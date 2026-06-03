@@ -112,7 +112,9 @@ pub struct ProofArgs {
 impl Default for ProofArgs {
 	fn default() -> ProofArgs {
 		ProofArgs {
-			suppress_proof: false,
+			// Proofs are opt-in (#729): a `false` default made the receiver build an
+			// invoice promise with no sender address, failing with NoSenderAddressProvided.
+			suppress_proof: true,
 			proof_type: ProofType::Legacy,
 			sender_address: None,
 		}

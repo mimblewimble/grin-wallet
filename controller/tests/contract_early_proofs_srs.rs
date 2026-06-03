@@ -71,7 +71,8 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 			net_change: Some(5_000_000_000),
 			..Default::default()
 		};
-		// Note sender address explicity added here
+		// Proofs are opt-in; enable and supply the sender address.
+		args.proof_args.suppress_proof = false;
 		args.proof_args.sender_address = sender_address;
 		slate = api.contract_sign(m, &slate, args)?;
 		recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);

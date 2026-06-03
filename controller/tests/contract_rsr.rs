@@ -52,7 +52,6 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			},
 			..Default::default()
 		};
-		args.setup_args.proof_args.suppress_proof = true;
 		slate = api.contract_new(m, args)?;
 		Ok(())
 	})?;
@@ -74,8 +73,6 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		let args = &mut ContractSetupArgsAPI {
 			..Default::default()
 		};
-		// TODO: This possibly shouldn't be needed here if no proof?
-		args.proof_args.suppress_proof = true;
 		slate = api.contract_sign(m, &slate, args)?;
 		Ok(())
 	})?;
