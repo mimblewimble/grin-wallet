@@ -245,8 +245,10 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 
 impl Readable for ProofWrap {
 	fn read<R: Reader>(reader: &mut R) -> Result<ProofWrap, grin_ser::Error> {
-		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
-		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
+		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
+			.map_err(|_| grin_ser::Error::CorruptedData)?;
+		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
+			.map_err(|_| grin_ser::Error::CorruptedData)?;
 		let ts_raw: i64 = match reader.read_i64() {
 			Ok(v) => v,
 			Err(_) => return Err(grin_ser::Error::CorruptedData),
@@ -258,12 +260,15 @@ impl Readable for ProofWrap {
 		let ts = DateTime::<Utc>::from_utc(ts_opt, Utc);
 		let psig = match reader.read_u8()? {
 			0 => None,
-			1 | _ => Some(DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..]).unwrap()),
+			1 | _ => Some(
+				DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..])
+					.map_err(|_| grin_ser::Error::CorruptedData)?,
+			),
 		};
 		let memo = match reader.read_u8()? {
 			0 => None,
 			1 | _ => Some(PaymentMemoV5 {
-				memo_type: reader.read_u8().unwrap(),
+				memo_type: reader.read_u8()?,
 				memo: reader.read_fixed_bytes(32)?.try_into().unwrap_or_default(),
 			}),
 		};
