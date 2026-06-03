@@ -137,7 +137,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 		assert_eq!(
 			commits[15].output.value,
 			3 * consensus::REWARD
-				- selection_args.sum_output_amounts()
+				- selection_args.sum_output_amounts()?
 				- my_fee_contribution(3, 6, 1, 1)?.fee()
 		);
 		Ok(())

@@ -92,7 +92,7 @@ where
 	//  Σmy_inputs >= Σmy_outputs + my_fee_cost
 	// Each party later balances the equation by adding an additional output (change output or receiver output)
 	let net_change = setup_args.net_change.unwrap();
-	let custom_outputs_amount_sum = setup_args.selection_args.sum_output_amounts();
+	let custom_outputs_amount_sum = setup_args.selection_args.sum_output_amounts()?;
 	let pay_amount = if net_change < 0 {
 		net_change.abs() as u64
 	} else {
@@ -260,7 +260,7 @@ fn build_output_amount_list(
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<Vec<u64>, Error> {
 	let expected_net_change = setup_args.net_change.unwrap();
-	let mut my_output_amounts = setup_args.selection_args.output_amounts();
+	let mut my_output_amounts = setup_args.selection_args.output_amounts()?;
 	let custom_outputs_sum = my_output_amounts.iter().sum::<u64>();
 	// We know that `Σmy_inputs >= Σmy_outputs + my_fee_cost` holds so we balance the equation by adding
 	// an additional output holding the missing amount (change output or receiver output)

@@ -14,6 +14,7 @@
 
 //! Types related to a contract
 
+use crate::error::Error;
 use crate::grin_core::consensus;
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -49,25 +50,32 @@ impl OutputSelectionArgs {
 		}
 	}
 	/// Returns the outputs we have to create
-	pub fn output_amounts(&self) -> Vec<u64> {
-		if self.make_outputs.is_some() {
-			let output_amounts: Vec<u64> = self.make_outputs.as_ref().unwrap()[..]
+	// TODO: move consensus code outside of here. Consider turning make_outputs to Vec<u64>
+	pub fn output_amounts(&self) -> Result<Vec<u64>, Error> {
+		match self.make_outputs.as_ref() {
+			Some(s) => s
 				.split(",")
-				// TODO: move consensus code outside of here. Consider turning make_outputs to Vec<u64>
-				.map(|amt| (amt.parse::<f64>().unwrap() * consensus::GRIN_BASE as f64) as u64)
-				.collect();
-			output_amounts
-		} else {
-			vec![]
+				.map(|amt| {
+					amt.parse::<f64>()
+						.map(|g| (g * consensus::GRIN_BASE as f64) as u64)
+						.map_err(|e| {
+							Error::GenericError(format!("Invalid output amount '{}': {}", amt, e))
+						})
+				})
+				.collect(),
+			None => Ok(vec![]),
 		}
 	}
 	/// Returns the sum of our output amounts
-	pub fn sum_output_amounts(&self) -> u64 {
-		self.output_amounts().iter().sum()
+	pub fn sum_output_amounts(&self) -> Result<u64, Error> {
+		Ok(self.output_amounts()?.iter().sum())
 	}
-	/// Returns the number of custom outputs
+	/// Returns the number of custom outputs (count only; does not parse the amounts)
 	pub fn num_custom_outputs(&self) -> usize {
-		self.output_amounts().len()
+		self.make_outputs
+			.as_ref()
+			.map(|s| s.split(",").count())
+			.unwrap_or(0)
 	}
 
 	// TODO: make sure to validate this: if custom outputs are specified, it has to be a payjoin.
