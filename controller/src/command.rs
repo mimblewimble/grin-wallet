@@ -1620,8 +1620,8 @@ where
 /// Create new contract command arguments
 #[derive(Clone)]
 pub struct ContractNewArgs {
-	/// Address of the counterparty
-	pub counterparty_addr: String,
+	/// Address of the counterparty (None = produce an unencrypted slatepack)
+	pub counterparty_addr: Option<String>,
 	/// Receive amount
 	pub receive: Option<u64>,
 	/// Send amount
@@ -1709,7 +1709,7 @@ where
 			api,
 			keychain_mask,
 			&slate,
-			&args.counterparty_addr,
+			args.counterparty_addr.as_deref().unwrap_or(""),
 			args.outfile,
 			args.as_json,
 		);
@@ -1884,17 +1884,16 @@ where
 			vec![0],
 		)?;
 
-		let counterparty_addr =
-			if args.counterparty_addr.is_some() {
-				args.counterparty_addr.unwrap()
-			} else {
-				if slatepack.sender.is_none() {
-					return Err(grin_wallet_libwallet::Error::GenericError(
-						"No address to encrypt for: pass --encrypt-for. Contracts only support encrypted slates.".into(),
-					));
-				}
-				String::try_from(&slatepack.sender.unwrap())?
-			};
+		// Encrypt the reply for --encrypt-for if given, else for the incoming slatepack's
+		// sender. If neither is known the incoming slate was plaintext, so reply plaintext
+		// (empty dest -> unencrypted slatepack).
+		let counterparty_addr = if let Some(addr) = args.counterparty_addr {
+			addr
+		} else if let Some(sender) = slatepack.sender {
+			String::try_from(&sender)?
+		} else {
+			String::new()
+		};
 		let mut slate = owner::slate_from_slatepack_message(
 			api.wallet_inst.clone(),
 			keychain_mask,

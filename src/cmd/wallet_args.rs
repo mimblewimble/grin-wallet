@@ -978,7 +978,8 @@ pub fn parse_contract_new_args(
 	args: &ArgMatches,
 	account: &String,
 ) -> Result<command::ContractNewArgs, ParseError> {
-	let counterparty_addr = parse_required(args, "encrypt-for")?;
+	// Optional: without --encrypt-for the contract slatepack is produced unencrypted.
+	let counterparty_addr = args.value_of("encrypt-for").map(String::from);
 
 	// TODO: Make sure the values are in some expected bounds.
 	// TODO: How to deal with decimals and precision? we probably want users to express the value in Grin.
@@ -1044,7 +1045,7 @@ pub fn parse_contract_new_args(
 	};
 
 	Ok(command::ContractNewArgs {
-		counterparty_addr: String::from(counterparty_addr),
+		counterparty_addr: counterparty_addr,
 		receive: receive,
 		send: send,
 		src_acct_name: src_acct_name,

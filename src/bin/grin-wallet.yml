@@ -452,7 +452,7 @@ subcommands:
             about: Create a new contract with initial setup
             args:
                 - encrypt-for:
-                    help: The counter party grin address
+                    help: The counter party grin address (optional; omit to produce an unencrypted slatepack)
                     short: e
                     long: encrypt-for
                     takes_value: true
@@ -544,7 +544,7 @@ subcommands:
             about: Sign a contract
             args:
                 - encrypt-for:
-                    help: The counter party grin address
+                    help: The counter party grin address (optional; defaults to the slate sender, else unencrypted)
                     short: e
                     long: encrypt-for
                     takes_value: true
