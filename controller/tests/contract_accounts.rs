@@ -295,3 +295,38 @@ fn wallet_contract_unknown_account() -> Result<(), libwallet::Error> {
 	clean_output_dir(test_dir);
 	Ok(())
 }
+
+/// A contract with no net change (neither --send nor --receive) must error
+/// rather than panic on an unwrap of the optional field.
+fn contract_missing_net_change_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	let (wallets, _chain, stopper, _bh) =
+		create_wallets(vec![vec![("default", 1)]], test_dir).unwrap();
+	let wallet1 = wallets[0].0.clone();
+	let mask1 = wallets[0].1.as_ref();
+
+	let res = wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let args = &ContractNewArgsAPI {
+			setup_args: ContractSetupArgsAPI {
+				net_change: None,
+				..Default::default()
+			},
+			..Default::default()
+		};
+		api.contract_new(m, args)?;
+		Ok(())
+	});
+	assert!(res.is_err(), "expected an error when net_change is missing");
+
+	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
+	Ok(())
+}
+
+#[test]
+fn wallet_contract_missing_net_change() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/contract_missing_net_change";
+	setup(test_dir);
+	contract_missing_net_change_impl(test_dir)?;
+	clean_output_dir(test_dir);
+	Ok(())
+}
