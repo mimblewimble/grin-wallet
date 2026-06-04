@@ -19,7 +19,7 @@ use crate::contract::types::ContractSetupArgsAPI;
 use crate::contract::utils as contract_utils;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
-use crate::internal::{keys, updater};
+use crate::internal::updater;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient, WalletBackend};
 use crate::{Error, OutputData};
@@ -45,7 +45,7 @@ where
 			// Get data required for creating a context
 			let height = w.w2n_client().get_chain_tip()?.0;
 			let parent_key_id =
-				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_ref());
+				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_ref())?;
 			self::create(
 				w,
 				keychain_mask,
@@ -189,10 +189,11 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	// Derive under the contract context's account, not the active account: a late-lock
+	// may have a different account active than the one set on the Context.
+	let parent_key_id = context.parent_key_id.clone();
 	for amount in amounts {
-		// TODO: it seems like next_available_key does not respect the parent_key_id. Check if it does, it probably should?
-		//  A late-lock might have a different account set to active than the one that was set to the Context
-		let key_id = keys::next_available_key(w, keychain_mask).unwrap();
+		let key_id = w.next_child_for(&parent_key_id, keychain_mask)?;
 		context.add_output(&key_id, &None, amount);
 		debug!(
 			"contract::utils::add_output_to_ctx => added output to context. Output id: {}, amount: {}",

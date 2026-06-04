@@ -477,20 +477,28 @@ where
 
 	fn next_child<'a>(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
 		let parent_key_id = self.parent_key_id.clone();
+		self.next_child_for(&parent_key_id, keychain_mask)
+	}
+
+	fn next_child_for<'a>(
+		&mut self,
+		parent_key_id: &Identifier,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Identifier, Error> {
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
-			let deriv_key = to_key(DERIV_PREFIX, &mut self.parent_key_id.to_bytes().to_vec());
+			let deriv_key = to_key(DERIV_PREFIX, &mut parent_key_id.to_bytes().to_vec());
 			match batch.get_ser(&deriv_key, None)? {
 				Some(idx) => idx,
 				None => 0,
 			}
 		};
-		let mut return_path = self.parent_key_id.to_path();
+		let mut return_path = parent_key_id.to_path();
 		return_path.depth += 1;
 		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
 		deriv_idx += 1;
 		let mut batch = self.batch(keychain_mask)?;
-		batch.save_child_index(&parent_key_id, deriv_idx)?;
+		batch.save_child_index(parent_key_id, deriv_idx)?;
 		batch.commit()?;
 		Ok(Identifier::from_path(&return_path))
 	}

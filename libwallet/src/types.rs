@@ -238,6 +238,15 @@ where
 	/// Next child ID when we want to create a new output, based on current parent
 	fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
 
+	/// Next child ID under a specific parent key id (account), independent of the
+	/// currently active account. Used by contracts, where the output's account is
+	/// fixed by the contract context rather than the active account.
+	fn next_child_for(
+		&mut self,
+		parent_key_id: &Identifier,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Identifier, Error>;
+
 	/// last verified height of outputs directly descending from the given parent key
 	fn last_confirmed_height(&mut self) -> Result<u64, Error>;
 

@@ -384,27 +384,24 @@ pub fn verify_setup_args_consistency(
 	Ok(())
 }
 
-/// Get the parent_key_id for a given wallet instance and src_acct_name
-pub fn parent_key_for<'a, T: ?Sized, C, K>(w: &mut T, src_acct_name: Option<&String>) -> Identifier
+/// Get the parent_key_id for a given wallet instance and src_acct_name.
+/// Errors on an unknown account name rather than silently falling back to the
+/// active account.
+pub fn parent_key_for<'a, T: ?Sized, C, K>(
+	w: &mut T,
+	src_acct_name: Option<&String>,
+) -> Result<Identifier, Error>
 where
 	T: WalletBackend<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	// TODO: does it matter what api.set_active_account is set? also check LMDB set_parent_key_id etc. methods
-	// - Does it matter what api.set_active_account is set? I think w.parent_key_id() already takes the active one
-	//   but the verify_consistency may need to verify this or perhaps give a warning that active is different than
-	//   the one that was set at the first setup phase.
 	let parent_key_id = match src_acct_name {
-		Some(d) => {
-			let pm = w.get_acct_path(d.clone()).unwrap();
-			match pm {
-				Some(p) => p.path,
-				// TODO: should we error if the path is not found?
-				None => w.parent_key_id(),
-			}
-		}
+		Some(d) => match w.get_acct_path(d.clone())? {
+			Some(p) => p.path,
+			None => return Err(Error::UnknownAccountLabel(d.clone())),
+		},
 		None => w.parent_key_id(),
 	};
-	parent_key_id
+	Ok(parent_key_id)
 }
