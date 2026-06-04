@@ -321,11 +321,8 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter?
-			.into_iter()
-			.filter(|x| x.is_ok())
-			.map(|x| x.unwrap());
-		Ok(iter)
+		let items: Vec<OutputData> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
+		Ok(items.into_iter())
 	}
 
 	/// Get an (Optional) tx log entry by uuid.
@@ -346,11 +343,8 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter?
-			.into_iter()
-			.filter(|x| x.is_ok())
-			.map(|x| x.unwrap());
-		Ok(iter)
+		let items: Vec<TxLogEntry> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
+		Ok(items.into_iter())
 	}
 
 	/// Retrieve the private context associated with a given slate id.
@@ -390,11 +384,8 @@ where
 				)
 				.map_err(From::from)
 			});
-		let iter = prefix_iter?
-			.into_iter()
-			.filter(|x| x.is_ok())
-			.map(|x| x.unwrap());
-		Ok(iter)
+		let items: Vec<AcctPathMapping> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
+		Ok(items.into_iter())
 	}
 
 	/// Gets an account path for a given label.
@@ -584,11 +575,8 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter?
-			.into_iter()
-			.filter(|x| x.is_ok())
-			.map(|x| x.unwrap());
-		Ok(iter)
+		let items: Vec<OutputData> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
+		Ok(items.into_iter())
 	}
 
 	/// Delete data about an output from the backend.
@@ -668,11 +656,8 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter?
-			.into_iter()
-			.filter(|x| x.is_ok())
-			.map(|x| x.unwrap());
-		Ok(iter)
+		let items: Vec<TxLogEntry> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
+		Ok(items.into_iter())
 	}
 
 	/// Save a transaction log entry.
@@ -717,11 +702,8 @@ where
 				)
 				.map_err(From::from)
 			});
-		let iter = prefix_iter?
-			.into_iter()
-			.filter(|x| x.is_ok())
-			.map(|x| x.unwrap());
-		Ok(iter)
+		let items: Vec<AcctPathMapping> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
+		Ok(items.into_iter())
 	}
 
 	/// Save an output as locked in the backend.
