@@ -15,7 +15,6 @@
 //! Types related to a contract
 
 use crate::error::Error;
-use crate::grin_core::consensus;
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 
@@ -56,11 +55,10 @@ impl OutputSelectionArgs {
 			Some(s) => s
 				.split(",")
 				.map(|amt| {
-					amt.parse::<f64>()
-						.map(|g| (g * consensus::GRIN_BASE as f64) as u64)
-						.map_err(|e| {
-							Error::GenericError(format!("Invalid output amount '{}': {}", amt, e))
-						})
+					// Exact decimal parsing (integer nanogrin), not f64.
+					crate::grin_core::core::amount_from_hr_string(amt).map_err(|e| {
+						Error::GenericError(format!("Invalid output amount '{}': {}", amt, e))
+					})
 				})
 				.collect(),
 			None => Ok(vec![]),

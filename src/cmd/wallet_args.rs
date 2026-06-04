@@ -13,7 +13,6 @@
 // limitations under the License.
 
 /// Argument parsing and error handling for wallet commands
-use self::core::consensus;
 use crate::api::TLSConfig;
 use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
@@ -290,13 +289,13 @@ fn parse_u64_or_none(arg: Option<&str>) -> Option<u64> {
 
 // Parse a value expressed in Grin (e.g. "1.5") into nanograms.
 fn parse_grin_amount(arg: &str, name: &str) -> Result<u64, ParseError> {
-	match arg.parse::<f64>() {
-		Ok(g) => Ok((g * consensus::GRIN_BASE as f64) as u64),
-		Err(e) => Err(ParseError::ArgumentError(format!(
+	// Exact decimal parsing (integer nanogrin), not f64.
+	core::core::amount_from_hr_string(arg).map_err(|e| {
+		ParseError::ArgumentError(format!(
 			"Could not parse {} '{}' as a number. e={}",
 			name, arg, e
-		))),
-	}
+		))
+	})
 }
 
 pub fn parse_global_args(
