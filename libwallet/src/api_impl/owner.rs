@@ -845,7 +845,7 @@ where
 {
 	let mut uuid = None;
 	if let Some(i) = tx_id {
-		let tx = w.tx_log_iter().find(|t| t.id == i);
+		let tx = w.tx_log_iter()?.find(|t| t.id == i);
 		if let Some(t) = tx {
 			uuid = t.tx_slate_id;
 		}
@@ -1010,7 +1010,12 @@ where
 		}),
 		Err(_) => {
 			let outputs = retrieve_outputs(wallet_inst, keychain_mask, &None, true, false, None)?;
-			let height = outputs.1.iter().map(|m| m.output.height).max().unwrap_or_else(|| 0);
+			let height = outputs
+				.1
+				.iter()
+				.map(|m| m.output.height)
+				.max()
+				.unwrap_or_else(|| 0);
 			Ok(NodeHeightResult {
 				height,
 				header_hash: "".to_owned(),

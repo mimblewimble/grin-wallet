@@ -122,11 +122,10 @@ where
 	/// Create new wallet backend.
 	pub fn new(data_file_dir: &str, n_client: C) -> Result<Self, Error> {
 		let db_path = Path::new(data_file_dir).join(DB_DIR);
-		fs::create_dir_all(&db_path).expect("Couldn't create wallet backend directory!");
+		fs::create_dir_all(&db_path)?;
 
 		let stored_tx_path = Path::new(data_file_dir).join(TX_SAVE_DIR);
-		fs::create_dir_all(&stored_tx_path)
-			.expect("Couldn't create wallet backend tx storage directory!");
+		fs::create_dir_all(&stored_tx_path)?;
 
 		let store = Store::new(
 			db_path.to_str().unwrap(),
@@ -279,7 +278,7 @@ where
 	/// Set parent key id by stored account name.
 	pub fn set_parent_key_id_by_name(&mut self, label: &str) -> Result<(), Error> {
 		let label = label.to_owned();
-		let res = self.acct_path_iter().find(|l| l.label == label);
+		let res = self.acct_path_iter()?.find(|l| l.label == label);
 		if let Some(a) = res {
 			self.set_parent_key_id(a.path);
 			Ok(())
@@ -312,7 +311,7 @@ where
 	}
 
 	/// Iterate over all output data stored by the backend.
-	pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a> {
+	pub fn iter(&self) -> Result<impl Iterator<Item = OutputData>, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self.db.iter(Some(OUTPUT_PREFIX), move |_, mut v| {
 			ser::deserialize(
@@ -322,12 +321,11 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter
-			.expect("deserialize")
+		let iter = prefix_iter?
 			.into_iter()
 			.filter(|x| x.is_ok())
 			.map(|x| x.unwrap());
-		Box::new(iter)
+		Ok(iter)
 	}
 
 	/// Get an (Optional) tx log entry by uuid.
@@ -338,7 +336,7 @@ where
 	}
 
 	/// Iterate over all tx log data stored by the backend.
-	pub fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a> {
+	pub fn tx_log_iter(&self) -> Result<impl Iterator<Item = TxLogEntry>, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self.db.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
 			ser::deserialize(
@@ -348,12 +346,11 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter
-			.expect("deserialize")
+		let iter = prefix_iter?
 			.into_iter()
 			.filter(|x| x.is_ok())
 			.map(|x| x.unwrap());
-		Box::new(iter)
+		Ok(iter)
 	}
 
 	/// Retrieve the private context associated with a given slate id.
@@ -381,7 +378,7 @@ where
 	}
 
 	/// Iterate over all stored account paths.
-	pub fn acct_path_iter<'a>(&'a self) -> Box<dyn Iterator<Item = AcctPathMapping> + 'a> {
+	pub fn acct_path_iter(&self) -> Result<impl Iterator<Item = AcctPathMapping>, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self
 			.db
@@ -393,12 +390,11 @@ where
 				)
 				.map_err(From::from)
 			});
-		let iter = prefix_iter
-			.expect("deserialize")
+		let iter = prefix_iter?
 			.into_iter()
 			.filter(|x| x.is_ok())
 			.map(|x| x.unwrap());
-		Box::new(iter)
+		Ok(iter)
 	}
 
 	/// Gets an account path for a given label.
@@ -475,10 +471,7 @@ where
 	}
 
 	/// Next child ID when we want to create a new output, based on current parent.
-	pub fn next_child(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-	) -> Result<Identifier, Error> {
+	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
 		let parent_key_id = self.parent_key_id.clone();
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
@@ -581,7 +574,7 @@ where
 	}
 
 	/// Iterate over all output data stored by the backend.
-	pub fn iter(&'a self) -> impl Iterator<Item = OutputData> + 'a {
+	pub fn iter(&'a self) -> Result<impl Iterator<Item = OutputData> + 'a, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self.db.iter(Some(OUTPUT_PREFIX), move |_, mut v| {
 			ser::deserialize(
@@ -591,12 +584,11 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter
-			.expect("deserialize")
+		let iter = prefix_iter?
 			.into_iter()
 			.filter(|x| x.is_ok())
 			.map(|x| x.unwrap());
-		iter
+		Ok(iter)
 	}
 
 	/// Delete data about an output from the backend.
@@ -666,7 +658,7 @@ where
 	}
 
 	/// Iterate over transactions data stored by the backend.
-	pub fn tx_log_iter(&'a self) -> impl Iterator<Item = TxLogEntry> + 'a {
+	pub fn tx_log_iter(&'a self) -> Result<impl Iterator<Item = TxLogEntry> + 'a, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self.db.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
 			ser::deserialize(
@@ -676,12 +668,11 @@ where
 			)
 			.map_err(From::from)
 		});
-		let iter = prefix_iter
-			.expect("deserialize")
+		let iter = prefix_iter?
 			.into_iter()
 			.filter(|x| x.is_ok())
 			.map(|x| x.unwrap());
-		iter
+		Ok(iter)
 	}
 
 	/// Save a transaction log entry.
@@ -714,7 +705,7 @@ where
 	}
 
 	/// Iterate over account names stored in backend.
-	pub fn acct_path_iter(&'a self) -> impl Iterator<Item = AcctPathMapping> + 'a {
+	pub fn acct_path_iter(&'a self) -> Result<impl Iterator<Item = AcctPathMapping> + 'a, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self
 			.db
@@ -726,12 +717,11 @@ where
 				)
 				.map_err(From::from)
 			});
-		let iter = prefix_iter
-			.expect("deserialize")
+		let iter = prefix_iter?
 			.into_iter()
 			.filter(|x| x.is_ok())
 			.map(|x| x.unwrap());
-		iter
+		Ok(iter)
 	}
 
 	/// Save an output as locked in the backend.

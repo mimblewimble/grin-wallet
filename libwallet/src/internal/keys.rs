@@ -54,7 +54,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	Ok(wallet.acct_path_iter().collect())
+	Ok(wallet.acct_path_iter()?.collect())
 }
 
 /// Adds a new parent account path with a given label
@@ -68,7 +68,7 @@ where
 	K: Keychain,
 {
 	let label = label.to_owned();
-	if wallet.acct_path_iter().any(|l| l.label == label) {
+	if wallet.acct_path_iter()?.any(|l| l.label == label) {
 		return Err(Error::AccountLabelAlreadyExists(label));
 	}
 
@@ -76,7 +76,7 @@ where
 	// so find the highest of those, then increment (to conform with external/internal
 	// derivation chains in BIP32 spec)
 
-	let highest_entry = wallet.acct_path_iter().max_by(|a, b| {
+	let highest_entry = wallet.acct_path_iter()?.max_by(|a, b| {
 		<u32>::from(a.path.to_path().path[0]).cmp(&<u32>::from(b.path.to_path().path[0]))
 	});
 

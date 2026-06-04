@@ -52,7 +52,7 @@ where
 {
 	// just read the wallet here, no need for a write lock
 	let mut outputs = wallet
-		.iter()
+		.iter()?
 		.filter(|out| show_spent || out.status != OutputStatus::Spent)
 		.collect::<Vec<_>>();
 
@@ -95,7 +95,7 @@ pub fn apply_advanced_tx_list_filtering<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	parent_key_id: Option<&Identifier>,
 	query_args: &RetrieveTxQueryArgs,
-) -> Vec<TxLogEntry>
+) -> Result<Vec<TxLogEntry>, Error>
 where
 	C: NodeClient,
 	K: Keychain,
@@ -103,7 +103,7 @@ where
 	// Apply simple bool, GTE or LTE fields
 	let txs_iter: Box<dyn Iterator<Item = TxLogEntry>> = Box::new(
 		wallet
-			.tx_log_iter()
+			.tx_log_iter()?
 			.filter(|tx_entry| match parent_key_id {
 				Some(k) => tx_entry.parent_key_id == *k,
 				None => true,
@@ -322,7 +322,7 @@ where
 		return_txs = return_txs.into_iter().take(l as usize).collect()
 	}
 
-	return_txs
+	Ok(return_txs)
 }
 
 /// Retrieve all the transaction entries, or a particular entry
@@ -343,10 +343,10 @@ where
 	// Adding in new transaction list query logic. If `tx_id` or `tx_slate_id`
 	// is provided, then `query_args` is ignored and old logic is followed.
 	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
-		txs = apply_advanced_tx_list_filtering(wallet, parent_key_id, &query_args.unwrap())
+		txs = apply_advanced_tx_list_filtering(wallet, parent_key_id, &query_args.unwrap())?
 	} else {
 		txs = wallet
-			.tx_log_iter()
+			.tx_log_iter()?
 			.filter(|tx_entry| {
 				let f_pk = match parent_key_id {
 					Some(k) => tx_entry.parent_key_id == *k,
@@ -409,7 +409,7 @@ where
 	let mut wallet_outputs = HashMap::new();
 	let keychain = wallet.keychain(keychain_mask)?;
 	let unspents: Vec<OutputData> = wallet
-		.iter()
+		.iter()?
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
 		.collect();
 
@@ -547,7 +547,7 @@ where
 							&& (output.status == OutputStatus::Unconfirmed
 								|| output.status == OutputStatus::Reverted)
 						{
-							let tx = batch.tx_log_iter().find(|t| {
+							let tx = batch.tx_log_iter()?.find(|t| {
 								Some(t.id) == output.tx_log_entry
 									&& t.parent_key_id == *parent_key_id
 							});
@@ -582,7 +582,7 @@ where
 		}
 
 		let mut txs_to_save = vec![];
-		for mut tx in batch.tx_log_iter() {
+		for mut tx in batch.tx_log_iter()? {
 			if reverted_kernels.contains(&tx.id) && tx.parent_key_id == *parent_key_id {
 				tx.tx_type = TxLogEntryType::TxReverted;
 				tx.reverted_after = tx.confirmation_ts.clone().and_then(|t| {
@@ -672,7 +672,7 @@ where
 
 	// Get corresponding kernels
 	let kernels = wallet
-		.tx_log_iter()
+		.tx_log_iter()?
 		.filter(|t| {
 			ids.contains(&t.id)
 				&& t.parent_key_id == *parent_key_id
@@ -707,7 +707,7 @@ where
 		return Ok(());
 	}
 	let mut ids_to_del = vec![];
-	for out in wallet.iter() {
+	for out in wallet.iter()? {
 		if out.status == OutputStatus::Unconfirmed
 			&& out.height > 0
 			&& out.height < height - 50
@@ -737,7 +737,7 @@ where
 {
 	let current_height = wallet.last_confirmed_height()?;
 	let outputs = wallet
-		.iter()
+		.iter()?
 		.filter(|out| out.root_key_id == *parent_key_id);
 
 	let mut unspent_total = 0;

@@ -399,7 +399,7 @@ where
 		max_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id,
-	);
+	)?;
 
 	// sender is responsible for setting the fee on the partial tx
 	// recipient should double-check the fee calculation and not blindly trust the
@@ -464,7 +464,7 @@ where
 				max_outputs,
 				selection_strategy_is_use_all,
 				parent_key_id,
-			)
+			)?
 			.1;
 			fee = tx_fee(coins.len(), num_outputs, 1);
 			total = coins.iter().map(|c| c.value).sum();
@@ -571,7 +571,7 @@ pub fn select_coins<C, K>(
 	max_outputs: usize,
 	select_all: bool,
 	parent_key_id: &Identifier,
-) -> (usize, Vec<OutputData>)
+) -> Result<(usize, Vec<OutputData>), Error>
 //    max_outputs_available, Outputs
 where
 	C: NodeClient,
@@ -579,7 +579,7 @@ where
 {
 	// first find all eligible outputs based on number of confirmations
 	let mut eligible = wallet
-		.iter()
+		.iter()?
 		.filter(|out| {
 			out.root_key_id == *parent_key_id
 				&& out.eligible_to_spend(current_height, minimum_confirmations)
@@ -603,7 +603,7 @@ where
 		for window in eligible.windows(max_outputs) {
 			let windowed_eligibles = window.to_vec();
 			if let Some(outputs) = select_from(amount, select_all, windowed_eligibles) {
-				return (max_available, outputs);
+				return Ok((max_available, outputs));
 			}
 		}
 		// Not exist in any window of which total amount >= amount.
@@ -614,20 +614,20 @@ where
 				"Extending maximum number of outputs. {} outputs selected.",
 				outputs.len()
 			);
-			return (max_available, outputs);
+			return Ok((max_available, outputs));
 		}
 	} else if let Some(outputs) = select_from(amount, select_all, eligible.clone()) {
-		return (max_available, outputs);
+		return Ok((max_available, outputs));
 	}
 
 	// we failed to find a suitable set of outputs to spend,
 	// so return the largest amount we can so we can provide guidance on what is
 	// possible
 	eligible.reverse();
-	(
+	Ok((
 		max_available,
 		eligible.iter().take(max_outputs).cloned().collect(),
-	)
+	))
 }
 
 fn select_from(amount: u64, select_all: bool, outputs: Vec<OutputData>) -> Option<Vec<OutputData>> {
@@ -684,7 +684,7 @@ where
 
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {
-		let input = wallet.iter().find(|out| out.key_id == *id);
+		let input = wallet.iter()?.find(|out| out.key_id == *id);
 		if let Some(i) = input {
 			if i.is_coinbase {
 				parts.push(build::coinbase_input(*value, i.key_id.clone()));
@@ -694,7 +694,7 @@ where
 		}
 	}
 	for (id, _, value) in &context.get_outputs() {
-		let output = wallet.iter().find(|out| out.key_id == *id);
+		let output = wallet.iter()?.find(|out| out.key_id == *id);
 		if let Some(i) = output {
 			parts.push(build::output(*value, i.key_id.clone()));
 		}
