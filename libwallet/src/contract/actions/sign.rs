@@ -35,10 +35,12 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	// Compute if we will add outputs at this step
+	// Compute if we will add outputs at this step. Only a missing context means we
+	// still need to add them; propagate any other error.
 	let will_add_outputs = match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
 		Ok(ctx) => ctx.get_inputs().len() + ctx.get_outputs().len() == 0,
-		Err(_) => true,
+		Err(Error::NotFoundErr(_)) => true,
+		Err(e) => return Err(e),
 	};
 	// Compute state for 'sign'
 	let (sl, mut context) = compute(w, keychain_mask, slate, setup_args)?;

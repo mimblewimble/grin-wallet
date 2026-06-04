@@ -41,7 +41,8 @@ where
 	let maybe_context = w.get_private_context(keychain_mask, slate.id.as_bytes());
 
 	let context = match maybe_context {
-		Err(_) => {
+		// Only create a new context when there genuinely isn't one; propagate other errors.
+		Err(Error::NotFoundErr(_)) => {
 			// Get data required for creating a context
 			let height = w.w2n_client().get_chain_tip()?.0;
 			let parent_key_id =
@@ -57,6 +58,7 @@ where
 				false,
 			)?
 		}
+		Err(e) => return Err(e),
 		Ok(ctx) => ctx,
 	};
 	Ok(context)

@@ -377,6 +377,8 @@ where
 		let (blind_xor_key, nonce_xor_key) =
 			private_ctx_xor_keys(&self.keychain(keychain_mask)?, slate_id)?;
 
+		// A missing context surfaces as Error::NotFoundErr (via the grin_store
+		// conversion), letting callers distinguish it from other store errors.
 		let mut ctx: Context = option_to_not_found(self.db.get_ser(&ctx_key, None), || {
 			format!("Slate id: {:x?}", slate_id.to_vec())
 		})?;

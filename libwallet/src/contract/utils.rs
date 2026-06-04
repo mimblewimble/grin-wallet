@@ -158,7 +158,10 @@ where
 			}
 			expected_net_change = Some(ctx.get_net_change());
 		}
-		Err(_) => debug!("contract::utils::get_net_change => context not found"),
+		Err(Error::NotFoundErr(_)) => {
+			debug!("contract::utils::get_net_change => context not found")
+		}
+		Err(e) => return Err(e),
 	};
 
 	// Fail if net_change was not passed to setup_args and was also not present in the context.

@@ -81,6 +81,10 @@ pub enum Error {
 	#[error("Wallet store error: {0}")]
 	Backend(String),
 
+	/// Requested item was not found in the wallet store
+	#[error("Not found: {0}")]
+	NotFoundErr(String),
+
 	/// Callback implementation error conversion
 	#[error("Restore Error")]
 	Restore,
@@ -348,7 +352,12 @@ pub enum Error {
 
 impl From<grin_store::Error> for Error {
 	fn from(error: grin_store::Error) -> Error {
-		Error::Backend(format!("{}", error))
+		// Preserve "not found" so callers can distinguish a missing item from other
+		// store errors; everything else collapses to a generic backend error.
+		match error {
+			grin_store::Error::NotFoundErr(s) => Error::NotFoundErr(s),
+			other => Error::Backend(format!("{}", other)),
+		}
 	}
 }
 
