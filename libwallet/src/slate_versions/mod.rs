@@ -268,6 +268,32 @@ pub mod tests {
 	}
 
 	#[test]
+	fn create_slatepack_emits_lowest_version() -> Result<(), Error> {
+		set_local_chain_type(ChainTypes::Mainnet);
+		let packer = Slatepacker::new(SlatepackerArgs {
+			sender: None,
+			recipients: vec![],
+			dec_key: None,
+		});
+
+		// A slate carrying a payment proof needs V5 (the proof carries memo/timestamp
+		// that V4 can't represent), and the V5 fields survive the round trip.
+		let slate_with_proof = populate_test_slate()?;
+		assert!(slate_with_proof.payment_proof.is_some());
+		let recovered_v5 = packer.get_slate(&packer.create_slatepack(&slate_with_proof)?)?;
+		assert_eq!(recovered_v5.version_info.version, 5);
+		assert!(recovered_v5.payment_proof.unwrap().memo.is_some());
+
+		// Without a proof, V4 is sufficient and is emitted for interoperability with V4 peers.
+		let mut slate_no_proof = populate_test_slate()?;
+		slate_no_proof.payment_proof = None;
+		let recovered_v4 = packer.get_slate(&packer.create_slatepack(&slate_no_proof)?)?;
+		assert_eq!(recovered_v4.version_info.version, 4);
+
+		Ok(())
+	}
+
+	#[test]
 	fn slatepack_version_v4_v5() -> Result<(), Error> {
 		set_local_chain_type(ChainTypes::Mainnet);
 
