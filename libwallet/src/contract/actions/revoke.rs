@@ -55,21 +55,31 @@ where
 		})
 		.collect::<Vec<OutputData>>();
 
+	// Determine the account that owns the locked inputs so the cancel and the self-spend
+	// target it rather than whatever account happens to be active.
+	let parent_key_id = match my_contributed_inputs.first() {
+		Some(out) => out.root_key_id.clone(),
+		None => w.parent_key_id(),
+	};
+
 	// 1. Unlock the input by calling cancel_tx
-	let parent_key_id = w.parent_key_id();
 	tx::cancel_tx(&mut *w, keychain_mask, &parent_key_id, Some(tx_id), None)?;
 
 	if my_contributed_inputs.len() == 0 {
 		return Ok(None);
 	}
 	let input_commit = my_contributed_inputs[0].commit.as_ref().unwrap();
+	// Account label for the self-spend, so recovered funds return to the inputs' account.
+	let src_acct_name = w
+		.acct_path_iter()
+		.find(|m| m.path == parent_key_id)
+		.map(|m| m.label);
 	// 2. Create a 1-1 self-spend transaction using this input
 	let ct_slate = new(
 		w,
 		keychain_mask,
 		&ContractSetupArgsAPI {
-			// TODO: Check the src_acct_name below. This would use the currently active account
-			src_acct_name: None,
+			src_acct_name: src_acct_name.clone(),
 			net_change: Some(0), // self-spend
 			num_participants: 1,
 			add_outputs: false,
@@ -85,8 +95,7 @@ where
 		keychain_mask,
 		&ct_slate,
 		&ContractSetupArgsAPI {
-			// TODO: Check the src_acct_name below. This would use the currently active account
-			src_acct_name: None,
+			src_acct_name,
 			net_change: None, // we already have it in the context as 0 now
 			num_participants: 1,
 			add_outputs: false,
