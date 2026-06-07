@@ -23,8 +23,8 @@ use crate::types::{NodeClient, WalletBackend};
 
 /// View contract
 pub fn view<'a, T: ?Sized, C, K>(
-	_w: &mut T,
-	_keychain_mask: Option<&SecretKey>,
+	w: &mut T,
+	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	_encrypted_for: &str,
 ) -> Result<ContractView, Error>
@@ -55,12 +55,19 @@ where
 		.filter(|v| !v.is_complete())
 		.count();
 
+	// If we have a local context for this slate we've agreed on a net change; surface it.
+	let agreed_net_change = match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
+		Ok(ctx) => Some(ctx.get_net_change()),
+		Err(Error::NotFoundErr(_)) => None,
+		Err(e) => return Err(e),
+	};
+
 	// TODO: Maybe we can know if the slate was meant for us if it was encrypted for us.
 	// A possible issue is that one can encrypt the same slate for 10 people.
 	let ct_view = ContractView {
 		num_participants: slate.num_participants,
 		suggested_net_change: suggested_net_change,
-		agreed_net_change: None, // TODO
+		agreed_net_change,
 		num_sigs: num_sigs as u8,
 		is_executed: is_executed,
 		..Default::default()
