@@ -289,7 +289,6 @@ pub fn verify_selection_consistency(
 ) -> Result<(), Error> {
 	// We can't define a selection strategy if we've already done the setup phase. We only allow to pass either the
 	// default or exactly the same strategy we defined when doing the setup phase.
-	// TODO: Test that this works. Perhaps we'd have to define how to compare the two?
 	if cur_args != ctx_args && cur_args != &OutputSelectionArgs::default() {
 		return Err(Error::GenericError(format!(
 			"Can't define selection args now because we've already done the setup phase. ctx_selection_args:{:#?}, cur_selection_args:{:#?}",
@@ -574,6 +573,25 @@ mod tests {
 			result,
 			(expected_inputs, expected_output_amounts, expected_fee)
 		);
+	}
+
+	#[test]
+	fn selection_args_consistency() {
+		// Selection args agreed at the setup phase (stored in the Context).
+		let ctx_args = OutputSelectionArgs {
+			use_inputs: Some("any".to_string()),
+			..Default::default()
+		};
+		// Re-supplying the same args is fine.
+		assert!(verify_selection_consistency(&ctx_args, &ctx_args).is_ok());
+		// Supplying defaults later is fine (we fall back to the setup-phase args).
+		assert!(verify_selection_consistency(&ctx_args, &OutputSelectionArgs::default()).is_ok());
+		// Supplying different, non-default args after setup is rejected.
+		let changed = OutputSelectionArgs {
+			use_inputs: Some("0123456789".to_string()),
+			..Default::default()
+		};
+		assert!(verify_selection_consistency(&ctx_args, &changed).is_err());
 	}
 
 	/*

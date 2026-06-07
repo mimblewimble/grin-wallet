@@ -324,8 +324,9 @@ pub fn my_fee_contribution(
 	let my_kernel_cost = (kernel_cost as f64 / (num_participants as f64)).ceil();
 	fee += my_kernel_cost as u64;
 
-	// Add my fee contribution to the slate total fee.
-	// TODO: Does this break compatibility with existing slates?
+	// Add my fee contribution to the slate total fee. Uses the standard FeeFields
+	// encoding; contracts rely on every participant applying the same
+	// 1/num_participants split so the contributions together cover the kernel cost.
 	let my_fee_fields = FeeFields::new(0, fee)?;
 	Ok(my_fee_fields)
 }
@@ -407,4 +408,31 @@ where
 		None => w.parent_key_id(),
 	};
 	Ok(parent_key_id)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn fee_contribution_kernel_split() {
+		let (n_inputs, n_outputs, n_kernels) = (1, 1, 1);
+		let base = tx_fee(n_inputs, n_outputs, 0);
+		let kernel_cost = tx_fee(0, 0, n_kernels);
+
+		// A single participant (self-spend) pays the whole kernel cost.
+		let solo = my_fee_contribution(n_inputs, n_outputs, n_kernels, 1)
+			.unwrap()
+			.fee();
+		assert_eq!(solo, base + kernel_cost);
+
+		// Two participants each pay ceil(kernel_cost / 2) ...
+		let half = my_fee_contribution(n_inputs, n_outputs, n_kernels, 2)
+			.unwrap()
+			.fee();
+		let my_share = ((kernel_cost as f64) / 2.0).ceil() as u64;
+		assert_eq!(half, base + my_share);
+		// ... and applying the same split, the participants together cover the kernel cost.
+		assert!(2 * my_share >= kernel_cost);
+	}
 }
