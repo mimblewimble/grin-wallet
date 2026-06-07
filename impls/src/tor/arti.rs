@@ -207,7 +207,7 @@ fn init_client(
 			}
 		}
 	}
-	let config = builder.build().unwrap();
+	let config = builder.build().map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
 	let runtime = TokioNativeTlsRuntime::create()?;
