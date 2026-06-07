@@ -410,7 +410,8 @@ where
 		Some(i) => i,
 		None => 0,
 	};
-	let parent_key_id = wallet.parent_key_id();
+	// Derive the proof address under the contract's account, not the active one.
+	let parent_key_id = context.parent_key_id.clone();
 	let recp_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 
