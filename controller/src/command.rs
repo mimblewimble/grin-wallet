@@ -1649,21 +1649,23 @@ pub struct ContractNewArgs {
 }
 
 impl ContractNewArgs {
-	fn get_net_change(&self) -> i64 {
-		// TODO: could the cast 'as i64' overflow or something?
+	fn get_net_change(&self) -> Result<i64, Error> {
+		let to_i64 = |v: u64| {
+			i64::try_from(v).map_err(|_| Error::ArgumentError(format!("Amount {} is too large", v)))
+		};
 		match self.receive {
 			None => match self.send {
-				None => panic!("Send or receive not specified."),
-				Some(v) => -(v as i64), // negative net change on send
+				None => Err(Error::ArgumentError("Send or receive not specified.".into())),
+				Some(v) => Ok(-to_i64(v)?), // negative net change on send
 			},
-			Some(v) => v as i64, // positive net change on receive
+			Some(v) => to_i64(v), // positive net change on receive
 		}
 	}
 
 	// Create a ContractNewArgsAPI from the ContractNewArgs
-	fn to_api_args(&self) -> ContractNewArgsAPI {
-		let net_change = self.get_net_change();
-		ContractNewArgsAPI {
+	fn to_api_args(&self) -> Result<ContractNewArgsAPI, Error> {
+		let net_change = self.get_net_change()?;
+		Ok(ContractNewArgsAPI {
 			setup_args: ContractSetupArgsAPI {
 				src_acct_name: match self.src_acct_name.as_ref() {
 					Some(v) => Some(v.to_string()),
@@ -1686,7 +1688,7 @@ impl ContractNewArgs {
 				proof_args: Default::default(),
 			},
 			..Default::default()
-		}
+		})
 	}
 }
 
@@ -1700,9 +1702,8 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let contract_new_args = args.to_api_args()?;
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		let contract_new_args = args.to_api_args();
-
 		let slate = api.contract_new(m, &contract_new_args)?;
 
 		print_slatepack(
@@ -1748,25 +1749,27 @@ pub struct ContractSetupArgs {
 }
 
 impl ContractSetupArgs {
-	fn get_net_change(&self) -> Option<i64> {
-		let mut net_change: Option<i64> = None;
-		// TODO: Check bounds before casting to i64.
+	fn get_net_change(&self) -> Result<Option<i64>, Error> {
 		if self.receive.is_some() && self.send.is_some() {
-			panic!("Can't pass both --receive and --send parameters.");
+			return Err(Error::ArgumentError(
+				"Can't pass both --receive and --send parameters.".into(),
+			));
 		}
-		if self.receive.is_some() {
-			net_change = Some(self.receive.unwrap() as i64);
-		}
-		if self.send.is_some() {
-			net_change = Some(-(self.send.unwrap() as i64));
-		}
-		net_change
+		let to_i64 = |v: u64| {
+			i64::try_from(v).map_err(|_| Error::ArgumentError(format!("Amount {} is too large", v)))
+		};
+		let net_change = match (self.receive, self.send) {
+			(Some(v), _) => Some(to_i64(v)?),
+			(_, Some(v)) => Some(-to_i64(v)?),
+			(None, None) => None,
+		};
+		Ok(net_change)
 	}
 
 	// Create a ContractSetupArgsAPI from the ContractSetupArgs
-	fn to_api_args(&self) -> ContractSetupArgsAPI {
-		let net_change = self.get_net_change();
-		ContractSetupArgsAPI {
+	fn to_api_args(&self) -> Result<ContractSetupArgsAPI, Error> {
+		let net_change = self.get_net_change()?;
+		Ok(ContractSetupArgsAPI {
 			// TODO: num_participants is derived here. It should be an Option and read from the slate.
 			// Need to check no attack are possible regarding kernel fee contribution.
 			net_change: net_change,
@@ -1783,7 +1786,7 @@ impl ContractSetupArgs {
 				..Default::default()
 			},
 			..Default::default()
-		}
+		})
 	}
 }
 
@@ -1864,6 +1867,8 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	// Args for signing are just setup args
+	let contract_sign_args = args.to_api_args()?;
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		// Read the slatepack from stdin
 		println!("Paste slatepack:");
@@ -1871,9 +1876,6 @@ where
 		io::stdin()
 			.read_line(&mut slatepack_msg)
 			.expect("Failed to read from stdin");
-
-		// Args for signing are just setup args
-		let contract_sign_args = args.to_api_args();
 
 		// Decrypt the slate, sign it and encrypt it for the next party
 		// TODO: Make sure you get the counterparty_addr and slate with 1 call.

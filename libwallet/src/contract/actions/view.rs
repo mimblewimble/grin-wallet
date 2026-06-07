@@ -37,10 +37,14 @@ where
 	// Otherwise, you can't really predict who the party doing the next step should be.
 
 	// TODO: Do we need to do any slate verification here?
+	// Checked conversion so an out-of-range amount can't wrap into a bogus net change.
 	let suggested_net_change: Option<i64> = match slate.state {
-		// TODO: Check bounds against overflow/underflow
-		SlateState::Invoice1 => Some(slate.amount as i64),
-		SlateState::Standard1 => Some(-(slate.amount as i64)),
+		SlateState::Invoice1 => Some(i64::try_from(slate.amount).map_err(|_| {
+			Error::GenericError(format!("Slate amount {} exceeds i64", slate.amount))
+		})?),
+		SlateState::Standard1 => Some(-i64::try_from(slate.amount).map_err(|_| {
+			Error::GenericError(format!("Slate amount {} exceeds i64", slate.amount))
+		})?),
 		_ => None,
 	};
 	let is_executed = false;
