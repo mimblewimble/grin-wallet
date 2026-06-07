@@ -212,13 +212,12 @@ where
 
 	// Return an error if the fee computed is larger than the committed fee
 	if committed_fee.is_some() && my_fee.fee() > committed_fee.unwrap().fee() {
-		// TODO: Return a specific Fee estimation error and suggest the user to cancel the transaction
 		let msg = format!(
-			"Fee computed ({}) is larger than the committed fee ({})",
+			"Fee computed ({}) is larger than the committed fee ({}); cancel the transaction and retry",
 			my_fee.fee(),
 			committed_fee.unwrap().fee()
 		);
-		return Err(Error::GenericError(msg.into()).into());
+		return Err(Error::Fee(msg).into());
 	}
 
 	// Check that the inputs we picked are enough to cover all our output amounts and fees
