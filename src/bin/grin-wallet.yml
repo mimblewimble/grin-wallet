@@ -497,49 +497,6 @@ subcommands:
                     short: o
                     long: make-outputs
                     takes_value: true
-        # - setup:
-        #     about: Perform a key setup on a contract
-        #     args:
-        #         - encrypt-for:
-        #             help: The counter party grin address
-        #             short: e
-        #             long: encrypt-for
-        #             takes_value: true
-        #             # index: 1
-        #         - receive:
-        #             help: How much you want to receive
-        #             short: r
-        #             long: receive
-        #             takes_value: true
-        #         - send:
-        #             help: How much you want to send
-        #             short: s
-        #             long: send
-        #             takes_value: true
-        #         - as-json:
-        #             help: Show result as JSON
-        #             short: j
-        #             long: as-json
-        #             takes_value: false
-        #         - no-payjoin:
-        #             help: Don't make it a payjoin (if receiver)
-        #             long: no-payjoin
-        #             takes_value: false
-        #         - add-outputs:
-        #             help: Defines whether we should pick inputs/outputs in the setup step.
-        #             short: a
-        #             long: add-outputs
-        #             takes_value: false
-        #         - use-inputs:
-        #             help: Which inputs you want to use (provide comma separated commitments)
-        #             short: i
-        #             long: use-inputs
-        #             takes_value: true
-        #         - make-outputs:
-        #             help: Which outputs should we create? (provide comma separated amounts)
-        #             short: o
-        #             long: make-outputs
-        #             takes_value: true
         - sign:
             about: Sign a contract
             args:

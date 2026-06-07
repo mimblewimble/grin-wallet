@@ -785,19 +785,6 @@ where
 		owner::contract_new(&mut **w, keychain_mask, &args)
 	}
 
-	// /// TODO
-	// pub fn contract_setup(
-	// 	&self,
-	// 	keychain_mask: Option<&SecretKey>,
-	// 	slate: &Slate,
-	// 	args: &ContractSetupArgsAPI,
-	// ) -> Result<Slate, Error> {
-	// 	let mut w_lock = self.wallet_inst.lock();
-	// 	let w = w_lock.lc_provider()?.wallet_inst()?;
-	// 	// TODO: self.doctest_mode ?
-	// 	owner::contract_setup(&mut **w, keychain_mask, &args, &slate)
-	// }
-
 	/// TODO
 	pub fn contract_sign(
 		&self,

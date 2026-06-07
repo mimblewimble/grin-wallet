@@ -1478,10 +1478,6 @@ where
 				let a = arg_parse!(parse_contract_new_args(&new_args, account));
 				command::contract_new(owner_api, km, a)
 			}
-			// ("setup", Some(setup_args)) => {
-			// 	let a = arg_parse!(parse_contract_setup_args(&setup_args));
-			// 	command::contract_setup(owner_api, km, a)
-			// }
 			("sign", Some(sign_args)) => {
 				// Sign command takes setup_args so we use the same parser
 				let setup_args = arg_parse!(parse_contract_setup_args(&sign_args));

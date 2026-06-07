@@ -1564,22 +1564,6 @@ where
 	contract::new(&mut *w, keychain_mask, &args.setup_args)
 }
 
-// /// Setup transaction contract
-// pub fn contract_setup<'a, T: ?Sized, C, K>(
-// 	w: &mut T,
-// 	keychain_mask: Option<&SecretKey>,
-// 	args: &ContractSetupArgsAPI,
-// 	slate: &Slate,
-// 	// use_test_rng: bool,
-// ) -> Result<Slate, Error>
-// where
-// 	T: WalletBackend<'a, C, K>,
-// 	C: NodeClient + 'a,
-// 	K: Keychain + 'a,
-// {
-// 	contract::setup(&mut *w, keychain_mask, slate, &args)
-// }
-
 /// Sign transaction contract
 pub fn contract_sign<'a, T: ?Sized, C, K>(
 	w: &mut T,
