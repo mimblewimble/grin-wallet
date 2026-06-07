@@ -81,6 +81,17 @@ where
 	K: Keychain + 'a,
 {
 	debug!("Creating a new contract context");
+	// Validate num_participants before any fee math (kernel cost is divided by it, so 0
+	// would be a divide-by-zero). This is the common setup path for every party (the
+	// signer's value comes from the slate), so it also guards against a tampered slate.
+	// Only 1 (self-spend) and 2 (standard) are implemented today; lift this when
+	// multi-party contracts are supported.
+	if setup_args.num_participants < 1 || setup_args.num_participants > 2 {
+		return Err(Error::GenericError(format!(
+			"Unsupported num_participants: {} (expected 1 or 2)",
+			setup_args.num_participants
+		)));
+	}
 	// sender should always refresh outputs
 	updater::refresh_outputs(w, keychain_mask, parent_key_id, false)?;
 
