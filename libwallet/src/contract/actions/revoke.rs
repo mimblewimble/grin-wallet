@@ -37,8 +37,6 @@ where
 	// FUTURE: we may want to boost fees in case we notice something in the mempool. There
 	// are also race conditions possible. We may not want to label txlogenry as Canceled
 	// until the new tx gets on the chain.
-	// NOTE: We should not care about deleting the context because as soon as we sign
-	// a contract, the context is deleted.
 
 	// If we contributed inputs, we must have locked them at which point we also set the
 	// OutputData.tx_log_entry which is the tx_id.
@@ -62,8 +60,26 @@ where
 		None => w.parent_key_id(),
 	};
 
+	// The revoked transaction's slate id, so we can drop its private context below.
+	let revoked_slate_id = w
+		.get_tx_log_entry(parent_key_id.clone(), tx_id)?
+		.and_then(|e| e.tx_slate_id);
+
 	// 1. Unlock the input by calling cancel_tx
 	tx::cancel_tx(&mut *w, keychain_mask, &parent_key_id, Some(tx_id), None)?;
+
+	// Drop the canceled slate's private context if one still exists (signing a contract
+	// already deletes it).
+	if let Some(slate_id) = revoked_slate_id {
+		if w
+			.get_private_context(keychain_mask, slate_id.as_bytes())
+			.is_ok()
+		{
+			let mut batch = w.batch(keychain_mask)?;
+			batch.delete_private_context(slate_id.as_bytes())?;
+			batch.commit()?;
+		}
+	}
 
 	if my_contributed_inputs.len() == 0 {
 		return Ok(None);
@@ -106,7 +122,6 @@ where
 			proof_args: Default::default(),
 		},
 	)?;
-	// TODO: Think about what to do with transaction context of the cancelled slate. It should probably get deleted.
 
 	Ok(Some(finished_slate))
 }
