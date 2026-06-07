@@ -293,7 +293,7 @@ where
 	};
 
 	// Need to keep external process in scope while the listener is running.
-	let _tor_service = if use_tor {
+	let tor_service = if use_tor {
 		let use_integrated = tor_config.use_integrated.unwrap_or(true);
 		let res = if use_integrated {
 			start_tor_service(sec_key, &tor_dir, addr, tor_config.clone())
@@ -312,17 +312,16 @@ where
 					"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 					onion_address, addr
 				);
-				Some(service)
+				Ok(Some(service))
 			}
 			Err(e) => {
 				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
 				error!("Tor Error: {}", e);
-				warn!("Listener will be available via {} only", addr);
-				None
+				Err(e)
 			}
 		}
 	} else {
-		None
+		Ok(None)
 	};
 
 	let api_handler_v2 = ForeignAPIHandlerV2::new(
@@ -348,12 +347,16 @@ where
 		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 	warn!("HTTP Foreign listener started.");
 
-	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-	let qr_string = match QrCode::new(sp_address.to_string()) {
-		Ok(qr) => qr.to_string(false, 3),
-		Err(_) => "Failed to generate QR code!".to_string(),
-	};
-	warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+	if let Some(_) = tor_service.ok() {
+		let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+		let qr_string = match QrCode::new(sp_address.to_string()) {
+			Ok(qr) => qr.to_string(false, 3),
+			Err(_) => "Failed to generate QR code!".to_string(),
+		};
+		warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+	} else {
+		warn!("Listener is available on {}", addr);
+	}
 
 	api_thread
 		.join()
