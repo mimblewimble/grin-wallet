@@ -17,7 +17,7 @@
 use crate::grin_core::libtx::build;
 use crate::grin_core::libtx::proof::ProofBuilder;
 use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
+use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::slate::{Slate, SlateState};
 use crate::types::{Context, NodeClient, WalletBackend};
 use crate::Error;
@@ -255,6 +255,18 @@ where
 	K: Keychain,
 {
 	debug!("contract::slate::add_keys => called");
-	// TODO: Is this safe from manipulation?
+	// Guard against a tampered slate that already carries the full participant set.
+	// Re-adding our own info is idempotent, so only block when we are not already in it.
+	let our_pub_key = PublicKey::from_secret_key(keychain.secp(), &context.sec_key)?;
+	let already_ours = slate
+		.participant_data
+		.iter()
+		.any(|p| p.public_blind_excess == our_pub_key);
+	if !already_ours && slate.participant_data.len() >= slate.num_participants as usize {
+		return Err(Error::GenericError(format!(
+			"Slate already has the expected {} participant(s)",
+			slate.num_participants
+		)));
+	}
 	slate.add_participant_info(keychain, context, None)
 }
