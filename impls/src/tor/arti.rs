@@ -223,7 +223,7 @@ fn init_client(
 			if res.is_ok() {
 				let mut percent = 0.0;
 				let mut prev_percent = 0.0;
-				while percent != 1.0 {
+				while percent < 1.0 {
 					percent = c.bootstrap_status().as_frac();
 					if percent != prev_percent {
 						info!("Starting Tor {}%", percent * 100.0);
