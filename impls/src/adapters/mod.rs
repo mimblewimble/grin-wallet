@@ -13,12 +13,12 @@
 // limitations under the License.
 
 mod file;
-pub mod tor;
 mod slatepack;
+pub mod tor;
 
 pub use self::file::PathToSlate;
-pub use self::tor::TorSlateSender;
 pub use self::slatepack::PathToSlatepack;
+pub use self::tor::TorSlateSender;
 
 use crate::config::WalletConfig;
 use crate::libwallet::{Error, Slate};

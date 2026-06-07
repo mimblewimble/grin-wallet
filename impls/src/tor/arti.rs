@@ -62,8 +62,7 @@ pub fn start_tor_service(
 		OnionV3Address::from_private(&key.0).map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let hs = HsNickname::new(onion_address.to_string()).unwrap();
 	let keystore_path = Path::new(&state_path).join("keystore");
-	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)
-		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
 
 	// Launch Onion service.
 	let service_config = OnionServiceConfigBuilder::default()
@@ -207,7 +206,9 @@ fn init_client(
 			}
 		}
 	}
-	let config = builder.build().map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+	let config = builder
+		.build()
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
 	let runtime = TokioNativeTlsRuntime::create()?;
@@ -278,13 +279,14 @@ fn add_service_key(
 	key: &SecretKey,
 	hs_nickname: &HsNickname,
 	path: PathBuf,
-) -> tor_keymgr::Result<()> {
-	let arti_store = ArtiNativeKeystore::from_path_and_mistrust(path, mistrust)?;
+) -> Result<(), Error> {
+	let arti_store = ArtiNativeKeystore::from_path_and_mistrust(path, mistrust)
+		.map_err(|e| Error::TorProcess(format!("{}", e)))?;
 
 	let key_manager = KeyMgrBuilder::default()
 		.primary_store(Box::new(arti_store))
 		.build()
-		.unwrap();
+		.map_err(|e| Error::TorProcess(format!("{}", e)))?;
 
 	let expanded_sk =
 		ExpandedSecretKey::from_bytes(Sha512::default().chain_update(key).finalize().as_ref());
@@ -294,18 +296,22 @@ fn add_service_key(
 	sk_bytes[32..64].copy_from_slice(&expanded_sk.hash_prefix);
 	let expanded_kp = ExpandedKeypair::from_secret_key_bytes(sk_bytes).unwrap();
 
-	key_manager.insert(
-		HsIdKey::from(expanded_kp.public().clone()),
-		&HsIdPublicKeySpecifier::new(hs_nickname.clone()),
-		KeystoreSelector::Primary,
-		true,
-	)?;
+	key_manager
+		.insert(
+			HsIdKey::from(expanded_kp.public().clone()),
+			&HsIdPublicKeySpecifier::new(hs_nickname.clone()),
+			KeystoreSelector::Primary,
+			true,
+		)
+		.map_err(|e| Error::TorProcess(format!("{}", e)))?;
 
-	key_manager.insert(
-		HsIdKeypair::from(expanded_kp),
-		&HsIdKeypairSpecifier::new(hs_nickname.clone()),
-		KeystoreSelector::Primary,
-		true,
-	)?;
+	key_manager
+		.insert(
+			HsIdKeypair::from(expanded_kp),
+			&HsIdKeypairSpecifier::new(hs_nickname.clone()),
+			KeystoreSelector::Primary,
+			true,
+		)
+		.map_err(|e| Error::TorProcess(format!("{}", e)))?;
 	Ok(())
 }
