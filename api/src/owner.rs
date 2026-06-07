@@ -773,7 +773,7 @@ where
 		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
 	}
 
-	/// TODO
+	/// Initiate a new contract. Also performs the initial setup on the slate.
 	pub fn contract_new(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -781,11 +781,10 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		// TODO: self.doctest_mode ?
 		owner::contract_new(&mut **w, keychain_mask, &args)
 	}
 
-	/// TODO
+	/// Sign a contract, running setup first if it has not been done yet.
 	pub fn contract_sign(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -797,7 +796,7 @@ where
 		owner::contract_sign(&mut **w, keychain_mask, &args, &slate)
 	}
 
-	/// TODO
+	/// Return the participant index in the slate that matches this wallet's context.
 	pub fn get_slate_index_matching_my_context(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -808,7 +807,7 @@ where
 		owner::get_slate_index_matching_my_context(&mut **w, keychain_mask, &slate)
 	}
 
-	/// TODO
+	/// Revoke a contract by double-spending one of its locked inputs.
 	pub fn contract_revoke(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -2408,7 +2407,8 @@ where
 		)
 	}
 
-	/// TODO: Temporary, likely should merge with above
+	/// Retrieve the invoice payment proof for a stored transaction.
+	/// FUTURE: likely merge with retrieve_payment_proof above.
 	pub fn retrieve_payment_proof_invoice(
 		&self,
 		keychain_mask: Option<&SecretKey>,

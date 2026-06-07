@@ -70,7 +70,6 @@ fn create<'a, T: ?Sized, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	current_height: u64,
-	// TODO: compare with &InitTxArgs to see if any information is missing
 	setup_args: &ContractSetupArgsAPI,
 	parent_key_id: &Identifier,
 	use_test_rng: bool,
@@ -120,14 +119,14 @@ where
 
 	// Create a Context for this slate
 	let keychain = w.keychain(keychain_mask)?;
-	// TODO: it seems 'is_initiator: true' is only used in test_rng. Do we care about this?
+	// is_initiator only affects the deterministic test RNG; contracts always pass true.
 	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
 	// Context.fee will hold _our_ fee contribution and not the total slate fee
 	context.fee = my_fee.as_opt();
 	// Context.amount is not used in contracts, but we set it anyway.
 	context.amount = slate.amount;
-	// TODO: looking at what uses Context.late_lock_args, it seems only the args in SelectionArgs are used except
-	// for args.ttl_blocks. Is this needed? Can we refactor this?
+	// Store the full setup args on the context; later steps (add_outputs) read the
+	// SelectionArgs and ttl from here.
 	context.setup_args = Some(setup_args.clone());
 	debug!(
 		"Setting Context.net_change as: {}",

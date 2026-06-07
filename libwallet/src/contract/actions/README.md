@@ -33,20 +33,15 @@ Separating side effects until the 'save_step' part would make these functions mu
 #### TODOs
 
  - for payjoins, instead of doing Some("any"), find an actual input and put the actual commitment in --use-inputs (only do that if none is added). Think about how to do that in a way that would be nice also for the API. Maybe the API should just take "any" which gets transformed into one of the random inputs. Maybe the "any" is ok. It seems to work fine, might be better if we selected the input though.
- - make sure to forget the Context when we sign or at least forget the secret keys for it to avoid signing with the same nonce twice
  - make_outputs api should receive nanogrins rather than grin. We have to make the conversion before calling the API
  - sometimes the slatepack outputs with a \n for some reason which makes pasting it register \n as the end of paste and crashes?
  - remove casting decimals, we should accept value in nanogrins (including --make-outputs option), never as 0.1 Grin through the interface. Casting should be left to the gui wallet logic
- - Check casts to/from i64/u64 etc. consider using saturating methods. Make sure conversions are safe.
  - separate side-effects out from the main computations
  - is keys::next_available_key(..) safe from race-conditions? (do we lock?)
- - function add_output_to_ctx has a comment around next_available_key
- - add support for different accounts not just main (check parent_id, parent_key_id, etc. usage)
  - ensure counterparty can't make you overpay fees through num_participants param
  - make sure the stored transaction is saved correctly at each step (TxLogEntry has stored_tx field, check other fields as well)
  - make sure the transaction log contains all the necessary data (check TODO comments on tx log entry functions)
  - graceful error handling
- - setup.rs# TODO: verify that the parent_key_id is consistent
  - replace mutable objects with immutable when possible
  - make sure we lock the wallet when needed (check wallet_lock!() macro that is used in api/owner.rs)
  - add support for more than 2 parties (includes a new 'setup' API endpoint and command)

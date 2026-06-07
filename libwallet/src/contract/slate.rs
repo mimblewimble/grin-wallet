@@ -40,8 +40,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
-	// e.g. slate.add_payment_proof_data()
+	// FUTURE: move proof handling onto Slate itself so it can be versioned (slate.add_payment_proof_data()).
 	debug!("contract::slate::add_payment_proof => called");
 	// If we're a recipient, generate proof unless explicity told not to
 	if let Some(ref c) = net_change {
@@ -59,8 +58,7 @@ pub fn verify_payment_proof(
 	net_change: i64,
 	recipient_address: &DalekPublicKey,
 ) -> Result<(), Error> {
-	// TODO: Implement. Consider adding this function to the Slate itself so they can easily be versioned
-	// e.g. slate.verify_payment_proof_sig()
+	// FUTURE: move proof verification onto Slate itself so it can be versioned (slate.verify_payment_proof_sig()).
 	debug!("contract::slate::verify_payment_proof => called");
 	if net_change > 0 && slate.payment_proof.is_some() {
 		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;

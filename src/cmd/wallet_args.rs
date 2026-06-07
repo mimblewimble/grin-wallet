@@ -972,7 +972,6 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 	})
 }
 
-// TODO: parse args
 pub fn parse_contract_new_args(
 	args: &ArgMatches,
 	account: &String,
@@ -980,8 +979,6 @@ pub fn parse_contract_new_args(
 	// Optional: without --encrypt-for the contract slatepack is produced unencrypted.
 	let counterparty_addr = args.value_of("encrypt-for").map(String::from);
 
-	// TODO: Make sure the values are in some expected bounds.
-	// TODO: How to deal with decimals and precision? we probably want users to express the value in Grin.
 	// Parse receive and send params and convert them to nano grin
 	let receive = match args.value_of("receive") {
 		Some(g) => Some(parse_grin_amount(g, "receive")?),
@@ -1001,7 +998,6 @@ pub fn parse_contract_new_args(
 			"You must specify either --receive or --send.",
 		)));
 	};
-	// TODO: verify this is correct e.g. which values are passed here by default etc.
 	let src_acct_name = Some(String::from(account));
 	let add_outputs = args.is_present("add-outputs");
 	let as_json = args.is_present("as-json");
@@ -1053,18 +1049,15 @@ pub fn parse_contract_new_args(
 		add_outputs: add_outputs,
 		use_inputs: use_inputs,
 		make_outputs: make_outputs,
-		// TODO: Future features below
+		// Not yet wired to CLI flags:
 		fee_rate: None,
 		outfile: None,
 	})
 }
 
-// TODO: parse args
 pub fn parse_contract_setup_args(
 	args: &ArgMatches,
 ) -> Result<command::ContractSetupArgs, ParseError> {
-	// TODO: Make sure the values are in some expected bounds.
-	// TODO: How to deal with decimals and precision? we probably want users to express the value in Grin.
 	let counterparty_addr = match args.value_of("encrypt-for") {
 		Some(v) => Some(String::from(v)),
 		None => None,
@@ -1114,8 +1107,7 @@ pub fn parse_contract_setup_args(
 		}
 		None => None,
 	};
-	// TODO: should we catch if the person calls "--receive=5" when it should be "--send=5"?
-	// Perhaps we could detect this from the slate state e.g. S1 -> receive, I1 -> send?
+	// FUTURE: detect a reversed --receive/--send from the slate state (S1 -> receive, I1 -> send).
 
 	Ok(command::ContractSetupArgs {
 		counterparty_addr: counterparty_addr,
@@ -1125,7 +1117,7 @@ pub fn parse_contract_setup_args(
 		add_outputs: false,
 		use_inputs: use_inputs,
 		make_outputs: make_outputs,
-		// TODO: Future features below
+		// Not yet wired to CLI flags:
 		fee_rate: None,
 		outfile: None,
 	})

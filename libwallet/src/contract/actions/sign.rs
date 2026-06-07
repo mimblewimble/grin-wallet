@@ -68,7 +68,7 @@ where
 
 	// Ensure net_change has been provided
 	let expected_net_change =
-		contract::utils::get_net_change(w, keychain_mask, &sl, setup_args.net_change)?;
+		contract::utils::get_net_change(w, keychain_mask, &sl.id, setup_args.net_change)?;
 
 	// Define the values that must be provided in the setup phase at the sign step
 	let mut setup_args = setup_args.clone();

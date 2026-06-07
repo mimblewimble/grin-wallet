@@ -44,7 +44,8 @@ pub fn create_tx_log_entry(
 		}
 	};
 	let mut t = TxLogEntry::new(parent_key_id.clone(), log_type, log_id);
-	// TODO: TxLogEntry has stored_tx field. Check what this needs to be set to and check other fields as well
+	// stored_tx on the entry is left unset; contracts persist the tx separately via
+	// store_tx in save_step.
 
 	t.tx_slate_id = Some(slate.id);
 	if net_change > 0 {
@@ -107,9 +108,8 @@ where
 				sender_address: sender_address.to_ed25519()?,
 				sender_address_path,
 				sender_signature: None,
-				/// TODO: Will fill these as separate steps for now, check whether this
-				/// can be merged in a general case (which means knowing which nonces here belong to
-				/// the recipient)
+				// Filled as separate steps for now; could be merged into a general case
+				// once we know which nonces here belong to the recipient.
 				proof_type: Some(1u8),
 				receiver_public_nonce: Some(slate.participant_data[recipient_index].public_nonce),
 				receiver_public_excess: Some(
@@ -130,8 +130,7 @@ where
 pub fn get_net_change<'a, T: ?Sized, C, K>(
 	w: &mut T,
 	keychain_mask: Option<&SecretKey>,
-	// TODO: make this receive only slate.id instead of passing the whole slate
-	slate: &Slate,
+	slate_id: &Uuid,
 	setup_args_net_change: Option<i64>,
 ) -> Result<i64, Error>
 where
@@ -140,7 +139,7 @@ where
 	K: Keychain + 'a,
 {
 	let mut expected_net_change: Option<i64> = setup_args_net_change;
-	match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
+	match w.get_private_context(keychain_mask, slate_id.as_bytes()) {
 		Ok(ctx) => {
 			debug!("contract::sign => context found");
 			// We have a context so we must have agreed on a certain net_change value in Context.net_change.

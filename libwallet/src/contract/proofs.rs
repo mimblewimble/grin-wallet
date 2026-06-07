@@ -373,7 +373,8 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	// TODO: Just generating invoice (type 1) for now
+	// Invoice (type 1) is the only contract proof type today; other types are future
+	// work tied to the early-payment-proof RFC.
 	let (invoice_proof, promise_signature, receiver_address) =
 		generate_invoice_signature(wallet, keychain_mask, slate, context, proof_args)?;
 	let timestamp = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
