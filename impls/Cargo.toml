@@ -60,12 +60,12 @@ grin_wallet_libwallet = { path = "../libwallet", version = "5.4.0-alpha.1" }
 # grin_store = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
 
 # For bleeding edge
-grin_core = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
-grin_keychain = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
-grin_chain = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
-grin_util = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
-grin_api = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
-grin_store = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
+grin_core = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
+grin_keychain = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
+grin_chain = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
+grin_util = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
+grin_api = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
+grin_store = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
 
 # For local testing
 # grin_core = { path = "../../grin/core"}

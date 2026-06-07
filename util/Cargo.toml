@@ -28,7 +28,7 @@ thiserror = "1"
 # grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
 
 # For bleeding edge
-grin_util = { git = "https://github.com/mimblewimble/grin", rev = "110e0e143fdf188b69ac56c2f378c4121859703b" }
+grin_util = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
 
 # For local testing
 
