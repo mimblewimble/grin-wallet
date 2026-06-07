@@ -167,11 +167,6 @@ impl Default for ContractSetupArgsAPI {
 /// Contract New
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ContractNewArgsAPI {
-	/// TODO: do we need the target_slate_version?
-	/// Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
-	pub target_slate_version: Option<u16>,
 	/// Setup args - contract new also initiates the setup by default
 	pub setup_args: ContractSetupArgsAPI,
 }
@@ -179,7 +174,6 @@ pub struct ContractNewArgsAPI {
 impl Default for ContractNewArgsAPI {
 	fn default() -> ContractNewArgsAPI {
 		ContractNewArgsAPI {
-			target_slate_version: None,
 			setup_args: ContractSetupArgsAPI {
 				src_acct_name: None,
 				net_change: None,
@@ -197,8 +191,6 @@ impl Default for ContractNewArgsAPI {
 /// ContractView
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ContractView {
-	/// TODO: do we need the target_slate_version?
-	pub target_slate_version: Option<u16>,
 	/// Every slatepack has a number of participants
 	pub num_participants: u8,
 	/// Suggested value for the party at step2 (only provided if slatepack is at step1)
@@ -218,7 +210,6 @@ pub struct ContractView {
 impl Default for ContractView {
 	fn default() -> ContractView {
 		ContractView {
-			target_slate_version: None,
 			num_participants: 2,
 			suggested_net_change: None,
 			agreed_net_change: None,
