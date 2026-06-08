@@ -28,7 +28,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
-use crate::{InitTxArgs, WalletBackend};
+use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
@@ -623,6 +623,8 @@ pub struct TxLogEntry {
 	pub id: u32,
 	/// Slate transaction this entry is associated with, if any
 	pub tx_slate_id: Option<Uuid>,
+	/// Transaction slate state
+	pub tx_slate_state: Option<SlateState>,
 	/// Transaction type (as above)
 	pub tx_type: TxLogEntryType,
 	/// Time this tx entry was created
@@ -686,10 +688,11 @@ impl TxLogEntry {
 	/// Return a new blank with TS initialised with next entry
 	pub fn new(parent_key_id: Identifier, t: TxLogEntryType, id: u32) -> Self {
 		TxLogEntry {
-			parent_key_id: parent_key_id,
+			parent_key_id,
 			tx_type: t,
-			id: id,
+			id,
 			tx_slate_id: None,
+			tx_slate_state: None,
 			creation_ts: Utc::now(),
 			confirmation_ts: None,
 			confirmed: false,
@@ -878,7 +881,7 @@ pub struct ViewWalletOutputResult {
 impl ViewWalletOutputResult {
 	pub fn num_confirmations(&self, tip_height: u64) -> u64 {
 		if self.height > tip_height {
-			return 0;
+			0
 		} else {
 			1 + (tip_height - self.height)
 		}

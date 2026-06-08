@@ -157,6 +157,7 @@ where
 		let log_id = batch.next_tx_log_id(&parent_key_id)?;
 		let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
 		t.tx_slate_id = Some(slate_id);
+		t.tx_slate_state = Some(slate.state.clone());
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = context.fee;
@@ -281,6 +282,7 @@ where
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
 	let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);
 	t.tx_slate_id = Some(slate_id);
+	t.tx_slate_state = Some(slate.state.clone());
 	t.amount_credited = amount;
 	t.num_outputs = 1;
 	t.ttl_cutoff_height = match slate.ttl_cutoff_height {

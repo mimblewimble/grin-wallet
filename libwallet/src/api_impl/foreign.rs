@@ -13,6 +13,8 @@
 // limitations under the License.
 
 //! Generic implementation of owner API functions
+
+use grin_keychain::Identifier;
 use strum::IntoEnumIterator;
 
 use super::owner::tx_lock_outputs;
@@ -124,7 +126,9 @@ where
 	ret_slate.amount = 0;
 	ret_slate.fee_fields = FeeFields::zero();
 	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
+
 	ret_slate.state = SlateState::Standard2;
+	update_tx_slate_state(w, keychain_mask, &parent_key_id, &ret_slate)?;
 
 	Ok(ret_slate)
 }
@@ -161,6 +165,9 @@ where
 		}
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
+
+		let parent_key_id = w.parent_key_id();
+		update_tx_slate_state(w, keychain_mask, &parent_key_id, &sl)?;
 	} else if sl.state == SlateState::Standard2 {
 		let keychain = w.keychain(keychain_mask)?;
 		let parent_key_id = w.parent_key_id();
@@ -219,6 +226,8 @@ where
 		}
 		sl.state = SlateState::Standard3;
 		sl.amount = 0;
+
+		update_tx_slate_state(w, keychain_mask, &parent_key_id, &sl)?;
 	} else {
 		return Err(Error::SlateState);
 	}
@@ -226,4 +235,31 @@ where
 		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
 	}
 	Ok(sl)
+}
+
+/// Update transaction slate state.
+fn update_tx_slate_state<C, K>(
+	wallet: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	parent_key_id: &Identifier,
+	slate: &Slate,
+) -> Result<(), Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let tx = wallet
+		.tx_log_iter()?
+		.find(|tx| tx.tx_slate_id == Some(slate.id));
+	if let Some(mut tx) = tx {
+		let mut batch = wallet.batch(keychain_mask)?;
+		tx.tx_slate_state = Some(slate.state.clone());
+		batch.save_tx_log_entry(tx.clone(), parent_key_id)?;
+	} else {
+		return Err(Error::Backend(format!(
+			"Tx log entry with slate id {} not found",
+			slate.id
+		)));
+	}
+	Ok(())
 }
