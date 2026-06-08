@@ -250,6 +250,8 @@ where
 {
 	let tx = wallet
 		.tx_log_iter()?
+		.filter(|tx| tx.is_ok())
+		.map(|tx| tx.unwrap())
 		.find(|tx| tx.tx_slate_id == Some(slate.id));
 	if let Some(mut tx) = tx {
 		let mut batch = wallet.batch(keychain_mask)?;

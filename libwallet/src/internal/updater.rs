@@ -101,180 +101,189 @@ where
 	K: Keychain,
 {
 	// Apply simple bool, GTE or LTE fields
-	let txs_iter: Box<dyn Iterator<Item = TxLogEntry>> = Box::new(
-		wallet
-			.tx_log_iter()?
-			.filter(|tx_entry| match parent_key_id {
-				Some(k) => tx_entry.parent_key_id == *k,
-				None => true,
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.exclude_cancelled {
-					if v {
-						tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
-							&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
-					} else {
-						true
-					}
+	let mut bad_records = 0;
+	let txs_iter = wallet
+		.tx_log_iter()?
+		.filter(|tx| {
+			if tx.is_err() {
+				bad_records += 1;
+			}
+			tx.is_ok()
+		})
+		.map(|tx| tx.unwrap())
+		.filter(|tx_entry| match parent_key_id {
+			Some(k) => tx_entry.parent_key_id == *k,
+			None => true,
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.exclude_cancelled {
+				if v {
+					tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
+						&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.include_outstanding_only {
-					if v {
-						!tx_entry.confirmed
-					} else {
-						true
-					}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_outstanding_only {
+				if v {
+					!tx_entry.confirmed
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.include_confirmed_only {
-					if v {
-						tx_entry.confirmed
-					} else {
-						true
-					}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_confirmed_only {
+				if v {
+					tx_entry.confirmed
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.include_sent_only {
-					if v {
-						tx_entry.tx_type == TxLogEntryType::TxSent
-							|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
-					} else {
-						true
-					}
-				} else {
-					true
-				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.include_received_only {
-					if v {
-						tx_entry.tx_type == TxLogEntryType::TxReceived
-							|| tx_entry.tx_type == TxLogEntryType::TxReceivedCancelled
-					} else {
-						true
-					}
-				} else {
-					true
-				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.include_coinbase_only {
-					if v {
-						tx_entry.tx_type == TxLogEntryType::ConfirmedCoinbase
-					} else {
-						true
-					}
-				} else {
-					true
-				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.include_reverted_only {
-					if v {
-						tx_entry.tx_type == TxLogEntryType::TxReverted
-					} else {
-						true
-					}
-				} else {
-					true
-				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_id {
-					tx_entry.id >= v
-				} else {
-					true
-				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.max_id {
-					tx_entry.id <= v
-				} else {
-					true
-				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_amount {
-					if tx_entry.tx_type == TxLogEntryType::TxSent
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_sent_only {
+				if v {
+					tx_entry.tx_type == TxLogEntryType::TxSent
 						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
-					{
-						BigInt::from(tx_entry.amount_debited)
-							- BigInt::from(tx_entry.amount_credited)
-							>= BigInt::from(v)
-					} else {
-						BigInt::from(tx_entry.amount_credited)
-							- BigInt::from(tx_entry.amount_debited)
-							>= BigInt::from(v)
-					}
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.max_amount {
-					if tx_entry.tx_type == TxLogEntryType::TxSent
-						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
-					{
-						BigInt::from(tx_entry.amount_debited)
-							- BigInt::from(tx_entry.amount_credited)
-							<= BigInt::from(v)
-					} else {
-						BigInt::from(tx_entry.amount_credited)
-							- BigInt::from(tx_entry.amount_debited)
-							<= BigInt::from(v)
-					}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_received_only {
+				if v {
+					tx_entry.tx_type == TxLogEntryType::TxReceived
+						|| tx_entry.tx_type == TxLogEntryType::TxReceivedCancelled
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_creation_timestamp {
-					tx_entry.creation_ts >= v
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_coinbase_only {
+				if v {
+					tx_entry.tx_type == TxLogEntryType::ConfirmedCoinbase
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_confirmed_timestamp {
-					tx_entry.creation_ts <= v
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_reverted_only {
+				if v {
+					tx_entry.tx_type == TxLogEntryType::TxReverted
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.min_confirmed_timestamp {
-					if let Some(t) = tx_entry.confirmation_ts {
-						t >= v
-					} else {
-						true
-					}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.min_id {
+				tx_entry.id >= v
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.max_id {
+				tx_entry.id <= v
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.min_amount {
+				if tx_entry.tx_type == TxLogEntryType::TxSent
+					|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+				{
+					BigInt::from(tx_entry.amount_debited) - BigInt::from(tx_entry.amount_credited)
+						>= BigInt::from(v)
+				} else {
+					BigInt::from(tx_entry.amount_credited) - BigInt::from(tx_entry.amount_debited)
+						>= BigInt::from(v)
+				}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.max_amount {
+				if tx_entry.tx_type == TxLogEntryType::TxSent
+					|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+				{
+					BigInt::from(tx_entry.amount_debited) - BigInt::from(tx_entry.amount_credited)
+						<= BigInt::from(v)
+				} else {
+					BigInt::from(tx_entry.amount_credited) - BigInt::from(tx_entry.amount_debited)
+						<= BigInt::from(v)
+				}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.min_creation_timestamp {
+				tx_entry.creation_ts >= v
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.min_confirmed_timestamp {
+				tx_entry.creation_ts <= v
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.min_confirmed_timestamp {
+				if let Some(t) = tx_entry.confirmation_ts {
+					t >= v
 				} else {
 					true
 				}
-			})
-			.filter(|tx_entry| {
-				if let Some(v) = query_args.max_confirmed_timestamp {
-					if let Some(t) = tx_entry.confirmation_ts {
-						t <= v
-					} else {
-						true
-					}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.max_confirmed_timestamp {
+				if let Some(t) = tx_entry.confirmation_ts {
+					t <= v
 				} else {
 					true
 				}
-			}),
-	);
+			} else {
+				true
+			}
+		});
+	// };
 
+	//TODO: apply limit + introduce skip before collecting all records.
+	// Introduce comparator for LMDB to not request all records with limit.
 	let mut return_txs: Vec<TxLogEntry> = txs_iter.collect();
+
+	if bad_records != 0 {
+		error!("apply_advanced_tx_list_filtering: tx history is missing {} records, cause db read error", bad_records);
+	}
 
 	// Now apply requested sorting
 	if let Some(ref s) = query_args.sort_field {
@@ -345,8 +354,16 @@ where
 	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
 		txs = apply_advanced_tx_list_filtering(wallet, parent_key_id, &query_args.unwrap())?
 	} else {
+		let mut bad_records = 0;
 		txs = wallet
 			.tx_log_iter()?
+			.filter(|tx| {
+				if tx.is_err() {
+					bad_records += 1;
+				}
+				tx.is_ok()
+			})
+			.map(|tx| tx.unwrap())
 			.filter(|tx_entry| {
 				let f_pk = match parent_key_id {
 					Some(k) => tx_entry.parent_key_id == *k,
@@ -372,6 +389,12 @@ where
 				f_pk && f_tx_id && f_txs && f_outstanding
 			})
 			.collect();
+		if bad_records != 0 {
+			error!(
+				"retrieve_txs: tx history is missing {} records, cause db read error",
+				bad_records
+			);
+		}
 		txs.sort_by_key(|tx| tx.creation_ts);
 	}
 	Ok(txs)
@@ -547,10 +570,14 @@ where
 							&& (output.status == OutputStatus::Unconfirmed
 								|| output.status == OutputStatus::Reverted)
 						{
-							let tx = batch.tx_log_iter()?.find(|t| {
-								Some(t.id) == output.tx_log_entry
-									&& t.parent_key_id == *parent_key_id
-							});
+							let tx = batch
+								.tx_log_iter()?
+								.filter(|t| t.is_ok())
+								.map(|t| t.unwrap())
+								.find(|t| {
+									Some(t.id) == output.tx_log_entry
+										&& t.parent_key_id == *parent_key_id
+								});
 							if let Some(mut t) = tx {
 								if t.tx_type == TxLogEntryType::TxReverted {
 									t.tx_type = TxLogEntryType::TxReceived;
@@ -559,6 +586,10 @@ where
 								t.update_confirmation_ts();
 								t.confirmed = true;
 								batch.save_tx_log_entry(t, &parent_key_id)?;
+							} else {
+								if let Some(tx_id) = output.tx_log_entry {
+									error!("apply_api_outputs: tx with id {:?} not found", tx_id);
+								}
 							}
 						}
 						output.height = o.1;
@@ -582,7 +613,17 @@ where
 		}
 
 		let mut txs_to_save = vec![];
-		for mut tx in batch.tx_log_iter()? {
+		let mut bad_records = 0;
+		for mut tx in batch
+			.tx_log_iter()?
+			.filter(|tx| {
+				if tx.is_err() {
+					bad_records += 1;
+				}
+				tx.is_ok()
+			})
+			.map(|t| t.unwrap())
+		{
 			if reverted_kernels.contains(&tx.id) && tx.parent_key_id == *parent_key_id {
 				tx.tx_type = TxLogEntryType::TxReverted;
 				tx.reverted_after = tx.confirmation_ts.clone().and_then(|t| {
@@ -593,6 +634,14 @@ where
 				txs_to_save.push(tx);
 			}
 		}
+
+		if bad_records > 0 {
+			error!(
+				"apply_api_outputs: tx history is missing {} records, cause db read error",
+				bad_records
+			);
+		}
+
 		for tx in txs_to_save {
 			batch.save_tx_log_entry(tx, &parent_key_id)?;
 		}
@@ -671,8 +720,16 @@ where
 	}
 
 	// Get corresponding kernels
+	let mut bad_records = 0;
 	let kernels = wallet
 		.tx_log_iter()?
+		.filter(|tx| {
+			if tx.is_err() {
+				bad_records += 1;
+			}
+			tx.is_ok()
+		})
+		.map(|t| t.unwrap())
 		.filter(|t| {
 			ids.contains(&t.id)
 				&& t.parent_key_id == *parent_key_id
@@ -689,6 +746,13 @@ where
 		if client.get_kernel(&excess, min_height, None)?.is_none() {
 			reverted.insert(id);
 		}
+	}
+
+	if bad_records > 0 {
+		error!(
+			"find_reverted_kernels: tx history is missing {} records, cause db read error",
+			bad_records
+		);
 	}
 
 	Ok(reverted)

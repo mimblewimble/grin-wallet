@@ -831,7 +831,11 @@ where
 {
 	let mut uuid = None;
 	if let Some(i) = tx_id {
-		let tx = w.tx_log_iter()?.find(|t| t.id == i);
+		let tx = w
+			.tx_log_iter()?
+			.filter(|tx| tx.is_ok())
+			.map(|tx| tx.unwrap())
+			.find(|t| t.id == i);
 		if let Some(t) = tx {
 			uuid = t.tx_slate_id;
 		}

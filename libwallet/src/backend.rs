@@ -333,18 +333,20 @@ where
 	}
 
 	/// Iterate over all tx log data stored by the backend.
-	pub fn tx_log_iter(&self) -> Result<impl Iterator<Item = TxLogEntry>, Error> {
+	pub fn tx_log_iter(
+		&self,
+	) -> Result<impl Iterator<Item = Result<TxLogEntry, grin_store::Error>>, Error> {
 		let protocol_version = self.db.protocol_version();
-		let prefix_iter = self.db.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
-			ser::deserialize(
-				&mut v,
-				protocol_version,
-				ser::DeserializationMode::default(),
-			)
+		self.db
+			.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
+				ser::deserialize(
+					&mut v,
+					protocol_version,
+					ser::DeserializationMode::default(),
+				)
+				.map_err(From::from)
+			})
 			.map_err(From::from)
-		});
-		let items: Vec<TxLogEntry> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
-		Ok(items.into_iter())
 	}
 
 	/// Retrieve the private context associated with a given slate id.
@@ -646,18 +648,20 @@ where
 	}
 
 	/// Iterate over transactions data stored by the backend.
-	pub fn tx_log_iter(&'a self) -> Result<impl Iterator<Item = TxLogEntry> + 'a, Error> {
+	pub fn tx_log_iter(
+		&'a self,
+	) -> Result<impl Iterator<Item = Result<TxLogEntry, grin_store::Error>> + 'a, Error> {
 		let protocol_version = self.db.protocol_version();
-		let prefix_iter = self.db.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
-			ser::deserialize(
-				&mut v,
-				protocol_version,
-				ser::DeserializationMode::default(),
-			)
+		self.db
+			.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
+				ser::deserialize(
+					&mut v,
+					protocol_version,
+					ser::DeserializationMode::default(),
+				)
+				.map_err(From::from)
+			})
 			.map_err(From::from)
-		});
-		let items: Vec<TxLogEntry> = prefix_iter?.collect::<Result<Vec<_>, _>>()?;
-		Ok(items.into_iter())
 	}
 
 	/// Save a transaction log entry.
