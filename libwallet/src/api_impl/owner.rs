@@ -56,7 +56,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	keys::accounts(&mut *w)
+	keys::accounts(w)
 }
 
 /// new account path
@@ -69,7 +69,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	keys::new_acct_path(&mut *w, keychain_mask, label)
+	keys::new_acct_path(w, keychain_mask, label)
 }
 
 /// set active account
@@ -490,14 +490,7 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(
-		&mut *w,
-		args.amount,
-		false,
-		2,
-		use_test_rng,
-		args.ttl_blocks,
-	)?;
+	let mut slate = tx::new_tx_slate(w, args.amount, false, 2, use_test_rng, args.ttl_blocks)?;
 
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.version = v;
@@ -507,7 +500,7 @@ where
 	// back
 	if let Some(true) = args.estimate_only {
 		let (total, fee) = tx::estimate_send_tx(
-			&mut *w,
+			w,
 			keychain_mask,
 			args.amount,
 			args.amount_includes_fee.unwrap_or(false),
@@ -525,7 +518,7 @@ where
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let mut context = if args.late_lock.unwrap_or(false) {
 		tx::create_late_lock_context(
-			&mut *w,
+			w,
 			keychain_mask,
 			&mut slate,
 			height,
@@ -535,7 +528,7 @@ where
 		)?
 	} else {
 		tx::add_inputs_to_slate(
-			&mut *w,
+			w,
 			keychain_mask,
 			&mut slate,
 			height,
@@ -605,10 +598,10 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, true, 2, use_test_rng, None)?;
+	let mut slate = tx::new_tx_slate(w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let context = tx::add_output_to_slate(
-		&mut *w,
+		w,
 		keychain_mask,
 		&mut slate,
 		height,
@@ -661,7 +654,7 @@ where
 	};
 	// Don't do this multiple times
 	let tx = updater::retrieve_txs(
-		&mut *w,
+		w,
 		None,
 		Some(ret_slate.id),
 		None,
@@ -691,7 +684,7 @@ where
 	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
 
 	let mut context = tx::add_inputs_to_slate(
-		&mut *w,
+		w,
 		keychain_mask,
 		&mut ret_slate,
 		height,
@@ -737,7 +730,7 @@ where
 		}
 	}
 
-	selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, false)?;
+	selection::repopulate_tx(w, keychain_mask, &mut ret_slate, &context, false)?;
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -772,7 +765,7 @@ where
 
 	if sl.tx == None {
 		sl.tx = Some(Slate::empty_transaction());
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+		selection::repopulate_tx(w, keychain_mask, &mut sl, &context, true)?;
 	}
 
 	if slate.participant_data.len() == 1 {
@@ -781,14 +774,7 @@ where
 	}
 
 	let height = w.w2n_client().get_chain_tip()?.0;
-	selection::lock_tx_context(
-		&mut *w,
-		keychain_mask,
-		&sl,
-		height,
-		&context,
-		excess_override,
-	)
+	selection::lock_tx_context(w, keychain_mask, &sl, height, &context, excess_override)
 }
 
 /// Finalize slate
@@ -959,7 +945,7 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..tip.0).step_by(10001) {
+	for h in (start_height..tip.0 + 1).step_by(10001) {
 		let batch_end_height = cmp::min(tip.0, h + 10000);
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
@@ -1134,7 +1120,7 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..tip.0).step_by(10001) {
+	for h in (start_height..tip.0 + 1).step_by(10001) {
 		let batch_end_height = cmp::min(tip.0, h + 10000);
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
@@ -1354,7 +1340,7 @@ where
 {
 	let k = w.keychain(keychain_mask)?;
 
-	let key_id = keys::next_available_key(&mut *w, keychain_mask)?;
+	let key_id = keys::next_available_key(w, keychain_mask)?;
 
 	let blind = k.derive_key(amount, &key_id, SwitchCommitmentType::Regular)?;
 	let commit = k.secp().commit(amount, blind.clone())?;
