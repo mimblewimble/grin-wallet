@@ -317,6 +317,7 @@ where
 			Err(e) => {
 				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
 				error!("Tor Error: {}", e);
+				warn!("Listener is available on {}", addr);
 				Err(e)
 			}
 		}
@@ -347,15 +348,17 @@ where
 		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 	warn!("HTTP Foreign listener started.");
 
-	if let Some(_) = tor_service.ok() {
-		let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-		let qr_string = match QrCode::new(sp_address.to_string()) {
-			Ok(qr) => qr.to_string(false, 3),
-			Err(_) => "Failed to generate QR code!".to_string(),
-		};
-		warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
-	} else {
-		warn!("Listener is available on {}", addr);
+	if tor_service.is_ok() {
+		if let Some(_) = tor_service.as_ref().unwrap() {
+			let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+			let qr_string = match QrCode::new(sp_address.to_string()) {
+				Ok(qr) => qr.to_string(false, 3),
+				Err(_) => "Failed to generate QR code!".to_string(),
+			};
+			warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+		} else {
+			warn!("Listener is available on {}", addr);
+		}
 	}
 
 	api_thread
