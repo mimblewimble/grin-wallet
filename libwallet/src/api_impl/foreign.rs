@@ -256,10 +256,7 @@ where
 		tx.tx_slate_state = Some(slate.state.clone());
 		batch.save_tx_log_entry(tx.clone(), parent_key_id)?;
 	} else {
-		return Err(Error::Backend(format!(
-			"Tx log entry with slate id {} not found",
-			slate.id
-		)));
+		error!("Tx log entry with slate id {} not found", slate.id);
 	}
 	Ok(())
 }
