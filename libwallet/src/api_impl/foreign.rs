@@ -48,7 +48,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	updater::build_coinbase(&mut *w, keychain_mask, block_fees, test_mode)
+	updater::build_coinbase(w, keychain_mask, block_fees, test_mode)
 }
 
 /// Receive a tx as recipient
@@ -77,7 +77,7 @@ where
 	};
 	// Don't do this multiple times
 	let tx = updater::retrieve_txs(
-		&mut *w,
+		w,
 		None,
 		Some(ret_slate.id),
 		None,
@@ -96,7 +96,7 @@ where
 	let keychain = w.keychain(keychain_mask)?;
 
 	let context = tx::add_output_to_slate(
-		&mut *w,
+		w,
 		keychain_mask,
 		&mut ret_slate,
 		height,
@@ -150,10 +150,10 @@ where
 		let mut temp_ctx = context.clone();
 		temp_ctx.sec_key = context.initial_sec_key.clone();
 		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
+		selection::repopulate_tx(w, keychain_mask, &mut sl, &temp_ctx, false)?;
 
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-		tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
+		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
+		tx::update_stored_tx(w, keychain_mask, &context, &mut sl, true)?;
 		{
 			let mut batch = w.batch(keychain_mask)?;
 			batch.delete_private_context(sl.id.as_bytes())?;
@@ -171,7 +171,7 @@ where
 
 			let current_height = w.w2n_client().get_chain_tip()?.0;
 			let mut temp_sl =
-				tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
+				tx::new_tx_slate(w, context.amount, false, 2, false, args.ttl_blocks)?;
 			let temp_context = selection::build_send_tx(
 				w,
 				&keychain,
@@ -207,11 +207,11 @@ where
 		// Add our contribution to the offset
 		sl.adjust_offset(&keychain, &context)?;
 
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+		selection::repopulate_tx(w, keychain_mask, &mut sl, &context, true)?;
 
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-		tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
+		tx::verify_slate_payment_proof(w, keychain_mask, &parent_key_id, &context, &sl)?;
+		tx::update_stored_tx(w, keychain_mask, &context, &sl, false)?;
 		{
 			let mut batch = w.batch(keychain_mask)?;
 			batch.delete_private_context(sl.id.as_bytes())?;
