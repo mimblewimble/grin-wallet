@@ -295,7 +295,7 @@ pub trait OwnerRpc {
 			  "payment_proof": null,
 			  "reverted_after": null,
 			  "tx_slate_id": null,
-		      "tx_slate_state": null,
+			  "tx_slate_state": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
 		  ]
@@ -388,7 +388,7 @@ pub trait OwnerRpc {
 			  "payment_proof": null,
 			  "reverted_after": null,
 			  "tx_slate_id": null,
-		      "tx_slate_state": null,
+			  "tx_slate_state": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
 		  ]
