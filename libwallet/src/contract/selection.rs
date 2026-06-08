@@ -266,7 +266,7 @@ fn build_output_amount_list(
 	// TODO: check bounds when casting.
 	let my_change_output_amount =
 		(my_input_sum - custom_outputs_sum) as i64 + expected_net_change - my_fee_cost as i64;
-	// TODO: Check if it's even possible for change output to be negative (it shouldn't be if the equation is correct)
+	// A negative change output would mean the selection math is off; reject it explicitly.
 	if my_change_output_amount < 0 {
 		return Err(Error::GenericError(format!(
 			"contract::selection::build_output_amount_list => negative change output. Values: my_input_sum: {}, expected_net_change: {}, my_fee_cost: {}",

@@ -76,7 +76,6 @@ impl OutputSelectionArgs {
 			.unwrap_or(0)
 	}
 
-	// TODO: make sure to validate this: if custom outputs are specified, it has to be a payjoin.
 }
 
 impl Default for OutputSelectionArgs {

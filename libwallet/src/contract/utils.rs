@@ -319,7 +319,8 @@ pub fn my_fee_contribution(
 	let mut fee = tx_fee(n_inputs, n_outputs, 0);
 	// Add out fee costs for kernel. We pay 1/num_participants of a kernel cost
 	let kernel_cost = tx_fee(0, 0, n_kernels);
-	// TODO: we slightly overpay. Make sure to cover all the cases
+	// Round each participant's kernel share up, so the participants together never underpay;
+	// the overpay is bounded to under one fee unit per participant.
 	let my_kernel_cost = (kernel_cost as f64 / (num_participants as f64)).ceil();
 	fee += my_kernel_cost as u64;
 
@@ -376,8 +377,9 @@ pub fn verify_setup_args_consistency(
 			ctx_setup_args.num_participants, cur_setup_args.num_participants
 		)));
 	}
-	// TODO: Should we verify add_outputs?
-	// TODO: verify that the parent_key_id is consistent, perhaps even with the active_account set?
+	// add_outputs is intentionally forced true at the sign step (late lock), so it is not
+	// part of this consistency check. parent_key_id is taken from the stored Context, so
+	// later steps always derive under the contract's account regardless of the active one.
 
 	// Compare OutputSelectionArgs
 	verify_selection_consistency(
