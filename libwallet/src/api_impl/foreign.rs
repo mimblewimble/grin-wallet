@@ -248,9 +248,15 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	let mut bad_records = 0;
 	let tx = wallet
 		.tx_log_iter()?
-		.filter(|tx| tx.is_ok())
+		.filter(|tx| {
+			if tx.is_err() {
+				bad_records += 1;
+			}
+			tx.is_ok()
+		})
 		.map(|tx| tx.unwrap())
 		.find(|tx| tx.tx_slate_id == Some(slate.id));
 	if let Some(mut tx) = tx {
@@ -260,8 +266,8 @@ where
 		batch.commit()?;
 	} else {
 		return Err(Error::Backend(format!(
-			"Tx log entry with slate id {} not found",
-			slate.id
+			"Tx log entry with slate id {} not found, there are {} bad tx log records",
+			slate.id, bad_records
 		)));
 	}
 	Ok(())
