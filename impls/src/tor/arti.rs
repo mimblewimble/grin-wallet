@@ -77,7 +77,7 @@ pub fn start_tor_service(
 	let service_config = OnionServiceConfigBuilder::default()
 		.nickname(hs.clone())
 		.build()
-		.unwrap();
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let running_onion_service = match client.launch_onion_service(service_config) {
 		Ok(res) => {
 			if let Some((service, request)) = res {
