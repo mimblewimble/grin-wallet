@@ -13,9 +13,13 @@
 // limitations under the License.
 
 //! Generic implementation of owner API functions
+
+use grin_keychain::Identifier;
 use strum::IntoEnumIterator;
 
+use super::owner::tx_lock_outputs;
 use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::backend::WalletBackend;
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -23,10 +27,7 @@ use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
-	WalletBackend,
 };
-
-use super::owner::tx_lock_outputs;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -39,32 +40,30 @@ pub fn check_version() -> VersionInfo {
 }
 
 /// Build a coinbase transaction
-pub fn build_coinbase<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn build_coinbase<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
 	test_mode: bool,
 ) -> Result<CbData, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
-	updater::build_coinbase(&mut *w, keychain_mask, block_fees, test_mode)
+	updater::build_coinbase(w, keychain_mask, block_fees, test_mode)
 }
 
 /// Receive a tx as recipient
-pub fn receive_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn receive_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest_acct_name: Option<&str>,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
@@ -80,7 +79,7 @@ where
 	};
 	// Don't do this multiple times
 	let tx = updater::retrieve_txs(
-		&mut *w,
+		w,
 		None,
 		Some(ret_slate.id),
 		None,
@@ -99,7 +98,7 @@ where
 	let keychain = w.keychain(keychain_mask)?;
 
 	let context = tx::add_output_to_slate(
-		&mut *w,
+		w,
 		keychain_mask,
 		&mut ret_slate,
 		height,
@@ -127,22 +126,23 @@ where
 	ret_slate.amount = 0;
 	ret_slate.fee_fields = FeeFields::zero();
 	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
+
 	ret_slate.state = SlateState::Standard2;
+	update_tx_slate_state(w, keychain_mask, &parent_key_id, &ret_slate)?;
 
 	Ok(ret_slate)
 }
 
 /// Receive a tx that this wallet has issued
-pub fn finalize_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn finalize_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	post_automatically: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut sl = slate.clone();
 	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
@@ -154,10 +154,10 @@ where
 		let mut temp_ctx = context.clone();
 		temp_ctx.sec_key = context.initial_sec_key.clone();
 		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
+		selection::repopulate_tx(w, keychain_mask, &mut sl, &temp_ctx, false)?;
 
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-		tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
+		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
+		tx::update_stored_tx(w, keychain_mask, &context, &mut sl, true)?;
 		{
 			let mut batch = w.batch(keychain_mask)?;
 			batch.delete_private_context(sl.id.as_bytes())?;
@@ -165,6 +165,9 @@ where
 		}
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
+
+		let parent_key_id = w.parent_key_id();
+		update_tx_slate_state(w, keychain_mask, &parent_key_id, &sl)?;
 	} else if sl.state == SlateState::Standard2 {
 		let keychain = w.keychain(keychain_mask)?;
 		let parent_key_id = w.parent_key_id();
@@ -175,7 +178,7 @@ where
 
 			let current_height = w.w2n_client().get_chain_tip()?.0;
 			let mut temp_sl =
-				tx::new_tx_slate(&mut *w, context.amount, false, 2, false, args.ttl_blocks)?;
+				tx::new_tx_slate(w, context.amount, false, 2, false, args.ttl_blocks)?;
 			let temp_context = selection::build_send_tx(
 				w,
 				&keychain,
@@ -211,11 +214,11 @@ where
 		// Add our contribution to the offset
 		sl.adjust_offset(&keychain, &context)?;
 
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+		selection::repopulate_tx(w, keychain_mask, &mut sl, &context, true)?;
 
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-		tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
+		tx::verify_slate_payment_proof(w, keychain_mask, &parent_key_id, &context, &sl)?;
+		tx::update_stored_tx(w, keychain_mask, &context, &sl, false)?;
 		{
 			let mut batch = w.batch(keychain_mask)?;
 			batch.delete_private_context(sl.id.as_bytes())?;
@@ -223,6 +226,8 @@ where
 		}
 		sl.state = SlateState::Standard3;
 		sl.amount = 0;
+
+		update_tx_slate_state(w, keychain_mask, &parent_key_id, &sl)?;
 	} else {
 		return Err(Error::SlateState);
 	}
@@ -230,4 +235,40 @@ where
 		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
 	}
 	Ok(sl)
+}
+
+/// Update transaction slate state.
+fn update_tx_slate_state<C, K>(
+	wallet: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	parent_key_id: &Identifier,
+	slate: &Slate,
+) -> Result<(), Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let mut bad_records = 0;
+	let tx = wallet
+		.tx_log_iter()?
+		.filter(|tx| {
+			if tx.is_err() {
+				bad_records += 1;
+			}
+			tx.is_ok()
+		})
+		.map(|tx| tx.unwrap())
+		.find(|tx| tx.tx_slate_id == Some(slate.id));
+	if let Some(mut tx) = tx {
+		let mut batch = wallet.batch(keychain_mask)?;
+		tx.tx_slate_state = Some(slate.state.clone());
+		batch.save_tx_log_entry(tx.clone(), parent_key_id)?;
+		batch.commit()?;
+	} else {
+		return Err(Error::Backend(format!(
+			"Tx log entry with slate id {} not found, there are {} bad tx log records",
+			slate.id, bad_records
+		)));
+	}
+	Ok(())
 }

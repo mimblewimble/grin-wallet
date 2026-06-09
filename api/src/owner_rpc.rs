@@ -272,6 +272,7 @@ pub trait OwnerRpc {
 			  "stored_tx": null,
 			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
+			  "tx_slate_state": null,
 			  "payment_proof": null,
 			  "reverted_after": null,
 			  "tx_type": "ConfirmedCoinbase"
@@ -294,6 +295,7 @@ pub trait OwnerRpc {
 			  "payment_proof": null,
 			  "reverted_after": null,
 			  "tx_slate_id": null,
+			  "tx_slate_state": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
 		  ]
@@ -363,6 +365,7 @@ pub trait OwnerRpc {
 			  "stored_tx": null,
 			  "ttl_cutoff_height": null,
 			  "tx_slate_id": null,
+			  "tx_slate_state": null,
 			  "payment_proof": null,
 			  "reverted_after": null,
 			  "tx_type": "ConfirmedCoinbase"
@@ -385,6 +388,7 @@ pub trait OwnerRpc {
 			  "payment_proof": null,
 			  "reverted_after": null,
 			  "tx_slate_id": null,
+			  "tx_slate_state": null,
 			  "tx_type": "ConfirmedCoinbase"
 			}
 		  ]
@@ -2137,6 +2141,14 @@ where
 		VersionedSlate::into_version(out_slate, version)
 	}
 
+	fn tx_lock_outputs(&self, token: Token, in_slate: VersionedSlate) -> Result<(), Error> {
+		Owner::tx_lock_outputs(
+			self,
+			(&token.keychain_mask).as_ref(),
+			&Slate::from(in_slate),
+		)
+	}
+
 	fn finalize_tx(&self, token: Token, in_slate: VersionedSlate) -> Result<VersionedSlate, Error> {
 		let out_slate = Owner::finalize_tx(
 			self,
@@ -2147,11 +2159,12 @@ where
 		VersionedSlate::into_version(out_slate, version)
 	}
 
-	fn tx_lock_outputs(&self, token: Token, in_slate: VersionedSlate) -> Result<(), Error> {
-		Owner::tx_lock_outputs(
+	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), Error> {
+		Owner::post_tx(
 			self,
 			(&token.keychain_mask).as_ref(),
-			&Slate::from(in_slate),
+			&Slate::from(slate),
+			fluff,
 		)
 	}
 
@@ -2183,15 +2196,6 @@ where
 			}
 			None => Ok(None),
 		}
-	}
-
-	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), Error> {
-		Owner::post_tx(
-			self,
-			(&token.keychain_mask).as_ref(),
-			&Slate::from(slate),
-			fluff,
-		)
 	}
 
 	fn get_rewind_hash(&self, token: Token) -> Result<String, Error> {
@@ -2625,26 +2629,25 @@ pub fn run_doctest_owner(
 			payment_proof_recipient_address: proof_address,
 			..Default::default()
 		};
-		let mut slate =
-			api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
+		let mut slate = api_impl::owner::init_send_tx(w, (&mask1).as_ref(), args, true).unwrap();
 		println!("INITIAL SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		{
 			let mut w_lock = wallet2.lock();
 			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			slate = api_impl::foreign::receive_tx(&mut **w2, (&mask2).as_ref(), &slate, None, true)
-				.unwrap();
+			slate =
+				api_impl::foreign::receive_tx(w2, (&mask2).as_ref(), &slate, None, true).unwrap();
 			w2.close().unwrap();
 		}
 		// Spit out slate for input to finalize_tx
 		if lock_tx {
 			println!("LOCKING TX");
-			api_impl::owner::tx_lock_outputs(&mut **w, (&mask1).as_ref(), &slate).unwrap();
+			api_impl::owner::tx_lock_outputs(w, (&mask1).as_ref(), &slate).unwrap();
 		}
 		println!("RECEIPIENT SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		if finalize_tx {
-			slate = api_impl::owner::finalize_tx(&mut **w, (&mask1).as_ref(), &slate).unwrap();
+			slate = api_impl::owner::finalize_tx(w, (&mask1).as_ref(), &slate).unwrap();
 			error!("FINALIZED TX SLATE");
 			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		}

@@ -14,7 +14,6 @@
 
 //! Selection of inputs for building transactions
 
-use crate::address;
 use crate::error::Error;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::libtx::{
@@ -29,6 +28,7 @@ use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
+use crate::{address, WalletBackend};
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -37,8 +37,8 @@ use std::convert::TryInto;
 /// and saves the private wallet identifiers of our selected outputs
 /// into our transaction context
 
-pub fn build_send_tx<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn build_send_tx<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain: &K,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
@@ -54,9 +54,8 @@ pub fn build_send_tx<'a, T: ?Sized, C, K>(
 	amount_includes_fee: bool,
 ) -> Result<Context, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let (elems, inputs, change_amounts_derivations, fee) = select_send_tx(
 		wallet,
@@ -73,7 +72,7 @@ where
 	)?;
 	if amount_includes_fee {
 		slate.amount = slate.amount.checked_sub(fee).ok_or(Error::GenericError(
-			format!("Transaction amount is too small to include fee").into(),
+			"Transaction amount is too small to include fee".to_string(),
 		))?;
 	};
 
@@ -119,8 +118,8 @@ where
 
 /// Locks all corresponding outputs in the context, creates
 /// change outputs and tx log entry
-pub fn lock_tx_context<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn lock_tx_context<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	current_height: u64,
@@ -128,9 +127,8 @@ pub fn lock_tx_context<'a, T: ?Sized, C, K>(
 	excess_override: Option<pedersen::Commitment>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut output_commits: HashMap<Identifier, (Option<String>, u64)> = HashMap::new();
 	// Store cached commits before locking wallet
@@ -159,6 +157,7 @@ where
 		let log_id = batch.next_tx_log_id(&parent_key_id)?;
 		let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
 		t.tx_slate_id = Some(slate_id);
+		t.tx_slate_state = Some(slate.state.clone());
 		let filename = format!("{}.grintx", slate_id);
 		t.stored_tx = Some(filename);
 		t.fee = context.fee;
@@ -178,7 +177,7 @@ where
 		let mut amount_debited = 0;
 		t.num_inputs = lock_inputs.len();
 		for id in lock_inputs {
-			let mut coin = batch.get(&id.0, &id.1).unwrap();
+			let mut coin = batch.get(&id.0, &id.1)?;
 			coin.tx_log_entry = Some(log_id);
 			amount_debited += coin.value;
 			batch.lock_output(&mut coin)?;
@@ -221,11 +220,11 @@ where
 				root_key_id: parent_key_id.clone(),
 				key_id: id.clone(),
 				n_child: id.to_path().last_path_index(),
-				commit: commit,
+				commit,
 				mmr_index: None,
 				value: change_amount,
 				status: OutputStatus::Unconfirmed,
-				height: height,
+				height,
 				lock_height: 0,
 				is_coinbase: false,
 				tx_log_entry: Some(log_id),
@@ -245,8 +244,8 @@ where
 /// Creates a new output in the wallet for the recipient,
 /// returning the key of the fresh output
 /// Also creates a new transaction containing the output
-pub fn build_recipient_output<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn build_recipient_output<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	current_height: u64,
@@ -255,9 +254,8 @@ pub fn build_recipient_output<'a, T: ?Sized, C, K>(
 	is_initiator: bool,
 ) -> Result<(Identifier, Context, TxLogEntry), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Create a potential output for this transaction
 	let key_id = keys::next_available_key(wallet, keychain_mask).unwrap();
@@ -284,6 +282,7 @@ where
 	let log_id = batch.next_tx_log_id(&parent_key_id)?;
 	let mut t = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxReceived, log_id);
 	t.tx_slate_id = Some(slate_id);
+	t.tx_slate_state = Some(slate.state.clone());
 	t.amount_credited = amount;
 	t.num_outputs = 1;
 	t.ttl_cutoff_height = match slate.ttl_cutoff_height {
@@ -300,10 +299,10 @@ where
 		key_id: key_id_inner.clone(),
 		mmr_index: None,
 		n_child: key_id_inner.to_path().last_path_index(),
-		commit: commit,
+		commit,
 		value: amount,
 		status: OutputStatus::Unconfirmed,
-		height: height,
+		height,
 		lock_height: 0,
 		is_coinbase: false,
 		tx_log_entry: Some(log_id),
@@ -317,8 +316,8 @@ where
 /// Builds a transaction to send to someone from the HD seed associated with the
 /// wallet and the amount to send. Handles reading through the wallet data file,
 /// selecting outputs to spend and building the change.
-pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
-	wallet: &mut T,
+pub fn select_send_tx<C, K, B>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	amount: u64,
 	amount_includes_fee: bool,
@@ -339,9 +338,8 @@ pub fn select_send_tx<'a, T: ?Sized, C, K, B>(
 	Error,
 >
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 	B: ProofBuild,
 {
 	let (coins, _total, amount, fee) = select_coins_and_fee(
@@ -371,8 +369,8 @@ where
 }
 
 /// Select outputs and calculating fee.
-pub fn select_coins_and_fee<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn select_coins_and_fee<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	amount: u64,
 	amount_includes_fee: bool,
 	current_height: u64,
@@ -391,9 +389,8 @@ pub fn select_coins_and_fee<'a, T: ?Sized, C, K>(
 	Error,
 >
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// select some spendable coins from the wallet
 	let (max_outputs, mut coins) = select_coins(
@@ -404,10 +401,10 @@ where
 		max_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id,
-	);
+	)?;
 
 	// sender is responsible for setting the fee on the partial tx
-	// recipient should double check the fee calculation and not blindly trust the
+	// recipient should double-check the fee calculation and not blindly trust the
 	// sender
 
 	// First attempt to spend without change
@@ -422,8 +419,8 @@ where
 		return Err(Error::NotEnoughFunds {
 			available: 0,
 			available_disp: amount_to_hr_string(0, false),
-			needed: amount_with_fee as u64,
-			needed_disp: amount_to_hr_string(amount_with_fee as u64, false),
+			needed: amount_with_fee,
+			needed_disp: amount_to_hr_string(amount_with_fee, false),
 		});
 	}
 
@@ -432,8 +429,8 @@ where
 		return Err(Error::NotEnoughFunds {
 			available: total,
 			available_disp: amount_to_hr_string(total, false),
-			needed: amount_with_fee as u64,
-			needed_disp: amount_to_hr_string(amount_with_fee as u64, false),
+			needed: amount_with_fee,
+			needed_disp: amount_to_hr_string(amount_with_fee, false),
 		});
 	}
 
@@ -453,10 +450,10 @@ where
 			// End the loop if we have selected all the outputs and still not enough funds
 			if coins.len() == max_outputs {
 				return Err(Error::NotEnoughFunds {
-					available: total as u64,
+					available: total,
 					available_disp: amount_to_hr_string(total, false),
-					needed: amount_with_fee as u64,
-					needed_disp: amount_to_hr_string(amount_with_fee as u64, false),
+					needed: amount_with_fee,
+					needed_disp: amount_to_hr_string(amount_with_fee, false),
 				});
 			}
 
@@ -469,7 +466,7 @@ where
 				max_outputs,
 				selection_strategy_is_use_all,
 				parent_key_id,
-			)
+			)?
 			.1;
 			fee = tx_fee(coins.len(), num_outputs, 1);
 			total = coins.iter().map(|c| c.value).sum();
@@ -483,7 +480,7 @@ where
 	// be reduced, to accommodate the fee.
 	let new_amount = match amount_includes_fee {
 		true => amount.checked_sub(fee).ok_or(Error::GenericError(
-			format!("Transaction amount is too small to include fee").into(),
+			"Transaction amount is too small to include fee".to_string(),
 		))?,
 		false => amount,
 	};
@@ -491,9 +488,9 @@ where
 }
 
 /// Selects inputs and change for a transaction
-pub fn inputs_and_change<'a, T: ?Sized, C, K, B>(
+pub fn inputs_and_change<C, K, B>(
 	coins: &[OutputData],
-	wallet: &mut T,
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	amount: u64,
 	fee: u64,
@@ -507,9 +504,8 @@ pub fn inputs_and_change<'a, T: ?Sized, C, K, B>(
 	Error,
 >
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 	B: ProofBuild,
 {
 	let mut parts = vec![];
@@ -554,7 +550,7 @@ where
 				part_change
 			};
 
-			let change_key = wallet.next_child(keychain_mask).unwrap();
+			let change_key = wallet.next_child(keychain_mask)?;
 
 			change_amounts_derivations.push((change_amount, change_key.clone(), None));
 			parts.push(build::output(change_amount, change_key));
@@ -569,26 +565,23 @@ where
 /// max_outputs). Alternative strategy is to spend smallest outputs first
 /// but only as many as necessary. When we introduce additional strategies
 /// we should pass something other than a bool in.
-/// TODO: Possibly move this into another trait to be owned by a wallet?
-
-pub fn select_coins<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn select_coins<C, K>(
+	wallet: &WalletBackend<C, K>,
 	amount: u64,
 	current_height: u64,
 	minimum_confirmations: u64,
 	max_outputs: usize,
 	select_all: bool,
 	parent_key_id: &Identifier,
-) -> (usize, Vec<OutputData>)
+) -> Result<(usize, Vec<OutputData>), Error>
 //    max_outputs_available, Outputs
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// first find all eligible outputs based on number of confirmations
 	let mut eligible = wallet
-		.iter()
+		.iter()?
 		.filter(|out| {
 			out.root_key_id == *parent_key_id
 				&& out.eligible_to_spend(current_height, minimum_confirmations)
@@ -612,7 +605,7 @@ where
 		for window in eligible.windows(max_outputs) {
 			let windowed_eligibles = window.to_vec();
 			if let Some(outputs) = select_from(amount, select_all, windowed_eligibles) {
-				return (max_available, outputs);
+				return Ok((max_available, outputs));
 			}
 		}
 		// Not exist in any window of which total amount >= amount.
@@ -623,20 +616,20 @@ where
 				"Extending maximum number of outputs. {} outputs selected.",
 				outputs.len()
 			);
-			return (max_available, outputs);
+			return Ok((max_available, outputs));
 		}
 	} else if let Some(outputs) = select_from(amount, select_all, eligible.clone()) {
-		return (max_available, outputs);
+		return Ok((max_available, outputs));
 	}
 
 	// we failed to find a suitable set of outputs to spend,
 	// so return the largest amount we can so we can provide guidance on what is
 	// possible
 	eligible.reverse();
-	(
+	Ok((
 		max_available,
 		eligible.iter().take(max_outputs).cloned().collect(),
-	)
+	))
 }
 
 fn select_from(amount: u64, select_all: bool, outputs: Vec<OutputData>) -> Option<Vec<OutputData>> {
@@ -663,21 +656,20 @@ fn select_from(amount: u64, select_all: bool, outputs: Vec<OutputData>) -> Optio
 	}
 }
 
-/// Repopulates output in the slate's tranacstion
+/// Repopulates output in the slate's transaction
 /// with outputs from the stored context
 /// change outputs and tx log entry
 /// Remove the explicitly stored excess
-pub fn repopulate_tx<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn repopulate_tx<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 	update_fee: bool,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// restore the original amount, fee
 	slate.amount = context.amount;
@@ -694,7 +686,7 @@ where
 
 	let mut parts = vec![];
 	for (id, _, value) in &context.get_inputs() {
-		let input = wallet.iter().find(|out| out.key_id == *id);
+		let input = wallet.iter()?.find(|out| out.key_id == *id);
 		if let Some(i) = input {
 			if i.is_coinbase {
 				parts.push(build::coinbase_input(*value, i.key_id.clone()));
@@ -704,7 +696,7 @@ where
 		}
 	}
 	for (id, _, value) in &context.get_outputs() {
-		let output = wallet.iter().find(|out| out.key_id == *id);
+		let output = wallet.iter()?.find(|out| out.key_id == *id);
 		if let Some(i) = output {
 			parts.push(build::output(*value, i.key_id.clone()));
 		}
