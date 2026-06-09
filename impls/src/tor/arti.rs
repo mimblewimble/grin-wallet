@@ -137,7 +137,7 @@ where
 		client.runtime().block_on(async move {
 			let res = c
 				.runtime()
-				.timeout(Duration::from_secs(REQUEST_TIMEOUT_MS), async {
+				.timeout(Duration::from_millis(REQUEST_TIMEOUT_MS), async {
 					let stream = c
 						.connect((url.host().unwrap(), url.port_u16().unwrap_or(80)))
 						.await
