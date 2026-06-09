@@ -338,7 +338,11 @@ fn add_service_key(
 	sk_bytes[0..32].copy_from_slice(&expanded_sk.scalar.to_bytes());
 	sk_bytes[32..64].copy_from_slice(&expanded_sk.hash_prefix);
 	match ExpandedKeypair::from_secret_key_bytes(sk_bytes) {
-		None => return Err(Error::TorProcess("Hidden service key can not be created".into())),
+		None => {
+			return Err(Error::TorProcess(
+				"Hidden service key can not be created".into(),
+			))
+		}
 		Some(expanded_kp) => {
 			key_manager
 				.insert(
@@ -348,7 +352,6 @@ fn add_service_key(
 					true,
 				)
 				.map_err(|e| Error::TorProcess(format!("{}", e)))?;
-
 			key_manager
 				.insert(
 					HsIdKeypair::from(expanded_kp),
