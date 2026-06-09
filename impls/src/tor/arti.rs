@@ -50,7 +50,7 @@ use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
 // Arti Tokio runtime.
 lazy_static! {
-	pub static ref ARTI_RUNTIME: Arc<ArtiRuntimeWrapper> = Arc::new(ArtiRuntimeWrapper::default());
+	pub static ref ARTI_RUNTIME: Arc<Option<ArtiRuntimeWrapper>> = Arc::new(ArtiRuntimeWrapper::create().ok());
 }
 
 /// Start Tor service from provided key.
@@ -234,7 +234,7 @@ fn init_client(
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
-	let r = ARTI_RUNTIME.runtime.clone();
+	let r = ARTI_RUNTIME.as_ref().clone().unwrap_or(ArtiRuntimeWrapper::create()?).runtime;
 	let client = TorClient::with_runtime(r)
 		.config(config.clone())
 		.create_unbootstrapped()

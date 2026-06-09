@@ -29,14 +29,15 @@ pub struct Tor {
 }
 
 /// Arti client runtime wrapper.
+#[derive(Clone)]
 pub struct ArtiRuntimeWrapper {
 	pub runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime,
 }
 
-impl Default for ArtiRuntimeWrapper {
-	fn default() -> Self {
-		Self {
-			runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime::create().unwrap(),
-		}
+impl ArtiRuntimeWrapper {
+	fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
+		Ok(Self {
+			runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime::create()?,
+		})
 	}
 }
