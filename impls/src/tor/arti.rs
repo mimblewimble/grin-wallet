@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::tor::Tor;
+use crate::tor::{ArtiRuntimeWrapper, Tor};
 use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
@@ -27,10 +27,12 @@ use grin_wallet_util::OnionV3Address;
 use http_body_util::{BodyExt, Full};
 use hyper::{Request, Uri};
 use hyper_util::rt::TokioIo;
+use lazy_static::lazy_static;
 use serde::Serialize;
 use sha2::Sha512;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tor_hscrypto::pk::{HsIdKey, HsIdKeypair};
@@ -45,6 +47,11 @@ use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeystoreSelector};
 use tor_llcrypto::pk::ed25519::ExpandedKeypair;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
+
+// Arti Tokio runtime.
+lazy_static! {
+	pub static ref ARTI_RUNTIME: Arc<ArtiRuntimeWrapper> = Arc::new(ArtiRuntimeWrapper::default());
+}
 
 /// Start Tor service from provided key.
 pub fn start_tor_service(
@@ -102,9 +109,7 @@ pub fn start_tor_service(
 /// Start Tor client to send requests.
 pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> {
 	let state_path = Path::new(tor_dir).join("state");
-	let _ = std::fs::remove_dir_all(&state_path);
 	let cache_path = Path::new(tor_dir).join("cache");
-	let _ = std::fs::remove_dir_all(&cache_path);
 
 	let (client, _) = init_client(&state_path, &cache_path, config)?;
 	Ok(Tor {
@@ -229,7 +234,8 @@ fn init_client(
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
-	let client = TorClient::with_runtime(TokioNativeTlsRuntime::create()?)
+	let r = ARTI_RUNTIME.runtime.clone();
+	let client = TorClient::with_runtime(r)
 		.config(config.clone())
 		.create_unbootstrapped()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;

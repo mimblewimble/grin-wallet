@@ -27,3 +27,16 @@ pub struct Tor {
 	/// Integrated client.
 	pub client: Option<arti_client::TorClient<tor_rtcompat::tokio::TokioNativeTlsRuntime>>,
 }
+
+/// Arti client runtime wrapper.
+pub struct ArtiRuntimeWrapper {
+	pub runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime,
+}
+
+impl Default for ArtiRuntimeWrapper {
+	fn default() -> Self {
+		Self {
+			runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime::create().unwrap(),
+		}
+	}
+}
