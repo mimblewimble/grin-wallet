@@ -50,7 +50,8 @@ use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
 // Arti Tokio runtime.
 lazy_static! {
-	pub static ref ARTI_RUNTIME: Arc<Option<ArtiRuntimeWrapper>> = Arc::new(ArtiRuntimeWrapper::create().ok());
+	pub static ref ARTI_RUNTIME: Arc<Option<ArtiRuntimeWrapper>> =
+		Arc::new(ArtiRuntimeWrapper::create().ok());
 }
 
 /// Start Tor service from provided key.
@@ -67,7 +68,8 @@ pub fn start_tor_service(
 	// Add service key to keystore.
 	let onion_address =
 		OnionV3Address::from_private(&key.0).map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-	let hs = HsNickname::new(onion_address.to_string()).unwrap();
+	let hs = HsNickname::new(onion_address.to_string())
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let keystore_path = Path::new(&state_path).join("keystore");
 	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
 
@@ -236,7 +238,11 @@ fn init_client(
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
-	let r = ARTI_RUNTIME.as_ref().clone().unwrap_or(ArtiRuntimeWrapper::create()?).runtime;
+	let r = ARTI_RUNTIME
+		.as_ref()
+		.clone()
+		.unwrap_or(ArtiRuntimeWrapper::create()?)
+		.runtime;
 	let client = TorClient::with_runtime(r)
 		.config(config.clone())
 		.create_unbootstrapped()
@@ -258,8 +264,8 @@ fn init_client(
 					}
 					Ok(())
 				}
-				Err(e) => Err(e)
-			}
+				Err(e) => Err(e),
+			};
 		};
 		match c
 			.runtime()
