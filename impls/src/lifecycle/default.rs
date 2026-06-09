@@ -23,13 +23,12 @@ use crate::libwallet::{Error, NodeClient, WalletBackend, WalletInitStatus, Walle
 use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
-use crate::LMDBBackend;
 use grin_util::logger::LoggingConfig;
 use std::fs;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
 
-// Helper fuction to format paths according to OS, avoids bugs on Linux
+/// Helper function to format paths according to OS, avoids bugs on Linux
 pub fn fmt_path(path: String) -> String {
 	let sep = &MAIN_SEPARATOR.to_string();
 	let path = path.replace("/", &sep);
@@ -37,20 +36,20 @@ pub fn fmt_path(path: String) -> String {
 	path
 }
 
-pub struct DefaultLCProvider<'a, C, K>
+pub struct DefaultLCProvider<C, K>
 where
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	data_dir: String,
 	node_client: C,
-	backend: Option<Box<dyn WalletBackend<'a, C, K> + 'a>>,
+	backend: Option<WalletBackend<C, K>>,
 }
 
-impl<'a, C, K> DefaultLCProvider<'a, C, K>
+impl<C, K> DefaultLCProvider<C, K>
 where
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	/// Create new provider
 	pub fn new(node_client: C) -> Self {
@@ -62,7 +61,7 @@ where
 	}
 }
 
-impl<'a, C, K> WalletLCProvider<'a, C, K> for DefaultLCProvider<'a, C, K>
+impl<'a, C, K> WalletLCProvider<'a, C, K> for DefaultLCProvider<C, K>
 where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
@@ -217,8 +216,8 @@ where
 			Error::Lifecycle("Error creating wallet seed (is mnemonic valid?)".to_owned())
 		})?;
 		info!("Wallet seed file created");
-		let mut wallet: LMDBBackend<'a, C, K> =
-			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
+		let mut wallet: WalletBackend<C, K> =
+			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
 					error!("{}", msg);
@@ -247,8 +246,8 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = fmt_path(data_dir_name.to_str().unwrap().to_string());
-		let mut wallet: LMDBBackend<'a, C, K> =
-			match LMDBBackend::new(&data_dir_name, self.node_client.clone()) {
+		let mut wallet: WalletBackend<C, K> =
+			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, &data_dir_name);
 					return Err(Error::Lifecycle(msg));
@@ -262,8 +261,8 @@ where
 			.derive_keychain(global::is_testnet())
 			.map_err(|_| Error::Lifecycle("Error deriving keychain".to_owned()))?;
 
-		let mask = wallet.set_keychain(Box::new(keychain), create_mask, use_test_rng)?;
-		self.backend = Some(Box::new(wallet));
+		let mask = wallet.set_keychain(keychain, create_mask, use_test_rng)?;
+		self.backend = Some(wallet);
 		Ok(mask)
 	}
 
@@ -329,8 +328,7 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		// get seed for later check
-
+		// Get seed for later check
 		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old)
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let orig_mnemonic = orig_wallet_seed
@@ -366,7 +364,7 @@ where
 					.to_string();
 			return Err(Error::Lifecycle(msg));
 		}
-		// Removin
+		// Removing old file
 		info!("Password change confirmed, removing old seed file.");
 		fs::remove_file(backup_name).map_err(|e| Error::IO(e.to_string()))?;
 
@@ -383,13 +381,13 @@ where
 		Ok(())
 	}
 
-	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error> {
+	fn wallet_inst(&mut self) -> Result<&mut WalletBackend<C, K>, Error> {
 		match self.backend.as_mut() {
 			None => {
 				let msg = "Wallet has not been opened".into();
 				Err(Error::Lifecycle(msg))
 			}
-			Some(_) => Ok(&mut *self.backend.as_mut().unwrap()),
+			Some(b) => Ok(b),
 		}
 	}
 }

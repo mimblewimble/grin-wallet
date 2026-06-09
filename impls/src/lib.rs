@@ -28,14 +28,12 @@ use grin_api as api;
 use grin_chain as chain;
 use grin_core as core;
 use grin_keychain as keychain;
-use grin_store as store;
 use grin_util as util;
 use grin_wallet_libwallet as libwallet;
 
 use grin_wallet_config as config;
 
 mod adapters;
-mod backends;
 mod client_utils;
 mod error;
 mod lifecycle;
@@ -47,7 +45,6 @@ pub use crate::adapters::{
 	HttpSlateSender, PathToSlate, PathToSlatepack, SlateGetter, SlatePutter, SlateReceiver,
 	SlateSender,
 };
-pub use crate::backends::{wallet_db_exists, LMDBBackend};
 pub use crate::error::Error;
 pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::node_clients::HTTPNodeClient;
@@ -57,35 +54,31 @@ use crate::keychain::{ExtKeychain, Keychain};
 use libwallet::{NodeClient, WalletInst, WalletLCProvider};
 
 /// Main wallet instance
-pub struct DefaultWalletImpl<'a, C>
+pub struct DefaultWalletImpl<C>
 where
-	C: NodeClient + 'a,
+	C: NodeClient,
 {
-	lc_provider: DefaultLCProvider<'a, C, ExtKeychain>,
+	lc_provider: DefaultLCProvider<C, ExtKeychain>,
 }
 
-impl<'a, C> DefaultWalletImpl<'a, C>
+impl<C> DefaultWalletImpl<C>
 where
-	C: NodeClient + 'a,
+	C: NodeClient,
 {
 	pub fn new(node_client: C) -> Result<Self, Error> {
 		let lc_provider = DefaultLCProvider::new(node_client);
-		Ok(DefaultWalletImpl {
-			lc_provider: lc_provider,
-		})
+		Ok(DefaultWalletImpl { lc_provider })
 	}
 }
 
-impl<'a, L, C, K> WalletInst<'a, L, C, K> for DefaultWalletImpl<'a, C>
+impl<'a, L, C, K> WalletInst<'a, L, C, K> for DefaultWalletImpl<C>
 where
-	DefaultLCProvider<'a, C, ExtKeychain>: WalletLCProvider<'a, C, K>,
+	DefaultLCProvider<C, ExtKeychain>: WalletLCProvider<'a, C, K>,
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	fn lc_provider(
-		&mut self,
-	) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), libwallet::Error> {
+	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<'a, C, K>, libwallet::Error> {
 		Ok(&mut self.lc_provider)
 	}
 }

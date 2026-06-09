@@ -41,7 +41,7 @@ type Wallet = Arc<
 		Box<
 			dyn WalletInst<
 				'static,
-				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+				DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
 			>,

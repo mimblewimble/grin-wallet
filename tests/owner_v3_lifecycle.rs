@@ -57,7 +57,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let wallet_proxy_a: Arc<
 		Mutex<
 			WalletProxy<
-				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+				DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
 			>,

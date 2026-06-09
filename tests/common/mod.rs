@@ -226,7 +226,7 @@ pub fn instantiate_wallet(
 				Box<
 					dyn WalletInst<
 						'static,
-						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+						DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 						LocalWalletClient,
 						ExtKeychain,
 					>,
@@ -241,7 +241,7 @@ pub fn instantiate_wallet(
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(node_client).unwrap())
 		as Box<
 			dyn WalletInst<
-				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+				DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
 			>,
@@ -302,18 +302,7 @@ pub fn execute_command_no_setup<C, F>(
 where
 	C: NodeClient + 'static + Clone,
 	F: FnOnce(
-		Arc<
-			Mutex<
-				Box<
-					dyn WalletInst<
-						'static,
-						DefaultLCProvider<'static, C, ExtKeychain>,
-						C,
-						ExtKeychain,
-					>,
-				>,
-			>,
-		>,
+		Arc<Mutex<Box<dyn WalletInst<'static, DefaultLCProvider<C, ExtKeychain>, C, ExtKeychain>>>>,
 	),
 {
 	let args = app.clone().get_matches_from(arg_vec);
