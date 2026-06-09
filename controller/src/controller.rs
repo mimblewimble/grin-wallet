@@ -315,7 +315,7 @@ where
 				Ok(Some(service))
 			}
 			Err(e) => {
-				warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
+				warn!("Unable to start TOR listener");
 				error!("Tor Error: {}", e);
 				warn!("Listener is available on {}", addr);
 				Err(e)

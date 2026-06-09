@@ -44,7 +44,7 @@ use tor_keymgr::config::CfgPath;
 use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeystoreSelector};
 use tor_llcrypto::pk::ed25519::ExpandedKeypair;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
-use tor_rtcompat::ToplevelBlockOn;
+use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
 /// Start Tor service from provided key.
 pub fn start_tor_service(
@@ -102,7 +102,10 @@ pub fn start_tor_service(
 /// Start Tor client to send requests.
 pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> {
 	let state_path = Path::new(tor_dir).join("state");
+	let _ = std::fs::remove_dir_all(&state_path);
 	let cache_path = Path::new(tor_dir).join("cache");
+	let _ = std::fs::remove_dir_all(&cache_path);
+
 	let (client, _) = init_client(&state_path, &cache_path, config)?;
 	Ok(Tor {
 		process: None,
@@ -170,6 +173,9 @@ where
 	res
 }
 
+/// Client Bootstrap timeout in milliseconds.
+const BOOTSTRAP_TIMEOUT_MS: u64 = 60000;
+
 /// Create Tor client.
 fn init_client(
 	state_path: &PathBuf,
@@ -211,17 +217,14 @@ fn init_client(
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
-	let runtime = TokioNativeTlsRuntime::create()?;
-	let client = TorClient::with_runtime(runtime.clone())
+	let client = TorClient::with_runtime(TokioNativeTlsRuntime::create()?)
 		.config(config.clone())
 		.create_unbootstrapped()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 	let c = client.clone();
-	let r = runtime.clone();
-	let res = thread::spawn(move || {
-		r.block_on(async move {
-			let res = c.bootstrap().await;
-			if res.is_ok() {
+	let res = client.runtime().block_on(async move {
+		let bootstrap = async || {
+			if c.bootstrap().await.is_ok() {
 				let mut percent = 0.0;
 				let mut prev_percent = 0.0;
 				while percent < 1.0 {
@@ -233,16 +236,23 @@ fn init_client(
 					tokio::time::sleep(Duration::from_millis(1000)).await;
 				}
 			}
-			res
-		})
-	})
-	.join()
-	.unwrap();
+		};
+		match c
+			.runtime()
+			.timeout(Duration::from_millis(BOOTSTRAP_TIMEOUT_MS), bootstrap())
+			.await
+		{
+			Ok(_) => Ok(()),
+			Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
+		}
+	});
 	match res {
-		Ok(_) => info!("Tor client bootstrapped successfully"),
-		Err(e) => return Err(Error::TorProcess(format!("{:?}", e))),
+		Ok(_) => {
+			info!("Tor client bootstrapped successfully");
+			Ok((client, config))
+		}
+		Err(e) => Err(e),
 	}
-	Ok((client, config))
 }
 
 /// Launch Onion service proxy.
