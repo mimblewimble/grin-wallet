@@ -304,7 +304,9 @@ where
 	);
 	let mut proxy_cfg_builder = ProxyConfigBuilder::default();
 	proxy_cfg_builder.set_proxy_ports(vec![proxy_rule]);
-	let proxy_cfg = proxy_cfg_builder.build().map_err(|e| Error::TorConfig(format!("{}", e)))?;
+	let proxy_cfg = proxy_cfg_builder
+		.build()
+		.map_err(|e| Error::TorConfig(format!("{}", e)))?;
 	let proxy = OnionServiceReverseProxy::new(proxy_cfg);
 
 	// Start proxy for launched service.
@@ -335,24 +337,27 @@ fn add_service_key(
 	let mut sk_bytes = [0_u8; 64];
 	sk_bytes[0..32].copy_from_slice(&expanded_sk.scalar.to_bytes());
 	sk_bytes[32..64].copy_from_slice(&expanded_sk.hash_prefix);
-	let expanded_kp = ExpandedKeypair::from_secret_key_bytes(sk_bytes).unwrap();
+	match ExpandedKeypair::from_secret_key_bytes(sk_bytes) {
+		None => return Err(Error::TorProcess("Hidden service key can not be created".into())),
+		Some(expanded_kp) => {
+			key_manager
+				.insert(
+					HsIdKey::from(expanded_kp.public().clone()),
+					&HsIdPublicKeySpecifier::new(hs_nickname.clone()),
+					KeystoreSelector::Primary,
+					true,
+				)
+				.map_err(|e| Error::TorProcess(format!("{}", e)))?;
 
-	key_manager
-		.insert(
-			HsIdKey::from(expanded_kp.public().clone()),
-			&HsIdPublicKeySpecifier::new(hs_nickname.clone()),
-			KeystoreSelector::Primary,
-			true,
-		)
-		.map_err(|e| Error::TorProcess(format!("{}", e)))?;
-
-	key_manager
-		.insert(
-			HsIdKeypair::from(expanded_kp),
-			&HsIdKeypairSpecifier::new(hs_nickname.clone()),
-			KeystoreSelector::Primary,
-			true,
-		)
-		.map_err(|e| Error::TorProcess(format!("{}", e)))?;
+			key_manager
+				.insert(
+					HsIdKeypair::from(expanded_kp),
+					&HsIdKeypairSpecifier::new(hs_nickname.clone()),
+					KeystoreSelector::Primary,
+					true,
+				)
+				.map_err(|e| Error::TorProcess(format!("{}", e)))?;
+		}
+	}
 	Ok(())
 }
