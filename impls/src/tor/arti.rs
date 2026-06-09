@@ -114,6 +114,9 @@ pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> 
 	})
 }
 
+/// Tor request timeout in milliseconds.
+const REQUEST_TIMEOUT_MS: u64 = 60000;
+
 /// Make POST request with provided client.
 pub fn tor_post<IN>(
 	client: TorClient<TokioNativeTlsRuntime>,
@@ -132,44 +135,53 @@ where
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
-			let stream = c
-				.connect((url.host().unwrap(), url.port_u16().unwrap_or(80)))
-				.await
-				.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-			let (mut request_sender, connection) =
-				hyper::client::conn::http1::handshake(TokioIo::new(stream))
-					.await
-					.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+			let res = c
+				.runtime()
+				.timeout(Duration::from_secs(REQUEST_TIMEOUT_MS), async {
+					let stream = c
+						.connect((url.host().unwrap(), url.port_u16().unwrap_or(80)))
+						.await
+						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					let (mut request_sender, connection) =
+						hyper::client::conn::http1::handshake(TokioIo::new(stream))
+							.await
+							.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 
-			// Spawn a task to poll the connection and drive the HTTP state.
-			tokio::spawn(async move {
-				connection.await.unwrap();
-			});
+					// Spawn a task to poll the connection and drive the HTTP state.
+					tokio::spawn(async move {
+						connection.await.unwrap();
+					});
 
-			let resp = request_sender
-				.send_request(
-					Request::builder()
-						.uri(url)
-						.method("POST")
-						.body::<Full<Bytes>>(Full::from(json))
-						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?,
-				)
-				.await
-				.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					let resp = request_sender
+						.send_request(
+							Request::builder()
+								.uri(url)
+								.method("POST")
+								.body::<Full<Bytes>>(Full::from(json))
+								.map_err(|e| Error::TorProcess(format!("{:?}", e)))?,
+						)
+						.await
+						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 
-			let body_resp = resp
-				.into_body()
-				.collect()
-				.await
-				.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-			let body = body_resp.to_bytes().into();
-			let body_text =
-				String::from_utf8(body).map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-			Ok(body_text)
+					let body_resp = resp
+						.into_body()
+						.collect()
+						.await
+						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					let body = body_resp.to_bytes().into();
+					let body_text = String::from_utf8(body)
+						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					Ok(body_text)
+				})
+				.await;
+			match res {
+				Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
+				Ok(body) => Ok(body),
+			}
 		})
 	})
 	.join()
-	.unwrap();
+	.unwrap_or_else(|e| return Err(Error::TorProcess(format!("{:?}", e))))?;
 	res
 }
 
