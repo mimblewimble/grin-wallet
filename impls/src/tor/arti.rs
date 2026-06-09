@@ -154,7 +154,9 @@ where
 
 					// Spawn a task to poll the connection and drive the HTTP state.
 					tokio::spawn(async move {
-						connection.await.unwrap();
+						if let Err(e) = connection.await {
+							error!("Tor connection error: {}", e);
+						}
 					});
 
 					let resp = request_sender
