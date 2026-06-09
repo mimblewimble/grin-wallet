@@ -55,24 +55,22 @@ the default client only supports single-user - single recipient, an arbitrary nu
 
 ### Wallet Traits
 
-In the current code, a Wallet implementation is just a combination of these three traits. The vast majority of functions within libwallet
+In the current code, a Wallet implementation is just a combination of these two traits. The vast majority of functions within libwallet
 and libTX have a signature similar to the following:
 
 ```rust
 pub fn retrieve_outputs<T: ?Sized, C, K>(
-!·wallet: &mut T,
+!·wallet: &mut WalletBackend<C, K>,
 !·show_spent: bool,
 !·tx_id: Option<u32>,
 ) -> Result<Vec<OutputData>, Error>
 where
-!·T: WalletBackend<C, K>,
 !·C: NodeClient,
 !·K: Keychain,
 {  
 ```
 
-With `T` in this instance being a class that implements  the `WalletBackend` trait, which is further parameterized with implementations of
-`NodeClient` and `Keychain`.
+Provided `WalletBackend` parameterized with implementations of `NodeClient` and `Keychain`.
 
 There is currently only a single implementation of the Keychain trait within the Grin code, in the `keychain` crate exported as `ExtKeyChain`.
 The `Keychain` trait makes several assumptions about the underlying implementation, particularly that it will adhere to a
@@ -82,8 +80,3 @@ There are two implementations of `NodeClient` within the code, the main version 
 the seconds a test client that communicates with an in-process instance of a chain. The NodeClient isolates all network calls, so upgrading wallet
 communication from the current simple http interaction to a more secure protocol (or allowing for many options) should be a simple
 matter of dropping in different `NodeClient` implementations.
-
-There are also two implementations of `WalletBackend` within the code at the base of the `wallet` crate. `LMDBBackend` found within
-`wallet/src/lmdb_wallet.rs` is the main implementation, and is now used by all grin wallet commands. The earlier `FileWallet` still exists
-within the code, however it is not invoked, and given there are no real advantages to running it over a DB implementation, development on it
-has been dropped in favour of the LMDB implementation.

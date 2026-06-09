@@ -28,7 +28,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{self, pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
-use crate::InitTxArgs;
+use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
@@ -49,7 +49,7 @@ where
 	K: Keychain + 'a,
 {
 	/// Return the stored instance
-	fn lc_provider(&mut self) -> Result<&mut (dyn WalletLCProvider<'a, C, K> + 'a), Error>;
+	fn lc_provider(&mut self) -> Result<&mut dyn WalletLCProvider<'a, C, K>, Error>;
 }
 
 /// Trait for a provider of wallet lifecycle methods
@@ -131,182 +131,7 @@ where
 	fn delete_wallet(&self, name: Option<&str>) -> Result<(), Error>;
 
 	/// return wallet instance
-	fn wallet_inst(&mut self) -> Result<&mut Box<dyn WalletBackend<'a, C, K> + 'a>, Error>;
-}
-
-/// TODO:
-/// Wallets should implement this backend for their storage. All functions
-/// here expect that the wallet instance has instantiated itself or stored
-/// whatever credentials it needs
-pub trait WalletBackend<'ck, C, K>: Send + Sync
-where
-	C: NodeClient + 'ck,
-	K: Keychain + 'ck,
-{
-	/// Set the keychain, which should already be initialized
-	/// Optionally return a token value used to XOR the stored
-	/// key value
-	fn set_keychain(
-		&mut self,
-		k: Box<K>,
-		mask: bool,
-		use_test_rng: bool,
-	) -> Result<Option<SecretKey>, Error>;
-
-	/// Close wallet and remove any stored credentials (TBD)
-	fn close(&mut self) -> Result<(), Error>;
-
-	/// Return the keychain being used. Ensure a cloned copy so it will be dropped
-	/// and zeroized by the caller
-	/// Can optionally take a mask value
-	fn keychain(&self, mask: Option<&SecretKey>) -> Result<K, Error>;
-
-	/// Return the client being used to communicate with the node
-	fn w2n_client(&mut self) -> &mut C;
-
-	/// return the commit for caching if allowed, none otherwise
-	fn calc_commit_for_cache(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		amount: u64,
-		id: &Identifier,
-	) -> Result<Option<String>, Error>;
-
-	/// Set parent key id by stored account name
-	fn set_parent_key_id_by_name(&mut self, label: &str) -> Result<(), Error>;
-
-	/// The BIP32 path of the parent path to use for all output-related
-	/// functions, (essentially 'accounts' within a wallet.
-	fn set_parent_key_id(&mut self, _: Identifier);
-
-	/// return the parent path
-	fn parent_key_id(&mut self) -> Identifier;
-
-	/// Iterate over all output data stored by the backend
-	fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = OutputData> + 'a>;
-
-	/// Get output data by id
-	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
-
-	/// Get an (Optional) tx log entry by uuid
-	fn get_tx_log_entry(&self, uuid: &Uuid) -> Result<Option<TxLogEntry>, Error>;
-
-	/// Retrieves the private context associated with a given slate id
-	fn get_private_context(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-		slate_id: &[u8],
-	) -> Result<Context, Error>;
-
-	/// Iterate over all output data stored by the backend
-	fn tx_log_iter<'a>(&'a self) -> Box<dyn Iterator<Item = TxLogEntry> + 'a>;
-
-	/// Iterate over all stored account paths
-	fn acct_path_iter<'a>(&'a self) -> Box<dyn Iterator<Item = AcctPathMapping> + 'a>;
-
-	/// Gets an account path for a given label
-	fn get_acct_path(&self, label: String) -> Result<Option<AcctPathMapping>, Error>;
-
-	/// Stores a transaction
-	fn store_tx(&self, uuid: &str, tx: &Transaction) -> Result<(), Error>;
-
-	/// Retrieves a stored transaction from a TxLogEntry
-	fn get_stored_tx(&self, uuid: &str) -> Result<Option<Transaction>, Error>;
-
-	/// Create a new write batch to update or remove output data
-	fn batch<'a>(
-		&'a mut self,
-		keychain_mask: Option<&SecretKey>,
-	) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
-
-	/// Batch for use when keychain isn't available or required
-	fn batch_no_mask<'a>(&'a mut self) -> Result<Box<dyn WalletOutputBatch<K> + 'a>, Error>;
-
-	/// Return the current child Index
-	fn current_child_index(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;
-
-	/// Next child ID when we want to create a new output, based on current parent
-	fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error>;
-
-	/// last verified height of outputs directly descending from the given parent key
-	fn last_confirmed_height(&mut self) -> Result<u64, Error>;
-
-	/// last block scanned during scan or restore
-	fn last_scanned_block(&mut self) -> Result<ScannedBlockInfo, Error>;
-
-	/// Flag whether the wallet needs a full UTXO scan on next update attempt
-	fn init_status(&mut self) -> Result<WalletInitStatus, Error>;
-}
-
-/// Batch trait to update the output data backend atomically. Trying to use a
-/// batch after commit MAY result in a panic. Due to this being a trait, the
-/// commit method can't take ownership.
-/// TODO: Should these be split into separate batch objects, for outputs,
-/// tx_log entries and meta/details?
-pub trait WalletOutputBatch<K>
-where
-	K: Keychain,
-{
-	/// Return the keychain being used
-	fn keychain(&mut self) -> &mut K;
-
-	/// Add or update data about an output to the backend
-	fn save(&mut self, out: OutputData) -> Result<(), Error>;
-
-	/// Gets output data by id
-	fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error>;
-
-	/// Iterate over all output data stored by the backend
-	fn iter(&self) -> Box<dyn Iterator<Item = OutputData>>;
-
-	/// Delete data about an output from the backend
-	fn delete(&mut self, id: &Identifier, mmr_index: &Option<u64>) -> Result<(), Error>;
-
-	/// Save last stored child index of a given parent
-	fn save_child_index(&mut self, parent_key_id: &Identifier, child_n: u32) -> Result<(), Error>;
-
-	/// Save last confirmed height of outputs for a given parent
-	fn save_last_confirmed_height(
-		&mut self,
-		parent_key_id: &Identifier,
-		height: u64,
-	) -> Result<(), Error>;
-
-	/// Save the last PMMR index that was scanned via a scan operation
-	fn save_last_scanned_block(&mut self, block: ScannedBlockInfo) -> Result<(), Error>;
-
-	/// Save flag indicating whether wallet needs a full UTXO scan
-	fn save_init_status(&mut self, value: WalletInitStatus) -> Result<(), Error>;
-
-	/// get next tx log entry for the parent
-	fn next_tx_log_id(&mut self, parent_key_id: &Identifier) -> Result<u32, Error>;
-
-	/// Iterate over tx log data stored by the backend
-	fn tx_log_iter(&self) -> Box<dyn Iterator<Item = TxLogEntry>>;
-
-	/// save a tx log entry
-	fn save_tx_log_entry(&mut self, t: TxLogEntry, parent_id: &Identifier) -> Result<(), Error>;
-
-	/// delete a tx log entry
-	fn delete_tx_log_entry(&mut self, tx_id: u32, parent_id: &Identifier) -> Result<(), Error>;
-
-	/// save an account label -> path mapping
-	fn save_acct_path(&mut self, mapping: AcctPathMapping) -> Result<(), Error>;
-
-	/// Iterate over account names stored in backend
-	fn acct_path_iter(&self) -> Box<dyn Iterator<Item = AcctPathMapping>>;
-
-	/// Save an output as locked in the backend
-	fn lock_output(&mut self, out: &mut OutputData) -> Result<(), Error>;
-
-	/// Saves the private context associated with a slate id
-	fn save_private_context(&mut self, slate_id: &[u8], ctx: &Context) -> Result<(), Error>;
-
-	/// Delete the private context associated with the slate id
-	fn delete_private_context(&mut self, slate_id: &[u8]) -> Result<(), Error>;
-
-	/// Write the wallet data to backend file
-	fn commit(&self) -> Result<(), Error>;
+	fn wallet_inst(&mut self) -> Result<&mut WalletBackend<C, K>, Error>;
 }
 
 /// Encapsulate all wallet-node communication functions. No functions within libwallet
@@ -798,6 +623,8 @@ pub struct TxLogEntry {
 	pub id: u32,
 	/// Slate transaction this entry is associated with, if any
 	pub tx_slate_id: Option<Uuid>,
+	/// Transaction slate state
+	pub tx_slate_state: Option<SlateState>,
 	/// Transaction type (as above)
 	pub tx_type: TxLogEntryType,
 	/// Time this tx entry was created
@@ -861,10 +688,11 @@ impl TxLogEntry {
 	/// Return a new blank with TS initialised with next entry
 	pub fn new(parent_key_id: Identifier, t: TxLogEntryType, id: u32) -> Self {
 		TxLogEntry {
-			parent_key_id: parent_key_id,
+			parent_key_id,
 			tx_type: t,
-			id: id,
+			id,
 			tx_slate_id: None,
+			tx_slate_state: None,
 			creation_ts: Utc::now(),
 			confirmation_ts: None,
 			confirmed: false,
@@ -1053,7 +881,7 @@ pub struct ViewWalletOutputResult {
 impl ViewWalletOutputResult {
 	pub fn num_confirmations(&self, tip_height: u64) -> u64 {
 		if self.height > tip_height {
-			return 0;
+			0
 		} else {
 			1 + (tip_height - self.height)
 		}
