@@ -223,7 +223,7 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"skip_send_attempt".to_string(),
 		"
-#Whether to skip send attempts (used for debugging) 
+#Whether to skip send attempts (default false)
 "
 		.to_string(),
 	);

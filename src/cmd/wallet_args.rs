@@ -309,7 +309,7 @@ pub fn parse_global_args(
 			let key = match config.tls_certificate_key.clone() {
 				Some(k) => k,
 				None => {
-					let msg = format!("Private key for certificate is not set");
+					let msg = "Private key for certificate is not set".to_string();
 					return Err(ParseError::ArgumentError(msg));
 				}
 			};
@@ -319,11 +319,11 @@ pub fn parse_global_args(
 
 	Ok(command::GlobalArgs {
 		account: account.to_owned(),
-		show_spent: show_spent,
-		api_secret: api_secret,
-		node_api_secret: node_api_secret,
-		password: password,
-		tls_conf: tls_conf,
+		show_spent,
+		api_secret,
+		node_api_secret,
+		password,
+		tls_conf,
 	})
 }
 
@@ -415,7 +415,7 @@ pub fn parse_scan_rewind_hash_args(
 	let start_height = parse_u64_or_none(args.value_of("start_height"));
 	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
 	if backwards_from_tip.is_some() && start_height.is_some() {
-		let msg = format!("backwards_from tip and start_height cannot both be present");
+		let msg = "backwards_from tip and start_height cannot both be present".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::ViewWalletScanArgs {
@@ -430,7 +430,7 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 		None => None,
 		Some(s) => Some(s.to_owned()),
 	};
-	Ok(command::AccountArgs { create: create })
+	Ok(command::AccountArgs { create })
 }
 
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
@@ -466,10 +466,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let late_lock = args.is_present("late_lock");
 
 	// dest
-	let dest = match args.value_of("dest") {
-		Some(d) => d,
-		None => "default",
-	};
+	let dest = args.value_of("dest").unwrap_or_else(|| "default");
 
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
@@ -512,6 +509,12 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("skip_tor") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = match args.value_of("bridge") {
 		Some(b) => Some(b.to_string()),
 		None => None,
@@ -520,24 +523,24 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let slatepack_qr = args.is_present("slatepack_qr");
 
 	Ok(command::SendArgs {
-		amount: amount,
-		amount_includes_fee: amount_includes_fee,
+		amount,
+		amount_includes_fee,
 		use_max_amount: spend_max,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
 		late_lock,
 		dest: dest.to_owned(),
-		change_outputs: change_outputs,
-		fluff: fluff,
-		max_outputs: max_outputs,
+		change_outputs,
+		fluff,
+		max_outputs,
 		payment_proof_address,
 		ttl_blocks,
-		target_slate_version: target_slate_version,
+		target_slate_version,
 		outfile,
-		skip_tor: args.is_present("manual"),
-		bridge: bridge,
-		slatepack_qr: slatepack_qr,
+		skip_tor,
+		bridge,
+		slatepack_qr,
 	})
 }
 
@@ -563,6 +566,12 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("skip_tor") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
@@ -570,10 +579,10 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
-		skip_tor: args.is_present("manual"),
+		skip_tor,
 		outfile,
 		bridge,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -599,6 +608,12 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("skip_tor") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
@@ -606,10 +621,10 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
-		skip_tor: args.is_present("manual"),
+		skip_tor,
 		outfile,
 		bridge,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -642,10 +657,10 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 	Ok(command::FinalizeArgs {
 		input_file,
 		input_slatepack_message,
-		fluff: fluff,
-		nopost: nopost,
+		fluff,
+		nopost,
 		outfile,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -677,10 +692,7 @@ pub fn parse_issue_invoice_args(
 	};
 
 	// dest, for encryption
-	let dest = match args.value_of("dest") {
-		Some(d) => d,
-		None => "default",
-	};
+	let dest = args.value_of("dest").unwrap_or_else(|| "default");
 
 	let outfile = parse_optional(args, "outfile")?;
 
@@ -694,7 +706,7 @@ pub fn parse_issue_invoice_args(
 			target_slate_version,
 		},
 		outfile,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -770,6 +782,12 @@ pub fn parse_process_invoice_args(
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("skip_tor") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
@@ -782,10 +800,10 @@ pub fn parse_process_invoice_args(
 		slate,
 		max_outputs,
 		ttl_blocks,
-		skip_tor: args.is_present("manual"),
+		skip_tor,
 		outfile,
 		bridge,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -803,7 +821,7 @@ pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseEr
 	let start_height = parse_u64_or_none(args.value_of("start_height"));
 	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
 	if backwards_from_tip.is_some() && start_height.is_some() {
-		let msg = format!("backwards_from tip and start_height cannot both be present");
+		let msg = "backwards_from tip and start_height cannot both be present".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::CheckArgs {
@@ -829,7 +847,7 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		},
 	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	let count = match args.value_of("count") {
@@ -838,8 +856,8 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 	};
 	Ok(command::TxsArgs {
 		id: tx_id,
-		tx_slate_id: tx_slate_id,
-		count: count,
+		tx_slate_id,
+		count,
 	})
 }
 
@@ -886,8 +904,8 @@ pub fn parse_repost_args(args: &ArgMatches) -> Result<command::RepostArgs, Parse
 
 	Ok(command::RepostArgs {
 		id: tx_id.unwrap(),
-		dump_file: dump_file,
-		fluff: fluff,
+		dump_file,
+		fluff,
 	})
 }
 
@@ -911,12 +929,12 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 		},
 	};
 	if (tx_id.is_none() && tx_slate_id.is_none()) || (tx_id.is_some() && tx_slate_id.is_some()) {
-		let msg = format!("'id' (-i) or 'txid' (-t) argument is required.");
+		let msg = "'id' (-i) or 'txid' (-t) argument is required.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::CancelArgs {
-		tx_id: tx_id,
-		tx_slate_id: tx_slate_id,
+		tx_id,
+		tx_slate_id,
 		tx_id_string: tx_id_string.to_owned(),
 	})
 }
@@ -938,17 +956,17 @@ pub fn parse_export_proof_args(args: &ArgMatches) -> Result<command::ProofExport
 		},
 	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	if tx_id.is_none() && tx_slate_id.is_none() {
-		let msg = format!("Either 'id' (-i) or 'txid' (-t) must be provided.");
+		let msg = "Either 'id' (-i) or 'txid' (-t) must be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::ProofExportArgs {
 		output_file: output_file.to_owned(),
 		id: tx_id,
-		tx_slate_id: tx_slate_id,
+		tx_slate_id,
 	})
 }
 
@@ -1026,12 +1044,12 @@ where
 
 	{
 		let mut wallet_lock = wallet.lock();
-		let lc = wallet_lock.lc_provider().unwrap();
+		let lc = wallet_lock.lc_provider()?;
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	}
 
 	// provide wallet instance back to the caller (handy for testing with
-	// local wallet proxy, etc)
+	// local wallet proxy, etc.)
 	wallet_inst_cb(wallet.clone());
 
 	// don't open wallet for certain lifecycle commands
@@ -1043,7 +1061,7 @@ where
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider().unwrap();
+			let lc = wallet_lock.lc_provider()?;
 			open_wallet = wallet_args.is_present("pass") && lc.wallet_exists(None)?;
 		}
 		_ => {}
@@ -1052,7 +1070,7 @@ where
 	let keychain_mask = match open_wallet {
 		true => {
 			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider().unwrap();
+			let lc = wallet_lock.lc_provider()?;
 			let mask = lc.open_wallet(
 				None,
 				prompt_password(&global_wallet_args.password),
@@ -1290,8 +1308,8 @@ where
 			Ok(())
 		}
 		_ => {
-			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
-			return Err(Error::ArgumentError(msg));
+			let msg = "Unknown wallet command, use 'grin-wallet help' for details".to_string();
+			Err(Error::ArgumentError(msg))
 		}
 	}
 }

@@ -667,19 +667,16 @@ where
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?
 		};
-		// Helper functionality. If send arguments exist, attempt to send sync and
-		// finalize
-		let skip_tor = match send_args.as_ref() {
-			None => false,
-			Some(sa) => sa.skip_tor,
-		};
+		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
 				let tc = tor_config_lock.clone();
 				let tc = match tc {
 					Some(mut c) => {
-						c.skip_send_attempt = Some(skip_tor);
+						if let Some(skip_tor) = sa.skip_tor {
+							c.skip_send_attempt = Some(skip_tor);
+						}
 						Some(c)
 					}
 					None => None,
@@ -845,7 +842,9 @@ where
 				let tc = tor_config_lock.clone();
 				let tc = match tc {
 					Some(mut c) => {
-						c.skip_send_attempt = Some(sa.skip_tor);
+						if let Some(skip_tor) = sa.skip_tor {
+							c.skip_send_attempt = Some(skip_tor);
+						}
 						Some(c)
 					}
 					None => None,

@@ -335,7 +335,7 @@ pub struct SendArgs {
 	pub target_slate_version: Option<u16>,
 	pub payment_proof_address: Option<SlatepackAddress>,
 	pub ttl_blocks: Option<u64>,
-	pub skip_tor: bool,
+	pub skip_tor: Option<bool>,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
@@ -431,7 +431,9 @@ where
 			if let Some(b) = args.bridge.clone() {
 				c.bridge.bridge_line = Some(b);
 			}
-			c.skip_send_attempt = Some(args.skip_tor);
+			if let Some(s) = args.skip_tor {
+				c.skip_send_attempt = Some(s);
+			}
 			Some(c)
 		}
 		None => None,
@@ -630,7 +632,7 @@ where
 pub struct ReceiveArgs {
 	pub input_file: Option<String>,
 	pub input_slatepack_message: Option<String>,
-	pub skip_tor: bool,
+	pub skip_tor: Option<bool>,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
@@ -666,7 +668,9 @@ where
 			if let Some(b) = args.bridge {
 				c.bridge.bridge_line = Some(b);
 			}
-			c.skip_send_attempt = Some(args.skip_tor);
+			if let Some(s) = args.skip_tor {
+				c.skip_send_attempt = Some(s);
+			}
 			Some(c)
 		}
 		None => None,
@@ -688,7 +692,7 @@ where
 		Ok(Some(_)) => {
 			println!();
 			println!(
-				"Transaction recieved and sent back to sender at {} for finalization.",
+				"Transaction received and sent back to sender at {} for finalization.",
 				dest
 			);
 			println!();
@@ -925,7 +929,7 @@ pub struct ProcessInvoiceArgs {
 	pub slate: Slate,
 	pub estimate_selection_strategies: bool,
 	pub ttl_blocks: Option<u64>,
-	pub skip_tor: bool,
+	pub skip_tor: Option<bool>,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
@@ -1008,7 +1012,9 @@ where
 			if let Some(b) = args.bridge {
 				c.bridge.bridge_line = Some(b);
 			}
-			c.skip_send_attempt = Some(args.skip_tor);
+			if let Some(skip_tor) = args.skip_tor {
+				c.skip_send_attempt = Some(skip_tor);
+			}
 			Some(c)
 		}
 		None => None,
