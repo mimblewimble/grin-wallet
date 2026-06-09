@@ -244,17 +244,21 @@ fn init_client(
 	let c = client.clone();
 	let res = client.runtime().block_on(async move {
 		let bootstrap = async || {
-			if c.bootstrap().await.is_ok() {
-				let mut percent = 0.0;
-				let mut prev_percent = 0.0;
-				while percent < 1.0 {
-					percent = c.bootstrap_status().as_frac();
-					if percent != prev_percent {
-						info!("Starting Tor {}%", percent * 100.0);
+			return match c.bootstrap().await {
+				Ok(_) => {
+					let mut percent = 0.0;
+					let mut prev_percent = 0.0;
+					while percent < 1.0 {
+						percent = c.bootstrap_status().as_frac();
+						if percent != prev_percent {
+							info!("Starting Tor {}%", percent * 100.0);
+						}
+						prev_percent = percent;
+						tokio::time::sleep(Duration::from_millis(1000)).await;
 					}
-					prev_percent = percent;
-					tokio::time::sleep(Duration::from_millis(1000)).await;
+					Ok(())
 				}
+				Err(e) => Err(e)
 			}
 		};
 		match c
