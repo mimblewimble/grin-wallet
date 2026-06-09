@@ -257,8 +257,12 @@ where
 		let mut batch = wallet.batch(keychain_mask)?;
 		tx.tx_slate_state = Some(slate.state.clone());
 		batch.save_tx_log_entry(tx.clone(), parent_key_id)?;
+		batch.commit()?;
 	} else {
-		error!("Tx log entry with slate id {} not found", slate.id);
+		return Err(Error::Backend(format!(
+			"Tx log entry with slate id {} not found",
+			slate.id
+		)));
 	}
 	Ok(())
 }
