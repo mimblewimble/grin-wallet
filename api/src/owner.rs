@@ -667,7 +667,8 @@ where
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?
 		};
-		// Helper functionality. If send arguments exist, attempt to send
+		// Helper functionality. If send arguments exist, attempt to send sync and
+		// finalize
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();

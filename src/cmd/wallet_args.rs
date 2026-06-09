@@ -509,7 +509,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let outfile = parse_optional(args, "outfile")?;
 
-	let skip_tor = if args.is_present("skip_tor") {
+	let skip_tor = if args.is_present("manual") {
 		Some(true)
 	} else {
 		None
@@ -566,7 +566,7 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 
 	let outfile = parse_optional(args, "outfile")?;
 
-	let skip_tor = if args.is_present("skip_tor") {
+	let skip_tor = if args.is_present("manual") {
 		Some(true)
 	} else {
 		None
@@ -608,7 +608,7 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 
 	let outfile = parse_optional(args, "outfile")?;
 
-	let skip_tor = if args.is_present("skip_tor") {
+	let skip_tor = if args.is_present("manual") {
 		Some(true)
 	} else {
 		None
@@ -782,7 +782,7 @@ pub fn parse_process_invoice_args(
 
 	let outfile = parse_optional(args, "outfile")?;
 
-	let skip_tor = if args.is_present("skip_tor") {
+	let skip_tor = if args.is_present("manual") {
 		Some(true)
 	} else {
 		None
