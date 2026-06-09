@@ -299,12 +299,13 @@ where
 
 	// Setup proxy to forward request from Tor address to local address.
 	let proxy_rule = ProxyRule::new(
-		ProxyPattern::one_port(80).unwrap(),
+		ProxyPattern::one_port(80).map_err(|e| Error::TorConfig(format!("{}", e)))?,
 		ProxyAction::Forward(Encapsulation::Simple, TargetAddr::Inet(addr)),
 	);
 	let mut proxy_cfg_builder = ProxyConfigBuilder::default();
 	proxy_cfg_builder.set_proxy_ports(vec![proxy_rule]);
-	let proxy = OnionServiceReverseProxy::new(proxy_cfg_builder.build().unwrap());
+	let proxy_cfg = proxy_cfg_builder.build().map_err(|e| Error::TorConfig(format!("{}", e)))?;
+	let proxy = OnionServiceReverseProxy::new(proxy_cfg);
 
 	// Start proxy for launched service.
 	proxy
