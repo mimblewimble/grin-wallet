@@ -36,7 +36,21 @@ where
 	// NOTE: This should only be run on slates that we received and were signed for us.
 	// Otherwise, you can't really predict who the party doing the next step should be.
 
-	// TODO: Do we need to do any slate verification here?
+	// Reject a slate we can't interpret. Standard2/3 and Invoice2/3 are valid mid/late
+	// flow states (they fall through to suggested_net_change = None below), so only the
+	// Unknown state is rejected here.
+	if slate.state == SlateState::Unknown {
+		return Err(Error::GenericError(
+			"Cannot view a slate with an Unknown state".to_string(),
+		));
+	}
+	// Mirror the contract setup bound so a tampered slate can't surface a bogus count.
+	if slate.num_participants < 1 || slate.num_participants > 2 {
+		return Err(Error::GenericError(format!(
+			"Unsupported num_participants: {} (expected 1 or 2)",
+			slate.num_participants
+		)));
+	}
 	// Checked conversion so an out-of-range amount can't wrap into a bogus net change.
 	let suggested_net_change: Option<i64> = match slate.state {
 		SlateState::Invoice1 => Some(i64::try_from(slate.amount).map_err(|_| {
@@ -48,11 +62,12 @@ where
 		_ => None,
 	};
 	let is_executed = false;
+	// Count signatures present (a participant is "complete" once it has a partial sig).
 	let num_sigs = slate
 		.participant_data
 		.clone()
 		.into_iter()
-		.filter(|v| !v.is_complete())
+		.filter(|v| v.is_complete())
 		.count();
 
 	// If we have a local context for this slate we've agreed on a net change; surface it.
