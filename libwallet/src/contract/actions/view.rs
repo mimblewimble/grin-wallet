@@ -19,19 +19,19 @@ use crate::error::Error;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::{Slate, SlateState};
-use crate::types::{NodeClient, WalletBackend};
+use crate::types::{NodeClient};
+use crate::backend::WalletBackend;
 
 /// View contract
-pub fn view<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn view<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	_encrypted_for: &str,
 ) -> Result<ContractView, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// NOTE: This should only be run on slates that we received and were signed for us.
 	// Otherwise, you can't really predict who the party doing the next step should be.

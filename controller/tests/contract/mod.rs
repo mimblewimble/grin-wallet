@@ -53,7 +53,7 @@ pub fn create_wallets(
 				Box<
 					dyn WalletInst<
 						'static,
-						DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+						DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 						LocalWalletClient,
 						ExtKeychain,
 					>,
@@ -187,7 +187,7 @@ pub fn create_wallets(
 // 	test_dir: &'static str,
 // 	// wallet_proxy: WalletProxy<
 // 	// 	'static,
-// 	// 	DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+// 	// 	DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 // 	// 	LocalWalletClient,
 // 	// 	ExtKeychain,
 // 	// >,
@@ -197,7 +197,7 @@ pub fn create_wallets(
 // 			Box<
 // 				dyn WalletInst<
 // 					'static,
-// 					DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+// 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 // 					LocalWalletClient,
 // 					ExtKeychain,
 // 				>,

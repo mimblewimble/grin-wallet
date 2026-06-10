@@ -20,18 +20,18 @@ use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::tx;
 use crate::slate::Slate;
-use crate::types::{NodeClient, OutputData, OutputStatus, WalletBackend};
+use crate::types::{NodeClient, OutputData, OutputStatus};
+use crate::backend::WalletBackend;
 
 /// Contract revocation is done by double-spending the input
-pub fn revoke<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn revoke<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: &ContractRevokeArgsAPI,
 ) -> Result<Option<Slate>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// TODO: check the correctness of this. This is essentially old cancel + self-spend.
 	// FUTURE: we may want to boost fees in case we notice something in the mempool. There
@@ -45,7 +45,7 @@ where
 	// Find my outputs that have been Locked and refer to the given tx_id
 	let my_contributed_inputs = w
 		.batch(keychain_mask)?
-		.iter()
+		.iter()?
 		.filter(|out| {
 			// Find an output that is Locked and is in the tx_input_commit
 			out.status == OutputStatus::Locked
@@ -87,7 +87,7 @@ where
 	let input_commit = my_contributed_inputs[0].commit.as_ref().unwrap();
 	// Account label for the self-spend, so recovered funds return to the inputs' account.
 	let src_acct_name = w
-		.acct_path_iter()
+		.acct_path_iter()?
 		.find(|m| m.path == parent_key_id)
 		.map(|m| m.label);
 	// 2. Create a 1-1 self-spend transaction using this input

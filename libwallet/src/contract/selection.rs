@@ -18,22 +18,22 @@ use crate::contract::types::{ContractSetupArgsAPI, OutputSelectionArgs};
 use crate::contract::utils::my_fee_contribution;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_keychain::{Identifier, Keychain};
-use crate::types::{NodeClient, WalletBackend};
+use crate::types::{NodeClient};
+use crate::backend::WalletBackend;
 use crate::{Error, OutputData};
 use grin_core::core::FeeFields;
 
 /// Prepares inputs & outputs that satisfy `Σmy_inputs >= Σmy_outputs + my_fee_cost` taking into account selection args
-pub fn prepare_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn prepare_outputs<C, K>(
+	w: &mut WalletBackend<C, K>,
 	parent_key_id: &Identifier,
 	current_height: u64,
 	setup_args: &ContractSetupArgsAPI,
 	committed_fee: Option<FeeFields>,
 ) -> Result<(Vec<OutputData>, Vec<u64>, FeeFields), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Find available inputs
 	let mut eligible_inputs = find_eligible(w, parent_key_id, current_height)?;
@@ -42,19 +42,18 @@ where
 }
 
 /// Find all inputs eligible to spend
-pub fn find_eligible<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn find_eligible<C, K>(
+	w: &mut WalletBackend<C, K>,
 	parent_key_id: &Identifier,
 	current_height: u64,
 ) -> Result<Vec<OutputData>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Find eligible inputs in the wallet
 	let eligible_inputs = w
-		.iter()
+		.iter()?
 		.filter(|out| out.root_key_id == *parent_key_id && out.eligible_to_spend(current_height, 1))
 		.collect::<Vec<OutputData>>();
 	Ok(eligible_inputs)

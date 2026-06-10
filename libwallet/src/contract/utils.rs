@@ -20,7 +20,8 @@ use crate::grin_core::libtx::tx_fee;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
+use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
+use crate::backend::WalletBackend;
 use crate::util::OnionV3Address;
 use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::FeeFields;
@@ -62,17 +63,16 @@ pub fn create_tx_log_entry(
 }
 
 /// Updates TxLogEntry for a contract with information available in the 'sign' step
-pub fn update_tx_log_entry<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn update_tx_log_entry<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	context: &Context,
 	tx_log_entry: &mut TxLogEntry,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// This is expected to be called when we are signing the contract and have already contributed inputs & outputs
 	let keychain = wallet.keychain(keychain_mask)?;
@@ -127,16 +127,15 @@ where
 }
 
 /// Get net_change value. This is obtained either from the Context.net_change or the setup_args.net_change
-pub fn get_net_change<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn get_net_change<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate_id: &Uuid,
 	setup_args_net_change: Option<i64>,
 ) -> Result<i64, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut expected_net_change: Option<i64> = setup_args_net_change;
 	match w.get_private_context(keychain_mask, slate_id.as_bytes()) {
@@ -181,8 +180,8 @@ where
 
 /// Atomically locks the inputs and saves the changes of Context, TxLogEntry and OutputData.
 /// Additionally, the transaction is saved in a file in case we signed it.
-pub fn save_step<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn save_step<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	context: &mut Context,
@@ -190,9 +189,8 @@ pub fn save_step<'a, T: ?Sized, C, K>(
 	is_signed: bool,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!(
 		"contract::utils::save_step => performing atomic update for slate_id: {}",
@@ -287,7 +285,6 @@ where
 	}
 
 	batch.commit()?;
-	drop(batch);
 
 	// Defense in depth: once we have signed (and are past the step2 context that is kept
 	// deliberately for safe cancel), the signing context holding sec_key/sec_nonce must be
@@ -333,16 +330,16 @@ pub fn my_fee_contribution(
 
 /// Returns an error if the slate has already been signed (in our local database). Even if the
 /// result is Ok, it's still possible it was signed but we don't have the data about it locally.
-pub fn verify_not_signed<'a, T: ?Sized, C, K>(w: &mut T, slate_id: Uuid) -> Result<(), Error>
+pub fn verify_not_signed<C, K>(w: &mut WalletBackend<C, K>, slate_id: Uuid) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// If we have a transaction log entry for that slatepack that has a kernel value, then
 	// we have already signed this slate.
 	let tx = w
-		.tx_log_iter()
+		.tx_log_iter()?
+		.flatten()
 		.find(|t| t.tx_slate_id.is_some() && t.tx_slate_id.unwrap() == slate_id);
 	let already_signed = tx.is_some() && tx.unwrap().kernel_excess.is_some();
 	if already_signed {
@@ -392,14 +389,13 @@ pub fn verify_setup_args_consistency(
 /// Get the parent_key_id for a given wallet instance and src_acct_name.
 /// Errors on an unknown account name rather than silently falling back to the
 /// active account.
-pub fn parent_key_for<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn parent_key_for<C, K>(
+	w: &mut WalletBackend<C, K>,
 	src_acct_name: Option<&String>,
 ) -> Result<Identifier, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let parent_key_id = match src_acct_name {
 		Some(d) => match w.get_acct_path(d.clone())? {

@@ -21,19 +21,19 @@ use crate::error::Error;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, WalletBackend};
+use crate::types::{Context, NodeClient};
+use crate::backend::WalletBackend;
 
 /// Sign a contract
-pub fn sign<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn sign<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Compute if we will add outputs at this step. Only a missing context means we
 	// still need to add them; propagate any other error.
@@ -52,16 +52,15 @@ where
 }
 
 /// Compute logic for sign
-pub fn compute<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn compute<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<(Slate, Context), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut sl = slate.clone();
 	contract::utils::verify_not_signed(w, sl.id)?;

@@ -101,7 +101,7 @@ impl ParticipantData {
 	}
 }
 
-/// A 'Slate' is passed around to all parties to build up all of the public
+/// A 'Slate' is passed around to all parties to build up all the public
 /// transaction data needed to create a finalized transaction. Callers can pass
 /// the slate around by whatever means they choose, (but we can provide some
 /// binary or JSON serialization helpers here).
@@ -135,7 +135,7 @@ pub struct Slate {
 	/// 	2: height_locked
 	/// 	3: NRD
 	pub kernel_features: u8,
-	/// Offset, needed when posting of transasction is deferred
+	/// Offset, needed when posting of transaction is deferred
 	pub offset: BlindingFactor,
 	/// Participant data, each participant in the transaction will
 	/// insert their public data here. For now, 0 is sender and 1
@@ -154,7 +154,7 @@ impl fmt::Display for Slate {
 }
 
 /// Slate state definition
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum SlateState {
 	/// Unknown, coming from earlier slate versions
 	Unknown,
@@ -168,7 +168,7 @@ pub enum SlateState {
 	Invoice1,
 	///Invoice flow, return journey
 	Invoice2,
-	/// Invoice flow, ready for tranasction posting
+	/// Invoice flow, ready for transaction posting
 	Invoice3,
 }
 

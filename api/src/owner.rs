@@ -16,7 +16,6 @@
 
 use chrono::prelude::*;
 use ed25519_dalek::SecretKey as DalekSecretKey;
-use grin_wallet_libwallet::contract::proofs::InvoiceProof;
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use uuid::Uuid;
@@ -29,6 +28,7 @@ use crate::impls::SlateSender as _;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::contract::proofs::InvoiceProof;
 use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI,
 };
@@ -38,9 +38,7 @@ use crate::libwallet::{
 	TxLogEntry, ViewWallet, WalletInfo, WalletInst, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
-use crate::util::secp::key::SecretKey;
-use crate::util::secp::pedersen;
-use crate::util::secp::pedersen::Commitment;
+use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use std::convert::TryFrom;
@@ -103,7 +101,7 @@ where
 	///
 	/// Each method will call the [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html)'s
 	/// [`open_with_credentials`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.open_with_credentials)
-	/// (initialising a keychain with the master seed,) perform its operation, then close the keychain
+	/// initializing a keychain with the master seed, perform its operation, then close the keychain
 	/// with a call to [`close`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.close)
 	///
 	/// # Arguments
@@ -153,11 +151,11 @@ where
 	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
 	///
 	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
-	/// // It contains the LMDBBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
+	/// // It contains the WalletBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
 	/// // by the reference wallet implementation.
 	/// // These traits can be replaced with alternative implementations if desired
 	///
-	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	/// let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
 	///     as Box<dyn WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
 	///
 	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
@@ -264,7 +262,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::accounts(&mut **w)
+		owner::accounts(w)
 	}
 
 	/// Creates a new 'account', which is a mapping of a user-specified
@@ -314,7 +312,7 @@ where
 	) -> Result<Identifier, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_account_path(&mut **w, keychain_mask, label)
+		owner::create_account_path(w, keychain_mask, label)
 	}
 
 	/// Sets the wallet's currently active account. This sets the
@@ -364,7 +362,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::set_active_account(&mut **w, label)
+		owner::set_active_account(w, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
@@ -671,7 +669,7 @@ where
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			owner::init_send_tx(&mut **w, keychain_mask, args, self.doctest_mode)?
+			owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?
 		};
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
@@ -707,17 +705,17 @@ where
 							match result {
 								Ok(_) => {
 									info!("Tx sent ok",);
-									return Ok(ret_slate);
+									Ok(ret_slate)
 								}
 								Err(e) => {
 									error!("Tx sent fail: {}", e);
-									return Err(e);
+									Err(e)
 								}
 							}
 						} else {
 							self.tx_lock_outputs(keychain_mask, &s)?;
 							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
-							return Ok(ret_slate);
+							Ok(ret_slate)
 						}
 					}
 					Ok(None) => Ok(slate),
@@ -730,7 +728,7 @@ where
 
 	/// Issues a new invoice transaction slate, essentially a `request for payment`.
 	/// The slate created by this function will contain the amount, an output for the amount,
-	/// as well as round 1 of singature creation complete. The slate should then be send
+	/// as well as round 1 of signature creation complete. The slate should then be sent
 	/// to the payer, who should add their inputs and signature data and return the slate
 	/// via the [Foreign API's `finalize_tx`](struct.Foreign.html#method.finalize_tx) method.
 	///
@@ -770,7 +768,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
+		owner::issue_invoice_tx(w, keychain_mask, args, self.doctest_mode)
 	}
 
 	/// Initiate a new contract. Also performs the initial setup on the slate.
@@ -781,7 +779,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::contract_new(&mut **w, keychain_mask, &args)
+		owner::contract_new(w, keychain_mask, args)
 	}
 
 	/// Sign a contract, running setup first if it has not been done yet.
@@ -793,7 +791,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::contract_sign(&mut **w, keychain_mask, &args, &slate)
+		owner::contract_sign(w, keychain_mask, args, slate)
 	}
 
 	/// Return the participant index in the slate that matches this wallet's context.
@@ -804,7 +802,7 @@ where
 	) -> Result<usize, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::get_slate_index_matching_my_context(&mut **w, keychain_mask, &slate)
+		owner::get_slate_index_matching_my_context(w, keychain_mask, slate)
 	}
 
 	/// Revoke a contract by double-spending one of its locked inputs.
@@ -815,14 +813,14 @@ where
 	) -> Result<Option<Slate>, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::contract_revoke(&mut **w, keychain_mask, &args)
+		owner::contract_revoke(w, keychain_mask, args)
 	}
 
-	/// Processes an invoice tranaction created by another party, essentially
+	/// Processes an invoice transaction created by another party, essentially
 	/// a `request for payment`. The incoming slate should contain a requested
-	/// amount, an output created by the invoicer convering the amount, and
+	/// amount, an output created by the invoicer converting the amount, and
 	/// part 1 of signature creation completed. This function will add inputs
-	/// equalling the amount + fees, as well as perform round 1 and 2 of signature
+	/// equaling the amount + fees, as well as perform round 1 and 2 of signature
 	/// creation.
 	///
 	/// Callers should note that no prompting of the user will be done by this function
@@ -888,8 +886,7 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let send_args = args.send_args.clone();
-		let slate =
-			owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)?;
+		let slate = owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
@@ -922,7 +919,7 @@ where
 	/// Locks the outputs associated with the inputs to the transaction in the given
 	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html),
 	/// making them unavailable for use in further transactions. This function is called
-	/// by the sender, (or more generally, all parties who have put inputs into the transaction,)
+	/// by the sender, (or more generally, all parties who have put inputs into the transaction)
 	/// and must be called before the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx)
 	/// that completes the transaction.
 	///
@@ -980,7 +977,7 @@ where
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, slate)
+		owner::tx_lock_outputs(w, keychain_mask, slate)
 	}
 
 	/// Finalizes a transaction, after all parties
@@ -1046,7 +1043,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::finalize_tx(&mut **w, keychain_mask, slate)
+		owner::finalize_tx(w, keychain_mask, slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -1237,7 +1234,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::get_stored_tx(&**w, tx_id, slate_id)
+		owner::get_stored_tx(w, tx_id, slate_id)
 	}
 
 	/// Return the rewind hash of the wallet.
@@ -2500,7 +2497,7 @@ where
 	) -> Result<BuiltOutput, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::build_output(&mut **w, keychain_mask, features, amount)
+		owner::build_output(w, keychain_mask, features, amount)
 	}
 
 	// MWIXNET
@@ -2559,7 +2556,7 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::create_mwixnet_req(
-			&mut **w,
+			w,
 			keychain_mask,
 			params,
 			commitment,
@@ -2577,7 +2574,7 @@ pub fn try_slatepack_sync_workflow(
 	tor_sender: Option<HttpSlateSender>,
 	send_to_finalize: bool,
 	test_mode: bool,
-) -> Result<Option<Slate>, libwallet::Error> {
+) -> Result<Option<Slate>, Error> {
 	if let Some(tc) = &tor_config {
 		if tc.skip_send_attempt == Some(true) {
 			return Ok(None);
@@ -2682,7 +2679,7 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		use uuid::Uuid;
 
-		// don't run on windows CI, which gives very inconsistent results
+		// don't run on Windows CI, which gives very inconsistent results
 		if cfg!(windows) {
 			return;
 		}
@@ -2702,17 +2699,16 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		let node_client =
 			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-		let mut wallet = Box::new(
-			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
-		)
-			as Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
-					HTTPNodeClient,
-					ExtKeychain,
-				>,
-			>;
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
+				as Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+						HTTPNodeClient,
+						ExtKeychain,
+					>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);

@@ -26,10 +26,10 @@ use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType, WalletBackend};
+use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
 use crate::util::OnionV3Address;
-use crate::InitTxArgs;
 use crate::{address, Error};
+use crate::{InitTxArgs, WalletBackend};
 use ed25519_dalek::Keypair as DalekKeypair;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::SecretKey as DalekSecretKey;
@@ -44,8 +44,8 @@ lazy_static! {
 
 /// Creates a new slate for a transaction, can be called by anyone involved in
 /// the transaction (sender(s), receiver(s))
-pub fn new_tx_slate<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn new_tx_slate<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	amount: u64,
 	is_invoice: bool,
 	num_participants: u8,
@@ -53,9 +53,8 @@ pub fn new_tx_slate<'a, T: ?Sized, C, K>(
 	ttl_blocks: Option<u64>,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	let mut slate = Slate::blank(num_participants, is_invoice);
@@ -92,8 +91,8 @@ where
 }
 
 /// Estimates locked amount and fee for the transaction without creating one
-pub fn estimate_send_tx<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn estimate_send_tx<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	amount: u64,
 	amount_includes_fee: bool,
@@ -110,9 +109,8 @@ pub fn estimate_send_tx<'a, T: ?Sized, C, K>(
 	Error,
 >
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Get lock height
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
@@ -141,8 +139,8 @@ where
 }
 
 /// Add inputs to the slate (effectively becoming the sender)
-pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn add_inputs_to_slate<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	current_height: u64,
@@ -156,9 +154,8 @@ pub fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
 	amount_includes_fee: bool,
 ) -> Result<Context, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// sender should always refresh outputs
 	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
@@ -207,8 +204,8 @@ where
 }
 
 /// Add receiver output to the slate
-pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn add_output_to_slate<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	current_height: u64,
@@ -217,9 +214,8 @@ pub fn add_output_to_slate<'a, T: ?Sized, C, K>(
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let keychain = wallet.keychain(keychain_mask)?;
 	// create an output using the amount in the slate
@@ -252,8 +248,8 @@ where
 }
 
 /// Create context, without adding inputs to slate
-pub fn create_late_lock_context<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn create_late_lock_context<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	current_height: u64,
@@ -262,9 +258,8 @@ pub fn create_late_lock_context<'a, T: ?Sized, C, K>(
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// sender should always refresh outputs
 	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
@@ -300,16 +295,15 @@ where
 }
 
 /// Complete a transaction
-pub fn complete_tx<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn complete_tx<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// when self sending invoice tx, use initiator nonce to finalize
 	let (sec_key, sec_nonce) = {
@@ -333,17 +327,16 @@ where
 }
 
 /// Rollback outputs associated with a transaction in the wallet
-pub fn cancel_tx<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn cancel_tx<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut tx_id_string = String::new();
 	if let Some(tx_id) = tx_id {
@@ -389,17 +382,16 @@ where
 }
 
 /// Update the stored transaction (this update needs to happen when the TX is finalised)
-pub fn update_stored_tx<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn update_stored_tx<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	context: &Context,
 	slate: &Slate,
 	is_invoiced: bool,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// finalize command
 	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, None, false)?;
@@ -427,10 +419,7 @@ where
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		if let Some(saddr) = p.sender_address {
-			let derivation_index = match context.payment_proof_derivation_index {
-				Some(i) => i,
-				None => 0,
-			};
+			let derivation_index = context.payment_proof_derivation_index.unwrap_or_else(|| 0);
 			let keychain = wallet.keychain(keychain_mask)?;
 			let parent_key_id = wallet.parent_key_id();
 			let excess = slate.calc_excess(keychain.secp())?;
@@ -438,14 +427,13 @@ where
 				address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 			let sig = create_payment_proof_signature(slate.amount, &excess, saddr, sender_key)?;
-
 			tx.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address,
 				receiver_signature: p.promise_signature,
 				sender_address_path: derivation_index,
 				sender_address: sender_address.to_ed25519()?,
 				sender_signature: Some(sig),
-				// Filled in during contract flow proofs for now
+				// Filled in during the contract proof flow; unused on the legacy path.
 				proof_type: None,
 				receiver_public_nonce: None,
 				receiver_public_excess: None,
@@ -454,7 +442,6 @@ where
 				promise_signature: None,
 				sender_part_sig: None,
 			})
-		} else {
 		}
 	}
 
@@ -522,17 +509,16 @@ pub fn create_payment_proof_signature(
 }
 
 /// Verify all aspects of a completed payment proof on the current slate
-pub fn verify_slate_payment_proof<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn verify_slate_payment_proof<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	parent_key_id: &Identifier,
 	context: &Context,
 	slate: &Slate,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let tx_vec = updater::retrieve_txs(
 		wallet,

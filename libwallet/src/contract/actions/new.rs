@@ -21,18 +21,18 @@ use crate::error::Error;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, WalletBackend};
+use crate::types::{Context, NodeClient};
+use crate::backend::WalletBackend;
 
 /// Create a new contract with initial setup done by the initiator
-pub fn new<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn new<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Compute state for 'new'
 	let (slate, mut context) = compute(w, keychain_mask, setup_args)?;
@@ -51,15 +51,14 @@ where
 }
 
 /// Compute logic for new
-pub fn compute<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn compute<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<(Slate, Context), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let net_change = setup_args.net_change.ok_or_else(|| {
 		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())

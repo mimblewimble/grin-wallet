@@ -92,7 +92,7 @@ fn prompt_recovery_phrase<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 ) -> Result<ZeroingString, ParseError>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -224,12 +224,12 @@ pub fn inst_wallet<L, C, K>(
 	node_client: C,
 ) -> Result<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>, ParseError>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
+	let mut wallet = Box::new(DefaultWalletImpl::<C>::new(node_client.clone()).unwrap())
 		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	let _ = lc.set_top_level_directory(&config.data_file_dir);
@@ -346,7 +346,7 @@ pub fn parse_init_args<L, C, K>(
 	_test_mode: bool,
 ) -> Result<command::InitArgs, ParseError>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -366,16 +366,16 @@ where
 		println!("Please enter a password for your new wallet");
 	}
 
-	let password = match g_args.password.clone() {
-		Some(p) => p,
-		None => prompt_password_confirm(),
-	};
+	let password = g_args
+		.password
+		.clone()
+		.unwrap_or_else(|| prompt_password_confirm());
 
 	Ok(command::InitArgs {
-		list_length: list_length,
-		password: password,
+		list_length,
+		password,
 		config: config.clone(),
-		recovery_phrase: recovery_phrase,
+		recovery_phrase,
 		restore: false,
 	})
 }
@@ -386,9 +386,7 @@ pub fn parse_recover_args(
 where
 {
 	let passphrase = prompt_password(&g_args.password);
-	Ok(command::RecoverArgs {
-		passphrase: passphrase,
-	})
+	Ok(command::RecoverArgs { passphrase })
 }
 
 pub fn parse_listen_args(
@@ -1150,7 +1148,7 @@ where
 				Box<
 					dyn WalletInst<
 						'static,
-						DefaultLCProvider<'static, C, keychain::ExtKeychain>,
+						DefaultLCProvider<C, keychain::ExtKeychain>,
 						C,
 						keychain::ExtKeychain,
 					>,
@@ -1285,7 +1283,7 @@ pub fn parse_and_execute<L, C, K>(
 	cli_mode: bool,
 ) -> Result<(), Error>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,

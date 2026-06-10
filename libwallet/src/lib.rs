@@ -47,6 +47,7 @@ extern crate strum_macros;
 
 pub mod address;
 pub mod api_impl;
+mod backend;
 pub mod contract;
 mod error;
 mod internal;
@@ -72,13 +73,13 @@ pub use api_impl::types::{
 	NodeHeightResult, OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs,
 	RetrieveTxQuerySortField, RetrieveTxQuerySortOrder, VersionInfo,
 };
+pub use backend::{WalletBackend, WalletBatch};
 pub use internal::scan::scan;
 pub use slate_versions::ser as dalek_ser;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
 	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
-	ViewWallet, WalletBackend, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
-	WalletOutputBatch,
+	ViewWallet, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 
 pub use contract::can_finalize;

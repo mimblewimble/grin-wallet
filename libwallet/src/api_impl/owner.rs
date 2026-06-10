@@ -35,15 +35,14 @@ use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmen
 
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
-use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletBackend, WalletInfo};
-use crate::Error;
+use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletInfo};
 use crate::{
 	address, contract,
 	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
-	wallet_lock, BuiltOutput, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletInitStatus,
-	WalletInst, WalletLCProvider,
+	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
+	WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use chrono::prelude::{DateTime, NaiveDateTime, Utc};
 use ed25519_dalek::PublicKey as DalekPublicKey;
@@ -56,35 +55,32 @@ use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// List of accounts
-pub fn accounts<'a, T: ?Sized, C, K>(w: &mut T) -> Result<Vec<AcctPathMapping>, Error>
+pub fn accounts<C, K>(w: &mut WalletBackend<C, K>) -> Result<Vec<AcctPathMapping>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
-	keys::accounts(&mut *w)
+	keys::accounts(w)
 }
 
 /// new account path
-pub fn create_account_path<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn create_account_path<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	label: &str,
 ) -> Result<Identifier, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
-	keys::new_acct_path(&mut *w, keychain_mask, label)
+	keys::new_acct_path(w, keychain_mask, label)
 }
 
 /// set active account
-pub fn set_active_account<'a, T: ?Sized, C, K>(w: &mut T, label: &str) -> Result<(), Error>
+pub fn set_active_account<C, K>(w: &mut WalletBackend<C, K>, label: &str) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	w.set_parent_key_id_by_name(label)
 }
@@ -200,7 +196,7 @@ where
 			dec_key: None,
 		});
 		let slatepack = packer.deser_slatepack(slatepack.as_bytes(), true)?;
-		return packer.get_slate(&slatepack);
+		packer.get_slate(&slatepack)
 	} else {
 		for index in secret_indices {
 			let dec_key = Some(get_slatepack_secret_key(
@@ -222,11 +218,11 @@ where
 			};
 			return packer.get_slate(&slatepack);
 		}
-		return Err(Error::SlatepackDecryption(
+		Err(Error::SlatepackDecryption(
 			"Could not decrypt slatepack with any provided index on the address derivation path"
 				.to_owned(),
 		)
-		.into());
+		.into())
 	}
 }
 
@@ -306,13 +302,7 @@ where
 
 	Ok((
 		validated,
-		updater::retrieve_outputs(
-			&mut **w,
-			keychain_mask,
-			include_spent,
-			tx_id,
-			Some(&parent_key_id),
-		)?,
+		updater::retrieve_outputs(w, keychain_mask, include_spent, tx_id, Some(&parent_key_id))?,
 	))
 }
 
@@ -345,7 +335,7 @@ where
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let txs = updater::retrieve_txs(
-		&mut **w,
+		w,
 		tx_id,
 		tx_slate_id,
 		query_args,
@@ -382,7 +372,7 @@ where
 
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
-	let wallet_info = updater::retrieve_info(&mut **w, &parent_key_id, minimum_confirmations)?;
+	let wallet_info = updater::retrieve_info(w, &parent_key_id, minimum_confirmations)?;
 	Ok((validated, wallet_info))
 }
 
@@ -473,8 +463,8 @@ where
 		}
 	};
 	Ok(PaymentProof {
-		amount: amount,
-		excess: excess,
+		amount,
+		excess,
 		recipient_address: SlatepackAddress::new(&proof.receiver_address),
 		recipient_sig: r_sig,
 		sender_address: SlatepackAddress::new(&proof.sender_address),
@@ -622,16 +612,15 @@ where
 }
 
 /// Initiate tx as sender
-pub fn init_send_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn init_send_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: InitTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let parent_key_id = match &args.src_acct_name {
 		Some(d) => {
@@ -644,14 +633,7 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(
-		&mut *w,
-		args.amount,
-		false,
-		2,
-		use_test_rng,
-		args.ttl_blocks,
-	)?;
+	let mut slate = tx::new_tx_slate(w, args.amount, false, 2, use_test_rng, args.ttl_blocks)?;
 
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.version = v;
@@ -661,7 +643,7 @@ where
 	// back
 	if let Some(true) = args.estimate_only {
 		let (total, fee) = tx::estimate_send_tx(
-			&mut *w,
+			w,
 			keychain_mask,
 			args.amount,
 			args.amount_includes_fee.unwrap_or(false),
@@ -679,7 +661,7 @@ where
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let mut context = if args.late_lock.unwrap_or(false) {
 		tx::create_late_lock_context(
-			&mut *w,
+			w,
 			keychain_mask,
 			&mut slate,
 			height,
@@ -689,7 +671,7 @@ where
 		)?
 	} else {
 		tx::add_inputs_to_slate(
-			&mut *w,
+			w,
 			keychain_mask,
 			&mut slate,
 			height,
@@ -743,16 +725,15 @@ where
 }
 
 /// Initiate a transaction as the recipient (invoicing)
-pub fn issue_invoice_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn issue_invoice_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: IssueInvoiceTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let parent_key_id = match args.dest_acct_name {
 		Some(d) => {
@@ -765,10 +746,10 @@ where
 		None => w.parent_key_id(),
 	};
 
-	let mut slate = tx::new_tx_slate(&mut *w, args.amount, true, 2, use_test_rng, None)?;
+	let mut slate = tx::new_tx_slate(w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let context = tx::add_output_to_slate(
-		&mut *w,
+		w,
 		keychain_mask,
 		&mut slate,
 		height,
@@ -796,17 +777,16 @@ where
 
 /// Receive an invoice tx, essentially adding inputs to whatever
 /// output was specified
-pub fn process_invoice_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn process_invoice_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	args: InitTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
@@ -822,7 +802,7 @@ where
 	};
 	// Don't do this multiple times
 	let tx = updater::retrieve_txs(
-		&mut *w,
+		w,
 		None,
 		Some(ret_slate.id),
 		None,
@@ -852,7 +832,7 @@ where
 	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
 
 	let mut context = tx::add_inputs_to_slate(
-		&mut *w,
+		w,
 		keychain_mask,
 		&mut ret_slate,
 		height,
@@ -898,7 +878,7 @@ where
 		}
 	}
 
-	selection::repopulate_tx(&mut *w, keychain_mask, &mut ret_slate, &context, false)?;
+	selection::repopulate_tx(w, keychain_mask, &mut ret_slate, &context, false)?;
 
 	// Save the aggsig context in our DB for when we
 	// recieve the transaction back
@@ -917,15 +897,14 @@ where
 }
 
 /// Lock sender outputs
-pub fn tx_lock_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn tx_lock_outputs<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
 	let mut excess_override = None;
@@ -934,7 +913,7 @@ where
 
 	if sl.tx == None {
 		sl.tx = Some(Slate::empty_transaction());
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+		selection::repopulate_tx(w, keychain_mask, &mut sl, &context, true)?;
 	}
 
 	if slate.participant_data.len() == 1 {
@@ -943,26 +922,18 @@ where
 	}
 
 	let height = w.w2n_client().get_chain_tip()?.0;
-	selection::lock_tx_context(
-		&mut *w,
-		keychain_mask,
-		&sl,
-		height,
-		&context,
-		excess_override,
-	)
+	selection::lock_tx_context(w, keychain_mask, &sl, height, &context, excess_override)
 }
 
 /// Finalize slate
-pub fn finalize_tx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn finalize_tx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	foreign_finalize(w, keychain_mask, slate, false)
 }
@@ -992,24 +963,27 @@ where
 	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
-	tx::cancel_tx(&mut **w, keychain_mask, &parent_key_id, tx_id, tx_slate_id)
+	tx::cancel_tx(w, keychain_mask, &parent_key_id, tx_id, tx_slate_id)
 }
 
 /// get stored tx
 /// crashes if stored tx has total fees exceeding 2^40 nanogrin
-pub fn get_stored_tx<'a, T: ?Sized, C, K>(
-	w: &T,
+pub fn get_stored_tx<C, K>(
+	w: &WalletBackend<C, K>,
 	tx_id: Option<u32>,
 	slate_id: Option<&Uuid>,
 ) -> Result<Option<Slate>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let mut uuid = None;
 	if let Some(i) = tx_id {
-		let tx = w.tx_log_iter().find(|t| t.id == i);
+		let tx = w
+			.tx_log_iter()?
+			.filter(|tx| tx.is_ok())
+			.map(|tx| tx.unwrap())
+			.find(|t| t.id == i);
 		if let Some(t) = tx {
 			uuid = t.tx_slate_id;
 		}
@@ -1044,9 +1018,9 @@ where
 
 /// Posts a transaction to the chain
 /// take a client impl instead of wallet so as not to have to lock the wallet
-pub fn post_tx<'a, C>(client: &C, tx: &Transaction, fluff: bool) -> Result<(), Error>
+pub fn post_tx<C>(client: &C, tx: &Transaction, fluff: bool) -> Result<(), Error>
 where
-	C: NodeClient + 'a,
+	C: NodeClient,
 {
 	let res = client.post_tx(tx, fluff);
 	if let Err(e) = res {
@@ -1078,8 +1052,7 @@ where
 	let is_hex = rewind_hash.chars().all(|c| c.is_ascii_hexdigit());
 	let rewind_hash = rewind_hash.to_lowercase();
 	if !(is_hex && rewind_hash.len() == 64) {
-		let msg = format!("Invalid Rewind Hash");
-		return Err(Error::RewindHash(msg));
+		return Err(Error::RewindHash("Invalid Rewind Hash".to_string()));
 	}
 
 	let tip = {
@@ -1087,10 +1060,7 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
-	let start_height = match start_height {
-		Some(h) => h,
-		None => 1,
-	};
+	let start_height = start_height.unwrap_or_else(|| 1);
 
 	let info = scan::scan_rewind_hash(
 		wallet_inst,
@@ -1127,7 +1097,7 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..tip.0).step_by(10001) {
+	for h in (start_height..tip.0 + 1).step_by(10001) {
 		let batch_end_height = cmp::min(tip.0, h + 10000);
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
@@ -1178,10 +1148,12 @@ where
 		}),
 		Err(_) => {
 			let outputs = retrieve_outputs(wallet_inst, keychain_mask, &None, true, false, None)?;
-			let height = match outputs.1.iter().map(|m| m.output.height).max() {
-				Some(height) => height,
-				None => 0,
-			};
+			let height = outputs
+				.1
+				.iter()
+				.map(|m| m.output.height)
+				.max()
+				.unwrap_or_else(|| 0);
 			Ok(NodeHeightResult {
 				height,
 				header_hash: "".to_owned(),
@@ -1241,7 +1213,7 @@ where
 	// Step 2: Update outstanding transactions with no change outputs by kernel
 	let mut txs = {
 		wallet_lock!(wallet_inst, w);
-		updater::retrieve_txs(&mut **w, None, None, None, Some(&parent_key_id), true)?
+		updater::retrieve_txs(w, None, None, None, Some(&parent_key_id), true)?
 	};
 	result = update_txs_via_kernel(wallet_inst.clone(), keychain_mask, &mut txs)?;
 	if !result {
@@ -1300,7 +1272,7 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
-	for h in (start_height..tip.0).step_by(10001) {
+	for h in (start_height..tip.0 + 1).step_by(10001) {
 		let batch_end_height = cmp::min(tip.0, h + 10000);
 		let (mut info, range) = scan::scan(
 			wallet_inst.clone(),
@@ -1334,7 +1306,7 @@ where
 			if tip.0 >= e {
 				wallet_lock!(wallet_inst, w);
 				let parent_key_id = w.parent_key_id();
-				tx::cancel_tx(&mut **w, keychain_mask, &parent_key_id, Some(tx.id), None)?;
+				tx::cancel_tx(w, keychain_mask, &parent_key_id, Some(tx.id), None)?;
 			}
 		}
 	}
@@ -1343,11 +1315,10 @@ where
 }
 
 /// Check TTL
-pub fn check_ttl<'a, T: ?Sized, C, K>(w: &mut T, slate: &Slate) -> Result<(), Error>
+pub fn check_ttl<C, K>(w: &mut WalletBackend<C, K>, slate: &Slate) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Refuse if TTL is expired
 	let last_confirmed_height = w.last_confirmed_height()?;
@@ -1413,7 +1384,7 @@ where
 		return Err(Error::PaymentProof("Invalid sender signature".to_owned()));
 	};
 
-	// for now, simple test as to whether one of the addresses belongs to this wallet
+	// for now, simple test whether one of the addresses belongs to this wallet
 	let sec_key = address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
 	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
 		Ok(k) => k,
@@ -1442,7 +1413,7 @@ where
 {
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
-	match updater::refresh_outputs(&mut **w, keychain_mask, &parent_key_id, update_all) {
+	match updater::refresh_outputs(w, keychain_mask, &parent_key_id, update_all) {
 		Ok(_) => Ok(true),
 		Err(e) => {
 			if let Error::InvalidKeychainMask = e {
@@ -1509,20 +1480,19 @@ where
 }
 
 /// Builds an output for the wallet's next available key
-pub fn build_output<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn build_output<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	features: OutputFeatures,
 	amount: u64,
 ) -> Result<BuiltOutput, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let k = w.keychain(keychain_mask)?;
 
-	let key_id = keys::next_available_key(&mut *w, keychain_mask)?;
+	let key_id = keys::next_available_key(w, keychain_mask)?;
 
 	let blind = k.derive_key(amount, &key_id, SwitchCommitmentType::Regular)?;
 	let commit = k.secp().commit(amount, blind.clone())?;
@@ -1542,70 +1512,62 @@ where
 
 	Ok(BuiltOutput {
 		blind: BlindingFactor::from_secret_key(blind),
-		key_id: key_id,
-		output: output,
+		key_id,
+		output,
 	})
 }
 
 // Contract implementation
 
 /// Initialize transaction contract
-pub fn contract_new<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn contract_new<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: &ContractNewArgsAPI,
-	// use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	contract::new(&mut *w, keychain_mask, &args.setup_args)
 }
 
 /// Sign transaction contract
-pub fn contract_sign<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn contract_sign<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: &ContractSetupArgsAPI,
 	slate: &Slate,
-	// use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	contract::sign(&mut *w, keychain_mask, slate, &args)
 }
 
 /// Revoke transaction contract
-pub fn contract_revoke<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn contract_revoke<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: &ContractRevokeArgsAPI,
-	// use_test_rng: bool,
 ) -> Result<Option<Slate>, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	contract::revoke(&mut *w, keychain_mask, &args)
 }
 
-/// Revoke transaction contract
-pub fn get_slate_index_matching_my_context<'a, T: ?Sized, C, K>(
-	w: &mut T,
+/// Return the slate participant index matching this wallet's context
+pub fn get_slate_index_matching_my_context<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	// use_test_rng: bool,
 ) -> Result<usize, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let keychain = w.keychain(keychain_mask)?;
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
@@ -1613,8 +1575,8 @@ where
 }
 
 /// Create MXMixnet request
-pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn create_mwixnet_req<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	params: &MixnetReqCreationParams,
 	commitment: &Commitment,
@@ -1622,9 +1584,8 @@ pub fn create_mwixnet_req<'a, T: ?Sized, C, K>(
 	use_test_rng: bool,
 ) -> Result<SwapReq, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let parent_key_id = w.parent_key_id();
 	let keychain = w.keychain(keychain_mask)?;

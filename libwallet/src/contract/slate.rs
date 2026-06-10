@@ -19,7 +19,8 @@ use crate::grin_core::libtx::proof::ProofBuilder;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::slate::{Slate, SlateState};
-use crate::types::{Context, NodeClient, WalletBackend};
+use crate::types::{Context, NodeClient};
+use crate::backend::WalletBackend;
 use crate::Error;
 
 use super::types::ProofArgs;
@@ -27,8 +28,8 @@ use crate::contract::proofs::InvoiceProof;
 use ed25519_dalek::PublicKey as DalekPublicKey;
 
 /// Add payment proof data to slate, noop for sender
-pub fn add_payment_proof<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn add_payment_proof<C, K>(
+	w: &mut WalletBackend<C, K>,
 	slate: &mut Slate,
 	keychain_mask: Option<&SecretKey>,
 	context: &Context,
@@ -36,9 +37,8 @@ pub fn add_payment_proof<'a, T: ?Sized, C, K>(
 	proof_args: &ProofArgs,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// FUTURE: move proof handling onto Slate itself so it can be versioned (slate.add_payment_proof_data()).
 	debug!("contract::slate::add_payment_proof => called");
@@ -68,16 +68,15 @@ pub fn verify_payment_proof(
 }
 
 /// Adds inputs and outputs to slate
-pub fn add_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn add_outputs<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	add_inputs_to_slate(w, keychain_mask, slate, context)?;
 	add_outputs_to_slate(w, keychain_mask, slate, context)?;
@@ -89,16 +88,15 @@ where
 }
 
 /// Contribute inputs to slate
-fn add_inputs_to_slate<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn add_inputs_to_slate<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("contract::slate::add_inputs_to_slate => adding inputs to slate");
 	let keychain = w.keychain(keychain_mask)?;
@@ -135,16 +133,15 @@ where
 }
 
 /// Contribute outputs to slate
-fn add_outputs_to_slate<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn add_outputs_to_slate<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("contract::slate::add_outputs_to_slate => start");
 	let keychain = w.keychain(keychain_mask)?;
@@ -189,16 +186,15 @@ pub fn transition_state(slate: &mut Slate) -> Result<(), Error> {
 // save_step deletes the private context (which holds sec_key/sec_nonce) once is_signed
 // (except the deliberately-retained step2 context used for safe cancel). The context is
 // keyed by slate.id, so a given nonce is only ever used for one message.
-pub fn sign<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn sign<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &mut Context,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("contract::slate::sign => called");
 	let keychain = w.keychain(keychain_mask)?;
@@ -226,15 +222,14 @@ pub fn can_finalize(slate: &Slate) -> bool {
 }
 
 /// Finalize slate
-pub fn finalize<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn finalize<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("contract::slate::finalize => called");
 	// Final transaction can be built by anyone at this stage

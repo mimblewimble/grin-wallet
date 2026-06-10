@@ -28,7 +28,8 @@ use crate::grin_util::secp::Signature;
 use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentInfo, PaymentMemo, Slate};
 use crate::slate_versions::ser as dalek_ser;
-use crate::types::{Context, NodeClient, WalletBackend};
+use crate::types::{Context, NodeClient};
+use crate::backend::WalletBackend;
 use crate::{address, Error};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -361,17 +362,16 @@ impl serde::Serialize for InvoiceProofBin {
 }
 
 /// Adds all info needed for a payment proof to a slate, complete with signed recipient data
-pub fn add_payment_proof<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+pub fn add_payment_proof<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 	proof_args: &ProofArgs,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Invoice (type 1) is the only contract proof type today; other types are future
 	// work tied to the early-payment-proof RFC.
@@ -392,17 +392,16 @@ where
 }
 
 /// Generates a signature for proof type 'Invoice'
-fn generate_invoice_signature<'a, T: ?Sized, C, K>(
-	wallet: &mut T,
+fn generate_invoice_signature<C, K>(
+	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 	proof_args: &ProofArgs,
 ) -> Result<(InvoiceProof, DalekSignature, DalekPublicKey), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	let keychain = wallet.keychain(keychain_mask)?;
 	let index = slate.find_index_matching_context(&keychain, context)?;

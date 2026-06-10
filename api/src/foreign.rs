@@ -149,7 +149,7 @@ where
 	/// // by the reference wallet implementation.
 	/// // These traits can be replaced with alternative implementations if desired
 	///
-	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	/// let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
 	///     as Box<dyn WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
 	///
 	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
@@ -289,7 +289,7 @@ where
 			)?;
 		}
 		foreign::build_coinbase(
-			&mut **w,
+			w,
 			(&self.keychain_mask).as_ref(),
 			block_fees,
 			self.doctest_mode,
@@ -365,7 +365,7 @@ where
 			)?;
 		}
 		let ret_slate = foreign::receive_tx(
-			&mut **w,
+			w,
 			(&self.keychain_mask).as_ref(),
 			slate,
 			dest_acct_name,
@@ -383,8 +383,8 @@ where
 					self.doctest_mode,
 				);
 				match res {
-					Ok(s) => return Ok(s.unwrap()),
-					Err(_) => return Ok(ret_slate),
+					Ok(s) => Ok(s.unwrap()),
+					Err(_) => Ok(ret_slate),
 				}
 			}
 			None => Ok(ret_slate),
@@ -446,12 +446,7 @@ where
 			true => false,
 			false => post_automatically,
 		};
-		foreign::finalize_tx(
-			&mut **w,
-			(&self.keychain_mask).as_ref(),
-			slate,
-			post_automatically,
-		)
+		foreign::finalize_tx(w, (&self.keychain_mask).as_ref(), slate, post_automatically)
 	}
 
 	// Below is a foreign wrapper around owner calls to 'new' and 'sign' which are only executed
@@ -464,8 +459,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		// TODO: self.doctest_mode ?
-		foreign::contract_new(&mut **w, keychain_mask, &args)
+		foreign::contract_new(w, keychain_mask, args)
 	}
 
 	/// TODO
@@ -477,7 +471,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		foreign::contract_sign(&mut **w, keychain_mask, &args, &slate)
+		foreign::contract_sign(w, keychain_mask, args, slate)
 	}
 
 	/// TODO
@@ -488,7 +482,7 @@ where
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		foreign::verify_payment_proof_invoice(&mut **w, recipient_address, proof)
+		foreign::verify_payment_proof_invoice(w, recipient_address, proof)
 	}
 }
 
@@ -536,17 +530,16 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 
 		let node_client =
 			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-		let mut wallet = Box::new(
-			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
-		)
-			as Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
-					HTTPNodeClient,
-					ExtKeychain,
-				>,
-			>;
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
+				as Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+						HTTPNodeClient,
+						ExtKeychain,
+					>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);

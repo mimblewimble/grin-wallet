@@ -21,21 +21,21 @@ use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::updater;
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, WalletBackend};
+use crate::types::{Context, NodeClient};
+use crate::backend::WalletBackend;
 use crate::{Error, OutputData};
 use grin_core::core::FeeFields;
 
 /// Get or create transaction Context for the given slate
-pub fn get_or_create<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn get_or_create<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<Context, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("contract::context::get_or_create => called");
 	let maybe_context = w.get_private_context(keychain_mask, slate.id.as_bytes());
@@ -65,8 +65,8 @@ where
 }
 
 /// Creates a context for a contract
-fn create<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn create<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	current_height: u64,
@@ -75,9 +75,8 @@ fn create<'a, T: ?Sized, C, K>(
 	use_test_rng: bool,
 ) -> Result<Context, Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("Creating a new contract context");
 	// Validate num_participants before any fee math (kernel cost is divided by it, so 0
@@ -137,15 +136,14 @@ where
 }
 
 /// Add outputs to a contract context (including spent outputs which get locked)
-pub fn add_outputs<'a, T: ?Sized, C, K>(
-	w: &mut T,
+pub fn add_outputs<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	context: &mut Context,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	debug!("contract::utils::add_outputs => called");
 	// Do nothing if we have already contributed our outputs. The assumption is that if this was done,
@@ -190,16 +188,15 @@ fn add_inputs_to_ctx(context: &mut Context, inputs: &Vec<OutputData>) -> Result<
 }
 
 /// Add outputs to Context
-fn add_outputs_to_ctx<'a, T: ?Sized, C, K>(
-	w: &mut T,
+fn add_outputs_to_ctx<C, K>(
+	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	context: &mut Context,
 	amounts: Vec<u64>,
 ) -> Result<(), Error>
 where
-	T: WalletBackend<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
+	C: NodeClient,
+	K: Keychain,
 {
 	// Derive under the contract context's account, not the active account: a late-lock
 	// may have a different account active than the one set on the Context.
