@@ -525,16 +525,6 @@ pub trait OwnerRpc {
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
 
 	/**
-	   TODO: Implement
-	*/
-	// fn contract_setup(
-	// 	&self,
-	// 	token: Token,
-	// 	slate: VersionedSlate,
-	// 	args: ContractSetupArgsAPI,
-	// ) -> Result<VersionedSlate, Error>;
-
-	/**
 	   TODO: Full docs once API has stabilised
 	*/
 
@@ -2168,22 +2158,6 @@ where
 		let version = SlateVersion::V4;
 		VersionedSlate::into_version(slate, version)
 	}
-
-	// fn contract_setup(
-	// 	&self,
-	// 	token: Token,
-	// 	in_slate: VersionedSlate,
-	// 	args: ContractSetupArgsAPI,
-	// ) -> Result<VersionedSlate, Error> {
-	// 	let slate = Owner::contract_setup(
-	// 		self,
-	// 		(&token.keychain_mask).as_ref(),
-	// 		&Slate::from(in_slate),
-	// 		&args,
-	// 	)?;
-	// 	let version = SlateVersion::V4;
-	// 	VersionedSlate::into_version(slate, version)
-	// }
 
 	fn contract_sign(
 		&self,

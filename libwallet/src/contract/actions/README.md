@@ -33,7 +33,6 @@ Separating side effects until the 'save_step' part would make these functions mu
 #### TODOs
 
  - for payjoins, instead of doing Some("any"), find an actual input and put the actual commitment in --use-inputs (only do that if none is added). Think about how to do that in a way that would be nice also for the API. Maybe the API should just take "any" which gets transformed into one of the random inputs. Maybe the "any" is ok. It seems to work fine, might be better if we selected the input though.
- - make_outputs api should receive nanogrins rather than grin. We have to make the conversion before calling the API
  - sometimes the slatepack outputs with a \n for some reason which makes pasting it register \n as the end of paste and crashes?
  - remove casting decimals, we should accept value in nanogrins (including --make-outputs option), never as 0.1 Grin through the interface. Casting should be left to the gui wallet logic
  - separate side-effects out from the main computations
@@ -54,8 +53,6 @@ Separating side effects until the 'save_step' part would make these functions mu
  - what happens if you call contract sign on some slate that was not initiated as a contract slate and has different context values?
  - make sure you handle all the flows with coinbase outputs as well
  - check if they can trick you by providing a slate with different inputs/outputs that are yours
- - remove 'setup' API/CLI
- - move the contract test utilities to a separate contract_utilities file instead of having it in 'common/mod.rs'
  - we have --add-outputs, but we should also lock if we use the --use-inputs param
  - check if contract_accounts_switch.rs is a legit scenario. It might need to return an error if the wallet is trying to sign with a different account
 
