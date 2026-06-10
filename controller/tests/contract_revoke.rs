@@ -121,3 +121,75 @@ fn wallet_contract_revoke_other_account() -> Result<(), libwallet::Error> {
 	clean_output_dir(test_dir);
 	Ok(())
 }
+
+/// A revoke interrupted right after the cancel (inputs already unlocked, no self-spend
+/// built yet) must be resumable: a second revoke detects the now-Unspent inputs that are
+/// still tagged with the cancelled tx and still produces the self-spend, rather than
+/// silently doing nothing.
+fn contract_revoke_resume_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	let (wallets, _chain, stopper, _bh) =
+		create_wallets(vec![vec![("default", 4)]], test_dir).unwrap();
+	let wallet1 = wallets[0].0.clone();
+	let mask1 = wallets[0].1.as_ref();
+
+	// Send (with early lock), locking an input under the contract tx.
+	let mut slate = Slate::blank(0, true);
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let args = &ContractNewArgsAPI {
+			setup_args: ContractSetupArgsAPI {
+				net_change: Some(-1_000_000_000),
+				num_participants: 2,
+				add_outputs: true,
+				..Default::default()
+			},
+			..Default::default()
+		};
+		slate = api.contract_new(m, args)?;
+		Ok(())
+	})?;
+	assert_eq!(slate.state, SlateState::Standard1);
+
+	let mut tx_id = 0;
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
+		tx_id = txs.last().unwrap().id;
+		Ok(())
+	})?;
+
+	// Simulate a revoke that crashed right after cancelling: cancel the tx (inputs become
+	// Unspent, still tagged with tx_id) but do NOT build the self-spend.
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		api.cancel_tx(m, Some(tx_id), None)?;
+		let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
+		assert!(
+			outs.iter().any(|o| o.output.status == OutputStatus::Unspent
+				&& o.output.tx_log_entry == Some(tx_id)),
+			"input should be Unspent but still tagged with the cancelled tx"
+		);
+		Ok(())
+	})?;
+
+	// Resume: revoke must still produce the self-spend from the now-Unspent input.
+	let mut revoked = None;
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		revoked = api.contract_revoke(m, &ContractRevokeArgsAPI { tx_id })?;
+		Ok(())
+	})?;
+	assert!(
+		revoked.is_some(),
+		"interrupted revoke should resume and produce a self-spend slate"
+	);
+
+	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
+	Ok(())
+}
+
+#[test]
+fn wallet_contract_revoke_resume() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/contract_revoke_resume";
+	setup(test_dir);
+	contract_revoke_resume_impl(test_dir)?;
+	clean_output_dir(test_dir);
+	Ok(())
+}

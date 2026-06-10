@@ -20,7 +20,7 @@ use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::tx;
 use crate::slate::Slate;
-use crate::types::{NodeClient, OutputData, OutputStatus};
+use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntryType};
 use crate::backend::WalletBackend;
 
 /// Contract revocation is done by double-spending the input
@@ -33,55 +33,70 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	// TODO: check the correctness of this. This is essentially old cancel + self-spend.
-	// FUTURE: we may want to boost fees in case we notice something in the mempool. There
-	// are also race conditions possible. We may not want to label txlogenry as Canceled
-	// until the new tx gets on the chain.
-
-	// If we contributed inputs, we must have locked them at which point we also set the
-	// OutputData.tx_log_entry which is the tx_id.
+	// Revoke double-spends an input we contributed to tx_id. cancel_tx, the self-spend
+	// new() and sign() each commit separately, so these steps are NOT one atomic unit.
+	// revoke() is therefore written to be safely re-invocable: a crash between cancelling
+	// and finishing the self-spend leaves our inputs Unspent but still tagged with tx_id,
+	// and a second call resumes from there. cancel_tx must run first because a Locked
+	// output is ineligible for selection (OutputData::eligible_to_spend), so the self-spend
+	// cannot be built until the input is unlocked.
+	// FUTURE: we may want to boost fees if we notice the original tx in the mempool.
 	let tx_id = args.tx_id;
 
-	// Find my outputs that have been Locked and refer to the given tx_id
+	// Inputs we contributed to tx_id that are still recoverable. Locked => the original tx
+	// is still active; Unspent => a previous revoke cancelled it but the self-spend did not
+	// finish. Once the self-spend completes these reference the self-spend's tx id instead
+	// and are no longer matched here, which makes a repeat revoke a no-op.
 	let my_contributed_inputs = w
 		.batch(keychain_mask)?
 		.iter()?
 		.filter(|out| {
-			// Find an output that is Locked and is in the tx_input_commit
-			out.status == OutputStatus::Locked
-				&& (out.tx_log_entry.is_some() && out.tx_log_entry.as_ref().unwrap() == &tx_id)
+			out.tx_log_entry == Some(tx_id)
+				&& (out.status == OutputStatus::Locked || out.status == OutputStatus::Unspent)
 		})
 		.collect::<Vec<OutputData>>();
 
-	// Determine the account that owns the locked inputs so the cancel and the self-spend
-	// target it rather than whatever account happens to be active.
+	// Determine the account that owns the inputs so the cancel and the self-spend target it
+	// rather than whatever account happens to be active.
 	let parent_key_id = match my_contributed_inputs.first() {
 		Some(out) => out.root_key_id.clone(),
 		None => w.parent_key_id(),
 	};
 
-	// The revoked transaction's slate id, so we can drop its private context below.
-	let revoked_slate_id = w
-		.get_tx_log_entry(parent_key_id.clone(), tx_id)?
-		.and_then(|e| e.tx_slate_id);
-
-	// 1. Unlock the input by calling cancel_tx
-	tx::cancel_tx(&mut *w, keychain_mask, &parent_key_id, Some(tx_id), None)?;
-
-	// Drop the canceled slate's private context if one still exists (signing a contract
-	// already deletes it).
-	if let Some(slate_id) = revoked_slate_id {
-		if w
-			.get_private_context(keychain_mask, slate_id.as_bytes())
-			.is_ok()
-		{
-			let mut batch = w.batch(keychain_mask)?;
-			batch.delete_private_context(slate_id.as_bytes())?;
-			batch.commit()?;
+	// Cancel the original tx only if it is still in a cancellable state. On a resumed revoke
+	// it is already a *Cancelled type (and the inputs are Unspent), so we skip straight to
+	// re-spending them.
+	let revoked = w.get_tx_log_entry(parent_key_id.clone(), tx_id)?;
+	let needs_cancel = match revoked.as_ref() {
+		Some(e) => matches!(
+			e.tx_type,
+			TxLogEntryType::TxSent
+				| TxLogEntryType::TxReceived
+				| TxLogEntryType::TxReverted
+				| TxLogEntryType::TxSelfSpend
+		),
+		None => false,
+	};
+	if needs_cancel {
+		// 1. Unlock the inputs by cancelling the original tx.
+		tx::cancel_tx(&mut *w, keychain_mask, &parent_key_id, Some(tx_id), None)?;
+		// Drop the canceled slate's private context if one still exists (signing already
+		// deletes it).
+		if let Some(slate_id) = revoked.and_then(|e| e.tx_slate_id) {
+			if w
+				.get_private_context(keychain_mask, slate_id.as_bytes())
+				.is_ok()
+			{
+				let mut batch = w.batch(keychain_mask)?;
+				batch.delete_private_context(slate_id.as_bytes())?;
+				batch.commit()?;
+			}
 		}
 	}
 
-	if my_contributed_inputs.len() == 0 {
+	// Nothing of ours to double-spend: we contributed no inputs, or a prior revoke already
+	// re-spent them.
+	if my_contributed_inputs.is_empty() {
 		return Ok(None);
 	}
 	let input_commit = my_contributed_inputs[0].commit.as_ref().ok_or_else(|| {
