@@ -25,9 +25,9 @@ pub struct OutputSelectionArgs {
 	pub min_input_confirmation: u64,
 	/// Which inputs we want to use - default to payjoin if available with Some("any")
 	pub use_inputs: Option<String>,
-	/// Change output specification (comma separated amounts which don't include fee subtraction)
-	/// e.g. "3,1,4,0,0" describes 5 outputs two of which hold 0 value
-	pub make_outputs: Option<String>,
+	/// Change output specification: explicit output amounts in nanogrin, not including
+	/// fee subtraction. e.g. [3, 1, 4, 0, 0] describes 5 outputs, two of which hold 0 value.
+	pub make_outputs: Option<Vec<u64>>,
 }
 
 impl OutputSelectionArgs {
@@ -48,34 +48,19 @@ impl OutputSelectionArgs {
 			None
 		}
 	}
-	/// Returns the outputs we have to create
-	// TODO: move consensus code outside of here. Consider turning make_outputs to Vec<u64>
+	/// Returns the output amounts (nanogrin) we have to create. Amounts arrive already
+	/// parsed by the caller (e.g. the CLI), so this is just an accessor.
 	pub fn output_amounts(&self) -> Result<Vec<u64>, Error> {
-		match self.make_outputs.as_ref() {
-			Some(s) => s
-				.split(",")
-				.map(|amt| {
-					// Exact decimal parsing (integer nanogrin), not f64.
-					crate::grin_core::core::amount_from_hr_string(amt).map_err(|e| {
-						Error::GenericError(format!("Invalid output amount '{}': {}", amt, e))
-					})
-				})
-				.collect(),
-			None => Ok(vec![]),
-		}
+		Ok(self.make_outputs.clone().unwrap_or_default())
 	}
 	/// Returns the sum of our output amounts
 	pub fn sum_output_amounts(&self) -> Result<u64, Error> {
 		Ok(self.output_amounts()?.iter().sum())
 	}
-	/// Returns the number of custom outputs (count only; does not parse the amounts)
+	/// Returns the number of custom outputs
 	pub fn num_custom_outputs(&self) -> usize {
-		self.make_outputs
-			.as_ref()
-			.map(|s| s.split(",").count())
-			.unwrap_or(0)
+		self.make_outputs.as_ref().map(|v| v.len()).unwrap_or(0)
 	}
-
 }
 
 impl Default for OutputSelectionArgs {

@@ -1636,8 +1636,8 @@ pub struct ContractNewArgs {
 	pub as_json: bool,
 	/// Use the specified inputs (comma separated input commitments)
 	pub use_inputs: Option<String>,
-	/// How to separate outputs (command separated amounts)
-	pub make_outputs: Option<String>,
+	/// Output amounts in nanogrin (one entry per output)
+	pub make_outputs: Option<Vec<u64>>,
 
 	// Future features
 	/// Custom fee contribution
@@ -1679,10 +1679,7 @@ impl ContractNewArgs {
 						Some(v) => Some(v.to_string()),
 						None => None,
 					},
-					make_outputs: match self.make_outputs.as_ref() {
-						Some(v) => Some(v.to_string()),
-						None => None,
-					},
+					make_outputs: self.make_outputs.clone(),
 					..Default::default()
 				},
 				proof_args: Default::default(),
@@ -1734,8 +1731,8 @@ pub struct ContractSetupArgs {
 	pub as_json: bool,
 	/// Use the specified inputs (comma separated input commitments)
 	pub use_inputs: Option<String>,
-	/// How to separate outputs (command separated amounts)
-	pub make_outputs: Option<String>,
+	/// Output amounts in nanogrin (one entry per output)
+	pub make_outputs: Option<Vec<u64>>,
 
 	// Future features
 	/// Whether we should automatically sign a receive of any value
@@ -1779,10 +1776,7 @@ impl ContractSetupArgs {
 					Some(v) => Some(v.to_string()),
 					None => None,
 				},
-				make_outputs: match self.make_outputs.as_ref() {
-					Some(v) => Some(v.to_string()),
-					None => None,
-				},
+				make_outputs: self.make_outputs.clone(),
 				..Default::default()
 			},
 			..Default::default()

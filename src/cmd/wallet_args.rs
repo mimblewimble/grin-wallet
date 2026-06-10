@@ -1020,12 +1020,13 @@ pub fn parse_contract_new_args(
 	};
 	let make_outputs = match args.value_of("make-outputs") {
 		Some(v) => {
-			// Validate each comma-separated amount here so a bad value returns a
-			// ParseError instead of panicking later in output_amounts().
+			// Parse each comma-separated grin amount into nanogrin at the CLI boundary,
+			// so the API and Context carry explicit u64 amounts.
+			let mut amounts = Vec::new();
 			for amt in v.split(',') {
-				parse_grin_amount(amt, "make-outputs")?;
+				amounts.push(parse_grin_amount(amt, "make-outputs")?);
 			}
-			Some(String::from(v))
+			Some(amounts)
 		}
 		None => None,
 	};
@@ -1096,12 +1097,13 @@ pub fn parse_contract_setup_args(
 	};
 	let make_outputs = match args.value_of("make-outputs") {
 		Some(v) => {
-			// Validate each comma-separated amount here so a bad value returns a
-			// ParseError instead of panicking later in output_amounts().
+			// Parse each comma-separated grin amount into nanogrin at the CLI boundary,
+			// so the API and Context carry explicit u64 amounts.
+			let mut amounts = Vec::new();
 			for amt in v.split(',') {
-				parse_grin_amount(amt, "make-outputs")?;
+				amounts.push(parse_grin_amount(amt, "make-outputs")?);
 			}
-			Some(String::from(v))
+			Some(amounts)
 		}
 		None => None,
 	};

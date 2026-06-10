@@ -58,7 +58,14 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	let selection_args = OutputSelectionArgs {
 		min_input_confirmation: 0,
 		use_inputs: Some(use_inputs.clone()), // we will use two coinbase inputs
-		make_outputs: Some(String::from("88,35,3,0.2,15")), // the sum is such that it will need to pick another input making total of 3 inputs
+		// the sum is such that it will need to pick another input making total of 3 inputs
+		make_outputs: Some(vec![
+			88 * consensus::GRIN_BASE,
+			35 * consensus::GRIN_BASE,
+			3 * consensus::GRIN_BASE,
+			(0.2 * consensus::GRIN_BASE as f64) as u64,
+			15 * consensus::GRIN_BASE,
+		]),
 	};
 	wallet::controller::owner_single_use(Some(send_wallet.clone()), send_mask, None, |api, m| {
 		// Send wallet inititates a standard transaction with --send=0

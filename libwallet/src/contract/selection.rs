@@ -545,7 +545,7 @@ mod tests {
 			net_change: Some(-2_000_000_000),
 			selection_args: OutputSelectionArgs {
 				// there is no abc5 input
-				make_outputs: Some(String::from("1,3")),
+				make_outputs: Some(vec![1_000_000_000, 3_000_000_000]),
 				..Default::default()
 			},
 			..Default::default()
