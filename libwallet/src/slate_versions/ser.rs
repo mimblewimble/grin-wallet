@@ -207,6 +207,9 @@ pub mod dalek_xpubkey_serde {
 		String::deserialize(deserializer)
 			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
+				if bytes.len() != 32 {
+					return Err(Error::custom("unexpected byte length"));
+				}
 				let mut b = [0u8; 32];
 				b.copy_from_slice(&bytes[0..32]);
 				Ok(xDalekPublicKey::from(b))
@@ -271,6 +274,9 @@ pub mod option_dalek_pubkey_base64 {
 			Some(string) => base64::decode(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 32 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					DalekPublicKey::from_bytes(&b)
@@ -313,6 +319,9 @@ pub mod option_dalek_pubkey_serde {
 			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 32 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					DalekPublicKey::from_bytes(&b)
@@ -352,6 +361,9 @@ pub mod option_xdalek_pubkey_serde {
 			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 32 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					Ok(Some(xDalekPublicKey::from(b)))
@@ -386,6 +398,9 @@ pub mod dalek_sig_serde {
 		String::deserialize(deserializer)
 			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
+				if bytes.len() != 64 {
+					return Err(Error::custom("unexpected byte length"));
+				}
 				let mut b = [0u8; 64];
 				b.copy_from_slice(&bytes[0..64]);
 				DalekSignature::try_from(b).map_err(|err| Error::custom(err.to_string()))
@@ -422,6 +437,9 @@ pub mod option_dalek_sig_serde {
 			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 64 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 64];
 					b.copy_from_slice(&bytes[0..64]);
 					DalekSignature::try_from(b)
@@ -461,6 +479,9 @@ pub mod option_dalek_sig_base64 {
 			Some(string) => base64::decode(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 64 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 64];
 					b.copy_from_slice(&bytes[0..64]);
 					DalekSignature::try_from(b)
@@ -671,6 +692,9 @@ pub mod uuid_base64 {
 				base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
 			})
 			.and_then(|bytes: Vec<u8>| {
+				if bytes.len() != 16 {
+					return Err(Error::custom("unexpected byte length"));
+				}
 				let mut b = [0u8; 16];
 				b.copy_from_slice(&bytes[0..16]);
 				Ok(Uuid::from_bytes(b))
@@ -743,5 +767,23 @@ mod test {
 			println!();
 			assert_eq!(s, deserialized);
 		}
+	}
+
+	#[test]
+	fn rejects_malformed_dalek_fields() {
+		// A too-short fixed-length field used to panic inside copy_from_slice during
+		// deserialization; it must now surface as an error instead.
+		let json = serde_json::to_string(&SerTest::random()).unwrap();
+		let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+		// Signature field shorter than 64 bytes (exercises the dalek_sig_serde guard).
+		let mut bad = value.clone();
+		bad["sig"] = serde_json::Value::String("00".to_string());
+		assert!(serde_json::from_value::<SerTest>(bad).is_err());
+
+		// Public-key field shorter than 32 bytes.
+		let mut bad = value;
+		bad["pub_key"] = serde_json::Value::String("00".to_string());
+		assert!(serde_json::from_value::<SerTest>(bad).is_err());
 	}
 }
