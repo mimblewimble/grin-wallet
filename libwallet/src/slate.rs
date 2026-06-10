@@ -936,12 +936,13 @@ impl From<&PaymentInfo> for PaymentInfoV5 {
 			memo,
 		} = data;
 		let sender_address = *sender_address;
-		// TODO: If not provided and we need to downgrade to V5,
-		// Provide a blank key insted. Consider whether this should fail
-		// instead, noting that `try_from`isn't currently used in any versioning
-		// logic
-		// Also note the zeroized ed25519 public key has a known private key, check if
-		// this could ever possibly become an issue
+		// Downgrading a proof with no sender address emits an all-zero placeholder key
+		// (a valid small-order ed25519 point, so from_bytes never panics). It can never be
+		// accepted as a real sender: every verification path binds the sender address into
+		// the signed message (contract::proofs::InvoiceProof::verify_promise_signature, and
+		// the legacy api_impl::owner::verify_payment_proof via internal::tx::payment_proof_message),
+		// so a proof only validates against the address the verifier supplies, never one
+		// derived from the proof. From is infallible by design, so we do not fail here.
 		let saddr = match sender_address {
 			Some(a) => a,
 			None => DalekPublicKey::from_bytes(&[0u8; 32]).unwrap(),
@@ -1381,12 +1382,11 @@ impl From<&PaymentInfo> for PaymentInfoV4 {
 			memo: _,
 		} = data;
 		let sender_address = *sender_address;
-		// TODO: If not provided and we need to downgrade to V4,
-		// Provide a blank key insted. Consider whether this should fail
-		// instead, noting that `try_from`isn't currently used in any versioning
-		// logic
-		// Also note the zeroized ed25519 public key has a known private key, check if
-		// this could ever possibly become an issue
+		// As in the V5 downgrade: an all-zero placeholder key for a missing sender address.
+		// It can never be accepted as a real sender because the legacy verify path binds the
+		// sender address into the signed message (internal::tx::payment_proof_message, checked
+		// in api_impl::owner::verify_payment_proof). V4 carries only the legacy receiver
+		// signature, so the placeholder is inert. From is infallible by design.
 		let saddr = match sender_address {
 			Some(a) => a,
 			None => DalekPublicKey::from_bytes(&[0u8; 32]).unwrap(),
