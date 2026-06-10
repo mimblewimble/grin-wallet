@@ -65,6 +65,14 @@ pub enum Error {
 	#[error("Onion V3 Address Error: {0}")]
 	OnionV3Address(#[from] util::OnionV3AddressError),
 
+	/// Comsig error
+	#[error("Comsig error: {0}")]
+	ComSig(#[from] crate::mwixnet::ComSigError),
+
+	/// mwixnet Onion error
+	#[error("Onion error: {0}")]
+	Onion(#[from] crate::mwixnet::OnionError),
+
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]
 	CallbackImpl(&'static str),
@@ -72,6 +80,10 @@ pub enum Error {
 	/// Wallet backend error
 	#[error("Wallet store error: {0}")]
 	Backend(String),
+
+	/// Requested item was not found in the wallet store
+	#[error("Not found: {0}")]
+	NotFoundErr(String),
 
 	/// Callback implementation error conversion
 	#[error("Restore Error")]
@@ -269,9 +281,17 @@ pub enum Error {
 	#[error("Payment Proof parsing error: {0}")]
 	PaymentProofParsing(String),
 
+	/// Retrieving Payment Proof
+	#[error("Unable to verify payment proof: {0}")]
+	PaymentProofValidation(String),
+
 	/// Decoding OnionV3 addresses to payment proof addresses
 	#[error("Proof Address decoding: {0}")]
 	AddressDecoding(String),
+
+	/// Payment proof - no sender address provided or found in slate
+	#[error("Sender address has not been provided")]
+	NoSenderAddressProvided,
 
 	/// Transaction has expired it's TTL
 	#[error("Transaction Expired")]
@@ -321,6 +341,10 @@ pub enum Error {
 	#[error("Stored Tx error: {0}")]
 	StoredTx(String),
 
+	/// Trying to match index to context
+	#[error("Cannot match transaction context to slate index")]
+	ContextToIndex,
+
 	/// Other
 	#[error("Generic error: {0}")]
 	GenericError(String),
@@ -328,7 +352,12 @@ pub enum Error {
 
 impl From<grin_store::Error> for Error {
 	fn from(error: grin_store::Error) -> Error {
-		Error::Backend(format!("{}", error))
+		// Preserve "not found" so callers can distinguish a missing item from other
+		// store errors; everything else collapses to a generic backend error.
+		match error {
+			grin_store::Error::NotFoundErr(s) => Error::NotFoundErr(s),
+			other => Error::Backend(format!("{}", other)),
+		}
 	}
 }
 

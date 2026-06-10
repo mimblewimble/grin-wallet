@@ -325,10 +325,16 @@ where
 		Ok(items.into_iter())
 	}
 
-	/// Get an (Optional) tx log entry by uuid.
-	pub fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
+	/// Get an (Optional) tx log entry by parent key id and log id. Keyed to match
+	/// save_tx_log_entry (parent_id + numeric log id), unlike the unused uuid form.
+	pub fn get_tx_log_entry(
+		&self,
+		parent_id: Identifier,
+		log_id: u32,
+	) -> Result<Option<TxLogEntry>, Error> {
+		let tx_log_key = to_key_u64(parent_id.to_bytes(), log_id as u64);
 		self.db
-			.get_ser(Some(TX_LOG_ENTRY_PREFIX), u.as_bytes(), None)
+			.get_ser(Some(TX_LOG_ENTRY_PREFIX), &tx_log_key, None)
 			.map_err(|e| e.into())
 	}
 
@@ -463,23 +469,34 @@ where
 		Ok(index)
 	}
 
-	/// Next child ID when we want to create a new output, based on current parent.
-	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
-		let parent_key_id = self.parent_key_id.clone();
+	/// Next child ID for the given parent key, when we want to create a new output.
+	/// Used by contracts so outputs derive under the contract's account rather than
+	/// whatever account happens to be active.
+	pub fn next_child_for(
+		&mut self,
+		parent_key_id: &Identifier,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Identifier, Error> {
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
 			batch
-				.get_ser(Some(DERIV_PREFIX), &self.parent_key_id.to_bytes(), None)?
+				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
 				.unwrap_or_else(|| 0)
 		};
-		let mut return_path = self.parent_key_id.to_path();
+		let mut return_path = parent_key_id.to_path();
 		return_path.depth += 1;
 		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
 		deriv_idx += 1;
 		let mut batch = self.batch(keychain_mask)?;
-		batch.save_child_index(&parent_key_id, deriv_idx)?;
+		batch.save_child_index(parent_key_id, deriv_idx)?;
 		batch.commit()?;
 		Ok(Identifier::from_path(&return_path))
+	}
+
+	/// Next child ID when we want to create a new output, based on current parent.
+	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
+		let parent_key_id = self.parent_key_id.clone();
+		self.next_child_for(&parent_key_id, keychain_mask)
 	}
 
 	/// Last verified height of outputs directly descending from the given parent key.

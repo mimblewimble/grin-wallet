@@ -28,6 +28,10 @@ use crate::impls::SlateSender as _;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::contract::proofs::InvoiceProof;
+use crate::libwallet::contract::types::{
+	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI,
+};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -765,6 +769,51 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::issue_invoice_tx(w, keychain_mask, args, self.doctest_mode)
+	}
+
+	/// Initiate a new contract. Also performs the initial setup on the slate.
+	pub fn contract_new(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractNewArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_new(w, keychain_mask, args)
+	}
+
+	/// Sign a contract, running setup first if it has not been done yet.
+	pub fn contract_sign(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		args: &ContractSetupArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_sign(w, keychain_mask, args, slate)
+	}
+
+	/// Return the participant index in the slate that matches this wallet's context.
+	pub fn get_slate_index_matching_my_context(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<usize, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_slate_index_matching_my_context(w, keychain_mask, slate)
+	}
+
+	/// Revoke a contract by double-spending one of its locked inputs.
+	pub fn contract_revoke(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractRevokeArgsAPI,
+	) -> Result<Option<Slate>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_revoke(w, keychain_mask, args)
 	}
 
 	/// Processes an invoice transaction created by another party, essentially
@@ -2346,6 +2395,33 @@ where
 			false => refresh_from_node,
 		};
 		owner::retrieve_payment_proof(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)
+	}
+
+	/// Retrieve the invoice payment proof for a stored transaction.
+	/// FUTURE: likely merge with retrieve_payment_proof above.
+	pub fn retrieve_payment_proof_invoice(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<InvoiceProof, Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
+		owner::retrieve_payment_proof_invoice(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,

@@ -25,8 +25,10 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::grin_util::secp::{self, pedersen, Secp256k1, Signature};
 use crate::grin_util::{ToHex, ZeroingString};
+use crate::contract::types::ContractSetupArgsAPI;
+use crate::slate::PaymentMemo;
 use crate::slate_versions::ser as dalek_ser;
 use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
@@ -391,6 +393,12 @@ pub struct Context {
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
+	/// Arguments that define which outputs to pick for a contract
+	pub setup_args: Option<ContractSetupArgsAPI>,
+	/// TxLogEntry id (needed to avoid a linear scan). Services that keep a long
+	/// history might need to search through a list to update a txlogentry, so we
+	/// keep the id in the context.
+	pub log_id: Option<u32>,
 }
 
 impl Context {
@@ -440,11 +448,18 @@ impl Context {
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
+			setup_args: None,
+			log_id: None,
 		}
 	}
 }
 
 impl Context {
+	/// Returns net_change for the contract
+	pub fn get_net_change(&self) -> i64 {
+		self.setup_args.as_ref().unwrap().net_change.unwrap()
+	}
+
 	/// Tracks an output contributing to my excess value (if it needs to
 	/// be kept between invocations
 	pub fn add_output(&mut self, output_id: &Identifier, mmr_index: &Option<u64>, amount: u64) {
@@ -597,6 +612,10 @@ pub enum TxLogEntryType {
 	TxSentCancelled,
 	/// Received transaction that was reverted on-chain
 	TxReverted,
+	/// Self spend, as per contracts and mwixnet
+	TxSelfSpend,
+	/// Self Spend Cancelled (has to happen before sent to chain, flag rather than delete)
+	TxSelfSpendCancelled,
 }
 
 impl fmt::Display for TxLogEntryType {
@@ -608,6 +627,8 @@ impl fmt::Display for TxLogEntryType {
 			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx\n- Cancelled"),
 			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx\n- Cancelled"),
 			TxLogEntryType::TxReverted => write!(f, "Received Tx\n- Reverted"),
+			TxLogEntryType::TxSelfSpend => write!(f, "Self Spend"),
+			TxLogEntryType::TxSelfSpendCancelled => write!(f, "Self Spend\n- Cancelled"),
 		}
 	}
 }
@@ -742,6 +763,23 @@ pub struct StoredProofInfo {
 	/// sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
+	// Fields beyond here are specific to early payment proofs,
+	// invoice and sender nonce
+	/// Assumed to be 0x00 (Legacy) if missing
+	pub proof_type: Option<u8>,
+	/// receiver's public nonce from signing
+	pub receiver_public_nonce: Option<PublicKey>,
+	/// receiver's public excess from signing
+	pub receiver_public_excess: Option<PublicKey>,
+	/// Timestamp provided by recipient when signing
+	pub timestamp: Option<DateTime<Utc>>,
+	/// Optional payment memo
+	pub memo: Option<PaymentMemo>,
+	/// recipient promise signature
+	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	pub promise_signature: Option<DalekSignature>,
+	/// Original Sender partial key
+	pub sender_part_sig: Option<Signature>,
 }
 
 impl ser::Writeable for StoredProofInfo {

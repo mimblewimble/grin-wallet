@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Argument parsing and error handling for wallet commands
 use crate::api::TLSConfig;
 use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
-/// Argument parsing and error handling for wallet commands
 use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
@@ -285,6 +285,17 @@ fn parse_u64_or_none(arg: Option<&str>) -> Option<u64> {
 		Ok(v) => Some(v),
 		Err(_) => None,
 	}
+}
+
+// Parse a value expressed in Grin (e.g. "1.5") into nanograms.
+fn parse_grin_amount(arg: &str, name: &str) -> Result<u64, ParseError> {
+	// Exact decimal parsing (integer nanogrin), not f64.
+	core::core::amount_from_hr_string(arg).map_err(|e| {
+		ParseError::ArgumentError(format!(
+			"Could not parse {} '{}' as a number. e={}",
+			name, arg, e
+		))
+	})
 }
 
 pub fn parse_global_args(
@@ -959,6 +970,170 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 	})
 }
 
+pub fn parse_contract_new_args(
+	args: &ArgMatches,
+	account: &String,
+) -> Result<command::ContractNewArgs, ParseError> {
+	// Optional: without --encrypt-for the contract slatepack is produced unencrypted.
+	let counterparty_addr = args.value_of("encrypt-for").map(String::from);
+
+	// Parse receive and send params and convert them to nano grin
+	let receive = match args.value_of("receive") {
+		Some(g) => Some(parse_grin_amount(g, "receive")?),
+		None => None,
+	};
+	let send = match args.value_of("send") {
+		Some(g) => Some(parse_grin_amount(g, "send")?),
+		None => None,
+	};
+	if receive.is_some() && send.is_some() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You can only specify receive or send, not both.",
+		)));
+	};
+	if receive.is_none() && send.is_none() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You must specify either --receive or --send.",
+		)));
+	};
+	let src_acct_name = Some(String::from(account));
+	let add_outputs = args.is_present("add-outputs");
+	let as_json = args.is_present("as-json");
+	let no_payjoin = args.is_present("no-payjoin");
+	let use_inputs = match args.value_of("use-inputs") {
+		Some(v) => {
+			if no_payjoin {
+				return Err(ParseError::ArgumentError(String::from(
+					"Can't use --no-payjoin with --use-inputs.",
+				)));
+			}
+			Some(String::from(v))
+		}
+		None => {
+			if no_payjoin {
+				None
+			} else {
+				// Some("any") means pick 1 random input to contribute (payjoin)
+				Some(String::from("any"))
+			}
+		}
+	};
+	let make_outputs = match args.value_of("make-outputs") {
+		Some(v) => {
+			// Parse each comma-separated grin amount into nanogrin at the CLI boundary,
+			// so the API and Context carry explicit u64 amounts.
+			let mut amounts = Vec::new();
+			for amt in v.split(',') {
+				amounts.push(parse_grin_amount(amt, "make-outputs")?);
+			}
+			Some(amounts)
+		}
+		None => None,
+	};
+
+	let num_participants = match args.value_of("num-participants") {
+		Some(v) => v.parse::<u8>().map_err(|e| {
+			ParseError::ArgumentError(format!("Could not parse num-participants '{}'. e={}", v, e))
+		})?,
+		None => 2,
+	};
+
+	Ok(command::ContractNewArgs {
+		counterparty_addr: counterparty_addr,
+		receive: receive,
+		send: send,
+		src_acct_name: src_acct_name,
+		num_participants: num_participants,
+		as_json: as_json,
+		add_outputs: add_outputs,
+		use_inputs: use_inputs,
+		make_outputs: make_outputs,
+		// Not yet wired to CLI flags:
+		fee_rate: None,
+		outfile: None,
+	})
+}
+
+pub fn parse_contract_setup_args(
+	args: &ArgMatches,
+) -> Result<command::ContractSetupArgs, ParseError> {
+	let counterparty_addr = match args.value_of("encrypt-for") {
+		Some(v) => Some(String::from(v)),
+		None => None,
+	};
+	// Parse receive and send params and convert them to nano grin
+	let receive = match args.value_of("receive") {
+		Some(g) => Some(parse_grin_amount(g, "receive")?),
+		None => None,
+	};
+	let send = match args.value_of("send") {
+		Some(g) => Some(parse_grin_amount(g, "send")?),
+		None => None,
+	};
+	if receive.is_some() && send.is_some() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You can only specify receive or send, not both.",
+		)));
+	};
+	let as_json = args.is_present("as-json");
+	let no_payjoin = args.is_present("no-payjoin");
+	let use_inputs = match args.value_of("use-inputs") {
+		Some(v) => {
+			if no_payjoin {
+				return Err(ParseError::ArgumentError(String::from(
+					"Can't use --no-payjoin with --use-inputs.",
+				)));
+			}
+			Some(String::from(v))
+		}
+		None => {
+			if no_payjoin {
+				None
+			} else {
+				// Some("any") means pick 1 random input to contribute (payjoin)
+				Some(String::from("any"))
+			}
+		}
+	};
+	let make_outputs = match args.value_of("make-outputs") {
+		Some(v) => {
+			// Parse each comma-separated grin amount into nanogrin at the CLI boundary,
+			// so the API and Context carry explicit u64 amounts.
+			let mut amounts = Vec::new();
+			for amt in v.split(',') {
+				amounts.push(parse_grin_amount(amt, "make-outputs")?);
+			}
+			Some(amounts)
+		}
+		None => None,
+	};
+	// FUTURE: detect a reversed --receive/--send from the slate state (S1 -> receive, I1 -> send).
+
+	Ok(command::ContractSetupArgs {
+		counterparty_addr: counterparty_addr,
+		receive: receive,
+		send: send,
+		as_json: as_json,
+		add_outputs: false,
+		use_inputs: use_inputs,
+		make_outputs: make_outputs,
+		// Not yet wired to CLI flags:
+		fee_rate: None,
+		outfile: None,
+	})
+}
+
+pub fn parse_contract_revoke_args(
+	args: &ArgMatches,
+) -> Result<command::ContractRevokeArgs, ParseError> {
+	let tx_id_str = parse_required(args, "tx-id")?;
+	let tx_id = tx_id_str.parse::<u32>().map_err(|e| {
+		ParseError::ArgumentError(format!("Could not parse tx-id '{}'. e={}", tx_id_str, e))
+	})?;
+
+	Ok(command::ContractRevokeArgs { tx_id: tx_id })
+}
+
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
@@ -1289,6 +1464,27 @@ where
 			// for CLI mode only, should be handled externally
 			Ok(())
 		}
+		("contract", Some(args)) => match args.subcommand() {
+			("new", Some(new_args)) => {
+				let account = &global_wallet_args.account;
+				let a = arg_parse!(parse_contract_new_args(&new_args, account));
+				command::contract_new(owner_api, km, a)
+			}
+			("sign", Some(sign_args)) => {
+				// Sign command takes setup_args so we use the same parser
+				let setup_args = arg_parse!(parse_contract_setup_args(&sign_args));
+				let broadcast_tx = !sign_args.is_present("no-broadcast");
+				command::contract_sign(owner_api, km, setup_args, broadcast_tx)
+			}
+			("view", Some(view_args)) => {
+				Err(Error::ArgumentError(String::from("Not implemented")).into())
+			}
+			("revoke", Some(revoke_args)) => {
+				let a = arg_parse!(parse_contract_revoke_args(&revoke_args));
+				command::contract_revoke(owner_api, km, a)
+			}
+			_ => Err(Error::ArgumentError(String::from("Unknown contract subcommand.")).into()),
+		},
 		_ => {
 			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
 			return Err(Error::ArgumentError(msg));

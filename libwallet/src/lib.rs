@@ -35,6 +35,8 @@ use blake2_rfc as blake2;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
+extern crate serde_with;
+#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
@@ -46,6 +48,7 @@ extern crate strum_macros;
 pub mod address;
 pub mod api_impl;
 mod backend;
+pub mod contract;
 mod error;
 mod internal;
 pub mod mwixnet;
@@ -78,6 +81,8 @@ pub use types::{
 	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
 	ViewWallet, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
 };
+
+pub use contract::can_finalize;
 
 /// Helper for taking a lock on the wallet instance
 #[macro_export]

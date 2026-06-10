@@ -18,8 +18,12 @@ use grin_keychain::Identifier;
 use strum::IntoEnumIterator;
 
 use super::owner::tx_lock_outputs;
+use crate::api_impl::owner::contract_new as owner_contract_new;
+use crate::api_impl::owner::contract_sign as owner_contract_sign;
 use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::backend::WalletBackend;
+use crate::contract::proofs::InvoiceProof;
+use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
@@ -28,6 +32,7 @@ use crate::slate_versions::SlateVersion;
 use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
 };
+use ed25519_dalek::PublicKey as DalekPublicKey;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -113,14 +118,16 @@ where
 	let excess = ret_slate.calc_excess(keychain.secp())?;
 
 	if let Some(ref mut p) = ret_slate.payment_proof {
-		let sig = tx::create_payment_proof_signature(
-			ret_slate.amount,
-			&excess,
-			p.sender_address,
-			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
-		)?;
+		if let Some(saddr) = p.sender_address {
+			let sig = tx::create_payment_proof_signature(
+				ret_slate.amount,
+				&excess,
+				saddr,
+				address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+			)?;
 
-		p.receiver_signature = Some(sig);
+			p.promise_signature = Some(sig);
+		}
 	}
 
 	ret_slate.amount = 0;
@@ -271,4 +278,92 @@ where
 		)));
 	}
 	Ok(())
+}
+
+/// Initialize a receive transaction contract
+pub fn contract_new<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractNewArgsAPI,
+) -> Result<Slate, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let net_change = args.setup_args.net_change.ok_or_else(|| {
+		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
+	})?;
+	if net_change <= 0 {
+		return Err(Error::GenericError(
+			"Can't create a non-receiving contract from a foreign API.".to_string(),
+		));
+	}
+	owner_contract_new(w, keychain_mask, args)
+}
+
+/// Sign a receive transaction contract
+pub fn contract_sign<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: &ContractSetupArgsAPI,
+	slate: &Slate,
+) -> Result<Slate, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let net_change = args.net_change.ok_or_else(|| {
+		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
+	})?;
+	if net_change <= 0 {
+		return Err(Error::GenericError(
+			"Can't sign a non-receiving contract from a foreign API.".to_string(),
+		));
+	}
+	owner_contract_sign(w, keychain_mask, args, slate)
+}
+
+/// Verify an invoice payment proof
+pub fn verify_payment_proof_invoice<C, K>(
+	w: &mut WalletBackend<C, K>,
+	recipient_address: &DalekPublicKey,
+	proof: &InvoiceProof,
+) -> Result<(), Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let mut client = w.w2n_client().clone();
+
+	let wd = match proof.witness_data.clone() {
+		Some(w) => w,
+		None => {
+			return Err(Error::PaymentProof(
+				"Cannot verify invoice proof with no witness data".to_string(),
+			))
+		}
+	};
+
+	let (retrieved_kernel, _) = match client.get_kernel(&wd.kernel_commitment, None, None) {
+		Err(e) => {
+			return Err(Error::PaymentProof(format!(
+				"Error retrieving kernel from chain: {}",
+				e
+			)));
+		}
+		Ok(None) => {
+			return Err(Error::PaymentProof(format!(
+				"Transaction kernel with excess {:?} not found on chain",
+				wd.kernel_commitment
+			)));
+		}
+		Ok(Some((k, _, index))) => (k, index),
+	};
+
+	// Now verify with retrieved data
+	proof.verify_witness(
+		recipient_address,
+		&retrieved_kernel.excess_sig,
+		&retrieved_kernel.msg_to_sign()?,
+	)
 }
