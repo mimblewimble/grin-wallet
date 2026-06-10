@@ -22,6 +22,19 @@ use crate::internal::tx;
 use crate::slate::Slate;
 use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntryType};
 use crate::backend::WalletBackend;
+use crate::blake2::blake2b::blake2b;
+use uuid::Uuid;
+
+/// Deterministic slate id for the self-spend that revokes a given contract slate.
+/// Derived from the revoked slate id so a revoke interrupted between creating and
+/// signing the self-spend resumes by reusing the same context (get_or_create), rather
+/// than orphaning a fresh self-spend on each retry.
+fn self_spend_slate_id(revoked_slate_id: Uuid) -> Uuid {
+	let hash = blake2b(16, b"grin-contract-revoke", revoked_slate_id.as_bytes());
+	let mut bytes = [0u8; 16];
+	bytes.copy_from_slice(hash.as_bytes());
+	Uuid::from_bytes(bytes)
+}
 
 /// Contract revocation is done by double-spending the input
 pub fn revoke<C, K>(
@@ -67,6 +80,7 @@ where
 	// it is already a *Cancelled type (and the inputs are Unspent), so we skip straight to
 	// re-spending them.
 	let revoked = w.get_tx_log_entry(parent_key_id.clone(), tx_id)?;
+	let revoked_slate_id = revoked.as_ref().and_then(|e| e.tx_slate_id);
 	let needs_cancel = match revoked.as_ref() {
 		Some(e) => matches!(
 			e.tx_type,
@@ -82,7 +96,7 @@ where
 		tx::cancel_tx(&mut *w, keychain_mask, &parent_key_id, Some(tx_id), None)?;
 		// Drop the canceled slate's private context if one still exists (signing already
 		// deletes it).
-		if let Some(slate_id) = revoked.and_then(|e| e.tx_slate_id) {
+		if let Some(slate_id) = revoked_slate_id {
 			if w
 				.get_private_context(keychain_mask, slate_id.as_bytes())
 				.is_ok()
@@ -107,6 +121,10 @@ where
 		.acct_path_iter()?
 		.find(|m| m.path == parent_key_id)
 		.map(|m| m.label);
+	// Deterministic self-spend slate id (when we know the revoked slate) so a crash
+	// between new() and sign() is resumed by reusing the same context rather than
+	// orphaning a fresh self-spend on the retry.
+	let self_spend_id = revoked_slate_id.map(self_spend_slate_id);
 	// 2. Create a 1-1 self-spend transaction using this input
 	let ct_slate = new(
 		w,
@@ -122,6 +140,7 @@ where
 			},
 			proof_args: Default::default(),
 		},
+		self_spend_id,
 	)?;
 	let finished_slate = sign(
 		w,
@@ -141,4 +160,22 @@ where
 	)?;
 
 	Ok(Some(finished_slate))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::self_spend_slate_id;
+	use uuid::Uuid;
+
+	#[test]
+	fn self_spend_id_is_deterministic_and_distinct() {
+		let revoked = Uuid::parse_str("936da01f-9abd-4d9d-80c7-02af85c822a8").unwrap();
+		// Same revoked slate -> same self-spend id, so a retried revoke reuses the context.
+		assert_eq!(self_spend_slate_id(revoked), self_spend_slate_id(revoked));
+		// Distinct from the revoked id (the self-spend is a different tx).
+		assert_ne!(self_spend_slate_id(revoked), revoked);
+		// Different revoked slates -> different self-spend ids.
+		let other = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+		assert_ne!(self_spend_slate_id(revoked), self_spend_slate_id(other));
+	}
 }

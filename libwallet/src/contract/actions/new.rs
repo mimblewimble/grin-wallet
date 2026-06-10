@@ -23,19 +23,23 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient};
 use crate::backend::WalletBackend;
+use uuid::Uuid;
 
-/// Create a new contract with initial setup done by the initiator
+/// Create a new contract with initial setup done by the initiator. `slate_id`, when
+/// provided, fixes the slate id (rather than a random one) so the caller can make a
+/// retried creation idempotent: get_or_create reuses the existing context for that id.
 pub fn new<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	setup_args: &ContractSetupArgsAPI,
+	slate_id: Option<Uuid>,
 ) -> Result<Slate, Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
 	// Compute state for 'new'
-	let (slate, mut context) = compute(w, keychain_mask, setup_args)?;
+	let (slate, mut context) = compute(w, keychain_mask, setup_args, slate_id)?;
 
 	// Atomically commit state
 	contract::utils::save_step(
@@ -55,6 +59,7 @@ pub fn compute<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	setup_args: &ContractSetupArgsAPI,
+	slate_id: Option<Uuid>,
 ) -> Result<(Slate, Context), Error>
 where
 	C: NodeClient,
@@ -68,6 +73,10 @@ where
 	// Initialize a new contract (if net_change is positive, I'm the receiver meaning this is invoice flow)
 	let num_participants = setup_args.num_participants;
 	let mut slate = Slate::blank(num_participants, net_change > 0);
+	// Use a caller-supplied id when given, so a retried creation reuses the same context.
+	if let Some(id) = slate_id {
+		slate.id = id;
+	}
 	// We set slate.amount to contain the _positive_ net_change for the other party so they can derive expectations.
 	// unsigned_abs avoids the i64::MIN overflow panic of abs().
 	slate.amount = net_change.unsigned_abs();

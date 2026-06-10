@@ -1529,7 +1529,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	contract::new(&mut *w, keychain_mask, &args.setup_args)
+	contract::new(&mut *w, keychain_mask, &args.setup_args, None)
 }
 
 /// Sign transaction contract
