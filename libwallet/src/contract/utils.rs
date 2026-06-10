@@ -215,9 +215,6 @@ where
 	// Update TxLogEntry if we have signed the contract (we have data about the kernel)
 	if is_signed {
 		update_tx_log_entry(w, keychain_mask, &slate, &context, &mut tx_log_entry)?;
-		// TODO: It's possible to store the transaction in a file while and the atomic commit below fails
-		// In this case, we should revert to the previous stored tx to avoid having discrepancy
-		w.store_tx(&format!("{}", slate.id), slate.tx_or_err()?)?;
 	}
 	// If we added outputs in this step, we have to create OutputData here because 'batch'
 	// takes the mutable ref and we can no longer call calc_commit_for_cache for output
@@ -299,6 +296,13 @@ where
 				"signing context was not removed after signing".into(),
 			));
 		}
+	}
+
+	// Store the signed transaction only after the wallet-state batch has committed (and
+	// the signing context is confirmed gone), so a DB failure can't leave the stored tx
+	// out of sync with wallet state. Matches the core convention (internal::selection).
+	if is_signed {
+		w.store_tx(&format!("{}", slate.id), slate.tx_or_err()?)?;
 	}
 	debug!("contract::utils::save_step => Atomic updated done");
 
