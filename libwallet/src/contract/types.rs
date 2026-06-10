@@ -55,7 +55,10 @@ impl OutputSelectionArgs {
 	}
 	/// Returns the sum of our output amounts
 	pub fn sum_output_amounts(&self) -> Result<u64, Error> {
-		Ok(self.output_amounts()?.iter().sum())
+		self.output_amounts()?
+			.iter()
+			.try_fold(0u64, |acc, v| acc.checked_add(*v))
+			.ok_or_else(|| Error::GenericError("output amounts sum overflow".to_string()))
 	}
 	/// Returns the number of custom outputs
 	pub fn num_custom_outputs(&self) -> usize {

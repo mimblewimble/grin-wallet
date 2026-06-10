@@ -142,9 +142,10 @@ where
 	// or a single one if we're the receiver doing a payjoin.
 	// If we are the receiver, we pretend we have a virtual input from the sender (for which we don't pay the fees) so we can easily
 	// test that lhs >= rhs and see if we will be able to satisfy equation. We simulate this by starting with lhs = net_change.
-	let mut lhs = 0;
+	let mut lhs: u64 = 0;
 	if net_change > 0 {
-		lhs = net_change as u64; // TODO: check bounds
+		lhs = u64::try_from(net_change)
+			.map_err(|_| Error::GenericError(format!("net change {} exceeds u64", net_change)))?;
 	}
 	// We want to count how many inputs we've picked _so far_. This is used to prevent picking
 	// all 0*H +r*G outputs when we call with min_input_amount=0 and want just a payjoin.
@@ -262,9 +263,16 @@ fn build_output_amount_list(
 	let custom_outputs_sum = my_output_amounts.iter().sum::<u64>();
 	// We know that `Σmy_inputs >= Σmy_outputs + my_fee_cost` holds so we balance the equation by adding
 	// an additional output holding the missing amount (change output or receiver output)
-	// TODO: check bounds when casting.
-	let my_change_output_amount =
-		(my_input_sum - custom_outputs_sum) as i64 + expected_net_change - my_fee_cost as i64;
+	// Checked conversions so a very large amount can't wrap into a wrong (possibly negative) change.
+	let input_minus_outputs = i64::try_from(my_input_sum - custom_outputs_sum).map_err(|_| {
+		Error::GenericError(format!(
+			"input sum {} exceeds i64",
+			my_input_sum - custom_outputs_sum
+		))
+	})?;
+	let fee_cost = i64::try_from(my_fee_cost)
+		.map_err(|_| Error::GenericError(format!("fee cost {} exceeds i64", my_fee_cost)))?;
+	let my_change_output_amount = input_minus_outputs + expected_net_change - fee_cost;
 	// A negative change output would mean the selection math is off; reject it explicitly.
 	if my_change_output_amount < 0 {
 		return Err(Error::GenericError(format!(

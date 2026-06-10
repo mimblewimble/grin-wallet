@@ -84,7 +84,9 @@ where
 	if my_contributed_inputs.len() == 0 {
 		return Ok(None);
 	}
-	let input_commit = my_contributed_inputs[0].commit.as_ref().unwrap();
+	let input_commit = my_contributed_inputs[0].commit.as_ref().ok_or_else(|| {
+		Error::GenericError("Locked input has no cached commitment".to_string())
+	})?;
 	// Account label for the self-spend, so recovered funds return to the inputs' account.
 	let src_acct_name = w
 		.acct_path_iter()?

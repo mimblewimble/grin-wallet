@@ -69,7 +69,8 @@ where
 	let num_participants = setup_args.num_participants;
 	let mut slate = Slate::blank(num_participants, net_change > 0);
 	// We set slate.amount to contain the _positive_ net_change for the other party so they can derive expectations.
-	slate.amount = net_change.abs() as u64;
+	// unsigned_abs avoids the i64::MIN overflow panic of abs().
+	slate.amount = net_change.unsigned_abs();
 	debug!("contract::new => slate amount: {}", slate.amount);
 
 	// Perform setup for the slate

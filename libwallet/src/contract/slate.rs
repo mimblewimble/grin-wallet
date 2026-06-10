@@ -103,7 +103,7 @@ where
 	let batch = w.batch(keychain_mask)?;
 	for (key_id, mmr_index, _) in context.get_inputs() {
 		// We have no information if the input is a coinbase or not, so we fetch the data from DB
-		let coin = batch.get(&key_id, &mmr_index).unwrap();
+		let coin = batch.get(&key_id, &mmr_index)?;
 		if coin.is_coinbase {
 			slate.add_transaction_elements(
 				&keychain,

@@ -266,7 +266,7 @@ where
 		}
 		// Lock inputs
 		for id in context.get_inputs() {
-			let mut coin = batch.get(&id.0, &id.1).unwrap();
+			let mut coin = batch.get(&id.0, &id.1)?;
 			// At this point we already have context.log_id set
 			coin.tx_log_entry = context.log_id;
 			batch.lock_output(&mut coin)?;

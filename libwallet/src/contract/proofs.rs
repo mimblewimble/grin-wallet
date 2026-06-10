@@ -197,6 +197,15 @@ impl InvoiceProof {
 		participant_index: usize,
 		sender_address: Option<DalekPublicKey>,
 	) -> Result<Self, Error> {
+		// Bounds-check the participant index before indexing participant_data, so a
+		// malformed slate returns an error rather than panicking.
+		if participant_index >= slate.participant_data.len() {
+			return Err(Error::GenericError(format!(
+				"Participant index {} out of range for slate with {} participant(s)",
+				participant_index,
+				slate.participant_data.len()
+			)));
+		}
 		// Sender address is either provided or in slate (or error)
 		let sender_address = match sender_address {
 			Some(a) => a,
@@ -257,8 +266,8 @@ impl InvoiceProof {
 			secret: d_skey,
 		};
 		let mut sig_data_bin = Vec::new();
-		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
-			.expect("serialization failed");
+		grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
+			.map_err(|e| Error::GenericError(format!("InvoiceProof serialization failed: {}", e)))?;
 
 		Ok((keypair.sign(&sig_data_bin), pub_key))
 	}
@@ -276,8 +285,8 @@ impl InvoiceProof {
 
 		// Rebuild message
 		let mut sig_data_bin = Vec::new();
-		let _ = grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
-			.expect("serialization failed");
+		grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self.clone()))
+			.map_err(|e| Error::GenericError(format!("InvoiceProof serialization failed: {}", e)))?;
 
 		if recipient_address
 			.verify(&sig_data_bin, self.promise_signature.as_ref().unwrap())
