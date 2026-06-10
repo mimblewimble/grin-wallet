@@ -20,22 +20,8 @@ grin_wallet_util = { path = "../util", version = "5.4.0-alpha.1" }
 
 ##### Grin Imports
 
-# For Release
-#grin_core = "5.4.0"
-#grin_util = "5.4.0"
-
-# For beta release
-
-#grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3"}
-#grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-
-# For bleeding edge
-grin_core = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
-grin_util = { git = "https://github.com/mimblewimble/grin", rev = "cf2ed3f3becd62b5e754ec964fd90e332b9a021f" }
-
-# For local testing
-# grin_core = { path = "../../grin/core"}
-# grin_util = { path = "../../grin/util"}
+grin_core = { path = "../grin/core"}
+grin_util = { path = "../grin/util"}
 
 #####
 
