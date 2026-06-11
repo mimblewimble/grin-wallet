@@ -208,10 +208,23 @@ impl Slatepack {
 		reader.read_to_end(&mut decrypted)?;
 		// Parse encrypted metadata from payload, first 4 bytes of decrypted payload
 		// will be encrypted metadata length
+		if decrypted.len() < 4 {
+			return Err(Error::SlatepackDeser(
+				"Encrypted payload missing metadata length".into(),
+			));
+		}
 		let mut len_bytes = [0u8; 4];
 		len_bytes.copy_from_slice(&decrypted[0..4]);
 		let meta_len = Cursor::new(len_bytes).read_u32::<BigEndian>()?;
-		self.payload = decrypted.split_off(meta_len as usize + 4);
+		let payload_start = (meta_len as usize)
+			.checked_add(4)
+			.ok_or_else(|| Error::SlatepackDeser("Encrypted metadata length overflow".into()))?;
+		if payload_start > decrypted.len() {
+			return Err(Error::SlatepackDeser(
+				"Encrypted metadata length exceeds payload".into(),
+			));
+		}
+		self.payload = decrypted.split_off(payload_start);
 		let meta = byte_ser::from_bytes::<SlatepackEncMetadataBin>(&decrypted)
 			.map_err(|_| Error::SlatepackSer)?
 			.0;
@@ -845,6 +858,56 @@ fn slatepack_encrypted_meta_future() -> Result<(), Error> {
 	assert!(slatepack.sender.is_some());
 
 	assert_eq!(orig_sp, slatepack);
+
+	Ok(())
+}
+
+#[cfg(test)]
+fn slatepack_test_decryption_key() -> (edSecretKey, SlatepackAddress) {
+	use ed25519_dalek::PublicKey as edDalekPublicKey;
+	use rand::{thread_rng, Rng};
+
+	let sec_key_bytes: [u8; 32] = thread_rng().gen();
+	let ed_sec_key = edSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
+	let addr = SlatepackAddress::new(&ed_pub_key);
+
+	(ed_sec_key, addr)
+}
+
+#[cfg(test)]
+fn encrypt_plaintext_to_slatepack_recipient(
+	recipient: &SlatepackAddress,
+	plaintext: &[u8],
+) -> Result<Vec<u8>, Error> {
+	let recp_key: age::x25519::Recipient = recipient.to_age_pubkey_str()?.parse()?;
+	let keys = vec![Box::new(recp_key) as Box<dyn age::Recipient>];
+	let encryptor = age::Encryptor::with_recipients(keys);
+	let mut encrypted = vec![];
+	let mut writer = encryptor.wrap_output(&mut encrypted)?;
+	writer.write_all(plaintext)?;
+	writer.finish()?;
+	Ok(encrypted)
+}
+
+#[test]
+fn slatepack_decrypt_rejects_malformed_plaintexts() -> Result<(), Error> {
+	use crate::grin_core::global;
+
+	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+	let (ed_sec_key, addr) = slatepack_test_decryption_key();
+
+	for plaintext in vec![vec![], vec![0], vec![0, 0, 0], vec![0xff; 4]] {
+		let mut slatepack = Slatepack {
+			mode: 1,
+			payload: encrypt_plaintext_to_slatepack_recipient(&addr, &plaintext)?,
+			..Slatepack::default()
+		};
+		assert!(matches!(
+			slatepack.try_decrypt_payload(Some(&ed_sec_key)),
+			Err(Error::SlatepackDeser(_))
+		));
+	}
 
 	Ok(())
 }

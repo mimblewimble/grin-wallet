@@ -74,7 +74,10 @@ impl SlatepackArmor {
 		// Get the length of the header
 		let header_len = header_bytes.len() + 1;
 		// Skip the length of the header to read for the payload until the next period
-		let payload_bytes = armor_bytes[header_len as usize..]
+		let payload_source = armor_bytes
+			.get(header_len..)
+			.ok_or_else(|| Error::InvalidSlatepackData("Bad armor header".to_string()))?;
+		let payload_bytes = payload_source
 			.iter()
 			.take_while(|byte| **byte != b'.')
 			.cloned()
@@ -82,8 +85,14 @@ impl SlatepackArmor {
 		// Get length of the payload to check the footer framing
 		let payload_len = payload_bytes.len();
 		// Get footer bytes and verify them
-		let consumed_bytes = header_len + payload_len + 1;
-		let footer_bytes = armor_bytes[consumed_bytes as usize..]
+		let consumed_bytes = header_len
+			.checked_add(payload_len)
+			.and_then(|v| v.checked_add(1))
+			.ok_or_else(|| Error::InvalidSlatepackData("Bad armor footer".to_string()))?;
+		let footer_source = armor_bytes
+			.get(consumed_bytes..)
+			.ok_or_else(|| Error::InvalidSlatepackData("Bad armor footer".to_string()))?;
+		let footer_bytes = footer_source
 			.iter()
 			.take_while(|byte| **byte != b'.')
 			.cloned()
@@ -99,8 +108,10 @@ impl SlatepackArmor {
 		let base_decode = bs58::decode(&clean_payload)
 			.into_vec()
 			.map_err(|_| Error::SlatepackDeser("Bad bytes".into()))?;
-		let error_code = &base_decode[0..4];
-		let slatepack_bytes = &base_decode[4..];
+		if base_decode.len() < 4 {
+			return Err(Error::SlatepackDeser("Payload too short".into()));
+		}
+		let (error_code, slatepack_bytes) = base_decode.split_at(4);
 		// Make sure the error check code is valid for the slate data
 		error_check(error_code, slatepack_bytes)?;
 		// Return slate as binary or string
