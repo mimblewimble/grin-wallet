@@ -126,7 +126,7 @@ const REQUEST_TIMEOUT_MS: u64 = 60000;
 
 /// Make POST request with provided client.
 pub fn tor_post<IN>(
-	client: TorClient<TokioNativeTlsRuntime>,
+	client: Arc<TorClient<TokioNativeTlsRuntime>>,
 	input: &IN,
 	url: &str,
 ) -> Result<String, Error>
@@ -202,7 +202,7 @@ fn init_client(
 	state_path: &PathBuf,
 	cache_path: &PathBuf,
 	config: TorConfig,
-) -> Result<(TorClient<TokioNativeTlsRuntime>, TorClientConfig), Error> {
+) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
 
@@ -287,7 +287,7 @@ fn init_client(
 
 /// Launch Onion service proxy.
 async fn run_service_proxy<S>(
-	client: TorClient<TokioNativeTlsRuntime>,
+	client: Arc<TorClient<TokioNativeTlsRuntime>>,
 	addr: SocketAddr,
 	request: S,
 	nickname: HsNickname,

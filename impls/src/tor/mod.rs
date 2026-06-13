@@ -25,7 +25,8 @@ pub struct Tor {
 	/// Integrated service.
 	pub service: Option<std::sync::Arc<tor_hsservice::RunningOnionService>>,
 	/// Integrated client.
-	pub client: Option<arti_client::TorClient<tor_rtcompat::tokio::TokioNativeTlsRuntime>>,
+	pub client:
+		Option<std::sync::Arc<arti_client::TorClient<tor_rtcompat::tokio::TokioNativeTlsRuntime>>>,
 }
 
 /// Arti client runtime wrapper.
