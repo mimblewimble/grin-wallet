@@ -162,6 +162,8 @@ impl From<io::Error> for ConfigError {
 /// Tor configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TorConfig {
+	/// whether to use integrated Tor library
+	pub use_integrated: Option<bool>,
 	/// whether to skip any attempts to send via TOR
 	pub skip_send_attempt: Option<bool>,
 	/// Whether to start tor listener on listener startup (default true)
@@ -181,6 +183,7 @@ pub struct TorConfig {
 impl Default for TorConfig {
 	fn default() -> TorConfig {
 		TorConfig {
+			use_integrated: Some(true),
 			skip_send_attempt: Some(false),
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
@@ -194,6 +197,8 @@ impl Default for TorConfig {
 /// Tor Bridge Config
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TorBridgeConfig {
+	/// Path to bridge binary to use with integrated Tor library
+	pub bridge_bin_path: Option<String>,
 	/// Bridge Line
 	pub bridge_line: Option<String>,
 	/// Client Option
@@ -203,6 +208,7 @@ pub struct TorBridgeConfig {
 impl Default for TorBridgeConfig {
 	fn default() -> TorBridgeConfig {
 		TorBridgeConfig {
+			bridge_bin_path: None,
 			bridge_line: None,
 			client_option: None,
 		}
