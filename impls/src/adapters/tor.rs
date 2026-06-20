@@ -137,7 +137,8 @@ impl TorSlateSender {
 			Error::ClientCallback(report)
 		})?;
 
-		let res: Value = serde_json::from_str(&res).unwrap();
+		let res: Value = serde_json::from_str(&res)
+			.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 		trace!("Response: {}", res);
 		if res["error"] != json!(null) {
 			let report = format!(
@@ -151,9 +152,11 @@ impl TorSlateSender {
 		let resp_value = res["result"]["Ok"].clone();
 		trace!("resp_value: {}", resp_value.clone());
 		let foreign_api_version: u16 =
-			serde_json::from_value(resp_value["foreign_api_version"].clone()).unwrap();
+			serde_json::from_value(resp_value["foreign_api_version"].clone())
+				.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 		let supported_slate_versions: Vec<String> =
-			serde_json::from_value(resp_value["supported_slate_versions"].clone()).unwrap();
+			serde_json::from_value(resp_value["supported_slate_versions"].clone())
+				.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 
 		// trivial tests for now, but will be expanded later
 		if foreign_api_version < 2 {
@@ -240,7 +243,8 @@ impl SlateSender for TorSlateSender {
 			Error::ClientCallback(report)
 		})?;
 
-		let res: Value = serde_json::from_str(&res).unwrap();
+		let res: Value = serde_json::from_str(&res)
+			.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 		trace!("Response: {}", res);
 		if res["error"] != json!(null) {
 			let report = format!(
@@ -254,12 +258,15 @@ impl SlateSender for TorSlateSender {
 		let slate_value = res["result"]["Ok"].clone();
 
 		trace!("slate_value: {}", slate_value);
-		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
-			.map_err(|e| {
+		if let Ok(slate_value) = serde_json::to_string(&slate_value) {
+			let slate = Slate::deserialize_upgrade(&slate_value).map_err(|e| {
 				error!("Error deserializing response slate: {}", e);
 				Error::SlateDeser
 			})?;
-
-		Ok(slate)
+			Ok(slate)
+		} else {
+			error!("Error deserializing response slate: {}", slate_value);
+			Err(Error::SlateDeser)
+		}
 	}
 }
