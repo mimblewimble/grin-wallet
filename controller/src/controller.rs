@@ -292,6 +292,29 @@ where
 		(sec_key, tor_dir, onion_address)
 	};
 
+	let api_handler_v2 = ForeignAPIHandlerV2::new(
+		wallet,
+		keychain_mask,
+		test_mode,
+		Mutex::new(Some(tor_config.clone())),
+	);
+	let mut router = Router::new();
+
+	router
+		.add_route("/v2/foreign", Arc::new(api_handler_v2))
+		.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
+
+	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
+		Box::leak(Box::new(oneshot::channel::<()>()));
+
+	let mut apis = ApiServer::new();
+	warn!("Starting HTTP Foreign listener API server at {}.", addr);
+	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
+	let api_thread = apis
+		.start(socket_addr, router, tls_config, api_chan)
+		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
+	warn!("HTTP Foreign listener started.");
+
 	// Need to keep external process in scope while the listener is running.
 	let tor_service = if use_tor {
 		let use_integrated = tor_config.use_integrated.unwrap_or(true);
@@ -324,29 +347,6 @@ where
 	} else {
 		Ok(None)
 	};
-
-	let api_handler_v2 = ForeignAPIHandlerV2::new(
-		wallet,
-		keychain_mask,
-		test_mode,
-		Mutex::new(Some(tor_config)),
-	);
-	let mut router = Router::new();
-
-	router
-		.add_route("/v2/foreign", Arc::new(api_handler_v2))
-		.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
-
-	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
-		Box::leak(Box::new(oneshot::channel::<()>()));
-
-	let mut apis = ApiServer::new();
-	warn!("Starting HTTP Foreign listener API server at {}.", addr);
-	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread = apis
-		.start(socket_addr, router, tls_config, api_chan)
-		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
-	warn!("HTTP Foreign listener started.");
 
 	if tor_service.is_ok() {
 		if let Some(_) = tor_service.as_ref().unwrap() {
