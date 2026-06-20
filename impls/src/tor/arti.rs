@@ -32,7 +32,7 @@ use serde::Serialize;
 use sha2::Sha512;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use std::time::Duration;
 use tor_hscrypto::pk::{HsIdKey, HsIdKeypair};
@@ -50,8 +50,18 @@ use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
 // Arti Tokio runtime.
 lazy_static! {
-	pub static ref ARTI_RUNTIME: Arc<Option<ArtiRuntimeWrapper>> =
-		Arc::new(ArtiRuntimeWrapper::create().ok());
+	pub static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
+		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
+}
+
+/// Get Tor client runtime.
+fn runtime() -> Result<TokioNativeTlsRuntime, Error> {
+	let mut runtime = ARTI_RUNTIME.lock().unwrap();
+	let r = match runtime.as_ref() {
+		None => runtime.insert(ArtiRuntimeWrapper::create()?),
+		Some(r) => r
+	};
+	Ok(r.runtime.clone())
 }
 
 /// Start Tor service from provided key.
@@ -238,11 +248,7 @@ fn init_client(
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
 	// Launch client.
-	let r = ARTI_RUNTIME
-		.as_ref()
-		.clone()
-		.unwrap_or(ArtiRuntimeWrapper::create()?)
-		.runtime;
+	let r = runtime()?;
 	let client = TorClient::with_runtime(r)
 		.config(config.clone())
 		.create_unbootstrapped()
