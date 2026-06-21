@@ -52,6 +52,8 @@ use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 lazy_static! {
 	pub static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
 		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
+	pub static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
+		LazyLock::new(|| Mutex::new(None));
 }
 
 /// Get Tor client runtime.
@@ -59,7 +61,7 @@ fn runtime() -> Result<TokioNativeTlsRuntime, Error> {
 	let mut runtime = ARTI_RUNTIME.lock().unwrap();
 	let r = match runtime.as_ref() {
 		None => runtime.insert(ArtiRuntimeWrapper::create()?),
-		Some(r) => r
+		Some(r) => r,
 	};
 	Ok(r.runtime.clone())
 }
@@ -104,17 +106,21 @@ pub fn start_tor_service(
 				thread::spawn(move || {
 					c.clone().runtime().block_on(async move {
 						// Launch service proxy.
-						async fn run_proxy<S> (c: Arc<TorClient<TokioNativeTlsRuntime>>,
-						              addr: SocketAddr,
-						              request: &mut S,
-						              hs: HsNickname)
-						where
-							S: futures::Stream<Item = tor_hsservice::RendRequest> + Unpin + Send + 'static,
+						async fn run_proxy<S>(
+							c: Arc<TorClient<TokioNativeTlsRuntime>>,
+							addr: SocketAddr,
+							request: &mut S,
+							hs: HsNickname,
+						) where
+							S: futures::Stream<Item = tor_hsservice::RendRequest>
+								+ Unpin
+								+ Send
+								+ 'static,
 						{
 							match run_service_proxy(c.clone(), addr, request, hs.clone()).await {
 								Ok(_) => {
 									info!("Tor proxy stopped");
-								},
+								}
 								Err(e) => {
 									error!("Tor proxy error: {:?}, restarting", e);
 									tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -141,6 +147,8 @@ pub fn start_tor_service(
 
 /// Start Tor client to send requests.
 pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> {
+	info!("Starting integrated Tor client");
+
 	let state_path = Path::new(tor_dir).join("state");
 	let cache_path = Path::new(tor_dir).join("cache");
 
@@ -172,8 +180,9 @@ where
 		.map_err(|_| Error::GenericError(format!("Bad URL: {}", url)))?;
 	let host = match url.host() {
 		None => return Err(Error::GenericError(format!("URL {} has bad host", url))),
-		Some(h) => h
-	}.to_string();
+		Some(h) => h,
+	}
+	.to_string();
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
@@ -238,6 +247,14 @@ fn init_client(
 	cache_path: &PathBuf,
 	config: TorConfig,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
+	// Return existing client if exists.
+	{
+		let client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
+		if let Some((client, config)) = client_config.as_ref() {
+			return Ok((client.clone(), config.clone()));
+		}
+	}
+
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
 
@@ -303,11 +320,9 @@ fn init_client(
 			.timeout(Duration::from_millis(BOOTSTRAP_TIMEOUT_MS), bootstrap())
 			.await
 		{
-			Ok(r) => {
-				match r {
-					Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
-					Ok(_) => Ok(())
-				}
+			Ok(r) => match r {
+				Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
+				Ok(_) => Ok(()),
 			},
 			Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
 		}
@@ -315,6 +330,7 @@ fn init_client(
 	match res {
 		Ok(_) => {
 			info!("Tor client bootstrapped successfully");
+			ARTI_CLIENT_CONFIG.lock().unwrap().replace((client.clone(), config.clone()));
 			Ok((client, config))
 		}
 		Err(e) => Err(e),
