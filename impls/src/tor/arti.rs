@@ -278,7 +278,12 @@ fn init_client(
 			.timeout(Duration::from_millis(BOOTSTRAP_TIMEOUT_MS), bootstrap())
 			.await
 		{
-			Ok(_) => Ok(()),
+			Ok(r) => {
+				match r {
+					Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
+					Ok(_) => Ok(())
+				}
+			},
 			Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
 		}
 	});
