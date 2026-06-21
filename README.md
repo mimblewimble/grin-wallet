@@ -14,12 +14,28 @@ This is the reference implementation of [Grin's](https://github.com/mimblewimble
 
 * A reference command-line wallet, which provides a baseline wallet for Grin and demonstrates how the wallet APIs should be called.
 
-# Usage
+## Contributing
+
+To get involved, read our [contributing docs](https://github.com/mimblewimble/grin/blob/master/CONTRIBUTING.md).
+
+Find us:
+
+* Telegram: [Grin Development](https://t.me/grindevelopment)
+* Chat: [Keybase](https://keybase.io/team/grincoin), more instructions on how to join [here](https://grin.mw/community).
+
+## Usage
 
 To use the command-line wallet, we recommend using the latest release from the [Releases page](https://github.com/mimblewimble/grin-wallet/releases). There are distributions for Linux, MacOS and Windows.
 
 Full documentation outlining how to use the command line wallet can be found on [Grin's Wiki](https://github.com/mimblewimble/docs/wiki/Wallet-User-Guide)
 
-# License
+To build locally install Rust and execute in the project directory:
+```
+git submodule update --init --recursive
+cargo build --release
+./target/release/grin-wallet
+```
+
+## License
 
 Apache License v2.0
