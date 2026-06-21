@@ -148,7 +148,11 @@ where
 	let url = url.to_string();
 	let url: Uri = url
 		.parse()
-		.map_err(|_| Error::GenericError("Bad URL".to_owned()))?;
+		.map_err(|_| Error::GenericError(format!("Bad URL: {}", url)))?;
+	let host = match url.host() {
+		None => return Err(Error::GenericError(format!("URL {} has bad host", url))),
+		Some(h) => h
+	}.to_string();
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
@@ -156,7 +160,7 @@ where
 				.runtime()
 				.timeout(Duration::from_millis(REQUEST_TIMEOUT_MS), async {
 					let stream = c
-						.connect((url.host().unwrap(), url.port_u16().unwrap_or(80)))
+						.connect((host, url.port_u16().unwrap_or(80)))
 						.await
 						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 					let (mut request_sender, connection) =
