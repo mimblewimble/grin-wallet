@@ -42,8 +42,8 @@ pub mod test_framework;
 pub mod tor;
 
 pub use crate::adapters::{
-	HttpSlateSender, PathToSlate, PathToSlatepack, SlateGetter, SlatePutter, SlateReceiver,
-	SlateSender,
+	PathToSlate, PathToSlatepack, SlateGetter, SlatePutter, SlateReceiver, SlateSender,
+	TorSlateSender,
 };
 pub use crate::error::Error;
 pub use crate::lifecycle::DefaultLCProvider;

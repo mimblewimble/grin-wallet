@@ -22,19 +22,32 @@ ring = "0.16"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
-tokio = { version = "0.2", features = ["full"] }
-reqwest = { version = "0.10", features = ["rustls-tls", "socks"] }
+tokio = { version = "1.52.3", features = ["full"] }
+reqwest = { version = "0.13.3", features = ["socks"] }
 
 #Socks/Tor/Bridge/Proxy
-byteorder = "1"
 ed25519-dalek = "1.0.0-pre.4"
-x25519-dalek = "0.6"
-data-encoding = "2"
+arti-ed25519-dalek = { version = "2.1.1", package = "ed25519-dalek" }
 regex = "1.3"
 timer = "0.2"
 sysinfo = "0.29"
 base64 = "0.12.0"
 url = "2.1"
+
+arti-client = { version = "0.43.0", features = ["static", "pt-client", "onion-service-service", "onion-service-client"] }
+tor-rtcompat = { version = "0.43.0", features = ["static"] }
+fs-mistrust = "0.14.2"
+tor-hsservice = "0.43.0"
+tor-hsrproxy = "0.43.0"
+tor-keymgr = "0.43.0"
+tor-llcrypto = "0.43.0"
+tor-hscrypto = "0.43.0"
+sha2 = "0.10.8"
+curve25519-dalek = "4.1.3"
+hyper = { version = "1.10.1", features = ["http1", "client"] }
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+http-body-util = "0.1.3"
+bytes = "1.11.1"
 
 grin_wallet_util = { path = "../util", version = "5.4.0-alpha.1" }
 grin_wallet_config = { path = "../config", version = "5.4.0-alpha.1" }

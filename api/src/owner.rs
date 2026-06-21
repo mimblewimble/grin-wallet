@@ -23,8 +23,8 @@ use uuid::Uuid;
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
-use crate::impls::HttpSlateSender;
 use crate::impls::SlateSender as _;
+use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
@@ -669,17 +669,15 @@ where
 		};
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
-		let skip_tor = match send_args.as_ref() {
-			None => false,
-			Some(sa) => sa.skip_tor,
-		};
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
 				let tc = tor_config_lock.clone();
 				let tc = match tc {
 					Some(mut c) => {
-						c.skip_send_attempt = Some(skip_tor);
+						if let Some(skip_tor) = sa.skip_tor {
+							c.skip_send_attempt = Some(skip_tor);
+						}
 						Some(c)
 					}
 					None => None,
@@ -845,7 +843,9 @@ where
 				let tc = tor_config_lock.clone();
 				let tc = match tc {
 					Some(mut c) => {
-						c.skip_send_attempt = Some(sa.skip_tor);
+						if let Some(skip_tor) = sa.skip_tor {
+							c.skip_send_attempt = Some(skip_tor);
+						}
 						Some(c)
 					}
 					None => None,
@@ -2495,7 +2495,7 @@ pub fn try_slatepack_sync_workflow(
 	slate: &Slate,
 	dest: &str,
 	tor_config: Option<TorConfig>,
-	tor_sender: Option<HttpSlateSender>,
+	tor_sender: Option<TorSlateSender>,
 	send_to_finalize: bool,
 	test_mode: bool,
 ) -> Result<Option<Slate>, Error> {
@@ -2505,7 +2505,7 @@ pub fn try_slatepack_sync_workflow(
 		}
 	}
 	let mut ret_slate = Slate::blank(2, false);
-	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
+	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_to_finalize)
 	{
 		Ok(s) => {
@@ -2531,18 +2531,16 @@ pub fn try_slatepack_sync_workflow(
 					if test_mode {
 						None
 					} else {
-						match HttpSlateSender::with_socks_proxy(
-							&tor_addr.to_http_str(),
-							&tor_config.as_ref().unwrap().socks_proxy_addr,
-							&tor_config.as_ref().unwrap().send_config_dir,
-							tor_config.as_ref().unwrap().bridge.clone(),
-							tor_config.as_ref().unwrap().proxy.clone(),
-						) {
-							Ok(s) => Some(s),
-							Err(e) => {
-								debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-								None
+						if let Some(tc) = tor_config {
+							match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
+								Ok(s) => Some(s),
+								Err(e) => {
+									debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
+									None
+								}
 							}
+						} else {
+							return Err(Error::TorConfig("Tor config is not set".to_string()));
 						}
 					}
 				}
