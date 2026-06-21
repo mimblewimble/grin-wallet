@@ -90,18 +90,33 @@ pub fn start_tor_service(
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let running_onion_service = match client.launch_onion_service(service_config) {
 		Ok(res) => {
-			if let Some((service, request)) = res {
-				// Launch service proxy.
+			if let Some((service, mut request)) = res {
 				let addr: SocketAddr = addr
 					.parse()
 					.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 				let c = client.clone();
 				thread::spawn(move || {
 					c.clone().runtime().block_on(async move {
-						match run_service_proxy(c, addr, request, hs.clone()).await {
-							Ok(_) => info!("Tor proxy stopped"),
-							Err(e) => error!("Tor proxy error: {:?}", e),
+						// Launch service proxy.
+						async fn run_proxy<S> (c: Arc<TorClient<TokioNativeTlsRuntime>>,
+						              addr: SocketAddr,
+						              request: &mut S,
+						              hs: HsNickname)
+						where
+							S: futures::Stream<Item = tor_hsservice::RendRequest> + Unpin + Send + 'static,
+						{
+							match run_service_proxy(c.clone(), addr, request, hs.clone()).await {
+								Ok(_) => {
+									info!("Tor proxy stopped");
+								},
+								Err(e) => {
+									error!("Tor proxy error: {:?}, restarting", e);
+									tokio::time::sleep(Duration::from_millis(1000)).await;
+									Box::pin(run_proxy(c, addr, request, hs)).await;
+								}
+							}
 						}
+						run_proxy(c.clone(), addr, &mut request, hs.clone()).await;
 					})
 				});
 				service
@@ -304,7 +319,7 @@ fn init_client(
 async fn run_service_proxy<S>(
 	client: Arc<TorClient<TokioNativeTlsRuntime>>,
 	addr: SocketAddr,
-	request: S,
+	request: &mut S,
 	nickname: HsNickname,
 ) -> Result<(), Error>
 where
