@@ -71,6 +71,12 @@ pub fn start_tor_service(
 	addr: &str,
 	config: TorConfig,
 ) -> Result<Tor, Error> {
+	info!("Starting integrated Tor listener.");
+	let use_proxy = config.proxy.transport.is_some() && config.proxy.address.is_some();
+	if use_proxy {
+		info!("Proxy configuration will be ignored.");
+	}
+
 	let state_path = Path::new(&tor_dir).join("state");
 	let cache_path = Path::new(&tor_dir).join("cache");
 	let (client, config) = init_client(&state_path, &cache_path, config)?;

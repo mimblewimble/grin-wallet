@@ -91,6 +91,8 @@ fn init_tor_listener(
 	bridge: TorBridgeConfig,
 	tor_proxy: TorProxyConfig,
 ) -> Result<Tor, Error> {
+	info!("Starting external Tor Process listener.");
+
 	let mut process = tor_process::TorProcess::new();
 
 	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
@@ -317,7 +319,7 @@ where
 
 	// Need to keep external process in scope while the listener is running.
 	let tor_service = if use_tor {
-		let use_integrated = tor_config.use_integrated.unwrap_or(true);
+		let use_integrated = tor_config.use_integrated.unwrap_or(false);
 		let res = if use_integrated {
 			start_tor_service(sec_key, &tor_dir, addr, tor_config.clone())
 		} else {

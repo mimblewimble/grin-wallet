@@ -50,7 +50,7 @@ impl TorSlateSender {
 				path.push("sender");
 				path
 			};
-			let tor = if config.use_integrated.unwrap_or(true) {
+			let tor = if config.use_integrated.unwrap_or(false) {
 				start_tor_client(tor_dir.to_str().unwrap(), config.clone())?
 			} else {
 				Self::launch_tor_process(&config, &tor_dir)?
