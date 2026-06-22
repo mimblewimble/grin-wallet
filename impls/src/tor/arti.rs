@@ -248,11 +248,9 @@ fn init_client(
 	config: TorConfig,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	// Return existing client if exists.
-	{
-		let client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
-		if let Some((client, config)) = client_config.as_ref() {
-			return Ok((client.clone(), config.clone()));
-		}
+	let mut client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
+	if let Some((client, config)) = client_config.as_ref() {
+		return Ok((client.clone(), config.clone()));
 	}
 
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
@@ -330,7 +328,7 @@ fn init_client(
 	match res {
 		Ok(_) => {
 			info!("Tor client bootstrapped successfully");
-			ARTI_CLIENT_CONFIG.lock().unwrap().replace((client.clone(), config.clone()));
+			client_config.replace((client.clone(), config.clone()));
 			Ok((client, config))
 		}
 		Err(e) => Err(e),
