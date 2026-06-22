@@ -52,6 +52,8 @@ use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 lazy_static! {
 	pub static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
 		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
+	pub static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
+		LazyLock::new(|| Mutex::new(None));
 }
 
 /// Get Tor client runtime.
@@ -59,7 +61,7 @@ fn runtime() -> Result<TokioNativeTlsRuntime, Error> {
 	let mut runtime = ARTI_RUNTIME.lock().unwrap();
 	let r = match runtime.as_ref() {
 		None => runtime.insert(ArtiRuntimeWrapper::create()?),
-		Some(r) => r
+		Some(r) => r,
 	};
 	Ok(r.runtime.clone())
 }
@@ -79,7 +81,7 @@ pub fn start_tor_service(
 
 	let state_path = Path::new(&tor_dir).join("state");
 	let cache_path = Path::new(&tor_dir).join("cache");
-	let (client, config) = init_client(&state_path, &cache_path, config)?;
+	let (client, config) = init_client(&state_path, &cache_path, config, true)?;
 
 	// Add service key to keystore.
 	let onion_address =
@@ -104,17 +106,21 @@ pub fn start_tor_service(
 				thread::spawn(move || {
 					c.clone().runtime().block_on(async move {
 						// Launch service proxy.
-						async fn run_proxy<S> (c: Arc<TorClient<TokioNativeTlsRuntime>>,
-						              addr: SocketAddr,
-						              request: &mut S,
-						              hs: HsNickname)
-						where
-							S: futures::Stream<Item = tor_hsservice::RendRequest> + Unpin + Send + 'static,
+						async fn run_proxy<S>(
+							c: Arc<TorClient<TokioNativeTlsRuntime>>,
+							addr: SocketAddr,
+							request: &mut S,
+							hs: HsNickname,
+						) where
+							S: futures::Stream<Item = tor_hsservice::RendRequest>
+								+ Unpin
+								+ Send
+								+ 'static,
 						{
 							match run_service_proxy(c.clone(), addr, request, hs.clone()).await {
 								Ok(_) => {
 									info!("Tor proxy stopped");
-								},
+								}
 								Err(e) => {
 									error!("Tor proxy error: {:?}, restarting", e);
 									tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -141,10 +147,12 @@ pub fn start_tor_service(
 
 /// Start Tor client to send requests.
 pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> {
+	info!("Starting integrated Tor client");
+
 	let state_path = Path::new(tor_dir).join("state");
 	let cache_path = Path::new(tor_dir).join("cache");
 
-	let (client, _) = init_client(&state_path, &cache_path, config)?;
+	let (client, _) = init_client(&state_path, &cache_path, config, false)?;
 	Ok(Tor {
 		process: None,
 		service: None,
@@ -172,8 +180,9 @@ where
 		.map_err(|_| Error::GenericError(format!("Bad URL: {}", url)))?;
 	let host = match url.host() {
 		None => return Err(Error::GenericError(format!("URL {} has bad host", url))),
-		Some(h) => h
-	}.to_string();
+		Some(h) => h,
+	}
+	.to_string();
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
@@ -237,6 +246,7 @@ fn init_client(
 	state_path: &PathBuf,
 	cache_path: &PathBuf,
 	config: TorConfig,
+	reuse_client: bool,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
@@ -272,10 +282,42 @@ fn init_client(
 		.build()
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
-	// Launch client.
+	if reuse_client {
+		// Return existing client if config was not changed.
+		let mut cached_client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
+		if let Some((client, c)) = cached_client_config.as_ref() {
+			if c == &config {
+				debug!("Reusing Arti Tor client from global state.");
+				return Ok((client.clone(), c.clone()));
+			} else {
+				debug!("Tor config changed, rebuild client.");
+				*cached_client_config = None;
+			}
+		}
+		let res = launch_client(config.clone());
+		return match res {
+			Ok(client) => {
+				cached_client_config.replace((client.clone(), config.clone()));
+				Ok((client, config))
+			}
+			Err(e) => {
+				Err(e)
+			},
+		};
+	}
+
+	let res = launch_client(config.clone());
+	match res {
+		Ok(client) => Ok((client, config)),
+		Err(e) => Err(e),
+	}
+}
+
+/// Launch tor client from provided configuration.
+fn launch_client(config: TorClientConfig) -> Result<Arc<TorClient<TokioNativeTlsRuntime>>, Error> {
 	let r = runtime()?;
 	let client = TorClient::with_runtime(r)
-		.config(config.clone())
+		.config(config)
 		.create_unbootstrapped()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 	let c = client.clone();
@@ -293,6 +335,7 @@ fn init_client(
 						prev_percent = percent;
 						tokio::time::sleep(Duration::from_millis(1000)).await;
 					}
+					info!("Tor client bootstrapped successfully");
 					Ok(())
 				}
 				Err(e) => Err(e),
@@ -303,22 +346,14 @@ fn init_client(
 			.timeout(Duration::from_millis(BOOTSTRAP_TIMEOUT_MS), bootstrap())
 			.await
 		{
-			Ok(r) => {
-				match r {
-					Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
-					Ok(_) => Ok(())
-				}
+			Ok(r) => match r {
+				Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
+				Ok(_) => Ok(c),
 			},
 			Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
 		}
 	});
-	match res {
-		Ok(_) => {
-			info!("Tor client bootstrapped successfully");
-			Ok((client, config))
-		}
-		Err(e) => Err(e),
-	}
+	res
 }
 
 /// Launch Onion service proxy.
