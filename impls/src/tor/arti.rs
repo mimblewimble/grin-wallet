@@ -247,12 +247,6 @@ fn init_client(
 	cache_path: &PathBuf,
 	config: TorConfig,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
-	// Return existing client if exists.
-	let mut client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
-	if let Some((client, config)) = client_config.as_ref() {
-		return Ok((client.clone(), config.clone()));
-	}
-
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
 
@@ -286,6 +280,16 @@ fn init_client(
 	let config = builder
 		.build()
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+
+	// Return existing client if exists and config was not changed.
+	let mut client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
+	if let Some((client, c)) = client_config.as_ref() {
+		if c == &config {
+			return Ok((client.clone(), c.clone()));
+		} else {
+			*client_config = None;
+		}
+	}
 
 	// Launch client.
 	let r = runtime()?;
