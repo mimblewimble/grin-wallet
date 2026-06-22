@@ -285,8 +285,10 @@ fn init_client(
 	let mut client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
 	if let Some((client, c)) = client_config.as_ref() {
 		if c == &config {
+			debug!("Reusing Arti Tor client from global state.");
 			return Ok((client.clone(), c.clone()));
 		} else {
+			debug!("Tor config changed, rebuild client.");
 			*client_config = None;
 		}
 	}
