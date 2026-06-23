@@ -164,18 +164,18 @@ impl From<io::Error> for ConfigError {
 pub struct TorConfig {
 	/// whether to use integrated Tor library
 	pub use_integrated: Option<bool>,
-	/// whether to skip any attempts to send via TOR
+	/// whether to skip any attempts to send via Tor
 	pub skip_send_attempt: Option<bool>,
-	/// Whether to start tor listener on listener startup (default true)
+	/// Whether to start Tor listener on listener startup (default true)
 	pub use_tor_listener: bool,
 	/// Just the address of the socks proxy for now
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
-	/// tor bridge config
+	/// Tor bridge config
 	#[serde(default)]
 	pub bridge: TorBridgeConfig,
-	/// tor proxy config
+	/// Tor proxy config
 	#[serde(default)]
 	pub proxy: TorProxyConfig,
 }
@@ -191,6 +191,16 @@ impl Default for TorConfig {
 			bridge: TorBridgeConfig::default(),
 			proxy: TorProxyConfig::default(),
 		}
+	}
+}
+
+impl TorConfig {
+	/// Check if attempt to send over Tor is needed using provided possible argument at priority.
+	pub fn send_tor(&self, skip_arg: Option<bool>) -> bool {
+		if let Some(skip_tor) = skip_arg {
+			return !skip_tor;
+		}
+		!self.skip_send_attempt.unwrap_or(false)
 	}
 }
 

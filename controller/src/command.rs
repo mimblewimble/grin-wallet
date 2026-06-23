@@ -40,6 +40,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
+use grin_wallet_libwallet::api_impl::types::update_tx_slate_state;
 
 fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("Your recovery phrase is:");
@@ -431,18 +432,37 @@ where
 			if let Some(b) = args.bridge.clone() {
 				c.bridge.bridge_line = Some(b);
 			}
-			if let Some(s) = args.skip_tor {
-				c.skip_send_attempt = Some(s);
-			}
 			Some(c)
 		}
 		None => None,
 	};
 
-	let res = try_slatepack_sync_workflow(&slate, &args.dest, tor_config, None, false, test_mode);
+	let output_sp = || -> Result<(), Error> {
+		Ok(output_slatepack(
+			owner_api,
+			keychain_mask,
+			&slate,
+			args.dest.as_str(),
+			args.outfile,
+			true,
+			false,
+			args.slatepack_qr,
+		)?)
+	};
+
+	let can_send = if let Some(tc) = tor_config.as_ref() {
+		tc.send_tor(args.skip_tor)
+	} else {
+		false
+	};
+	if test_mode || !can_send {
+		return output_sp();
+	}
+
+	let res = try_slatepack_sync_workflow(&slate, &args.dest, tor_config, None, false);
 
 	match res {
-		Ok(Some(s)) => {
+		Ok(s) => {
 			controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 				api.tx_lock_outputs(m, &s)?;
 				let ret_slate = api.finalize_tx(m, &s)?;
@@ -459,19 +479,10 @@ where
 				}
 			})?;
 		}
-		Ok(None) => {
-			output_slatepack(
-				owner_api,
-				keychain_mask,
-				&slate,
-				args.dest.as_str(),
-				args.outfile,
-				true,
-				false,
-				args.slatepack_qr,
-			)?;
+		Err(e) => {
+			error!("Error sending slate sync: {}", e);
+			output_sp()?;
 		}
-		Err(e) => return Err(e.into()),
 	}
 	Ok(())
 }
@@ -668,9 +679,6 @@ where
 			if let Some(b) = args.bridge {
 				c.bridge.bridge_line = Some(b);
 			}
-			if let Some(s) = args.skip_tor {
-				c.skip_send_attempt = Some(s);
-			}
 			Some(c)
 		}
 		None => None,
@@ -686,33 +694,55 @@ where
 		None => String::from(""),
 	};
 
-	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
+	let output_sp = || -> Result<(), Error> {
+		Ok(output_slatepack(
+			owner_api,
+			keychain_mask,
+			&slate,
+			&dest,
+			args.outfile,
+			false,
+			false,
+			args.slatepack_qr,
+		)?)
+	};
+
+	let can_send = if let Some(tc) = tor_config.as_ref() {
+		tc.send_tor(args.skip_tor)
+	} else {
+		false
+	};
+	if test_mode || !can_send {
+		return output_sp();
+	}
+
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
 
 	match res {
-		Ok(Some(_)) => {
+		Ok(s) => {
+			// Update slate state.
+			{
+				let mut w_lock = owner_api.wallet_inst.lock();
+				let w = w_lock.lc_provider()?.wallet_inst()?;
+				let parent_key_id = w.parent_key_id();
+				match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
+					Ok(_) => {}
+					Err(e) => error!("Error on updating slate state: {}", e),
+				}
+			}
 			println!();
 			println!(
 				"Transaction received and sent back to sender at {} for finalization.",
 				dest
 			);
 			println!();
-			Ok(())
 		}
-		Ok(None) => {
-			output_slatepack(
-				owner_api,
-				keychain_mask,
-				&slate,
-				&dest,
-				args.outfile,
-				false,
-				false,
-				args.slatepack_qr,
-			)?;
-			Ok(())
+		Err(e) => {
+			error!("Error sending slate sync: {}", e);
+			output_sp()?;
 		}
-		Err(e) => Err(e.into()),
 	}
+	Ok(())
 }
 
 pub fn unpack<L, C, K>(
@@ -1012,41 +1042,60 @@ where
 			if let Some(b) = args.bridge {
 				c.bridge.bridge_line = Some(b);
 			}
-			if let Some(skip_tor) = args.skip_tor {
-				c.skip_send_attempt = Some(skip_tor);
-			}
 			Some(c)
 		}
 		None => None,
 	};
 
-	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true, test_mode);
+	let output_sp = || -> Result<(), Error> {
+		Ok(output_slatepack(
+			owner_api,
+			keychain_mask,
+			&slate,
+			&dest,
+			args.outfile,
+			true,
+			false,
+			args.slatepack_qr,
+		)?)
+	};
+
+	let can_send = if let Some(tc) = tor_config.as_ref() {
+		tc.send_tor(args.skip_tor)
+	} else {
+		false
+	};
+	if test_mode || !can_send {
+		return output_sp();
+	}
+
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
 
 	match res {
-		Ok(Some(_)) => {
+		Ok(s) => {
+			// Update slate state.
+			{
+				let mut w_lock = owner_api.wallet_inst.lock();
+				let w = w_lock.lc_provider()?.wallet_inst()?;
+				let parent_key_id = w.parent_key_id();
+				match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
+					Ok(_) => {}
+					Err(e) => error!("Error on updating slate state: {}", e),
+				}
+			}
 			println!();
 			println!(
 				"Transaction paid and sent back to initiator at {} for finalization.",
 				dest
 			);
 			println!();
-			Ok(())
 		}
-		Ok(None) => {
-			output_slatepack(
-				owner_api,
-				keychain_mask,
-				&slate,
-				&dest,
-				args.outfile,
-				true,
-				false,
-				args.slatepack_qr,
-			)?;
-			Ok(())
+		Err(e) => {
+			error!("Error sending slate sync: {}", e);
+			output_sp()?;
 		}
-		Err(e) => Err(e.into()),
 	}
+	Ok(())
 }
 
 /// Info command args

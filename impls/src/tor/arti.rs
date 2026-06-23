@@ -300,9 +300,7 @@ fn init_client(
 				cached_client_config.replace((client.clone(), config.clone()));
 				Ok((client, config))
 			}
-			Err(e) => {
-				Err(e)
-			},
+			Err(e) => Err(e),
 		};
 	}
 

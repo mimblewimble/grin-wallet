@@ -24,6 +24,7 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
+use libwallet::api_impl::types::update_tx_slate_state;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -370,18 +371,34 @@ where
 		)?;
 		match r_addr {
 			Some(a) => {
-				let tor_config_lock = self.tor_config.lock();
-				let res = try_slatepack_sync_workflow(
-					&ret_slate,
-					&a,
-					tor_config_lock.clone(),
-					None,
-					true,
-					self.doctest_mode,
-				);
+				let tc = self.tor_config.lock();
+				let can_send = if let Some(tc) = tc.as_ref() {
+					tc.send_tor(None)
+				} else {
+					false
+				};
+				if self.doctest_mode || !can_send {
+					return Ok(ret_slate);
+				}
+				let res = try_slatepack_sync_workflow(&ret_slate, &a, tc.clone(), None, true);
 				match res {
-					Ok(s) => Ok(s.unwrap()),
-					Err(_) => Ok(ret_slate),
+					Ok(s) => {
+						let parent_key_id = w.parent_key_id();
+						match update_tx_slate_state(
+							w,
+							(&self.keychain_mask).as_ref(),
+							&parent_key_id,
+							&s,
+						) {
+							Ok(_) => {}
+							Err(e) => error!("Error on updating slate state: {}", e),
+						}
+						Ok(s)
+					}
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(ret_slate)
+					}
 				}
 			}
 			None => Ok(ret_slate),

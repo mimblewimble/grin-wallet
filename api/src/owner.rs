@@ -37,7 +37,10 @@ use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
+use libwallet::api_impl::types::update_tx_slate_state;
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -673,28 +676,20 @@ where
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
 				let tc = tor_config_lock.clone();
-				let tc = match tc {
-					Some(mut c) => {
-						if let Some(skip_tor) = sa.skip_tor {
-							c.skip_send_attempt = Some(skip_tor);
-						}
-						Some(c)
-					}
-					None => None,
+				let can_send = if let Some(tc) = tc.as_ref() {
+					tc.send_tor(sa.skip_tor)
+				} else {
+					false
 				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					&sa.dest,
-					tc,
-					None,
-					false,
-					self.doctest_mode,
-				);
+				if self.doctest_mode || !can_send {
+					return Ok(slate);
+				}
+				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, false);
 				match res {
-					Ok(Some(s)) => {
+					Ok(s) => {
+						self.tx_lock_outputs(keychain_mask, &s)?;
+						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
-							self.tx_lock_outputs(keychain_mask, &s)?;
-							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
 							match result {
 								Ok(_) => {
@@ -707,13 +702,13 @@ where
 								}
 							}
 						} else {
-							self.tx_lock_outputs(keychain_mask, &s)?;
-							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 							Ok(ret_slate)
 						}
 					}
-					Ok(None) => Ok(slate),
-					Err(_) => Ok(slate),
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(slate)
+					}
 				}
 			}
 			None => Ok(slate),
@@ -832,35 +827,49 @@ where
 		slate: &Slate,
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let send_args = args.send_args.clone();
-		let slate = owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
+		let slate = {
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
+			owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?
+		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
 				let tc = tor_config_lock.clone();
-				let tc = match tc {
-					Some(mut c) => {
-						if let Some(skip_tor) = sa.skip_tor {
-							c.skip_send_attempt = Some(skip_tor);
-						}
-						Some(c)
-					}
-					None => None,
+				let can_send = if let Some(tc) = tc.as_ref() {
+					tc.send_tor(sa.skip_tor)
+				} else {
+					false
 				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					&sa.dest,
-					tc,
-					None,
-					true,
-					self.doctest_mode,
-				);
+				if self.doctest_mode || !can_send {
+					return Ok(slate);
+				}
+				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, true);
 				match res {
-					Ok(s) => Ok(s.unwrap()),
-					Err(_) => Ok(slate),
+					Ok(s) => {
+						// Update slate state.
+						{
+							let mut w_lock = self.wallet_inst.lock();
+							let w = w_lock.lc_provider()?.wallet_inst()?;
+							let parent_key_id = w.parent_key_id();
+							match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
+								Ok(_) => {}
+								Err(e) => error!("Error on updating slate state: {}", e),
+							}
+						}
+						// Output slatepack message to file.
+						match output_slatepack_file(&self, keychain_mask, &s, &sa.dest) {
+							Ok(_) => {}
+							Err(e) => error!("Error on saving output slatepack message: {}", e),
+						}
+						Ok(s)
+					}
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(slate)
+					}
 				}
 			}
 			None => Ok(slate),
@@ -2497,13 +2506,7 @@ pub fn try_slatepack_sync_workflow(
 	tor_config: Option<TorConfig>,
 	tor_sender: Option<TorSlateSender>,
 	send_to_finalize: bool,
-	test_mode: bool,
-) -> Result<Option<Slate>, Error> {
-	if let Some(tc) = &tor_config {
-		if tc.skip_send_attempt == Some(true) {
-			return Ok(None);
-		}
-	}
+) -> Result<Slate, Error> {
 	let mut ret_slate = Slate::blank(2, false);
 	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_to_finalize)
@@ -2521,55 +2524,43 @@ pub fn try_slatepack_sync_workflow(
 		}
 	};
 
-	// Try parsing Slatepack address
+	// Try parsing Slatepack address.
 	match SlatepackAddress::try_from(dest) {
 		Ok(address) => {
-			let tor_addr = OnionV3Address::try_from(&address).unwrap();
-			// Try sending to the destination via TOR
+			let tor_addr = OnionV3Address::try_from(&address).map_err(|_| {
+				Error::SlatepackAddress(format!(
+					"Destination {} is not a valid Onion address.",
+					dest
+				))
+			})?;
+			// Try sending to the destination via Tor.
 			let sender = match tor_sender {
 				None => {
-					if test_mode {
-						None
-					} else {
-						if let Some(tc) = tor_config {
-							match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
-								Ok(s) => Some(s),
-								Err(e) => {
-									debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-									None
-								}
+					if let Some(tc) = tor_config {
+						match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
+							Ok(s) => s,
+							Err(e) => {
+								debug!("Send (Tor): Cannot create TOR Slate sender {:?}", e);
+								return Err(e);
 							}
-						} else {
-							return Err(Error::TorConfig("Tor config is not set".to_string()));
 						}
-					}
-				}
-				Some(s) => {
-					if test_mode {
-						None
 					} else {
-						Some(s)
+						return Err(Error::TorConfig("Tor config is not set".to_string()));
 					}
 				}
+				Some(s) => s,
 			};
-			if let Some(s) = sender {
-				warn!("Attempting to send transaction via TOR");
-				match send_sync(s, "TOR") {
-					Ok(_) => return Ok(Some(ret_slate)),
-					Err(e) => {
-						debug!("Unable to send via TOR: {}", e);
-						warn!("Unable to send transaction via TOR");
-					}
-				}
+			warn!("Attempting to send transaction via Tor");
+			match send_sync(sender, "Tor") {
+				Ok(_) => Ok(ret_slate),
+				Err(e) => Err(e),
 			}
 		}
 		Err(e) => {
-			debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
-			warn!("Destination is not a valid Slatepack address. Will output Slatepack.")
+			error!("Destination {} is not a valid Slatepack address.", dest);
+			Err(e)
 		}
 	}
-
-	Ok(None)
 }
 
 #[doc(hidden)]
@@ -2636,4 +2627,39 @@ macro_rules! doctest_helper_setup_doc_env {
 		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
+}
+
+/// Output slatepack message to file.
+fn output_slatepack_file<L, C, K>(
+	api: &Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: &str,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	let address = match SlatepackAddress::try_from(dest) {
+		Ok(a) => Some(a),
+		Err(_) => None,
+	};
+	// encrypt for recipient by default
+	let recipients = match address.clone() {
+		Some(a) => vec![a],
+		None => vec![],
+	};
+	let message = api.create_slatepack_message(keychain_mask, &slate, Some(0), recipients)?;
+	let tld = api.get_top_level_directory()?;
+
+	// Create a directory to which files will be output.
+	let slate_dir = format!("{}/{}", tld, "slatepack");
+	let _ = std::fs::create_dir_all(slate_dir.clone());
+	let out_file_name = format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state);
+
+	let mut output = File::create(out_file_name.clone())?;
+	output.write_all(&message.as_bytes())?;
+	output.sync_all()?;
+	Ok(())
 }
