@@ -37,6 +37,8 @@ pub struct WalletConfig {
 	/// The api address of a running server node against which transaction inputs
 	/// will be checked during send
 	pub check_node_api_http_addr: String,
+	/// Connection timeout for requests to node API.
+	pub node_api_connection_timeout_secs: Option<u64>,
 	/// Whether to include foreign API endpoints on the Owner API
 	pub owner_api_include_foreign: Option<bool>,
 	/// The directory in which wallet files are stored
@@ -65,6 +67,7 @@ impl Default for WalletConfig {
 			api_secret_path: Some(".owner_api_secret".to_string()),
 			node_api_secret_path: Some(".foreign_api_secret".to_string()),
 			check_node_api_http_addr: "http://127.0.0.1:3413".to_string(),
+			node_api_connection_timeout_secs: Some(Self::NODE_API_REQUEST_TIMEOUT_SECS),
 			owner_api_include_foreign: Some(false),
 			data_file_dir: ".".to_string(),
 			no_commit_cache: Some(false),
@@ -77,6 +80,9 @@ impl Default for WalletConfig {
 }
 
 impl WalletConfig {
+	/// Node API request timeout in seconds.
+	pub const NODE_API_REQUEST_TIMEOUT_SECS: u64 = 60;
+
 	/// API Listen address
 	pub fn api_listen_addr(&self) -> String {
 		format!("127.0.0.1:{}", self.api_listen_port)
@@ -172,6 +178,10 @@ pub struct TorConfig {
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
+	/// Connection timeout for request in seconds.
+	pub request_timeout_secs: Option<u64>,
+	/// Connection timeout for boostrap in seconds.
+	pub boostrap_timeout_secs: Option<u64>,
 	/// Tor bridge config
 	#[serde(default)]
 	pub bridge: TorBridgeConfig,
@@ -188,6 +198,8 @@ impl Default for TorConfig {
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
+			request_timeout_secs: Some(Self::REQUEST_TIMEOUT_SECS),
+			boostrap_timeout_secs: Some(Self::BOOTSTRAP_TIMEOUT_SECS),
 			bridge: TorBridgeConfig::default(),
 			proxy: TorProxyConfig::default(),
 		}
@@ -195,6 +207,11 @@ impl Default for TorConfig {
 }
 
 impl TorConfig {
+	/// Tor request timeout in seconds.
+	pub const REQUEST_TIMEOUT_SECS: u64 = 60;
+	/// Tor boostrap timeout in seconds.
+	pub const BOOTSTRAP_TIMEOUT_SECS: u64 = 60;
+
 	/// Check if attempt to send over Tor is needed using provided possible argument at priority.
 	pub fn send_tor(&self, skip_arg: Option<bool>) -> bool {
 		if let Some(skip_tor) = skip_arg {

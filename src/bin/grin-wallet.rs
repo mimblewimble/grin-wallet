@@ -26,10 +26,12 @@ use grin_core as core;
 use grin_util as util;
 use grin_wallet::cmd;
 use grin_wallet_config as config;
+use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::HTTPNodeClient;
 use std::env;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
+use std::time::Duration;
 
 // include build information
 pub mod built_info {
@@ -161,6 +163,12 @@ fn real_main() -> i32 {
 
 	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
 	let wallet_config = config.clone().members.unwrap().wallet;
-	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+	let timeout = Duration::from_secs(
+		wallet_config
+			.node_api_connection_timeout_secs
+			.unwrap_or(WalletConfig::NODE_API_REQUEST_TIMEOUT_SECS),
+	);
+	let node_client =
+		HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, Some(timeout)).unwrap();
 	cmd::wallet_command(&args, config, node_client)
 }

@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use grin_wallet_config::TorConfig;
-use serde::Serialize;
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::convert::TryFrom;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use crate::client_utils::{Client, ClientError};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, Slate};
@@ -30,6 +21,15 @@ use crate::tor::process::TorProcess;
 use crate::tor::proxy::TorProxy;
 use crate::tor::{config as tor_config, Tor};
 use crate::SlateSender;
+use grin_wallet_config::TorConfig;
+use serde::Serialize;
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct TorSlateSender {
@@ -183,14 +183,19 @@ impl TorSlateSender {
 				SocketAddr::V4(self.config.socks_proxy_addr.parse().map_err(|_| {
 					ClientError::Internal("Socks proxy address is not set".to_string())
 				})?);
-			let client = Client::with_proxy(socks_proxy_addr, "socks5h://")
+			let timeout = Duration::from_secs(
+				self.config
+					.request_timeout_secs
+					.unwrap_or(TorConfig::REQUEST_TIMEOUT_SECS),
+			);
+			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", Some(timeout))
 				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 			let req = client.create_post_request(url, None, &input)?;
 			let res = client.send_request(req)?;
 			res
 		} else {
 			if let Some(client) = &self.tor.client {
-				tor_post(client.clone(), &input, url)
+				tor_post(client.clone(), &self.config, &input, url)
 					.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
 			} else {
 				return Err(ClientError::Internal("Tor is not configured".to_string()));

@@ -83,7 +83,7 @@ pub struct TorProcess {
 	args: Vec<String>,
 	torrc_path: Option<String>,
 	completion_percent: u8,
-	timeout: u32,
+	timeout: u64,
 	working_dir: Option<String>,
 	pub stdout: Option<BufReader<ChildStdout>>,
 	pub process: Option<Child>,
@@ -96,8 +96,8 @@ impl TorProcess {
 			tor_cmd: TOR_EXE_NAME.to_string(),
 			args: vec![],
 			torrc_path: None,
-			completion_percent: 100 as u8,
-			timeout: 0 as u32,
+			completion_percent: 100,
+			timeout: 0,
 			working_dir: None,
 			stdout: None,
 			process: None,
@@ -137,7 +137,7 @@ impl TorProcess {
 		self
 	}
 
-	pub fn timeout(&mut self, timeout: u32) -> &mut Self {
+	pub fn timeout(&mut self, timeout: u64) -> &mut Self {
 		self.timeout = timeout;
 		self
 	}
