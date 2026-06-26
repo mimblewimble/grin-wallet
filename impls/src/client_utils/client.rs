@@ -15,6 +15,7 @@
 //! High level JSON/HTTP client API
 
 use crate::util::to_base64;
+use grin_wallet_config::WalletConfig;
 use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
@@ -71,7 +72,9 @@ impl Client {
 		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 		let mut builder = ClientBuilder::new()
-			.timeout(timeout.unwrap_or_else(|| Duration::from_secs(20)))
+			.timeout(timeout.unwrap_or_else(|| {
+				Duration::from_secs(WalletConfig::NODE_API_REQUEST_TIMEOUT_SECS)
+			}))
 			.use_rustls_tls()
 			.default_headers(headers);
 
