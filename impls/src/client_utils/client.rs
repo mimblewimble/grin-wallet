@@ -65,7 +65,10 @@ impl Client {
 		Self::build(Some((socks_proxy_addr, scheme)), request_timeout)
 	}
 
-	fn build(proxy: Option<(SocketAddr, &str)>, request_timeout: Option<Duration>) -> Result<Self, Error> {
+	fn build(
+		proxy: Option<(SocketAddr, &str)>,
+		request_timeout: Option<Duration>,
+	) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));

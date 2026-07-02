@@ -163,7 +163,7 @@ pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> 
 /// Make POST request with provided client.
 pub fn tor_post<IN>(
 	client: Arc<TorClient<TokioNativeTlsRuntime>>,
-	config: &TorConfig,
+	tor_config: &TorConfig,
 	input: &IN,
 	url: &str,
 ) -> Result<String, Error>
@@ -181,11 +181,7 @@ where
 		Some(h) => h,
 	}
 	.to_string();
-	let timeout = Duration::from_secs(
-		config
-			.request_timeout_secs
-			.unwrap_or(TorConfig::REQUEST_TIMEOUT_SECS),
-	);
+	let timeout = tor_config.request_timeout();
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
@@ -326,11 +322,7 @@ fn launch_client(
 		.create_unbootstrapped()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 	let c = client.clone();
-	let timeout = Duration::from_secs(
-		tor_config
-			.bootstrap_timeout_secs
-			.unwrap_or(TorConfig::BOOTSTRAP_TIMEOUT_SECS),
-	);
+	let timeout = tor_config.bootstrap_timeout();
 	let res = client.runtime().block_on(async move {
 		let bootstrap = async || {
 			return match c.bootstrap().await {

@@ -163,11 +163,7 @@ fn real_main() -> i32 {
 
 	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
 	let wallet_config = config.clone().members.unwrap().wallet;
-	let timeout = Duration::from_secs(
-		wallet_config
-			.node_api_request_timeout_secs
-			.unwrap_or(WalletConfig::NODE_API_REQUEST_TIMEOUT_SECS),
-	);
+	let timeout = wallet_config.api_request_timeout();
 	let node_client =
 		HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, Some(timeout)).unwrap();
 	cmd::wallet_command(&args, config, node_client)

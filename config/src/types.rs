@@ -14,12 +14,12 @@
 
 //! Public types for config modules
 
+use crate::core::global::ChainTypes;
+use crate::util::logger::LoggingConfig;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
-
-use crate::core::global::ChainTypes;
-use crate::util::logger::LoggingConfig;
+use std::time::Duration;
 
 /// Command-line wallet configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -80,7 +80,7 @@ impl Default for WalletConfig {
 }
 
 impl WalletConfig {
-	/// Node API request timeout in seconds.
+	/// Default Node API request timeout in seconds.
 	pub const NODE_API_REQUEST_TIMEOUT_SECS: u64 = 60;
 
 	/// API Listen address
@@ -113,6 +113,14 @@ impl WalletConfig {
 	pub fn accept_fee_base(&self) -> u64 {
 		self.accept_fee_base
 			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())
+	}
+
+	/// Node API requests timeout.
+	pub fn api_request_timeout(&self) -> Duration {
+		Duration::from_secs(
+			self.node_api_request_timeout_secs
+				.unwrap_or(Self::NODE_API_REQUEST_TIMEOUT_SECS),
+		)
 	}
 }
 /// Error type wrapping config errors.
@@ -208,9 +216,9 @@ impl Default for TorConfig {
 
 impl TorConfig {
 	/// Tor request timeout in seconds.
-	pub const REQUEST_TIMEOUT_SECS: u64 = 60;
+	const REQUEST_TIMEOUT_SECS: u64 = 60;
 	/// Tor boostrap timeout in seconds.
-	pub const BOOTSTRAP_TIMEOUT_SECS: u64 = 60;
+	const BOOTSTRAP_TIMEOUT_SECS: u64 = 60;
 
 	/// Check if attempt to send over Tor is needed using provided possible argument at priority.
 	pub fn send_tor(&self, skip_arg: Option<bool>) -> bool {
@@ -218,6 +226,22 @@ impl TorConfig {
 			return !skip_tor;
 		}
 		!self.skip_send_attempt.unwrap_or(false)
+	}
+
+	/// Request timeout.
+	pub fn request_timeout(&self) -> Duration {
+		Duration::from_secs(
+			self.request_timeout_secs
+				.unwrap_or(Self::REQUEST_TIMEOUT_SECS),
+		)
+	}
+
+	/// Bootstrap timeout.
+	pub fn bootstrap_timeout(&self) -> Duration {
+		Duration::from_secs(
+			self.bootstrap_timeout_secs
+				.unwrap_or(Self::BOOTSTRAP_TIMEOUT_SECS),
+		)
 	}
 }
 

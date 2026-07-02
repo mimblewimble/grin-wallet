@@ -104,7 +104,7 @@ impl TorSlateSender {
 		path.push("torrc");
 		tor.torrc_path(path.to_str().unwrap())
 			.working_dir(tor_dir.to_str().unwrap())
-			.timeout(config.bootstrap_timeout_secs.unwrap_or(TorConfig::BOOTSTRAP_TIMEOUT_SECS))
+			.timeout(config.bootstrap_timeout().as_secs())
 			.completion_percent(100)
 			.launch()
 			.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
@@ -183,11 +183,7 @@ impl TorSlateSender {
 				SocketAddr::V4(self.config.socks_proxy_addr.parse().map_err(|_| {
 					ClientError::Internal("Socks proxy address is not set".to_string())
 				})?);
-			let timeout = Duration::from_secs(
-				self.config
-					.request_timeout_secs
-					.unwrap_or(TorConfig::REQUEST_TIMEOUT_SECS),
-			);
+			let timeout = self.config.request_timeout();
 			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", Some(timeout))
 				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 			let req = client.create_post_request(url, None, &input)?;
