@@ -92,6 +92,7 @@ fn init_tor_listener(
 	info!("Starting external Tor Process listener.");
 
 	let mut process = tor_process::TorProcess::new();
+	let tor_timeout = tor_config.bootstrap_timeout().as_secs();
 
 	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
 	if tor_config.bridge.bridge_line.is_some() {
@@ -120,9 +121,6 @@ fn init_tor_listener(
 	)
 	.map_err(|e| Error::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process
-	let tor_timeout = tor_config
-		.bootstrap_timeout_secs
-		.unwrap_or(TorConfig::BOOTSTRAP_TIMEOUT_SECS);
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))
 		.working_dir(&tor_dir)
