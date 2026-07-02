@@ -121,7 +121,7 @@ fn init_tor_listener(
 	.map_err(|e| Error::TorConfig(format!("{:?}", e).into()))?;
 	// Start TOR process
 	let tor_timeout = tor_config
-		.boostrap_timeout_secs
+		.bootstrap_timeout_secs
 		.unwrap_or(TorConfig::BOOTSTRAP_TIMEOUT_SECS);
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))

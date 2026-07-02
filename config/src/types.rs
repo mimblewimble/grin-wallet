@@ -181,7 +181,7 @@ pub struct TorConfig {
 	/// Connection timeout for request in seconds.
 	pub request_timeout_secs: Option<u64>,
 	/// Connection timeout for boostrap in seconds.
-	pub boostrap_timeout_secs: Option<u64>,
+	pub bootstrap_timeout_secs: Option<u64>,
 	/// Tor bridge config
 	#[serde(default)]
 	pub bridge: TorBridgeConfig,
@@ -199,7 +199,7 @@ impl Default for TorConfig {
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
 			request_timeout_secs: Some(Self::REQUEST_TIMEOUT_SECS),
-			boostrap_timeout_secs: Some(Self::BOOTSTRAP_TIMEOUT_SECS),
+			bootstrap_timeout_secs: Some(Self::BOOTSTRAP_TIMEOUT_SECS),
 			bridge: TorBridgeConfig::default(),
 			proxy: TorProxyConfig::default(),
 		}

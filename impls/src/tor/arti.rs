@@ -328,7 +328,7 @@ fn launch_client(
 	let c = client.clone();
 	let timeout = Duration::from_secs(
 		tor_config
-			.boostrap_timeout_secs
+			.bootstrap_timeout_secs
 			.unwrap_or(TorConfig::BOOTSTRAP_TIMEOUT_SECS),
 	);
 	let res = client.runtime().block_on(async move {
