@@ -104,7 +104,7 @@ impl TorSlateSender {
 		path.push("torrc");
 		tor.torrc_path(path.to_str().unwrap())
 			.working_dir(tor_dir.to_str().unwrap())
-			.timeout(20)
+			.timeout(config.bootstrap_timeout_secs.unwrap_or(TorConfig::BOOTSTRAP_TIMEOUT_SECS))
 			.completion_percent(100)
 			.launch()
 			.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
