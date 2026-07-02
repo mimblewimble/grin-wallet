@@ -165,7 +165,7 @@ fn real_main() -> i32 {
 	let wallet_config = config.clone().members.unwrap().wallet;
 	let timeout = Duration::from_secs(
 		wallet_config
-			.node_api_connection_timeout_secs
+			.node_api_request_timeout_secs
 			.unwrap_or(WalletConfig::NODE_API_REQUEST_TIMEOUT_SECS),
 	);
 	let node_client =

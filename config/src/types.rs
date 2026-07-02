@@ -38,7 +38,7 @@ pub struct WalletConfig {
 	/// will be checked during send
 	pub check_node_api_http_addr: String,
 	/// Connection timeout for requests to node API.
-	pub node_api_connection_timeout_secs: Option<u64>,
+	pub node_api_request_timeout_secs: Option<u64>,
 	/// Whether to include foreign API endpoints on the Owner API
 	pub owner_api_include_foreign: Option<bool>,
 	/// The directory in which wallet files are stored
@@ -67,7 +67,7 @@ impl Default for WalletConfig {
 			api_secret_path: Some(".owner_api_secret".to_string()),
 			node_api_secret_path: Some(".foreign_api_secret".to_string()),
 			check_node_api_http_addr: "http://127.0.0.1:3413".to_string(),
-			node_api_connection_timeout_secs: Some(Self::NODE_API_REQUEST_TIMEOUT_SECS),
+			node_api_request_timeout_secs: Some(Self::NODE_API_REQUEST_TIMEOUT_SECS),
 			owner_api_include_foreign: Some(false),
 			data_file_dir: ".".to_string(),
 			no_commit_cache: Some(false),

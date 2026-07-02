@@ -74,7 +74,7 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
-		"node_api_connection_timeout_secs".to_string(),
+		"node_api_request_timeout_secs".to_string(),
 		"
 #connection timeout for requests to node API
 "

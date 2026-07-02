@@ -53,26 +53,26 @@ pub struct Client {
 
 impl Client {
 	/// New client
-	pub fn new(timeout: Option<Duration>) -> Result<Self, Error> {
-		Self::build(None, timeout)
+	pub fn new(request_timeout: Option<Duration>) -> Result<Self, Error> {
+		Self::build(None, request_timeout)
 	}
 
 	pub fn with_proxy(
 		socks_proxy_addr: SocketAddr,
 		scheme: &'static str,
-		timeout: Option<Duration>,
+		request_timeout: Option<Duration>,
 	) -> Result<Self, Error> {
-		Self::build(Some((socks_proxy_addr, scheme)), timeout)
+		Self::build(Some((socks_proxy_addr, scheme)), request_timeout)
 	}
 
-	fn build(proxy: Option<(SocketAddr, &str)>, timeout: Option<Duration>) -> Result<Self, Error> {
+	fn build(proxy: Option<(SocketAddr, &str)>, request_timeout: Option<Duration>) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
 		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 		let mut builder = ClientBuilder::new()
-			.timeout(timeout.unwrap_or_else(|| {
+			.timeout(request_timeout.unwrap_or_else(|| {
 				Duration::from_secs(WalletConfig::NODE_API_REQUEST_TIMEOUT_SECS)
 			}))
 			.use_rustls_tls()
