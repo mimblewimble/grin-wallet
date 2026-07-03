@@ -26,12 +26,10 @@ use grin_core as core;
 use grin_util as util;
 use grin_wallet::cmd;
 use grin_wallet_config as config;
-use grin_wallet_config::WalletConfig;
 use grin_wallet_impls::HTTPNodeClient;
 use std::env;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
-use std::time::Duration;
 
 // include build information
 pub mod built_info {

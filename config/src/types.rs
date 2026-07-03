@@ -37,7 +37,7 @@ pub struct WalletConfig {
 	/// The api address of a running server node against which transaction inputs
 	/// will be checked during send
 	pub check_node_api_http_addr: String,
-	/// Connection timeout for requests to node API.
+	/// Request timeout for requests to node API.
 	pub node_api_request_timeout_secs: Option<u64>,
 	/// Whether to include foreign API endpoints on the Owner API
 	pub owner_api_include_foreign: Option<bool>,

@@ -29,7 +29,6 @@ use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Clone)]
 pub struct TorSlateSender {
