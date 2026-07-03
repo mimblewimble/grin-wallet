@@ -183,7 +183,7 @@ impl TorSlateSender {
 					ClientError::Internal("Socks proxy address is not set".to_string())
 				})?);
 			let timeout = self.config.request_timeout();
-			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", Some(timeout))
+			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", timeout)
 				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 			let req = client.create_post_request(url, None, &input)?;
 			let res = client.send_request(req)?;

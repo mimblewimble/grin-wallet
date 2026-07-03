@@ -45,7 +45,7 @@ impl HTTPNodeClient {
 	pub fn new(
 		node_url: &str,
 		node_api_secret: Option<String>,
-		request_timeout: Option<Duration>,
+		request_timeout: Duration,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
 		Self::new_proxy(node_url, node_api_secret, None, request_timeout)
 	}
@@ -55,7 +55,7 @@ impl HTTPNodeClient {
 		node_url: &str,
 		node_api_secret: Option<String>,
 		proxy: Option<(SocketAddr, &'static str)>,
-		request_timeout: Option<Duration>,
+		request_timeout: Duration,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
 		let client = if let Some((a, s)) = proxy {
 			Client::with_proxy(a, s, request_timeout)

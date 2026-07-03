@@ -15,7 +15,6 @@
 //! High level JSON/HTTP client API
 
 use crate::util::to_base64;
-use grin_wallet_config::WalletConfig;
 use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
@@ -53,31 +52,26 @@ pub struct Client {
 
 impl Client {
 	/// New client
-	pub fn new(request_timeout: Option<Duration>) -> Result<Self, Error> {
+	pub fn new(request_timeout: Duration) -> Result<Self, Error> {
 		Self::build(None, request_timeout)
 	}
 
 	pub fn with_proxy(
 		socks_proxy_addr: SocketAddr,
 		scheme: &'static str,
-		request_timeout: Option<Duration>,
+		request_timeout: Duration,
 	) -> Result<Self, Error> {
 		Self::build(Some((socks_proxy_addr, scheme)), request_timeout)
 	}
 
-	fn build(
-		proxy: Option<(SocketAddr, &str)>,
-		request_timeout: Option<Duration>,
-	) -> Result<Self, Error> {
+	fn build(proxy: Option<(SocketAddr, &str)>, request_timeout: Duration) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
 		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 		let mut builder = ClientBuilder::new()
-			.timeout(request_timeout.unwrap_or_else(|| {
-				Duration::from_secs(WalletConfig::NODE_API_REQUEST_TIMEOUT_SECS)
-			}))
+			.timeout(request_timeout)
 			.use_rustls_tls()
 			.default_headers(headers);
 
