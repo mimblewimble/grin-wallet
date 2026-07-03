@@ -119,6 +119,7 @@ impl WalletConfig {
 	pub fn api_request_timeout(&self) -> Duration {
 		Duration::from_secs(
 			self.node_api_request_timeout_secs
+				.filter(|s| *s > 0)
 				.unwrap_or(Self::NODE_API_REQUEST_TIMEOUT_SECS),
 		)
 	}
@@ -232,6 +233,7 @@ impl TorConfig {
 	pub fn request_timeout(&self) -> Duration {
 		Duration::from_secs(
 			self.request_timeout_secs
+				.filter(|s| *s > 0)
 				.unwrap_or(Self::REQUEST_TIMEOUT_SECS),
 		)
 	}
@@ -240,6 +242,7 @@ impl TorConfig {
 	pub fn bootstrap_timeout(&self) -> Duration {
 		Duration::from_secs(
 			self.bootstrap_timeout_secs
+				.filter(|s| *s > 0)
 				.unwrap_or(Self::BOOTSTRAP_TIMEOUT_SECS),
 		)
 	}
