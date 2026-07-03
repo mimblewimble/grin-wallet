@@ -217,7 +217,7 @@ impl Default for TorConfig {
 impl TorConfig {
 	/// Tor request timeout in seconds.
 	const REQUEST_TIMEOUT_SECS: u64 = 60;
-	/// Tor boostrap timeout in seconds.
+	/// Tor bootstrap timeout in seconds.
 	const BOOTSTRAP_TIMEOUT_SECS: u64 = 60;
 
 	/// Check if attempt to send over Tor is needed using provided possible argument at priority.
