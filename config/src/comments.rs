@@ -270,7 +270,7 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"bootstrap_timeout_secs".to_string(),
 		"
-#Tor boostrap timeout in seconds
+#Tor bootstrap timeout in seconds
 "
 		.to_string(),
 	);
