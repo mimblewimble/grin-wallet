@@ -188,7 +188,7 @@ pub struct TorConfig {
 	pub send_config_dir: String,
 	/// Connection timeout for request in seconds.
 	pub request_timeout_secs: Option<u64>,
-	/// Connection timeout for boostrap in seconds.
+	/// Connection timeout for bootstrap in seconds.
 	pub bootstrap_timeout_secs: Option<u64>,
 	/// Tor bridge config
 	#[serde(default)]
