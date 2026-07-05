@@ -226,8 +226,8 @@ impl TorProcess {
 		mut stdout: BufReader<ChildStdout>,
 		completion_perc: u8,
 	) -> Result<BufReader<ChildStdout>, Error> {
-		let re_bootstrap = Regex::new(r"^\[notice] Bootstrapped (?P<perc>[0-9]+)%(.*): ")
-			.map_err(Error::Regex)?;
+		let re_bootstrap =
+			Regex::new(r"^\[notice] Bootstrapped (?P<perc>[0-9]+)%(.*): ").map_err(Error::Regex)?;
 
 		let timestamp_len = "May 16 02:50:08.792".len();
 		let mut warnings = Vec::new();
