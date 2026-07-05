@@ -147,7 +147,7 @@ where
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
-	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, wallet_config.api_request_timeout()).unwrap();
 	///
 	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
 	/// // It contains the WalletBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
@@ -2610,8 +2610,12 @@ macro_rules! doctest_helper_setup_doc_env {
 		wallet_config.data_file_dir = dir.to_owned();
 		let pw = ZeroingString::from("");
 
-		let node_client =
-			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+		let node_client = HTTPNodeClient::new(
+			&wallet_config.check_node_api_http_addr,
+			None,
+			wallet_config.api_request_timeout(),
+		)
+		.unwrap();
 		let mut wallet =
 			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
 				as Box<

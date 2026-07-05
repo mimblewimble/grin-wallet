@@ -160,12 +160,10 @@ pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> 
 	})
 }
 
-/// Tor request timeout in milliseconds.
-const REQUEST_TIMEOUT_MS: u64 = 60000;
-
 /// Make POST request with provided client.
 pub fn tor_post<IN>(
 	client: Arc<TorClient<TokioNativeTlsRuntime>>,
+	tor_config: &TorConfig,
 	input: &IN,
 	url: &str,
 ) -> Result<String, Error>
@@ -183,12 +181,13 @@ where
 		Some(h) => h,
 	}
 	.to_string();
+	let timeout = tor_config.request_timeout();
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
 			let res = c
 				.runtime()
-				.timeout(Duration::from_millis(REQUEST_TIMEOUT_MS), async {
+				.timeout(timeout, async {
 					let stream = c
 						.connect((host, url.port_u16().unwrap_or(80)))
 						.await
@@ -238,21 +237,18 @@ where
 	res
 }
 
-/// Client Bootstrap timeout in milliseconds.
-const BOOTSTRAP_TIMEOUT_MS: u64 = 60000;
-
 /// Create Tor client.
 fn init_client(
 	state_path: &PathBuf,
 	cache_path: &PathBuf,
-	config: TorConfig,
+	tor_config: TorConfig,
 	reuse_client: bool,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
 
 	// Configure bridge.
-	if let Some(bridge_line) = config.bridge.bridge_line {
+	if let Some(bridge_line) = tor_config.bridge.bridge_line.as_ref() {
 		let bridge: BridgeConfigBuilder = bridge_line
 			.parse()
 			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
@@ -266,7 +262,11 @@ fn init_client(
 			}
 			Some(t) => {
 				// Now configure bridge transport. (Requires the "pt-client" feature)
-				let bin_path = config.bridge.bridge_bin_path.unwrap_or(t.to_owned());
+				let bin_path = tor_config
+					.bridge
+					.bridge_bin_path
+					.clone()
+					.unwrap_or(t.to_owned());
 				let mut transport = TransportConfigBuilder::default();
 				transport
 					.protocols(vec![t
@@ -294,7 +294,7 @@ fn init_client(
 				*cached_client_config = None;
 			}
 		}
-		let res = launch_client(config.clone());
+		let res = launch_client(config.clone(), &tor_config);
 		return match res {
 			Ok(client) => {
 				cached_client_config.replace((client.clone(), config.clone()));
@@ -304,7 +304,7 @@ fn init_client(
 		};
 	}
 
-	let res = launch_client(config.clone());
+	let res = launch_client(config.clone(), &tor_config);
 	match res {
 		Ok(client) => Ok((client, config)),
 		Err(e) => Err(e),
@@ -312,13 +312,17 @@ fn init_client(
 }
 
 /// Launch tor client from provided configuration.
-fn launch_client(config: TorClientConfig) -> Result<Arc<TorClient<TokioNativeTlsRuntime>>, Error> {
+fn launch_client(
+	client_config: TorClientConfig,
+	tor_config: &TorConfig,
+) -> Result<Arc<TorClient<TokioNativeTlsRuntime>>, Error> {
 	let r = runtime()?;
 	let client = TorClient::with_runtime(r)
-		.config(config)
+		.config(client_config)
 		.create_unbootstrapped()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 	let c = client.clone();
+	let timeout = tor_config.bootstrap_timeout();
 	let res = client.runtime().block_on(async move {
 		let bootstrap = async || {
 			return match c.bootstrap().await {
@@ -339,11 +343,7 @@ fn launch_client(config: TorClientConfig) -> Result<Arc<TorClient<TokioNativeTls
 				Err(e) => Err(e),
 			};
 		};
-		match c
-			.runtime()
-			.timeout(Duration::from_millis(BOOTSTRAP_TIMEOUT_MS), bootstrap())
-			.await
-		{
+		match c.runtime().timeout(timeout, bootstrap()).await {
 			Ok(r) => match r {
 				Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
 				Ok(_) => Ok(c),

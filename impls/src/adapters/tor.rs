@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use grin_wallet_config::TorConfig;
-use serde::Serialize;
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::convert::TryFrom;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use crate::client_utils::{Client, ClientError};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, Slate};
@@ -30,6 +21,14 @@ use crate::tor::process::TorProcess;
 use crate::tor::proxy::TorProxy;
 use crate::tor::{config as tor_config, Tor};
 use crate::SlateSender;
+use grin_wallet_config::TorConfig;
+use serde::Serialize;
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct TorSlateSender {
@@ -104,7 +103,7 @@ impl TorSlateSender {
 		path.push("torrc");
 		tor.torrc_path(path.to_str().unwrap())
 			.working_dir(tor_dir.to_str().unwrap())
-			.timeout(20)
+			.timeout(config.bootstrap_timeout().as_secs())
 			.completion_percent(100)
 			.launch()
 			.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
@@ -183,14 +182,15 @@ impl TorSlateSender {
 				SocketAddr::V4(self.config.socks_proxy_addr.parse().map_err(|_| {
 					ClientError::Internal("Socks proxy address is not set".to_string())
 				})?);
-			let client = Client::with_proxy(socks_proxy_addr, "socks5h://")
+			let timeout = self.config.request_timeout();
+			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", timeout)
 				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 			let req = client.create_post_request(url, None, &input)?;
 			let res = client.send_request(req)?;
 			res
 		} else {
 			if let Some(client) = &self.tor.client {
-				tor_post(client.clone(), &input, url)
+				tor_post(client.clone(), &self.config, &input, url)
 					.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
 			} else {
 				return Err(ClientError::Internal("Tor is not configured".to_string()));

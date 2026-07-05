@@ -22,6 +22,7 @@ use crate::error::Error;
 use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
 use crate::keychain;
+use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
@@ -40,7 +41,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
-use grin_wallet_libwallet::api_impl::types::update_tx_slate_state;
 
 fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("Your recovery phrase is:");

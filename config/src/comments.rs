@@ -74,6 +74,13 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
+		"node_api_request_timeout_secs".to_string(),
+		"
+#total timeout for requests to node API
+"
+		.to_string(),
+	);
+	retval.insert(
 		"node_api_secret_path".to_string(),
 		"
 #location of the node api secret for basic auth on the Grin API
@@ -248,6 +255,22 @@ fn comments() -> HashMap<String, String> {
 		"send_config_dir".to_string(),
 		"
 #Directory to output TOR configuration to when sending
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"request_timeout_secs".to_string(),
+		"
+#Tor request timeout in seconds
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"bootstrap_timeout_secs".to_string(),
+		"
+#Tor bootstrap timeout in seconds
 "
 		.to_string(),
 	);

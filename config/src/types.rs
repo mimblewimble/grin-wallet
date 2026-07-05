@@ -14,12 +14,12 @@
 
 //! Public types for config modules
 
+use crate::core::global::ChainTypes;
+use crate::util::logger::LoggingConfig;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
-
-use crate::core::global::ChainTypes;
-use crate::util::logger::LoggingConfig;
+use std::time::Duration;
 
 /// Command-line wallet configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -37,6 +37,8 @@ pub struct WalletConfig {
 	/// The api address of a running server node against which transaction inputs
 	/// will be checked during send
 	pub check_node_api_http_addr: String,
+	/// Request timeout for requests to node API.
+	pub node_api_request_timeout_secs: Option<u64>,
 	/// Whether to include foreign API endpoints on the Owner API
 	pub owner_api_include_foreign: Option<bool>,
 	/// The directory in which wallet files are stored
@@ -65,6 +67,7 @@ impl Default for WalletConfig {
 			api_secret_path: Some(".owner_api_secret".to_string()),
 			node_api_secret_path: Some(".foreign_api_secret".to_string()),
 			check_node_api_http_addr: "http://127.0.0.1:3413".to_string(),
+			node_api_request_timeout_secs: Some(Self::NODE_API_REQUEST_TIMEOUT_SECS),
 			owner_api_include_foreign: Some(false),
 			data_file_dir: ".".to_string(),
 			no_commit_cache: Some(false),
@@ -77,6 +80,9 @@ impl Default for WalletConfig {
 }
 
 impl WalletConfig {
+	/// Default Node API request timeout in seconds.
+	pub const NODE_API_REQUEST_TIMEOUT_SECS: u64 = 60;
+
 	/// API Listen address
 	pub fn api_listen_addr(&self) -> String {
 		format!("127.0.0.1:{}", self.api_listen_port)
@@ -107,6 +113,15 @@ impl WalletConfig {
 	pub fn accept_fee_base(&self) -> u64 {
 		self.accept_fee_base
 			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())
+	}
+
+	/// Node API requests timeout.
+	pub fn api_request_timeout(&self) -> Duration {
+		Duration::from_secs(
+			self.node_api_request_timeout_secs
+				.filter(|s| *s > 0)
+				.unwrap_or(Self::NODE_API_REQUEST_TIMEOUT_SECS),
+		)
 	}
 }
 /// Error type wrapping config errors.
@@ -172,6 +187,10 @@ pub struct TorConfig {
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
+	/// Total timeout for request in seconds.
+	pub request_timeout_secs: Option<u64>,
+	/// Timeout for bootstrap in seconds.
+	pub bootstrap_timeout_secs: Option<u64>,
 	/// Tor bridge config
 	#[serde(default)]
 	pub bridge: TorBridgeConfig,
@@ -188,6 +207,8 @@ impl Default for TorConfig {
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
+			request_timeout_secs: Some(Self::REQUEST_TIMEOUT_SECS),
+			bootstrap_timeout_secs: Some(Self::BOOTSTRAP_TIMEOUT_SECS),
 			bridge: TorBridgeConfig::default(),
 			proxy: TorProxyConfig::default(),
 		}
@@ -195,12 +216,35 @@ impl Default for TorConfig {
 }
 
 impl TorConfig {
+	/// Tor request timeout in seconds.
+	const REQUEST_TIMEOUT_SECS: u64 = 60;
+	/// Tor bootstrap timeout in seconds.
+	const BOOTSTRAP_TIMEOUT_SECS: u64 = 60;
+
 	/// Check if attempt to send over Tor is needed using provided possible argument at priority.
 	pub fn send_tor(&self, skip_arg: Option<bool>) -> bool {
 		if let Some(skip_tor) = skip_arg {
 			return !skip_tor;
 		}
 		!self.skip_send_attempt.unwrap_or(false)
+	}
+
+	/// Request timeout.
+	pub fn request_timeout(&self) -> Duration {
+		Duration::from_secs(
+			self.request_timeout_secs
+				.filter(|s| *s > 0)
+				.unwrap_or(Self::REQUEST_TIMEOUT_SECS),
+		)
+	}
+
+	/// Bootstrap timeout.
+	pub fn bootstrap_timeout(&self) -> Duration {
+		Duration::from_secs(
+			self.bootstrap_timeout_secs
+				.filter(|s| *s > 0)
+				.unwrap_or(Self::BOOTSTRAP_TIMEOUT_SECS),
+		)
 	}
 }
 

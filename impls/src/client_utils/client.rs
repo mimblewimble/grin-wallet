@@ -52,22 +52,26 @@ pub struct Client {
 
 impl Client {
 	/// New client
-	pub fn new() -> Result<Self, Error> {
-		Self::build(None)
+	pub fn new(request_timeout: Duration) -> Result<Self, Error> {
+		Self::build(None, request_timeout)
 	}
 
-	pub fn with_proxy(socks_proxy_addr: SocketAddr, scheme: &'static str) -> Result<Self, Error> {
-		Self::build(Some((socks_proxy_addr, scheme)))
+	pub fn with_proxy(
+		socks_proxy_addr: SocketAddr,
+		scheme: &'static str,
+		request_timeout: Duration,
+	) -> Result<Self, Error> {
+		Self::build(Some((socks_proxy_addr, scheme)), request_timeout)
 	}
 
-	fn build(proxy: Option<(SocketAddr, &str)>) -> Result<Self, Error> {
+	fn build(proxy: Option<(SocketAddr, &str)>, request_timeout: Duration) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
 		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 		let mut builder = ClientBuilder::new()
-			.timeout(Duration::from_secs(20))
+			.timeout(request_timeout)
 			.use_rustls_tls()
 			.default_headers(headers);
 

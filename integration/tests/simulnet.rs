@@ -908,7 +908,7 @@ fn replicate_tx_fluff_failure() {
 
 	// Create Wallet 1 (Mining Input) and start it listening
 	// Wallet 1 post to another node, just for fun
-	let client1 = HTTPNodeClient::new("http://127.0.0.1:23003", None);
+	let client1 = HTTPNodeClient::new("http://127.0.0.1:23003", None, std::time::Duration::from_secs(60));
 	let client1_w = HTTPWalletCommAdapter::new();
 	let wallet1 = create_wallet("target/tmp/tx_fluff/wallet1", client1.clone());
 	let _wallet1_handle = thread::spawn(move || {
@@ -917,7 +917,7 @@ fn replicate_tx_fluff_failure() {
 	});
 
 	// Create Wallet 2 (Recipient) and launch
-	let client2 = HTTPNodeClient::new("http://127.0.0.1:23001", None);
+	let client2 = HTTPNodeClient::new("http://127.0.0.1:23001", None, std::time::Duration::from_secs(60));
 	let wallet2 = create_wallet("target/tmp/tx_fluff/wallet2", client2.clone());
 	let _wallet2_handle = thread::spawn(move || {
 		controller::foreign_listener(wallet2, "127.0.0.1:33001", None)

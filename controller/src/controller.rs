@@ -25,7 +25,6 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use futures::channel::oneshot;
 use grin_wallet_api::JsonId;
-use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
 use grin_wallet_util::OnionV3Address;
 use hyper::body;
 use hyper::header::HeaderValue;
@@ -88,18 +87,16 @@ fn init_tor_listener(
 	sec_key: SecretKey,
 	tor_dir: String,
 	addr: &str,
-	bridge: TorBridgeConfig,
-	tor_proxy: TorProxyConfig,
+	tor_config: TorConfig,
 ) -> Result<Tor, Error> {
 	info!("Starting external Tor Process listener.");
 
 	let mut process = tor_process::TorProcess::new();
+	let tor_timeout = tor_config.bootstrap_timeout().as_secs();
 
 	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
-	let mut tor_timeout = 20;
-	if bridge.bridge_line.is_some() {
-		tor_timeout = 40;
-		let bridge_config = tor_bridge::TorBridge::try_from(bridge)
+	if tor_config.bridge.bridge_line.is_some() {
+		let bridge_config = tor_bridge::TorBridge::try_from(tor_config.bridge)
 			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 		hm_tor_bridge = bridge_config
 			.to_hashmap()
@@ -107,8 +104,8 @@ fn init_tor_listener(
 	}
 
 	let mut hm_tor_poxy: HashMap<String, String> = HashMap::new();
-	if tor_proxy.transport.is_some() || tor_proxy.allowed_port.is_some() {
-		let proxy_config = tor_proxy::TorProxy::try_from(tor_proxy)
+	if tor_config.proxy.transport.is_some() || tor_config.proxy.allowed_port.is_some() {
+		let proxy_config = tor_proxy::TorProxy::try_from(tor_config.proxy)
 			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 		hm_tor_poxy = proxy_config
 			.to_hashmap()
@@ -323,13 +320,7 @@ where
 		let res = if use_integrated {
 			start_tor_service(sec_key, &tor_dir, addr, tor_config.clone())
 		} else {
-			init_tor_listener(
-				sec_key,
-				tor_dir,
-				addr,
-				tor_config.bridge.clone(),
-				tor_config.proxy.clone(),
-			)
+			init_tor_listener(sec_key, tor_dir, addr, tor_config)
 		};
 		match res {
 			Ok(service) => {

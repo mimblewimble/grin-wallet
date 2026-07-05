@@ -14,7 +14,9 @@
 
 //! Client functions, implementations of the NodeClient trait
 
+use super::resp_types::*;
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
+use crate::client_utils::json_rpc::*;
 use crate::client_utils::{Client, RUNTIME};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet;
@@ -26,9 +28,7 @@ use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
-
-use super::resp_types::*;
-use crate::client_utils::json_rpc::*;
+use std::time::Duration;
 
 const ENDPOINT: &str = "/v2/foreign";
 
@@ -45,8 +45,9 @@ impl HTTPNodeClient {
 	pub fn new(
 		node_url: &str,
 		node_api_secret: Option<String>,
+		request_timeout: Duration,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
-		Self::new_proxy(node_url, node_api_secret, None)
+		Self::new_proxy(node_url, node_api_secret, None, request_timeout)
 	}
 
 	/// Create a new client with proxy
@@ -54,16 +55,17 @@ impl HTTPNodeClient {
 		node_url: &str,
 		node_api_secret: Option<String>,
 		proxy: Option<(SocketAddr, &'static str)>,
+		request_timeout: Duration,
 	) -> Result<HTTPNodeClient, libwallet::Error> {
 		let client = if let Some((a, s)) = proxy {
-			Client::with_proxy(a, s)
+			Client::with_proxy(a, s, request_timeout)
 		} else {
-			Client::new()
+			Client::new(request_timeout)
 		};
 		Ok(HTTPNodeClient {
 			client: client.map_err(|_| libwallet::Error::Node)?,
 			node_url: node_url.to_owned(),
-			node_api_secret: node_api_secret,
+			node_api_secret,
 			node_version_info: None,
 		})
 	}
@@ -107,16 +109,23 @@ impl NodeClient for HTTPNodeClient {
 	fn node_url(&self) -> &str {
 		&self.node_url
 	}
-	fn node_api_secret(&self) -> Option<String> {
-		self.node_api_secret.clone()
-	}
-
 	fn set_node_url(&mut self, node_url: &str) {
 		self.node_url = node_url.to_owned();
 	}
 
+	fn node_api_secret(&self) -> Option<String> {
+		self.node_api_secret.clone()
+	}
+
 	fn set_node_api_secret(&mut self, node_api_secret: Option<String>) {
 		self.node_api_secret = node_api_secret;
+	}
+
+	/// Posts a transaction to a grin node
+	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), libwallet::Error> {
+		let params = json!([tx, fluff]);
+		self.send_json_request::<serde_json::Value>("push_transaction", &params)?;
+		Ok(())
 	}
 
 	fn get_version_info(&mut self) -> Option<NodeVersionInfo> {
@@ -135,28 +144,21 @@ impl NodeClient for HTTPNodeClient {
 				// If node isn't available, allow offline functions
 				// unfortunately have to parse string due to error structure
 				let err_string = format!("{}", e);
-				if err_string.contains("404") {
-					return Some(NodeVersionInfo {
+				return if err_string.contains("404") {
+					Some(NodeVersionInfo {
 						node_version: "1.0.0".into(),
 						block_header_version: 1,
 						verified: Some(false),
-					});
+					})
 				} else {
 					error!("Unable to contact Node to get version info: {}, check your node is running", e);
 					warn!("Warning: a) Node is offline, or b) 'node_api_secret_path' in 'grin-wallet.toml' is set incorrectly");
-					return None;
-				}
+					None
+				};
 			}
 		};
 		self.node_version_info = Some(retval.clone());
 		Some(retval)
-	}
-
-	/// Posts a transaction to a grin node
-	fn post_tx(&self, tx: &Transaction, fluff: bool) -> Result<(), libwallet::Error> {
-		let params = json!([tx, fluff]);
-		self.send_json_request::<serde_json::Value>("push_transaction", &params)?;
-		Ok(())
 	}
 
 	/// Return the chain tip from a given node
@@ -222,7 +224,7 @@ impl NodeClient for HTTPNodeClient {
 			.collect();
 
 		// going to leave this here even though we're moving
-		// to the json RPC api to keep the functionality of
+		// to the JSON RPC api to keep the functionality of
 		// parallelizing larger requests. Will raise default
 		// from 200 to 500, however
 		let chunk_default = 500;
@@ -420,8 +422,8 @@ mod tests {
 		}
 	}
 
-	// Wallet will "push" a transaction to node, serializing the transaction as json.
-	// We are testing the json structure is what we expect here.
+	// Wallet will "push" a transaction to node, serializing the transaction as JSON.
+	// We are testing the JSON structure is what we expect here.
 	#[test]
 	fn test_transaction_json_ser_deser() {
 		let tx1 = tx1i1o_v2_compatible();
