@@ -198,12 +198,11 @@ impl TorProcess {
 		let stdout_timeout_tx = stdout_tx.clone();
 
 		let timer = timer::Timer::new();
-		let _guard = timer.schedule_with_delay(
-			chrono::Duration::seconds(cmp::min(self.timeout, i64::MAX as u64) as i64),
-			move || {
-				stdout_timeout_tx.send(Err(Error::Timeout)).unwrap_or(());
-			},
-		);
+		// Keep this below chrono's DateTime range used by timer.
+		let timeout = chrono::Duration::seconds(cmp::min(self.timeout, u32::MAX as u64) as i64);
+		let _guard = timer.schedule_with_delay(timeout, move || {
+			stdout_timeout_tx.send(Err(Error::Timeout)).unwrap_or(());
+		});
 		let stdout_thread = thread::spawn(move || {
 			stdout_tx
 				.send(Self::parse_tor_stdout(stdout, completion_percent))
