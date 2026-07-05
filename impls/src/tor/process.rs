@@ -51,13 +51,13 @@ extern crate timer;
 
 use regex::Regex;
 use std::fs::{self, File};
-use std::io;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, MAIN_SEPARATOR};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::mpsc::channel;
 use std::thread;
+use std::{cmp, io};
 use sysinfo::{Process, ProcessExt, System, SystemExt};
 
 #[cfg(windows)]
@@ -198,10 +198,12 @@ impl TorProcess {
 		let stdout_timeout_tx = stdout_tx.clone();
 
 		let timer = timer::Timer::new();
-		let _guard =
-			timer.schedule_with_delay(chrono::Duration::seconds(self.timeout as i64), move || {
+		let _guard = timer.schedule_with_delay(
+			chrono::Duration::seconds(cmp::min(self.timeout, i64::MAX as u64) as i64),
+			move || {
 				stdout_timeout_tx.send(Err(Error::Timeout)).unwrap_or(());
-			});
+			},
+		);
 		let stdout_thread = thread::spawn(move || {
 			stdout_tx
 				.send(Self::parse_tor_stdout(stdout, completion_percent))
@@ -225,7 +227,7 @@ impl TorProcess {
 		mut stdout: BufReader<ChildStdout>,
 		completion_perc: u8,
 	) -> Result<BufReader<ChildStdout>, Error> {
-		let re_bootstrap = Regex::new(r"^\[notice\] Bootstrapped (?P<perc>[0-9]+)%(.*): ")
+		let re_bootstrap = Regex::new(r"^\[notice] Bootstrapped (?P<perc>[0-9]+)%(.*): ")
 			.map_err(Error::Regex)?;
 
 		let timestamp_len = "May 16 02:50:08.792".len();
