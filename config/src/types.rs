@@ -187,9 +187,9 @@ pub struct TorConfig {
 	pub socks_proxy_addr: String,
 	/// Send configuration directory
 	pub send_config_dir: String,
-	/// Connection timeout for request in seconds.
+	/// Total timeout for request in seconds.
 	pub request_timeout_secs: Option<u64>,
-	/// Connection timeout for bootstrap in seconds.
+	/// Timeout for bootstrap in seconds.
 	pub bootstrap_timeout_secs: Option<u64>,
 	/// Tor bridge config
 	#[serde(default)]
