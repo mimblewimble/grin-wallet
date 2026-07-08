@@ -36,10 +36,9 @@ use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
 use std::convert::TryFrom;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use grin_wallet_config::config::set_global_config;
-use grin_wallet_config::GlobalWalletConfig;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
@@ -2492,6 +2491,7 @@ pub fn run_doctest_owner(
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 	use grin_wallet_libwallet::{api_impl, WalletInst};
+	use grin_wallet_config::{initial_setup_wallet};
 
 	use crate::core::global::ChainTypes;
 	use grin_util as util;
@@ -2501,7 +2501,9 @@ pub fn run_doctest_owner(
 	util::init_test_logger();
 	let _ = fs::remove_dir_all(test_dir);
 	global::set_local_chain_type(ChainTypes::AutomatedTesting);
-	set_global_config(GlobalWalletConfig::default()).unwrap();
+
+	let _ = fs::create_dir_all(test_dir);
+	initial_setup_wallet(&ChainTypes::AutomatedTesting, Some(PathBuf::from(test_dir)), false).unwrap();
 
 	let mut wallet_proxy: WalletProxy<
 		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
@@ -2510,11 +2512,11 @@ pub fn run_doctest_owner(
 	> = WalletProxy::new(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	let rec_phrase_1 = util::ZeroingString::from(
+	let rec_phrase_1 = ZeroingString::from(
 		"fat twenty mean degree forget shell check candy immense awful \
 		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch",
 	);
-	let empty_string = util::ZeroingString::from("");
+	let empty_string = ZeroingString::from("");
 
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 	let mut wallet1 =
@@ -2549,7 +2551,7 @@ pub fn run_doctest_owner(
 
 	let mut slate_outer = Slate::blank(2, false);
 
-	let rec_phrase_2 = util::ZeroingString::from(
+	let rec_phrase_2 = ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile",
 	);
