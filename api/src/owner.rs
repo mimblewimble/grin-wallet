@@ -212,11 +212,16 @@ where
 	/// # Arguments
 	/// * `tor_config` - The optional [TorConfig](#) to use
 	/// # Returns
-	/// * Nothing
+	/// * Result Containing:
+	/// * `Ok(())` if the config was correctly saved
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
 
-	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
+	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
 		let mut gc = global_config_to_update();
 		gc.members.as_mut().unwrap().tor = tor_config;
+		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
+		Ok(())
 	}
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between

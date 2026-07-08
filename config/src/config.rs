@@ -500,4 +500,20 @@ impl GlobalWalletConfig {
 			.replace("WARN", "Warning")
 			.replace("ERROR", "Error")
 	}
+
+	/// Save config to file after editing.
+	pub fn save(&mut self) -> Result<(), ConfigError> {
+		let path = self.config_file_path.clone().unwrap();
+		let res = self.write_to_file(path.to_str().unwrap(), false, None, None);
+
+		if let Err(e) = res {
+			let msg = format!(
+				"Error saving config file as ({:?}): {}",
+				path,
+				e
+			);
+			return Err(ConfigError::SerializationError(msg));
+		}
+		Ok(())
+	}
 }

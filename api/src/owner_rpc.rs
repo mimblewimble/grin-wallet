@@ -2425,7 +2425,7 @@ where
 	}
 
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
-		Owner::set_tor_config(self, tor_config);
+		Owner::set_tor_config(self, tor_config)?;
 		Ok(())
 	}
 
