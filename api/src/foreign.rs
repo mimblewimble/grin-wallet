@@ -14,7 +14,6 @@
 
 //! Foreign API External Definition
 
-use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::{
@@ -24,6 +23,7 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
+use grin_wallet_config::config::global_config_to_read;
 use libwallet::api_impl::types::update_tx_slate_state;
 use std::sync::Arc;
 
@@ -73,9 +73,6 @@ where
 	middleware: Option<ForeignCheckMiddleware>,
 	/// Stored keychain mask (in case the stored wallet seed is tokenized)
 	keychain_mask: Option<SecretKey>,
-	/// Optional TOR configuration, holding address of sender and
-	/// data directory
-	tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<'a, L, C, K> Foreign<'a, L, C, K>
@@ -180,21 +177,7 @@ where
 			doctest_mode,
 			middleware,
 			keychain_mask,
-			tor_config: Mutex::new(None),
 		}
-	}
-
-	/// Set the TOR configuration for this instance of the ForeignAPI, used during
-	/// `recieve_tx` when a return address is specified
-	///
-	/// # Arguments
-	/// * `tor_config` - The optional [TorConfig](#) to use
-	/// # Returns
-	/// * Nothing
-
-	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
-		let mut lock = self.tor_config.lock();
-		*lock = tor_config;
 	}
 
 	/// Return the version capabilities of the running ForeignApi Node
@@ -371,7 +354,8 @@ where
 		)?;
 		match r_addr {
 			Some(a) => {
-				let tc = self.tor_config.lock();
+				let gc = global_config_to_read();
+				let tc = gc.members.as_ref().unwrap().tor.clone();
 				let can_send = if let Some(tc) = tc.as_ref() {
 					tc.send_tor(None)
 				} else {
@@ -380,7 +364,7 @@ where
 				if self.doctest_mode || !can_send {
 					return Ok(ret_slate);
 				}
-				let res = try_slatepack_sync_workflow(&ret_slate, &a, tc.clone(), None, true);
+				let res = try_slatepack_sync_workflow(&ret_slate, &a, tc, None, true);
 				match res {
 					Ok(s) => {
 						let parent_key_id = w.parent_key_id();

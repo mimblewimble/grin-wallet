@@ -24,6 +24,7 @@ use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use grin_util::logger::LoggingConfig;
+use grin_wallet_config::config::set_global_config;
 use std::fs;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
@@ -175,6 +176,11 @@ where
 			"File {} configured and created",
 			config_file_name.to_str().unwrap(),
 		);
+
+		// Set global config instance.
+		set_global_config(default_config).map_err(|e| {
+			Error::Lifecycle(format!("Can not set global config instance: {:?}", e))
+		})?;
 
 		let mut api_secret_path = PathBuf::from(self.data_dir.clone());
 		api_secret_path.push(PathBuf::from(config::API_SECRET_FILE_NAME));

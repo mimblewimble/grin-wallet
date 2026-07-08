@@ -46,6 +46,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use grin_wallet_config::config::{global_config_to_read, global_config_to_update};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -84,9 +85,6 @@ where
 	/// Holds all update and status messages returned by the
 	/// updater process
 	updater_messages: Arc<Mutex<Vec<StatusMessage>>>,
-	/// Optional TOR configuration, holding address of sender and
-	/// data directory
-	tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> Owner<L, C, K>
@@ -205,7 +203,6 @@ where
 			updater_running,
 			status_tx: Mutex::new(Some(tx)),
 			updater_messages,
-			tor_config: Mutex::new(None),
 		}
 	}
 
@@ -218,8 +215,8 @@ where
 	/// * Nothing
 
 	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
-		let mut lock = self.tor_config.lock();
-		*lock = tor_config;
+		let mut gc = global_config_to_update();
+		gc.members.as_mut().unwrap().tor = tor_config;
 	}
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
@@ -674,8 +671,8 @@ where
 		// finalize
 		match send_args {
 			Some(sa) => {
-				let tor_config_lock = self.tor_config.lock();
-				let tc = tor_config_lock.clone();
+				let gc = global_config_to_read();
+				let tc = gc.members.as_ref().unwrap().tor.clone();
 				let can_send = if let Some(tc) = tc.as_ref() {
 					tc.send_tor(sa.skip_tor)
 				} else {
@@ -836,8 +833,8 @@ where
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
-				let tor_config_lock = self.tor_config.lock();
-				let tc = tor_config_lock.clone();
+				let gc = global_config_to_read();
+				let tc = gc.members.as_ref().unwrap().tor.clone();
 				let can_send = if let Some(tc) = tc.as_ref() {
 					tc.send_tor(sa.skip_tor)
 				} else {
@@ -2508,19 +2505,19 @@ pub fn try_slatepack_sync_workflow(
 	send_to_finalize: bool,
 ) -> Result<Slate, Error> {
 	let mut ret_slate = Slate::blank(2, false);
-	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| match sender
+	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| return match sender
 		.send_tx(&slate, send_to_finalize)
 	{
 		Ok(s) => {
 			ret_slate = s;
-			return Ok(());
+			Ok(())
 		}
 		Err(e) => {
 			debug!(
 				"Send ({}): Could not send Slate via {}: {}",
 				method_str, method_str, e
 			);
-			return Err(e);
+			Err(e)
 		}
 	};
 

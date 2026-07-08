@@ -15,6 +15,7 @@ serde = "1"
 serde_derive = "1"
 toml = "0.5"
 dirs = "2.0"
+lazy_static = "1"
 
 grin_wallet_util = { path = "../util", version = "5.4.1" }
 

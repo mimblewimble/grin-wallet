@@ -1175,13 +1175,12 @@ where
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
 			arg_parse!(parse_owner_api_args(&mut c, &args));
-			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g, test_mode)
+			command::owner_api(owner_api, keychain_mask, &c, &g, test_mode)
 		}
 		("web", Some(_)) => command::owner_api(
 			owner_api,
 			keychain_mask,
 			wallet_config,
-			tor_config,
 			global_wallet_args,
 			test_mode,
 		),
@@ -1203,7 +1202,6 @@ where
 			command::send(
 				owner_api,
 				km,
-				Some(tor_config.clone()),
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,

@@ -41,6 +41,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
+use grin_wallet_config::config::global_config_to_read;
 
 fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("Your recovery phrase is:");
@@ -247,7 +248,6 @@ pub fn owner_api<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	config: &WalletConfig,
-	tor_config: &TorConfig,
 	g_args: &GlobalArgs,
 	test_mode: bool,
 ) -> Result<(), Error>
@@ -266,7 +266,6 @@ where
 		g_args.api_secret.clone(),
 		g_args.tls_conf.clone(),
 		config.owner_api_include_foreign,
-		Some(tor_config.clone()),
 		test_mode,
 	);
 	if let Err(e) = res {
@@ -345,7 +344,6 @@ pub struct SendArgs {
 pub fn send<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	tor_config: Option<TorConfig>,
 	args: SendArgs,
 	dark_scheme: bool,
 	test_mode: bool,
@@ -427,7 +425,9 @@ where
 		return Ok(());
 	}
 
-	let tor_config = match tor_config {
+	let gc = global_config_to_read();
+	let tc = gc.members.as_ref().unwrap().tor.clone();
+	let tor_config = match tc {
 		Some(mut c) => {
 			if let Some(b) = args.bridge.clone() {
 				c.bridge.bridge_line = Some(b);

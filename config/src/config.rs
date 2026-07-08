@@ -21,6 +21,8 @@ use crate::types::{
 };
 use crate::types::{TorConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
+use grin_util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use lazy_static::lazy_static;
 use rand::distributions::{Alphanumeric, Distribution};
 use rand::thread_rng;
 use std::env;
@@ -28,7 +30,13 @@ use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use toml;
+
+lazy_static! {
+	/// Global configuration instance.
+	static ref CONFIG_INSTANCE: OnceLock<RwLock<GlobalWalletConfig>> = OnceLock::new();
+}
 
 /// Wallet configuration file name
 pub const WALLET_CONFIG_FILE_NAME: &str = "grin-wallet.toml";
@@ -42,6 +50,24 @@ pub const API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
 /// Owner API secret
 pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
+/// Set global configuration instance.
+pub fn set_global_config(config: GlobalWalletConfig) -> Result<(), ConfigError> {
+	CONFIG_INSTANCE
+		.set(RwLock::new(config.clone()))
+		.map_err(|_e| ConfigError::Other("Global config can not be set".to_string()))?;
+	Ok(())
+}
+
+/// Get global configuration to read values.
+pub fn global_config_to_read() -> RwLockReadGuard<'static, GlobalWalletConfig> {
+	CONFIG_INSTANCE.get().unwrap().read()
+}
+
+/// Get global configuration to update values.
+pub fn global_config_to_update() -> RwLockWriteGuard<'static, GlobalWalletConfig> {
+	CONFIG_INSTANCE.get().unwrap().write()
+}
+
 /// Function to locate the wallet dir and grin-wallet.toml in the order
 /// a) config in top-dir if provided, b) in working dir, c) default dir
 /// Function to get wallet dir and create dirs if not existing
@@ -50,7 +76,7 @@ pub fn get_wallet_path(
 	create_path: bool,
 ) -> Result<PathBuf, ConfigError> {
 	// A - Detect grin-wallet.toml in working dir
-	let mut config_path = std::env::current_dir()?;
+	let mut config_path = env::current_dir()?;
 	config_path.push(WALLET_CONFIG_FILE_NAME);
 	if create_path == false && config_path.exists() {
 		config_path.pop();
@@ -58,10 +84,7 @@ pub fn get_wallet_path(
 		return Ok(config_path);
 	};
 	// B - Select home directory
-	let mut wallet_path = match dirs::home_dir() {
-		Some(p) => p,
-		None => PathBuf::new(),
-	};
+	let mut wallet_path = dirs::home_dir().unwrap_or_else(|| PathBuf::new());
 	wallet_path.push(GRIN_HOME);
 	wallet_path.push(chain_type.shortname());
 	// Create if the default path doesn't exist
@@ -96,10 +119,7 @@ pub fn get_node_path(
 				Ok(node_path)
 			// 1) B If top dir exists, but no api_secret, return home dir
 			} else {
-				let mut node_path = match dirs::home_dir() {
-					Some(p) => p,
-					None => PathBuf::new(),
-				};
+				let mut node_path = dirs::home_dir().unwrap_or_else(|| PathBuf::new());
 				node_path.push(GRIN_HOME);
 				node_path.push(chain_type.shortname());
 				Ok(node_path)
@@ -107,10 +127,7 @@ pub fn get_node_path(
 		}
 		// 2) If there is no top_dir provided, always return home dir
 		None => {
-			let mut node_path = match dirs::home_dir() {
-				Some(p) => p,
-				None => PathBuf::new(),
-			};
+			let mut node_path = dirs::home_dir().unwrap_or_else(|| PathBuf::new());
 			node_path.push(GRIN_HOME);
 			node_path.push(chain_type.shortname());
 			Ok(node_path)
@@ -187,8 +204,11 @@ fn check_api_secret_file(
 }
 
 /// Initial wallet setup does the following
-/// 1) Load wallet config if run without 'init' 2) create wallet if run with 'init''
-/// Try in thiss order a) current dir as template, b) in top path, or c) .grin home
+/// 1) Load wallet config if run without 'init' 2) create wallet if run with 'init'
+/// Try in this order:
+/// a) current dir as template,
+/// b) in top path, or
+/// c) .grin home
 /// - load default config values
 /// - update the wallet and node dir to the correct paths
 /// - if grin-wallet.toml exists, but the wallet data dir does not, load config and continue wallet generation
@@ -214,8 +234,7 @@ pub fn initial_setup_wallet(
 			} else {
 				env::current_dir()?.join(&fixed_path).canonicalize()?
 			};
-			let absolute_path =
-				std::path::PathBuf::from(absolute_path.to_str().unwrap().replace(r"\\?\", ""));
+			let absolute_path = PathBuf::from(absolute_path.to_str().unwrap().replace(r"\\?\", ""));
 			data_path = Some(absolute_path); // Store the updated path
 		}
 	}
@@ -234,7 +253,7 @@ pub fn initial_setup_wallet(
 	config_path.push(WALLET_CONFIG_FILE_NAME);
 	let mut data_dir = wallet_path.clone();
 	data_dir.push(GRIN_WALLET_DIR);
-	// Check if a config exists in theworking dir, if so load it
+	// Check if a config exists in the working dir, if so load it
 	let (path, config) = match config_path.clone().exists() {
 		// If the config does not exist, load default and updated node and wallet dir
 		false => {
@@ -260,7 +279,7 @@ pub fn initial_setup_wallet(
 
 		// Return config if not run with init
 		true => {
-			// If run with init and seed does not yet exists, continue, else throw error
+			// If run with init and seed do not yet exists, continue, else throw error
 			if data_dir.exists() && create_path == true {
 				let msg = format!(
 					"{} already exists in the target directory ({}). Please remove it first",
@@ -274,6 +293,9 @@ pub fn initial_setup_wallet(
 			}
 		}
 	};
+
+	// Set global config instance.
+	set_global_config(config.clone())?;
 
 	// Check API secrets, if ok, return config
 	check_api_secret_file(chain_type, Some(path.clone()), OWNER_API_SECRET_FILE_NAME)?;

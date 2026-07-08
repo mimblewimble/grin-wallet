@@ -199,7 +199,6 @@ pub fn owner_listener<L, C, K>(
 	api_secret: Option<String>,
 	tls_config: Option<TLSConfig>,
 	owner_api_include_foreign: Option<bool>,
-	tor_config: Option<TorConfig>,
 	test_mode: bool,
 ) -> Result<(), Error>
 where
@@ -226,7 +225,6 @@ where
 	let api_handler_v3 = OwnerAPIHandlerV3::new(
 		wallet.clone(),
 		keychain_mask.clone(),
-		tor_config.clone(),
 		running_foreign,
 	);
 
@@ -238,7 +236,7 @@ where
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
 		let foreign_api_handler_v2 =
-			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
+			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
@@ -295,7 +293,6 @@ where
 		wallet,
 		keychain_mask,
 		test_mode,
-		Mutex::new(Some(tor_config.clone())),
 	);
 	let mut router = Router::new();
 
@@ -580,17 +577,14 @@ where
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
-		tor_config: Option<TorConfig>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
 		let owner_api = Owner::new(wallet.clone(), None);
-		owner_api.set_tor_config(tor_config);
-		let owner_api = Arc::new(owner_api);
 		OwnerAPIHandlerV3 {
 			wallet,
-			owner_api,
+			owner_api: Arc::new(owner_api),
 			shared_key: Arc::new(Mutex::new(None)),
-			keychain_mask: keychain_mask,
+			keychain_mask,
 			running_foreign,
 		}
 	}
@@ -713,8 +707,6 @@ where
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	/// run in doctest mode
 	pub test_mode: bool,
-	/// tor config
-	pub tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -728,13 +720,11 @@ where
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
-		tor_config: Mutex<Option<TorConfig>>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
 			keychain_mask,
 			test_mode,
-			tor_config,
 		}
 	}
 
@@ -758,10 +748,8 @@ where
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 		test_mode: bool,
-		tor_config: Option<TorConfig>,
 	) -> Result<Response<Body>, Error> {
 		let api = Foreign::new(wallet, mask, Some(check_middleware), test_mode);
-		api.set_tor_config(tor_config);
 		let res = Self::call_api(req, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -777,10 +765,9 @@ where
 		let mask = self.keychain_mask.lock().clone();
 		let wallet = self.wallet.clone();
 		let test_mode = self.test_mode;
-		let tor_config = self.tor_config.lock().clone();
 
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet, test_mode, tor_config).await {
+			match Self::handle_post_request(req, mask, wallet, test_mode).await {
 				Ok(v) => Ok(v),
 				Err(e) => {
 					error!("Request Error: {:?}", e);
