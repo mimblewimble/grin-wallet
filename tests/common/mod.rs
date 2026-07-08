@@ -42,6 +42,7 @@ use serde_json::{json, Value};
 use std::thread;
 use std::time::Duration;
 use url::Url;
+use grin_wallet_config::config::set_global_config;
 
 // Set up 2 wallets and launch the test proxy behind them
 #[macro_export]
@@ -131,7 +132,7 @@ pub fn clean_output_dir(test_dir: &str) {
 pub fn setup(test_dir: &str) {
 	util::init_test_logger();
 	clean_output_dir(test_dir);
-	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 }
 
 /// Some tests require the global chain_type to be configured.
@@ -141,7 +142,7 @@ pub fn setup(test_dir: &str) {
 /// leaks across multiple tests and will likely have unintended consequences.
 #[allow(dead_code)]
 pub fn setup_global_chain_type() {
-	global::init_global_chain_type(global::ChainTypes::AutomatedTesting);
+	global::init_global_chain_type(ChainTypes::AutomatedTesting);
 }
 
 /// Create a wallet config file in the given current directory
@@ -191,7 +192,9 @@ pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> GlobalWalletCo
 	let _ = fs::create_dir_all(current_dir.clone());
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
-	GlobalWalletConfig::new(config_file_name.to_str().unwrap()).unwrap()
+	let config = GlobalWalletConfig::new(config_file_name.to_str().unwrap()).unwrap();
+	set_global_config(config.clone()).unwrap();
+	config
 }
 
 fn get_wallet_subcommand<'a>(
@@ -211,8 +214,8 @@ fn get_wallet_subcommand<'a>(
 		_ => ArgMatches::new(),
 	}
 }
-//
-// Helper to create an instance of the LMDB wallet
+
+/// Helper to create an instance of the LMDB wallet
 #[allow(dead_code)]
 pub fn instantiate_wallet(
 	mut wallet_config: WalletConfig,
@@ -277,7 +280,7 @@ pub fn execute_command(
 	let config = initial_setup_wallet(test_dir, wallet_name);
 	let mut wallet_config = config.clone().members.unwrap().wallet;
 	let tor_config = config.clone().members.unwrap().tor;
-	//unset chain type so it doesn't get reset
+	// unset chain type so it doesn't get reset
 	wallet_config.chain_type = None;
 	wallet_args::wallet_command(
 		&args,
@@ -289,7 +292,7 @@ pub fn execute_command(
 	)
 }
 
-// as above, but without necessarily setting up the wallet
+/// As above, but without necessarily setting up the wallet
 #[allow(dead_code)]
 pub fn execute_command_no_setup<C, F>(
 	app: &App,

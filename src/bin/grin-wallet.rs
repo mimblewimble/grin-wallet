@@ -31,7 +31,7 @@ use std::env;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
 
-// include build information
+/// Include build information
 pub mod built_info {
 	include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
@@ -55,7 +55,7 @@ pub fn info_strings() -> (String, String) {
 	)
 }
 
-// Helper fuction to format paths according to OS, avoids bugs on Linux
+/// Helper function to format paths according to OS, avoids bugs on Linux
 pub fn fmt_path(path: String) -> String {
 	let sep = &MAIN_SEPARATOR.to_string();
 	let path = path.replace("/", &sep).replace("\\", &sep);
@@ -119,19 +119,17 @@ fn real_main() -> i32 {
 	// Use defaults for configuration if config file not found anywhere
 	let mut config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
 		Ok(c) => c,
-		Err(e) => match e {
+		Err(e) => return match e {
 			ConfigError::PathNotFoundError(m) => {
 				println!("Wallet configuration not found at {}. (Run `grin-wallet init` to create a new wallet)", m);
-				return 0;
+				0
 			}
 			m => {
 				println!("Unable to load wallet configuration: {} (Run `grin-wallet init` to create a new wallet)", m);
-				return 0;
+				0
 			}
 		},
 	};
-
-	//config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
 
 	// Load logging config
 	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();

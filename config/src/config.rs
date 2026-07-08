@@ -52,9 +52,11 @@ pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 /// Set global configuration instance.
 pub fn set_global_config(config: GlobalWalletConfig) -> Result<(), ConfigError> {
-	CONFIG_INSTANCE
-		.set(RwLock::new(config.clone()))
-		.map_err(|_e| ConfigError::Other("Global config can not be set".to_string()))?;
+	if CONFIG_INSTANCE.get().is_none() {
+		CONFIG_INSTANCE
+			.set(RwLock::new(config.clone()))
+			.map_err(|_e| ConfigError::Other("Global config can not be set".to_string()))?;
+	}
 	Ok(())
 }
 
