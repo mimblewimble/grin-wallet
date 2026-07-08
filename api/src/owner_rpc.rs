@@ -38,6 +38,8 @@ use rand::thread_rng;
 use std::convert::TryFrom;
 use std::sync::Arc;
 use std::time::Duration;
+use grin_wallet_config::config::set_global_config;
+use grin_wallet_config::GlobalWalletConfig;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
@@ -2499,6 +2501,7 @@ pub fn run_doctest_owner(
 	util::init_test_logger();
 	let _ = fs::remove_dir_all(test_dir);
 	global::set_local_chain_type(ChainTypes::AutomatedTesting);
+	set_global_config(GlobalWalletConfig::default()).unwrap();
 
 	let mut wallet_proxy: WalletProxy<
 		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
