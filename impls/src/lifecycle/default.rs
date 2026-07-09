@@ -128,6 +128,7 @@ where
 		};
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());
 		config_file_name.push(file_name);
+		default_config.config_file_path = Some(config_file_name.clone());
 
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
@@ -143,6 +144,10 @@ where
 
 		// If config exists but the datadir return ok
 		if config_file_name.exists() {
+			// Set global config instance.
+			set_global_config(default_config).map_err(|e| {
+				Error::Lifecycle(format!("Can not set global config instance: {:?}", e))
+			})?;
 			return Ok(());
 		}
 		// default settings are updated if no config was provided, no support for top_dir/here
@@ -172,15 +177,15 @@ where
 			return Err(Error::Lifecycle(msg));
 		}
 
-		info!(
-			"File {} configured and created",
-			config_file_name.to_str().unwrap(),
-		);
-
 		// Set global config instance.
 		set_global_config(default_config).map_err(|e| {
 			Error::Lifecycle(format!("Can not set global config instance: {:?}", e))
 		})?;
+
+		info!(
+			"File {} configured and created",
+			config_file_name.to_str().unwrap(),
+		);
 
 		let mut api_secret_path = PathBuf::from(self.data_dir.clone());
 		api_secret_path.push(PathBuf::from(config::API_SECRET_FILE_NAME));
