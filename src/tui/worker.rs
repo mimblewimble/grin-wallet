@@ -32,6 +32,7 @@ use grin_wallet_controller::controller;
 use grin_wallet_controller::Error;
 use grin_wallet_impls::PathToSlatepack;
 use grin_wallet_impls::SlateGetter as _;
+use grin_wallet_libwallet::api_impl::types::update_tx_slate_state;
 use grin_wallet_libwallet::{
 	sig_is_blank, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, StatusMessage, WalletInst, WalletLCProvider,
@@ -291,10 +292,12 @@ where
 	})
 }
 
-fn tor_with(tor_config: &TorConfig, manual: bool) -> Option<TorConfig> {
-	let mut tor = tor_config.clone();
-	tor.skip_send_attempt = Some(manual);
-	Some(tor)
+/// Whether a Tor slatepack sync should be attempted (mirrors command.rs).
+fn can_send_tor(tor_config: &TorConfig, manual: bool, test_mode: bool) -> bool {
+	if test_mode {
+		return false;
+	}
+	tor_config.send_tor(Some(manual))
 }
 
 /// Parameters for a send, gathered from the form
@@ -379,16 +382,27 @@ where
 		};
 		let slate = owner.init_send_tx(mask, init_args)?;
 
-		let res = try_slatepack_sync_workflow(
+		if !can_send_tor(&ctx.tor_config, p.manual, ctx.test_mode) {
+			return slatepack_output(
+				owner,
+				mask,
+				&slate,
+				&p.dest,
+				p.outfile,
+				true,
+				false,
+				"Send: Slatepack Created",
+			);
+		}
+
+		match try_slatepack_sync_workflow(
 			&slate,
 			&p.dest,
-			tor_with(&ctx.tor_config, p.manual),
+			Some(ctx.tor_config.clone()),
 			None,
 			false,
-			ctx.test_mode,
-		)?;
-		match res {
-			Some(s) => {
+		) {
+			Ok(s) => {
 				owner.tx_lock_outputs(mask, &s)?;
 				let ret_slate = owner.finalize_tx(mask, &s)?;
 				owner.post_tx(mask, &ret_slate, p.fluff)?;
@@ -398,7 +412,7 @@ where
 					p.dest
 				)))
 			}
-			None => slatepack_output(
+			Err(_) => slatepack_output(
 				owner,
 				mask,
 				&slate,
@@ -473,20 +487,40 @@ where
 				Some(a) => String::try_from(&a).unwrap_or_default(),
 				None => String::new(),
 			};
-			let res = try_slatepack_sync_workflow(
+			if !can_send_tor(&ctx.tor_config, manual, ctx.test_mode) {
+				return slatepack_output(
+					owner,
+					mask,
+					&slate,
+					&dest,
+					outfile,
+					false,
+					false,
+					"Receive: Response Slatepack",
+				);
+			}
+
+			match try_slatepack_sync_workflow(
 				&slate,
 				&dest,
-				tor_with(&ctx.tor_config, manual),
+				Some(ctx.tor_config.clone()),
 				None,
 				true,
-				ctx.test_mode,
-			)?;
-			match res {
-				Some(_) => Ok(OpResult::Info(format!(
-					"Transaction received and sent back to {} for finalization.",
-					dest
-				))),
-				None => slatepack_output(
+			) {
+				Ok(s) => {
+					// Keep local tx state in sync after Tor handoff (see command::receive)
+					{
+						let mut w_lock = owner.wallet_inst.lock();
+						let w = w_lock.lc_provider()?.wallet_inst()?;
+						let parent_key_id = w.parent_key_id();
+						let _ = update_tx_slate_state(w, mask, &parent_key_id, &s);
+					}
+					Ok(OpResult::Info(format!(
+						"Transaction received and sent back to {} for finalization.",
+						dest
+					)))
+				}
+				Err(_) => slatepack_output(
 					owner,
 					mask,
 					&slate,
@@ -627,20 +661,39 @@ pub fn spawn_pay_process<L, C, K>(
 			..Default::default()
 		};
 		let slate = owner.process_invoice_tx(mask, &slate, init_args)?;
-		let res = try_slatepack_sync_workflow(
+		if !can_send_tor(&ctx.tor_config, p.manual, ctx.test_mode) {
+			return slatepack_output(
+				owner,
+				mask,
+				&slate,
+				&dest,
+				p.outfile,
+				true,
+				false,
+				"Pay: Response Slatepack",
+			);
+		}
+
+		match try_slatepack_sync_workflow(
 			&slate,
 			&dest,
-			tor_with(&ctx.tor_config, p.manual),
+			Some(ctx.tor_config.clone()),
 			None,
 			true,
-			ctx.test_mode,
-		)?;
-		match res {
-			Some(_) => Ok(OpResult::Info(format!(
-				"Invoice paid and sent back to {} for finalization.",
-				dest
-			))),
-			None => slatepack_output(
+		) {
+			Ok(s) => {
+				{
+					let mut w_lock = owner.wallet_inst.lock();
+					let w = w_lock.lc_provider()?.wallet_inst()?;
+					let parent_key_id = w.parent_key_id();
+					let _ = update_tx_slate_state(w, mask, &parent_key_id, &s);
+				}
+				Ok(OpResult::Info(format!(
+					"Invoice paid and sent back to {} for finalization.",
+					dest
+				)))
+			}
+			Err(_) => slatepack_output(
 				owner,
 				mask,
 				&slate,
@@ -972,7 +1025,7 @@ pub fn spawn_listener<L, C, K>(
 				ctx.tls_conf.clone(),
 				tor_config.use_tor_listener,
 				ctx.test_mode,
-				Some(tor_config.clone()),
+				tor_config,
 			);
 			ctx.shared.listener_running.store(false, Ordering::Relaxed);
 			let msg = match res {

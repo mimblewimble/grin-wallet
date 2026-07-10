@@ -74,6 +74,13 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
+		"node_api_request_timeout_secs".to_string(),
+		"
+#total timeout for requests to node API
+"
+		.to_string(),
+	);
+	retval.insert(
 		"node_api_secret_path".to_string(),
 		"
 #location of the node api secret for basic auth on the Grin API
@@ -206,8 +213,16 @@ fn comments() -> HashMap<String, String> {
 		"[tor]".to_string(),
 		"
 #########################################
-### TOR CONFIGURATION (Experimental)  ###
+### TOR CONFIGURATION                 ###
 #########################################
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"use_integrated".to_string(),
+		"
+#Whether to use integrated Tor library
 "
 		.to_string(),
 	);
@@ -215,7 +230,7 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"skip_send_attempt".to_string(),
 		"
-#Whether to skip send attempts (used for debugging) 
+#Whether to skip send attempts (default false)
 "
 		.to_string(),
 	);
@@ -245,6 +260,22 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
+		"request_timeout_secs".to_string(),
+		"
+#Tor request timeout in seconds
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"bootstrap_timeout_secs".to_string(),
+		"
+#Tor bootstrap timeout in seconds
+"
+		.to_string(),
+	);
+
+	retval.insert(
 		"[tor.bridge]".to_string(),
 		"
 #########################################
@@ -259,8 +290,11 @@ fn comments() -> HashMap<String, String> {
 		"
 #Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
 #Enable it by entering a single bridge line. To disable it, you must comment it.
-#Support of the transport: obfs4, meek and snowflake. 
-#obfs4proxy or snowflake client binary must be installed and on your path.
+#Support of the transport: webtunnel, obfs4, and snowflake.
+#webtunnel, obfs4proxy or snowflake client binary must be installed and on your path.
+#Custom path for client binary
+#bridge_bin_path = \"\"
+
 #For example, the bridge line must be in the following format for obfs4 transport: \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"
 #bridge_line = \"\"
 

@@ -24,6 +24,7 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
+use libwallet::api_impl::types::update_tx_slate_state;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -139,14 +140,14 @@ where
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
-	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, wallet_config.api_request_timeout()).unwrap();
 	///
 	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
 	/// // It contains the LMDBBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
 	/// // by the reference wallet implementation.
 	/// // These traits can be replaced with alternative implementations if desired
 	///
-	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	/// let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
 	///     as Box<dyn WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
 	///
 	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
@@ -286,7 +287,7 @@ where
 			)?;
 		}
 		foreign::build_coinbase(
-			&mut **w,
+			w,
 			(&self.keychain_mask).as_ref(),
 			block_fees,
 			self.doctest_mode,
@@ -362,7 +363,7 @@ where
 			)?;
 		}
 		let ret_slate = foreign::receive_tx(
-			&mut **w,
+			w,
 			(&self.keychain_mask).as_ref(),
 			slate,
 			dest_acct_name,
@@ -370,18 +371,34 @@ where
 		)?;
 		match r_addr {
 			Some(a) => {
-				let tor_config_lock = self.tor_config.lock();
-				let res = try_slatepack_sync_workflow(
-					&ret_slate,
-					&a,
-					tor_config_lock.clone(),
-					None,
-					true,
-					self.doctest_mode,
-				);
+				let tc = self.tor_config.lock();
+				let can_send = if let Some(tc) = tc.as_ref() {
+					tc.send_tor(None)
+				} else {
+					false
+				};
+				if self.doctest_mode || !can_send {
+					return Ok(ret_slate);
+				}
+				let res = try_slatepack_sync_workflow(&ret_slate, &a, tc.clone(), None, true);
 				match res {
-					Ok(s) => return Ok(s.unwrap()),
-					Err(_) => return Ok(ret_slate),
+					Ok(s) => {
+						let parent_key_id = w.parent_key_id();
+						match update_tx_slate_state(
+							w,
+							(&self.keychain_mask).as_ref(),
+							&parent_key_id,
+							&s,
+						) {
+							Ok(_) => {}
+							Err(e) => error!("Error on updating slate state: {}", e),
+						}
+						Ok(s)
+					}
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(ret_slate)
+					}
 				}
 			}
 			None => Ok(ret_slate),
@@ -443,12 +460,7 @@ where
 			true => false,
 			false => post_automatically,
 		};
-		foreign::finalize_tx(
-			&mut **w,
-			(&self.keychain_mask).as_ref(),
-			slate,
-			post_automatically,
-		)
+		foreign::finalize_tx(w, (&self.keychain_mask).as_ref(), slate, post_automatically)
 	}
 }
 
@@ -494,19 +506,22 @@ macro_rules! doctest_helper_setup_doc_env_foreign {
 		wallet_config.data_file_dir = dir.to_owned();
 		let pw = ZeroingString::from("");
 
-		let node_client =
-			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-		let mut wallet = Box::new(
-			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+		let node_client = HTTPNodeClient::new(
+			&wallet_config.check_node_api_http_addr,
+			None,
+			wallet_config.api_request_timeout(),
 		)
-			as Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
-					HTTPNodeClient,
-					ExtKeychain,
-				>,
-			>;
+		.unwrap();
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
+				as Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+						HTTPNodeClient,
+						ExtKeychain,
+					>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);

@@ -70,7 +70,7 @@ where
 		String,
 		(
 			Sender<WalletProxyMessage>,
-			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 			Option<SecretKey>,
 		),
 	>,
@@ -100,14 +100,15 @@ where
 			genesis_block,
 			pow::verify_size,
 			false,
+			None,
 		)
 		.unwrap();
 		let (tx, rx) = channel();
 		WalletProxy {
 			chain_dir: chain_dir.to_owned(),
 			chain: Arc::new(c),
-			tx: tx,
-			rx: rx,
+			tx,
+			rx,
 			wallets: HashMap::new(),
 			running: Arc::new(AtomicBool::new(false)),
 		}
@@ -118,7 +119,7 @@ where
 		&mut self,
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K> + 'a>>>,
+		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 		keychain_mask: Option<SecretKey>,
 	) {
 		self.wallets
@@ -218,8 +219,7 @@ where
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			let mask = wallet.2.clone();
 			// receive tx
-			match foreign::receive_tx(&mut **w, (&mask).as_ref(), &Slate::from(slate), None, false)
-			{
+			match foreign::receive_tx(w, (&mask).as_ref(), &Slate::from(slate), None, false) {
 				Err(e) => {
 					return Ok(WalletProxyMessage {
 						sender_id: m.dest,

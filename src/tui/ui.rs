@@ -141,7 +141,7 @@ fn run_subcommand<L, C, K>(
 	test_mode: bool,
 ) -> Result<(), Error>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -280,7 +280,7 @@ where
 
 impl<L, C, K> Controller<L, C, K>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -1260,7 +1260,7 @@ pub fn run<L, C, K>(
 	logs_rx: Option<mpsc::Receiver<LogEntry>>,
 ) -> Result<(), Error>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K> + Send + Sync + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,

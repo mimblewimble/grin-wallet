@@ -9,7 +9,9 @@ jobs:
       matrix:
         job_args: [api, config, controller, impls, libwallet, .]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - name: Test ${{ matrix.job_args }}
         working-directory: ${{ matrix.job_args }}
         run: cargo test --release
@@ -19,7 +21,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - name: Tests
         run: cargo test --release --all
 
@@ -28,6 +32,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - name: Tests
         run: cargo test --release --all

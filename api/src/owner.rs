@@ -23,8 +23,8 @@ use uuid::Uuid;
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
-use crate::impls::HttpSlateSender;
 use crate::impls::SlateSender as _;
+use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::{owner, owner_updater};
@@ -37,7 +37,10 @@ use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
+use libwallet::api_impl::types::update_tx_slate_state;
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -97,7 +100,7 @@ where
 	///
 	/// Each method will call the [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html)'s
 	/// [`open_with_credentials`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.open_with_credentials)
-	/// (initialising a keychain with the master seed,) perform its operation, then close the keychain
+	/// initializing a keychain with the master seed, perform its operation, then close the keychain
 	/// with a call to [`close`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.close)
 	///
 	/// # Arguments
@@ -144,14 +147,14 @@ where
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
-	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, wallet_config.api_request_timeout()).unwrap();
 	///
 	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
-	/// // It contains the LMDBBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
+	/// // It contains the WalletBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
 	/// // by the reference wallet implementation.
 	/// // These traits can be replaced with alternative implementations if desired
 	///
-	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	/// let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
 	///     as Box<dyn WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
 	///
 	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
@@ -258,7 +261,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::accounts(&mut **w)
+		owner::accounts(w)
 	}
 
 	/// Creates a new 'account', which is a mapping of a user-specified
@@ -308,7 +311,7 @@ where
 	) -> Result<Identifier, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_account_path(&mut **w, keychain_mask, label)
+		owner::create_account_path(w, keychain_mask, label)
 	}
 
 	/// Sets the wallet's currently active account. This sets the
@@ -358,7 +361,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::set_active_account(&mut **w, label)
+		owner::set_active_account(w, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
@@ -665,57 +668,47 @@ where
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			owner::init_send_tx(&mut **w, keychain_mask, args, self.doctest_mode)?
+			owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?
 		};
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
-		let skip_tor = match send_args.as_ref() {
-			None => false,
-			Some(sa) => sa.skip_tor,
-		};
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
 				let tc = tor_config_lock.clone();
-				let tc = match tc {
-					Some(mut c) => {
-						c.skip_send_attempt = Some(skip_tor);
-						Some(c)
-					}
-					None => None,
+				let can_send = if let Some(tc) = tc.as_ref() {
+					tc.send_tor(sa.skip_tor)
+				} else {
+					false
 				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					&sa.dest,
-					tc,
-					None,
-					false,
-					self.doctest_mode,
-				);
+				if self.doctest_mode || !can_send {
+					return Ok(slate);
+				}
+				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, false);
 				match res {
-					Ok(Some(s)) => {
+					Ok(s) => {
+						self.tx_lock_outputs(keychain_mask, &s)?;
+						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
-							self.tx_lock_outputs(keychain_mask, &s)?;
-							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
 							match result {
 								Ok(_) => {
 									info!("Tx sent ok",);
-									return Ok(ret_slate);
+									Ok(ret_slate)
 								}
 								Err(e) => {
 									error!("Tx sent fail: {}", e);
-									return Err(e);
+									Err(e)
 								}
 							}
 						} else {
-							self.tx_lock_outputs(keychain_mask, &s)?;
-							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
-							return Ok(ret_slate);
+							Ok(ret_slate)
 						}
 					}
-					Ok(None) => Ok(slate),
-					Err(_) => Ok(slate),
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(slate)
+					}
 				}
 			}
 			None => Ok(slate),
@@ -724,7 +717,7 @@ where
 
 	/// Issues a new invoice transaction slate, essentially a `request for payment`.
 	/// The slate created by this function will contain the amount, an output for the amount,
-	/// as well as round 1 of singature creation complete. The slate should then be send
+	/// as well as round 1 of signature creation complete. The slate should then be sent
 	/// to the payer, who should add their inputs and signature data and return the slate
 	/// via the [Foreign API's `finalize_tx`](struct.Foreign.html#method.finalize_tx) method.
 	///
@@ -764,14 +757,14 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
+		owner::issue_invoice_tx(w, keychain_mask, args, self.doctest_mode)
 	}
 
-	/// Processes an invoice tranaction created by another party, essentially
+	/// Processes an invoice transaction created by another party, essentially
 	/// a `request for payment`. The incoming slate should contain a requested
-	/// amount, an output created by the invoicer convering the amount, and
+	/// amount, an output created by the invoicer converting the amount, and
 	/// part 1 of signature creation completed. This function will add inputs
-	/// equalling the amount + fees, as well as perform round 1 and 2 of signature
+	/// equaling the amount + fees, as well as perform round 1 and 2 of signature
 	/// creation.
 	///
 	/// Callers should note that no prompting of the user will be done by this function
@@ -834,34 +827,49 @@ where
 		slate: &Slate,
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let send_args = args.send_args.clone();
-		let slate =
-			owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)?;
+		let slate = {
+			let mut w_lock = self.wallet_inst.lock();
+			let w = w_lock.lc_provider()?.wallet_inst()?;
+			owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?
+		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
 				let tor_config_lock = self.tor_config.lock();
 				let tc = tor_config_lock.clone();
-				let tc = match tc {
-					Some(mut c) => {
-						c.skip_send_attempt = Some(sa.skip_tor);
-						Some(c)
-					}
-					None => None,
+				let can_send = if let Some(tc) = tc.as_ref() {
+					tc.send_tor(sa.skip_tor)
+				} else {
+					false
 				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					&sa.dest,
-					tc,
-					None,
-					true,
-					self.doctest_mode,
-				);
+				if self.doctest_mode || !can_send {
+					return Ok(slate);
+				}
+				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, true);
 				match res {
-					Ok(s) => Ok(s.unwrap()),
-					Err(_) => Ok(slate),
+					Ok(s) => {
+						// Update slate state.
+						{
+							let mut w_lock = self.wallet_inst.lock();
+							let w = w_lock.lc_provider()?.wallet_inst()?;
+							let parent_key_id = w.parent_key_id();
+							match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
+								Ok(_) => {}
+								Err(e) => error!("Error on updating slate state: {}", e),
+							}
+						}
+						// Output slatepack message to file.
+						match output_slatepack_file(&self, keychain_mask, &s, &sa.dest) {
+							Ok(_) => {}
+							Err(e) => error!("Error on saving output slatepack message: {}", e),
+						}
+						Ok(s)
+					}
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(slate)
+					}
 				}
 			}
 			None => Ok(slate),
@@ -871,7 +879,7 @@ where
 	/// Locks the outputs associated with the inputs to the transaction in the given
 	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html),
 	/// making them unavailable for use in further transactions. This function is called
-	/// by the sender, (or more generally, all parties who have put inputs into the transaction,)
+	/// by the sender, (or more generally, all parties who have put inputs into the transaction)
 	/// and must be called before the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx)
 	/// that completes the transaction.
 	///
@@ -929,7 +937,7 @@ where
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, slate)
+		owner::tx_lock_outputs(w, keychain_mask, slate)
 	}
 
 	/// Finalizes a transaction, after all parties
@@ -995,7 +1003,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::finalize_tx(&mut **w, keychain_mask, slate)
+		owner::finalize_tx(w, keychain_mask, slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -1186,7 +1194,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::get_stored_tx(&**w, tx_id, slate_id)
+		owner::get_stored_tx(w, tx_id, slate_id)
 	}
 
 	/// Return the rewind hash of the wallet.
@@ -2422,7 +2430,7 @@ where
 	) -> Result<BuiltOutput, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::build_output(&mut **w, keychain_mask, features, amount)
+		owner::build_output(w, keychain_mask, features, amount)
 	}
 
 	// MWIXNET
@@ -2481,7 +2489,7 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::create_mwixnet_req(
-			&mut **w,
+			w,
 			keychain_mask,
 			params,
 			commitment,
@@ -2496,17 +2504,11 @@ pub fn try_slatepack_sync_workflow(
 	slate: &Slate,
 	dest: &str,
 	tor_config: Option<TorConfig>,
-	tor_sender: Option<HttpSlateSender>,
+	tor_sender: Option<TorSlateSender>,
 	send_to_finalize: bool,
-	test_mode: bool,
-) -> Result<Option<Slate>, libwallet::Error> {
-	if let Some(tc) = &tor_config {
-		if tc.skip_send_attempt == Some(true) {
-			return Ok(None);
-		}
-	}
+) -> Result<Slate, Error> {
 	let mut ret_slate = Slate::blank(2, false);
-	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
+	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| match sender
 		.send_tx(&slate, send_to_finalize)
 	{
 		Ok(s) => {
@@ -2522,57 +2524,43 @@ pub fn try_slatepack_sync_workflow(
 		}
 	};
 
-	// Try parsing Slatepack address
+	// Try parsing Slatepack address.
 	match SlatepackAddress::try_from(dest) {
 		Ok(address) => {
-			let tor_addr = OnionV3Address::try_from(&address).unwrap();
-			// Try sending to the destination via TOR
+			let tor_addr = OnionV3Address::try_from(&address).map_err(|_| {
+				Error::SlatepackAddress(format!(
+					"Destination {} is not a valid Onion address.",
+					dest
+				))
+			})?;
+			// Try sending to the destination via Tor.
 			let sender = match tor_sender {
 				None => {
-					if test_mode {
-						None
-					} else {
-						match HttpSlateSender::with_socks_proxy(
-							&tor_addr.to_http_str(),
-							&tor_config.as_ref().unwrap().socks_proxy_addr,
-							&tor_config.as_ref().unwrap().send_config_dir,
-							tor_config.as_ref().unwrap().bridge.clone(),
-							tor_config.as_ref().unwrap().proxy.clone(),
-						) {
-							Ok(s) => Some(s),
+					if let Some(tc) = tor_config {
+						match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
+							Ok(s) => s,
 							Err(e) => {
-								debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-								None
+								debug!("Send (Tor): Cannot create TOR Slate sender {:?}", e);
+								return Err(e);
 							}
 						}
-					}
-				}
-				Some(s) => {
-					if test_mode {
-						None
 					} else {
-						Some(s)
+						return Err(Error::TorConfig("Tor config is not set".to_string()));
 					}
 				}
+				Some(s) => s,
 			};
-			if let Some(s) = sender {
-				warn!("Attempting to send transaction via TOR");
-				match send_sync(s, "TOR") {
-					Ok(_) => return Ok(Some(ret_slate)),
-					Err(e) => {
-						debug!("Unable to send via TOR: {}", e);
-						warn!("Unable to send transaction via TOR");
-					}
-				}
+			warn!("Attempting to send transaction via Tor");
+			match send_sync(sender, "Tor") {
+				Ok(_) => Ok(ret_slate),
+				Err(e) => Err(e),
 			}
 		}
 		Err(e) => {
-			debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
-			warn!("Destination is not a valid Slatepack address. Will output Slatepack.")
+			error!("Destination {} is not a valid Slatepack address.", dest);
+			Err(e)
 		}
 	}
-
-	Ok(None)
 }
 
 #[doc(hidden)]
@@ -2604,7 +2592,7 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		use uuid::Uuid;
 
-		// don't run on windows CI, which gives very inconsistent results
+		// don't run on Windows CI, which gives very inconsistent results
 		if cfg!(windows) {
 			return;
 		}
@@ -2622,22 +2610,60 @@ macro_rules! doctest_helper_setup_doc_env {
 		wallet_config.data_file_dir = dir.to_owned();
 		let pw = ZeroingString::from("");
 
-		let node_client =
-			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-		let mut wallet = Box::new(
-			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+		let node_client = HTTPNodeClient::new(
+			&wallet_config.check_node_api_http_addr,
+			None,
+			wallet_config.api_request_timeout(),
 		)
-			as Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
-					HTTPNodeClient,
-					ExtKeychain,
-				>,
-			>;
+		.unwrap();
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
+				as Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+						HTTPNodeClient,
+						ExtKeychain,
+					>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
+}
+
+/// Output slatepack message to file.
+fn output_slatepack_file<L, C, K>(
+	api: &Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: &str,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	let address = match SlatepackAddress::try_from(dest) {
+		Ok(a) => Some(a),
+		Err(_) => None,
+	};
+	// encrypt for recipient by default
+	let recipients = match address.clone() {
+		Some(a) => vec![a],
+		None => vec![],
+	};
+	let message = api.create_slatepack_message(keychain_mask, &slate, Some(0), recipients)?;
+	let tld = api.get_top_level_directory()?;
+
+	// Create a directory to which files will be output.
+	let slate_dir = format!("{}/{}", tld, "slatepack");
+	let _ = std::fs::create_dir_all(slate_dir.clone());
+	let out_file_name = format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state);
+
+	let mut output = File::create(out_file_name.clone())?;
+	output.write_all(&message.as_bytes())?;
+	output.sync_all()?;
+	Ok(())
 }

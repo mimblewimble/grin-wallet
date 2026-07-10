@@ -381,7 +381,6 @@ pub fn run_doctest_foreign(
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client1.clone()).unwrap())
 			as Box<
 				dyn WalletInst<
-					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
 					ExtKeychain,
@@ -416,7 +415,6 @@ pub fn run_doctest_foreign(
 		Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client2.clone()).unwrap())
 			as Box<
 				dyn WalletInst<
-					'static,
 					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 					LocalWalletClient,
 					ExtKeychain,
@@ -473,7 +471,7 @@ pub fn run_doctest_foreign(
 				amount,
 				..Default::default()
 			};
-			api_impl::owner::issue_invoice_tx(&mut **w, (&mask2).as_ref(), args, true).unwrap()
+			api_impl::owner::issue_invoice_tx(w, (&mask2).as_ref(), args, true).unwrap()
 		};
 		slate = {
 			let mut w_lock = wallet1.lock();
@@ -487,8 +485,7 @@ pub fn run_doctest_foreign(
 				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			api_impl::owner::process_invoice_tx(&mut **w, (&mask1).as_ref(), &slate, args, true)
-				.unwrap()
+			api_impl::owner::process_invoice_tx(w, (&mask1).as_ref(), &slate, args, true).unwrap()
 		};
 		println!("INIT INVOICE SLATE");
 		// Spit out slate for input to finalize_tx
@@ -508,7 +505,7 @@ pub fn run_doctest_foreign(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api_impl::owner::init_send_tx(&mut **w, (&mask1).as_ref(), args, true).unwrap();
+		let slate = api_impl::owner::init_send_tx(w, (&mask1).as_ref(), args, true).unwrap();
 		println!("INIT SLATE");
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
