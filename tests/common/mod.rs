@@ -285,6 +285,7 @@ pub fn execute_command(
 		tor_config,
 		client.clone(),
 		true,
+		None,
 		|_| {},
 	)
 }
@@ -324,7 +325,7 @@ where
 	wallet_config.api_secret_path = None;
 	wallet_config.node_api_secret_path = None;
 	let tor_config = config.members.unwrap().tor.clone();
-	wallet_args::wallet_command(&args, wallet_config, tor_config, client.clone(), true, f)
+	wallet_args::wallet_command(&args, wallet_config, tor_config, client.clone(), true, None, f)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>

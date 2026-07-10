@@ -40,6 +40,8 @@ args:
 subcommands:
   - cli:
       about: Start the wallet in interactive CLI mode (EXPERIMENTAL and UNDER DEVELOPMENT)
+  - tui:
+      about: Start the wallet in interactive TUI mode, with full command support
   - account:
       about: List wallet accounts or create a new account
       args:

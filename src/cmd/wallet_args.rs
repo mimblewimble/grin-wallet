@@ -967,6 +967,7 @@ pub fn wallet_command<C, F>(
 	tor_config: Option<TorConfig>,
 	mut node_client: C,
 	test_mode: bool,
+	logs_rx: Option<std::sync::mpsc::Receiver<crate::util::logger::LogEntry>>,
 	wallet_inst_cb: F,
 ) -> Result<String, Error>
 where
@@ -1042,6 +1043,7 @@ where
 		("init", Some(_)) => open_wallet = false,
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
+		("tui", _) => open_wallet = false,
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
@@ -1078,6 +1080,14 @@ where
 			&tor_config,
 			&global_wallet_args,
 			test_mode,
+		),
+		("tui", Some(_)) => crate::tui::run(
+			wallet,
+			&wallet_config,
+			&tor_config,
+			&global_wallet_args,
+			test_mode,
+			logs_rx,
 		),
 		_ => {
 			let mut owner_api = Owner::new(wallet, None);

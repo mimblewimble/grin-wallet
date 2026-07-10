@@ -22,3 +22,4 @@ use grin_wallet_config as config;
 
 mod cli;
 pub mod cmd;
+pub mod tui;

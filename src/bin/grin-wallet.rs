@@ -30,6 +30,8 @@ use grin_wallet_impls::HTTPNodeClient;
 use std::env;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
+use std::sync::mpsc;
+use util::logger::LogEntry;
 
 // include build information
 pub mod built_info {
@@ -135,12 +137,22 @@ fn real_main() -> i32 {
 
 	// Load logging config
 	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
-	// no logging to stdout if we're running cli
+	// no logging to stdout if we're running cli; route logs through a
+	// channel instead of stdout when running the full-screen tui
+	let is_tui = matches!(args.subcommand(), ("tui", _));
 	match args.subcommand() {
 		("cli", _) => l.log_to_stdout = true,
+		("tui", _) => l.tui_running = Some(true),
 		_ => {}
 	};
-	init_logger(Some(l), None);
+	let logs_rx = if is_tui {
+		let (logs_tx, logs_rx) = mpsc::sync_channel::<LogEntry>(200);
+		init_logger(Some(l), Some(logs_tx));
+		Some(logs_rx)
+	} else {
+		init_logger(Some(l), None);
+		None
+	};
 	info!(
 		"Using wallet configuration file at {}",
 		config.config_file_path.as_ref().unwrap().to_str().unwrap()
@@ -162,5 +174,5 @@ fn real_main() -> i32 {
 	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
 	let wallet_config = config.clone().members.unwrap().wallet;
 	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-	cmd::wallet_command(&args, config, node_client)
+	cmd::wallet_command(&args, config, node_client, logs_rx)
 }

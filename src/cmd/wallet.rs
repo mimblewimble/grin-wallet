@@ -14,9 +14,11 @@
 
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
+use crate::util::logger::LogEntry;
 use clap::ArgMatches;
 use grin_wallet_libwallet::NodeClient;
 use semver::Version;
+use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
@@ -26,6 +28,7 @@ pub fn wallet_command<C>(
 	wallet_args: &ArgMatches<'_>,
 	config: GlobalWalletConfig,
 	mut node_client: C,
+	logs_rx: Option<Receiver<LogEntry>>,
 ) -> i32
 where
 	C: NodeClient + 'static,
@@ -59,6 +62,7 @@ where
 		tor_config,
 		node_client,
 		false,
+		logs_rx,
 		|_| {},
 	);
 

@@ -29,6 +29,10 @@ linefeed = "0.6"
 semver = "0.10"
 rustyline = "6"
 lazy_static = "1"
+ratatui = "0.29"
+crossterm = "0.28"
+chrono = "0.4.11"
+uuid = { version = "0.8", features = ["serde", "v4"] }
 
 grin_wallet_api = { path = "./api", version = "5.4.1" }
 grin_wallet_impls = { path = "./impls", version = "5.4.1" }
