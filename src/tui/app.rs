@@ -14,15 +14,21 @@
 
 //! Central application state for the wallet TUI
 
-use crate::tui::actions::Modal;
+use crate::tui::modals::Modal;
 use grin_util::logger::LogEntry;
+use grin_util::secp::key::SecretKey;
+use grin_util::Mutex;
 use grin_wallet_libwallet::{AcctPathMapping, OutputCommitMapping, TxLogEntry, WalletInfo};
 use ratatui::layout::Rect;
 use ratatui::widgets::{ListState, TableState};
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 /// Number of log lines retained in the ring buffer
 pub const LOG_BUFFER_SIZE: usize = 300;
+
+/// Default minimum-confirmations used for the live balance view
+pub const DEFAULT_MIN_CONF: u64 = 10;
 
 /// Top level tabs, in the order they appear in the side menu
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -71,9 +77,51 @@ pub enum Focus {
 	Content,
 }
 
-/// A snapshot of wallet data, refreshed periodically from the Owner API.
-/// Kept separate from `App` navigation state so it can be replaced wholesale
-/// on each refresh tick.
+/// State shared between the UI thread and background worker threads
+pub struct SharedState {
+	/// Current keychain mask, updated on open/close
+	pub mask: Mutex<Option<SecretKey>>,
+	/// Whether the wallet is currently locked
+	pub locked: AtomicBool,
+	/// Name of the operation currently running on a worker thread, if any
+	pub busy: Mutex<Option<String>>,
+	/// Active account name
+	pub account: Mutex<String>,
+	/// Minimum confirmations used by the balance refresher
+	pub min_conf: AtomicU64,
+	/// Whether spent outputs are included in the outputs view
+	pub show_spent: AtomicBool,
+	/// Whether the foreign (receive) listener is running
+	pub listener_running: AtomicBool,
+	/// Whether the owner API listener is running
+	pub owner_api_running: AtomicBool,
+}
+
+impl SharedState {
+	pub fn new(account: String) -> SharedState {
+		SharedState {
+			mask: Mutex::new(None),
+			locked: AtomicBool::new(true),
+			busy: Mutex::new(None),
+			account: Mutex::new(account),
+			min_conf: AtomicU64::new(DEFAULT_MIN_CONF),
+			show_spent: AtomicBool::new(false),
+			listener_running: AtomicBool::new(false),
+			owner_api_running: AtomicBool::new(false),
+		}
+	}
+
+	pub fn busy_with(&self) -> Option<String> {
+		self.busy.lock().clone()
+	}
+
+	pub fn is_locked(&self) -> bool {
+		self.locked.load(Ordering::Relaxed)
+	}
+}
+
+/// A snapshot of wallet data, built by the background refresher thread and
+/// replaced wholesale on each refresh tick.
 #[derive(Default)]
 pub struct WalletView {
 	pub account: String,
@@ -87,7 +135,7 @@ pub struct WalletView {
 	pub last_error: Option<String>,
 }
 
-/// A simple acknowledgement dialog (e.g. "wallet is locked")
+/// A simple acknowledgement dialog
 pub struct Dialog {
 	pub text: String,
 }
@@ -104,11 +152,12 @@ pub struct App {
 	pub outputs_table: TableState,
 	pub txs_table: TableState,
 	pub actions_list: ListState,
+	pub settings_list: ListState,
 	pub modal: Option<Modal>,
 	pub dialog: Option<Dialog>,
 	pub should_quit: bool,
-	/// Set by the Actions form when a command has been submitted; drained by
-	/// the controller loop, which suspends the TUI to run it.
+	/// Set when a Suspend-kind action is submitted; drained by the
+	/// controller loop, which leaves the alternate screen to run it.
 	pub pending_action: Option<Vec<String>>,
 	/// Screen area of the menu list, stored at draw time for mouse hit-testing
 	pub menu_area: Rect,
@@ -118,6 +167,8 @@ impl App {
 	pub fn new(account: String, locked: bool) -> App {
 		let mut actions_list = ListState::default();
 		actions_list.select(Some(0));
+		let mut settings_list = ListState::default();
+		settings_list.select(Some(0));
 		App {
 			tab: Tab::Status,
 			focus: Focus::Menu,
@@ -132,6 +183,7 @@ impl App {
 			outputs_table: TableState::default(),
 			txs_table: TableState::default(),
 			actions_list,
+			settings_list,
 			modal: None,
 			dialog: None,
 			should_quit: false,

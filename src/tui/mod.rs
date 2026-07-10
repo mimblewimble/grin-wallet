@@ -15,10 +15,12 @@
 //! Ratatui-based interactive TUI for grin-wallet.
 //!
 //! Provides a live dashboard (account status, accounts, outputs,
-//! transactions, logs) plus an Actions menu that drives every wallet
-//! subcommand through the same `wallet_args::parse_and_execute` dispatch
-//! used by the plain CLI, so command coverage stays in lock-step with the
-//! CLI without duplicating argument parsing or transaction logic.
+//! transactions, settings, logs) plus an Actions menu covering every
+//! wallet subcommand. Most actions run on background worker threads
+//! (`worker.rs`) so slatepack exchange, chain scans, and Tor round-trips
+//! never freeze the UI; only open/close/recover (password prompts) and
+//! first-run init temporarily leave the alternate screen and go through
+//! the CLI dispatch.
 
 mod accounts;
 mod actions;
@@ -26,10 +28,12 @@ mod app;
 mod form;
 mod logs;
 mod menu;
+mod modals;
 mod outputs;
 mod settings;
 mod status;
 mod txs;
 mod ui;
+mod worker;
 
 pub use ui::run;

@@ -24,7 +24,7 @@ use crate::tui::app::{App, Focus, Tab};
 
 /// Draw the main menu (tab list) and its keybinding hints
 pub fn draw(f: &mut Frame, area: Rect, app: &mut App) {
-	let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(7)]).split(area);
+	let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(8)]).split(area);
 	app.menu_area = chunks[0];
 
 	let items: Vec<ListItem> = Tab::ALL
@@ -51,6 +51,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &mut App) {
 		Line::from("Enter     : Select"),
 		Line::from("Esc       : Back  "),
 		Line::from("s         : Spent "),
+		Line::from("?         : Help  "),
 		Line::from("Q         : Quit  "),
 	];
 	f.render_widget(Paragraph::new(hints), chunks[1]);

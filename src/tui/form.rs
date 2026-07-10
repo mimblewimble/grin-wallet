@@ -80,4 +80,16 @@ impl TextField {
 	pub fn end(&mut self) {
 		self.cursor = self.chars().len();
 	}
+
+	/// Insert pasted text at the cursor, flattening newlines to spaces
+	/// (fields are single-line).
+	pub fn paste(&mut self, s: &str) {
+		for c in s.chars() {
+			match c {
+				'\n' | '\r' => self.insert(' '),
+				c if c.is_control() => {}
+				c => self.insert(c),
+			}
+		}
+	}
 }

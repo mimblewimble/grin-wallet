@@ -961,6 +961,7 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 	})
 }
 
+#[cfg_attr(not(feature = "tui"), allow(unused_variables))]
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	mut wallet_config: WalletConfig,
@@ -1081,6 +1082,7 @@ where
 			&global_wallet_args,
 			test_mode,
 		),
+		#[cfg(feature = "tui")]
 		("tui", Some(_)) => crate::tui::run(
 			wallet,
 			&wallet_config,
@@ -1089,6 +1091,10 @@ where
 			test_mode,
 			logs_rx,
 		),
+		#[cfg(not(feature = "tui"))]
+		("tui", Some(_)) => Err(Error::ArgumentError(
+			"this build of grin-wallet was compiled without TUI support".to_owned(),
+		)),
 		_ => {
 			let mut owner_api = Owner::new(wallet, None);
 			parse_and_execute(

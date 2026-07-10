@@ -22,4 +22,5 @@ use grin_wallet_config as config;
 
 mod cli;
 pub mod cmd;
+#[cfg(feature = "tui")]
 pub mod tui;

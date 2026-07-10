@@ -19,6 +19,10 @@ path = "src/bin/grin-wallet.rs"
 members = ["api", "config", "controller", "impls", "libwallet", "util"]
 exclude = ["integration"]
 
+[features]
+default = ["tui"]
+tui = ["dep:ratatui", "dep:crossterm", "dep:qr_code", "dep:serde_json", "dep:uuid"]
+
 [dependencies]
 clap = { version = "2.33", features = ["yaml"] }
 rpassword = "4.0"
@@ -29,10 +33,11 @@ linefeed = "0.6"
 semver = "0.10"
 rustyline = "6"
 lazy_static = "1"
-ratatui = "0.29"
-crossterm = "0.28"
-chrono = "0.4.11"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+ratatui = { version = "0.29", optional = true }
+crossterm = { version = "0.28", features = ["bracketed-paste"], optional = true }
+qr_code = { version = "1.1.0", optional = true }
+serde_json = { version = "1", optional = true }
+uuid = { version = "0.8", features = ["serde", "v4"], optional = true }
 
 grin_wallet_api = { path = "./api", version = "5.4.1" }
 grin_wallet_impls = { path = "./impls", version = "5.4.1" }

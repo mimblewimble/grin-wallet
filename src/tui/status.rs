@@ -14,12 +14,13 @@
 
 //! Account status / balance view
 
-use crate::tui::app::App;
+use crate::tui::app::{App, SharedState};
 use grin_core::core::amount_to_hr_string;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
+use std::sync::atomic::Ordering;
 
 fn line(label: &str, value: impl Into<String>) -> Line<'static> {
 	Line::from(format!("{:<32}{}", label, value.into()))
@@ -32,7 +33,7 @@ fn grin(amount: u64) -> String {
 }
 
 /// Draw the account status/balance view
-pub fn draw(f: &mut Frame, area: Rect, app: &App) {
+pub fn draw(f: &mut Frame, area: Rect, app: &App, shared: &SharedState) {
 	let mut lines: Vec<Line> = Vec::new();
 
 	lines.push(line("Account:", app.view.account.clone()));
@@ -43,6 +44,16 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 		return;
 	}
 	lines.push(line("Wallet Status:", "Unlocked"));
+
+	if let Some(op) = shared.busy_with() {
+		lines.push(line("Working:", format!("{} ...", op)));
+	}
+	if shared.listener_running.load(Ordering::Relaxed) {
+		lines.push(line("Foreign Listener:", "Running"));
+	}
+	if shared.owner_api_running.load(Ordering::Relaxed) {
+		lines.push(line("Owner API:", "Running"));
+	}
 
 	if let Some(err) = &app.view.last_error {
 		lines.push(line("Last Error:", err.clone()));
@@ -65,9 +76,18 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
 		}
 		Some(info) => {
 			lines.push(line("Total:", grin(info.total)));
-			lines.push(line("Currently Spendable:", grin(info.amount_currently_spendable)));
-			lines.push(line("Awaiting Confirmation:", grin(info.amount_awaiting_confirmation)));
-			lines.push(line("Awaiting Finalization:", grin(info.amount_awaiting_finalization)));
+			lines.push(line(
+				"Currently Spendable:",
+				grin(info.amount_currently_spendable),
+			));
+			lines.push(line(
+				"Awaiting Confirmation:",
+				grin(info.amount_awaiting_confirmation),
+			));
+			lines.push(line(
+				"Awaiting Finalization:",
+				grin(info.amount_awaiting_finalization),
+			));
 			lines.push(line("Locked by Unfinished Tx:", grin(info.amount_locked)));
 			lines.push(line("Immature Coinbase:", grin(info.amount_immature)));
 			lines.push(line("Reverted:", grin(info.amount_reverted)));

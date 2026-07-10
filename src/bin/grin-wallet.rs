@@ -139,7 +139,7 @@ fn real_main() -> i32 {
 	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
 	// no logging to stdout if we're running cli; route logs through a
 	// channel instead of stdout when running the full-screen tui
-	let is_tui = matches!(args.subcommand(), ("tui", _));
+	let is_tui = cfg!(feature = "tui") && matches!(args.subcommand(), ("tui", _));
 	match args.subcommand() {
 		("cli", _) => l.log_to_stdout = true,
 		("tui", _) => l.tui_running = Some(true),
