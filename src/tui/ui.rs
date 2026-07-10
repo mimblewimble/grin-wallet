@@ -16,17 +16,17 @@
 //! and drawing; dashboard data arrives from a background refresher and
 //! wallet operations run on worker threads (see `worker.rs`), so Tor
 //! round-trips, chain scans and node timeouts never freeze the interface.
-//! Only commands that need terminal password prompts (open/close/recover
-//! and first-run init) temporarily leave the alternate screen and run
-//! through the same CLI dispatch as a plain `grin-wallet` invocation.
+//! Open/close/recover use in-TUI password modals. The only place the
+//! normal terminal is used is first-run wallet creation, before the
+//! dashboard opens.
 
 use crate::cmd::wallet_args;
-use crate::tui::actions::{self, ExecKind, FormState};
+use crate::tui::actions::{self, FormState};
 use crate::tui::app::{App, Dialog, Focus, SharedState, Tab};
 use crate::tui::form::TextField;
 use crate::tui::modals::{
 	ConfirmPayState, ContextAction, ContextMenuState, EditSettingState, Modal, OutputState,
-	SlatepackInputState,
+	PasswordPurpose, PasswordState, SlatepackInputState,
 };
 use crate::tui::worker::{
 	self, OpResult, PayParams, RefreshCtrl, SendParams, SlateInput, SlateOpParams, UiMsg,
@@ -45,7 +45,7 @@ use crossterm::terminal::{
 use grin_keychain as keychain;
 use grin_util::logger::LogEntry;
 use grin_util::secp::key::SecretKey;
-use grin_util::{to_base64, Mutex};
+use grin_util::{to_base64, Mutex, ZeroingString};
 use grin_wallet_api::Owner;
 use grin_wallet_config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use grin_wallet_controller::command::GlobalArgs;
@@ -128,9 +128,8 @@ fn copy_to_clipboard(text: &str) {
 }
 
 /// Parse `argv` as a `grin-wallet` command line and execute it through the
-/// CLI dispatch. Only used for Suspend-kind actions (open/close/recover/
-/// init) whose password prompts need a normal terminal; `open`/`close` are
-/// intercepted directly, matching the interactive CLI.
+/// CLI dispatch. Only used *before* the dashboard opens (first-run `init`
+/// and the initial unlock) when a normal terminal is still available.
 fn run_subcommand<L, C, K>(
 	argv: Vec<String>,
 	owner_api: &mut Owner<L, C, K>,
@@ -170,16 +169,6 @@ where
 				}
 				Err(e) => println!("Failed to open wallet: {}", e),
 			}
-			Ok(())
-		}
-		("close", Some(_)) => {
-			if let Err(e) = owner_api.close_wallet(None) {
-				println!("Failed to close wallet: {}", e);
-			} else {
-				println!("Wallet locked.");
-			}
-			*keychain_mask = None;
-			*locked = true;
 			Ok(())
 		}
 		_ => wallet_args::parse_and_execute(
@@ -278,7 +267,6 @@ where
 	wallet_config: WalletConfig,
 	tor_config: TorConfig,
 	global_wallet_args: GlobalArgs,
-	test_mode: bool,
 	shared: Arc<SharedState>,
 	ctx: WorkerCtx<L, C, K>,
 	config_path: String,
@@ -466,12 +454,138 @@ where
 		}
 	}
 
+	/// Start an open/unlock: reuse CLI `-p` password if provided, else
+	/// open the masked password modal.
+	fn begin_open(&mut self) {
+		if !self.app.locked {
+			self.app.dialog = Some(Dialog {
+				text: "Wallet is already unlocked.".to_string(),
+			});
+			return;
+		}
+		if let Some(p) = self.global_wallet_args.password.clone() {
+			match self.open_with_password(p) {
+				Ok(()) => {
+					self.app.dialog = Some(Dialog {
+						text: "Wallet unlocked.".to_string(),
+					});
+					self.request_refresh();
+				}
+				Err(e) => {
+					self.app.dialog = Some(Dialog {
+						text: format!("Failed to open wallet: {}", e),
+					});
+				}
+			}
+			return;
+		}
+		self.app.modal = Some(Modal::Password(PasswordState::new(PasswordPurpose::Open)));
+	}
+
+	fn begin_recover(&mut self) {
+		if let Some(p) = self.global_wallet_args.password.clone() {
+			match self.recover_with_password(p) {
+				Ok(body) => {
+					self.app.modal = Some(Modal::Output(OutputState::from_text(
+						"Recovery Phrase".to_string(),
+						body.0,
+						Some(body.1),
+					)));
+				}
+				Err(e) => {
+					self.app.dialog = Some(Dialog {
+						text: format!("Failed to recover phrase: {}", e),
+					});
+				}
+			}
+			return;
+		}
+		self.app
+			.modal
+			.replace(Modal::Password(PasswordState::new(PasswordPurpose::Recover)));
+	}
+
+	/// Returns Ok on success. Caller is responsible for UI feedback.
+	fn open_with_password(&mut self, password: ZeroingString) -> Result<(), String> {
+		match self.owner_api.open_wallet(None, password, false) {
+			Ok(mask) => {
+				let _ = self
+					.owner_api
+					.set_active_account(mask.as_ref(), &self.global_wallet_args.account);
+				self.keychain_mask = mask;
+				*self.shared.mask.lock() = self.keychain_mask.clone();
+				self.shared.locked.store(false, Ordering::Relaxed);
+				self.app.locked = false;
+				Ok(())
+			}
+			Err(e) => Err(format!("{}", e)),
+		}
+	}
+
+	/// Returns `(display_body, phrase_for_clipboard)` on success.
+	fn recover_with_password(
+		&mut self,
+		password: ZeroingString,
+	) -> Result<(String, String), String> {
+		let mut w_lock = self.owner_api.wallet_inst.lock();
+		let p = w_lock
+			.lc_provider()
+			.map_err(|e| format!("{}", e))?;
+		let phrase = p
+			.get_mnemonic(None, password)
+			.map_err(|e| format!("{}", e))?;
+		let words = (&*phrase).to_string();
+		let body = format!(
+			"Your recovery phrase is:\n\n{}\n\nPlease back-up these words in a non-digital format.",
+			words
+		);
+		Ok((body, words))
+	}
+
+	fn do_close(&mut self) {
+		if self.app.locked {
+			self.app.dialog = Some(Dialog {
+				text: "Wallet is already locked.".to_string(),
+			});
+			return;
+		}
+		match self.owner_api.close_wallet(None) {
+			Ok(()) => {
+				self.keychain_mask = None;
+				*self.shared.mask.lock() = None;
+				self.shared.locked.store(true, Ordering::Relaxed);
+				self.app.locked = true;
+				self.app.dialog = Some(Dialog {
+					text: "Wallet locked.".to_string(),
+				});
+				self.request_refresh();
+			}
+			Err(e) => {
+				self.app.dialog = Some(Dialog {
+					text: format!("Failed to close wallet: {}", e),
+				});
+			}
+		}
+	}
+
 	/// Route a validated, submitted form to its executor
 	fn submit_form(&mut self, form: FormState) {
 		let spec = form.spec();
-		if spec.exec == ExecKind::Suspend {
-			self.app.pending_action = Some(form.build_argv());
-			return;
+		// open/close/recover never leave the alternate screen
+		match spec.subcommand {
+			"open" => {
+				self.begin_open();
+				return;
+			}
+			"close" => {
+				self.do_close();
+				return;
+			}
+			"recover" => {
+				self.begin_recover();
+				return;
+			}
+			_ => {}
 		}
 		if self.app.locked {
 			self.app.dialog = Some(Dialog {
@@ -814,6 +928,78 @@ where
 					self.app.modal = Some(Modal::Context(state));
 				}
 			},
+			Modal::Password(mut state) => match code {
+				KeyCode::Esc => {}
+				KeyCode::Enter => {
+					if state.field.value.is_empty() {
+						state.error = Some("Password cannot be empty".to_string());
+						self.app.modal = Some(Modal::Password(state));
+						return;
+					}
+					let password = ZeroingString::from(state.field.value.clone());
+					// Drop the plaintext from the field before we keep
+					// the modal around on error.
+					state.field = TextField::new("");
+					match state.purpose {
+						PasswordPurpose::Open => match self.open_with_password(password) {
+							Ok(()) => {
+								self.app.dialog = Some(Dialog {
+									text: "Wallet unlocked.".to_string(),
+								});
+								self.request_refresh();
+							}
+							Err(e) => {
+								state.error = Some(format!("Failed to open wallet: {}", e));
+								self.app.modal = Some(Modal::Password(state));
+							}
+						},
+						PasswordPurpose::Recover => match self.recover_with_password(password) {
+							Ok((body, copy)) => {
+								self.app.modal = Some(Modal::Output(OutputState::from_text(
+									"Recovery Phrase".to_string(),
+									body,
+									Some(copy),
+								)));
+							}
+							Err(e) => {
+								state.error = Some(format!("Failed to recover phrase: {}", e));
+								self.app.modal = Some(Modal::Password(state));
+							}
+						},
+					}
+				}
+				KeyCode::Left => {
+					state.field.left();
+					self.app.modal = Some(Modal::Password(state));
+				}
+				KeyCode::Right => {
+					state.field.right();
+					self.app.modal = Some(Modal::Password(state));
+				}
+				KeyCode::Home => {
+					state.field.home();
+					self.app.modal = Some(Modal::Password(state));
+				}
+				KeyCode::End => {
+					state.field.end();
+					self.app.modal = Some(Modal::Password(state));
+				}
+				KeyCode::Backspace => {
+					state.field.backspace();
+					self.app.modal = Some(Modal::Password(state));
+				}
+				KeyCode::Delete => {
+					state.field.delete();
+					self.app.modal = Some(Modal::Password(state));
+				}
+				KeyCode::Char(c) => {
+					state.field.insert(c);
+					self.app.modal = Some(Modal::Password(state));
+				}
+				_ => {
+					self.app.modal = Some(Modal::Password(state));
+				}
+			},
 			Modal::EditSetting(mut state) => match code {
 				KeyCode::Esc => {}
 				KeyCode::Enter => {
@@ -889,6 +1075,9 @@ where
 			Some(Modal::EditSetting(state)) => {
 				state.field.paste(&data);
 			}
+			Some(Modal::Password(state)) => {
+				state.field.paste(&data);
+			}
 			_ => {}
 		}
 	}
@@ -961,53 +1150,6 @@ where
 		}
 	}
 
-	/// Leave the alternate screen, run `argv` through the CLI dispatch
-	/// (password prompts and stdout output work normally), wait for the
-	/// user and resume.
-	fn run_action(&mut self, argv: Vec<String>) {
-		let _ = disable_raw_mode();
-		let _ = execute!(
-			self.terminal.backend_mut(),
-			LeaveAlternateScreen,
-			DisableMouseCapture,
-			DisableBracketedPaste
-		);
-
-		println!("\n=== Running: {} ===\n", argv[1..].join(" "));
-		let result = run_subcommand(
-			argv,
-			&mut self.owner_api,
-			&mut self.keychain_mask,
-			&mut self.app.locked,
-			&self.wallet_config,
-			&self.tor_config,
-			&self.global_wallet_args,
-			self.test_mode,
-		);
-
-		// propagate lock state and mask to the background threads
-		*self.shared.mask.lock() = self.keychain_mask.clone();
-		self.shared.locked.store(self.app.locked, Ordering::Relaxed);
-
-		match &result {
-			Ok(()) => println!("\nCommand completed."),
-			Err(e) => println!("\nCommand failed: {}", e),
-		}
-		println!("\nPress Enter to return to the dashboard...");
-		let mut discard = String::new();
-		let _ = io::stdin().read_line(&mut discard);
-
-		let _ = enable_raw_mode();
-		let _ = execute!(
-			self.terminal.backend_mut(),
-			EnterAlternateScreen,
-			EnableMouseCapture,
-			EnableBracketedPaste
-		);
-		let _ = self.terminal.clear();
-		self.request_refresh();
-	}
-
 	fn draw(&mut self) {
 		let app = &mut self.app;
 		let wallet_config = &self.wallet_config;
@@ -1064,11 +1206,6 @@ where
 				Ok(Event::Resize(_, _)) => self.needs_redraw = true,
 				_ => {}
 			}
-		}
-
-		if let Some(argv) = self.app.pending_action.take() {
-			self.run_action(argv);
-			self.needs_redraw = true;
 		}
 
 		if self.app.should_quit {
@@ -1233,7 +1370,6 @@ where
 		wallet_config: wallet_config.clone(),
 		tor_config: tor_config.clone(),
 		global_wallet_args: global_wallet_args.clone(),
-		test_mode,
 		shared,
 		ctx,
 		config_path,

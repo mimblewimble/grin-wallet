@@ -13,10 +13,10 @@
 // limitations under the License.
 
 //! The Actions tab: a menu of every wallet subcommand, each backed by a
-//! small validated form. Most actions run on a background worker thread
-//! inside the TUI; the few that require terminal password prompts
-//! (open/close/recover) suspend the alternate screen and run through the
-//! same CLI dispatch as a plain `grin-wallet` invocation.
+//! small validated form. All actions run inside the TUI — either on a
+//! background worker thread or (for open/close/recover) via an in-TUI
+//! password modal / direct Owner API call. The alternate screen is never
+//! left while the dashboard is up.
 
 use crate::tui::form::TextField;
 use grin_core::core::amount_from_hr_string;
@@ -30,8 +30,8 @@ use std::convert::TryFrom;
 use std::path::Path;
 use uuid::Uuid;
 
-/// How a field's value maps to a CLI argument (used for Suspend actions and
-/// for looking fields up by name).
+/// How a field's value maps to a CLI-style argument name (used for looking
+/// fields up by name and for the pure `build_argv` unit tests).
 #[derive(Copy, Clone, PartialEq)]
 pub enum ArgKind {
 	/// Appended as a bare positional argument (only if non-empty)
@@ -66,16 +66,6 @@ pub enum Validate {
 	Required,
 }
 
-/// How the action is executed when its form is submitted
-#[derive(Copy, Clone, PartialEq)]
-pub enum ExecKind {
-	/// Runs on a background thread inside the TUI
-	Worker,
-	/// Suspends the TUI and runs through the CLI dispatch (needed for
-	/// commands with terminal password prompts)
-	Suspend,
-}
-
 pub struct FieldSpec {
 	pub label: &'static str,
 	pub arg: ArgKind,
@@ -93,7 +83,6 @@ pub struct ActionSpec {
 	pub subcommand: &'static str,
 	pub title: &'static str,
 	pub fields: &'static [FieldSpec],
-	pub exec: ExecKind,
 	/// Optional cross-field check run after per-field validation
 	pub check: Option<fn(&FormState) -> Result<(), String>>,
 }
@@ -145,7 +134,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "send",
 		title: "Send",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Amount (or 'max')", Positional, AmountOrMax),
@@ -165,7 +153,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "receive",
 		title: "Receive",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Input file (blank to paste)", Opt("input"), "", FileOpt),
@@ -176,14 +163,12 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "unpack",
 		title: "Unpack / Inspect Slatepack",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[field!("Input file (blank to paste)", Opt("input"), "", FileOpt)],
 	},
 	ActionSpec {
 		subcommand: "finalize",
 		title: "Finalize",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Input file (blank to paste)", Opt("input"), "", FileOpt),
@@ -195,7 +180,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "invoice",
 		title: "Issue Invoice",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Amount", Positional, Amount),
@@ -206,7 +190,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "pay",
 		title: "Pay Invoice",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Input file (blank to paste)", Opt("input"), "", FileOpt),
@@ -221,7 +204,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "post",
 		title: "Post Transaction",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Input file (blank to paste)", Opt("input"), "", FileOpt),
@@ -231,7 +213,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "repost",
 		title: "Repost Transaction",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Transaction ID", Opt("id"), "", U64),
@@ -242,7 +223,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "cancel",
 		title: "Cancel Transaction",
-		exec: ExecKind::Worker,
 		check: Some(check_one_of_id_txid),
 		fields: &[
 			field!("Transaction ID", Opt("id"), "", U64Opt),
@@ -252,14 +232,12 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "account",
 		title: "Create Account",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[field!("New account name", Opt("create"), "", Required)],
 	},
 	ActionSpec {
 		subcommand: "export_proof",
 		title: "Export Payment Proof",
-		exec: ExecKind::Worker,
 		check: Some(check_one_of_id_txid),
 		fields: &[
 			field!("Output proof file", Positional, Required),
@@ -270,21 +248,18 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "verify_proof",
 		title: "Verify Payment Proof",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[field!("Proof file", Positional, FileReq)],
 	},
 	ActionSpec {
 		subcommand: "address",
 		title: "Show Slatepack Address",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[],
 	},
 	ActionSpec {
 		subcommand: "scan",
 		title: "Rescan Wallet Outputs",
-		exec: ExecKind::Worker,
 		check: Some(check_height_args),
 		fields: &[
 			field!("Start height (optional)", Opt("start_height"), "", U64Opt),
@@ -300,14 +275,12 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "rewind_hash",
 		title: "Show Rewind Hash",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[],
 	},
 	ActionSpec {
 		subcommand: "scan_rewind_hash",
 		title: "Scan View Wallet (Rewind Hash)",
-		exec: ExecKind::Worker,
 		check: Some(check_height_args),
 		fields: &[
 			field!("Rewind hash", Positional, Required),
@@ -323,7 +296,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "listen",
 		title: "Start Listener (background)",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Port (optional)", Opt("port"), "", U64Opt),
@@ -334,7 +306,6 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "owner_api",
 		title: "Start Owner API (background)",
-		exec: ExecKind::Worker,
 		check: None,
 		fields: &[
 			field!("Port (optional)", Opt("port"), "", U64Opt),
@@ -344,21 +315,18 @@ pub static ACTIONS: &[ActionSpec] = &[
 	ActionSpec {
 		subcommand: "recover",
 		title: "Show Recovery Phrase",
-		exec: ExecKind::Suspend,
 		check: None,
 		fields: &[],
 	},
 	ActionSpec {
 		subcommand: "open",
 		title: "Open / Unlock Wallet",
-		exec: ExecKind::Suspend,
 		check: None,
 		fields: &[],
 	},
 	ActionSpec {
 		subcommand: "close",
 		title: "Close / Lock Wallet",
-		exec: ExecKind::Suspend,
 		check: None,
 		fields: &[],
 	},
@@ -526,7 +494,8 @@ impl FormState {
 	}
 
 	/// Build the `grin-wallet <subcommand> ...` argv this form represents
-	/// (used by Suspend-kind actions)
+	/// (kept for unit tests of field → argument mapping).
+	#[cfg(test)]
 	pub fn build_argv(&self) -> Vec<String> {
 		let spec = self.spec();
 		let mut argv = vec!["grin-wallet".to_string(), spec.subcommand.to_string()];

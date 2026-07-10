@@ -156,9 +156,6 @@ pub struct App {
 	pub modal: Option<Modal>,
 	pub dialog: Option<Dialog>,
 	pub should_quit: bool,
-	/// Set when a Suspend-kind action is submitted; drained by the
-	/// controller loop, which leaves the alternate screen to run it.
-	pub pending_action: Option<Vec<String>>,
 	/// Screen area of the menu list, stored at draw time for mouse hit-testing
 	pub menu_area: Rect,
 }
@@ -187,7 +184,6 @@ impl App {
 			modal: None,
 			dialog: None,
 			should_quit: false,
-			pending_action: None,
 			menu_area: Rect::default(),
 		}
 	}

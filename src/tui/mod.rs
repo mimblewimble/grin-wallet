@@ -16,11 +16,11 @@
 //!
 //! Provides a live dashboard (account status, accounts, outputs,
 //! transactions, settings, logs) plus an Actions menu covering every
-//! wallet subcommand. Most actions run on background worker threads
-//! (`worker.rs`) so slatepack exchange, chain scans, and Tor round-trips
-//! never freeze the UI; only open/close/recover (password prompts) and
-//! first-run init temporarily leave the alternate screen and go through
-//! the CLI dispatch.
+//! wallet subcommand. Actions run on background worker threads
+//! (`worker.rs`) or via in-TUI modals (password for open/recover), so
+//! the alternate screen stays up for the whole session. First-run init
+//! (before the dashboard opens) is the only path that uses the normal
+//! terminal.
 
 mod accounts;
 mod actions;

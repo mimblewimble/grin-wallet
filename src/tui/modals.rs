@@ -122,6 +122,39 @@ pub struct EditSettingState {
 	pub error: Option<String>,
 }
 
+/// Why a password is being requested
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum PasswordPurpose {
+	/// Unlock the wallet (`open`)
+	Open,
+	/// Decrypt and display the BIP39 recovery phrase (`recover`)
+	Recover,
+}
+
+/// Masked password entry modal (never leaves the alternate screen)
+pub struct PasswordState {
+	pub purpose: PasswordPurpose,
+	pub field: TextField,
+	pub error: Option<String>,
+}
+
+impl PasswordState {
+	pub fn new(purpose: PasswordPurpose) -> PasswordState {
+		PasswordState {
+			purpose,
+			field: TextField::new(""),
+			error: None,
+		}
+	}
+
+	pub fn title(&self) -> &'static str {
+		match self.purpose {
+			PasswordPurpose::Open => "Open / Unlock Wallet",
+			PasswordPurpose::Recover => "Show Recovery Phrase",
+		}
+	}
+}
+
 pub enum Modal {
 	Form(FormState),
 	SlatepackInput(SlatepackInputState),
@@ -129,6 +162,7 @@ pub enum Modal {
 	ConfirmPay(ConfirmPayState),
 	Context(ContextMenuState),
 	EditSetting(EditSettingState),
+	Password(PasswordState),
 	Help,
 }
 
@@ -140,7 +174,50 @@ pub fn draw(f: &mut Frame, area: Rect, modal: &mut Modal) {
 		Modal::ConfirmPay(state) => draw_confirm_pay(f, area, state),
 		Modal::Context(state) => draw_context(f, area, state),
 		Modal::EditSetting(state) => draw_edit_setting(f, area, state),
+		Modal::Password(state) => draw_password(f, area, state),
 		Modal::Help => draw_help(f, area),
+	}
+}
+
+fn draw_password(f: &mut Frame, area: Rect, state: &PasswordState) {
+	let popup = centered_rect(55, 30, area);
+	f.render_widget(Clear, popup);
+	let block = Block::default().borders(Borders::ALL).title(format!(
+		"{} (Enter: submit, Esc: cancel)",
+		state.title()
+	));
+	let inner = block.inner(popup);
+	f.render_widget(block, popup);
+
+	let rows = Layout::vertical([
+		Constraint::Length(1),
+		Constraint::Length(1),
+		Constraint::Length(1),
+		Constraint::Length(1),
+	])
+	.split(inner);
+
+	f.render_widget(
+		Paragraph::new("Enter wallet password:"),
+		rows[0],
+	);
+	// Mask the value so a shoulder-surfer can't read it off the screen
+	let masked: String = "*".repeat(state.field.value.chars().count());
+	f.render_widget(
+		Paragraph::new(Line::from(vec![
+			Span::raw("> "),
+			Span::styled(masked, Style::default().add_modifier(Modifier::BOLD)),
+		])),
+		rows[1],
+	);
+	if let Some(err) = &state.error {
+		f.render_widget(
+			Paragraph::new(Line::from(Span::styled(
+				err.clone(),
+				Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+			))),
+			rows[3],
+		);
 	}
 }
 
