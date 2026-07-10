@@ -1030,6 +1030,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "fuchsia-cprng"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1378,6 +1388,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "grin_servers"
+version = "5.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4c0fae501662eb0ea0804bd3fbfc02846612f512712073c18f8adbe7b908042"
+dependencies = [
+ "async-stream",
+ "chrono",
+ "fs2",
+ "futures 0.3.31",
+ "grin_api",
+ "grin_chain",
+ "grin_core",
+ "grin_keychain",
+ "grin_p2p",
+ "grin_pool",
+ "grin_store",
+ "grin_util",
+ "http",
+ "hyper 0.14.32",
+ "hyper-rustls 0.23.2",
+ "lmdb-zero",
+ "log",
+ "rand 0.6.5",
+ "rustls 0.20.9",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio 1.42.1",
+ "tokio-util 0.7.17",
+ "walkdir",
+]
+
+[[package]]
 name = "grin_store"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1565,6 +1608,25 @@ dependencies = [
  "url",
  "uuid",
  "x25519-dalek 0.6.0",
+]
+
+[[package]]
+name = "grin_wallet_integration"
+version = "5.4.1"
+dependencies = [
+ "futures 0.3.31",
+ "grin_api",
+ "grin_core",
+ "grin_keychain",
+ "grin_p2p",
+ "grin_servers",
+ "grin_util",
+ "grin_wallet_config",
+ "grin_wallet_controller",
+ "grin_wallet_impls",
+ "grin_wallet_libwallet",
+ "log",
+ "serde_json",
 ]
 
 [[package]]
