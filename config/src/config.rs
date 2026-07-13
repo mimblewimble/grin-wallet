@@ -56,17 +56,26 @@ pub fn set_global_config(config: GlobalWalletConfig) -> Result<(), ConfigError> 
 		CONFIG_INSTANCE
 			.set(RwLock::new(config.clone()))
 			.map_err(|_e| ConfigError::Other("Global config can not be set".to_string()))?;
+	} else {
+		let mut cfg = global_config_to_update();
+		*cfg = config;
 	}
 	Ok(())
 }
 
 /// Get global configuration to read values.
 pub fn global_config_to_read() -> RwLockReadGuard<'static, GlobalWalletConfig> {
+	if CONFIG_INSTANCE.get().is_none() {
+		*CONFIG_INSTANCE.get().unwrap().write() = GlobalWalletConfig::default();
+	}
 	CONFIG_INSTANCE.get().unwrap().read()
 }
 
 /// Get global configuration to update values.
 pub fn global_config_to_update() -> RwLockWriteGuard<'static, GlobalWalletConfig> {
+	if CONFIG_INSTANCE.get().is_none() {
+		*CONFIG_INSTANCE.get().unwrap().write() = GlobalWalletConfig::default();
+	}
 	CONFIG_INSTANCE.get().unwrap().write()
 }
 
@@ -507,11 +516,7 @@ impl GlobalWalletConfig {
 		let res = self.write_to_file(path.to_str().unwrap(), false, None, None);
 
 		if let Err(e) = res {
-			let msg = format!(
-				"Error saving config file as ({:?}): {}",
-				path,
-				e
-			);
+			let msg = format!("Error saving config file as ({:?}): {}", path, e);
 			return Err(ConfigError::SerializationError(msg));
 		}
 		Ok(())

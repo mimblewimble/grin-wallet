@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Controller for wallet.. instantiates and handles listeners (or single-run
+//! Controller for wallet, instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::config::TorConfig;
@@ -48,7 +48,6 @@ use crate::apiwallet::{
 use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
 use grin_wallet_impls::tor::arti::start_tor_service;
-use grin_wallet_impls::tor::Tor;
 
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
@@ -88,7 +87,7 @@ fn init_tor_listener(
 	tor_dir: String,
 	addr: &str,
 	tor_config: TorConfig,
-) -> Result<Tor, Error> {
+) -> Result<tor_process::TorProcess, Error> {
 	info!("Starting external Tor Process listener.");
 
 	let mut process = tor_process::TorProcess::new();
@@ -128,11 +127,7 @@ fn init_tor_listener(
 		.completion_percent(100)
 		.launch()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-	Ok(Tor {
-		process: Some(process),
-		service: None,
-		client: None,
-	})
+	Ok(process)
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
@@ -155,9 +150,9 @@ where
 			let wallet = match wallet {
 				Some(w) => w,
 				None => {
-					return Err(Error::GenericError(format!(
-						"Instantiated wallet or Owner API context must be provided"
-					)))
+					return Err(Error::GenericError(
+						"Instantiated wallet or Owner API context must be provided".to_string(),
+					))
 				}
 			};
 			f(&mut Owner::new(wallet, None), keychain_mask)?
@@ -222,11 +217,8 @@ where
 		running_foreign = true;
 	}
 
-	let api_handler_v3 = OwnerAPIHandlerV3::new(
-		wallet.clone(),
-		keychain_mask.clone(),
-		running_foreign,
-	);
+	let api_handler_v3 =
+		OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), running_foreign);
 
 	router
 		.add_route("/v3/owner", Arc::new(api_handler_v3))
@@ -235,8 +227,7 @@ where
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 =
-			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
@@ -264,7 +255,6 @@ pub fn foreign_listener<L, C, K>(
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
-	use_tor: bool,
 	test_mode: bool,
 	tor_config: TorConfig,
 ) -> Result<(), Error>
@@ -289,11 +279,7 @@ where
 		(sec_key, tor_dir, onion_address)
 	};
 
-	let api_handler_v2 = ForeignAPIHandlerV2::new(
-		wallet,
-		keychain_mask,
-		test_mode,
-	);
+	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
 	let mut router = Router::new();
 
 	router
@@ -312,12 +298,15 @@ where
 	warn!("HTTP Foreign listener started.");
 
 	// Need to keep external process in scope while the listener is running.
-	let tor_service = if use_tor {
+	let _tor_service = if tor_config.use_tor_listener {
 		let use_integrated = tor_config.use_integrated.unwrap_or(false);
-		let res = if use_integrated {
-			start_tor_service(sec_key, &tor_dir, addr, tor_config.clone())
+
+		let res: Result<Option<tor_process::TorProcess>, Error> = if use_integrated {
+			start_tor_service(sec_key, &tor_dir, addr, &tor_config)?;
+			Ok(None)
 		} else {
-			init_tor_listener(sec_key, tor_dir, addr, tor_config)
+			let p = init_tor_listener(sec_key, tor_dir, addr, tor_config)?;
+			Ok(Some(p))
 		};
 		match res {
 			Ok(service) => {
@@ -325,7 +314,13 @@ where
 					"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 					onion_address, addr
 				);
-				Ok(Some(service))
+				let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+				let qr_string = match QrCode::new(sp_address.to_string()) {
+					Ok(qr) => qr.to_string(false, 3),
+					Err(_) => "Failed to generate QR code!".to_string(),
+				};
+				warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+				Ok(service)
 			}
 			Err(e) => {
 				warn!("Unable to start TOR listener");
@@ -335,21 +330,9 @@ where
 			}
 		}
 	} else {
+		warn!("Listener is available on {}", addr);
 		Ok(None)
 	};
-
-	if tor_service.is_ok() {
-		if let Some(_) = tor_service.as_ref().unwrap() {
-			let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-			let qr_string = match QrCode::new(sp_address.to_string()) {
-				Ok(qr) => qr.to_string(false, 3),
-				Err(_) => "Failed to generate QR code!".to_string(),
-			};
-			warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
-		} else {
-			warn!("Listener is available on {}", addr);
-		}
-	}
 
 	api_thread
 		.join()

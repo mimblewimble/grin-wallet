@@ -36,6 +36,7 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use grin_wallet_config::config::{global_config_to_read, global_config_to_update};
 use grin_wallet_util::OnionV3Address;
 use libwallet::api_impl::types::update_tx_slate_state;
 use std::convert::TryFrom;
@@ -46,7 +47,6 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use grin_wallet_config::config::{global_config_to_read, global_config_to_update};
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -217,9 +217,9 @@ where
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 
-	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
+	pub fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
 		let mut gc = global_config_to_update();
-		gc.members.as_mut().unwrap().tor = tor_config;
+		gc.members.as_mut().unwrap().tor = Some(tor_config);
 		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		Ok(())
 	}
@@ -2510,20 +2510,20 @@ pub fn try_slatepack_sync_workflow(
 	send_to_finalize: bool,
 ) -> Result<Slate, Error> {
 	let mut ret_slate = Slate::blank(2, false);
-	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| return match sender
-		.send_tx(&slate, send_to_finalize)
-	{
-		Ok(s) => {
-			ret_slate = s;
-			Ok(())
-		}
-		Err(e) => {
-			debug!(
-				"Send ({}): Could not send Slate via {}: {}",
-				method_str, method_str, e
-			);
-			Err(e)
-		}
+	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| {
+		return match sender.send_tx(&slate, send_to_finalize) {
+			Ok(s) => {
+				ret_slate = s;
+				Ok(())
+			}
+			Err(e) => {
+				debug!(
+					"Send ({}): Could not send Slate via {}: {}",
+					method_str, method_str, e
+				);
+				Err(e)
+			}
+		};
 	};
 
 	// Try parsing Slatepack address.

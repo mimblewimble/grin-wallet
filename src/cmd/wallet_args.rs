@@ -382,7 +382,7 @@ pub fn parse_listen_args(
 	config: &mut WalletConfig,
 	tor_config: &mut TorConfig,
 	args: &ArgMatches,
-) -> Result<command::ListenArgs, ParseError> {
+) -> Result<(), ParseError> {
 	if let Some(port) = args.value_of("port") {
 		config.api_listen_port = port.parse().unwrap();
 	}
@@ -392,7 +392,7 @@ pub fn parse_listen_args(
 	if args.is_present("no_tor") {
 		tor_config.use_tor_listener = false;
 	}
-	Ok(command::ListenArgs {})
+	Ok(())
 }
 
 pub fn parse_owner_api_args(
@@ -1087,14 +1087,7 @@ where
 	};
 
 	let res = match wallet_args.subcommand() {
-		("cli", Some(_)) => command_loop(
-			wallet,
-			keychain_mask,
-			&wallet_config,
-			&tor_config,
-			&global_wallet_args,
-			test_mode,
-		),
+		("cli", Some(_)) => command_loop(wallet, keychain_mask, &global_wallet_args, test_mode),
 		_ => {
 			let mut owner_api = Owner::new(wallet, None);
 			parse_and_execute(
@@ -1158,13 +1151,12 @@ where
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
 			let mut t = tor_config.clone();
-			let a = arg_parse!(parse_listen_args(&mut c, &mut t, &args));
+			arg_parse!(parse_listen_args(&mut c, &mut t, &args));
 			command::listen(
 				owner_api,
 				Arc::new(Mutex::new(keychain_mask)),
 				&c,
 				&t,
-				&a,
 				&global_wallet_args.clone(),
 				cli_mode,
 				test_mode,

@@ -31,6 +31,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 use ::core::time;
+use grin_wallet_config::config::global_config_to_read;
 use qr_code::QrCode;
 use serde_json as json;
 use std::convert::TryFrom;
@@ -41,7 +42,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
-use grin_wallet_config::config::global_config_to_read;
 
 fn show_recovery_phrase(phrase: ZeroingString) {
 	println!("Your recovery phrase is:");
@@ -194,15 +194,11 @@ where
 	Ok(())
 }
 
-/// Arguments for listen command
-pub struct ListenArgs {}
-
 pub fn listen<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
 	tor_config: &TorConfig,
-	_args: &ListenArgs,
 	g_args: &GlobalArgs,
 	cli_mode: bool,
 	test_mode: bool,
@@ -224,7 +220,6 @@ where
 				keychain_mask,
 				&config.api_listen_addr(),
 				g_args.tls_conf.clone(),
-				tor_config.use_tor_listener,
 				test_mode,
 				tor_config,
 			);

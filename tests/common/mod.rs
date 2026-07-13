@@ -36,13 +36,13 @@ use util::secp::key::{PublicKey, SecretKey};
 use grin_api as api;
 use grin_wallet::cmd::wallet_args;
 
+use grin_wallet_config::config::set_global_config;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::thread;
 use std::time::Duration;
 use url::Url;
-use grin_wallet_config::config::set_global_config;
 
 // Set up 2 wallets and launch the test proxy behind them
 #[macro_export]

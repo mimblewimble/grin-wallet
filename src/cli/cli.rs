@@ -19,7 +19,7 @@ use clap::App;
 //use colored::Colorize;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_config::config::global_config_to_read;
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::Error;
 use grin_wallet_impls::DefaultWalletImpl;
@@ -109,8 +109,6 @@ pub fn start_updater_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
 pub fn command_loop<L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
-	wallet_config: &WalletConfig,
-	tor_config: &TorConfig,
 	global_wallet_args: &GlobalArgs,
 	test_mode: bool,
 ) -> Result<(), Error>
@@ -218,11 +216,18 @@ where
 							}
 							_ => keychain_mask,
 						};
+
+						let (wc, tc) = {
+							let gc = global_config_to_read();
+							let wallet_config = gc.members.as_ref().unwrap().wallet.clone();
+							let tor_config = gc.members.as_ref().unwrap().tor.clone().unwrap();
+							(wallet_config, tor_config)
+						};
 						match wallet_args::parse_and_execute(
 							&mut owner_api,
 							keychain_mask.clone(),
-							&wallet_config,
-							&tor_config,
+							&wc,
+							&tc,
 							&global_wallet_args,
 							&args,
 							test_mode,

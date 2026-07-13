@@ -1925,7 +1925,7 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error>;
+	fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error>;
 
 	/**
 	Networked version of [Owner::build_output](struct.Owner.html#method.build_output).
@@ -2423,7 +2423,7 @@ where
 		Owner::verify_payment_proof(self, (&token.keychain_mask).as_ref(), &proof)
 	}
 
-	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
+	fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
 		Owner::set_tor_config(self, tor_config)?;
 		Ok(())
 	}
@@ -2488,10 +2488,10 @@ pub fn run_doctest_owner(
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc_mw::Handler;
 	use grin_keychain::ExtKeychain;
+	use grin_wallet_config::initial_setup_wallet;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 	use grin_wallet_libwallet::{api_impl, WalletInst};
-	use grin_wallet_config::{initial_setup_wallet};
 
 	use crate::core::global::ChainTypes;
 	use grin_util as util;
@@ -2503,7 +2503,12 @@ pub fn run_doctest_owner(
 	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let _ = fs::create_dir_all(test_dir);
-	initial_setup_wallet(&ChainTypes::AutomatedTesting, Some(PathBuf::from(test_dir)), false).unwrap();
+	initial_setup_wallet(
+		&ChainTypes::AutomatedTesting,
+		Some(PathBuf::from(test_dir)),
+		false,
+	)
+	.unwrap();
 
 	let mut wallet_proxy: WalletProxy<
 		DefaultLCProvider<LocalWalletClient, ExtKeychain>,

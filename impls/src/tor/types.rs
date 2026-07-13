@@ -1,4 +1,4 @@
-// Copyright 2018 The Grin Developers
+// Copyright 2026 The Grin Developers
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod arti;
-pub mod bridge;
-pub mod config;
-pub mod process;
-pub mod proxy;
-pub mod types;
+/// Arti client runtime wrapper.
+#[derive(Clone)]
+pub struct ArtiRuntimeWrapper {
+	pub runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime,
+}
+
+impl ArtiRuntimeWrapper {
+	pub fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
+		Ok(Self {
+			runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime::create()?,
+		})
+	}
+}

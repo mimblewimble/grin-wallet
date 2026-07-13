@@ -119,16 +119,18 @@ fn real_main() -> i32 {
 	// Use defaults for configuration if config file not found anywhere
 	let mut config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
 		Ok(c) => c,
-		Err(e) => return match e {
-			ConfigError::PathNotFoundError(m) => {
-				println!("Wallet configuration not found at {}. (Run `grin-wallet init` to create a new wallet)", m);
-				0
+		Err(e) => {
+			return match e {
+				ConfigError::PathNotFoundError(m) => {
+					println!("Wallet configuration not found at {}. (Run `grin-wallet init` to create a new wallet)", m);
+					0
+				}
+				m => {
+					println!("Unable to load wallet configuration: {} (Run `grin-wallet init` to create a new wallet)", m);
+					0
+				}
 			}
-			m => {
-				println!("Unable to load wallet configuration: {} (Run `grin-wallet init` to create a new wallet)", m);
-				0
-			}
-		},
+		}
 	};
 
 	// Load logging config
