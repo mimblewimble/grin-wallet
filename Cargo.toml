@@ -28,7 +28,6 @@ linefeed = "0.6"
 semver = "1.0.28"
 rustyline = "9"
 lazy_static = "1"
-rustls = { version = "0.23.41", default-features = false, features = ["ring"] }
 
 grin_wallet_api = { path = "./api", version = "5.4.1" }
 grin_wallet_impls = { path = "./impls", version = "5.4.1" }

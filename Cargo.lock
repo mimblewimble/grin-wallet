@@ -2500,7 +2500,6 @@ dependencies = [
  "linefeed",
  "log",
  "rpassword",
- "rustls",
  "rustyline",
  "semver",
  "serde",
