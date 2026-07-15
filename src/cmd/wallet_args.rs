@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Argument parsing and error handling for wallet commands
 use crate::api::TLSConfig;
 use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
-/// Argument parsing and error handling for wallet commands
+
 use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
@@ -33,6 +34,7 @@ use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::convert::TryFrom;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -68,8 +70,10 @@ impl From<std::io::Error> for ParseError {
 }
 
 fn prompt_password_internal(prompt: &str) -> Result<ZeroingString, Error> {
+	print!("{}", prompt);
+	std::io::stdout().flush().unwrap();
 	Ok(ZeroingString::from(
-		rpassword::prompt_password(prompt).map_err(|e| Error::GenericError(format!("{}", e)))?,
+		rpassword::read_password().map_err(|e| Error::GenericError(format!("{}", e)))?,
 	))
 }
 
