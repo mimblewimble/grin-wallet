@@ -210,7 +210,7 @@ where
 	/// `init_send_tx` when send args are present and a TOR address is specified
 	///
 	/// # Arguments
-	/// * `tor_config` - The optional [TorConfig](#) to use
+	/// * `tor_config` - The [TorConfig](#) to use
 	/// # Returns
 	/// * Result Containing:
 	/// * `Ok(())` if the config was correctly saved
