@@ -145,9 +145,7 @@ where
 		// If config exists but the datadir return ok
 		if config_file_name.exists() {
 			// Set global config instance.
-			set_global_config(default_config).map_err(|e| {
-				Error::Lifecycle(format!("Can not set global config instance: {:?}", e))
-			})?;
+			set_global_config(default_config);
 			return Ok(());
 		}
 		// default settings are updated if no config was provided, no support for top_dir/here
@@ -178,9 +176,7 @@ where
 		}
 
 		// Set global config instance.
-		set_global_config(default_config).map_err(|e| {
-			Error::Lifecycle(format!("Can not set global config instance: {:?}", e))
-		})?;
+		set_global_config(default_config);
 
 		info!(
 			"File {} configured and created",

@@ -51,24 +51,14 @@ pub const API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
 pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 /// Set global configuration instance.
-pub fn set_global_config(config: GlobalWalletConfig) -> Result<(), ConfigError> {
-	if CONFIG_INSTANCE.get().is_none() {
-		CONFIG_INSTANCE
-			.set(RwLock::new(config.clone()))
-			.map_err(|_e| ConfigError::Other("Global config can not be set".to_string()))?;
-	} else {
-		let mut cfg = global_config_to_update();
-		*cfg = config;
-	}
-	Ok(())
+pub fn set_global_config(config: GlobalWalletConfig) {
+	let mut cfg = CONFIG_INSTANCE.get_or_init(|| RwLock::new(GlobalWalletConfig::default())).write();
+	*cfg = config;
 }
 
 /// Get global configuration to read values.
 pub fn global_config_to_read() -> RwLockReadGuard<'static, GlobalWalletConfig> {
-	if CONFIG_INSTANCE.get().is_none() {
-		*CONFIG_INSTANCE.get().unwrap().write() = GlobalWalletConfig::default();
-	}
-	CONFIG_INSTANCE.get().unwrap().read()
+	CONFIG_INSTANCE.get_or_init(|| RwLock::new(GlobalWalletConfig::default())).read()
 }
 
 /// Get global configuration to update values.
@@ -306,7 +296,7 @@ pub fn initial_setup_wallet(
 	};
 
 	// Set global config instance.
-	set_global_config(config.clone())?;
+	set_global_config(config.clone());
 
 	// Check API secrets, if ok, return config
 	check_api_secret_file(chain_type, Some(path.clone()), OWNER_API_SECRET_FILE_NAME)?;
