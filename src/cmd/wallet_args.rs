@@ -34,7 +34,7 @@ use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::convert::TryFrom;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -72,9 +72,19 @@ impl From<std::io::Error> for ParseError {
 fn prompt_password_internal(prompt: &str) -> Result<ZeroingString, Error> {
 	print!("{}", prompt);
 	std::io::stdout().flush().unwrap();
-	Ok(ZeroingString::from(
-		rpassword::read_password().map_err(|e| Error::GenericError(format!("{}", e)))?,
-	))
+	let stdin = std::io::stdin();
+	let password = if stdin.is_terminal() {
+		rpassword::read_password()
+	} else {
+		rpassword::read_password_with_config(
+			rpassword::ConfigBuilder::new()
+				.input_reader(stdin)
+				.output_discard()
+				.build(),
+		)
+	}
+	.map_err(|e| Error::GenericError(format!("{}", e)))?;
+	Ok(ZeroingString::from(password))
 }
 
 pub fn prompt_password(password: &Option<ZeroingString>) -> Result<ZeroingString, Error> {

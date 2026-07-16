@@ -93,7 +93,7 @@ impl TorRcConfig {
 }
 
 /// Convert expanded secret key to byte array (works for both external Tor process and Arti).
-pub fn exp_sec_key_bytes(expanded_sk: ExpandedSecretKey) -> [u8; 64] {
+pub(crate) fn exp_sec_key_bytes(expanded_sk: ExpandedSecretKey) -> [u8; 64] {
 	let mut sk_bytes = [0_u8; 64];
 	sk_bytes[0..32].copy_from_slice(&expanded_sk.scalar.to_bytes());
 	sk_bytes[32..64].copy_from_slice(&expanded_sk.hash_prefix);
