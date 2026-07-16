@@ -218,9 +218,14 @@ where
 	///
 
 	pub fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
+		let gc_to_update = {
+			let mut gc = global_config_to_read().clone();
+			gc.members.as_mut().unwrap().tor = Some(tor_config);
+			gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
+			gc
+		};
 		let mut gc = global_config_to_update();
-		gc.members.as_mut().unwrap().tor = Some(tor_config);
-		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
+		*gc = gc_to_update;
 		Ok(())
 	}
 
