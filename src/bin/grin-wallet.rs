@@ -131,8 +131,6 @@ fn real_main() -> i32 {
 		},
 	};
 
-	//config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
-
 	// Load logging config
 	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
 	// no logging to stdout if we're running cli

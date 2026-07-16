@@ -14,9 +14,10 @@
 
 //! Dalek key wrapper for mwixnet primitives
 
+use ed25519_dalek::Verifier;
 use grin_util::secp::key::SecretKey;
 
-use ed25519_dalek::{PublicKey, Signature, Verifier};
+use ed25519_dalek::VerifyingKey;
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use grin_util::ToHex;
 use thiserror::Error;
@@ -37,7 +38,7 @@ pub enum DalekError {
 
 /// Encapsulates an ed25519_dalek::PublicKey and provides (de-)serialization
 #[derive(Clone, Debug, PartialEq)]
-pub struct DalekPublicKey(PublicKey);
+pub struct DalekPublicKey(VerifyingKey);
 
 impl DalekPublicKey {
 	/// Convert DalekPublicKey to hex string
@@ -47,23 +48,23 @@ impl DalekPublicKey {
 
 	/// Convert hex string to DalekPublicKey.
 	pub fn from_hex(hex: &str) -> Result<Self, DalekError> {
-		let bytes = grin_util::from_hex(hex)
-			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
-		let pk = PublicKey::from_bytes(bytes.as_ref())
-			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
+		let err = DalekError::HexError(format!("failed to decode {}", hex));
+		let bytes = grin_util::from_hex(hex).map_err(|_| err.clone())?;
+		let b = <&[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| err.clone())?;
+		let pk = VerifyingKey::from_bytes(b).map_err(|_| err)?;
 		Ok(DalekPublicKey(pk))
 	}
 
 	/// Compute DalekPublicKey from a SecretKey
 	pub fn from_secret(key: &SecretKey) -> Self {
-		let secret = ed25519_dalek::SecretKey::from_bytes(&key.0).unwrap();
-		let pk: PublicKey = (&secret).into();
+		let secret = ed25519_dalek::SigningKey::from_bytes(&key.0);
+		let pk: VerifyingKey = (&secret).into();
 		DalekPublicKey(pk)
 	}
 }
 
-impl AsRef<PublicKey> for DalekPublicKey {
-	fn as_ref(&self) -> &PublicKey {
+impl AsRef<VerifyingKey> for DalekPublicKey {
+	fn as_ref(&self) -> &VerifyingKey {
 		&self.0
 	}
 }
@@ -103,8 +104,9 @@ pub mod option_dalek_pubkey_serde {
 
 impl Readable for DalekPublicKey {
 	fn read<R: Reader>(reader: &mut R) -> Result<Self, ser::Error> {
-		let pk = PublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
-			.map_err(|_| ser::Error::CorruptedData)?;
+		let bytes = reader.read_fixed_bytes(32)?;
+		let b = <&[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| ser::Error::CorruptedData)?;
+		let pk = VerifyingKey::from_bytes(b).map_err(|_| ser::Error::CorruptedData)?;
 		Ok(DalekPublicKey(pk))
 	}
 }
@@ -119,7 +121,7 @@ impl Writeable for DalekPublicKey {
 /// Encapsulates an ed25519_dalek::Signature and provides (de-)serialization
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
-pub struct DalekSignature(Signature);
+pub struct DalekSignature(ed25519_dalek::Signature);
 
 impl DalekSignature {
 	/// Convert hex string to DalekSignature.
@@ -127,7 +129,9 @@ impl DalekSignature {
 	pub fn from_hex(hex: &str) -> Result<Self, DalekError> {
 		let bytes = grin_util::from_hex(hex)
 			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
-		let sig = Signature::from_bytes(bytes.as_ref())
+		let b = <[u8; 64]>::try_from(bytes.as_slice())
+			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
+		let sig = ed25519_dalek::Signature::try_from(b)
 			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
 		Ok(DalekSignature(sig))
 	}
@@ -141,8 +145,8 @@ impl DalekSignature {
 	}
 }
 
-impl AsRef<Signature> for DalekSignature {
-	fn as_ref(&self) -> &Signature {
+impl AsRef<ed25519_dalek::Signature> for DalekSignature {
+	fn as_ref(&self) -> &ed25519_dalek::Signature {
 		&self.0
 	}
 }
@@ -160,7 +164,7 @@ pub mod dalek_sig_serde {
 	where
 		S: Serializer,
 	{
-		serializer.serialize_str(&sig.0.to_hex())
+		serializer.serialize_str(&sig.0.to_bytes().to_hex())
 	}
 
 	///
@@ -178,22 +182,19 @@ pub mod dalek_sig_serde {
 // TODO: This is likely duplicated throughout crate, check
 #[cfg(test)]
 pub fn sign(sk: &SecretKey, message: &[u8]) -> Result<DalekSignature, DalekError> {
-	use ed25519_dalek::{Keypair, Signer};
-	let secret =
-		ed25519_dalek::SecretKey::from_bytes(&sk.0).map_err(|_| DalekError::KeyParseError)?;
-	let public: PublicKey = (&secret).into();
-	let keypair = Keypair { secret, public };
-	let sig = keypair.sign(&message);
+	use ed25519_dalek::{Signer, SigningKey};
+	let secret = SigningKey::from_bytes(&sk.0);
+	let sig = secret.sign(&message);
 	Ok(DalekSignature(sig))
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::mwixnet::onion::crypto::secp::Secp256k1;
 	use crate::mwixnet::onion::test_util::rand_keypair;
 	use grin_core::ser::{self, ProtocolVersion};
 	use grin_util::ToHex;
-	use rand::Rng;
 	use serde::{Deserialize, Serialize};
 	use serde_json::Value;
 
@@ -262,23 +263,27 @@ mod tests {
 	#[test]
 	fn sig_test() -> Result<(), Box<dyn std::error::Error>> {
 		// Sign a message
-		let (sk, pk) = rand_keypair();
-		let msg: [u8; 16] = rand::thread_rng().gen();
+		let s = Secp256k1::new();
+		let sk = SecretKey::from_slice(&s, &[1; 32]).unwrap();
+		let pk = DalekPublicKey::from_secret(&sk);
+
+		let msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 		let sig = sign(&sk, &msg).unwrap();
 
 		// Verify signature
 		assert!(sig.verify(&pk, &msg).is_ok());
 
 		// Wrong message
-		let wrong_msg: [u8; 16] = rand::thread_rng().gen();
+		let wrong_msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
 		assert!(sig.verify(&pk, &wrong_msg).is_err());
 
 		// Wrong pubkey
-		let wrong_pk = rand_keypair().1;
+		let wrong_sk = SecretKey::from_slice(&s, &[2; 32]).unwrap();
+		let wrong_pk = DalekPublicKey::from_secret(&wrong_sk);
 		assert!(sig.verify(&wrong_pk, &msg).is_err());
 
 		// Test from_hex
-		let sig_from_hex = DalekSignature::from_hex(sig.0.to_hex().as_str()).unwrap();
+		let sig_from_hex = DalekSignature::from_hex(sig.0.to_bytes().to_hex().as_str()).unwrap();
 		assert_eq!(sig.0, sig_from_hex.0);
 
 		// Test serde (de-)serialization
@@ -286,7 +291,7 @@ mod tests {
 		let val = serde_json::to_value(serde_test.clone()).unwrap();
 		if let Value::Object(o) = &val {
 			if let Value::String(s) = o.get("sig").unwrap() {
-				assert_eq!(s, &sig.0.to_hex());
+				assert_eq!(s, &sig.0.to_bytes().to_hex());
 			} else {
 				panic!("Invalid type");
 			}

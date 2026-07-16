@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use bech32::{self, FromBase32, ToBase32};
+use ed25519_dalek::SigningKey as edDalekSecretKey;
 /// Slatepack Address definition
-use ed25519_dalek::PublicKey as edDalekPublicKey;
-use ed25519_dalek::SecretKey as edDalekSecretKey;
+use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use x25519_dalek::PublicKey as xDalekPublicKey;
@@ -57,7 +57,7 @@ impl SlatepackAddress {
 	/// new with a random key
 	pub fn random() -> Self {
 		let bytes: [u8; 32] = thread_rng().gen();
-		let pub_key = edDalekPublicKey::from(&edDalekSecretKey::from_bytes(&bytes).unwrap());
+		let pub_key = edDalekPublicKey::from(&edDalekSecretKey::from_bytes(&bytes));
 		SlatepackAddress::new(&pub_key)
 	}
 
@@ -88,7 +88,9 @@ impl TryFrom<&str> for SlatepackAddress {
 	fn try_from(encoded: &str) -> Result<Self, Self::Error> {
 		let (hrp, data) = bech32::decode(&encoded)?;
 		let bytes = Vec::<u8>::from_base32(&data)?;
-		let pub_key = match edDalekPublicKey::from_bytes(&bytes) {
+		let b = <&[u8; 32]>::try_from(bytes.as_slice())
+			.map_err(|_| Error::SlatepackAddress("Wrong encoded data".to_string()))?;
+		let pub_key = match edDalekPublicKey::from_bytes(&b) {
 			Ok(k) => k,
 			Err(e) => {
 				return Err(Error::ED25519Key(format!("{}", e)));
@@ -124,7 +126,10 @@ impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 	fn try_from(addr: &SlatepackAddress) -> Result<Self, Self::Error> {
 		let cep =
 			curve25519_dalek::edwards::CompressedEdwardsY::from_slice(addr.pub_key.as_bytes());
-		let ep = match cep.decompress() {
+		let ep = match cep
+			.map_err(|e| Error::ED25519Key(format!("{}", e)))?
+			.decompress()
+		{
 			Some(p) => p,
 			None => {
 				return Err(Error::ED25519Key(
@@ -140,15 +145,7 @@ impl TryFrom<&SlatepackAddress> for xDalekPublicKey {
 impl TryFrom<&SecretKey> for SlatepackAddress {
 	type Error = Error;
 	fn try_from(key: &SecretKey) -> Result<Self, Self::Error> {
-		let d_skey = match edDalekSecretKey::from_bytes(&key.0) {
-			Ok(k) => k,
-			Err(e) => {
-				return Err(Error::ED25519Key(format!(
-					"Can't create slatepack address from SecretKey: {}",
-					e
-				)));
-			}
-		};
+		let d_skey = edDalekSecretKey::from_bytes(&key.0);
 		let d_pub_key: edDalekPublicKey = (&d_skey).into();
 		Ok(Self::new(&d_pub_key))
 	}
@@ -251,7 +248,7 @@ fn slatepack_address() -> Result<(), Error> {
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
-	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes);
 	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
 	let addr = SlatepackAddress::new(&ed_pub_key);
 	let x_pub_key = xDalekPublicKey::try_from(&addr)?;

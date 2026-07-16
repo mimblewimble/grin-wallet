@@ -637,7 +637,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 			let some_tx_id = txs[0].tx_slate_id.clone();
 			assert!(some_tx_id.is_some());
-			tx_id = some_tx_id.unwrap().to_hyphenated().to_string().clone();
+			tx_id = some_tx_id.unwrap().to_string().clone();
 			Ok(())
 		},
 	)?;

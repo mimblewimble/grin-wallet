@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::tor::config::exp_sec_key_bytes;
 use crate::tor::{ArtiRuntimeWrapper, Tor};
 use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
-use arti_ed25519_dalek::hazmat::ExpandedSecretKey;
 use bytes::Bytes;
-use curve25519_dalek::digest::Digest;
+use ed25519_dalek::hazmat::ExpandedSecretKey;
+use ed25519_dalek::Digest;
 use fs_mistrust::Mistrust;
 use grin_util::secp::SecretKey;
 use grin_wallet_config::TorConfig;
@@ -402,10 +403,7 @@ fn add_service_key(
 
 	let expanded_sk =
 		ExpandedSecretKey::from_bytes(Sha512::default().chain_update(key).finalize().as_ref());
-
-	let mut sk_bytes = [0_u8; 64];
-	sk_bytes[0..32].copy_from_slice(&expanded_sk.scalar.to_bytes());
-	sk_bytes[32..64].copy_from_slice(&expanded_sk.hash_prefix);
+	let sk_bytes = exp_sec_key_bytes(expanded_sk);
 	match ExpandedKeypair::from_secret_key_bytes(sk_bytes) {
 		None => {
 			return Err(Error::TorProcess(
