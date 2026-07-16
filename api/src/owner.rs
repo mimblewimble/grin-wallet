@@ -681,8 +681,11 @@ where
 		// finalize
 		match send_args {
 			Some(sa) => {
-				let gc = global_config_to_read();
-				let tc = gc.members.as_ref().unwrap().tor.clone();
+				let tc = {
+					let gc = global_config_to_read();
+					let tc = gc.members.as_ref().unwrap().tor.clone();
+					tc
+				};
 				let can_send = if let Some(tc) = tc.as_ref() {
 					tc.send_tor(sa.skip_tor)
 				} else {
@@ -843,8 +846,11 @@ where
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
-				let gc = global_config_to_read();
-				let tc = gc.members.as_ref().unwrap().tor.clone();
+				let tc = {
+					let gc = global_config_to_read();
+					let tc = gc.members.as_ref().unwrap().tor.clone();
+					tc
+				};
 				let can_send = if let Some(tc) = tc.as_ref() {
 					tc.send_tor(sa.skip_tor)
 				} else {

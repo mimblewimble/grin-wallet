@@ -420,8 +420,11 @@ where
 		return Ok(());
 	}
 
-	let gc = global_config_to_read();
-	let tc = gc.members.as_ref().unwrap().tor.clone();
+	let tc = {
+		let gc = global_config_to_read();
+		let tc = gc.members.as_ref().unwrap().tor.clone();
+		tc
+	};
 	let tor_config = match tc {
 		Some(mut c) => {
 			if let Some(b) = args.bridge.clone() {

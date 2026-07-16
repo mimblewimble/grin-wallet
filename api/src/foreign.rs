@@ -354,8 +354,11 @@ where
 		)?;
 		match r_addr {
 			Some(a) => {
-				let gc = global_config_to_read();
-				let tc = gc.members.as_ref().unwrap().tor.clone();
+				let tc = {
+					let gc = global_config_to_read();
+					let tc = gc.members.as_ref().unwrap().tor.clone();
+					tc
+				};
 				let can_send = if let Some(tc) = tc.as_ref() {
 					tc.send_tor(None)
 				} else {
