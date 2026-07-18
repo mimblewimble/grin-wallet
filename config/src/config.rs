@@ -52,13 +52,17 @@ pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 /// Set global configuration instance.
 pub fn set_global_config(config: GlobalWalletConfig) {
-	let mut cfg = CONFIG_INSTANCE.get_or_init(|| RwLock::new(GlobalWalletConfig::default())).write();
+	let mut cfg = CONFIG_INSTANCE
+		.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
+		.write();
 	*cfg = config;
 }
 
 /// Get global configuration to read values.
 pub fn global_config_to_read() -> RwLockReadGuard<'static, GlobalWalletConfig> {
-	CONFIG_INSTANCE.get_or_init(|| RwLock::new(GlobalWalletConfig::default())).read()
+	CONFIG_INSTANCE
+		.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
+		.read()
 }
 
 /// Get global configuration to update values.

@@ -2540,6 +2540,7 @@ dependencies = [
  "dirs 2.0.2",
  "grin_core",
  "grin_util",
+ "lazy_static",
  "rand 0.6.5",
  "serde",
  "serde_derive",
