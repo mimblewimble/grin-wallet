@@ -21,8 +21,8 @@ use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use std::convert::TryFrom;
 use uuid::Uuid;
 
@@ -345,10 +345,18 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 
 impl Readable for ProofWrap {
 	fn read<R: Reader>(reader: &mut R) -> Result<ProofWrap, grin_ser::Error> {
-		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
+		let saddr_bytes = reader.read_fixed_bytes(32)?;
+		let saddr_bytes = <&[u8; 32]>::try_from(saddr_bytes.as_slice())
 			.map_err(|_| grin_ser::Error::CorruptedData)?;
-		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
+		let saddr =
+			DalekPublicKey::from_bytes(saddr_bytes).map_err(|_| grin_ser::Error::CorruptedData)?;
+
+		let raddr_bytes = reader.read_fixed_bytes(32)?;
+		let raddr_bytes = <&[u8; 32]>::try_from(raddr_bytes.as_slice())
 			.map_err(|_| grin_ser::Error::CorruptedData)?;
+		let raddr =
+			DalekPublicKey::from_bytes(raddr_bytes).map_err(|_| grin_ser::Error::CorruptedData)?;
+
 		let rsig = match reader.read_u8()? {
 			0 => None,
 			1 | _ => Some(
@@ -500,6 +508,7 @@ fn slate_v4_serialize_deserialize() {
 	use crate::Slate;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+
 	set_local_chain_type(ChainTypes::Mainnet);
 	let slate = Slate::blank(1, false);
 	let mut v4 = SlateV4::from(slate);
@@ -573,8 +582,9 @@ fn slate_v4_serialize_deserialize() {
 	// Include Payment proof, remove coms to mix it up a bit
 	let mut v4 = v4_1_copy;
 	let raw_pubkey_str = "d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb";
-	let b = from_hex(raw_pubkey_str).unwrap();
-	let d_pkey = DalekPublicKey::from_bytes(&b).unwrap();
+	let bytes = from_hex(raw_pubkey_str).unwrap();
+	let b = <&[u8; 32]>::try_from(bytes.as_slice()).unwrap();
+	let d_pkey = DalekPublicKey::from_bytes(b.as_array().unwrap()).unwrap();
 	v4.proof = Some(PaymentInfoV4 {
 		raddr: d_pkey.clone(),
 		saddr: d_pkey.clone(),

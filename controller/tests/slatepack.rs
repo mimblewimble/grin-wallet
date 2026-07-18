@@ -31,8 +31,8 @@ use grin_wallet_libwallet::{
 	SlatepackerArgs,
 };
 
-use ed25519_dalek::PublicKey as edDalekPublicKey;
-use ed25519_dalek::SecretKey as edDalekSecretKey;
+use ed25519_dalek::SigningKey as edDalekSecretKey;
+use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 
 #[macro_use]
 mod common;
@@ -149,7 +149,7 @@ fn slatepack_exchange_test_impl(
 	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
 		true => {
 			let mut rec_address = SlatepackAddress::random();
-			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
+			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]);
 			wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
 				sec_key = api.get_slatepack_secret_key(m, 0)?;
 				let pub_key = edDalekPublicKey::from(&sec_key);
@@ -168,7 +168,7 @@ fn slatepack_exchange_test_impl(
 	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
 		true => {
 			let mut rec_address = SlatepackAddress::random();
-			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]).unwrap();
+			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]);
 			wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
 				sec_key = api.get_slatepack_secret_key(m, 0)?;
 				let pub_key = edDalekPublicKey::from(&sec_key);

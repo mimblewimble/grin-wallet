@@ -62,8 +62,8 @@ use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::{slate_versions::ser, CbData};
-use ed25519_dalek::PublicKey as DalekPublicKey;
 use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

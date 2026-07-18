@@ -17,8 +17,6 @@ toml = "0.5"
 dirs = "2.0"
 lazy_static = "1"
 
-grin_wallet_util = { path = "../util", version = "5.4.1" }
-
 ##### Grin Imports
 
 grin_core = { path = "../grin/core"}
@@ -26,6 +24,4 @@ grin_util = { path = "../grin/util"}
 
 #####
 
-[dev-dependencies]
-pretty_assertions = "0.6"
 
