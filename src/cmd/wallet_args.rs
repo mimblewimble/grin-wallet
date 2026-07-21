@@ -1179,7 +1179,6 @@ where
 				owner_api,
 				Arc::new(Mutex::new(keychain_mask)),
 				&c,
-				&t,
 				&global_wallet_args.clone(),
 				cli_mode,
 				test_mode,

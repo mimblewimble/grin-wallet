@@ -16,6 +16,9 @@
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::config::TorConfig;
+use crate::impls::tor::config as tor_config;
+use crate::impls::tor::process as tor_process;
+use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
@@ -25,6 +28,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use grin_wallet_api::JsonId;
 use grin_wallet_util::OnionV3Address;
+
 use hyper::header::HeaderValue;
 use hyper::{Request, Response, StatusCode};
 use qr_code::QrCode;
@@ -35,11 +39,9 @@ use std::convert::TryFrom;
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-
-use crate::impls::tor::config as tor_config;
-use crate::impls::tor::process as tor_process;
-use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
+use std::thread;
 
 use crate::apiwallet::{
 	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
@@ -48,7 +50,8 @@ use crate::apiwallet::{
 use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
 use grin_api::ApiBody;
-use grin_wallet_impls::tor::arti::start_tor_service;
+use grin_wallet_config::config::{add_global_config_listener, get_global_config};
+use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use tokio::sync::mpsc;
@@ -253,86 +256,116 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	test_mode: bool,
-	tor_config: TorConfig,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	// Check if wallet has been opened first
-	let (sec_key, tor_dir, onion_address) = {
-		let mask = keychain_mask.lock();
-		let mut w_lock = wallet.lock();
-		let lc = w_lock.lc_provider()?;
-		let w_inst = lc.wallet_inst()?;
-		let k = w_inst.keychain((&mask).as_ref())?;
-		let parent_key_id = w_inst.parent_key_id();
-		let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
-			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-		let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
-		let onion_address = OnionV3Address::from_private(&sec_key.0)
-			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-		(sec_key, tor_dir, onion_address)
-	};
+	loop {
+		let config = get_global_config(&config_path);
+		let tor_config = config.members.unwrap().tor.unwrap_or(TorConfig::default());
 
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, config_path, keychain_mask, test_mode);
-	let mut router = Router::new();
-
-	router
-		.add_route("/v2/foreign", Arc::new(api_handler_v2))
-		.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
-
-	let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
-
-	let mut apis = ApiServer::new();
-	warn!("Starting HTTP Foreign listener API server at {}.", addr);
-	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread = apis
-		.start(socket_addr, router, tls_config, api_chan)
-		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
-	warn!("HTTP Foreign listener started.");
-
-	// Need to keep external process in scope while the listener is running.
-	let _tor_service = if tor_config.use_tor_listener {
-		let use_integrated = tor_config.use_integrated.unwrap_or(false);
-
-		let res: Result<Option<tor_process::TorProcess>, Error> = if use_integrated {
-			start_tor_service(sec_key, &tor_dir, addr, &tor_config)?;
-			Ok(None)
-		} else {
-			let p = init_tor_listener(sec_key, tor_dir, addr, tor_config)?;
-			Ok(Some(p))
+		// Check if wallet has been opened first
+		let (sec_key, tor_dir, onion_address) = {
+			let mask = keychain_mask.lock();
+			let mut w_lock = wallet.lock();
+			let lc = w_lock.lc_provider()?;
+			let w_inst = lc.wallet_inst()?;
+			let k = w_inst.keychain((&mask).as_ref())?;
+			let parent_key_id = w_inst.parent_key_id();
+			let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
+			let onion_address = OnionV3Address::from_private(&sec_key.0)
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			(sec_key, tor_dir, onion_address)
 		};
-		match res {
-			Ok(service) => {
-				warn!(
-					"Starting Tor Hidden Service for API listener at address {}, binding to {}",
-					onion_address, addr
-				);
-				let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-				let qr_string = match QrCode::new(sp_address.to_string()) {
-					Ok(qr) => qr.to_string(false, 3),
-					Err(_) => "Failed to generate QR code!".to_string(),
-				};
-				warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
-				Ok(service)
-			}
-			Err(e) => {
-				warn!("Unable to start TOR listener");
-				error!("Tor Error: {}", e);
-				warn!("Listener is available on {}", addr);
-				Err(e)
-			}
-		}
-	} else {
-		warn!("Listener is available on {}", addr);
-		Ok(None)
-	};
 
-	api_thread
-		.join()
-		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)))
+		let api_handler_v2 = ForeignAPIHandlerV2::new(
+			wallet.clone(),
+			config_path.clone(),
+			keychain_mask.clone(),
+			test_mode,
+		);
+		let mut router = Router::new();
+
+		router
+			.add_route("/v2/foreign", Arc::new(api_handler_v2))
+			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
+
+		let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
+		let stop_tx = api_chan.0.clone();
+
+		let mut apis = ApiServer::new();
+		warn!("Starting HTTP Foreign listener API server at {}.", addr);
+		let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
+		let api_thread = apis
+			.start(socket_addr, router, tls_config.clone(), api_chan)
+			.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
+		warn!("HTTP Foreign listener started.");
+
+		// Need to keep external process in scope while the listener is running.
+		let _tor_service = if tor_config.use_tor_listener {
+			let use_integrated = tor_config.use_integrated.unwrap_or(false);
+
+			let res: Result<Option<tor_process::TorProcess>, Error> = if use_integrated {
+				start_tor_service(sec_key, &tor_dir, addr, &tor_config.clone())?;
+				Ok(None)
+			} else {
+				let p = init_tor_listener(sec_key, tor_dir, addr, tor_config.clone())?;
+				Ok(Some(p))
+			};
+			match res {
+				Ok(service) => {
+					warn!(
+						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
+						onion_address, addr
+					);
+					let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+					let qr_string = match QrCode::new(sp_address.to_string()) {
+						Ok(qr) => qr.to_string(false, 3),
+						Err(_) => "Failed to generate QR code!".to_string(),
+					};
+					warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+					Ok(service)
+				}
+				Err(e) => {
+					warn!("Unable to start TOR listener");
+					error!("Tor Error: {}", e);
+					warn!("Listener is available on {}", addr);
+					Err(e)
+				}
+			}
+		} else {
+			warn!("Listener is available on {}", addr);
+			Ok(None)
+		};
+
+		// Start thread to check if restart is needed.
+		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
+		add_global_config_listener(&config_path, "foreign_listener", restart_tx);
+		let restart_needed = Arc::new(AtomicBool::new(false));
+		let t_restart_needed = restart_needed.clone();
+		thread::spawn(move || {
+			if let Ok(_) = restart_rx.recv() {
+				t_restart_needed.store(true, Ordering::SeqCst);
+				let _ = stop_tx.try_send(());
+			}
+		});
+
+		let res = api_thread
+			.join()
+			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
+
+		if restart_needed.load(Ordering::Relaxed) {
+			if tor_config.use_tor_listener && tor_config.use_integrated.unwrap_or(false) {
+				stop_tor_service(onion_address.to_string());
+			}
+			continue;
+		}
+		return res;
+	}
 }
 
 /// V3 API Handler/Wrapper for owner functions, which include a secure

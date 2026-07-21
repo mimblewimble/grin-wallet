@@ -189,7 +189,6 @@ pub fn listen<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: &WalletConfig,
-	tor_config: &TorConfig,
 	g_args: &GlobalArgs,
 	cli_mode: bool,
 	test_mode: bool,
@@ -202,7 +201,6 @@ where
 	let wallet_inst = owner_api.wallet_inst.clone();
 	let config_path = owner_api.config_path.clone();
 	let config = config.clone();
-	let tor_config = tor_config.clone();
 	let g_args = g_args.clone();
 	let api_thread = thread::Builder::new()
 		.name("wallet-http-listener".to_string())
@@ -214,7 +212,6 @@ where
 				&config.api_listen_addr(),
 				g_args.tls_conf.clone(),
 				test_mode,
-				tor_config,
 			);
 			if let Err(e) = res {
 				error!("Error starting listener: {}", e);

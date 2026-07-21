@@ -74,14 +74,14 @@ fn runtime() -> Result<TokioNativeTlsRuntime, Error> {
 	Ok(r.runtime.clone())
 }
 
-/// Stop running Tor service.
-pub fn stop_tor_service(address: String) {
+/// Stop running Tor service by onion address as key.
+pub fn stop_tor_service(onion_addr: String) {
 	let mut running_services = ARTI_PROXY_SERVICES.lock().unwrap();
-	match running_services.get(&address) {
-		None => error!("Service {} to stop was not found", address),
+	match running_services.get(&onion_addr) {
+		None => error!("Service {} to stop was not found", onion_addr),
 		Some((_, p)) => {
 			p.shutdown();
-			running_services.remove(&address);
+			running_services.remove(&onion_addr);
 		}
 	}
 }

@@ -32,14 +32,19 @@ use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, OnceLock};
 use toml;
 
 lazy_static! {
 	/// Global configuration instance.
 	static ref CONFIG_INSTANCE: OnceLock<RwLock<GlobalWalletConfig>> = OnceLock::new();
-	/// Global configuration instances mapped to wallet data path.
+	/// Global configuration instances mapped to config path.
 	static ref CONFIG_INSTANCES: Arc<RwLock<HashMap<String, GlobalWalletConfig>>> = Arc::new(RwLock::new(HashMap::new()));
+	/// Global configuration change listener.
+	static ref CONFIG_CHANGE_LISTENER: Arc<RwLock<HashMap<String, Sender<()>>>> = Arc::new(RwLock::new(HashMap::new()));
+	/// Global configuration change listeners mapped to config path.
+	static ref CONFIG_CHANGE_LISTENERS: Arc<RwLock<HashMap<String, HashMap<String, Sender<()>>>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 /// Wallet configuration file name
@@ -63,10 +68,40 @@ pub fn set_global_config(config: GlobalWalletConfig) {
 				.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
 				.write();
 			*cfg = config;
+			// Notify listeners.
+			let mut wl = CONFIG_CHANGE_LISTENER.write();
+			for l in wl.clone() {
+				let mut failed = vec![];
+				match l.1.send(()) {
+					Ok(_) => {}
+					Err(_) => {
+						failed.push(l.0.to_string());
+					}
+				}
+				for f in failed {
+					wl.remove(&f);
+				}
+			}
 		}
 		Some(path) => {
 			let mut configs = CONFIG_INSTANCES.write();
-			configs.insert(path.to_str().unwrap().to_string(), config);
+			configs.insert(path.to_str().unwrap().to_string(), config.clone());
+			// Notify listeners.
+			let mut listeners = CONFIG_CHANGE_LISTENERS.write();
+			if let Some(listeners) = listeners.get_mut(path.to_str().unwrap()) {
+				let mut failed = vec![];
+				for l in listeners.clone() {
+					match l.1.send(()) {
+						Ok(_) => {}
+						Err(_) => {
+							failed.push(l.0.to_string());
+						}
+					}
+				}
+				for f in failed {
+					listeners.remove(&f);
+				}
+			}
 		}
 	}
 }
@@ -93,6 +128,34 @@ pub fn get_global_config(config_path: &Option<PathBuf>) -> GlobalWalletConfig {
 			let mut configs = CONFIG_INSTANCES.write();
 			configs.insert(path.to_string(), default_config.clone());
 			default_config
+		}
+	}
+}
+
+/// Add listener on config change.
+pub fn add_global_config_listener(
+	config_path: &Option<PathBuf>,
+	listener_id: &str,
+	tx: Sender<()>,
+) {
+	match config_path {
+		None => {
+			let mut l = CONFIG_CHANGE_LISTENER.write();
+			l.insert(listener_id.to_string(), tx);
+		}
+		Some(p) => {
+			let path = p.to_str().unwrap();
+			let mut w_l = CONFIG_CHANGE_LISTENERS.write();
+			match w_l.get_mut(path) {
+				None => {
+					let mut l = HashMap::<String, Sender<()>>::new();
+					l.insert(listener_id.to_string(), tx);
+					w_l.insert(path.to_string(), l);
+				}
+				Some(listeners) => {
+					listeners.insert(listener_id.to_string(), tx);
+				}
+			}
 		}
 	}
 }
