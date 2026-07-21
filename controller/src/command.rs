@@ -30,10 +30,10 @@ use crate::libwallet::{
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
+
 use ::core::time;
 use qr_code::QrCode;
 use serde_json as json;
-use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::atomic::Ordering;
@@ -329,7 +329,7 @@ pub struct SendArgs {
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
 	pub late_lock: bool,
-	pub dest: String,
+	pub dest: Option<SlatepackAddress>,
 	pub change_outputs: usize,
 	pub fluff: bool,
 	pub max_outputs: usize,
@@ -372,7 +372,7 @@ where
 				.map(|strategy| {
 					let init_args = InitTxArgs {
 						src_acct_name: None,
-						amount: amount,
+						amount,
 						amount_includes_fee: Some(args.amount_includes_fee),
 						minimum_confirmations: args.minimum_confirmations,
 						max_outputs: args.max_outputs as u32,
@@ -390,7 +390,7 @@ where
 		} else {
 			let init_args = InitTxArgs {
 				src_acct_name: None,
-				amount: amount,
+				amount,
 				amount_includes_fee: Some(args.amount_includes_fee),
 				minimum_confirmations: args.minimum_confirmations,
 				max_outputs: args.max_outputs as u32,
@@ -406,10 +406,14 @@ where
 			let result = api.init_send_tx(m, init_args);
 			slate = match result {
 				Ok(s) => {
+					let dest = match args.dest.as_ref() {
+						Some(dest) => dest.to_string(),
+						None => "no destination".to_string(),
+					};
 					info!(
 						"Tx created: {} grin to {} (strategy '{}')",
 						core::amount_to_hr_string(amount, false),
-						args.dest,
+						dest,
 						args.selection_strategy,
 					);
 					s
@@ -442,7 +446,7 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			args.dest.as_str(),
+			args.dest.clone(),
 			args.outfile,
 			true,
 			false,
@@ -455,12 +459,11 @@ where
 	} else {
 		false
 	};
-	if test_mode || !can_send {
+	if test_mode || !can_send || args.dest.as_ref().is_none() {
 		return output_sp();
 	}
-
-	let res = try_slatepack_sync_workflow(&slate, &args.dest, tor_config, None, false);
-
+	let dest = args.dest.clone().unwrap();
+	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, false);
 	match res {
 		Ok(s) => {
 			controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
@@ -491,7 +494,7 @@ pub fn output_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	dest: &str,
+	dest: Option<SlatepackAddress>,
 	out_file_override: Option<String>,
 	lock: bool,
 	finalizing: bool,
@@ -504,15 +507,10 @@ where
 {
 	// Output the slatepack file to stdout and to a file
 	let mut message = String::from("");
-	let mut address = None;
 	let mut tld = String::from("");
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
-		address = match SlatepackAddress::try_from(dest) {
-			Ok(a) => Some(a),
-			Err(_) => None,
-		};
 		// encrypt for recipient by default
-		let recipients = match address.clone() {
+		let recipients = match dest.clone() {
 			Some(a) => vec![a],
 			None => vec![],
 		};
@@ -563,7 +561,7 @@ where
 			println!();
 		}
 	}
-	if address.is_some() {
+	if dest.is_some() {
 		println!("The slatepack data is encrypted for the recipient only");
 	} else {
 		println!("The slatepack data is NOT encrypted");
@@ -689,17 +687,12 @@ where
 		Ok(())
 	})?;
 
-	let dest = match ret_address {
-		Some(a) => String::try_from(&a).unwrap(),
-		None => String::from(""),
-	};
-
 	let output_sp = || -> Result<(), Error> {
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
 			&slate,
-			&dest,
+			ret_address.clone(),
 			args.outfile,
 			false,
 			false,
@@ -712,10 +705,10 @@ where
 	} else {
 		false
 	};
-	if test_mode || !can_send {
+	if test_mode || !can_send || ret_address.is_none() {
 		return output_sp();
 	}
-
+	let dest = ret_address.clone().unwrap();
 	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
 
 	match res {
@@ -897,7 +890,7 @@ where
 		owner_api,
 		keychain_mask,
 		&slate,
-		"",
+		None,
 		args.outfile,
 		false,
 		true,
@@ -910,7 +903,7 @@ where
 /// Issue Invoice Args
 pub struct IssueInvoiceArgs {
 	/// Slatepack address
-	pub dest: String,
+	pub dest: Option<SlatepackAddress>,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
 	/// output file override
@@ -941,7 +934,7 @@ where
 		owner_api,
 		keychain_mask,
 		&slate,
-		args.dest.as_str(),
+		args.dest,
 		args.outfile,
 		false,
 		false,
@@ -980,10 +973,6 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let mut slate = args.slate.clone();
-	let dest = match args.ret_address.clone() {
-		Some(a) => String::try_from(&a).unwrap(),
-		None => String::from(""),
-	};
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
 		if args.estimate_selection_strategies {
@@ -1052,7 +1041,7 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			&dest,
+			args.ret_address.clone(),
 			args.outfile,
 			true,
 			false,
@@ -1065,10 +1054,10 @@ where
 	} else {
 		false
 	};
-	if test_mode || !can_send {
+	if test_mode || !can_send || args.ret_address.is_none() {
 		return output_sp();
 	}
-
+	let dest = args.ret_address.clone().unwrap();
 	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
 
 	match res {

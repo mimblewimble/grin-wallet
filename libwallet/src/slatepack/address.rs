@@ -86,6 +86,16 @@ impl Display for SlatepackAddress {
 impl TryFrom<&str> for SlatepackAddress {
 	type Error = Error;
 	fn try_from(encoded: &str) -> Result<Self, Self::Error> {
+		let prefix = match global::get_chain_type() {
+			global::ChainTypes::Mainnet => "grin",
+			_ => "tgrin",
+		};
+		if !encoded.starts_with(prefix) {
+			return Err(Error::SlatepackAddress(format!(
+				"wrong address prefix for chain {:?}",
+				global::get_chain_type()
+			)));
+		}
 		let (hrp, data) = bech32::decode(&encoded)?;
 		let bytes = Vec::<u8>::from_base32(&data)?;
 		let b = <&[u8; 32]>::try_from(bytes.as_slice())

@@ -681,10 +681,11 @@ where
 				} else {
 					false
 				};
-				if self.doctest_mode || !can_send {
+				if self.doctest_mode || !can_send || sa.dest.is_none() {
 					return Ok(slate);
 				}
-				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, false);
+				let dest = sa.dest.unwrap();
+				let res = try_slatepack_sync_workflow(&slate, &dest, tc, None, false);
 				match res {
 					Ok(s) => {
 						self.tx_lock_outputs(keychain_mask, &s)?;
@@ -843,10 +844,11 @@ where
 				} else {
 					false
 				};
-				if self.doctest_mode || !can_send {
+				if self.doctest_mode || !can_send || sa.dest.is_none() {
 					return Ok(slate);
 				}
-				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, true);
+				let dest = sa.dest.unwrap();
+				let res = try_slatepack_sync_workflow(&slate, &dest, tc, None, true);
 				match res {
 					Ok(s) => {
 						// Update slate state.
@@ -860,7 +862,7 @@ where
 							}
 						}
 						// Output slatepack message to file.
-						match output_slatepack_file(&self, keychain_mask, &s, &sa.dest) {
+						match output_slatepack_file(&self, keychain_mask, &s, Some(dest)) {
 							Ok(_) => {}
 							Err(e) => error!("Error on saving output slatepack message: {}", e),
 						}
@@ -2502,7 +2504,7 @@ where
 /// attempt to send slate synchronously with TOR
 pub fn try_slatepack_sync_workflow(
 	slate: &Slate,
-	dest: &str,
+	dest: &SlatepackAddress,
 	tor_config: Option<TorConfig>,
 	tor_sender: Option<TorSlateSender>,
 	send_to_finalize: bool,
@@ -2525,41 +2527,33 @@ pub fn try_slatepack_sync_workflow(
 	};
 
 	// Try parsing Slatepack address.
-	match SlatepackAddress::try_from(dest) {
-		Ok(address) => {
-			let tor_addr = OnionV3Address::try_from(&address).map_err(|_| {
-				Error::SlatepackAddress(format!(
-					"Destination {} is not a valid Onion address.",
-					dest
-				))
-			})?;
-			// Try sending to the destination via Tor.
-			let sender = match tor_sender {
-				None => {
-					if let Some(tc) = tor_config {
-						match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
-							Ok(s) => s,
-							Err(e) => {
-								debug!("Send (Tor): Cannot create TOR Slate sender {:?}", e);
-								return Err(e);
-							}
-						}
-					} else {
-						return Err(Error::TorConfig("Tor config is not set".to_string()));
+	let tor_addr = OnionV3Address::try_from(dest).map_err(|_| {
+		Error::SlatepackAddress(format!(
+			"Destination {} is not a valid Onion address.",
+			dest
+		))
+	})?;
+	// Try sending to the destination via Tor.
+	let sender = match tor_sender {
+		None => {
+			if let Some(tc) = tor_config {
+				match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
+					Ok(s) => s,
+					Err(e) => {
+						debug!("Send (Tor): Cannot create TOR Slate sender {:?}", e);
+						return Err(e);
 					}
 				}
-				Some(s) => s,
-			};
-			warn!("Attempting to send transaction via Tor");
-			match send_sync(sender, "Tor") {
-				Ok(_) => Ok(ret_slate),
-				Err(e) => Err(e),
+			} else {
+				return Err(Error::TorConfig("Tor config is not set".to_string()));
 			}
 		}
-		Err(e) => {
-			error!("Destination {} is not a valid Slatepack address.", dest);
-			Err(e)
-		}
+		Some(s) => s,
+	};
+	warn!("Attempting to send transaction via Tor");
+	match send_sync(sender, "Tor") {
+		Ok(_) => Ok(ret_slate),
+		Err(e) => Err(e),
 	}
 }
 
@@ -2638,19 +2632,15 @@ fn output_slatepack_file<L, C, K>(
 	api: &Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	dest: &str,
+	dest: Option<SlatepackAddress>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	let address = match SlatepackAddress::try_from(dest) {
-		Ok(a) => Some(a),
-		Err(_) => None,
-	};
 	// encrypt for recipient by default
-	let recipients = match address.clone() {
+	let recipients = match dest.clone() {
 		Some(a) => vec![a],
 		None => vec![],
 	};

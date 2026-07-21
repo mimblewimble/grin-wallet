@@ -21,6 +21,7 @@ use crate::libwallet::{
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc_mw;
+use libwallet::SlatepackAddress;
 
 /// Public definition used to generate Foreign jsonrpc api.
 /// * When running `grin-wallet listen` with defaults, the V2 api is available at
@@ -309,6 +310,10 @@ where
 	) -> Result<VersionedSlate, Error> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
+		let dest = match dest {
+			None => None,
+			Some(a) => SlatepackAddress::try_from(a.as_str()).ok(),
+		};
 		let out_slate = Foreign::receive_tx(
 			self,
 			&slate_from,
