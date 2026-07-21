@@ -172,7 +172,7 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, wallet_config.data_file_dir);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// // .. perform wallet operations
 	///
 	/// ```
