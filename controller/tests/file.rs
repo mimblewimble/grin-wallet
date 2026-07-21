@@ -75,14 +75,14 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		api.create_account_path(m, "mining")?;
 		api.create_account_path(m, "listener")?;
 		Ok(())
 	})?;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		api.create_account_path(m, "account1")?;
 		api.create_account_path(m, "account2")?;
 		Ok(())
@@ -111,7 +111,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	};
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
@@ -142,14 +142,14 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	let mut slate = PathToSlate((&send_file).into()).get_tx()?.0;
 
 	// wallet 2 receives file, completes, sends file back
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
+	wallet::controller::foreign_single_use(wallet2.clone(), None, mask2_i.clone(), |api| {
 		slate = api.receive_tx(&slate, None, None)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
 
 	// wallet 1 finalises and posts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let mut slate = PathToSlate(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference
@@ -163,7 +163,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	bh += 3;
 
 	// Check total in mining account
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		assert_eq!(wallet1_info.last_confirmed_height, bh);
@@ -172,7 +172,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	})?;
 
 	// Check total in 'wallet 2' account
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.last_confirmed_height, bh);
@@ -197,7 +197,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 
 	let mut slate = Slate::blank(2, true);
 
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let args = IssueInvoiceTxArgs {
 			amount: 1000000000,
 			..Default::default()
@@ -207,7 +207,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount: slate.amount,
@@ -223,14 +223,14 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
+	wallet::controller::foreign_single_use(wallet2.clone(), None, mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
 		slate = PathToSlate((&receive_file).into()).get_tx()?.0;
 		slate = api.finalize_tx(&slate, false)?;
 		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
 		Ok(())
 	})?;
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
@@ -251,12 +251,12 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	};
 	let mut slate = Slate::blank(2, true);
 	let mut address = None;
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		address = Some(api.get_slatepack_address(m, 0)?);
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		// send to send
 		let args = InitTxArgs {
 			src_acct_name: Some("mining".to_owned()),
@@ -274,7 +274,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		Ok(())
 	})?;
 
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
+	wallet::controller::foreign_single_use(wallet2.clone(), None, mask2_i.clone(), |api| {
 		slate = PathToSlate((&send_file).into()).get_tx()?.0;
 		slate = api.receive_tx(&slate, None, None)?;
 		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
@@ -282,7 +282,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	})?;
 
 	// wallet 1 finalises and posts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		slate = PathToSlate(receive_file.into()).get_tx()?.0;
 		slate = api.finalize_tx(m, &slate)?;
 		// Output final file for reference

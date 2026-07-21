@@ -68,13 +68,13 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	});
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		api.create_account_path(m, "mining")?;
 		Ok(())
 	})?;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		api.create_account_path(m, "account1")?;
 		Ok(())
 	})?;
@@ -94,7 +94,7 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mut slate = Slate::blank(2, false);
 	let amount = 100_000_000_000;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		let args = InitTxArgs {
 			src_acct_name: Some("mining".to_owned()),
 			amount,
@@ -125,7 +125,7 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false)?;
 
 	// update/test contents of both accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet1_refreshed);
 		// Reward from mining 11 blocks, minus the amount sent.
@@ -134,7 +134,7 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (wallet2_refreshed, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(amount, wallet_info.amount_currently_spendable);

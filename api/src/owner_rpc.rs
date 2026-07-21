@@ -2503,7 +2503,7 @@ pub fn run_doctest_owner(
 	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
 	let _ = fs::create_dir_all(test_dir);
-	initial_setup_wallet(
+	let config = initial_setup_wallet(
 		&ChainTypes::AutomatedTesting,
 		Some(PathBuf::from(test_dir)),
 		false,
@@ -2679,7 +2679,7 @@ pub fn run_doctest_owner(
 		);
 	}
 
-	let mut api_owner = Owner::new(wallet1, None);
+	let mut api_owner = Owner::new(wallet1, None, config.config_file_path);
 	api_owner.doctest_mode = true;
 	let owner_api = &api_owner as &dyn OwnerRpc;
 	let res = owner_api.handle_request(request).as_option();

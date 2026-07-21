@@ -25,7 +25,7 @@ use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
@@ -996,8 +996,7 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
-	mut wallet_config: WalletConfig,
-	tor_config: Option<TorConfig>,
+	config: GlobalWalletConfig,
 	mut node_client: C,
 	test_mode: bool,
 	wallet_inst_cb: F,
@@ -1019,6 +1018,7 @@ where
 		>,
 	),
 {
+	let mut wallet_config = config.members.clone().unwrap().wallet;
 	if let Some(dir) = wallet_args.value_of("top_level_dir") {
 		wallet_config.data_file_dir = dir.to_string().clone();
 	}
@@ -1040,13 +1040,6 @@ where
 		top_level_wallet_dir.pop();
 		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 	}
-
-	// for backwards compatibility: If tor config doesn't exist in the file, assume
-	// the top level directory for data
-	let tor_config = tor_config.unwrap_or_else(|| TorConfig {
-		send_config_dir: wallet_config.data_file_dir.clone(),
-		..Default::default()
-	});
 
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet =
@@ -1104,14 +1097,20 @@ where
 	};
 
 	let res = match wallet_args.subcommand() {
-		("cli", Some(_)) => command_loop(wallet, keychain_mask, &global_wallet_args, test_mode),
+		("cli", Some(_)) => command_loop(
+			config,
+			wallet,
+			keychain_mask,
+			&global_wallet_args,
+			test_mode,
+		),
 		_ => {
-			let mut owner_api = Owner::new(wallet, None);
+			let mut owner_api = Owner::new(wallet, None, config.config_file_path);
 			parse_and_execute(
 				&mut owner_api,
 				keychain_mask,
 				&wallet_config,
-				&tor_config,
+				config.members.unwrap().tor,
 				&global_wallet_args,
 				&wallet_args,
 				test_mode,
@@ -1131,7 +1130,7 @@ pub fn parse_and_execute<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
-	tor_config: &TorConfig,
+	tor_config: Option<TorConfig>,
 	global_wallet_args: &command::GlobalArgs,
 	wallet_args: &ArgMatches,
 	test_mode: bool,
@@ -1149,6 +1148,13 @@ where
 		owner_api.doctest_mode = true;
 		owner_api.doctest_retain_tld = true;
 	}
+
+	// for backwards compatibility: If tor config doesn't exist in the file, assume
+	// the top level directory for data
+	let tor_config = tor_config.unwrap_or_else(|| TorConfig {
+		send_config_dir: wallet_config.data_file_dir.clone(),
+		..Default::default()
+	});
 
 	match wallet_args.subcommand() {
 		("init", Some(args)) => {

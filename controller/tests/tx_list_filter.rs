@@ -54,7 +54,7 @@ fn test_wallet_tx_filtering(
 	>,
 	mask: Option<&SecretKey>,
 ) -> Result<(), libwallet::Error> {
-	wallet::controller::owner_single_use(Some(wallet.clone()), mask, None, |api, _m| {
+	wallet::controller::owner_single_use(wallet.clone(), mask, None, |api, _m| {
 		let mut tx_query_args = RetrieveTxQueryArgs::default();
 		tx_query_args.min_id = Some(5);
 
@@ -248,12 +248,12 @@ fn build_chain_for_tx_filtering(
 
 	// Stop the scanning updater threads because it extends the time needed to build the chain
 	// exponentially
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, _m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, _m| {
 		api.stop_updater()?;
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, _m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, _m| {
 		api.stop_updater()?;
 		Ok(())
 	})?;
@@ -268,7 +268,7 @@ fn build_chain_for_tx_filtering(
 		let mut wallet_1_has_funds = false;
 
 		// Check wallet 1 contents
-		wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 			debug!(
 				"Wallet 1 spendable - {}",
@@ -292,28 +292,23 @@ fn build_chain_for_tx_filtering(
 			let amount: u64 = i as u64 * 1_000_000;
 			let mut slate = Slate::blank(1, false);
 			debug!("Creating TX for {}", amount);
-			wallet::controller::owner_single_use(
-				Some(wallet1.clone()),
-				mask1,
-				None,
-				|sender_api, m| {
-					// note this will increment the block count as part of the transaction "Posting"
-					let args = InitTxArgs {
-						src_acct_name: None,
-						amount: amount,
-						minimum_confirmations: 1,
-						max_outputs: 500,
-						num_change_outputs: 1,
-						selection_strategy_is_use_all: false,
-						..Default::default()
-					};
-					let slate_i = sender_api.init_send_tx(m, args)?;
-					slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-					sender_api.tx_lock_outputs(m, &slate)?;
-					slate = sender_api.finalize_tx(m, &slate)?;
-					Ok(())
-				},
-			)?;
+			wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
+				// note this will increment the block count as part of the transaction "Posting"
+				let args = InitTxArgs {
+					src_acct_name: None,
+					amount: amount,
+					minimum_confirmations: 1,
+					max_outputs: 500,
+					num_change_outputs: 1,
+					selection_strategy_is_use_all: false,
+					..Default::default()
+				};
+				let slate_i = sender_api.init_send_tx(m, args)?;
+				slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
+				sender_api.tx_lock_outputs(m, &slate)?;
+				slate = sender_api.finalize_tx(m, &slate)?;
+				Ok(())
+			})?;
 		}
 	}
 
@@ -321,7 +316,7 @@ fn build_chain_for_tx_filtering(
 	let amount: u64 = 1_000_000;
 	let mut slate = Slate::blank(1, false);
 	debug!("Creating TX for {}", amount);
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,

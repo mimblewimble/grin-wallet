@@ -382,7 +382,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 
 	// give this slate over to wallet 2 manually
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet2.clone()),
+		wallet2.clone(),
 		mask2,
 		None,
 		|api, m| {

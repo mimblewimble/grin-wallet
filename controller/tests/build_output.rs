@@ -66,7 +66,7 @@ fn build_output_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 	let secp = secp::Secp256k1::with_caps(secp::ContextFlag::Commit);
 	let features = OutputFeatures::Plain;
 	let amount = 60_000_000_000;
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		let built_output = sender_api.build_output(m, features, amount)?;
 
 		let key_id = built_output.key_id;

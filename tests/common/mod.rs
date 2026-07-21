@@ -278,18 +278,7 @@ pub fn execute_command(
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
 	let config = initial_setup_wallet(test_dir, wallet_name);
-	let mut wallet_config = config.clone().members.unwrap().wallet;
-	let tor_config = config.clone().members.unwrap().tor;
-	// unset chain type so it doesn't get reset
-	wallet_config.chain_type = None;
-	wallet_args::wallet_command(
-		&args,
-		wallet_config.clone(),
-		tor_config,
-		client.clone(),
-		true,
-		|_| {},
-	)
+	wallet_args::wallet_command(&args, config, client.clone(), true, |_| {})
 }
 
 /// As above, but without necessarily setting up the wallet
@@ -310,13 +299,14 @@ where
 {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
-	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
+	let mut config =
+		config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
 	let mut wallet_config = config.clone().members.unwrap().wallet;
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;
 	wallet_config.node_api_secret_path = None;
-	let tor_config = config.members.unwrap().tor.clone();
-	wallet_args::wallet_command(&args, wallet_config, tor_config, client.clone(), true, f)
+	config.members.as_mut().unwrap().wallet = wallet_config;
+	wallet_args::wallet_command(&args, config, client.clone(), true, f)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>

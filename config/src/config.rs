@@ -21,25 +21,30 @@ use crate::types::{
 };
 use crate::types::{TorConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
-use grin_util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use crate::util::RwLock;
+
 use lazy_static::lazy_static;
 use rand::distributions::{Alphanumeric, Distribution};
 use rand::thread_rng;
+use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use toml;
 
 lazy_static! {
 	/// Global configuration instance.
 	static ref CONFIG_INSTANCE: OnceLock<RwLock<GlobalWalletConfig>> = OnceLock::new();
+	/// Global configuration instances mapped to wallet data path.
+	static ref CONFIG_INSTANCES: Arc<RwLock<HashMap<String, GlobalWalletConfig>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 /// Wallet configuration file name
 pub const WALLET_CONFIG_FILE_NAME: &str = "grin-wallet.toml";
+/// Wallet logging file name
 const WALLET_LOG_FILE_NAME: &str = "grin-wallet.log";
 /// .grin folder, usually in home/.grin
 pub const GRIN_HOME: &str = ".grin";
@@ -52,25 +57,44 @@ pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 /// Set global configuration instance.
 pub fn set_global_config(config: GlobalWalletConfig) {
-	let mut cfg = CONFIG_INSTANCE
-		.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
-		.write();
-	*cfg = config;
-}
-
-/// Get global configuration to read values.
-pub fn global_config_to_read() -> RwLockReadGuard<'static, GlobalWalletConfig> {
-	CONFIG_INSTANCE
-		.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
-		.read()
-}
-
-/// Get global configuration to update values.
-pub fn global_config_to_update() -> RwLockWriteGuard<'static, GlobalWalletConfig> {
-	if CONFIG_INSTANCE.get().is_none() {
-		*CONFIG_INSTANCE.get().unwrap().write() = GlobalWalletConfig::default();
+	match &config.config_file_path {
+		None => {
+			let mut cfg = CONFIG_INSTANCE
+				.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
+				.write();
+			*cfg = config;
+		}
+		Some(path) => {
+			let mut configs = CONFIG_INSTANCES.write();
+			configs.insert(path.to_str().unwrap().to_string(), config);
+		}
 	}
-	CONFIG_INSTANCE.get().unwrap().write()
+}
+
+/// Get global configuration using provided path.
+pub fn get_global_config(config_path: &Option<PathBuf>) -> GlobalWalletConfig {
+	match config_path {
+		None => {
+			let cfg = CONFIG_INSTANCE
+				.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
+				.read();
+			cfg.clone()
+		}
+		Some(path) => {
+			let path = path.to_str().unwrap();
+			{
+				let configs = CONFIG_INSTANCES.read();
+				if let Some(config) = configs.get(path) {
+					return config.clone();
+				}
+			}
+			let mut default_config = GlobalWalletConfig::default();
+			default_config.config_file_path = Some(PathBuf::from(&path));
+			let mut configs = CONFIG_INSTANCES.write();
+			configs.insert(path.to_string(), default_config.clone());
+			default_config
+		}
+	}
 }
 
 /// Function to locate the wallet dir and grin-wallet.toml in the order
@@ -504,14 +528,21 @@ impl GlobalWalletConfig {
 			.replace("ERROR", "Error")
 	}
 
-	/// Save config to file after editing.
+	/// Save config to file and update global state after editing.
 	pub fn save(&mut self) -> Result<(), ConfigError> {
-		let path = self.config_file_path.clone().unwrap();
-		let res = self.write_to_file(path.to_str().unwrap(), false, None, None);
+		if let Some(path) = self.config_file_path.clone() {
+			let res = self.write_to_file(path.to_str().unwrap(), false, None, None);
 
-		if let Err(e) = res {
-			let msg = format!("Error saving config file as ({:?}): {}", path, e);
-			return Err(ConfigError::SerializationError(msg));
+			if let Err(e) = res {
+				let msg = format!("Error saving config file as ({:?}): {}", path, e);
+				return Err(ConfigError::SerializationError(msg));
+			}
+
+			set_global_config(self.clone());
+		} else {
+			return Err(ConfigError::PathNotFoundError(
+				"Config file path is empty".to_string(),
+			));
 		}
 		Ok(())
 	}

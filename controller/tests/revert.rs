@@ -104,13 +104,13 @@ fn revert(
 		}
 	});
 
-	owner(Some(wallet1.clone()), mask1, None, |api, m| {
+	owner(wallet1.clone(), mask1, None, |api, m| {
 		api.create_account_path(m, "a")?;
 		api.set_active_account(m, "a")?;
 		Ok(())
 	})?;
 
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		api.create_account_path(m, "b")?;
 		api.set_active_account(m, "b")?;
 		Ok(())
@@ -125,7 +125,7 @@ fn revert(
 	award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false)?;
 
 	// Sanity check contents
-	owner(Some(wallet1.clone()), mask1, None, |api, m| {
+	owner(wallet1.clone(), mask1, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		assert_eq!(info.last_confirmed_height, bh);
@@ -140,7 +140,7 @@ fn revert(
 		Ok(())
 	})?;
 
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		assert_eq!(info.last_confirmed_height, bh);
@@ -155,7 +155,7 @@ fn revert(
 
 	// Send some funds
 	let mut tx = None;
-	owner(Some(wallet1.clone()), mask1, None, |api, m| {
+	owner(wallet1.clone(), mask1, None, |api, m| {
 		// send to send
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -180,7 +180,7 @@ fn revert(
 	let tx = tx.expect("tx from slate");
 
 	// Check funds have been received
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		assert_eq!(info.last_confirmed_height, bh);
@@ -222,7 +222,7 @@ fn revert(
 	let bh = bh + 1;
 
 	// Check funds have been confirmed
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		assert_eq!(info.last_confirmed_height, bh);
@@ -257,7 +257,7 @@ fn revert(
 	let bh = bh + 1;
 
 	// Check funds have been reverted
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		api.scan(m, None, false)?;
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
@@ -292,7 +292,7 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let bh = bh + 1;
 
 	// Check funds have been confirmed again
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		assert_eq!(info.last_confirmed_height, bh);
@@ -320,7 +320,7 @@ fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mask2 = mask2_i.as_ref();
 
 	// Cancelling tx
-	owner(Some(wallet2.clone()), mask2, None, |api, m| {
+	owner(wallet2.clone(), mask2, None, |api, m| {
 		// Sanity check
 		let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);

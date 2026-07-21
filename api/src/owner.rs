@@ -14,12 +14,6 @@
 
 //! Owner API External Definition
 
-use chrono::prelude::*;
-use ed25519_dalek::SigningKey as DalekSecretKey;
-use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
-use grin_wallet_libwallet::RetrieveTxQueryArgs;
-use uuid::Uuid;
-
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
@@ -27,6 +21,7 @@ use crate::impls::SlateSender as _;
 use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
+use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
@@ -36,17 +31,23 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_config::config::{global_config_to_read, global_config_to_update};
+use grin_wallet_config::config::get_global_config;
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
+use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
-use libwallet::api_impl::types::update_tx_slate_state;
+
+use chrono::prelude::*;
+use ed25519_dalek::SigningKey as DalekSecretKey;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use uuid::Uuid;
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -68,11 +69,13 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	/// contain all methods to manage the wallet
+	/// Contains all methods to manage the wallet
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	/// Wallet configuration path
+	pub config_path: Option<PathBuf>,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
-	/// retail TLD during doctest
+	/// Retail TLD during doctest
 	pub doctest_retain_tld: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
@@ -169,7 +172,7 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, wallet_config.data_file_dir);
 	/// // .. perform wallet operations
 	///
 	/// ```
@@ -177,6 +180,7 @@ where
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 		custom_channel: Option<Sender<StatusMessage>>,
+		config_path: Option<PathBuf>,
 	) -> Self {
 		let updater_running = Arc::new(AtomicBool::new(false));
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
@@ -196,6 +200,7 @@ where
 
 		Owner {
 			wallet_inst,
+			config_path,
 			doctest_mode: false,
 			doctest_retain_tld: false,
 			shared_key: Arc::new(Mutex::new(None)),
@@ -218,14 +223,9 @@ where
 	///
 
 	pub fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
-		let gc_to_update = {
-			let mut gc = global_config_to_read().clone();
-			gc.members.as_mut().unwrap().tor = Some(tor_config);
-			gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
-			gc
-		};
-		let mut gc = global_config_to_update();
-		*gc = gc_to_update;
+		let mut gc = get_global_config(&self.config_path);
+		gc.members.as_mut().unwrap().tor = Some(tor_config);
+		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		Ok(())
 	}
 
@@ -251,7 +251,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let result = api_owner.accounts(None);
 	///
@@ -302,7 +302,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let result = api_owner.create_account_path(None, "account1");
 	///
@@ -349,7 +349,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let result = api_owner.create_account_path(None, "account1");
 	///
@@ -405,7 +405,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let show_spent = false;
 	/// let update_from_node = true;
 	/// let tx_id = None;
@@ -476,7 +476,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
@@ -555,7 +555,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let update_from_node = true;
 	/// let minimum_confirmations=10;
 	///
@@ -642,7 +642,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// // Attempt to create a transaction using the 'default' account
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
@@ -682,7 +682,7 @@ where
 		match send_args {
 			Some(sa) => {
 				let tc = {
-					let gc = global_config_to_read();
+					let gc = get_global_config(&self.config_path);
 					let tc = gc.members.as_ref().unwrap().tor.clone();
 					tc
 				};
@@ -747,7 +747,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let args = IssueInvoiceTxArgs {
 	///     amount: 60_000_000_000,
@@ -808,7 +808,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// // . . .
 	/// // The slate has been recieved from the invoicer, somehow
@@ -847,7 +847,7 @@ where
 		match send_args {
 			Some(sa) => {
 				let tc = {
-					let gc = global_config_to_read();
+					let gc = get_global_config(&self.config_path);
 					let tc = gc.members.as_ref().unwrap().tor.clone();
 					tc
 				};
@@ -920,7 +920,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -982,7 +982,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1041,7 +1041,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1112,7 +1112,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1183,7 +1183,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
@@ -1227,7 +1227,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1267,7 +1267,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1331,7 +1331,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1389,7 +1389,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let result = api_owner.node_height(None);
 	///
 	/// if let Ok(node_height_result) = result {
@@ -1446,7 +1446,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let result = api_owner.get_top_level_directory();
 	///
 	/// if let Ok(dir) = result {
@@ -1494,7 +1494,7 @@ where
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let result = api_owner.set_top_level_directory(dir);
 	///
 	/// if let Ok(dir) = result {
@@ -1544,7 +1544,7 @@ where
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
@@ -1613,7 +1613,7 @@ where
 	/// #   .to_str()
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
@@ -1680,7 +1680,7 @@ where
 	/// #   .to_str()
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
@@ -1737,7 +1737,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.close_wallet(None);
 	///
@@ -1773,7 +1773,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let pw = ZeroingString::from("my_password");
 	/// let res = api_owner.get_mnemonic(None, pw);
@@ -1818,7 +1818,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let old = ZeroingString::from("my_password");
 	/// let new = ZeroingString::from("new_password");
@@ -1861,7 +1861,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.delete_wallet(None);
 	///
@@ -1917,7 +1917,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -1972,7 +1972,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -2014,7 +2014,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -2080,7 +2080,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.get_slatepack_address(None, 0);
 	///
@@ -2120,7 +2120,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
 	/// let res = api_owner.get_slatepack_secret_key(None, 0);
 	///
@@ -2161,9 +2161,9 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -2231,7 +2231,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	/// // ... receive a slatepack from somewhere
 	/// # let slatepack_string = String::from("");
 	///   let res = api_owner.slate_from_slatepack_message(
@@ -2281,7 +2281,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, None);
 	/// # let slatepack_string = String::from("");
 	/// // .. receive a slatepack from somewhere
 	/// let res = api_owner.decode_slatepack_message(
@@ -2339,7 +2339,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
@@ -2408,7 +2408,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
@@ -2470,7 +2470,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, None);
 	/// let keychain_mask = None;
 	/// let params = MixnetReqCreationParams {
 	///   server_keys: vec![], // Public keys here in secret key representation

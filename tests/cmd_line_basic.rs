@@ -153,7 +153,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		instantiate_wallet(wallet_config1, client1.clone(), "password1", "default")?;
 	let mask1 = (&mask1_i).as_ref();
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {
@@ -233,7 +233,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	// Check our transaction log, should have 10 entries
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {
@@ -269,7 +269,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mask2 = (&mask2_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet2.clone()),
+		wallet2.clone(),
 		mask2,
 		None,
 		|api, m| {
@@ -284,7 +284,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// Send to wallet 2 with --amount_includes_fee
 	let mut old_balance = 0;
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {
@@ -344,7 +344,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// Check the new balance of wallet 1 reduced by EXACTLY the tx amount (instead of amount + fee)
 	// This confirms that the TX amount was correctly computed to allow for the fee
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {
@@ -431,7 +431,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mask1 = (&mask1_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {
@@ -504,7 +504,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mask1 = (&mask1_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {
@@ -629,7 +629,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// get tx output via -tx parameter
 	let mut tx_id = "".to_string();
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet2.clone()),
+		wallet2.clone(),
 		mask2,
 		None,
 		|api, m| {
@@ -696,7 +696,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// and recently matured coinbase outputs, which were not mature at time of spending.
 	// This confirms that the TX amount was correctly computed to allow for the fee
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
 		None,
 		|api, m| {

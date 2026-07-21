@@ -78,7 +78,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// send a single block's worth of transactions with minimal strategy
 	let mut slate = Slate::blank(2, false);
 	let mut stored_excess = None;
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let args = InitTxArgs {
 			src_acct_name: None,
 			amount: reward - fee,
@@ -103,7 +103,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// wallet 1
 
 	// Refresh and check transaction log for wallet 1
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id), None)?;
 		assert!(refreshed);
 		let tx = txs[0].clone();
@@ -116,7 +116,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// Refresh and check transaction log for wallet 2
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id), None)?;
 		assert!(refreshed);
 		let tx = txs[0].clone();
@@ -129,7 +129,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// ensure invoice TX works as well with no change
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		// Wallet 2 inititates an invoice transaction, requesting payment
 		let args = IssueInvoiceTxArgs {
 			amount: reward - fee,
@@ -139,7 +139,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		// Wallet 1 receives the invoice transaction
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -156,12 +156,12 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// wallet 2 finalizes and posts
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
+	wallet::controller::foreign_single_use(wallet2.clone(), None, mask2_i.clone(), |api| {
 		// Wallet 2 receives the invoice transaction
 		slate = api.finalize_tx(&slate, false)?;
 		Ok(())
 	})?;
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask1, None, |api, m| {
 		println!("Invoice Posted TX: {}", slate);
 		stored_excess = Some(slate.tx.as_ref().unwrap().body.kernels[0].excess);
 		api.post_tx(m, &slate, false)?;
@@ -169,7 +169,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// check wallet 2's version
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id), None)?;
 		assert!(refreshed);
 		for tx in txs {
@@ -183,7 +183,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// Refresh and check transaction log for wallet 1
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, Some(slate.id), None)?;
 		assert!(refreshed);
 		for tx in txs {

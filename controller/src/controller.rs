@@ -34,6 +34,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::impls::tor::config as tor_config;
@@ -136,9 +137,9 @@ fn init_tor_listener(
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn owner_single_use<L, F, C, K>(
-	wallet: Option<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
-	api_context: Option<&mut Owner<L, C, K>>,
+	config_path: Option<PathBuf>,
 	f: F,
 ) -> Result<(), Error>
 where
@@ -147,27 +148,14 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	match api_context {
-		Some(c) => f(c, keychain_mask)?,
-		None => {
-			let wallet = match wallet {
-				Some(w) => w,
-				None => {
-					return Err(Error::GenericError(
-						"Instantiated wallet or Owner API context must be provided".to_string(),
-					))
-				}
-			};
-			f(&mut Owner::new(wallet, None), keychain_mask)?
-		}
-	}
-	Ok(())
+	f(&mut Owner::new(wallet, None, config_path), keychain_mask)
 }
 
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn foreign_single_use<'a, L, F, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	config_path: Option<PathBuf>,
 	keychain_mask: Option<SecretKey>,
 	f: F,
 ) -> Result<(), Error>
@@ -179,6 +167,7 @@ where
 {
 	f(&mut Foreign::new(
 		wallet,
+		config_path,
 		keychain_mask,
 		Some(check_middleware),
 		false,
@@ -191,7 +180,7 @@ where
 /// Note keychain mask is only provided here in case the foreign listener is also being used
 /// in the same wallet instance
 pub fn owner_listener<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	api_secret: Option<String>,
@@ -220,8 +209,8 @@ where
 		running_foreign = true;
 	}
 
-	let api_handler_v3 =
-		OwnerAPIHandlerV3::new(wallet.clone(), keychain_mask.clone(), running_foreign);
+	let wallet = owner_api.wallet_inst.clone();
+	let api_handler_v3 = OwnerAPIHandlerV3::new(owner_api, keychain_mask.clone(), running_foreign);
 
 	router
 		.add_route("/v3/owner", Arc::new(api_handler_v3))
@@ -230,7 +219,12 @@ where
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(
+			wallet,
+			owner_api.config_path.clone(),
+			keychain_mask,
+			test_mode,
+		);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
@@ -254,6 +248,7 @@ where
 /// port and wrapping the calls
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	config_path: Option<PathBuf>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
@@ -281,7 +276,7 @@ where
 		(sec_key, tor_dir, onion_address)
 	};
 
-	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode);
+	let api_handler_v2 = ForeignAPIHandlerV2::new(wallet, config_path, keychain_mask, test_mode);
 	let mut router = Router::new();
 
 	router
@@ -557,11 +552,13 @@ where
 {
 	/// Create a new owner API handler for GET methods
 	pub fn new(
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		owner_api: &Owner<L, C, K>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		let owner_api = Owner::new(wallet.clone(), None);
+		let wallet = owner_api.wallet_inst.clone();
+		let config_path = owner_api.config_path.clone();
+		let owner_api = Owner::new(wallet.clone(), None, config_path);
 		OwnerAPIHandlerV3 {
 			wallet,
 			owner_api: Arc::new(owner_api),
@@ -683,8 +680,10 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	/// Wallet instance
+	/// Wallet instance.
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	/// Wallet configuration path.
+	pub config_path: Option<PathBuf>,
 	/// Keychain mask
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	/// run in doctest mode
@@ -700,11 +699,13 @@ where
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		config_path: Option<PathBuf>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
+			config_path,
 			keychain_mask,
 			test_mode,
 		}
@@ -729,9 +730,10 @@ where
 		req: Request<Incoming>,
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		config_path: Option<PathBuf>,
 		test_mode: bool,
 	) -> Result<Response<ApiBody>, Error> {
-		let api = Foreign::new(wallet, mask, Some(check_middleware), test_mode);
+		let api = Foreign::new(wallet, config_path, mask, Some(check_middleware), test_mode);
 		let res = Self::call_api(req, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -747,9 +749,10 @@ where
 		let mask = self.keychain_mask.lock().clone();
 		let wallet = self.wallet.clone();
 		let test_mode = self.test_mode;
+		let config_path = self.config_path.clone();
 
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet, test_mode).await {
+			match Self::handle_post_request(req, mask, wallet, config_path, test_mode).await {
 				Ok(v) => Ok(v),
 				Err(e) => {
 					error!("Request Error: {:?}", e);

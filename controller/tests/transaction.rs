@@ -80,7 +80,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false);
 
 	// Check wallet 1 contents are as expected
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		debug!(
 			"Wallet 1 Info Pre-Transaction, after {} blocks: {:?}",
@@ -99,7 +99,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// and a single use api for a send command
 	let amount = 60_000_000_000;
 	let mut slate = Slate::blank(1, false);
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -143,7 +143,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	})?;
 
 	// Check transaction log for wallet 1
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert!(refreshed);
@@ -165,7 +165,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	})?;
 
 	// Check transaction log for wallet 2
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert!(refreshed);
 		// we should have a transaction entry for this slate
@@ -181,13 +181,13 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	})?;
 
 	// post transaction
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		api.post_tx(m, &slate, false)?;
 		Ok(())
 	})?;
 
 	// Check wallet 1 contents are as expected
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		debug!(
 			"Wallet 1 Info Post Transaction, after {} blocks: {:?}",
@@ -226,7 +226,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 
 	// refresh wallets and retrieve info/tests for each wallet after maturity
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		debug!("Wallet 1 Info: {:?}", wallet1_info);
 		assert!(wallet1_refreshed);
@@ -241,7 +241,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.amount_currently_spendable, amount);
@@ -258,7 +258,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	})?;
 
 	// Estimate fee and locked amount for a transaction
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		let init_args = InitTxArgs {
 			src_acct_name: None,
 			amount: amount * 2,
@@ -294,7 +294,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// Send another transaction, but don't post to chain immediately and use
 	// the stored transaction instead
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -312,7 +312,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		Ok(())
 	})?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		let (refreshed, _wallet1_info) = sender_api.retrieve_summary_info(m, true, 1)?;
 		assert!(refreshed);
 		let (_, txs) = sender_api.retrieve_txs(m, true, None, None, None)?;
@@ -338,7 +338,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 
 	// check wallet2 has stored transaction
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
 		assert!(wallet2_refreshed);
 		assert_eq!(wallet2_info.amount_currently_spendable, amount * 3);
@@ -356,7 +356,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// try to send a transaction with amount inclusive of fees, but amount too
 	// small to cover fees. Should fail.
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -376,7 +376,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// try to build a transaction with amount inclusive of fees. Confirm that tx
 	// amount + fee is equal to the originally specified amount
 	let amount = 60_000_000_000;
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -447,7 +447,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	let amount = 30_000_000_000;
 	let mut slate = Slate::blank(1, false);
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |sender_api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |sender_api, m| {
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
@@ -467,7 +467,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// Check transaction log for wallet 1
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		let (refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 		println!(
 			"last confirmed height: {}",
@@ -498,7 +498,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// Check transaction log for wallet 2
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		assert!(refreshed);
 		let mut unconfirmed_count = 0;
@@ -525,7 +525,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 
 	// Wallet 1 decides to roll back instead
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+	wallet::controller::owner_single_use(wallet1.clone(), mask1, None, |api, m| {
 		// can't roll back coinbase
 		let res = api.cancel_tx(m, Some(1), None);
 		assert!(res.is_err());
@@ -555,7 +555,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	})?;
 
 	// Wallet 2 rolls back
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+	wallet::controller::owner_single_use(wallet2.clone(), mask2, None, |api, m| {
 		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 		let tx = txs
 			.iter()
