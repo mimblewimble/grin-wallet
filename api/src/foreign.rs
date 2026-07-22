@@ -197,7 +197,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, None, false);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	///
 	/// let version_info = api_foreign.check_version();
 	/// // check and proceed accordingly
@@ -249,7 +249,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, None, false);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	///
 	/// let block_fees = BlockFees {
 	///     fees: 800000,
@@ -324,7 +324,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, None, false);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	/// # let slate = Slate::blank(2, false);
 	///
 	/// // . . .
@@ -427,8 +427,8 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, None, false);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	///
 	/// // . . .
 	/// // Issue the invoice tx via the owner API

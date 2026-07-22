@@ -260,7 +260,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let result = api_owner.accounts(None);
 	///
@@ -311,7 +311,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let result = api_owner.create_account_path(None, "account1");
 	///
@@ -358,7 +358,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let result = api_owner.create_account_path(None, "account1");
 	///
@@ -414,7 +414,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let show_spent = false;
 	/// let update_from_node = true;
 	/// let tx_id = None;
@@ -485,7 +485,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
@@ -564,7 +564,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let minimum_confirmations=10;
 	///
@@ -651,7 +651,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// // Attempt to create a transaction using the 'default' account
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
@@ -756,7 +756,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let args = IssueInvoiceTxArgs {
 	///     amount: 60_000_000_000,
@@ -817,7 +817,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// // . . .
 	/// // The slate has been recieved from the invoicer, somehow
@@ -929,7 +929,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -991,7 +991,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1050,7 +1050,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1121,7 +1121,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1192,7 +1192,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
@@ -1236,7 +1236,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1276,7 +1276,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1340,7 +1340,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1398,7 +1398,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.node_height(None);
 	///
 	/// if let Ok(node_height_result) = result {
@@ -1455,7 +1455,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.get_top_level_directory();
 	///
 	/// if let Ok(dir) = result {
@@ -1503,7 +1503,7 @@ where
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let result = api_owner.set_top_level_directory(dir);
 	///
 	/// if let Ok(dir) = result {
@@ -1553,7 +1553,7 @@ where
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
@@ -1622,7 +1622,7 @@ where
 	/// #   .to_str()
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
@@ -1689,7 +1689,7 @@ where
 	/// #   .to_str()
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
@@ -1746,7 +1746,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.close_wallet(None);
 	///
@@ -1782,7 +1782,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let pw = ZeroingString::from("my_password");
 	/// let res = api_owner.get_mnemonic(None, pw);
@@ -1827,7 +1827,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let old = ZeroingString::from("my_password");
 	/// let new = ZeroingString::from("new_password");
@@ -1870,7 +1870,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.delete_wallet(None);
 	///
@@ -1926,7 +1926,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -1981,7 +1981,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -2023,7 +2023,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -2089,7 +2089,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.get_slatepack_address(None, 0);
 	///
@@ -2129,7 +2129,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.get_slatepack_secret_key(None, 0);
 	///
@@ -2170,9 +2170,8 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None, None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -2240,7 +2239,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// // ... receive a slatepack from somewhere
 	/// # let slatepack_string = String::from("");
 	///   let res = api_owner.slate_from_slatepack_message(
@@ -2290,7 +2289,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None, None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// # let slatepack_string = String::from("");
 	/// // .. receive a slatepack from somewhere
 	/// let res = api_owner.decode_slatepack_message(
@@ -2348,7 +2347,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
@@ -2417,7 +2416,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
@@ -2479,7 +2478,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let keychain_mask = None;
 	/// let params = MixnetReqCreationParams {
 	///   server_keys: vec![], // Public keys here in secret key representation
