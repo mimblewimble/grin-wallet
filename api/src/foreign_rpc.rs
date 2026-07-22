@@ -312,7 +312,13 @@ where
 		let slate_from = Slate::from(in_slate);
 		let dest = match dest {
 			None => None,
-			Some(a) => SlatepackAddress::try_from(a.as_str()).ok(),
+			Some(a) => match SlatepackAddress::try_from(a.as_str()) {
+				Ok(d) => Some(d),
+				Err(_) => {
+					error!("Error parsing Slatepack address: {}", a);
+					None
+				}
+			},
 		};
 		let out_slate = Foreign::receive_tx(
 			self,
