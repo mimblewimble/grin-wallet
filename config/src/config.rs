@@ -540,7 +540,8 @@ impl GlobalWalletConfig {
 	pub fn save(&mut self) -> Result<(), ConfigError> {
 		let path = self.config_file_path.clone();
 		let tmp_path = format!("{}.tmp", path.to_str().unwrap());
-		let res = self.write_to_file(tmp_path.as_str(), true, None, None);
+		let contents = fs::read_to_string(&path)?;
+		let res = self.write_to_file(tmp_path.as_str(), true, Some(contents), None);
 		if let Err(e) = res {
 			let msg = format!("Error saving config file as ({:?}): {}", tmp_path, e);
 			return Err(ConfigError::SerializationError(msg));
