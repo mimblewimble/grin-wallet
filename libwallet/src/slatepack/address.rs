@@ -90,7 +90,7 @@ impl TryFrom<&str> for SlatepackAddress {
 			global::ChainTypes::Mainnet => "grin",
 			_ => "tgrin",
 		};
-		if !encoded.starts_with(prefix) {
+		if !encoded.to_lowercase().starts_with(prefix) {
 			return Err(Error::SlatepackAddress(format!(
 				"wrong address prefix for chain {:?}",
 				global::get_chain_type()
@@ -256,6 +256,23 @@ impl Readable for SlatepackAddress {
 fn slatepack_address() -> Result<(), Error> {
 	use rand::{thread_rng, Rng};
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+
+	let valid_addr = "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp";
+	let parsed_valid_addr = SlatepackAddress::try_from(valid_addr);
+	assert!(parsed_valid_addr.is_ok());
+
+	let valid_addr2 = "TGRIN1XTXAVWFGS48CKF3GK8WWGCNDMN0NT4TVKL8A7LTYEJJCY2MC6NFS9GM2LP";
+	let parsed_valid_addr2 = SlatepackAddress::try_from(valid_addr2);
+	assert!(parsed_valid_addr2.is_ok());
+
+	let invalid_addr = "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7";
+	let parsed_invalid_addr = SlatepackAddress::try_from(invalid_addr);
+	assert!(parsed_invalid_addr.is_err());
+
+	let wrong_net_addr = "grin1dvge9z4uqgqlpspmljrd7smh3grrw9xu2r9lkz3u67s3emj3ud2sd5gk9p";
+	let parsed_wrong_net_addr = SlatepackAddress::try_from(wrong_net_addr);
+	assert!(parsed_wrong_net_addr.is_err());
+
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
 	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes);
