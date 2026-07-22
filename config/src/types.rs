@@ -141,9 +141,6 @@ pub enum ConfigError {
 
 	/// Path doesn't exist
 	PathNotFoundError(String),
-
-	/// Other errors
-	Other(String),
 }
 
 impl fmt::Display for ConfigError {
@@ -164,9 +161,6 @@ impl fmt::Display for ConfigError {
 				write!(f, "Error serializing configuration: {}", message)
 			}
 			ConfigError::PathNotFoundError(ref message) => write!(f, "Path not found: {}", message),
-			ConfigError::Other(ref message) => {
-				write!(f, "{}", message)
-			}
 		}
 	}
 }
