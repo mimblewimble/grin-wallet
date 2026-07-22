@@ -22,7 +22,7 @@ Then (assuming node.js and npm are installed on the system):
 
 ```.sh
 npm install
-node src/index.json
+node src/index.js
 ```
 
 Feel free to play around with the sample, modifying it to call whatever functions you'd like to see in operation!
