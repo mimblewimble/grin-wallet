@@ -52,6 +52,7 @@ use easy_jsonrpc_mw::{Handler, MaybeReply};
 use grin_api::ApiBody;
 use grin_wallet_config::config::{add_global_config_listener, get_global_config};
 use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
+use grin_wallet_impls::tor::process::TorProcess;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use tokio::sync::mpsc;
@@ -252,6 +253,7 @@ where
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	config_path: Option<PathBuf>,
+	mut tor_config: TorConfig,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
@@ -263,9 +265,6 @@ where
 	K: Keychain + 'static,
 {
 	loop {
-		let config = get_global_config(&config_path);
-		let tor_config = config.members.unwrap().tor.unwrap_or(TorConfig::default());
-
 		// Check if wallet has been opened first
 		let (sec_key, tor_dir, onion_address) = {
 			let mask = keychain_mask.lock();
@@ -309,12 +308,22 @@ where
 		let _tor_service = if tor_config.use_tor_listener {
 			let use_integrated = tor_config.use_integrated.unwrap_or(false);
 
-			let res: Result<Option<tor_process::TorProcess>, Error> = if use_integrated {
-				start_tor_service(sec_key, &tor_dir, addr, &tor_config.clone())?;
-				Ok(None)
+			let res: Result<Option<TorProcess>, Error> = if use_integrated {
+				match start_tor_service(sec_key, &tor_dir, addr, &tor_config.clone()) {
+					Ok(_) => Ok(None),
+					Err(e) => {
+						error!("Error starting integrated Tor service: {}", e);
+						Err(e)
+					}
+				}
 			} else {
-				let p = init_tor_listener(sec_key, tor_dir, addr, tor_config.clone())?;
-				Ok(Some(p))
+				match init_tor_listener(sec_key, tor_dir, addr, tor_config.clone()) {
+					Ok(p) => Ok(Some(p)),
+					Err(e) => {
+						error!("Error starting external Tor listener: {}", e);
+						Err(e)
+					}
+				}
 			};
 			match res {
 				Ok(service) => {
@@ -358,10 +367,13 @@ where
 			.join()
 			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
 
+		if tor_config.use_tor_listener && tor_config.use_integrated.unwrap_or(false) {
+			stop_tor_service(onion_address.to_string());
+		}
+
 		if restart_needed.load(Ordering::Relaxed) {
-			if tor_config.use_tor_listener && tor_config.use_integrated.unwrap_or(false) {
-				stop_tor_service(onion_address.to_string());
-			}
+			let config = get_global_config(&config_path);
+			tor_config = config.members.unwrap().tor.unwrap_or(TorConfig::default());
 			continue;
 		}
 		return res;

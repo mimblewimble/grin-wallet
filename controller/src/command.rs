@@ -188,7 +188,8 @@ where
 pub fn listen<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
-	config: &WalletConfig,
+	config: WalletConfig,
+	tor_config: TorConfig,
 	g_args: &GlobalArgs,
 	cli_mode: bool,
 	test_mode: bool,
@@ -200,7 +201,6 @@ where
 {
 	let wallet_inst = owner_api.wallet_inst.clone();
 	let config_path = owner_api.config_path.clone();
-	let config = config.clone();
 	let g_args = g_args.clone();
 	let api_thread = thread::Builder::new()
 		.name("wallet-http-listener".to_string())
@@ -208,6 +208,7 @@ where
 			let res = controller::foreign_listener(
 				wallet_inst,
 				config_path,
+				tor_config,
 				keychain_mask,
 				&config.api_listen_addr(),
 				g_args.tls_conf.clone(),
