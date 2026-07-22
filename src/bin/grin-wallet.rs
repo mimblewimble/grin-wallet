@@ -117,7 +117,7 @@ fn real_main() -> i32 {
 
 	// Load relevant config, try and load a wallet config file
 	// Use defaults for configuration if config file not found anywhere
-	let mut config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
+	let config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
 		Ok(c) => c,
 		Err(e) => {
 			return match e {
@@ -134,7 +134,7 @@ fn real_main() -> i32 {
 	};
 
 	// Load logging config
-	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
+	let mut l = config.members.logging.clone().unwrap();
 	// no logging to stdout if we're running cli
 	match args.subcommand() {
 		("cli", _) => l.log_to_stdout = true,
@@ -143,24 +143,14 @@ fn real_main() -> i32 {
 	init_logger(Some(l), None);
 	info!(
 		"Using wallet configuration file at {}",
-		config.config_file_path.as_ref().unwrap().to_str().unwrap()
+		config.config_file_path.to_str().unwrap()
 	);
 	log_build_info();
 
-	global::init_global_chain_type(
-		config
-			.members
-			.as_ref()
-			.unwrap()
-			.wallet
-			.chain_type
-			.as_ref()
-			.unwrap()
-			.clone(),
-	);
+	global::init_global_chain_type(config.members.wallet.chain_type.as_ref().unwrap().clone());
 
-	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
-	let wallet_config = config.clone().members.unwrap().wallet;
+	global::init_global_accept_fee_base(config.members.wallet.accept_fee_base());
+	let wallet_config = config.clone().members.wallet;
 	let timeout = wallet_config.api_request_timeout();
 	let node_client =
 		HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, timeout).unwrap();

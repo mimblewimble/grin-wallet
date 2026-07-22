@@ -1925,7 +1925,7 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-	fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error>;
+	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error>;
 
 	/**
 	Networked version of [Owner::build_output](struct.Owner.html#method.build_output).
@@ -2423,7 +2423,7 @@ where
 		Owner::verify_payment_proof(self, (&token.keychain_mask).as_ref(), &proof)
 	}
 
-	fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
+	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
 		Owner::set_tor_config(self, tor_config)?;
 		Ok(())
 	}

@@ -50,7 +50,9 @@ use crate::apiwallet::{
 use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
 use grin_api::ApiBody;
-use grin_wallet_config::config::{add_global_config_listener, get_global_config};
+use grin_wallet_config::config::{
+	add_global_config_listener, get_global_config, remove_global_config_listener,
+};
 use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
 use grin_wallet_impls::tor::process::TorProcess;
 use http_body_util::{BodyExt, Full};
@@ -143,7 +145,7 @@ fn init_tor_listener(
 pub fn owner_single_use<L, F, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
-	config_path: Option<PathBuf>,
+	config_path: PathBuf,
 	f: F,
 ) -> Result<(), Error>
 where
@@ -159,7 +161,7 @@ where
 /// Return a function containing a loaded API context to call
 pub fn foreign_single_use<'a, L, F, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	config_path: Option<PathBuf>,
+	config_path: PathBuf,
 	keychain_mask: Option<SecretKey>,
 	f: F,
 ) -> Result<(), Error>
@@ -252,7 +254,7 @@ where
 /// port and wrapping the calls
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	config_path: Option<PathBuf>,
+	config_path: PathBuf,
 	mut tor_config: TorConfig,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
@@ -374,9 +376,12 @@ where
 
 		if restart_needed.load(Ordering::Relaxed) {
 			let config = get_global_config(&config_path)?;
-			tor_config = config.members.unwrap().tor.unwrap_or(TorConfig::default());
+			tor_config = config.members.tor.unwrap_or(tor_config);
 			continue;
 		}
+
+		remove_global_config_listener(&config_path, "foreign_listener");
+
 		return res;
 	}
 }
@@ -729,7 +734,7 @@ where
 	/// Wallet instance.
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	/// Wallet configuration path.
-	pub config_path: Option<PathBuf>,
+	pub config_path: PathBuf,
 	/// Keychain mask
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	/// run in doctest mode
@@ -745,7 +750,7 @@ where
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-		config_path: Option<PathBuf>,
+		config_path: PathBuf,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
 	) -> ForeignAPIHandlerV2<L, C, K> {
@@ -776,7 +781,7 @@ where
 		req: Request<Incoming>,
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-		config_path: Option<PathBuf>,
+		config_path: PathBuf,
 		test_mode: bool,
 	) -> Result<Response<ApiBody>, Error> {
 		let api = Foreign::new(wallet, config_path, mask, Some(check_middleware), test_mode);

@@ -16,7 +16,6 @@
 
 use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
-use crate::config::config::get_global_config;
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
@@ -331,6 +330,7 @@ pub fn send<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: SendArgs,
+	mut tor_config: TorConfig,
 	dark_scheme: bool,
 	test_mode: bool,
 ) -> Result<(), Error>
@@ -404,21 +404,9 @@ where
 		return Ok(());
 	}
 
-	let tc = {
-		let gc = get_global_config(&owner_api.config_path)
-			.map_err(|e| Error::GenericError(e.to_string()))?;
-		let tc = gc.members.as_ref().unwrap().tor.clone();
-		tc
-	};
-	let tor_config = match tc {
-		Some(mut c) => {
-			if let Some(b) = args.bridge.clone() {
-				c.bridge.bridge_line = Some(b);
-			}
-			Some(c)
-		}
-		None => None,
-	};
+	if let Some(b) = args.bridge.clone() {
+		tor_config.bridge.bridge_line = Some(b);
+	}
 
 	let output_sp = || -> Result<(), Error> {
 		Ok(output_slatepack(
@@ -433,16 +421,12 @@ where
 		)?)
 	};
 
-	let can_send = if let Some(tc) = tor_config.as_ref() {
-		tc.send_tor(args.skip_tor)
-	} else {
-		false
-	};
+	let can_send = tor_config.send_tor(args.skip_tor);
 	if test_mode || !can_send {
 		return output_sp();
 	}
 
-	let res = try_slatepack_sync_workflow(&slate, &args.dest, tor_config, None, false);
+	let res = try_slatepack_sync_workflow(&slate, &args.dest, Some(tor_config), None, false);
 
 	match res {
 		Ok(s) => {
@@ -618,7 +602,7 @@ pub fn receive<L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	g_args: &GlobalArgs,
 	args: ReceiveArgs,
-	tor_config: Option<TorConfig>,
+	mut tor_config: TorConfig,
 	test_mode: bool,
 ) -> Result<(), Error>
 where
@@ -638,15 +622,9 @@ where
 		Some(&m) => Some(m.to_owned()),
 	};
 
-	let tor_config = match tor_config {
-		Some(mut c) => {
-			if let Some(b) = args.bridge {
-				c.bridge.bridge_line = Some(b);
-			}
-			Some(c)
-		}
-		None => None,
-	};
+	if let Some(b) = args.bridge {
+		tor_config.bridge.bridge_line = Some(b);
+	}
 
 	controller::foreign_single_use(
 		owner_api.wallet_inst.clone(),
@@ -659,7 +637,7 @@ where
 	)?;
 
 	let dest = match ret_address {
-		Some(a) => String::try_from(&a).unwrap(),
+		Some(a) => String::try_from(&a)?,
 		None => String::from(""),
 	};
 
@@ -676,16 +654,12 @@ where
 		)?)
 	};
 
-	let can_send = if let Some(tc) = tor_config.as_ref() {
-		tc.send_tor(args.skip_tor)
-	} else {
-		false
-	};
+	let can_send = tor_config.send_tor(args.skip_tor);
 	if test_mode || !can_send {
 		return output_sp();
 	}
 
-	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
+	let res = try_slatepack_sync_workflow(&slate, &dest, Some(tor_config), None, true);
 
 	match res {
 		Ok(s) => {
@@ -921,7 +895,7 @@ pub struct ProcessInvoiceArgs {
 pub fn process_invoice<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	tor_config: Option<TorConfig>,
+	mut tor_config: TorConfig,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 	test_mode: bool,
@@ -985,15 +959,9 @@ where
 		};
 	}
 
-	let tor_config = match tor_config {
-		Some(mut c) => {
-			if let Some(b) = args.bridge {
-				c.bridge.bridge_line = Some(b);
-			}
-			Some(c)
-		}
-		None => None,
-	};
+	if let Some(b) = args.bridge {
+		tor_config.bridge.bridge_line = Some(b);
+	}
 
 	let output_sp = || -> Result<(), Error> {
 		Ok(output_slatepack(
@@ -1008,16 +976,12 @@ where
 		)?)
 	};
 
-	let can_send = if let Some(tc) = tor_config.as_ref() {
-		tc.send_tor(args.skip_tor)
-	} else {
-		false
-	};
+	let can_send = tor_config.send_tor(args.skip_tor);
 	if test_mode || !can_send {
 		return output_sp();
 	}
 
-	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
+	let res = try_slatepack_sync_workflow(&slate, &dest, Some(tor_config), None, true);
 
 	match res {
 		Ok(s) => {

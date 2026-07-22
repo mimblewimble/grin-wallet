@@ -70,7 +70,7 @@ where
 	/// Wallet instance
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	/// Wallet configuration path
-	pub config_path: Option<PathBuf>,
+	pub config_path: PathBuf,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// foreign check middleware
@@ -107,6 +107,7 @@ where
 	///
 	/// # Example
 	/// ```
+	/// use std::path::PathBuf;
 	/// use grin_keychain as keychain;
 	/// use grin_util as util;
 	/// use grin_core;
@@ -165,14 +166,14 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_foreign = Foreign::new(wallet.clone(), None, None, None, false);
+	/// let api_foreign = Foreign::new(wallet.clone(), PathBuf::from(dir), None, None, false);
 	/// // .. perform wallet operations
 	///
 	/// ```
 
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-		config_path: Option<PathBuf>,
+		config_path: PathBuf,
 		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
 		doctest_mode: bool,
@@ -362,7 +363,7 @@ where
 			Some(a) => {
 				let tc = {
 					let gc = get_global_config(&self.config_path)?;
-					let tc = gc.members.as_ref().unwrap().tor.clone();
+					let tc = gc.members.tor;
 					tc
 				};
 				let can_send = if let Some(tc) = tc.as_ref() {

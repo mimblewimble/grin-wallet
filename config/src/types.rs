@@ -312,9 +312,9 @@ impl fmt::Display for TorProxyConfig {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GlobalWalletConfig {
 	/// Keep track of the file we've read
-	pub config_file_path: Option<PathBuf>,
+	pub config_file_path: PathBuf,
 	/// Wallet members
-	pub members: Option<GlobalWalletConfigMembers>,
+	pub members: GlobalWalletConfigMembers,
 }
 
 /// Wallet internal members

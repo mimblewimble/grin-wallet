@@ -72,7 +72,7 @@ where
 	/// Contains all methods to manage the wallet
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	/// Wallet configuration path
-	pub config_path: Option<PathBuf>,
+	pub config_path: PathBuf,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// Retail TLD during doctest
@@ -115,6 +115,7 @@ where
 	///
 	/// # Example
 	/// ```
+	/// use std::path::PathBuf;
 	/// use grin_keychain as keychain;
 	/// use grin_util as util;
 	/// use grin_core;
@@ -172,7 +173,7 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, None);
+	/// let api_owner = Owner::new(wallet.clone(), None, PathBuf::from(dir));
 	/// // .. perform wallet operations
 	///
 	/// ```
@@ -180,7 +181,7 @@ where
 	pub fn new(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 		custom_channel: Option<Sender<StatusMessage>>,
-		config_path: Option<PathBuf>,
+		config_path: PathBuf,
 	) -> Self {
 		let updater_running = Arc::new(AtomicBool::new(false));
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
@@ -212,19 +213,27 @@ where
 	}
 
 	/// Set the TOR configuration for this instance of the OwnerAPI, used during
-	/// `init_send_tx` when send args are present and a TOR address is specified
+	/// `init_send_tx` when send args are present and a TOR address is specified,
+	/// this will also update persistent config and will restart foreign listener
 	///
 	/// # Arguments
-	/// * `tor_config` - The [TorConfig](#) to use
+	/// * `tor_config` - The optional [TorConfig](#) to use
 	/// # Returns
 	/// * Result Containing:
 	/// * `Ok(())` if the config was correctly saved
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 
-	pub fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
+	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
 		let mut gc = get_global_config(&self.config_path)?;
-		gc.members.as_mut().unwrap().tor = Some(tor_config);
+		if let Some(tor_config) = tor_config {
+			gc.members.tor = Some(tor_config);
+		} else if let Some(tor) = gc.members.tor.as_mut() {
+			tor.use_tor_listener = false;
+			tor.skip_send_attempt = Some(true);
+		} else {
+			return Ok(());
+		}
 		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		Ok(())
 	}
@@ -683,7 +692,7 @@ where
 			Some(sa) => {
 				let tc = {
 					let gc = get_global_config(&self.config_path)?;
-					let tc = gc.members.as_ref().unwrap().tor.clone();
+					let tc = gc.members.tor;
 					tc
 				};
 				let can_send = if let Some(tc) = tc.as_ref() {
@@ -848,7 +857,7 @@ where
 			Some(sa) => {
 				let tc = {
 					let gc = get_global_config(&self.config_path)?;
-					let tc = gc.members.as_ref().unwrap().tor.clone();
+					let tc = gc.members.tor;
 					tc
 				};
 				let can_send = if let Some(tc) = tc.as_ref() {

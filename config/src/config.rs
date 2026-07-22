@@ -33,18 +33,12 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use toml;
 
 lazy_static! {
-	/// Global configuration instance.
-	static ref CONFIG_INSTANCE: OnceLock<RwLock<GlobalWalletConfig>> = OnceLock::new();
-	/// Global configuration instances mapped to config path.
-	static ref CONFIG_INSTANCES: Arc<RwLock<HashMap<String, GlobalWalletConfig>>> = Arc::new(RwLock::new(HashMap::new()));
-	/// Global configuration change listener.
-	static ref CONFIG_CHANGE_LISTENER: Arc<RwLock<HashMap<String, Sender<()>>>> = Arc::new(RwLock::new(HashMap::new()));
-	/// Global configuration change listeners mapped to config path.
-	static ref CONFIG_CHANGE_LISTENERS: Arc<RwLock<HashMap<String, HashMap<String, Sender<()>>>>> = Arc::new(RwLock::new(HashMap::new()));
+	/// Global configuration instances and change listeners mapped to config path.
+	static ref CONFIG_INSTANCES: Arc<RwLock<HashMap<PathBuf, (GlobalWalletConfig, HashMap<String, Sender<()>>)>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 /// Wallet configuration file name
@@ -62,99 +56,70 @@ pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
 /// Set global configuration instance.
 pub fn set_global_config(config: GlobalWalletConfig) {
-	match &config.config_file_path {
-		None => {
-			let mut cfg = CONFIG_INSTANCE
-				.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
-				.write();
-			*cfg = config;
-			// Notify listeners.
-			let mut wl = CONFIG_CHANGE_LISTENER.write();
-			for l in wl.clone() {
-				let mut failed = vec![];
-				match l.1.send(()) {
-					Ok(_) => {}
-					Err(_) => {
-						failed.push(l.0.to_string());
-					}
-				}
-				for f in failed {
-					wl.remove(&f);
-				}
+	let mut configs = CONFIG_INSTANCES.write();
+	let mut listeners = if let Some((_, l)) = configs.get(&config.config_file_path) {
+		l.clone()
+	} else {
+		HashMap::new()
+	};
+	// Update config.
+	configs.insert(
+		config.config_file_path.clone(),
+		(config.clone(), listeners.clone()),
+	);
+	// Notify listeners.
+	let mut failed = vec![];
+	for l in listeners.clone() {
+		match l.1.send(()) {
+			Ok(_) => {}
+			Err(_) => {
+				failed.push(l.0.to_string());
 			}
 		}
-		Some(path) => {
-			let mut configs = CONFIG_INSTANCES.write();
-			configs.insert(path.to_str().unwrap().to_string(), config.clone());
-			// Notify listeners.
-			let mut listeners = CONFIG_CHANGE_LISTENERS.write();
-			if let Some(listeners) = listeners.get_mut(path.to_str().unwrap()) {
-				let mut failed = vec![];
-				for l in listeners.clone() {
-					match l.1.send(()) {
-						Ok(_) => {}
-						Err(_) => {
-							failed.push(l.0.to_string());
-						}
-					}
-				}
-				for f in failed {
-					listeners.remove(&f);
-				}
-			}
-		}
+	}
+	for f in &failed {
+		listeners.remove(f);
+	}
+	// Update listener list.
+	if !failed.is_empty() {
+		configs.insert(config.config_file_path.clone(), (config, listeners));
 	}
 }
 
 /// Get global configuration using provided path.
-pub fn get_global_config(config_path: &Option<PathBuf>) -> Result<GlobalWalletConfig, ConfigError> {
-	match config_path {
-		None => {
-			let cfg = CONFIG_INSTANCE
-				.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
-				.read();
-			Ok(cfg.clone())
+pub fn get_global_config(config_path: &PathBuf) -> Result<GlobalWalletConfig, ConfigError> {
+	{
+		let configs = CONFIG_INSTANCES.read();
+		if let Some((config, _)) = configs.get(config_path) {
+			return Ok(config.clone());
 		}
-		Some(path) => {
-			let path = path.to_str().unwrap();
-			{
-				let configs = CONFIG_INSTANCES.read();
-				if let Some(config) = configs.get(path) {
-					return Ok(config.clone());
-				}
-			}
-			let config = GlobalWalletConfig::new(path)?;
-			let mut configs = CONFIG_INSTANCES.write();
-			configs.insert(path.to_string(), config.clone());
-			Ok(config)
+	}
+	let config = GlobalWalletConfig::new(config_path.to_str().unwrap())?;
+	let mut configs = CONFIG_INSTANCES.write();
+	if !configs.contains_key(config_path) {
+		configs.insert(config_path.clone(), (config.clone(), HashMap::new()));
+	}
+	Ok(config)
+}
+
+/// Add listener on config change.
+pub fn add_global_config_listener(config_path: &PathBuf, listener_id: &str, tx: Sender<()>) {
+	let mut w_l = CONFIG_INSTANCES.write();
+	match w_l.get_mut(config_path) {
+		None => {}
+		Some((_, listeners)) => {
+			listeners.insert(listener_id.to_string(), tx);
 		}
 	}
 }
 
-/// Add listener on config change.
-pub fn add_global_config_listener(
-	config_path: &Option<PathBuf>,
-	listener_id: &str,
-	tx: Sender<()>,
-) {
-	match config_path {
-		None => {
-			let mut l = CONFIG_CHANGE_LISTENER.write();
-			l.insert(listener_id.to_string(), tx);
-		}
-		Some(p) => {
-			let path = p.to_str().unwrap();
-			let mut w_l = CONFIG_CHANGE_LISTENERS.write();
-			match w_l.get_mut(path) {
-				None => {
-					let mut l = HashMap::<String, Sender<()>>::new();
-					l.insert(listener_id.to_string(), tx);
-					w_l.insert(path.to_string(), l);
-				}
-				Some(listeners) => {
-					listeners.insert(listener_id.to_string(), tx);
-				}
-			}
+/// Remove listener on config change.
+pub fn remove_global_config_listener(config_path: &PathBuf, listener_id: &str) {
+	let mut w_l = CONFIG_INSTANCES.write();
+	match w_l.get_mut(config_path) {
+		None => {}
+		Some((_, listeners)) => {
+			listeners.remove(listener_id);
 		}
 	}
 }
@@ -348,8 +313,7 @@ pub fn initial_setup_wallet(
 	let (path, config) = match config_path.clone().exists() {
 		// If the config does not exist, load default and updated node and wallet dir
 		false => {
-			let mut default_config = GlobalWalletConfig::for_chain(chain_type);
-			default_config.config_file_path = Some(config_path.clone());
+			let mut default_config = GlobalWalletConfig::for_chain(chain_type, &config_path);
 			default_config.update_paths(&wallet_path, &node_path);
 
 			// Write config file
@@ -406,21 +370,15 @@ impl Default for GlobalWalletConfigMembers {
 	}
 }
 
-impl Default for GlobalWalletConfig {
-	fn default() -> GlobalWalletConfig {
-		GlobalWalletConfig {
-			config_file_path: None,
-			members: Some(GlobalWalletConfigMembers::default()),
-		}
-	}
-}
-
 impl GlobalWalletConfig {
 	/// Same as GlobalConfig::default() but further tweaks parameters to
 	/// apply defaults for each chain type
-	pub fn for_chain(chain_type: &global::ChainTypes) -> GlobalWalletConfig {
-		let mut defaults_conf = GlobalWalletConfig::default();
-		let defaults = &mut defaults_conf.members.as_mut().unwrap().wallet;
+	pub fn for_chain(chain_type: &global::ChainTypes, file_path: &PathBuf) -> GlobalWalletConfig {
+		let mut defaults_conf = GlobalWalletConfig {
+			config_file_path: file_path.clone(),
+			members: GlobalWalletConfigMembers::default(),
+		};
+		let defaults = &mut defaults_conf.members.wallet;
 		defaults.chain_type = Some(*chain_type);
 
 		match *chain_type {
@@ -439,11 +397,13 @@ impl GlobalWalletConfig {
 	}
 	/// Requires the path to a config file
 	pub fn new(file_path: &str) -> Result<GlobalWalletConfig, ConfigError> {
-		let mut return_value = GlobalWalletConfig::default();
-		return_value.config_file_path = Some(PathBuf::from(&file_path));
+		let return_value = GlobalWalletConfig {
+			config_file_path: PathBuf::from(file_path),
+			members: GlobalWalletConfigMembers::default(),
+		};
 
 		// Config file path is given but not valid
-		let config_file = return_value.config_file_path.clone().unwrap();
+		let config_file = &return_value.config_file_path;
 		if !config_file.exists() {
 			return Err(ConfigError::FileNotFoundError(String::from(
 				config_file.to_str().unwrap(),
@@ -457,7 +417,7 @@ impl GlobalWalletConfig {
 
 	/// Read config
 	fn read_config(mut self) -> Result<GlobalWalletConfig, ConfigError> {
-		let config_file_path = self.config_file_path.as_mut().unwrap();
+		let config_file_path = &self.config_file_path;
 		let contents = fs::read_to_string(config_file_path.clone())?;
 		let migrated = GlobalWalletConfig::migrate_config_file_version_none_to_2(
 			contents,
@@ -467,11 +427,11 @@ impl GlobalWalletConfig {
 		let decoded: Result<GlobalWalletConfigMembers, toml::de::Error> = toml::from_str(&fixed);
 		match decoded {
 			Ok(gc) => {
-				self.members = Some(gc);
+				self.members = gc;
 				Ok(self)
 			}
 			Err(e) => Err(ConfigError::ParseError(
-				String::from(self.config_file_path.as_mut().unwrap().to_str().unwrap()),
+				String::from(self.config_file_path.to_str().unwrap()),
 				format!("{}", e),
 			)),
 		}
@@ -488,32 +448,18 @@ impl GlobalWalletConfig {
 		data_file_dir.push(GRIN_WALLET_DIR);
 		secret_path.push(OWNER_API_SECRET_FILE_NAME);
 		log_path.push(WALLET_LOG_FILE_NAME);
-		self.members.as_mut().unwrap().wallet.data_file_dir =
-			data_file_dir.to_str().unwrap().to_owned();
-		self.members.as_mut().unwrap().wallet.node_api_secret_path =
+		self.members.wallet.data_file_dir = data_file_dir.to_str().unwrap().to_owned();
+		self.members.wallet.node_api_secret_path =
 			Some(node_secret_path.to_str().unwrap().to_owned());
-		self.members.as_mut().unwrap().wallet.api_secret_path =
-			Some(secret_path.to_str().unwrap().to_owned());
-		self.members
-			.as_mut()
-			.unwrap()
-			.logging
-			.as_mut()
-			.unwrap()
-			.log_file_path = log_path.to_str().unwrap().to_owned();
-		self.members
-			.as_mut()
-			.unwrap()
-			.tor
-			.as_mut()
-			.unwrap()
-			.send_config_dir = tor_path.to_str().unwrap().to_owned();
+		self.members.wallet.api_secret_path = Some(secret_path.to_str().unwrap().to_owned());
+		self.members.logging.as_mut().unwrap().log_file_path =
+			log_path.to_str().unwrap().to_owned();
+		self.members.tor.as_mut().unwrap().send_config_dir = tor_path.to_str().unwrap().to_owned();
 	}
 
 	/// Serialize config
 	pub fn ser_config(&mut self) -> Result<String, ConfigError> {
-		let encoded: Result<String, toml::ser::Error> =
-			toml::to_string(self.members.as_mut().unwrap());
+		let encoded: Result<String, toml::ser::Error> = toml::to_string(&self.members);
 		match encoded {
 			Ok(enc) => Ok(enc),
 			Err(e) => Err(ConfigError::SerializationError(format!("{}", e))),
@@ -562,8 +508,8 @@ impl GlobalWalletConfig {
 			..config
 		};
 		let mut gc = GlobalWalletConfig {
-			members: Some(adjusted_config),
-			config_file_path: Some(config_file_path.clone()),
+			members: adjusted_config,
+			config_file_path: config_file_path.clone(),
 		};
 		let str_path = config_file_path.into_os_string().into_string().unwrap();
 		gc.write_to_file(
@@ -592,21 +538,16 @@ impl GlobalWalletConfig {
 
 	/// Save config to file and update global state after editing.
 	pub fn save(&mut self) -> Result<(), ConfigError> {
-		if let Some(path) = self.config_file_path.clone() {
-			let tmp_path = format!("{}.tmp", path.to_str().unwrap());
-			let res = self.write_to_file(tmp_path.as_str(), false, None, None);
-			if let Err(e) = res {
-				let msg = format!("Error saving config file as ({:?}): {}", tmp_path, e);
-				return Err(ConfigError::SerializationError(msg));
-			}
-			fs::rename(tmp_path.as_str(), path)?;
-
-			set_global_config(self.clone());
-		} else {
-			return Err(ConfigError::PathNotFoundError(
-				"Config file path is empty".to_string(),
-			));
+		let path = self.config_file_path.clone();
+		let tmp_path = format!("{}.tmp", path.to_str().unwrap());
+		let res = self.write_to_file(tmp_path.as_str(), true, None, None);
+		if let Err(e) = res {
+			let msg = format!("Error saving config file as ({:?}): {}", tmp_path, e);
+			return Err(ConfigError::SerializationError(msg));
 		}
+		fs::rename(tmp_path.as_str(), path)?;
+
+		set_global_config(self.clone());
 		Ok(())
 	}
 }

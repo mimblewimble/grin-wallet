@@ -1018,7 +1018,7 @@ where
 		>,
 	),
 {
-	let mut wallet_config = config.members.clone().unwrap().wallet;
+	let mut wallet_config = config.members.wallet.clone();
 	if let Some(dir) = wallet_args.value_of("top_level_dir") {
 		wallet_config.data_file_dir = dir.to_string().clone();
 	}
@@ -1110,7 +1110,7 @@ where
 				&mut owner_api,
 				keychain_mask,
 				&wallet_config,
-				config.members.unwrap().tor,
+				config.members.tor,
 				&global_wallet_args,
 				&wallet_args,
 				test_mode,
@@ -1218,20 +1218,14 @@ where
 				owner_api,
 				km,
 				a,
+				tor_config,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
 			)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(
-				owner_api,
-				km,
-				&global_wallet_args,
-				a,
-				Some(tor_config.clone()),
-				test_mode,
-			)
+			command::receive(owner_api, km, &global_wallet_args, a, tor_config, test_mode)
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
@@ -1255,7 +1249,7 @@ where
 			command::process_invoice(
 				owner_api,
 				km,
-				Some(tor_config.clone()),
+				tor_config,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,

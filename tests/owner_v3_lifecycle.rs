@@ -74,7 +74,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 		let config2 = initial_setup_wallet(test_dir, "wallet2");
-		let wallet_config2 = config2.clone().members.unwrap().wallet;
+		let wallet_config2 = config2.clone().members.wallet;
 		//config2.api_listen_port = 23415;
 		let (wallet2, mask2_i) = instantiate_wallet(
 			wallet_config2.clone(),
@@ -384,7 +384,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	grin_wallet_controller::controller::owner_single_use(
 		wallet2.clone(),
 		mask2,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			let args = InitTxArgs {
 				src_acct_name: None,

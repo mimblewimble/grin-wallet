@@ -220,7 +220,7 @@ where
 						};
 						let config = get_global_config(&config.config_file_path)
 							.map_err(|e| Error::GenericError(e.to_string()))?;
-						let config_members = config.members.unwrap();
+						let config_members = config.members;
 						let wallet_config = config_members.wallet;
 						let tor_config = config_members.tor;
 						match wallet_args::parse_and_execute(

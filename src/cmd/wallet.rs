@@ -31,9 +31,8 @@ where
 	C: NodeClient + 'static,
 {
 	// Check the node version info, and exit with report if we're not compatible
-	let global_wallet_args =
-		wallet_args::parse_global_args(&config.members.clone().unwrap().wallet, &wallet_args)
-			.expect("Can't read configuration file");
+	let global_wallet_args = wallet_args::parse_global_args(&config.members.wallet, &wallet_args)
+		.expect("Can't read configuration file");
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
 	// This will also cache the node version info for calls to foreign API check middleware
