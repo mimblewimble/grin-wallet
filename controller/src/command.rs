@@ -405,7 +405,8 @@ where
 	}
 
 	let tc = {
-		let gc = get_global_config(&owner_api.config_path);
+		let gc = get_global_config(&owner_api.config_path)
+			.map_err(|e| Error::GenericError(e.to_string()))?;
 		let tc = gc.members.as_ref().unwrap().tor.clone();
 		tc
 	};

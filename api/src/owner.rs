@@ -223,7 +223,7 @@ where
 	///
 
 	pub fn set_tor_config(&self, tor_config: TorConfig) -> Result<(), Error> {
-		let mut gc = get_global_config(&self.config_path);
+		let mut gc = get_global_config(&self.config_path)?;
 		gc.members.as_mut().unwrap().tor = Some(tor_config);
 		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		Ok(())
@@ -682,7 +682,7 @@ where
 		match send_args {
 			Some(sa) => {
 				let tc = {
-					let gc = get_global_config(&self.config_path);
+					let gc = get_global_config(&self.config_path)?;
 					let tc = gc.members.as_ref().unwrap().tor.clone();
 					tc
 				};
@@ -847,7 +847,7 @@ where
 		match send_args {
 			Some(sa) => {
 				let tc = {
-					let gc = get_global_config(&self.config_path);
+					let gc = get_global_config(&self.config_path)?;
 					let tc = gc.members.as_ref().unwrap().tor.clone();
 					tc
 				};

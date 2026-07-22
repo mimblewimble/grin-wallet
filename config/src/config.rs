@@ -107,27 +107,26 @@ pub fn set_global_config(config: GlobalWalletConfig) {
 }
 
 /// Get global configuration using provided path.
-pub fn get_global_config(config_path: &Option<PathBuf>) -> GlobalWalletConfig {
+pub fn get_global_config(config_path: &Option<PathBuf>) -> Result<GlobalWalletConfig, ConfigError> {
 	match config_path {
 		None => {
 			let cfg = CONFIG_INSTANCE
 				.get_or_init(|| RwLock::new(GlobalWalletConfig::default()))
 				.read();
-			cfg.clone()
+			Ok(cfg.clone())
 		}
 		Some(path) => {
 			let path = path.to_str().unwrap();
 			{
 				let configs = CONFIG_INSTANCES.read();
 				if let Some(config) = configs.get(path) {
-					return config.clone();
+					return Ok(config.clone());
 				}
 			}
-			let mut default_config = GlobalWalletConfig::default();
-			default_config.config_file_path = Some(PathBuf::from(&path));
+			let config = GlobalWalletConfig::new(path)?;
 			let mut configs = CONFIG_INSTANCES.write();
-			configs.insert(path.to_string(), default_config.clone());
-			default_config
+			configs.insert(path.to_string(), config.clone());
+			Ok(config)
 		}
 	}
 }

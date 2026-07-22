@@ -361,7 +361,7 @@ where
 		match r_addr {
 			Some(a) => {
 				let tc = {
-					let gc = get_global_config(&self.config_path);
+					let gc = get_global_config(&self.config_path)?;
 					let tc = gc.members.as_ref().unwrap().tor.clone();
 					tc
 				};

@@ -372,7 +372,7 @@ where
 		}
 
 		if restart_needed.load(Ordering::Relaxed) {
-			let config = get_global_config(&config_path);
+			let config = get_global_config(&config_path)?;
 			tor_config = config.members.unwrap().tor.unwrap_or(TorConfig::default());
 			continue;
 		}
