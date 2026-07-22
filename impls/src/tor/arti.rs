@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use crate::tor::config::exp_sec_key_bytes;
-use crate::tor::types::ArtiRuntimeWrapper;
 use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
@@ -54,14 +53,28 @@ use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
 lazy_static! {
 	/// Arti Tokio runtime.
-	pub static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
+	static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
 		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
 	/// Arti client and config.
-	pub static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
+	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
 		LazyLock::new(|| Mutex::new(None));
 	/// Running services, where key is onion address.
-	pub static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, (Arc<RunningOnionService>, Arc<OnionServiceReverseProxy>)>>> =
+	static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, (Arc<RunningOnionService>, Arc<OnionServiceReverseProxy>)>>> =
 		LazyLock::new(|| Mutex::new(HashMap::new()));
+}
+
+/// Arti client runtime wrapper.
+#[derive(Clone)]
+pub struct ArtiRuntimeWrapper {
+	pub runtime: TokioNativeTlsRuntime,
+}
+
+impl ArtiRuntimeWrapper {
+	pub fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
+		Ok(Self {
+			runtime: TokioNativeTlsRuntime::create()?,
+		})
+	}
 }
 
 /// Get Tor client runtime.
