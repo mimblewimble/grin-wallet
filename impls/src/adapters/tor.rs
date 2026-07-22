@@ -43,16 +43,16 @@ impl TorSlateSender {
 		if !base_url.starts_with("http") && !base_url.starts_with("https") {
 			Err(Error::GenericError("Scheme must be http".to_string()))
 		} else {
-			let tor_dir = {
-				let mut path = PathBuf::from(&config.send_config_dir);
-				path.push("tor");
-				path.push("sender");
-				path
-			};
 			let tor = if config.use_integrated.unwrap_or(false) {
-				start_tor_client(tor_dir.to_str().unwrap(), config.clone())?;
+				start_tor_client(config.clone())?;
 				None
 			} else {
+				let tor_dir = {
+					let mut path = PathBuf::from(&config.send_config_dir);
+					path.push("tor");
+					path.push("sender");
+					path
+				};
 				let p = Self::launch_tor_process(&config, &tor_dir)?;
 				Some(p)
 			};

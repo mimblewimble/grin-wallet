@@ -309,7 +309,7 @@ where
 			let use_integrated = tor_config.use_integrated.unwrap_or(false);
 
 			let res: Result<Option<TorProcess>, Error> = if use_integrated {
-				match start_tor_service(sec_key, &tor_dir, addr, &tor_config.clone()) {
+				match start_tor_service(sec_key, addr, &tor_config.clone()) {
 					Ok(_) => Ok(None),
 					Err(e) => {
 						error!("Error starting integrated Tor service: {}", e);

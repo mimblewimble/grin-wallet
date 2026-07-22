@@ -100,26 +100,23 @@ pub fn stop_tor_service(onion_addr: String) {
 }
 
 /// Get state and cache data paths.
-fn state_cache_paths(tor_dir: &str) -> (PathBuf, PathBuf) {
-	let state_path = Path::new(&tor_dir).join("state");
-	let cache_path = Path::new(&tor_dir).join("cache");
+fn state_cache_paths(config: &TorConfig) -> (PathBuf, PathBuf) {
+	let mut tor_dir = PathBuf::from(&config.send_config_dir);
+	tor_dir.push("arti");
+	let state_path = tor_dir.join("state");
+	let cache_path = tor_dir.join("cache");
 	(state_path, cache_path)
 }
 
 /// Start Tor service from provided key.
-pub fn start_tor_service(
-	key: SecretKey,
-	tor_dir: &str,
-	addr: &str,
-	config: &TorConfig,
-) -> Result<(), Error> {
+pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Result<(), Error> {
 	info!("Starting integrated Tor listener.");
 	let use_proxy = config.proxy.transport.is_some() && config.proxy.address.is_some();
 	if use_proxy {
 		info!("Proxy configuration will be ignored.");
 	}
 
-	let (state_path, cache_path) = state_cache_paths(tor_dir);
+	let (state_path, cache_path) = state_cache_paths(&config);
 	let (client, config) = init_client(&state_path, &cache_path, config)?;
 
 	// Add service key to keystore.
@@ -177,10 +174,10 @@ pub fn start_tor_service(
 }
 
 /// Start Tor client to send requests.
-pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<(), Error> {
+pub fn start_tor_client(config: TorConfig) -> Result<(), Error> {
 	info!("Starting integrated Tor client");
 
-	let (state_path, cache_path) = state_cache_paths(tor_dir);
+	let (state_path, cache_path) = state_cache_paths(&config);
 	let (_, _) = init_client(&state_path, &cache_path, &config)?;
 	Ok(())
 }
@@ -202,7 +199,7 @@ where
 	}
 	.to_string();
 	let timeout = tor_config.request_timeout();
-	let (state_path, cache_path) = state_cache_paths(tor_config.send_config_dir.as_str());
+	let (state_path, cache_path) = state_cache_paths(&tor_config);
 	let (client, _) = init_client(&state_path, &cache_path, tor_config)?;
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
