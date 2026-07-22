@@ -65,8 +65,8 @@ lazy_static! {
 
 /// Arti client runtime wrapper.
 #[derive(Clone)]
-pub struct ArtiRuntimeWrapper {
-	pub runtime: TokioNativeTlsRuntime,
+struct ArtiRuntimeWrapper {
+	runtime: TokioNativeTlsRuntime,
 }
 
 impl ArtiRuntimeWrapper {
