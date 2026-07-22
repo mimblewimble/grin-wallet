@@ -265,6 +265,9 @@ where
 	K: Keychain + 'static,
 {
 	loop {
+		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
+		add_global_config_listener(&config_path, "foreign_listener", restart_tx);
+
 		// Check if wallet has been opened first
 		let (sec_key, tor_dir, onion_address) = {
 			let mask = keychain_mask.lock();
@@ -352,8 +355,6 @@ where
 		};
 
 		// Start thread to check if restart is needed.
-		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
-		add_global_config_listener(&config_path, "foreign_listener", restart_tx);
 		let restart_needed = Arc::new(AtomicBool::new(false));
 		let t_restart_needed = restart_needed.clone();
 		thread::spawn(move || {
