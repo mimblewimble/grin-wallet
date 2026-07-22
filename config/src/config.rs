@@ -593,12 +593,13 @@ impl GlobalWalletConfig {
 	/// Save config to file and update global state after editing.
 	pub fn save(&mut self) -> Result<(), ConfigError> {
 		if let Some(path) = self.config_file_path.clone() {
-			let res = self.write_to_file(path.to_str().unwrap(), false, None, None);
-
+			let tmp_path = format!("{}.tmp", path.to_str().unwrap());
+			let res = self.write_to_file(tmp_path.as_str(), false, None, None);
 			if let Err(e) = res {
-				let msg = format!("Error saving config file as ({:?}): {}", path, e);
+				let msg = format!("Error saving config file as ({:?}): {}", tmp_path, e);
 				return Err(ConfigError::SerializationError(msg));
 			}
+			fs::rename(tmp_path.as_str(), path)?;
 
 			set_global_config(self.clone());
 		} else {
