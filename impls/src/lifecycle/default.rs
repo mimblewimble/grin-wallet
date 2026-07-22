@@ -95,7 +95,7 @@ where
 			Some(m) => m.clone().config_file_version,
 			None => None,
 		};
-		let logging = match logging_config {
+		let logging = match logging_config.clone() {
 			Some(l) => Some(l),
 			None => match default_config.members.as_ref() {
 				Some(m) => m.clone().logging,
@@ -103,14 +103,14 @@ where
 			},
 		};
 		// Check if config was provided, if not load default and set update to "true"
-		let (wallet, update) = match wallet_config {
+		let (wallet, update) = match wallet_config.clone() {
 			Some(w) => (w, false),
 			None => match default_config.members.as_ref() {
 				Some(m) => (m.clone().wallet, true),
 				None => (WalletConfig::default(), true),
 			},
 		};
-		let tor = match tor_config {
+		let tor = match tor_config.clone() {
 			Some(t) => Some(t),
 			None => match default_config.members.as_ref() {
 				Some(m) => m.clone().tor,
@@ -142,10 +142,21 @@ where
 			return Err(Error::Lifecycle(msg));
 		}
 
-		// If config exists but the datadir return ok
+		// If config exists but the data dir return ok
 		if config_file_name.exists() {
+			let mut config = GlobalWalletConfig::new(config_file_name.to_str().unwrap())
+				.map_err(|e| Error::GenericError(e.to_string()))?;
+			if let Some(wallet_config) = wallet_config {
+				config.members.as_mut().unwrap().wallet = wallet_config;
+			}
+			if let Some(logging_config) = logging_config {
+				config.members.as_mut().unwrap().logging = Some(logging_config);
+			}
+			if let Some(tor_config) = tor_config {
+				config.members.as_mut().unwrap().tor = Some(tor_config);
+			}
 			// Set global config instance.
-			set_global_config(default_config);
+			set_global_config(config);
 			return Ok(());
 		}
 		// default settings are updated if no config was provided, no support for top_dir/here
