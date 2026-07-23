@@ -395,23 +395,6 @@ where
 	Ok(command::RecoverArgs { passphrase })
 }
 
-pub fn parse_listen_args(
-	config: &mut WalletConfig,
-	tor_config: &mut TorConfig,
-	args: &ArgMatches,
-) -> Result<(), ParseError> {
-	if let Some(port) = args.value_of("port") {
-		config.api_listen_port = port.parse().unwrap();
-	}
-	if let Some(bridge) = args.value_of("bridge") {
-		tor_config.bridge.bridge_line = Some(bridge.into());
-	}
-	if args.is_present("no_tor") {
-		tor_config.use_tor_listener = false;
-	}
-	Ok(())
-}
-
 pub fn parse_owner_api_args(
 	config: &mut WalletConfig,
 	args: &ArgMatches,
@@ -1173,13 +1156,27 @@ where
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
-			let mut t = tor_config.clone();
-			arg_parse!(parse_listen_args(&mut c, &mut t, &args));
+			if let Some(port) = args.value_of("port") {
+				c.api_listen_port = port.parse().unwrap();
+			}
+			let bridge = if let Some(bridge) = args.value_of("bridge") {
+				Some(bridge.into())
+			} else {
+				None
+			};
+			let use_tor = if args.is_present("no_tor") {
+				Some(false)
+			} else {
+				None
+			};
+			let t = tor_config.clone();
 			command::listen(
 				owner_api,
 				Arc::new(Mutex::new(keychain_mask)),
 				c,
 				t,
+				bridge,
+				use_tor,
 				&global_wallet_args.clone(),
 				cli_mode,
 				test_mode,

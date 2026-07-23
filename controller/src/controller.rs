@@ -256,6 +256,8 @@ pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	config_path: PathBuf,
 	mut tor_config: TorConfig,
+	bridge: Option<String>,
+	use_tor: Option<bool>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
@@ -267,6 +269,13 @@ where
 	K: Keychain + 'static,
 {
 	loop {
+		if let Some(b) = bridge.clone() {
+			tor_config.bridge.bridge_line = Some(b);
+		}
+		if let Some(use_tor) = use_tor {
+			tor_config.use_tor_listener = use_tor;
+		}
+
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
 		add_global_config_listener(&config_path, "foreign_listener", restart_tx);
 
