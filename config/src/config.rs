@@ -25,7 +25,7 @@ use crate::util::RwLock;
 
 use lazy_static::lazy_static;
 use rand::distributions::{Alphanumeric, Distribution};
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
@@ -543,9 +543,28 @@ impl GlobalWalletConfig {
 	/// Save config to file and update global state after editing.
 	pub fn save(&mut self) -> Result<(), ConfigError> {
 		let path = self.config_file_path.clone();
-		let tmp_path = format!("{}.tmp", path.to_str().unwrap());
+		let tmp_path = format!(
+			"{}-{}.tmp",
+			path.to_str().unwrap(),
+			thread_rng().gen::<u64>()
+		);
 		let contents = fs::read_to_string(&path)?;
-		let res = self.write_to_file(tmp_path.as_str(), true, Some(contents), None);
+
+		// Set tmp file permissions to "644" (Unix only).
+		#[cfg(unix)]
+		{
+			let _ = File::create(&tmp_path)?;
+			use std::os::unix::fs::PermissionsExt;
+			let mode = PermissionsExt::from_mode(0o644);
+			fs::set_permissions(&tmp_path, mode).expect("set file permissions");
+		}
+
+		let res = self.write_to_file(
+			tmp_path.as_str(),
+			true,
+			Some(contents),
+			self.members.config_file_version,
+		);
 		if let Err(e) = res {
 			let msg = format!("Error saving config file as ({:?}): {}", tmp_path, e);
 			return Err(ConfigError::SerializationError(msg));
