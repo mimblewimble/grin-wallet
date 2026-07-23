@@ -38,7 +38,7 @@ use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use libwallet::api_impl::types::update_tx_slate_state;
-use libwallet::InitTxSendArgs;
+
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
