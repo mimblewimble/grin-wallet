@@ -94,7 +94,7 @@ pub fn get_global_config(config_path: &PathBuf) -> Result<GlobalWalletConfig, Co
 			return Ok(config.clone());
 		}
 	}
-	let config = GlobalWalletConfig::new(config_path.to_str().unwrap())?;
+	let config = GlobalWalletConfig::new(config_path.clone())?;
 	let mut configs = CONFIG_INSTANCES.write();
 	if !configs.contains_key(config_path) {
 		configs.insert(config_path.clone(), (config.clone(), HashMap::new()));
@@ -347,7 +347,7 @@ pub fn initial_setup_wallet(
 				);
 				return Err(ConfigError::SerializationError(msg));
 			} else {
-				let config = GlobalWalletConfig::new(config_path.to_str().unwrap())?;
+				let config = GlobalWalletConfig::new(config_path)?;
 				(wallet_path, config)
 			}
 		}
@@ -400,9 +400,9 @@ impl GlobalWalletConfig {
 		defaults_conf
 	}
 	/// Requires the path to a config file
-	pub fn new(file_path: &str) -> Result<GlobalWalletConfig, ConfigError> {
+	pub fn new(config_file_path: PathBuf) -> Result<GlobalWalletConfig, ConfigError> {
 		let return_value = GlobalWalletConfig {
-			config_file_path: PathBuf::from(file_path),
+			config_file_path,
 			members: GlobalWalletConfigMembers::default(),
 		};
 
