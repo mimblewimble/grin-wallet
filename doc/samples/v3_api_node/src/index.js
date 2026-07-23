@@ -46,8 +46,7 @@ const aes256gcm = (shared_secret) => {
 		const tag = data_.slice(len-16, len)
 		const text = data_.slice(0, len-16)
 		decipher.setAuthTag(tag)
-		const dec = decipher.update(text, 'binary', 'utf8') + decipher.final('utf8');
-		return dec
+		return decipher.update(text, 'binary', 'utf8') + decipher.final('utf8')
 	};
 
 	return {
@@ -82,8 +81,7 @@ class JSONRequestEncrypted {
 		const nonce2 = Buffer.from(response.result.Ok.nonce, 'hex');
 		const data = Buffer.from(response.result.Ok.body_enc, 'base64');
 
-		let dec = aesCipher.decrypt(data, nonce2)
-		return dec
+		return aesCipher.decrypt(data, nonce2)
 	}
 }
 
@@ -114,7 +112,7 @@ async function main() {
 		"password": "",
 	}).send(shared_key);
 
-	let token = JSON.parse(response).result.Ok;
+	let token = JSON.parse(response).result;
 
 	let iterations = 1;
 
