@@ -329,12 +329,12 @@ pub struct SendArgs {
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
 	pub late_lock: bool,
-	pub dest: Option<SlatepackAddress>,
+	pub dest: Option<String>,
 	pub change_outputs: usize,
 	pub fluff: bool,
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
-	pub payment_proof_address: Option<SlatepackAddress>,
+	pub payment_proof_address: Option<String>,
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: Option<bool>,
 	pub outfile: Option<String>,
@@ -355,6 +355,13 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let dest = if let Some(d) = args.dest {
+		let a = SlatepackAddress::try_from(d.as_str())?;
+		Some(a)
+	} else {
+		None
+	};
+
 	let mut slate = Slate::blank(2, false);
 	let mut amount = args.amount;
 	if args.use_max_amount {
@@ -406,7 +413,7 @@ where
 			let result = api.init_send_tx(m, init_args);
 			slate = match result {
 				Ok(s) => {
-					let dest = match args.dest.as_ref() {
+					let dest = match dest.as_ref() {
 						Some(dest) => dest.to_string(),
 						None => "no destination".to_string(),
 					};
@@ -446,7 +453,7 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			args.dest.clone(),
+			dest.clone(),
 			args.outfile,
 			true,
 			false,
@@ -459,10 +466,10 @@ where
 	} else {
 		false
 	};
-	if test_mode || !can_send || args.dest.as_ref().is_none() {
+	if test_mode || !can_send || dest.as_ref().is_none() {
 		return output_sp();
 	}
-	let dest = args.dest.clone().unwrap();
+	let dest = dest.clone().unwrap();
 	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, false);
 	match res {
 		Ok(s) => {
@@ -903,7 +910,7 @@ where
 /// Issue Invoice Args
 pub struct IssueInvoiceArgs {
 	/// Slatepack address
-	pub dest: Option<SlatepackAddress>,
+	pub dest: Option<String>,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
 	/// output file override
@@ -922,6 +929,13 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let dest = if let Some(d) = args.dest {
+		let a = SlatepackAddress::try_from(d.as_str())?;
+		Some(a)
+	} else {
+		None
+	};
+
 	let issue_args = args.issue_args.clone();
 
 	let mut slate = Slate::blank(2, false);
@@ -934,7 +948,7 @@ where
 		owner_api,
 		keychain_mask,
 		&slate,
-		args.dest,
+		dest,
 		args.outfile,
 		false,
 		false,
@@ -947,7 +961,7 @@ where
 pub struct ProcessInvoiceArgs {
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
-	pub ret_address: Option<SlatepackAddress>,
+	pub ret_address: Option<String>,
 	pub max_outputs: usize,
 	pub slate: Slate,
 	pub estimate_selection_strategies: bool,
@@ -972,6 +986,13 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let ret_address = if let Some(d) = args.ret_address {
+		let a = SlatepackAddress::try_from(d.as_str())?;
+		Some(a)
+	} else {
+		None
+	};
+
 	let mut slate = args.slate.clone();
 
 	controller::owner_single_use(None, keychain_mask, Some(owner_api), |api, m| {
@@ -1041,7 +1062,7 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			args.ret_address.clone(),
+			ret_address.clone(),
 			args.outfile,
 			true,
 			false,
@@ -1054,10 +1075,10 @@ where
 	} else {
 		false
 	};
-	if test_mode || !can_send || args.ret_address.is_none() {
+	if test_mode || !can_send || ret_address.is_none() {
 		return output_sp();
 	}
-	let dest = args.ret_address.clone().unwrap();
+	let dest = ret_address.clone().unwrap();
 	let res = try_slatepack_sync_workflow(&slate, &dest, tor_config, None, true);
 
 	match res {

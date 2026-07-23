@@ -252,7 +252,8 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	let mut slate = Slate::blank(2, true);
 	let mut address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		address = Some(api.get_slatepack_address(m, 0)?);
+		let a = api.get_slatepack_address(m, 0)?;
+		address = Some(a.to_string());
 		Ok(())
 	})?;
 

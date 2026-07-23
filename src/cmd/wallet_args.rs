@@ -483,7 +483,11 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let late_lock = args.is_present("late_lock");
 
 	// dest
-	let dest = get_slatepack_address_arg("dest", args)?;
+	let dest = if let Some(dest) = args.value_of("dest") {
+		Some(dest.to_owned())
+	} else {
+		None
+	};
 
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
@@ -708,7 +712,11 @@ pub fn parse_issue_invoice_args(
 	};
 
 	// dest, for encryption
-	let dest = get_slatepack_address_arg("dest", args)?;
+	let dest = if let Some(dest) = args.value_of("dest") {
+		Some(dest.to_owned())
+	} else {
+		None
+	};
 
 	let outfile = parse_optional(args, "outfile")?;
 
@@ -724,26 +732,6 @@ pub fn parse_issue_invoice_args(
 		outfile,
 		slatepack_qr,
 	})
-}
-
-fn get_slatepack_address_arg(
-	name: &str,
-	args: &ArgMatches,
-) -> Result<Option<SlatepackAddress>, ParseError> {
-	if args.is_present(name) {
-		if let Some(dest) = args.value_of(name) {
-			match SlatepackAddress::try_from(dest) {
-				Ok(a) => Ok(Some(a)),
-				Err(_) => Err(ParseError::ArgumentError(
-					"Provided Slatepack address is invalid.".to_string(),
-				)),
-			}
-		} else {
-			Ok(None)
-		}
-	} else {
-		Ok(None)
-	}
 }
 
 fn get_slate<L, C, K>(
@@ -827,6 +815,12 @@ pub fn parse_process_invoice_args(
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
+
+	let ret_address = if let Some(a) = ret_address {
+		Some(a.to_string())
+	} else {
+		None
+	};
 
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,

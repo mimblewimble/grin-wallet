@@ -378,7 +378,8 @@ fn slatepack_exchange_test_impl(
 	let mut slate = Slate::blank(2, true);
 	let mut address = None;
 	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		address = Some(api.get_slatepack_address(m, 0)?);
+		let a = api.get_slatepack_address(m, 0)?;
+		address = Some(a.to_string());
 		Ok(())
 	})?;
 

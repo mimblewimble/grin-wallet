@@ -2615,7 +2615,8 @@ pub fn run_doctest_owner(
 			true => {
 				let address = "783f6528669742a990e0faf0a5fca5d5b3330e37bbb9cd5c628696d03ce4e810";
 				let address = OnionV3Address::try_from(address).unwrap();
-				Some(SlatepackAddress::try_from(address).unwrap())
+				let sp = SlatepackAddress::try_from(address).unwrap();
+				Some(sp.to_string())
 			}
 			false => None,
 		};

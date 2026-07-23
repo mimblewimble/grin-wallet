@@ -89,12 +89,12 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		// note this will increment the block count as part of the transaction "Posting"
 		let args = InitTxArgs {
 			src_acct_name: None,
-			amount: amount,
+			amount,
 			minimum_confirmations: 2,
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			payment_proof_recipient_address: address.clone(),
+			payment_proof_recipient_address: Some(address.as_ref().unwrap().to_string()),
 			..Default::default()
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;
