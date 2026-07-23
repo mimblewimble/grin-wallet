@@ -98,8 +98,12 @@ pub fn get_global_config(config_path: &PathBuf) -> Result<GlobalWalletConfig, Co
 	let mut configs = CONFIG_INSTANCES.write();
 	if !configs.contains_key(config_path) {
 		configs.insert(config_path.clone(), (config.clone(), HashMap::new()));
+		Ok(config)
+	} else if let Some((config, _)) = configs.get(config_path) {
+		return Ok(config.clone());
+	} else {
+		Ok(config)
 	}
-	Ok(config)
 }
 
 /// Add listener on config change.
