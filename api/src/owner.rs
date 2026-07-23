@@ -232,7 +232,10 @@ where
 			tor.use_tor_listener = false;
 			tor.skip_send_attempt = Some(true);
 		} else {
-			return Ok(());
+			let mut tor_config = TorConfig::default();
+			tor_config.use_tor_listener = false;
+			tor_config.skip_send_attempt = Some(true);
+			gc.members.tor = Some(tor_config);
 		}
 		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		Ok(())
