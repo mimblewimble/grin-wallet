@@ -98,7 +98,7 @@ pub struct InitTxArgs {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InitTxSendArgs {
 	/// The destination, contents will depend on the particular method
-	pub dest: Option<SlatepackAddress>,
+	pub dest: String,
 	/// Whether to post the transaction if the send and finalize were successful
 	pub post_tx: bool,
 	/// Whether to use dandelion when posting. If false, skip the dandelion relay

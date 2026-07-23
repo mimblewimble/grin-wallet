@@ -38,6 +38,7 @@ use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_util::OnionV3Address;
 use libwallet::api_impl::types::update_tx_slate_state;
+use libwallet::InitTxSendArgs;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
@@ -665,11 +666,24 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
+		let dest = match send_args.as_ref() {
+			None => None,
+			Some(args) => {
+				if args.dest.is_empty() {
+					None
+				} else {
+					let a = SlatepackAddress::try_from(args.dest.as_str())?;
+					Some(a)
+				}
+			}
+		};
+
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?
 		};
+
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
 		match send_args {
@@ -681,10 +695,10 @@ where
 				} else {
 					false
 				};
-				if self.doctest_mode || !can_send || sa.dest.is_none() {
+				if self.doctest_mode || !can_send || dest.is_none() {
 					return Ok(slate);
 				}
-				let dest = sa.dest.unwrap();
+				let dest = dest.unwrap();
 				let res = try_slatepack_sync_workflow(&slate, &dest, tc, None, false);
 				match res {
 					Ok(s) => {
@@ -829,11 +843,24 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
+		let dest = match send_args.as_ref() {
+			None => None,
+			Some(args) => {
+				if args.dest.is_empty() {
+					None
+				} else {
+					let a = SlatepackAddress::try_from(args.dest.as_str())?;
+					Some(a)
+				}
+			}
+		};
+
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?
 		};
+
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
@@ -844,10 +871,10 @@ where
 				} else {
 					false
 				};
-				if self.doctest_mode || !can_send || sa.dest.is_none() {
+				if self.doctest_mode || !can_send || dest.is_none() {
 					return Ok(slate);
 				}
-				let dest = sa.dest.unwrap();
+				let dest = dest.unwrap();
 				let res = try_slatepack_sync_workflow(&slate, &dest, tc, None, true);
 				match res {
 					Ok(s) => {
