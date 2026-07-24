@@ -84,7 +84,10 @@ impl SlatepackAddress {
 
 impl Display for SlatepackAddress {
 	fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-		formatter.write_str(&String::try_from(self).unwrap())
+		match String::try_from(self) {
+			Ok(encoded) => formatter.write_str(&encoded),
+			Err(_) => formatter.write_str("<invalid Slatepack address>"),
+		}
 	}
 }
 
@@ -254,7 +257,7 @@ impl Readable for SlatepackAddress {
 }
 
 /// Check if encoded HRP is for valid network.
-fn valid_network(hrp: &String) -> bool {
+fn valid_network(hrp: &str) -> bool {
 	let prefix = match global::get_chain_type() {
 		global::ChainTypes::Mainnet => "grin",
 		_ => "tgrin",
@@ -280,6 +283,12 @@ fn slatepack_address() -> Result<(), Error> {
 		pub_key,
 	};
 	assert!(right_addr.valid_network());
+	let invalid_addr = SlatepackAddress {
+		hrp: "invalid hrp".to_string(),
+		pub_key,
+	};
+	assert!(!invalid_addr.valid_network());
+	assert_eq!(invalid_addr.to_string(), "<invalid Slatepack address>");
 
 	let valid_addr = "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp";
 	let parsed_valid_addr = SlatepackAddress::try_from(valid_addr);
