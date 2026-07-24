@@ -77,10 +77,8 @@ impl SlatepackAddress {
 	}
 
 	/// Check if address network is valid.
-	pub fn valid_network(&self) -> Result<bool, Error> {
-		let encoded = self.to_string();
-		let (hrp, _) = bech32::decode(&encoded)?;
-		Ok(valid_network(hrp))
+	pub fn valid_network(&self) -> bool {
+		valid_network(&self.hrp)
 	}
 }
 
@@ -94,7 +92,7 @@ impl TryFrom<&str> for SlatepackAddress {
 	type Error = Error;
 	fn try_from(encoded: &str) -> Result<Self, Self::Error> {
 		let (hrp, data) = bech32::decode(&encoded)?;
-		if !valid_network(hrp.clone()) {
+		if !valid_network(&hrp) {
 			return Err(Error::SlatepackAddress(format!(
 				"wrong address prefix for chain {:?}",
 				global::get_chain_type()
@@ -256,7 +254,7 @@ impl Readable for SlatepackAddress {
 }
 
 /// Check if encoded HRP is for valid network.
-fn valid_network(hrp: String) -> bool {
+fn valid_network(hrp: &String) -> bool {
 	let prefix = match global::get_chain_type() {
 		global::ChainTypes::Mainnet => "grin",
 		_ => "tgrin",
@@ -268,6 +266,20 @@ fn valid_network(hrp: String) -> bool {
 fn slatepack_address() -> Result<(), Error> {
 	use rand::{thread_rng, Rng};
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+
+	// Check validation.
+	let bytes: [u8; 32] = thread_rng().gen();
+	let pub_key = edDalekPublicKey::from(&edDalekSecretKey::from_bytes(&bytes));
+	let wrong_net_addr = SlatepackAddress {
+		hrp: "grin".to_string(),
+		pub_key,
+	};
+	assert!(!wrong_net_addr.valid_network());
+	let right_addr = SlatepackAddress {
+		hrp: "tgrin".to_string(),
+		pub_key,
+	};
+	assert!(right_addr.valid_network());
 
 	let valid_addr = "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp";
 	let parsed_valid_addr = SlatepackAddress::try_from(valid_addr);

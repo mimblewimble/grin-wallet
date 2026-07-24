@@ -471,7 +471,7 @@ where
 	K: Keychain,
 {
 	let payment_proof_address = if let Some(a) = &args.payment_proof_recipient_address {
-		if a.valid_network()? {
+		if a.valid_network() {
 			Some(a)
 		} else {
 			return Err(Error::PaymentProofRetrieval(format!(
