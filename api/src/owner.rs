@@ -1499,6 +1499,9 @@ where
 	/// Set [`get_top_level_directory`](struct.Owner.html#method.get_top_level_directory) for a
 	/// description of the top level directory and default paths.
 	///
+	/// The wallet must be closed and the updater stopped before changing this directory.
+	/// Open the wallet again afterwards to load its database from the new location.
+	///
 	/// # Arguments
 	///
 	/// * `dir`: The new top-level directory path (either relative to current directory or
@@ -1531,8 +1534,18 @@ where
 	/// ```
 
 	pub fn set_top_level_directory(&self, dir: &str) -> Result<(), Error> {
+		if self.updater_running.load(Ordering::Relaxed) {
+			return Err(Error::Lifecycle(
+				"Stop the updater before changing the top-level directory".into(),
+			));
+		}
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
+		if lc.wallet_inst().is_ok() {
+			return Err(Error::Lifecycle(
+				"Close the wallet before changing the top-level directory".into(),
+			));
+		}
 		lc.set_top_level_directory(dir)?;
 		self.config_path
 			.set(PathBuf::from(dir).join(WALLET_CONFIG_FILE_NAME));

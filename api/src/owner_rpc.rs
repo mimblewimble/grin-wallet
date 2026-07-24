@@ -1208,6 +1208,9 @@ pub trait OwnerRpc {
 
 	/**
 	Networked version of [Owner::set_top_level_directory](struct.Owner.html#method.set_top_level_directory).
+
+	The wallet must be closed and the updater stopped before calling this method. Running listeners
+	should be restarted after opening the wallet from the new directory.
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -2681,6 +2684,9 @@ pub fn run_doctest_owner(
 
 	let mut api_owner = Owner::new(wallet1, None, config.config_file_path);
 	api_owner.doctest_mode = true;
+	if request["method"] == "set_top_level_directory" {
+		api_owner.close_wallet(None).unwrap();
+	}
 	let owner_api = &api_owner as &dyn OwnerRpc;
 	let res = owner_api.handle_request(request).as_option();
 	let _ = fs::remove_dir_all(test_dir);

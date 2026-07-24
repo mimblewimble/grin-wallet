@@ -23,6 +23,7 @@ use impls::test_framework::LocalWalletClient;
 use libwallet::{InitTxArgs, InitTxSendArgs};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
@@ -142,6 +143,59 @@ fn send_preflight() {
 	let (_, after_txs) = owner.retrieve_txs(mask, false, None, None, None).unwrap();
 	assert!(after_txs.is_empty());
 	assert_eq!(snapshot(&wallet_data), before_data);
+
+	drop(owner);
+	drop(wallet);
+	drop(wallet_proxy);
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn directory_change() {
+	let test_dir = "test_output/config_api_directory";
+	setup(test_dir);
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	create_wallet_and_add!(
+		client,
+		wallet,
+		mask,
+		test_dir,
+		"wallet",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let old_dir = PathBuf::from(test_dir).join("wallet");
+	let old_config = old_dir.join("grin-wallet.toml");
+	let new_dir = PathBuf::from(test_dir).join("other");
+	let owner = api::Owner::new(wallet.clone(), None, old_config.clone());
+
+	let error = owner
+		.set_top_level_directory(new_dir.to_str().unwrap())
+		.unwrap_err();
+	assert!(error.to_string().contains("Close the wallet"));
+	assert_eq!(owner.config_path(), old_config);
+	assert_eq!(
+		PathBuf::from(owner.get_top_level_directory().unwrap()),
+		old_dir
+	);
+
+	owner.close_wallet(None).unwrap();
+	owner.updater_running.store(true, Ordering::Relaxed);
+	let error = owner
+		.set_top_level_directory(new_dir.to_str().unwrap())
+		.unwrap_err();
+	assert!(error.to_string().contains("Stop the updater"));
+	owner.updater_running.store(false, Ordering::Relaxed);
+
+	owner
+		.set_top_level_directory(new_dir.to_str().unwrap())
+		.unwrap();
+	assert_eq!(owner.config_path(), new_dir.join("grin-wallet.toml"));
+	assert_eq!(
+		PathBuf::from(owner.get_top_level_directory().unwrap()),
+		new_dir
+	);
 
 	drop(owner);
 	drop(wallet);
