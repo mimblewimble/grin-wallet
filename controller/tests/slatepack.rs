@@ -515,6 +515,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
 
 	// Create a new wallet test client, and set its queues to communicate with the
 	// proxy
@@ -543,7 +544,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 	let mask2 = (&mask2_i).as_ref();
 
 	// Set the wallet proxy listener running
-	thread::spawn(move || {
+	let proxy_thread = thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {
 			error!("Wallet Proxy error: {}", e);
 		}
@@ -617,7 +618,8 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		Ok(())
 	})?;
 
-	// Test invoice tx.
+	stopper.store(false, Ordering::Relaxed);
+	proxy_thread.join().expect("wallet proxy thread panicked");
 
 	Ok(())
 }
