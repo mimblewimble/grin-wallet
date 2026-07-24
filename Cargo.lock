@@ -2591,6 +2591,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "fs-mistrust",
+ "fslock-guard",
  "futures 0.3.32",
  "grin_api",
  "grin_chain",

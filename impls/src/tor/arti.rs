@@ -20,6 +20,7 @@ use bytes::Bytes;
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 use ed25519_dalek::Digest;
 use fs_mistrust::Mistrust;
+use fslock_guard::LockFileGuard;
 use grin_util::secp::SecretKey;
 use grin_wallet_config::TorConfig;
 use grin_wallet_libwallet::Error;
@@ -34,7 +35,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tor_hscrypto::pk::{HsIdKey, HsIdKeypair};
 use tor_hsrproxy::config::{
@@ -51,6 +52,13 @@ use tor_llcrypto::pk::ed25519::ExpandedKeypair;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
+struct TorService {
+	service: Arc<RunningOnionService>,
+	proxy: Arc<OnionServiceReverseProxy>,
+	worker: JoinHandle<()>,
+	state_lock: PathBuf,
+}
+
 lazy_static! {
 	/// Arti Tokio runtime.
 	static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
@@ -59,7 +67,7 @@ lazy_static! {
 	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
 		LazyLock::new(|| Mutex::new(None));
 	/// Running services, where key is onion address.
-	static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, (Arc<RunningOnionService>, Arc<OnionServiceReverseProxy>)>>> =
+	static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, TorService>>> =
 		LazyLock::new(|| Mutex::new(HashMap::new()));
 }
 
@@ -88,15 +96,29 @@ fn runtime() -> Result<TokioNativeTlsRuntime, Error> {
 }
 
 /// Stop running Tor service by onion address as key.
-pub fn stop_tor_service(onion_addr: String) {
-	let mut running_services = ARTI_PROXY_SERVICES.lock().unwrap();
-	match running_services.get(&onion_addr) {
-		None => error!("Service {} to stop was not found", onion_addr),
-		Some((_, p)) => {
-			p.shutdown();
-			running_services.remove(&onion_addr);
-		}
-	}
+pub fn stop_tor_service(onion_addr: String) -> Result<(), Error> {
+	let service = ARTI_PROXY_SERVICES.lock().unwrap().remove(&onion_addr);
+	let Some(service) = service else {
+		error!("Service {} to stop was not found", onion_addr);
+		return Ok(());
+	};
+	let TorService {
+		service,
+		proxy,
+		worker,
+		state_lock,
+	} = service;
+
+	proxy.shutdown();
+	worker
+		.join()
+		.map_err(|_| Error::TorProcess("Tor proxy thread panicked".into()))?;
+	drop(service);
+	drop(
+		LockFileGuard::lock(state_lock)
+			.map_err(|e| Error::TorProcess(format!("Can not stop Tor service: {}", e)))?,
+	);
+	Ok(())
 }
 
 /// Get state and cache data paths.
@@ -125,6 +147,10 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 	let hs = HsNickname::new(onion_address.to_string())
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let keystore_path = Path::new(&state_path).join("keystore");
+	// Arti 0.44 uses this lock to finish stopping a service before it can start again.
+	let state_lock = state_path
+		.join("hss")
+		.join(format!("{}.lock", onion_address));
 	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
 
 	// Launch Onion service.
@@ -132,7 +158,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 		.nickname(hs.clone())
 		.build()
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-	let (service, proxy) = match client.launch_onion_service(service_config) {
+	let (service, proxy, worker) = match client.launch_onion_service(service_config) {
 		Ok(res) => {
 			if let Some((service, mut request)) = res {
 				let addr: SocketAddr = addr
@@ -142,7 +168,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 				let c = client.clone();
 				let p = proxy.clone();
 				// Launch service proxy.
-				thread::spawn(move || {
+				let worker = thread::spawn(move || {
 					c.clone().runtime().block_on(async move {
 						loop {
 							match run_service_proxy(p.clone(), &mut request, hs.clone()).await {
@@ -159,7 +185,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 						}
 					})
 				});
-				(service, proxy)
+				(service, proxy, worker)
 			} else {
 				return Err(Error::TorProcess("Can not launch onion service".to_owned()));
 			}
@@ -168,7 +194,15 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 	};
 
 	let mut running_services = ARTI_PROXY_SERVICES.lock().unwrap();
-	running_services.insert(onion_address.to_string(), (service, proxy));
+	running_services.insert(
+		onion_address.to_string(),
+		TorService {
+			service,
+			proxy,
+			worker,
+			state_lock,
+		},
+	);
 
 	Ok(())
 }

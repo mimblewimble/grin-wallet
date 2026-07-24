@@ -374,7 +374,7 @@ where
 			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
 
 		if tor_config.use_tor_listener && tor_config.use_integrated.unwrap_or(false) {
-			stop_tor_service(onion_address.to_string());
+			stop_tor_service(onion_address.to_string())?;
 		}
 
 		if restart_needed.load(Ordering::Relaxed) {
