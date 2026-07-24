@@ -684,6 +684,10 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
+		let tor_config = send_args
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path))
+			.transpose()?;
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -693,20 +697,14 @@ where
 		// finalize
 		match send_args {
 			Some(sa) => {
-				let tc = {
-					let gc = get_global_config(&self.config_path)?;
-					let tc = gc.members.tor;
-					tc
-				};
-				let can_send = if let Some(tc) = tc.as_ref() {
-					tc.send_tor(sa.skip_tor)
-				} else {
-					false
-				};
+				let tc = tor_config.ok_or_else(|| {
+					Error::TorConfig("Tor config was not loaded with send arguments".into())
+				})?;
+				let can_send = tc.send_tor(sa.skip_tor);
 				if self.doctest_mode || !can_send {
 					return Ok(slate);
 				}
-				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, false);
+				let res = try_slatepack_sync_workflow(&slate, &sa.dest, Some(tc), None, false);
 				match res {
 					Ok(s) => {
 						self.tx_lock_outputs(keychain_mask, &s)?;
@@ -850,6 +848,10 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
+		let tor_config = send_args
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path))
+			.transpose()?;
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -858,20 +860,14 @@ where
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
-				let tc = {
-					let gc = get_global_config(&self.config_path)?;
-					let tc = gc.members.tor;
-					tc
-				};
-				let can_send = if let Some(tc) = tc.as_ref() {
-					tc.send_tor(sa.skip_tor)
-				} else {
-					false
-				};
+				let tc = tor_config.ok_or_else(|| {
+					Error::TorConfig("Tor config was not loaded with send arguments".into())
+				})?;
+				let can_send = tc.send_tor(sa.skip_tor);
 				if self.doctest_mode || !can_send {
 					return Ok(slate);
 				}
-				let res = try_slatepack_sync_workflow(&slate, &sa.dest, tc, None, true);
+				let res = try_slatepack_sync_workflow(&slate, &sa.dest, Some(tc), None, true);
 				match res {
 					Ok(s) => {
 						// Update slate state.

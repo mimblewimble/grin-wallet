@@ -24,4 +24,6 @@ grin_util = { path = "../grin/util"}
 
 #####
 
+[dev-dependencies]
+tempfile = "3.1"
 

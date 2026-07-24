@@ -188,7 +188,6 @@ pub fn listen<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	config: WalletConfig,
-	tor_config: TorConfig,
 	bridge: Option<String>,
 	use_tor: Option<bool>,
 	g_args: &GlobalArgs,
@@ -209,7 +208,6 @@ where
 			let res = controller::foreign_listener(
 				wallet_inst,
 				config_path,
-				tor_config,
 				bridge,
 				use_tor,
 				keychain_mask,

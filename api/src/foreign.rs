@@ -26,7 +26,6 @@ use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
 use std::path::PathBuf;
 
-use grin_wallet_config::config::get_global_config;
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -343,6 +342,10 @@ where
 		dest_acct_name: Option<&str>,
 		r_addr: Option<String>,
 	) -> Result<Slate, Error> {
+		let tor_config = r_addr
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path))
+			.transpose()?;
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -361,20 +364,14 @@ where
 		)?;
 		match r_addr {
 			Some(a) => {
-				let tc = {
-					let gc = get_global_config(&self.config_path)?;
-					let tc = gc.members.tor;
-					tc
-				};
-				let can_send = if let Some(tc) = tc.as_ref() {
-					tc.send_tor(None)
-				} else {
-					false
-				};
+				let tc = tor_config.ok_or_else(|| {
+					Error::TorConfig("Tor config was not loaded with a return address".into())
+				})?;
+				let can_send = tc.send_tor(None);
 				if self.doctest_mode || !can_send {
 					return Ok(ret_slate);
 				}
-				let res = try_slatepack_sync_workflow(&ret_slate, &a, tc, None, true);
+				let res = try_slatepack_sync_workflow(&ret_slate, &a, Some(tc), None, true);
 				match res {
 					Ok(s) => {
 						let parent_key_id = w.parent_key_id();

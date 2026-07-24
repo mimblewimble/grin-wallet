@@ -42,6 +42,7 @@ mod foreign_rpc;
 mod owner;
 mod owner_rpc;
 
+mod tor_config;
 mod types;
 
 pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddlewareFn};

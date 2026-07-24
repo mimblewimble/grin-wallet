@@ -70,7 +70,7 @@ struct ArtiRuntimeWrapper {
 }
 
 impl ArtiRuntimeWrapper {
-	pub fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
+	fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
 		Ok(Self {
 			runtime: TokioNativeTlsRuntime::create()?,
 		})

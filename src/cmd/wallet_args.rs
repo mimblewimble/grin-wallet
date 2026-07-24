@@ -1088,12 +1088,13 @@ where
 			test_mode,
 		),
 		_ => {
+			let tor_config = config.tor_config();
 			let mut owner_api = Owner::new(wallet, None, config.config_file_path);
 			parse_and_execute(
 				&mut owner_api,
 				keychain_mask,
 				&wallet_config,
-				config.members.tor,
+				tor_config,
 				&global_wallet_args,
 				&wallet_args,
 				test_mode,
@@ -1113,7 +1114,7 @@ pub fn parse_and_execute<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
-	tor_config: Option<TorConfig>,
+	tor_config: TorConfig,
 	global_wallet_args: &command::GlobalArgs,
 	wallet_args: &ArgMatches,
 	test_mode: bool,
@@ -1131,13 +1132,6 @@ where
 		owner_api.doctest_mode = true;
 		owner_api.doctest_retain_tld = true;
 	}
-
-	// for backwards compatibility: If tor config doesn't exist in the file, assume
-	// the top level directory for data
-	let tor_config = tor_config.unwrap_or_else(|| TorConfig {
-		send_config_dir: wallet_config.data_file_dir.clone(),
-		..Default::default()
-	});
 
 	match wallet_args.subcommand() {
 		("init", Some(args)) => {
@@ -1169,12 +1163,10 @@ where
 			} else {
 				None
 			};
-			let t = tor_config.clone();
 			command::listen(
 				owner_api,
 				Arc::new(Mutex::new(keychain_mask)),
 				c,
-				t,
 				bridge,
 				use_tor,
 				&global_wallet_args.clone(),

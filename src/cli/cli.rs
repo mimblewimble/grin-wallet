@@ -220,9 +220,8 @@ where
 						};
 						let config = get_global_config(&config.config_file_path)
 							.map_err(|e| Error::GenericError(e.to_string()))?;
-						let config_members = config.members;
-						let wallet_config = config_members.wallet;
-						let tor_config = config_members.tor;
+						let tor_config = config.tor_config();
+						let wallet_config = config.members.wallet;
 						match wallet_args::parse_and_execute(
 							&mut owner_api,
 							keychain_mask.clone(),

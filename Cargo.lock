@@ -2544,6 +2544,7 @@ dependencies = [
  "rand 0.6.5",
  "serde",
  "serde_derive",
+ "tempfile",
  "toml 0.5.11",
 ]
 

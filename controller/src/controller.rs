@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Cursor;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -255,7 +255,6 @@ where
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	config_path: PathBuf,
-	mut tor_config: TorConfig,
 	bridge: Option<String>,
 	use_tor: Option<bool>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
@@ -269,15 +268,10 @@ where
 	K: Keychain + 'static,
 {
 	loop {
-		if let Some(b) = bridge.clone() {
-			tor_config.bridge.bridge_line = Some(b);
-		}
-		if let Some(use_tor) = use_tor {
-			tor_config.use_tor_listener = use_tor;
-		}
-
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
-		add_global_config_listener(&config_path, "foreign_listener", restart_tx);
+		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
+
+		let tor_config = listener_tor_config(&config_path, bridge.clone(), use_tor)?;
 
 		// Check if wallet has been opened first
 		let (sec_key, tor_dir, onion_address) = {
@@ -369,7 +363,7 @@ where
 		let restart_needed = Arc::new(AtomicBool::new(false));
 		let t_restart_needed = restart_needed.clone();
 		thread::spawn(move || {
-			if let Ok(_) = restart_rx.recv() {
+			if restart_rx.recv().is_ok() {
 				t_restart_needed.store(true, Ordering::SeqCst);
 				let _ = stop_tx.try_send(());
 			}
@@ -384,8 +378,6 @@ where
 		}
 
 		if restart_needed.load(Ordering::Relaxed) {
-			let config = get_global_config(&config_path)?;
-			tor_config = config.members.tor.unwrap_or(tor_config);
 			continue;
 		}
 
@@ -393,6 +385,31 @@ where
 
 		return res;
 	}
+}
+
+fn register_config_listener(
+	config_path: &PathBuf,
+	listener_id: &str,
+	tx: std::sync::mpsc::Sender<()>,
+) -> Result<(), Error> {
+	get_global_config(config_path)?;
+	add_global_config_listener(config_path, listener_id, tx);
+	Ok(())
+}
+
+fn listener_tor_config(
+	config_path: &Path,
+	bridge: Option<String>,
+	use_tor: Option<bool>,
+) -> Result<TorConfig, Error> {
+	let mut tor_config = get_global_config(config_path)?.tor_config();
+	if let Some(bridge) = bridge {
+		tor_config.bridge.bridge_line = Some(bridge);
+	}
+	if let Some(use_tor) = use_tor {
+		tor_config.use_tor_listener = use_tor;
+	}
+	Ok(tor_config)
 }
 
 /// V3 API Handler/Wrapper for owner functions, which include a secure
@@ -898,4 +915,47 @@ where
 	let cursor = Cursor::new(raw);
 	serde_json::from_reader(cursor)
 		.map_err(|e| Error::GenericError(format!("Invalid request body: {}", e)))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::global::ChainTypes;
+	use grin_wallet_config::config::set_global_config;
+	use grin_wallet_config::GlobalWalletConfig;
+	use std::fs;
+	use std::sync::mpsc::channel;
+	use std::time::Duration;
+	use uuid::Uuid;
+
+	#[test]
+	fn listener_reload() {
+		let dir = std::env::temp_dir().join(format!("grin-wallet-listener-{}", Uuid::new_v4()));
+		fs::create_dir(&dir).unwrap();
+		let path = dir.join("grin-wallet.toml");
+		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		config
+			.write_to_file(path.to_str().unwrap(), false, None, None)
+			.unwrap();
+
+		let (restart_tx, restart_rx) = channel();
+		register_config_listener(&path, "test_listener", restart_tx).unwrap();
+
+		let mut updated = get_global_config(&path).unwrap();
+		updated.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
+		set_global_config(updated);
+		restart_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+		let tor_config =
+			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();
+		assert_eq!(tor_config.socks_proxy_addr, "127.0.0.1:59051");
+		assert_eq!(
+			tor_config.bridge.bridge_line.as_deref(),
+			Some("obfs4 test-bridge")
+		);
+		assert!(!tor_config.use_tor_listener);
+
+		remove_global_config_listener(&path, "test_listener");
+		fs::remove_dir_all(dir).unwrap();
+	}
 }

@@ -21,14 +21,15 @@ use crate::types::{
 };
 use crate::types::{TorConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
-use crate::util::RwLock;
+use crate::util::{Mutex, RwLock};
 
 use lazy_static::lazy_static;
 use rand::distributions::{Alphanumeric, Distribution};
 use rand::{thread_rng, Rng};
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -36,9 +37,28 @@ use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use toml;
 
+type ConfigListeners = HashMap<String, Sender<()>>;
+type ConfigRegistry = HashMap<PathBuf, (GlobalWalletConfig, ConfigListeners)>;
+
 lazy_static! {
 	/// Global configuration instances and change listeners mapped to config path.
-	static ref CONFIG_INSTANCES: Arc<RwLock<HashMap<PathBuf, (GlobalWalletConfig, HashMap<String, Sender<()>>)>>> = Arc::new(RwLock::new(HashMap::new()));
+	static ref CONFIG_INSTANCES: Arc<RwLock<ConfigRegistry>> =
+		Arc::new(RwLock::new(HashMap::new()));
+	static ref CONFIG_SAVE_LOCK: Mutex<()> = Mutex::new(());
+}
+
+fn cache_loaded_config(
+	configs: &mut ConfigRegistry,
+	config_path: &Path,
+	config: GlobalWalletConfig,
+) -> GlobalWalletConfig {
+	match configs.entry(config_path.to_path_buf()) {
+		Entry::Vacant(entry) => {
+			entry.insert((config.clone(), HashMap::new()));
+			config
+		}
+		Entry::Occupied(entry) => entry.get().0.clone(),
+	}
 }
 
 /// Wallet configuration file name
@@ -87,23 +107,16 @@ pub fn set_global_config(config: GlobalWalletConfig) {
 }
 
 /// Get global configuration using provided path.
-pub fn get_global_config(config_path: &PathBuf) -> Result<GlobalWalletConfig, ConfigError> {
+pub fn get_global_config(config_path: &Path) -> Result<GlobalWalletConfig, ConfigError> {
 	{
 		let configs = CONFIG_INSTANCES.read();
 		if let Some((config, _)) = configs.get(config_path) {
 			return Ok(config.clone());
 		}
 	}
-	let config = GlobalWalletConfig::new(config_path.clone())?;
+	let config = GlobalWalletConfig::new(config_path.to_path_buf())?;
 	let mut configs = CONFIG_INSTANCES.write();
-	if !configs.contains_key(config_path) {
-		configs.insert(config_path.clone(), (config.clone(), HashMap::new()));
-		Ok(config)
-	} else if let Some((config, _)) = configs.get(config_path) {
-		return Ok(config.clone());
-	} else {
-		Ok(config)
-	}
+	Ok(cache_loaded_config(&mut configs, config_path, config))
 }
 
 /// Add listener on config change.
@@ -399,6 +412,16 @@ impl GlobalWalletConfig {
 		}
 		defaults_conf
 	}
+
+	/// Return the configured Tor settings, resolving the legacy default when the
+	/// config file does not yet contain a `[tor]` section.
+	pub fn tor_config(&self) -> TorConfig {
+		self.members.tor.clone().unwrap_or_else(|| TorConfig {
+			send_config_dir: self.members.wallet.data_file_dir.clone(),
+			..TorConfig::default()
+		})
+	}
+
 	/// Requires the path to a config file
 	pub fn new(config_file_path: PathBuf) -> Result<GlobalWalletConfig, ConfigError> {
 		let return_value = GlobalWalletConfig {
@@ -478,12 +501,21 @@ impl GlobalWalletConfig {
 		old_config: Option<String>,
 		old_version: Option<u32>,
 	) -> Result<(), ConfigError> {
-		let conf_out = self.ser_config()?;
+		self.write_to_path(Path::new(name), migration, old_config, old_version)
+	}
+
+	fn write_to_path(
+		&mut self,
+		name: &Path,
+		migration: bool,
+		old_config: Option<String>,
+		old_version: Option<u32>,
+	) -> Result<(), ConfigError> {
+		let conf_out = GlobalWalletConfig::fix_log_level(self.ser_config()?);
 		let commented_config = if migration {
 			migrate_comments(old_config.unwrap(), conf_out, old_version)
 		} else {
-			let fixed_config = GlobalWalletConfig::fix_log_level(conf_out);
-			insert_comments(fixed_config)
+			insert_comments(conf_out)
 		};
 		let mut file = File::create(name)?;
 		file.write_all(commented_config.as_bytes())?;
@@ -515,63 +547,208 @@ impl GlobalWalletConfig {
 			members: adjusted_config,
 			config_file_path: config_file_path.clone(),
 		};
-		let str_path = config_file_path.into_os_string().into_string().unwrap();
-		gc.write_to_file(
-			&str_path,
+		gc.write_to_path(
+			&config_file_path,
 			true,
 			Some(config_str),
 			config.config_file_version,
 		)?;
-		let adjusted_config_str = fs::read_to_string(str_path.clone())?;
+		let adjusted_config_str = fs::read_to_string(config_file_path)?;
 		Ok(adjusted_config_str)
 	}
 
 	// For forwards compatibility old config needs `Warning` log level changed to standard log::Level `WARN`
 	fn fix_warning_level(conf: String) -> String {
-		conf.replace("Warning", "WARN")
+		GlobalWalletConfig::replace_log_levels(conf, &[("Warning", "WARN")])
 	}
 
 	// For backwards compatibility only first letter of log level should be capitalised.
 	fn fix_log_level(conf: String) -> String {
-		conf.replace("TRACE", "Trace")
-			.replace("DEBUG", "Debug")
-			.replace("INFO", "Info")
-			.replace("WARN", "Warning")
-			.replace("ERROR", "Error")
+		GlobalWalletConfig::replace_log_levels(
+			conf,
+			&[
+				("TRACE", "Trace"),
+				("DEBUG", "Debug"),
+				("INFO", "Info"),
+				("WARN", "Warning"),
+				("ERROR", "Error"),
+			],
+		)
+	}
+
+	fn replace_log_levels(conf: String, replacements: &[(&str, &str)]) -> String {
+		conf.split_inclusive('\n')
+			.map(|line| {
+				let trimmed = line.trim_start();
+				if trimmed.starts_with("stdout_log_level =")
+					|| trimmed.starts_with("file_log_level =")
+				{
+					replacements
+						.iter()
+						.fold(line.to_owned(), |line, (from, to)| line.replace(from, to))
+				} else {
+					line.to_owned()
+				}
+			})
+			.collect()
 	}
 
 	/// Save config to file and update global state after editing.
 	pub fn save(&mut self) -> Result<(), ConfigError> {
+		let _save_lock = CONFIG_SAVE_LOCK.lock();
 		let path = self.config_file_path.clone();
-		let tmp_path = format!(
-			"{}-{}.tmp",
-			path.to_str().unwrap(),
-			thread_rng().gen::<u64>()
-		);
+		let mut tmp_name = path.as_os_str().to_os_string();
+		tmp_name.push(format!("-{}.tmp", thread_rng().gen::<u64>()));
+		let tmp_path = PathBuf::from(tmp_name);
 		let contents = fs::read_to_string(&path)?;
+		let permissions = fs::metadata(&path)?.permissions();
 
-		// Set tmp file permissions to "644" (Unix only).
-		#[cfg(unix)]
-		{
-			let _ = File::create(&tmp_path)?;
-			use std::os::unix::fs::PermissionsExt;
-			let mode = PermissionsExt::from_mode(0o644);
-			fs::set_permissions(&tmp_path, mode).expect("set file permissions");
+		let save_result = (|| {
+			OpenOptions::new()
+				.write(true)
+				.create_new(true)
+				.open(&tmp_path)?;
+			fs::set_permissions(&tmp_path, permissions)?;
+			self.write_to_path(
+				&tmp_path,
+				true,
+				Some(contents),
+				self.members.config_file_version,
+			)?;
+			fs::rename(&tmp_path, &path)?;
+			Ok::<(), ConfigError>(())
+		})();
+		if save_result.is_err() {
+			let _ = fs::remove_file(&tmp_path);
 		}
-
-		let res = self.write_to_file(
-			tmp_path.as_str(),
-			true,
-			Some(contents),
-			self.members.config_file_version,
-		);
-		if let Err(e) = res {
-			let msg = format!("Error saving config file as ({:?}): {}", tmp_path, e);
-			return Err(ConfigError::SerializationError(msg));
-		}
-		fs::rename(tmp_path.as_str(), path)?;
+		save_result?;
 
 		set_global_config(self.clone());
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::global::ChainTypes;
+	use std::sync::{Arc, Barrier};
+	use std::thread;
+	use tempfile::tempdir;
+
+	#[test]
+	fn save_roundtrip() {
+		let dir = tempdir().unwrap();
+		let path = dir.path().join(WALLET_CONFIG_FILE_NAME);
+		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		config.members.tor.as_mut().unwrap().proxy.password = Some("secretERROR#value".into());
+		config.write_to_path(&path, false, None, None).unwrap();
+
+		let contents = fs::read_to_string(&path).unwrap().replace(
+			"use_tor_listener = true",
+			"# custom key comment\nuse_tor_listener = true # custom inline comment",
+		);
+		fs::write(&path, format!("{}\n# custom trailing comment\n", contents)).unwrap();
+		let before = fs::read_to_string(&path).unwrap();
+
+		#[cfg(unix)]
+		{
+			use std::os::unix::fs::PermissionsExt;
+			fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+		}
+
+		config.members.tor.as_mut().unwrap().use_tor_listener = false;
+		config.save().unwrap();
+
+		let contents = fs::read_to_string(&path).unwrap();
+		assert_eq!(
+			contents,
+			before.replace("use_tor_listener = true", "use_tor_listener = false")
+		);
+		assert!(contents.contains("# custom trailing comment"));
+		assert!(contents.contains("# custom key comment"));
+		assert!(contents.contains("use_tor_listener = false # custom inline comment"));
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
+		assert!(!stored.use_tor_listener);
+		assert_eq!(stored.proxy.password.as_deref(), Some("secretERROR#value"));
+		assert!(fs::read_dir(dir.path()).unwrap().all(|entry| {
+			!entry
+				.unwrap()
+				.file_name()
+				.to_string_lossy()
+				.ends_with(".tmp")
+		}));
+
+		#[cfg(unix)]
+		{
+			use std::os::unix::fs::PermissionsExt;
+			assert_eq!(
+				fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+				0o600
+			);
+		}
+	}
+
+	#[test]
+	fn legacy_tor() {
+		let path = PathBuf::from("legacy-wallet.toml");
+		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		config.members.wallet.data_file_dir = "legacy-wallet-data".into();
+		config.members.tor = None;
+
+		let resolved = config.tor_config();
+		assert_eq!(resolved.send_config_dir, "legacy-wallet-data");
+		assert!(resolved.use_tor_listener);
+
+		let disabled = TorConfig {
+			use_tor_listener: false,
+			skip_send_attempt: Some(true),
+			..TorConfig::default()
+		};
+		config.members.tor = Some(disabled.clone());
+		assert_eq!(config.tor_config(), disabled);
+	}
+
+	#[test]
+	fn cached_config_wins() {
+		let path = PathBuf::from("concurrent-wallet.toml");
+		let mut cached = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		cached.members.tor.as_mut().unwrap().use_tor_listener = false;
+		let loaded = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		let mut configs = HashMap::new();
+		configs.insert(path.clone(), (cached.clone(), HashMap::new()));
+
+		let returned = cache_loaded_config(&mut configs, &path, loaded);
+
+		assert_eq!(returned, cached);
+		assert_eq!(configs.get(&path).unwrap().0, cached);
+	}
+
+	#[test]
+	fn concurrent_save() {
+		let dir = tempdir().unwrap();
+		let path = dir.path().join(WALLET_CONFIG_FILE_NAME);
+		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		config.write_to_path(&path, false, None, None).unwrap();
+		let barrier = Arc::new(Barrier::new(2));
+
+		let handles = ["127.0.0.1:59051", "127.0.0.1:59052"].map(|address| {
+			let mut config = config.clone();
+			let barrier = barrier.clone();
+			thread::spawn(move || {
+				config.members.tor.as_mut().unwrap().socks_proxy_addr = address.into();
+				barrier.wait();
+				config.save().unwrap();
+			})
+		});
+		for handle in handles {
+			handle.join().unwrap();
+		}
+
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap();
+		let cached = get_global_config(&path).unwrap();
+		assert_eq!(cached, stored);
+		assert!(["127.0.0.1:59051", "127.0.0.1:59052"]
+			.contains(&stored.tor_config().socks_proxy_addr.as_str()));
 	}
 }
