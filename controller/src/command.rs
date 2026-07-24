@@ -355,9 +355,13 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let dest = if let Some(d) = args.dest {
-		let a = SlatepackAddress::try_from(d.as_str())?;
-		Some(a)
+	let dest = if !args.estimate_selection_strategies {
+		if let Some(d) = args.dest {
+			let a = SlatepackAddress::try_from(d.as_str())?;
+			Some(a)
+		} else {
+			None
+		}
 	} else {
 		None
 	};
