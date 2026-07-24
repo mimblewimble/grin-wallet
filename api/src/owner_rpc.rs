@@ -36,6 +36,7 @@ use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
 use std::convert::TryFrom;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -1207,6 +1208,9 @@ pub trait OwnerRpc {
 
 	/**
 	Networked version of [Owner::set_top_level_directory](struct.Owner.html#method.set_top_level_directory).
+
+	The wallet must be closed and the updater stopped before calling this method. Running listeners
+	should be restarted after opening the wallet from the new directory.
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -2423,7 +2427,7 @@ where
 	}
 
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
-		Owner::set_tor_config(self, tor_config);
+		Owner::set_tor_config(self, tor_config)?;
 		Ok(())
 	}
 
@@ -2487,6 +2491,7 @@ pub fn run_doctest_owner(
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc_mw::Handler;
 	use grin_keychain::ExtKeychain;
+	use grin_wallet_config::initial_setup_wallet;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 	use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 	use grin_wallet_libwallet::{api_impl, WalletInst};
@@ -2500,6 +2505,14 @@ pub fn run_doctest_owner(
 	let _ = fs::remove_dir_all(test_dir);
 	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 
+	let _ = fs::create_dir_all(test_dir);
+	let config = initial_setup_wallet(
+		&ChainTypes::AutomatedTesting,
+		Some(PathBuf::from(test_dir)),
+		false,
+	)
+	.unwrap();
+
 	let mut wallet_proxy: WalletProxy<
 		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 		LocalWalletClient,
@@ -2507,11 +2520,11 @@ pub fn run_doctest_owner(
 	> = WalletProxy::new(test_dir);
 	let chain = wallet_proxy.chain.clone();
 
-	let rec_phrase_1 = util::ZeroingString::from(
+	let rec_phrase_1 = ZeroingString::from(
 		"fat twenty mean degree forget shell check candy immense awful \
 		 flame next during february bulb bike sun wink theory day kiwi embrace peace lunch",
 	);
-	let empty_string = util::ZeroingString::from("");
+	let empty_string = ZeroingString::from("");
 
 	let client1 = LocalWalletClient::new("wallet1", wallet_proxy.tx.clone());
 	let mut wallet1 =
@@ -2546,7 +2559,7 @@ pub fn run_doctest_owner(
 
 	let mut slate_outer = Slate::blank(2, false);
 
-	let rec_phrase_2 = util::ZeroingString::from(
+	let rec_phrase_2 = ZeroingString::from(
 		"hour kingdom ripple lunch razor inquiry coyote clay stamp mean \
 		 sell finish magic kid tiny wage stand panther inside settle feed song hole exile",
 	);
@@ -2669,8 +2682,11 @@ pub fn run_doctest_owner(
 		);
 	}
 
-	let mut api_owner = Owner::new(wallet1, None);
+	let mut api_owner = Owner::new(wallet1, None, config.config_file_path);
 	api_owner.doctest_mode = true;
+	if request["method"] == "set_top_level_directory" {
+		api_owner.close_wallet(None).unwrap();
+	}
 	let owner_api = &api_owner as &dyn OwnerRpc;
 	let res = owner_api.handle_request(request).as_option();
 	let _ = fs::remove_dir_all(test_dir);

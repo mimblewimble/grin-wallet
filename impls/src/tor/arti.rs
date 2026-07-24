@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use crate::tor::config::exp_sec_key_bytes;
-use crate::tor::{ArtiRuntimeWrapper, Tor};
 use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
@@ -21,6 +20,7 @@ use bytes::Bytes;
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 use ed25519_dalek::Digest;
 use fs_mistrust::Mistrust;
+use fslock_guard::LockFileGuard;
 use grin_util::secp::SecretKey;
 use grin_wallet_config::TorConfig;
 use grin_wallet_libwallet::Error;
@@ -31,10 +31,11 @@ use hyper_util::rt::TokioIo;
 use lazy_static::lazy_static;
 use serde::Serialize;
 use sha2::Sha512;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tor_hscrypto::pk::{HsIdKey, HsIdKeypair};
 use tor_hsrproxy::config::{
@@ -42,19 +43,46 @@ use tor_hsrproxy::config::{
 };
 use tor_hsrproxy::OnionServiceReverseProxy;
 use tor_hsservice::config::OnionServiceConfigBuilder;
-use tor_hsservice::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier, HsNickname};
+use tor_hsservice::{
+	HsIdKeypairSpecifier, HsIdPublicKeySpecifier, HsNickname, RunningOnionService,
+};
 use tor_keymgr::config::CfgPath;
 use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeystoreSelector};
 use tor_llcrypto::pk::ed25519::ExpandedKeypair;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 use tor_rtcompat::{SleepProviderExt, ToplevelBlockOn};
 
-// Arti Tokio runtime.
+struct TorService {
+	service: Arc<RunningOnionService>,
+	proxy: Arc<OnionServiceReverseProxy>,
+	worker: JoinHandle<()>,
+	state_lock: PathBuf,
+}
+
 lazy_static! {
-	pub static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
+	/// Arti Tokio runtime.
+	static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
 		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
-	pub static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
+	/// Arti client and config.
+	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
 		LazyLock::new(|| Mutex::new(None));
+	/// Running services, where key is onion address.
+	static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, TorService>>> =
+		LazyLock::new(|| Mutex::new(HashMap::new()));
+}
+
+/// Arti client runtime wrapper.
+#[derive(Clone)]
+struct ArtiRuntimeWrapper {
+	runtime: TokioNativeTlsRuntime,
+}
+
+impl ArtiRuntimeWrapper {
+	fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
+		Ok(Self {
+			runtime: TokioNativeTlsRuntime::create()?,
+		})
+	}
 }
 
 /// Get Tor client runtime.
@@ -67,22 +95,51 @@ fn runtime() -> Result<TokioNativeTlsRuntime, Error> {
 	Ok(r.runtime.clone())
 }
 
+/// Stop running Tor service by onion address as key.
+pub fn stop_tor_service(onion_addr: String) -> Result<(), Error> {
+	let service = ARTI_PROXY_SERVICES.lock().unwrap().remove(&onion_addr);
+	let Some(service) = service else {
+		error!("Service {} to stop was not found", onion_addr);
+		return Ok(());
+	};
+	let TorService {
+		service,
+		proxy,
+		worker,
+		state_lock,
+	} = service;
+
+	proxy.shutdown();
+	worker
+		.join()
+		.map_err(|_| Error::TorProcess("Tor proxy thread panicked".into()))?;
+	drop(service);
+	drop(
+		LockFileGuard::lock(state_lock)
+			.map_err(|e| Error::TorProcess(format!("Can not stop Tor service: {}", e)))?,
+	);
+	Ok(())
+}
+
+/// Get state and cache data paths.
+fn state_cache_paths(config: &TorConfig) -> (PathBuf, PathBuf) {
+	let mut tor_dir = PathBuf::from(&config.send_config_dir);
+	tor_dir.push("arti");
+	let state_path = tor_dir.join("state");
+	let cache_path = tor_dir.join("cache");
+	(state_path, cache_path)
+}
+
 /// Start Tor service from provided key.
-pub fn start_tor_service(
-	key: SecretKey,
-	tor_dir: &str,
-	addr: &str,
-	config: TorConfig,
-) -> Result<Tor, Error> {
+pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Result<(), Error> {
 	info!("Starting integrated Tor listener.");
 	let use_proxy = config.proxy.transport.is_some() && config.proxy.address.is_some();
 	if use_proxy {
 		info!("Proxy configuration will be ignored.");
 	}
 
-	let state_path = Path::new(&tor_dir).join("state");
-	let cache_path = Path::new(&tor_dir).join("cache");
-	let (client, config) = init_client(&state_path, &cache_path, config, true)?;
+	let (state_path, cache_path) = state_cache_paths(&config);
+	let (client, config) = init_client(&state_path, &cache_path, config)?;
 
 	// Add service key to keystore.
 	let onion_address =
@@ -90,6 +147,10 @@ pub fn start_tor_service(
 	let hs = HsNickname::new(onion_address.to_string())
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	let keystore_path = Path::new(&state_path).join("keystore");
+	// Arti 0.44 uses this lock to finish stopping a service before it can start again.
+	let state_lock = state_path
+		.join("hss")
+		.join(format!("{}.lock", onion_address));
 	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
 
 	// Launch Onion service.
@@ -97,77 +158,66 @@ pub fn start_tor_service(
 		.nickname(hs.clone())
 		.build()
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-	let running_onion_service = match client.launch_onion_service(service_config) {
+	let (service, proxy, worker) = match client.launch_onion_service(service_config) {
 		Ok(res) => {
 			if let Some((service, mut request)) = res {
 				let addr: SocketAddr = addr
 					.parse()
 					.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+				let proxy = create_service_proxy(addr)?;
 				let c = client.clone();
-				thread::spawn(move || {
+				let p = proxy.clone();
+				// Launch service proxy.
+				let worker = thread::spawn(move || {
 					c.clone().runtime().block_on(async move {
-						// Launch service proxy.
-						async fn run_proxy<S>(
-							c: Arc<TorClient<TokioNativeTlsRuntime>>,
-							addr: SocketAddr,
-							request: &mut S,
-							hs: HsNickname,
-						) where
-							S: futures::Stream<Item = tor_hsservice::RendRequest>
-								+ Unpin
-								+ Send
-								+ 'static,
-						{
-							match run_service_proxy(c.clone(), addr, request, hs.clone()).await {
+						loop {
+							match run_service_proxy(p.clone(), &mut request, hs.clone()).await {
 								Ok(_) => {
 									info!("Tor proxy stopped");
+									break;
 								}
 								Err(e) => {
 									error!("Tor proxy error: {:?}, restarting", e);
 									tokio::time::sleep(Duration::from_millis(1000)).await;
-									Box::pin(run_proxy(c, addr, request, hs)).await;
+									continue;
 								}
 							}
 						}
-						run_proxy(c.clone(), addr, &mut request, hs.clone()).await;
 					})
 				});
-				service
+				(service, proxy, worker)
 			} else {
 				return Err(Error::TorProcess("Can not launch onion service".to_owned()));
 			}
 		}
 		Err(e) => return Err(Error::TorProcess(format!("{:?}", e))),
 	};
-	Ok(Tor {
-		process: None,
-		service: Some(running_onion_service),
-		client: Some(client),
-	})
+
+	let mut running_services = ARTI_PROXY_SERVICES.lock().unwrap();
+	running_services.insert(
+		onion_address.to_string(),
+		TorService {
+			service,
+			proxy,
+			worker,
+			state_lock,
+		},
+	);
+
+	Ok(())
 }
 
 /// Start Tor client to send requests.
-pub fn start_tor_client(tor_dir: &str, config: TorConfig) -> Result<Tor, Error> {
+pub fn start_tor_client(config: TorConfig) -> Result<(), Error> {
 	info!("Starting integrated Tor client");
 
-	let state_path = Path::new(tor_dir).join("state");
-	let cache_path = Path::new(tor_dir).join("cache");
-
-	let (client, _) = init_client(&state_path, &cache_path, config, false)?;
-	Ok(Tor {
-		process: None,
-		service: None,
-		client: Some(client),
-	})
+	let (state_path, cache_path) = state_cache_paths(&config);
+	let (_, _) = init_client(&state_path, &cache_path, &config)?;
+	Ok(())
 }
 
-/// Make POST request with provided client.
-pub fn tor_post<IN>(
-	client: Arc<TorClient<TokioNativeTlsRuntime>>,
-	tor_config: &TorConfig,
-	input: &IN,
-	url: &str,
-) -> Result<String, Error>
+/// Make POST request.
+pub fn tor_post<IN>(tor_config: &TorConfig, input: &IN, url: &str) -> Result<String, Error>
 where
 	IN: Serialize,
 {
@@ -183,6 +233,8 @@ where
 	}
 	.to_string();
 	let timeout = tor_config.request_timeout();
+	let (state_path, cache_path) = state_cache_paths(&tor_config);
+	let (client, _) = init_client(&state_path, &cache_path, tor_config)?;
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
@@ -242,8 +294,7 @@ where
 fn init_client(
 	state_path: &PathBuf,
 	cache_path: &PathBuf,
-	tor_config: TorConfig,
-	reuse_client: bool,
+	tor_config: &TorConfig,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
@@ -283,31 +334,23 @@ fn init_client(
 		.build()
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 
-	if reuse_client {
-		// Return existing client if config was not changed.
-		let mut cached_client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
-		if let Some((client, c)) = cached_client_config.as_ref() {
-			if c == &config {
-				debug!("Reusing Arti Tor client from global state.");
-				return Ok((client.clone(), c.clone()));
-			} else {
-				debug!("Tor config changed, rebuild client.");
-				*cached_client_config = None;
-			}
+	// Return existing client if config was not changed.
+	let mut cached_client_config = ARTI_CLIENT_CONFIG.lock().unwrap();
+	if let Some((client, c)) = cached_client_config.as_ref() {
+		if c == &config {
+			debug!("Reusing Arti Tor client from global state.");
+			return Ok((client.clone(), c.clone()));
+		} else {
+			debug!("Tor config changed, rebuild client.");
+			*cached_client_config = None;
 		}
-		let res = launch_client(config.clone(), &tor_config);
-		return match res {
-			Ok(client) => {
-				cached_client_config.replace((client.clone(), config.clone()));
-				Ok((client, config))
-			}
-			Err(e) => Err(e),
-		};
 	}
-
 	let res = launch_client(config.clone(), &tor_config);
 	match res {
-		Ok(client) => Ok((client, config)),
+		Ok(client) => {
+			cached_client_config.replace((client.clone(), config.clone()));
+			Ok((client, config))
+		}
 		Err(e) => Err(e),
 	}
 }
@@ -355,18 +398,8 @@ fn launch_client(
 	res
 }
 
-/// Launch Onion service proxy.
-async fn run_service_proxy<S>(
-	client: Arc<TorClient<TokioNativeTlsRuntime>>,
-	addr: SocketAddr,
-	request: &mut S,
-	nickname: HsNickname,
-) -> Result<(), Error>
-where
-	S: futures::Stream<Item = tor_hsservice::RendRequest> + Unpin + Send + 'static,
-{
-	let runtime = client.runtime().clone();
-
+/// Create Onion service proxy.
+fn create_service_proxy(addr: SocketAddr) -> Result<Arc<OnionServiceReverseProxy>, Error> {
 	// Setup proxy to forward request from Tor address to local address.
 	let proxy_rule = ProxyRule::new(
 		ProxyPattern::one_port(80).map_err(|e| Error::TorConfig(format!("{}", e)))?,
@@ -378,12 +411,24 @@ where
 		.build()
 		.map_err(|e| Error::TorConfig(format!("{}", e)))?;
 	let proxy = OnionServiceReverseProxy::new(proxy_cfg);
+	Ok(proxy)
+}
 
-	// Start proxy for launched service.
+/// Launch service proxy.
+async fn run_service_proxy<S>(
+	proxy: Arc<OnionServiceReverseProxy>,
+	request: &mut S,
+	nickname: HsNickname,
+) -> Result<(), Error>
+where
+	S: futures::Stream<Item = tor_hsservice::RendRequest> + Unpin + Send + 'static,
+{
+	let runtime = runtime()?;
 	proxy
 		.handle_requests(runtime, nickname, request)
 		.await
-		.map_err(|e| Error::TorProcess(format!("{:?}", e)))
+		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+	Ok(())
 }
 
 /// Save Onion service key to keystore.
