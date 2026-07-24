@@ -24,7 +24,7 @@ use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use grin_util::logger::LoggingConfig;
-use grin_wallet_config::config::set_global_config;
+use grin_wallet_config::config::reload_global_config;
 use std::fs;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
@@ -160,8 +160,7 @@ where
 			return Err(Error::Lifecycle(msg));
 		}
 
-		// Set global config instance.
-		set_global_config(default_config);
+		reload_global_config(&config_file_name)?;
 
 		info!(
 			"File {} configured and created",

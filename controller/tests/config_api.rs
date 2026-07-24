@@ -17,7 +17,7 @@ extern crate grin_wallet_config as config;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use config::config::{get_global_config, set_global_config};
+use config::config::{get_global_config, reload_global_config};
 use config::GlobalWalletConfig;
 use impls::test_framework::LocalWalletClient;
 use libwallet::{InitTxArgs, InitTxSendArgs};
@@ -71,7 +71,7 @@ fn tor_disable() {
 	config
 		.write_to_file(path.to_str().unwrap(), false, None, None)
 		.unwrap();
-	set_global_config(config);
+	reload_global_config(&path).unwrap();
 	let mut contents = fs::read_to_string(&path).unwrap();
 	let tor = contents.find("[tor]").unwrap();
 	let logging = contents.find("[logging]").unwrap();
@@ -188,10 +188,34 @@ fn directory_change() {
 	assert!(error.to_string().contains("Stop the updater"));
 	owner.updater_running.store(false, Ordering::Relaxed);
 
+	fs::create_dir_all(&new_dir).unwrap();
+	let new_config = new_dir.join("grin-wallet.toml");
+	let mut config = GlobalWalletConfig::for_chain(
+		&grin_core::global::ChainTypes::AutomatedTesting,
+		&new_config,
+	);
+	config
+		.write_to_file(new_config.to_str().unwrap(), false, None, None)
+		.unwrap();
+	reload_global_config(&new_config).unwrap();
+	let expected_port = config.members.wallet.api_listen_port + 1;
+	config.members.wallet.api_listen_port = expected_port;
+	config
+		.write_to_file(new_config.to_str().unwrap(), false, None, None)
+		.unwrap();
+
 	owner
 		.set_top_level_directory(new_dir.to_str().unwrap())
 		.unwrap();
-	assert_eq!(owner.config_path(), new_dir.join("grin-wallet.toml"));
+	assert_eq!(owner.config_path(), new_config);
+	assert_eq!(
+		get_global_config(&owner.config_path())
+			.unwrap()
+			.members
+			.wallet
+			.api_listen_port,
+		expected_port
+	);
 	assert_eq!(
 		PathBuf::from(owner.get_top_level_directory().unwrap()),
 		new_dir

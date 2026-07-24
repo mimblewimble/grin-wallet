@@ -36,7 +36,7 @@ use util::secp::key::{PublicKey, SecretKey};
 use grin_api as api;
 use grin_wallet::cmd::wallet_args;
 
-use grin_wallet_config::config::set_global_config;
+use grin_wallet_config::config::reload_global_config;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -194,9 +194,7 @@ pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> GlobalWalletCo
 	let _ = fs::create_dir_all(current_dir.clone());
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
-	let config = GlobalWalletConfig::new(config_file_name).unwrap();
-	set_global_config(config.clone());
-	config
+	reload_global_config(&config_file_name).unwrap()
 }
 
 fn get_wallet_subcommand<'a>(

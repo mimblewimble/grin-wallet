@@ -31,7 +31,9 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_config::config::{update_global_config, WALLET_CONFIG_FILE_NAME};
+use grin_wallet_config::config::{
+	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
+};
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
@@ -1546,9 +1548,12 @@ where
 				"Close the wallet before changing the top-level directory".into(),
 			));
 		}
+		let config_path = PathBuf::from(dir).join(WALLET_CONFIG_FILE_NAME);
+		if config_path.exists() {
+			reload_global_config(&config_path)?;
+		}
 		lc.set_top_level_directory(dir)?;
-		self.config_path
-			.set(PathBuf::from(dir).join(WALLET_CONFIG_FILE_NAME));
+		self.config_path.set(config_path);
 		Ok(())
 	}
 

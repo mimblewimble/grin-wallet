@@ -921,7 +921,7 @@ where
 mod tests {
 	use super::*;
 	use crate::core::global::ChainTypes;
-	use grin_wallet_config::config::set_global_config;
+	use grin_wallet_config::config::update_global_config;
 	use grin_wallet_config::GlobalWalletConfig;
 	use std::fs;
 	use std::sync::mpsc::channel;
@@ -941,9 +941,11 @@ mod tests {
 		let (restart_tx, restart_rx) = channel();
 		register_config_listener(&path, "test_listener", restart_tx).unwrap();
 
-		let mut updated = get_global_config(&path).unwrap();
-		updated.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
-		set_global_config(updated);
+		update_global_config(&path, |config| {
+			config.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
+			Ok(())
+		})
+		.unwrap();
 		restart_rx.recv_timeout(Duration::from_secs(1)).unwrap();
 
 		let tor_config =

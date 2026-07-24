@@ -75,8 +75,7 @@ pub const API_SECRET_FILE_NAME: &str = ".foreign_api_secret";
 /// Owner API secret
 pub const OWNER_API_SECRET_FILE_NAME: &str = ".owner_api_secret";
 
-/// Set global configuration instance.
-pub fn set_global_config(config: GlobalWalletConfig) {
+fn set_global_config(config: GlobalWalletConfig) {
 	let mut configs = CONFIG_INSTANCES.write();
 	let mut listeners = if let Some((_, l)) = configs.get(&config.config_file_path) {
 		l.clone()
@@ -105,6 +104,14 @@ pub fn set_global_config(config: GlobalWalletConfig) {
 	if !failed.is_empty() {
 		configs.insert(config.config_file_path.clone(), (config, listeners));
 	}
+}
+
+/// Reload configuration from disk and update the global instance.
+pub fn reload_global_config(config_path: &Path) -> Result<GlobalWalletConfig, ConfigError> {
+	let _save_lock = CONFIG_SAVE_LOCK.lock();
+	let config = GlobalWalletConfig::new(config_path.to_path_buf())?;
+	set_global_config(config.clone());
+	Ok(config)
 }
 
 /// Get global configuration using provided path.
