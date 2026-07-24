@@ -27,8 +27,8 @@ use std::thread;
 use std::time::Duration;
 
 use grin_wallet_libwallet::{
-	InitTxArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress, Slatepacker,
-	SlatepackerArgs,
+	InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress,
+	Slatepacker, SlatepackerArgs,
 };
 
 use ed25519_dalek::SigningKey as edDalekSecretKey;
@@ -510,6 +510,118 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	Ok(())
 }
 
+/// Do not create transaction for invalid or wrong network Slatepack address.
+fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	// Create a new proxy to simulate server and wallet responses
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+
+	// Create a new wallet test client, and set its queues to communicate with the
+	// proxy
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let mask1 = (&mask1_i).as_ref();
+
+	create_wallet_and_add!(
+		client2,
+		wallet2,
+		mask2_i,
+		test_dir,
+		"wallet2",
+		None,
+		&mut wallet_proxy,
+		false
+	);
+	let mask2 = (&mask2_i).as_ref();
+
+	// Set the wallet proxy listener running
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	// few values to keep things shorter
+	let reward = core::consensus::REWARD;
+
+	// Get some mining done
+	let bh = 6u64;
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
+
+	let mut slate = Slate::blank(2, true);
+
+	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
+		let args = IssueInvoiceTxArgs {
+			amount: reward,
+			..Default::default()
+		};
+		slate = api.issue_invoice_tx(m, args)?;
+		Ok(())
+	})?;
+
+	// Test send and invoice tx.
+	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
+		let args = InitTxArgs {
+			src_acct_name: Some("mining".to_owned()),
+			amount: reward,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+
+		let wrong_net_addr = "grin1dvge9z4uqgqlpspmljrd7smh3grrw9xu2r9lkz3u67s3emj3ud2sd5gk9p";
+		let mut wrong_net_args = args.clone();
+		wrong_net_args.send_args = Some(InitTxSendArgs {
+			dest: wrong_net_addr.to_string(),
+			post_tx: false,
+			fluff: false,
+			skip_tor: Some(true),
+		});
+		assert!(api.init_send_tx(m, wrong_net_args.clone()).is_err());
+		assert!(api.process_invoice_tx(m, &slate, wrong_net_args).is_err());
+
+		let invalid_addr = "tgrinaddr10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7";
+		let mut invalid_args = args.clone();
+		invalid_args.send_args = Some(InitTxSendArgs {
+			dest: invalid_addr.to_string(),
+			post_tx: false,
+			fluff: false,
+			skip_tor: Some(true),
+		});
+		assert!(api.init_send_tx(m, invalid_args.clone()).is_err());
+		assert!(api.process_invoice_tx(m, &slate, invalid_args).is_err());
+
+		let valid_addr = "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp";
+		let mut valid_args = args.clone();
+		valid_args.send_args = Some(InitTxSendArgs {
+			dest: valid_addr.to_string(),
+			post_tx: false,
+			fluff: false,
+			skip_tor: Some(true),
+		});
+
+		api.process_invoice_tx(m, &slate, valid_args.clone())
+			.unwrap();
+		api.init_send_tx(m, valid_args).unwrap();
+		Ok(())
+	})?;
+
+	// Test invoice tx.
+
+	Ok(())
+}
+
 #[test]
 fn slatepack_exchange_json() {
 	let test_dir = "test_output/slatepack_exchange_json";
@@ -582,6 +694,17 @@ fn slatepack_api() {
 	setup(test_dir);
 	// Json output
 	if let Err(e) = slatepack_api_impl(test_dir) {
+		panic!("Libwallet Error: {}", e);
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_address() {
+	let test_dir = "test_output/slatepack_address";
+	setup(test_dir);
+	// Json output
+	if let Err(e) = slatepack_address_validation(test_dir) {
 		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
