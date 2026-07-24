@@ -44,7 +44,7 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::apiwallet::{
-	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
+	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
 	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
 };
 use easy_jsonrpc_mw;
@@ -227,7 +227,7 @@ where
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
 		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(
 			wallet,
-			owner_api.config_path.clone(),
+			owner_api.shared_config_path(),
 			keychain_mask,
 			test_mode,
 		);
@@ -291,7 +291,7 @@ where
 
 		let api_handler_v2 = ForeignAPIHandlerV2::new(
 			wallet.clone(),
-			config_path.clone(),
+			config_path.clone().into(),
 			keychain_mask.clone(),
 			test_mode,
 		);
@@ -634,7 +634,7 @@ where
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
 		let wallet = owner_api.wallet_inst.clone();
-		let config_path = owner_api.config_path.clone();
+		let config_path = owner_api.shared_config_path();
 		let owner_api = Owner::new(wallet.clone(), None, config_path);
 		OwnerAPIHandlerV3 {
 			wallet,
@@ -760,7 +760,7 @@ where
 	/// Wallet instance.
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
 	/// Wallet configuration path.
-	pub config_path: PathBuf,
+	pub config_path: ConfigPath,
 	/// Keychain mask
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	/// run in doctest mode
@@ -776,7 +776,7 @@ where
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-		config_path: PathBuf,
+		config_path: ConfigPath,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
 	) -> ForeignAPIHandlerV2<L, C, K> {
@@ -807,7 +807,7 @@ where
 		req: Request<Incoming>,
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-		config_path: PathBuf,
+		config_path: ConfigPath,
 		test_mode: bool,
 	) -> Result<Response<ApiBody>, Error> {
 		let api = Foreign::new(wallet, config_path, mask, Some(check_middleware), test_mode);

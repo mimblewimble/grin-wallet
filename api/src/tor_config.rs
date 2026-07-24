@@ -14,8 +14,31 @@
 
 use crate::config::TorConfig;
 use crate::libwallet::Error;
+use crate::util::Mutex;
 use grin_wallet_config::config::get_global_config;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+/// Shared path to the active wallet configuration.
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct ConfigPath(Arc<Mutex<PathBuf>>);
+
+impl ConfigPath {
+	pub(crate) fn get(&self) -> PathBuf {
+		self.0.lock().clone()
+	}
+
+	pub(crate) fn set(&self, path: PathBuf) {
+		*self.0.lock() = path;
+	}
+}
+
+impl From<PathBuf> for ConfigPath {
+	fn from(path: PathBuf) -> Self {
+		Self(Arc::new(Mutex::new(path)))
+	}
+}
 
 pub(crate) fn load(config_path: &Path) -> Result<TorConfig, Error> {
 	Ok(get_global_config(config_path)?.tor_config())

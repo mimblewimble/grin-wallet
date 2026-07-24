@@ -14,7 +14,7 @@
 
 //! Owner API External Definition
 
-use crate::config::{GlobalWalletConfig, TorConfig, WalletConfig};
+use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::impls::SlateSender as _;
@@ -31,6 +31,7 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use grin_wallet_config::config::{update_global_config, WALLET_CONFIG_FILE_NAME};
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
@@ -71,7 +72,7 @@ where
 	/// Contains all methods to manage the wallet
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	/// Wallet configuration path
-	pub config_path: PathBuf,
+	config_path: crate::ConfigPath,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// Retail TLD during doctest
@@ -178,11 +179,14 @@ where
 	///
 	/// ```
 
-	pub fn new(
+	pub fn new<P>(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 		custom_channel: Option<Sender<StatusMessage>>,
-		config_path: PathBuf,
-	) -> Self {
+		config_path: P,
+	) -> Self
+	where
+		P: Into<crate::ConfigPath>,
+	{
 		let updater_running = Arc::new(AtomicBool::new(false));
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
@@ -201,7 +205,7 @@ where
 
 		Owner {
 			wallet_inst,
-			config_path,
+			config_path: config_path.into(),
 			doctest_mode: false,
 			doctest_retain_tld: false,
 			shared_key: Arc::new(Mutex::new(None)),
@@ -210,6 +214,17 @@ where
 			status_tx: Mutex::new(Some(tx)),
 			updater_messages,
 		}
+	}
+
+	/// Return the active wallet configuration path.
+	pub fn config_path(&self) -> PathBuf {
+		self.config_path.get()
+	}
+
+	/// Return the shared wallet configuration path.
+	#[doc(hidden)]
+	pub fn shared_config_path(&self) -> crate::ConfigPath {
+		self.config_path.clone()
 	}
 
 	/// Set the TOR configuration for this instance of the OwnerAPI, used during
@@ -225,20 +240,22 @@ where
 	///
 
 	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
-		let mut gc = GlobalWalletConfig::new(self.config_path.clone())?;
-		if let Some(tor_config) = tor_config {
-			gc.members.tor = Some(tor_config);
-		} else if let Some(tor) = gc.members.tor.as_mut() {
-			tor.use_tor_listener = false;
-			tor.skip_send_attempt = Some(true);
-		} else {
-			let mut tor_config = TorConfig::default();
-			tor_config.use_tor_listener = false;
-			tor_config.skip_send_attempt = Some(true);
-			gc.members.tor = Some(tor_config);
-		}
-		gc.save().map_err(|e| Error::TorConfig(format!("{}", e)))?;
-		Ok(())
+		let _wallet_lock = self.wallet_inst.lock();
+		update_global_config(&self.config_path(), |config| {
+			if let Some(tor_config) = tor_config {
+				config.members.tor = Some(tor_config);
+			} else if let Some(tor) = config.members.tor.as_mut() {
+				tor.use_tor_listener = false;
+				tor.skip_send_attempt = Some(true);
+			} else {
+				let mut tor_config = config.tor_config();
+				tor_config.use_tor_listener = false;
+				tor_config.skip_send_attempt = Some(true);
+				config.members.tor = Some(tor_config);
+			}
+			Ok(())
+		})
+		.map_err(|e| Error::TorConfig(format!("{}", e)))
 	}
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
@@ -684,14 +701,15 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
-		let tor_config = send_args
-			.as_ref()
-			.map(|_| crate::tor_config::load(&self.config_path))
-			.transpose()?;
-		let slate = {
+		let (slate, tor_config) = {
 			let mut w_lock = self.wallet_inst.lock();
+			let tor_config = send_args
+				.as_ref()
+				.map(|_| crate::tor_config::load(&self.config_path()))
+				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?
+			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+			(slate, tor_config)
 		};
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
@@ -848,14 +866,16 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
-		let tor_config = send_args
-			.as_ref()
-			.map(|_| crate::tor_config::load(&self.config_path))
-			.transpose()?;
-		let slate = {
+		let (slate, tor_config) = {
 			let mut w_lock = self.wallet_inst.lock();
+			let tor_config = send_args
+				.as_ref()
+				.map(|_| crate::tor_config::load(&self.config_path()))
+				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?
+			let slate =
+				owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
+			(slate, tor_config)
 		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
@@ -1513,7 +1533,10 @@ where
 	pub fn set_top_level_directory(&self, dir: &str) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		lc.set_top_level_directory(dir)
+		lc.set_top_level_directory(dir)?;
+		self.config_path
+			.set(PathBuf::from(dir).join(WALLET_CONFIG_FILE_NAME));
+		Ok(())
 	}
 
 	/// Create a `grin-wallet.toml` configuration file in the top-level directory for the

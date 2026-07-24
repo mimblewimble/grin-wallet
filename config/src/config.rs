@@ -120,6 +120,17 @@ pub fn get_global_config(config_path: &Path) -> Result<GlobalWalletConfig, Confi
 	Ok(cache_loaded_config(&mut configs, config_path, config))
 }
 
+/// Load, update and save a configuration as one operation.
+pub fn update_global_config<F>(config_path: &Path, update: F) -> Result<(), ConfigError>
+where
+	F: FnOnce(&mut GlobalWalletConfig) -> Result<(), ConfigError>,
+{
+	let _save_lock = CONFIG_SAVE_LOCK.lock();
+	let mut config = GlobalWalletConfig::new(config_path.to_path_buf())?;
+	update(&mut config)?;
+	config.save_locked()
+}
+
 /// Add listener on config change.
 pub fn add_global_config_listener(config_path: &PathBuf, listener_id: &str, tx: Sender<()>) {
 	let mut w_l = CONFIG_INSTANCES.write();
@@ -682,6 +693,10 @@ impl GlobalWalletConfig {
 	/// Save config to file and update global state after editing.
 	pub fn save(&mut self) -> Result<(), ConfigError> {
 		let _save_lock = CONFIG_SAVE_LOCK.lock();
+		self.save_locked()
+	}
+
+	fn save_locked(&mut self) -> Result<(), ConfigError> {
 		let path = self.config_file_path.clone();
 		let mut tmp_name = path.as_os_str().to_os_string();
 		tmp_name.push(format!("-{}.tmp", thread_rng().gen::<u64>()));
@@ -853,20 +868,28 @@ mod tests {
 	}
 
 	#[test]
-	fn concurrent_save() {
+	fn concurrent_update() {
 		let dir = tempdir().unwrap();
 		let path = dir.path().join(WALLET_CONFIG_FILE_NAME);
 		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
 		config.write_to_path(&path, false, None, None).unwrap();
 		let barrier = Arc::new(Barrier::new(2));
 
-		let handles = ["127.0.0.1:59051", "127.0.0.1:59052"].map(|address| {
-			let mut config = config.clone();
+		let handles = [false, true].map(|update_tor| {
+			let path = path.clone();
 			let barrier = barrier.clone();
 			thread::spawn(move || {
-				config.members.tor.as_mut().unwrap().socks_proxy_addr = address.into();
 				barrier.wait();
-				config.save().unwrap();
+				update_global_config(&path, |config| {
+					if update_tor {
+						config.members.tor.as_mut().unwrap().socks_proxy_addr =
+							"127.0.0.1:59051".into();
+					} else {
+						config.members.wallet.api_listen_port = 3416;
+					}
+					Ok(())
+				})
+				.unwrap();
 			})
 		});
 		for handle in handles {
@@ -876,7 +899,7 @@ mod tests {
 		let stored = GlobalWalletConfig::new(path.clone()).unwrap();
 		let cached = get_global_config(&path).unwrap();
 		assert_eq!(cached, stored);
-		assert!(["127.0.0.1:59051", "127.0.0.1:59052"]
-			.contains(&stored.tor_config().socks_proxy_addr.as_str()));
+		assert_eq!(stored.members.wallet.api_listen_port, 3416);
+		assert_eq!(stored.tor_config().socks_proxy_addr, "127.0.0.1:59051");
 	}
 }

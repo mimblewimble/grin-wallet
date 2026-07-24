@@ -200,7 +200,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let wallet_inst = owner_api.wallet_inst.clone();
-	let config_path = owner_api.config_path.clone();
+	let config_path = owner_api.config_path();
 	let g_args = g_args.clone();
 	let api_thread = thread::Builder::new()
 		.name("wallet-http-listener".to_string())
@@ -630,7 +630,7 @@ where
 
 	controller::foreign_single_use(
 		owner_api.wallet_inst.clone(),
-		owner_api.config_path.clone(),
+		owner_api.config_path(),
 		km,
 		|api| {
 			slate = api.receive_tx(&slate, Some(&g_args.account), None)?;
@@ -798,7 +798,7 @@ where
 		};
 		controller::foreign_single_use(
 			owner_api.wallet_inst.clone(),
-			owner_api.config_path.clone(),
+			owner_api.config_path(),
 			km,
 			|api| {
 				slate = api.finalize_tx(&slate, false)?;

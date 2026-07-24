@@ -24,7 +24,6 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
-use std::path::PathBuf;
 
 use std::sync::Arc;
 
@@ -69,7 +68,7 @@ where
 	/// Wallet instance
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	/// Wallet configuration path
-	pub config_path: PathBuf,
+	config_path: crate::ConfigPath,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// foreign check middleware
@@ -171,16 +170,19 @@ where
 	///
 	/// ```
 
-	pub fn new(
+	pub fn new<P>(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-		config_path: PathBuf,
+		config_path: P,
 		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
 		doctest_mode: bool,
-	) -> Self {
+	) -> Self
+	where
+		P: Into<crate::ConfigPath>,
+	{
 		Foreign {
 			wallet_inst,
-			config_path,
+			config_path: config_path.into(),
 			doctest_mode,
 			middleware,
 			keychain_mask,
@@ -343,11 +345,11 @@ where
 		dest_acct_name: Option<&str>,
 		r_addr: Option<String>,
 	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
 		let tor_config = r_addr
 			.as_ref()
-			.map(|_| crate::tor_config::load(&self.config_path))
+			.map(|_| crate::tor_config::load(&self.config_path.get()))
 			.transpose()?;
-		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(

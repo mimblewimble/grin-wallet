@@ -71,9 +71,11 @@ fn tor_disable() {
 		.write_to_file(path.to_str().unwrap(), false, None, None)
 		.unwrap();
 	set_global_config(config);
-	let contents = fs::read_to_string(&path)
-		.unwrap()
-		.replace("api_listen_port = 3415", "api_listen_port = 3416");
+	let mut contents = fs::read_to_string(&path).unwrap();
+	let tor = contents.find("[tor]").unwrap();
+	let logging = contents.find("[logging]").unwrap();
+	contents.replace_range(tor..logging, "");
+	let contents = contents.replace("api_listen_port = 3415", "api_listen_port = 3416");
 	fs::write(&path, contents).unwrap();
 
 	let owner = api::Owner::new(wallet.clone(), None, path.clone());
@@ -85,6 +87,10 @@ fn tor_disable() {
 	let cached = get_global_config(&path).unwrap().tor_config();
 	assert!(!stored.use_tor_listener);
 	assert_eq!(stored.skip_send_attempt, Some(true));
+	assert_eq!(
+		stored.send_config_dir,
+		stored_config.members.wallet.data_file_dir
+	);
 	assert_eq!(cached, stored);
 
 	drop(owner);
