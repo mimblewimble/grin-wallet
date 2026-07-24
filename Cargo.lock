@@ -2546,6 +2546,7 @@ dependencies = [
  "serde_derive",
  "tempfile",
  "toml 0.5.11",
+ "toml_edit 0.22.27",
 ]
 
 [[package]]

@@ -14,7 +14,7 @@
 
 //! Configuration file management
 
-use crate::comments::{insert_comments, migrate_comments};
+use crate::comments::insert_comments;
 use crate::core::global;
 use crate::types::{
 	ConfigError, GlobalWalletConfig, GlobalWalletConfigMembers, TorBridgeConfig, TorProxyConfig,
@@ -36,6 +36,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use toml;
+use toml_edit::{DocumentMut, Table};
 
 type ConfigListeners = HashMap<String, Sender<()>>;
 type ConfigRegistry = HashMap<PathBuf, (GlobalWalletConfig, ConfigListeners)>;
@@ -432,9 +433,9 @@ impl GlobalWalletConfig {
 		// Config file path is given but not valid
 		let config_file = &return_value.config_file_path;
 		if !config_file.exists() {
-			return Err(ConfigError::FileNotFoundError(String::from(
-				config_file.to_str().unwrap(),
-			)));
+			return Err(ConfigError::FileNotFoundError(
+				config_file.display().to_string(),
+			));
 		}
 
 		// Try to parse the config file if it exists, explode if it does exist but
@@ -458,7 +459,7 @@ impl GlobalWalletConfig {
 				Ok(self)
 			}
 			Err(e) => Err(ConfigError::ParseError(
-				String::from(self.config_file_path.to_str().unwrap()),
+				self.config_file_path.display().to_string(),
 				format!("{}", e),
 			)),
 		}
@@ -513,13 +514,98 @@ impl GlobalWalletConfig {
 	) -> Result<(), ConfigError> {
 		let conf_out = GlobalWalletConfig::fix_log_level(self.ser_config()?);
 		let commented_config = if migration {
-			migrate_comments(old_config.unwrap(), conf_out, old_version)
+			let old_config = old_config.unwrap();
+			let new_config = insert_comments(conf_out);
+			GlobalWalletConfig::merge_config(&old_config, &new_config, old_version)?
 		} else {
 			insert_comments(conf_out)
 		};
 		let mut file = File::create(name)?;
 		file.write_all(commented_config.as_bytes())?;
 		Ok(())
+	}
+
+	fn merge_config(
+		old_config: &str,
+		new_config: &str,
+		old_version: Option<u32>,
+	) -> Result<String, ConfigError> {
+		fn update(
+			current: &mut Table,
+			new: &Table,
+			known: Option<&Table>,
+			path: &str,
+			replace_logging_comments: bool,
+		) {
+			if let Some(known) = known {
+				let removed = known
+					.iter()
+					.filter(|(key, _)| !new.contains_key(key))
+					.map(|(key, _)| key.to_owned())
+					.collect::<Vec<_>>();
+				for key in removed {
+					current.remove(&key);
+				}
+			}
+
+			for (key, new_item) in new {
+				let item_path = if path.is_empty() {
+					key.to_owned()
+				} else {
+					format!("{}.{}", path, key)
+				};
+				if let (Some(current_table), Some(new_table)) = (
+					current.get_mut(key).and_then(|item| item.as_table_mut()),
+					new_item.as_table(),
+				) {
+					if replace_logging_comments && item_path == "logging" {
+						*current_table.decor_mut() = new_table.decor().clone();
+					}
+					update(
+						current_table,
+						new_table,
+						known
+							.and_then(|table| table.get(key))
+							.and_then(|item| item.as_table()),
+						&item_path,
+						replace_logging_comments,
+					);
+				} else if let Some(current_item) = current.get_mut(key) {
+					let mut replacement = new_item.clone();
+					if let (Some(current_value), Some(new_value)) =
+						(current_item.as_value(), replacement.as_value_mut())
+					{
+						*new_value.decor_mut() = current_value.decor().clone();
+					}
+					*current_item = replacement;
+				} else {
+					current.insert_formatted(new.key(key).unwrap(), new_item.clone());
+				}
+			}
+		}
+
+		let mut current = old_config
+			.parse::<DocumentMut>()
+			.map_err(|e| ConfigError::SerializationError(format!("{}", e)))?;
+		let new = new_config
+			.parse::<DocumentMut>()
+			.map_err(|e| ConfigError::SerializationError(format!("{}", e)))?;
+		let known_members: GlobalWalletConfigMembers = toml::from_str(
+			&GlobalWalletConfig::fix_warning_level(old_config.to_owned()),
+		)
+		.map_err(|e| ConfigError::SerializationError(format!("{}", e)))?;
+		let known = toml::to_string(&known_members)
+			.map_err(|e| ConfigError::SerializationError(format!("{}", e)))?
+			.parse::<DocumentMut>()
+			.map_err(|e| ConfigError::SerializationError(format!("{}", e)))?;
+		update(
+			current.as_table_mut(),
+			new.as_table(),
+			Some(known.as_table()),
+			"",
+			old_version.is_none(),
+		);
+		Ok(current.to_string())
 	}
 	/// This migration does the following:
 	/// - Adds "config_file_version = 2"
@@ -641,14 +727,20 @@ mod tests {
 		let dir = tempdir().unwrap();
 		let path = dir.path().join(WALLET_CONFIG_FILE_NAME);
 		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
-		config.members.tor.as_mut().unwrap().proxy.password = Some("secretERROR#value".into());
+		config.members.tor.as_mut().unwrap().proxy.password = Some("secretERROR#[value]".into());
 		config.write_to_path(&path, false, None, None).unwrap();
 
-		let contents = fs::read_to_string(&path).unwrap().replace(
-			"use_tor_listener = true",
-			"# custom key comment\nuse_tor_listener = true # custom inline comment",
-		);
-		fs::write(&path, format!("{}\n# custom trailing comment\n", contents)).unwrap();
+		let contents = fs::read_to_string(&path)
+			.unwrap()
+			.replace(
+				"api_listen_port = 3415",
+				"api_listen_port = 3415\n# wallet future\nfuture_setting = \"wallet\"\n# future list\nfuture_values = [\n  1,\n  2,\n]",
+			)
+			.replace(
+				"use_tor_listener = true",
+				"# custom key comment\nuse_tor_listener = true # custom inline comment\n# tor future\nfuture_setting = \"tor\"",
+			);
+		fs::write(&path, format!("{contents}\n# custom trailing comment\n")).unwrap();
 		let before = fs::read_to_string(&path).unwrap();
 
 		#[cfg(unix)]
@@ -658,12 +750,15 @@ mod tests {
 		}
 
 		config.members.tor.as_mut().unwrap().use_tor_listener = false;
+		config.members.tor.as_mut().unwrap().proxy.password = Some("secretERROR#value".into());
 		config.save().unwrap();
 
 		let contents = fs::read_to_string(&path).unwrap();
 		assert_eq!(
 			contents,
-			before.replace("use_tor_listener = true", "use_tor_listener = false")
+			before
+				.replace("use_tor_listener = true", "use_tor_listener = false")
+				.replace("secretERROR#[value]", "secretERROR#value")
 		);
 		assert!(contents.contains("# custom trailing comment"));
 		assert!(contents.contains("# custom key comment"));
@@ -671,6 +766,39 @@ mod tests {
 		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
 		assert!(!stored.use_tor_listener);
 		assert_eq!(stored.proxy.password.as_deref(), Some("secretERROR#value"));
+
+		config.members.tor.as_mut().unwrap().proxy.transport = Some("socks5".into());
+		config.members.tor.as_mut().unwrap().bridge.client_option = Some("option [value]".into());
+		config.save().unwrap();
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
+		assert_eq!(stored.proxy.transport.as_deref(), Some("socks5"));
+		assert_eq!(
+			stored.bridge.client_option.as_deref(),
+			Some("option [value]")
+		);
+
+		config.members.tor.as_mut().unwrap().proxy.transport = None;
+		config.members.tor.as_mut().unwrap().bridge.client_option = None;
+		config.save().unwrap();
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
+		assert_eq!(stored.proxy.transport, None);
+		assert_eq!(stored.bridge.client_option, None);
+
+		let legacy =
+			fs::read_to_string(&path)
+				.unwrap()
+				.replacen("config_file_version = 2\n", "", 1);
+		let mut legacy = legacy.parse::<DocumentMut>().unwrap();
+		let tor = legacy["tor"].as_table_mut().unwrap();
+		tor.remove("bridge");
+		tor.remove("proxy");
+		fs::write(&path, legacy.to_string()).unwrap();
+		let migrated = GlobalWalletConfig::new(path.clone()).unwrap();
+		assert_eq!(migrated.members.config_file_version, Some(2));
+		let migrated = fs::read_to_string(&path).unwrap();
+		assert!(migrated.contains("# future list\nfuture_values = [\n  1,\n  2,\n]"));
+		assert!(migrated.contains("### TOR BRIDGE"));
+		assert!(migrated.contains("### TOR PROXY"));
 		assert!(fs::read_dir(dir.path()).unwrap().all(|entry| {
 			!entry
 				.unwrap()

@@ -14,7 +14,7 @@
 
 //! Owner API External Definition
 
-use crate::config::{TorConfig, WalletConfig};
+use crate::config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::impls::SlateSender as _;
@@ -31,7 +31,6 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_config::config::get_global_config;
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
@@ -106,9 +105,10 @@ where
 	///
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
+	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
 	/// * `custom_channel` - A custom MPSC Tx/Rx pair to capture status
 	/// updates
-	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	/// * `config_path` - Path to the wallet configuration file
 	///
 	/// # Returns
 	/// * An instance of the OwnerApi holding a reference to the provided wallet
@@ -173,7 +173,7 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None, PathBuf::from(dir));
+	/// let api_owner = Owner::new(wallet.clone(), None, PathBuf::from(dir).join("grin-wallet.toml"));
 	/// // .. perform wallet operations
 	///
 	/// ```
@@ -225,7 +225,7 @@ where
 	///
 
 	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
-		let mut gc = get_global_config(&self.config_path)?;
+		let mut gc = GlobalWalletConfig::new(self.config_path.clone())?;
 		if let Some(tor_config) = tor_config {
 			gc.members.tor = Some(tor_config);
 		} else if let Some(tor) = gc.members.tor.as_mut() {

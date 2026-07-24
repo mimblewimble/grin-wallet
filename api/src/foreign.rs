@@ -95,6 +95,7 @@ where
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
 	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	/// * `config_path` - Path to the wallet configuration file
 	/// * `keychain_mask` - Mask value stored internally to use when calling a wallet
 	/// whose seed has been XORed with a token value (such as when running the foreign
 	/// and owner listeners in the same instance)
@@ -165,7 +166,7 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_foreign = Foreign::new(wallet.clone(), PathBuf::from(dir), None, None, false);
+	/// let api_foreign = Foreign::new(wallet.clone(), PathBuf::from(dir).join("grin-wallet.toml"), None, None, false);
 	/// // .. perform wallet operations
 	///
 	/// ```

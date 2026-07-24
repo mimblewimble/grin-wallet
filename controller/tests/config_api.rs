@@ -1,4 +1,5 @@
 // Copyright 2026 The Grin Developers
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -70,11 +71,17 @@ fn tor_disable() {
 		.write_to_file(path.to_str().unwrap(), false, None, None)
 		.unwrap();
 	set_global_config(config);
+	let contents = fs::read_to_string(&path)
+		.unwrap()
+		.replace("api_listen_port = 3415", "api_listen_port = 3416");
+	fs::write(&path, contents).unwrap();
 
 	let owner = api::Owner::new(wallet.clone(), None, path.clone());
 	owner.set_tor_config(None).unwrap();
 
-	let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
+	let stored_config = GlobalWalletConfig::new(path.clone()).unwrap();
+	assert_eq!(stored_config.members.wallet.api_listen_port, 3416);
+	let stored = stored_config.tor_config();
 	let cached = get_global_config(&path).unwrap().tor_config();
 	assert!(!stored.use_tor_listener);
 	assert_eq!(stored.skip_send_attempt, Some(true));
