@@ -27,6 +27,7 @@ use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlatePutter as _};
 use libwallet::{InitTxArgs, NodeClient};
 use std::cmp;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -92,20 +93,30 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let cm = global::coinbase_maturity() as u64; // assume all testing precedes soft fork height
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.create_account_path(m, "named_account_1")?;
-		api.create_account_path(m, "account_2")?;
-		api.create_account_path(m, "account_3")?;
-		api.set_active_account(m, "named_account_1")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "named_account_1")?;
+			api.create_account_path(m, "account_2")?;
+			api.create_account_path(m, "account_3")?;
+			api.set_active_account(m, "named_account_1")?;
+			Ok(())
+		},
+	)?;
 
 	// add account to wallet 2
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		api.create_account_path(m, "account_1")?;
-		api.set_active_account(m, "account_1")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "account_1")?;
+			api.set_active_account(m, "account_1")?;
+			Ok(())
+		},
+	)?;
 
 	// Do some mining
 	let bh = 20u64;
@@ -113,26 +124,36 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Sanity check contents
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward);
-		assert_eq!(wallet1_info.amount_currently_spendable, (bh - cm) * reward);
-		// check tx log as well
-		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-		let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
-		assert_eq!(wallet1_info.total, c);
-		assert_eq!(txs.len(), bh as usize);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, bh * reward);
+			assert_eq!(wallet1_info.amount_currently_spendable, (bh - cm) * reward);
+			// check tx log as well
+			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
+			let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
+			assert_eq!(wallet1_info.total, c);
+			assert_eq!(txs.len(), bh as usize);
+			Ok(())
+		},
+	)?;
 
 	// Accidentally delete some outputs
 	let mut w1_outputs_commits = vec![];
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		w1_outputs_commits = api.retrieve_outputs(m, false, true, None)?.1;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			w1_outputs_commits = api.retrieve_outputs(m, false, true, None)?.1;
+			Ok(())
+		},
+	)?;
 	let w1_outputs: Vec<libwallet::OutputData> =
 		w1_outputs_commits.into_iter().map(|m| m.output).collect();
 	{
@@ -149,73 +170,108 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	}
 
 	// check we have a problem now
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-		let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
-		assert!(wallet1_info.total != c);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
+			let (c, _) = libwallet::TxLogEntry::sum_confirmed(&txs);
+			assert_ne!(wallet1_info.total, c);
+			Ok(())
+		},
+	)?;
 
 	// this should restore our missing outputs
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.scan(m, None, true)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, true)?;
+			Ok(())
+		},
+	)?;
 
 	// check our outputs match again
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.total, bh * reward);
-		// And check account names haven't been splatted
-		let accounts = api.accounts(m)?;
-		assert_eq!(accounts.len(), 4);
-		assert!(api.set_active_account(m, "account_1").is_err());
-		assert!(api.set_active_account(m, "named_account_1").is_ok());
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.total, bh * reward);
+			// And check account names haven't been splatted
+			let accounts = api.accounts(m)?;
+			assert_eq!(accounts.len(), 4);
+			assert!(api.set_active_account(m, "account_1").is_err());
+			assert!(api.set_active_account(m, "named_account_1").is_ok());
+			Ok(())
+		},
+	)?;
 
 	// perform a transaction, but don't let it finish
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		// send to send
-		let args = InitTxArgs {
-			src_acct_name: None,
-			amount: reward * 2,
-			minimum_confirmations: cm,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			..Default::default()
-		};
-		let slate = api.init_send_tx(m, args)?;
-		// output tx file
-		let send_file = format!("{}/part_tx_1.tx", test_dir);
-		PathToSlate(send_file.into()).put_tx(&slate, false)?;
-		api.tx_lock_outputs(m, &slate)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			// send to send
+			let args = InitTxArgs {
+				src_acct_name: None,
+				amount: reward * 2,
+				minimum_confirmations: cm,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			let slate = api.init_send_tx(m, args)?;
+			// output tx file
+			let send_file = format!("{}/part_tx_1.tx", test_dir);
+			PathToSlate(send_file.into()).put_tx(&slate, false)?;
+			api.tx_lock_outputs(m, &slate)?;
+			Ok(())
+		},
+	)?;
 
 	// check we're all locked
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert!(wallet1_info.amount_currently_spendable == 0);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.amount_currently_spendable, 0);
+			Ok(())
+		},
+	)?;
 
 	// unlock/restore
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.scan(m, None, true)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, true)?;
+			Ok(())
+		},
+	)?;
 
 	// check spendable amount again
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert_eq!(wallet1_info.amount_currently_spendable, (bh - cm) * reward);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert_eq!(wallet1_info.amount_currently_spendable, (bh - cm) * reward);
+			Ok(())
+		},
+	)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
@@ -412,13 +468,18 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	bh += 3;
 
 	// 0) Check repair when all is okay should leave wallet contents alone
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.scan(m, None, true)?;
-		let info = wallet_info!(wallet1.clone(), m)?;
-		assert_eq!(info.amount_currently_spendable, base_amount * 6);
-		assert_eq!(info.total, base_amount * 6);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, true)?;
+			let info = wallet_info!(wallet1.clone(), m)?;
+			assert_eq!(info.amount_currently_spendable, base_amount * 6);
+			assert_eq!(info.total, base_amount * 6);
+			Ok(())
+		},
+	)?;
 
 	// send some funds to wallet 2
 	send_to_dest!(
@@ -462,33 +523,53 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	// seed + BIP32 path.
 
 	// 1) a full restore should recover all of them:
-	wallet::controller::owner_single_use(Some(wallet3.clone()), mask3, None, |api, m| {
-		api.scan(m, None, false)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet3.clone(),
+		mask3,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, false)?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet3.clone()), mask3, None, |api, m| {
-		let info = wallet_info!(wallet3.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 6);
-		assert_eq!(info.amount_currently_spendable, base_amount * 21);
-		assert_eq!(info.total, base_amount * 21);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet3.clone(),
+		mask3,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet3.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 6);
+			assert_eq!(info.amount_currently_spendable, base_amount * 21);
+			assert_eq!(info.total, base_amount * 21);
+			Ok(())
+		},
+	)?;
 
 	// 2) scan should recover them into a single wallet
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.scan(m, None, true)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, true)?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let info = wallet_info!(wallet1.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 6);
-		assert_eq!(info.amount_currently_spendable, base_amount * 21);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet1.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 6);
+			assert_eq!(info.amount_currently_spendable, base_amount * 21);
+			Ok(())
+		},
+	)?;
 
 	// 3) If I recover from seed and start using the wallet without restoring,
 	// scan should restore the older outputs
@@ -520,26 +601,41 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, cm, false);
 	bh += cm as u64;
 
-	wallet::controller::owner_single_use(Some(wallet4.clone()), mask4, None, |api, m| {
-		let info = wallet_info!(wallet4.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 9);
-		assert_eq!(info.amount_currently_spendable, base_amount * 45);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet4.clone(),
+		mask4,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet4.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 9);
+			assert_eq!(info.amount_currently_spendable, base_amount * 45);
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet5.clone()), mask5, None, |api, m| {
-		api.scan(m, None, false)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet5.clone(),
+		mask5,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, false)?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet5.clone()), mask5, None, |api, m| {
-		let info = wallet_info!(wallet5.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 9);
-		assert_eq!(info.amount_currently_spendable, base_amount * (45));
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet5.clone(),
+		mask5,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet5.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 9);
+			assert_eq!(info.amount_currently_spendable, base_amount * (45));
+			Ok(())
+		},
+	)?;
 
 	// 4) If I recover from seed and start using the wallet without restoring,
 	// scan should restore the older outputs
@@ -575,26 +671,41 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	);
 	bh += cm as u64;
 
-	wallet::controller::owner_single_use(Some(wallet6.clone()), mask6, None, |api, m| {
-		let info = wallet_info!(wallet6.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 12);
-		assert_eq!(info.amount_currently_spendable, base_amount * 78);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet6.clone(),
+		mask6,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet6.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 12);
+			assert_eq!(info.amount_currently_spendable, base_amount * 78);
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet6.clone()), mask6, None, |api, m| {
-		api.scan(m, None, true)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet6.clone(),
+		mask6,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, true)?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet6.clone()), mask6, None, |api, m| {
-		let info = wallet_info!(wallet6.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 12);
-		assert_eq!(info.amount_currently_spendable, base_amount * (78));
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet6.clone(),
+		mask6,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet6.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 12);
+			assert_eq!(info.amount_currently_spendable, base_amount * (78));
+			Ok(())
+		},
+	)?;
 
 	// 5) Start using same seed with a different account, amounts should
 	// be distinct and restore should return funds from other account
@@ -623,11 +734,16 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	bh += 3;
 
 	// mix it up a bit
-	wallet::controller::owner_single_use(Some(wallet7.clone()), mask7, None, |api, m| {
-		api.create_account_path(m, "account_1")?;
-		api.set_active_account(m, "account_1")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet7.clone(),
+		mask7,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "account_1")?;
+			api.set_active_account(m, "account_1")?;
+			Ok(())
+		},
+	)?;
 
 	send_to_dest!(
 		miner.clone(),
@@ -656,42 +772,57 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, cm, false);
 	bh += cm as u64;
 
-	wallet::controller::owner_single_use(Some(wallet7.clone()), mask7, None, |api, m| {
-		let info = wallet_info!(wallet7.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 3);
-		assert_eq!(info.amount_currently_spendable, base_amount * 6);
-		api.set_active_account(m, "default")?;
-		let info = wallet_info!(wallet7.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 15);
-		assert_eq!(info.amount_currently_spendable, base_amount * 120);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet7.clone(),
+		mask7,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet7.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 3);
+			assert_eq!(info.amount_currently_spendable, base_amount * 6);
+			api.set_active_account(m, "default")?;
+			let info = wallet_info!(wallet7.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 15);
+			assert_eq!(info.amount_currently_spendable, base_amount * 120);
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet8.clone()), mask8, None, |api, m| {
-		api.scan(m, None, false)?;
-		let info = wallet_info!(wallet8.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 15);
-		assert_eq!(info.amount_currently_spendable, base_amount * 120);
-		api.set_active_account(m, "account_1")?;
-		let info = wallet_info!(wallet8.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 3);
-		assert_eq!(info.amount_currently_spendable, base_amount * 6);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet8.clone(),
+		mask8,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, false)?;
+			let info = wallet_info!(wallet8.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 15);
+			assert_eq!(info.amount_currently_spendable, base_amount * 120);
+			api.set_active_account(m, "account_1")?;
+			let info = wallet_info!(wallet8.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 3);
+			assert_eq!(info.amount_currently_spendable, base_amount * 6);
+			Ok(())
+		},
+	)?;
 
 	// 6) Start using same seed with a different account, now overwriting
 	// ids on account 2 as well, scan should get all outputs created
 	// to now into 2 accounts
 
-	wallet::controller::owner_single_use(Some(wallet9.clone()), mask9, None, |api, m| {
-		api.create_account_path(m, "account_1")?;
-		api.set_active_account(m, "account_1")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet9.clone(),
+		mask9,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "account_1")?;
+			api.set_active_account(m, "account_1")?;
+			Ok(())
+		},
+	)?;
 
 	send_to_dest!(
 		miner.clone(),
@@ -717,43 +848,53 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 	bh += 3;
 	let _bh = bh;
 
-	wallet::controller::owner_single_use(Some(wallet9.clone()), mask9, None, |api, m| {
-		let info = wallet_info!(wallet9.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 6);
-		assert_eq!(info.amount_currently_spendable, base_amount * 21);
-		api.scan(m, None, true)?;
-		let info = wallet_info!(wallet9.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 6);
-		assert_eq!(info.amount_currently_spendable, base_amount * 21);
+	wallet::controller::owner_single_use(
+		wallet9.clone(),
+		mask9,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let info = wallet_info!(wallet9.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 6);
+			assert_eq!(info.amount_currently_spendable, base_amount * 21);
+			api.scan(m, None, true)?;
+			let info = wallet_info!(wallet9.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 6);
+			assert_eq!(info.amount_currently_spendable, base_amount * 21);
 
-		api.set_active_account(m, "default")?;
-		let info = wallet_info!(wallet9.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 15);
-		assert_eq!(info.amount_currently_spendable, base_amount * 120);
-		Ok(())
-	})?;
+			api.set_active_account(m, "default")?;
+			let info = wallet_info!(wallet9.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 15);
+			assert_eq!(info.amount_currently_spendable, base_amount * 120);
+			Ok(())
+		},
+	)?;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, miner.clone(), miner_mask, cm, false);
 
 	// 7) Ensure scan creates missing accounts
-	wallet::controller::owner_single_use(Some(wallet10.clone()), mask10, None, |api, m| {
-		api.scan(m, None, true)?;
-		api.set_active_account(m, "account_1")?;
-		let info = wallet_info!(wallet10.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 6);
-		assert_eq!(info.amount_currently_spendable, base_amount * 21);
+	wallet::controller::owner_single_use(
+		wallet10.clone(),
+		mask10,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.scan(m, None, true)?;
+			api.set_active_account(m, "account_1")?;
+			let info = wallet_info!(wallet10.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 6);
+			assert_eq!(info.amount_currently_spendable, base_amount * 21);
 
-		api.set_active_account(m, "default")?;
-		let info = wallet_info!(wallet10.clone(), m)?;
-		let outputs = api.retrieve_outputs(m, true, false, None)?.1;
-		assert_eq!(outputs.len(), 15);
-		assert_eq!(info.amount_currently_spendable, base_amount * 120);
-		Ok(())
-	})?;
+			api.set_active_account(m, "default")?;
+			let info = wallet_info!(wallet10.clone(), m)?;
+			let outputs = api.retrieve_outputs(m, true, false, None)?.1;
+			assert_eq!(outputs.len(), 15);
+			assert_eq!(info.amount_currently_spendable, base_amount * 120);
+			Ok(())
+		},
+	)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
@@ -877,13 +1018,18 @@ fn multi_batch_scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let mut output_commits = vec![];
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, info) = api.retrieve_summary_info(m, true, 1)?;
-		assert_eq!(info.last_confirmed_height, bh);
-		assert_eq!(info.total, bh * reward);
-		output_commits = api.retrieve_outputs(m, false, true, None)?.1;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, info) = api.retrieve_summary_info(m, true, 1)?;
+			assert_eq!(info.last_confirmed_height, bh);
+			assert_eq!(info.total, bh * reward);
+			output_commits = api.retrieve_outputs(m, false, true, None)?.1;
+			Ok(())
+		},
+	)?;
 
 	{
 		wallet_inst!(wallet1, w);
@@ -930,13 +1076,18 @@ fn multi_batch_scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	}
 	assert!(batches > 1);
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, restored_outputs) = api.retrieve_outputs(m, false, true, None)?;
-		let (_, info) = api.retrieve_summary_info(m, false, 1)?;
-		assert_eq!(info.total, bh * reward);
-		assert_eq!(restored_outputs.len(), bh as usize);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, restored_outputs) = api.retrieve_outputs(m, false, true, None)?;
+			let (_, info) = api.retrieve_summary_info(m, false, 1)?;
+			assert_eq!(info.total, bh * reward);
+			assert_eq!(restored_outputs.len(), bh as usize);
+			Ok(())
+		},
+	)?;
 
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));
@@ -974,12 +1125,17 @@ fn restore_corrupted_outputs_across_batches_impl(
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	let mut output_commits = vec![];
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, info) = api.retrieve_summary_info(m, true, 1)?;
-		assert_eq!(info.total, bh * reward);
-		output_commits = api.retrieve_outputs(m, false, true, None)?.1;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, info) = api.retrieve_summary_info(m, true, 1)?;
+			assert_eq!(info.total, bh * reward);
+			output_commits = api.retrieve_outputs(m, false, true, None)?.1;
+			Ok(())
+		},
+	)?;
 
 	{
 		wallet_inst!(wallet1, w);
@@ -1017,25 +1173,30 @@ fn restore_corrupted_outputs_across_batches_impl(
 		assert_eq!(last_scanned.hash, "");
 	}
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (_, outputs_after_first_batch) = api.retrieve_outputs(m, false, false, None)?;
-		assert_eq!(outputs_after_first_batch.len(), (bh - 1) as usize);
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, outputs_after_first_batch) = api.retrieve_outputs(m, false, false, None)?;
+			assert_eq!(outputs_after_first_batch.len(), (bh - 1) as usize);
 
-		let (_, info) = api.retrieve_summary_info(m, true, 1)?;
-		let (_, restored_outputs) = api.retrieve_outputs(m, false, true, None)?;
-		let unique_keys = restored_outputs
-			.iter()
-			.map(|o| o.output.key_id.clone())
-			.collect::<std::collections::HashSet<_>>();
+			let (_, info) = api.retrieve_summary_info(m, true, 1)?;
+			let (_, restored_outputs) = api.retrieve_outputs(m, false, true, None)?;
+			let unique_keys = restored_outputs
+				.iter()
+				.map(|o| o.output.key_id.clone())
+				.collect::<std::collections::HashSet<_>>();
 
-		assert_eq!(info.total, bh * reward);
-		assert_eq!(restored_outputs.len(), bh as usize);
-		assert_eq!(unique_keys.len(), bh as usize);
-		assert!(restored_outputs
-			.iter()
-			.all(|o| o.output.status == libwallet::OutputStatus::Unspent));
-		Ok(())
-	})?;
+			assert_eq!(info.total, bh * reward);
+			assert_eq!(restored_outputs.len(), bh as usize);
+			assert_eq!(unique_keys.len(), bh as usize);
+			assert!(restored_outputs
+				.iter()
+				.all(|o| o.output.status == libwallet::OutputStatus::Unspent));
+			Ok(())
+		},
+	)?;
 
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));

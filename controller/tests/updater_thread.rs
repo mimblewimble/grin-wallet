@@ -23,6 +23,7 @@ extern crate grin_wallet_libwallet as libwallet;
 // use grin_wallet_util::grin_core as core;
 
 use impls::test_framework::{self, LocalWalletClient};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -71,18 +72,28 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	});
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.create_account_path(m, "mining")?;
-		api.create_account_path(m, "listener")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "mining")?;
+			api.create_account_path(m, "listener")?;
+			Ok(())
+		},
+	)?;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		api.create_account_path(m, "account1")?;
-		api.create_account_path(m, "account2")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "account1")?;
+			api.create_account_path(m, "account2")?;
+			Ok(())
+		},
+	)?;
 
 	// Get some mining done
 	{
@@ -93,7 +104,7 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let owner_api = api::Owner::new(wallet1, None);
+	let owner_api = api::Owner::new(wallet1, None, PathBuf::from(test_dir));
 	owner_api.start_updater(mask1, Duration::from_secs(5))?;
 
 	// let updater thread run a bit

@@ -8,7 +8,20 @@
 const jayson = require('jayson/promise');
 const crypto = require('crypto');
 
-const client = jayson.client.http('http://localhost:3420/v3/owner');
+const ownerApiSecret = process.env.GRIN_OWNER_API_SECRET;
+const clientOptions = {
+	hostname: 'localhost',
+	port: 3420,
+	path: '/v3/owner',
+};
+
+if (ownerApiSecret) {
+	clientOptions.headers = {
+		Authorization: `Basic ${Buffer.from(`grin:${ownerApiSecret}`).toString('base64')}`,
+	};
+}
+
+const client = jayson.client.http(clientOptions);
 
 // Demo implementation of using `aes-256-gcm` with node.js's `crypto` lib.
 const aes256gcm = (shared_secret) => {
@@ -33,8 +46,7 @@ const aes256gcm = (shared_secret) => {
 		const tag = data_.slice(len-16, len)
 		const text = data_.slice(0, len-16)
 		decipher.setAuthTag(tag)
-		const dec = decipher.update(text, 'binary', 'utf8') + decipher.final('utf8');
-		return dec
+		return decipher.update(text, 'binary', 'utf8') + decipher.final('utf8')
 	};
 
 	return {
@@ -69,8 +81,7 @@ class JSONRequestEncrypted {
 		const nonce2 = Buffer.from(response.result.Ok.nonce, 'hex');
 		const data = Buffer.from(response.result.Ok.body_enc, 'base64');
 
-		let dec = aesCipher.decrypt(data, nonce2)
-		return dec
+		return aesCipher.decrypt(data, nonce2)
 	}
 }
 
@@ -101,7 +112,7 @@ async function main() {
 		"password": "",
 	}).send(shared_key);
 
-	let token = JSON.parse(response).result.Ok;
+	let token = JSON.parse(response).result;
 
 	let iterations = 1;
 
@@ -130,5 +141,4 @@ async function main() {
 
 
 main();
-
 

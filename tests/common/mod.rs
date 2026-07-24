@@ -36,6 +36,7 @@ use util::secp::key::{PublicKey, SecretKey};
 use grin_api as api;
 use grin_wallet::cmd::wallet_args;
 
+use grin_wallet_config::config::reload_global_config;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -72,7 +73,7 @@ macro_rules! setup_proxy {
 
 		// add wallet to proxy
 		let config1 = initial_setup_wallet($test_dir, "wallet1");
-		let wallet_config1 = config1.clone().members.unwrap().wallet;
+		let wallet_config1 = config1.clone().members.wallet;
 		//config1.owner_api_listen_port = Some(13420);
 		let ($wallet1, mask1_i) = instantiate_wallet(
 			wallet_config1.clone(),
@@ -97,7 +98,7 @@ macro_rules! setup_proxy {
 		}
 
 		let config2 = initial_setup_wallet($test_dir, "wallet2");
-		let wallet_config2 = config2.clone().members.unwrap().wallet;
+		let wallet_config2 = config2.clone().members.wallet;
 		//config2.api_listen_port = 23415;
 		let ($wallet2, mask2_i) = instantiate_wallet(
 			wallet_config2.clone(),
@@ -131,7 +132,7 @@ pub fn clean_output_dir(test_dir: &str) {
 pub fn setup(test_dir: &str) {
 	util::init_test_logger();
 	clean_output_dir(test_dir);
-	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+	global::set_local_chain_type(ChainTypes::AutomatedTesting);
 }
 
 /// Some tests require the global chain_type to be configured.
@@ -141,7 +142,7 @@ pub fn setup(test_dir: &str) {
 /// leaks across multiple tests and will likely have unintended consequences.
 #[allow(dead_code)]
 pub fn setup_global_chain_type() {
-	global::init_global_chain_type(global::ChainTypes::AutomatedTesting);
+	global::init_global_chain_type(ChainTypes::AutomatedTesting);
 }
 
 /// Create a wallet config file in the given current directory
@@ -150,7 +151,6 @@ pub fn config_command_wallet(
 	wallet_name: &str,
 ) -> Result<(), grin_wallet_controller::Error> {
 	let mut current_dir;
-	let mut default_config = GlobalWalletConfig::default();
 	current_dir = env::current_dir().unwrap_or_else(|e| {
 		panic!("Error creating config file: {}", e);
 	});
@@ -165,6 +165,9 @@ pub fn config_command_wallet(
 				.to_owned(),
 		))?;
 	}
+
+	let mut default_config =
+		GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &config_file_name);
 	default_config.update_paths(&current_dir, &current_dir);
 	default_config
 		.write_to_file(config_file_name.to_str().unwrap(), false, None, None)
@@ -191,7 +194,7 @@ pub fn initial_setup_wallet(dir_name: &str, wallet_name: &str) -> GlobalWalletCo
 	let _ = fs::create_dir_all(current_dir.clone());
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
-	GlobalWalletConfig::new(config_file_name.to_str().unwrap()).unwrap()
+	reload_global_config(&config_file_name).unwrap()
 }
 
 fn get_wallet_subcommand<'a>(
@@ -211,8 +214,8 @@ fn get_wallet_subcommand<'a>(
 		_ => ArgMatches::new(),
 	}
 }
-//
-// Helper to create an instance of the LMDB wallet
+
+/// Helper to create an instance of the LMDB wallet
 #[allow(dead_code)]
 pub fn instantiate_wallet(
 	mut wallet_config: WalletConfig,
@@ -275,21 +278,10 @@ pub fn execute_command(
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
 	let config = initial_setup_wallet(test_dir, wallet_name);
-	let mut wallet_config = config.clone().members.unwrap().wallet;
-	let tor_config = config.clone().members.unwrap().tor;
-	//unset chain type so it doesn't get reset
-	wallet_config.chain_type = None;
-	wallet_args::wallet_command(
-		&args,
-		wallet_config.clone(),
-		tor_config,
-		client.clone(),
-		true,
-		|_| {},
-	)
+	wallet_args::wallet_command(&args, config, client.clone(), true, |_| {})
 }
 
-// as above, but without necessarily setting up the wallet
+/// As above, but without necessarily setting up the wallet
 #[allow(dead_code)]
 pub fn execute_command_no_setup<C, F>(
 	app: &App,
@@ -307,13 +299,14 @@ where
 {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
-	let config = config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
-	let mut wallet_config = config.clone().members.unwrap().wallet;
+	let mut config =
+		config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
+	let mut wallet_config = config.clone().members.wallet;
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;
 	wallet_config.node_api_secret_path = None;
-	let tor_config = config.members.unwrap().tor.clone();
-	wallet_args::wallet_command(&args, wallet_config, tor_config, client.clone(), true, f)
+	config.members.wallet = wallet_config;
+	wallet_args::wallet_command(&args, config, client.clone(), true, f)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>

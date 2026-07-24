@@ -17,9 +17,9 @@ use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, Slate};
 use crate::tor::arti::{start_tor_client, tor_post};
 use crate::tor::bridge::TorBridge;
+use crate::tor::config as tor_config;
 use crate::tor::process::TorProcess;
 use crate::tor::proxy::TorProxy;
-use crate::tor::{config as tor_config, Tor};
 use crate::SlateSender;
 use grin_wallet_config::TorConfig;
 use serde::Serialize;
@@ -34,7 +34,7 @@ use std::sync::Arc;
 pub struct TorSlateSender {
 	base_url: String,
 	config: TorConfig,
-	tor: Arc<Tor>,
+	tor_process: Arc<Option<TorProcess>>,
 }
 
 impl TorSlateSender {
@@ -43,27 +43,29 @@ impl TorSlateSender {
 		if !base_url.starts_with("http") && !base_url.starts_with("https") {
 			Err(Error::GenericError("Scheme must be http".to_string()))
 		} else {
-			let tor_dir = {
-				let mut path = PathBuf::from(&config.send_config_dir);
-				path.push("tor");
-				path.push("sender");
-				path
-			};
 			let tor = if config.use_integrated.unwrap_or(false) {
-				start_tor_client(tor_dir.to_str().unwrap(), config.clone())?
+				start_tor_client(config.clone())?;
+				None
 			} else {
-				Self::launch_tor_process(&config, &tor_dir)?
+				let tor_dir = {
+					let mut path = PathBuf::from(&config.send_config_dir);
+					path.push("tor");
+					path.push("sender");
+					path
+				};
+				let p = Self::launch_tor_process(&config, &tor_dir)?;
+				Some(p)
 			};
 			Ok(TorSlateSender {
 				base_url: base_url.to_owned(),
 				config,
-				tor: Arc::new(tor),
+				tor_process: Arc::new(tor),
 			})
 		}
 	}
 
 	/// Launch external Tor process.
-	fn launch_tor_process(config: &TorConfig, tor_dir: &PathBuf) -> Result<Tor, Error> {
+	fn launch_tor_process(config: &TorConfig, tor_dir: &PathBuf) -> Result<TorProcess, Error> {
 		let mut tor = TorProcess::new();
 		let socks_proxy_addr = SocketAddr::V4(
 			config
@@ -107,11 +109,7 @@ impl TorSlateSender {
 			.completion_percent(100)
 			.launch()
 			.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-		Ok(Tor {
-			process: Some(tor),
-			service: None,
-			client: None,
-		})
+		Ok(tor)
 	}
 
 	/// Check version of the listening wallet
@@ -177,7 +175,7 @@ impl TorSlateSender {
 	where
 		IN: Serialize,
 	{
-		let res = if self.tor.process.is_some() {
+		let res = if self.tor_process.is_some() {
 			let socks_proxy_addr =
 				SocketAddr::V4(self.config.socks_proxy_addr.parse().map_err(|_| {
 					ClientError::Internal("Socks proxy address is not set".to_string())
@@ -189,12 +187,8 @@ impl TorSlateSender {
 			let res = client.send_request(req)?;
 			res
 		} else {
-			if let Some(client) = &self.tor.client {
-				tor_post(client.clone(), &self.config, &input, url)
-					.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
-			} else {
-				return Err(ClientError::Internal("Tor is not configured".to_string()));
-			}
+			tor_post(&self.config, &input, url)
+				.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
 		};
 		Ok(res)
 	}
