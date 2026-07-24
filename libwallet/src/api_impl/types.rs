@@ -78,7 +78,7 @@ pub struct InitTxArgs {
 	pub ttl_blocks: Option<u64>,
 	/// If set, require a payment proof for the particular recipient
 	#[serde(default)]
-	pub payment_proof_recipient_address: Option<String>,
+	pub payment_proof_recipient_address: Option<SlatepackAddress>,
 	/// If true, just return an estimate of the resulting slate, containing fees and amounts
 	/// locked without actually locking outputs or creating the transaction. Note if this is set to
 	/// 'true', the amount field in the slate will contain the total amount locked, not the provided

@@ -94,7 +94,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
-			payment_proof_recipient_address: Some(address.as_ref().unwrap().to_string()),
+			payment_proof_recipient_address: address.clone(),
 			..Default::default()
 		};
 		let slate_i = sender_api.init_send_tx(m, args)?;

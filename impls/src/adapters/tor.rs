@@ -124,6 +124,7 @@ impl TorSlateSender {
 		});
 
 		let res: String = self.post(url, req).map_err(|e| {
+			println!("{}", format!("{:?}", e));
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {

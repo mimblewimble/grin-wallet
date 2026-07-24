@@ -399,6 +399,10 @@ where
 			display::estimate(amount, strategies, dark_scheme);
 			return Ok(());
 		} else {
+			let payment_proof_recipient_address = match args.payment_proof_address {
+				None => None,
+				Some(a) => Some(SlatepackAddress::try_from(a.as_str())?),
+			};
 			let init_args = InitTxArgs {
 				src_acct_name: None,
 				amount,
@@ -408,7 +412,7 @@ where
 				num_change_outputs: args.change_outputs as u32,
 				selection_strategy_is_use_all: args.selection_strategy == "all",
 				target_slate_version: args.target_slate_version,
-				payment_proof_recipient_address: args.payment_proof_address.clone(),
+				payment_proof_recipient_address,
 				ttl_blocks: args.ttl_blocks,
 				send_args: None,
 				late_lock: Some(args.late_lock),

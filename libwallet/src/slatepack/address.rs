@@ -75,6 +75,13 @@ impl SlatepackAddress {
 		let x_key = xDalekPublicKey::try_from(self)?;
 		Ok(bech32::encode("age", x_key.as_bytes().to_base32())?.to_string())
 	}
+
+	/// Check if address network is valid.
+	pub fn valid_network(&self) -> Result<bool, Error> {
+		let encoded = self.to_string();
+		let (hrp, _) = bech32::decode(&encoded)?;
+		Ok(valid_network(hrp))
+	}
 }
 
 impl Display for SlatepackAddress {
@@ -86,17 +93,13 @@ impl Display for SlatepackAddress {
 impl TryFrom<&str> for SlatepackAddress {
 	type Error = Error;
 	fn try_from(encoded: &str) -> Result<Self, Self::Error> {
-		let prefix = match global::get_chain_type() {
-			global::ChainTypes::Mainnet => "grin",
-			_ => "tgrin",
-		};
-		if !encoded.to_lowercase().starts_with(prefix) {
+		let (hrp, data) = bech32::decode(&encoded)?;
+		if !valid_network(hrp.clone()) {
 			return Err(Error::SlatepackAddress(format!(
 				"wrong address prefix for chain {:?}",
 				global::get_chain_type()
 			)));
 		}
-		let (hrp, data) = bech32::decode(&encoded)?;
 		let bytes = Vec::<u8>::from_base32(&data)?;
 		let b = <&[u8; 32]>::try_from(bytes.as_slice())
 			.map_err(|_| Error::SlatepackAddress("Wrong encoded data".to_string()))?;
@@ -250,6 +253,15 @@ impl Readable for SlatepackAddress {
 		};
 		Ok(parsed_addr)
 	}
+}
+
+/// Check if encoded HRP is for valid network.
+fn valid_network(hrp: String) -> bool {
+	let prefix = match global::get_chain_type() {
+		global::ChainTypes::Mainnet => "grin",
+		_ => "tgrin",
+	};
+	prefix == hrp
 }
 
 #[test]
