@@ -37,6 +37,15 @@ args:
       short: r
       long: api_server_address
       takes_value: true
+  - embedded_node:
+      help: Start and use a Grin node in the wallet process
+      long: embedded-node
+      takes_value: false
+  - node_config:
+      help: Path to grin-server.toml for the embedded node
+      long: node-config
+      takes_value: true
+      requires: embedded_node
 subcommands:
   - cli:
       about: Start the wallet in interactive CLI mode (EXPERIMENTAL and UNDER DEVELOPMENT)

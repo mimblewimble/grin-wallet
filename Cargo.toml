@@ -38,11 +38,15 @@ grin_wallet_config = { path = "./config", version = "5.4.1" }
 ##### Grin Imports
 
 grin_core = { path = "grin/core"}
+grin_config = { path = "grin/config"}
 grin_keychain = { path = "grin/keychain"}
 grin_util = { path = "grin/util"}
 grin_api = { path = "grin/api"}
+grin_servers = { path = "grin/servers"}
 
 ###### 
+
+tokio = { version = "1", features = ["sync"] }
 
 [build-dependencies]
 built = { version = "0.8.0", features = ["git2"]}
