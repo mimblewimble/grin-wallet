@@ -41,15 +41,18 @@ pub struct SlatepackAddress {
 	pub pub_key: edDalekPublicKey,
 }
 
+fn slatepack_hrp() -> &'static str {
+	match global::get_chain_type() {
+		global::ChainTypes::Mainnet => "grin",
+		_ => "tgrin",
+	}
+}
+
 impl SlatepackAddress {
 	/// new with default hrp
 	pub fn new(pub_key: &edDalekPublicKey) -> Self {
-		let hrp = match global::get_chain_type() {
-			global::ChainTypes::Mainnet => "grin",
-			_ => "tgrin",
-		};
 		Self {
-			hrp: String::from(hrp),
+			hrp: String::from(slatepack_hrp()),
 			pub_key: pub_key.clone(),
 		}
 	}
@@ -258,11 +261,7 @@ impl Readable for SlatepackAddress {
 
 /// Check if encoded HRP is for valid network.
 fn valid_network(hrp: &str) -> bool {
-	let prefix = match global::get_chain_type() {
-		global::ChainTypes::Mainnet => "grin",
-		_ => "tgrin",
-	};
-	prefix == hrp
+	slatepack_hrp() == hrp
 }
 
 #[test]
