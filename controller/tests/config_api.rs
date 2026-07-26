@@ -129,7 +129,7 @@ fn send_preflight() {
 	let args = InitTxArgs {
 		amount: 1,
 		send_args: Some(InitTxSendArgs {
-			dest: "unused".into(),
+			dest: "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp".into(),
 			post_tx: false,
 			fluff: false,
 			skip_tor: Some(true),

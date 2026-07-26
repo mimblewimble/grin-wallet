@@ -132,7 +132,7 @@ subcommands:
             default_value: "1"
             takes_value: true
         - dest:
-            help: Intended recipient's Slatepack Address (or http listener address (DEPRECATED))
+            help: Intended recipient's Slatepack Address
             short: d
             long: dest
             takes_value: true

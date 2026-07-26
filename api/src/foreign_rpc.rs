@@ -22,6 +22,7 @@ use crate::libwallet::{
 use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc_mw;
 use grin_wallet_config::initial_setup_wallet;
+use libwallet::SlatepackAddress;
 use std::path::PathBuf;
 
 /// Public definition used to generate Foreign jsonrpc api.
@@ -311,6 +312,16 @@ where
 	) -> Result<VersionedSlate, Error> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
+		let dest = match dest {
+			None => None,
+			Some(a) => match SlatepackAddress::try_from(a.as_str()) {
+				Ok(d) => Some(d),
+				Err(_) => {
+					error!("Error parsing Slatepack address: {}", a);
+					None
+				}
+			},
+		};
 		let out_slate = Foreign::receive_tx(
 			self,
 			&slate_from,

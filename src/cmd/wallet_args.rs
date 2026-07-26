@@ -466,7 +466,11 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let late_lock = args.is_present("late_lock");
 
 	// dest
-	let dest = args.value_of("dest").unwrap_or_else(|| "default");
+	let dest = if let Some(dest) = args.value_of("dest") {
+		Some(dest.to_owned())
+	} else {
+		None
+	};
 
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
@@ -493,17 +497,16 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	};
 
 	let payment_proof_address = {
-		match args.is_present("no_payment_proof") {
-			false => match SlatepackAddress::try_from(dest) {
-				Ok(a) => Some(a),
-				Err(_) => {
-					if !estimate_selection_strategies {
-						println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
-					}
-					None
-				}
-			},
-			true => None,
+		if let Some(a) = dest.clone() {
+			match args.is_present("no_payment_proof") {
+				false => Some(a),
+				true => None,
+			}
+		} else {
+			if !estimate_selection_strategies {
+				println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
+			}
+			None
 		}
 	};
 
@@ -530,7 +533,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
 		late_lock,
-		dest: dest.to_owned(),
+		dest,
 		change_outputs,
 		fluff,
 		max_outputs,
@@ -692,14 +695,18 @@ pub fn parse_issue_invoice_args(
 	};
 
 	// dest, for encryption
-	let dest = args.value_of("dest").unwrap_or_else(|| "default");
+	let dest = if let Some(dest) = args.value_of("dest") {
+		Some(dest.to_owned())
+	} else {
+		None
+	};
 
 	let outfile = parse_optional(args, "outfile")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
 
 	Ok(command::IssueInvoiceArgs {
-		dest: dest.into(),
+		dest,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,
@@ -791,6 +798,12 @@ pub fn parse_process_invoice_args(
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
+
+	let ret_address = if let Some(a) = ret_address {
+		Some(a.to_string())
+	} else {
+		None
+	};
 
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,

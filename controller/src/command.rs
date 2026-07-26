@@ -33,7 +33,6 @@ use crate::{controller, display};
 
 use qr_code::QrCode;
 use serde_json as json;
-use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::atomic::Ordering;
@@ -315,12 +314,12 @@ pub struct SendArgs {
 	pub selection_strategy: String,
 	pub estimate_selection_strategies: bool,
 	pub late_lock: bool,
-	pub dest: String,
+	pub dest: Option<String>,
 	pub change_outputs: usize,
 	pub fluff: bool,
 	pub max_outputs: usize,
 	pub target_slate_version: Option<u16>,
-	pub payment_proof_address: Option<SlatepackAddress>,
+	pub payment_proof_address: Option<String>,
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: Option<bool>,
 	pub outfile: Option<String>,
@@ -341,6 +340,15 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let dest = if args.estimate_selection_strategies {
+		None
+	} else {
+		args.dest
+			.as_deref()
+			.map(SlatepackAddress::try_from)
+			.transpose()?
+	};
+
 	let mut slate = Slate::blank(2, false);
 	let mut amount = args.amount;
 	if args.use_max_amount {
@@ -369,6 +377,11 @@ where
 			.collect::<Result<Vec<_>, grin_wallet_libwallet::Error>>()?;
 		display::estimate(amount, strategies, dark_scheme);
 	} else {
+		let payment_proof_recipient_address = args
+			.payment_proof_address
+			.as_deref()
+			.map(SlatepackAddress::try_from)
+			.transpose()?;
 		let init_args = InitTxArgs {
 			src_acct_name: None,
 			amount,
@@ -378,7 +391,7 @@ where
 			num_change_outputs: args.change_outputs as u32,
 			selection_strategy_is_use_all: args.selection_strategy == "all",
 			target_slate_version: args.target_slate_version,
-			payment_proof_recipient_address: args.payment_proof_address.clone(),
+			payment_proof_recipient_address,
 			ttl_blocks: args.ttl_blocks,
 			send_args: None,
 			late_lock: Some(args.late_lock),
@@ -390,7 +403,9 @@ where
 				info!(
 					"Tx created: {} grin to {} (strategy '{}')",
 					core::amount_to_hr_string(amount, false),
-					args.dest,
+					dest.as_ref()
+						.map(ToString::to_string)
+						.unwrap_or_else(|| "no destination".to_string()),
 					args.selection_strategy,
 				);
 				s
@@ -415,7 +430,7 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			args.dest.as_str(),
+			dest.clone(),
 			args.outfile,
 			true,
 			false,
@@ -424,11 +439,12 @@ where
 	};
 
 	let can_send = tor_config.send_tor(args.skip_tor);
-	if test_mode || !can_send {
+	if test_mode || !can_send || dest.is_none() {
 		return output_sp();
 	}
 
-	let res = try_slatepack_sync_workflow(&slate, &args.dest, Some(tor_config), None, false);
+	let dest = dest.as_ref().unwrap();
+	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, false);
 
 	match res {
 		Ok(s) => {
@@ -457,7 +473,7 @@ pub fn output_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	dest: &str,
+	dest: Option<SlatepackAddress>,
 	out_file_override: Option<String>,
 	lock: bool,
 	finalizing: bool,
@@ -469,12 +485,8 @@ where
 	K: keychain::Keychain + 'static,
 {
 	// Output the slatepack file to stdout and to a file
-	let address = match SlatepackAddress::try_from(dest) {
-		Ok(a) => Some(a),
-		Err(_) => None,
-	};
 	// encrypt for recipient by default
-	let recipients = match address.clone() {
+	let recipients = match dest.clone() {
 		Some(a) => vec![a],
 		None => vec![],
 	};
@@ -520,7 +532,7 @@ where
 			println!();
 		}
 	}
-	if address.is_some() {
+	if dest.is_some() {
 		println!("The slatepack data is encrypted for the recipient only");
 	} else {
 		println!("The slatepack data is NOT encrypted");
@@ -638,17 +650,12 @@ where
 		},
 	)?;
 
-	let dest = match ret_address {
-		Some(a) => String::try_from(&a)?,
-		None => String::from(""),
-	};
-
 	let output_sp = || -> Result<(), Error> {
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
 			&slate,
-			&dest,
+			ret_address.clone(),
 			args.outfile,
 			false,
 			false,
@@ -657,11 +664,12 @@ where
 	};
 
 	let can_send = tor_config.send_tor(args.skip_tor);
-	if test_mode || !can_send {
+	if test_mode || !can_send || ret_address.is_none() {
 		return output_sp();
 	}
 
-	let res = try_slatepack_sync_workflow(&slate, &dest, Some(tor_config), None, true);
+	let dest = ret_address.as_ref().unwrap();
+	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, true);
 
 	match res {
 		Ok(s) => {
@@ -829,7 +837,7 @@ where
 		owner_api,
 		keychain_mask,
 		&slate,
-		"",
+		None,
 		args.outfile,
 		false,
 		true,
@@ -842,7 +850,7 @@ where
 /// Issue Invoice Args
 pub struct IssueInvoiceArgs {
 	/// Slatepack address
-	pub dest: String,
+	pub dest: Option<String>,
 	/// issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
 	/// output file override
@@ -861,6 +869,11 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let dest = args
+		.dest
+		.as_deref()
+		.map(SlatepackAddress::try_from)
+		.transpose()?;
 	let issue_args = args.issue_args.clone();
 
 	let slate = owner_api.issue_invoice_tx(keychain_mask, issue_args)?;
@@ -869,7 +882,7 @@ where
 		owner_api,
 		keychain_mask,
 		&slate,
-		args.dest.as_str(),
+		dest,
 		args.outfile,
 		false,
 		false,
@@ -882,7 +895,7 @@ where
 pub struct ProcessInvoiceArgs {
 	pub minimum_confirmations: u64,
 	pub selection_strategy: String,
-	pub ret_address: Option<SlatepackAddress>,
+	pub ret_address: Option<String>,
 	pub max_outputs: usize,
 	pub slate: Slate,
 	pub estimate_selection_strategies: bool,
@@ -907,11 +920,12 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	let ret_address = args
+		.ret_address
+		.as_deref()
+		.map(SlatepackAddress::try_from)
+		.transpose()?;
 	let mut slate = args.slate.clone();
-	let dest = match args.ret_address.clone() {
-		Some(a) => String::try_from(&a)?,
-		None => String::from(""),
-	};
 
 	if args.estimate_selection_strategies {
 		let strategies = vec!["smallest", "all"]
@@ -970,7 +984,7 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			&dest,
+			ret_address.clone(),
 			args.outfile,
 			true,
 			false,
@@ -979,11 +993,12 @@ where
 	};
 
 	let can_send = tor_config.send_tor(args.skip_tor);
-	if test_mode || !can_send {
+	if test_mode || !can_send || ret_address.is_none() {
 		return output_sp();
 	}
 
-	let res = try_slatepack_sync_workflow(&slate, &dest, Some(tor_config), None, true);
+	let dest = ret_address.as_ref().unwrap();
+	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, true);
 
 	match res {
 		Ok(s) => {

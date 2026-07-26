@@ -41,15 +41,18 @@ pub struct SlatepackAddress {
 	pub pub_key: edDalekPublicKey,
 }
 
+fn slatepack_hrp() -> &'static str {
+	match global::get_chain_type() {
+		global::ChainTypes::Mainnet => "grin",
+		_ => "tgrin",
+	}
+}
+
 impl SlatepackAddress {
 	/// new with default hrp
 	pub fn new(pub_key: &edDalekPublicKey) -> Self {
-		let hrp = match global::get_chain_type() {
-			global::ChainTypes::Mainnet => "grin",
-			_ => "tgrin",
-		};
 		Self {
-			hrp: String::from(hrp),
+			hrp: String::from(slatepack_hrp()),
 			pub_key: pub_key.clone(),
 		}
 	}
@@ -75,11 +78,19 @@ impl SlatepackAddress {
 		let x_key = xDalekPublicKey::try_from(self)?;
 		Ok(bech32::encode("age", x_key.as_bytes().to_base32())?.to_string())
 	}
+
+	/// Check if address network is valid.
+	pub fn valid_network(&self) -> bool {
+		valid_network(&self.hrp)
+	}
 }
 
 impl Display for SlatepackAddress {
 	fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-		formatter.write_str(&String::try_from(self).unwrap())
+		match String::try_from(self) {
+			Ok(encoded) => formatter.write_str(&encoded),
+			Err(_) => formatter.write_str("<invalid Slatepack address>"),
+		}
 	}
 }
 
@@ -87,6 +98,12 @@ impl TryFrom<&str> for SlatepackAddress {
 	type Error = Error;
 	fn try_from(encoded: &str) -> Result<Self, Self::Error> {
 		let (hrp, data) = bech32::decode(&encoded)?;
+		if !valid_network(&hrp) {
+			return Err(Error::SlatepackAddress(format!(
+				"wrong address prefix for chain {:?}",
+				global::get_chain_type()
+			)));
+		}
 		let bytes = Vec::<u8>::from_base32(&data)?;
 		let b = <&[u8; 32]>::try_from(bytes.as_slice())
 			.map_err(|_| Error::SlatepackAddress("Wrong encoded data".to_string()))?;
@@ -242,10 +259,52 @@ impl Readable for SlatepackAddress {
 	}
 }
 
+/// Check if encoded HRP is for valid network.
+fn valid_network(hrp: &str) -> bool {
+	slatepack_hrp() == hrp
+}
+
 #[test]
 fn slatepack_address() -> Result<(), Error> {
 	use rand::{thread_rng, Rng};
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+
+	// Check validation.
+	let bytes: [u8; 32] = thread_rng().gen();
+	let pub_key = edDalekPublicKey::from(&edDalekSecretKey::from_bytes(&bytes));
+	let wrong_net_addr = SlatepackAddress {
+		hrp: "grin".to_string(),
+		pub_key,
+	};
+	assert!(!wrong_net_addr.valid_network());
+	let right_addr = SlatepackAddress {
+		hrp: "tgrin".to_string(),
+		pub_key,
+	};
+	assert!(right_addr.valid_network());
+	let invalid_addr = SlatepackAddress {
+		hrp: "invalid hrp".to_string(),
+		pub_key,
+	};
+	assert!(!invalid_addr.valid_network());
+	assert_eq!(invalid_addr.to_string(), "<invalid Slatepack address>");
+
+	let valid_addr = "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp";
+	let parsed_valid_addr = SlatepackAddress::try_from(valid_addr);
+	assert!(parsed_valid_addr.is_ok());
+
+	let valid_addr2 = "TGRIN1XTXAVWFGS48CKF3GK8WWGCNDMN0NT4TVKL8A7LTYEJJCY2MC6NFS9GM2LP";
+	let parsed_valid_addr2 = SlatepackAddress::try_from(valid_addr2);
+	assert!(parsed_valid_addr2.is_ok());
+
+	let invalid_addr = "slatepack10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7";
+	let parsed_invalid_addr = SlatepackAddress::try_from(invalid_addr);
+	assert!(parsed_invalid_addr.is_err());
+
+	let wrong_net_addr = "grin1dvge9z4uqgqlpspmljrd7smh3grrw9xu2r9lkz3u67s3emj3ud2sd5gk9p";
+	let parsed_wrong_net_addr = SlatepackAddress::try_from(wrong_net_addr);
+	assert!(parsed_wrong_net_addr.is_err());
+
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
 	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes);

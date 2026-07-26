@@ -470,6 +470,19 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	let payment_proof_address = if let Some(a) = &args.payment_proof_recipient_address {
+		if a.valid_network() {
+			Some(a)
+		} else {
+			return Err(Error::PaymentProofRetrieval(format!(
+				"Wrong network for address {}",
+				a
+			)));
+		}
+	} else {
+		None
+	};
+
 	let parent_key_id = match &args.src_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d.clone())?;
@@ -539,7 +552,7 @@ where
 	// probably want to allow sender to specify which one
 	let deriv_path = 0u32;
 
-	if let Some(a) = args.payment_proof_recipient_address {
+	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
 		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
