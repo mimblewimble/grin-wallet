@@ -14,9 +14,9 @@
 
 //! Foreign API External Definition
 
-use crate::config::TorConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
+use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,
@@ -24,7 +24,8 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
-use libwallet::api_impl::types::update_tx_slate_state;
+use libwallet::SlatepackAddress;
+
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -67,15 +68,14 @@ where
 {
 	/// Wallet instance
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	/// Wallet configuration path
+	config_path: crate::ConfigPath,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
 	/// foreign check middleware
 	middleware: Option<ForeignCheckMiddleware>,
 	/// Stored keychain mask (in case the stored wallet seed is tokenized)
 	keychain_mask: Option<SecretKey>,
-	/// Optional TOR configuration, holding address of sender and
-	/// data directory
-	tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<'a, L, C, K> Foreign<'a, L, C, K>
@@ -95,6 +95,7 @@ where
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
 	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	/// * `config_path` - Path to the wallet configuration file
 	/// * `keychain_mask` - Mask value stored internally to use when calling a wallet
 	/// whose seed has been XORed with a token value (such as when running the foreign
 	/// and owner listeners in the same instance)
@@ -106,6 +107,7 @@ where
 	///
 	/// # Example
 	/// ```
+	/// use std::path::PathBuf;
 	/// use grin_keychain as keychain;
 	/// use grin_util as util;
 	/// use grin_core;
@@ -164,37 +166,28 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_foreign = Foreign::new(wallet.clone(), None, None, false);
+	/// let api_foreign = Foreign::new(wallet.clone(), PathBuf::from(dir).join("grin-wallet.toml"), None, None, false);
 	/// // .. perform wallet operations
 	///
 	/// ```
 
-	pub fn new(
+	pub fn new<P>(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		config_path: P,
 		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
 		doctest_mode: bool,
-	) -> Self {
+	) -> Self
+	where
+		P: Into<crate::ConfigPath>,
+	{
 		Foreign {
 			wallet_inst,
+			config_path: config_path.into(),
 			doctest_mode,
 			middleware,
 			keychain_mask,
-			tor_config: Mutex::new(None),
 		}
-	}
-
-	/// Set the TOR configuration for this instance of the ForeignAPI, used during
-	/// `recieve_tx` when a return address is specified
-	///
-	/// # Arguments
-	/// * `tor_config` - The optional [TorConfig](#) to use
-	/// # Returns
-	/// * Nothing
-
-	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
-		let mut lock = self.tor_config.lock();
-		*lock = tor_config;
 	}
 
 	/// Return the version capabilities of the running ForeignApi Node
@@ -207,7 +200,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	///
 	/// let version_info = api_foreign.check_version();
 	/// // check and proceed accordingly
@@ -259,7 +252,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	///
 	/// let block_fees = BlockFees {
 	///     fees: 800000,
@@ -334,7 +327,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	/// # let slate = Slate::blank(2, false);
 	///
 	/// // . . .
@@ -351,9 +344,13 @@ where
 		&self,
 		slate: &Slate,
 		dest_acct_name: Option<&str>,
-		r_addr: Option<String>,
+		r_addr: Option<SlatepackAddress>,
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
+		let tor_config = r_addr
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path.get()))
+			.transpose()?;
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
@@ -371,16 +368,14 @@ where
 		)?;
 		match r_addr {
 			Some(a) => {
-				let tc = self.tor_config.lock();
-				let can_send = if let Some(tc) = tc.as_ref() {
-					tc.send_tor(None)
-				} else {
-					false
-				};
+				let tc = tor_config.ok_or_else(|| {
+					Error::TorConfig("Tor config was not loaded with a return address".into())
+				})?;
+				let can_send = tc.send_tor(None);
 				if self.doctest_mode || !can_send {
 					return Ok(ret_slate);
 				}
-				let res = try_slatepack_sync_workflow(&ret_slate, &a, tc.clone(), None, true);
+				let res = try_slatepack_sync_workflow(&ret_slate, &a, Some(tc), None, true);
 				match res {
 					Ok(s) => {
 						let parent_key_id = w.parent_key_id();
@@ -433,8 +428,8 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
-	/// let mut api_foreign = Foreign::new(wallet.clone(), None, None, false);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let mut api_foreign = Foreign::new(wallet.clone(), std::path::PathBuf::from("grin-wallet.toml"), None, None, false);
 	///
 	/// // . . .
 	/// // Issue the invoice tx via the owner API

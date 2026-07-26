@@ -21,6 +21,7 @@ extern crate log;
 extern crate grin_wallet;
 
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use std::path::PathBuf;
 
 use clap::App;
 use std::thread;
@@ -60,7 +61,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// add wallet to proxy
 	//let wallet1 = test_framework::create_wallet(&format!("{}/wallet1", test_dir), client1.clone());
 	let config1 = initial_setup_wallet(test_dir, "wallet1");
-	let wallet_config1 = config1.clone().members.unwrap().wallet;
+	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) = instantiate_wallet(
 		wallet_config1.clone(),
 		client1.clone(),
@@ -80,7 +81,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 	let config2 = initial_setup_wallet(test_dir, "wallet2");
-	let wallet_config2 = config2.clone().members.unwrap().wallet;
+	let wallet_config2 = config2.clone().members.wallet;
 	let (wallet2, mask2_i) = instantiate_wallet(
 		wallet_config2.clone(),
 		client2.clone(),
@@ -148,14 +149,14 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	// Mine a bit into wallet 1 so we have something to send
 	// (TODO: Be able to stop listeners so we can test this better)
-	let wallet_config1 = config1.clone().members.unwrap().wallet;
+	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) =
 		instantiate_wallet(wallet_config1, client1.clone(), "password1", "default")?;
 	let mask1 = (&mask1_i).as_ref();
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			Ok(())
@@ -222,7 +223,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 	bh += 1;
 
-	let wallet_config1 = config1.clone().members.unwrap().wallet;
+	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) = instantiate_wallet(
 		wallet_config1.clone(),
 		client1.clone(),
@@ -233,9 +234,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	// Check our transaction log, should have 10 entries
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
@@ -259,7 +260,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet2", &client1, arg_vec)?;
 
 	// check results in wallet 2
-	let wallet_config2 = config2.clone().members.unwrap().wallet;
+	let wallet_config2 = config2.clone().members.wallet;
 	let (wallet2, mask2_i) = instantiate_wallet(
 		wallet_config2.clone(),
 		client2.clone(),
@@ -269,9 +270,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mask2 = (&mask2_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet2.clone()),
+		wallet2.clone(),
 		mask2,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "account_1")?;
 			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
@@ -284,9 +285,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// Send to wallet 2 with --amount_includes_fee
 	let mut old_balance = 0;
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
@@ -344,9 +345,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// Check the new balance of wallet 1 reduced by EXACTLY the tx amount (instead of amount + fee)
 	// This confirms that the TX amount was correctly computed to allow for the fee
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
@@ -421,7 +422,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	bh += 1;
 
 	// Check our transaction log, should have bh entries
-	let wallet_config1 = config1.clone().members.unwrap().wallet;
+	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) = instantiate_wallet(
 		wallet_config1.clone(),
 		client1.clone(),
@@ -431,9 +432,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mask1 = (&mask1_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
@@ -494,7 +495,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	bh += 1;
 
 	// Check our transaction log, should have bh entries + 1 for self-seld
-	let wallet_config1 = config1.clone().members.unwrap().wallet;
+	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) = instantiate_wallet(
 		wallet_config1.clone(),
 		client1.clone(),
@@ -504,9 +505,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mask1 = (&mask1_i).as_ref();
 
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			let (refreshed, txs) = api.retrieve_txs(m, true, None, None, None)?;
@@ -629,9 +630,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// get tx output via -tx parameter
 	let mut tx_id = "".to_string();
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet2.clone()),
+		wallet2.clone(),
 		mask2,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "default")?;
 			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
@@ -696,9 +697,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// and recently matured coinbase outputs, which were not mature at time of spending.
 	// This confirms that the TX amount was correctly computed to allow for the fee
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet1.clone()),
+		wallet1.clone(),
 		mask1,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			api.set_active_account(m, "mining")?;
 			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 10)?;

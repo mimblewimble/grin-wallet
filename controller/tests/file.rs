@@ -19,6 +19,7 @@ extern crate grin_wallet_impls as impls;
 
 use grin_core as core;
 use grin_wallet_libwallet as libwallet;
+use std::path::PathBuf;
 
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
@@ -75,18 +76,28 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.create_account_path(m, "mining")?;
-		api.create_account_path(m, "listener")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "mining")?;
+			api.create_account_path(m, "listener")?;
+			Ok(())
+		},
+	)?;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		api.create_account_path(m, "account1")?;
-		api.create_account_path(m, "account2")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "account1")?;
+			api.create_account_path(m, "account2")?;
+			Ok(())
+		},
+	)?;
 
 	// Get some mining done
 	{
@@ -111,27 +122,32 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	};
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward);
-		// send to send
-		let args = InitTxArgs {
-			src_acct_name: Some("mining".to_owned()),
-			amount: reward * 2,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			..Default::default()
-		};
-		let slate = api.init_send_tx(m, args)?;
-		// output tx file
-		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
-		api.tx_lock_outputs(m, &slate)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, bh * reward);
+			// send to send
+			let args = InitTxArgs {
+				src_acct_name: Some("mining".to_owned()),
+				amount: reward * 2,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			let slate = api.init_send_tx(m, args)?;
+			// output tx file
+			PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
+			api.tx_lock_outputs(m, &slate)?;
+			Ok(())
+		},
+	)?;
 
 	// Get some mining done
 	{
@@ -142,43 +158,63 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	let mut slate = PathToSlate((&send_file).into()).get_tx()?.0;
 
 	// wallet 2 receives file, completes, sends file back
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = api.receive_tx(&slate, None, None)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
-		Ok(())
-	})?;
+	wallet::controller::foreign_single_use(
+		wallet2.clone(),
+		PathBuf::from(test_dir),
+		mask2_i.clone(),
+		|api| {
+			slate = api.receive_tx(&slate, None, None)?;
+			PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
+			Ok(())
+		},
+	)?;
 
 	// wallet 1 finalises and posts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let mut slate = PathToSlate(receive_file.into()).get_tx()?.0;
-		slate = api.finalize_tx(m, &slate)?;
-		// Output final file for reference
-		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
-		api.post_tx(m, &slate, false)?;
-		bh += 1;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let mut slate = PathToSlate(receive_file.into()).get_tx()?.0;
+			slate = api.finalize_tx(m, &slate)?;
+			// Output final file for reference
+			PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
+			api.post_tx(m, &slate, false)?;
+			bh += 1;
+			Ok(())
+		},
+	)?;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 	bh += 3;
 
 	// Check total in mining account
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward - reward * 2);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, bh * reward - reward * 2);
+			Ok(())
+		},
+	)?;
 
 	// Check total in 'wallet 2' account
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet2_refreshed);
-		assert_eq!(wallet2_info.last_confirmed_height, bh);
-		assert_eq!(wallet2_info.total, 2 * reward);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet2_refreshed);
+			assert_eq!(wallet2_info.last_confirmed_height, bh);
+			assert_eq!(wallet2_info.total, 2 * reward);
+			Ok(())
+		},
+	)?;
 
 	// Now other types of exchange, for reference
 	// Invoice transaction
@@ -197,43 +233,63 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 
 	let mut slate = Slate::blank(2, true);
 
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		let args = IssueInvoiceTxArgs {
-			amount: 1000000000,
-			..Default::default()
-		};
-		slate = api.issue_invoice_tx(m, args)?;
-		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let args = IssueInvoiceTxArgs {
+				amount: 1000000000,
+				..Default::default()
+			};
+			slate = api.issue_invoice_tx(m, args)?;
+			PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let args = InitTxArgs {
-			src_acct_name: None,
-			amount: slate.amount,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			..Default::default()
-		};
-		slate = PathToSlate((&send_file).into()).get_tx()?.0;
-		slate = api.process_invoice_tx(m, &slate, args)?;
-		api.tx_lock_outputs(m, &slate)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
-		Ok(())
-	})?;
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		// Wallet 2 receives the invoice transaction
-		slate = PathToSlate((&receive_file).into()).get_tx()?.0;
-		slate = api.finalize_tx(&slate, false)?;
-		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
-		Ok(())
-	})?;
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.post_tx(m, &slate, false)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let args = InitTxArgs {
+				src_acct_name: None,
+				amount: slate.amount,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			slate = PathToSlate((&send_file).into()).get_tx()?.0;
+			slate = api.process_invoice_tx(m, &slate, args)?;
+			api.tx_lock_outputs(m, &slate)?;
+			PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
+			Ok(())
+		},
+	)?;
+	wallet::controller::foreign_single_use(
+		wallet2.clone(),
+		PathBuf::from(test_dir),
+		mask2_i.clone(),
+		|api| {
+			// Wallet 2 receives the invoice transaction
+			slate = PathToSlate((&receive_file).into()).get_tx()?.0;
+			slate = api.finalize_tx(&slate, false)?;
+			PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
+			Ok(())
+		},
+	)?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.post_tx(m, &slate, false)?;
+			Ok(())
+		},
+	)?;
 
 	// Standard, with payment proof
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
@@ -251,46 +307,66 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	};
 	let mut slate = Slate::blank(2, true);
 	let mut address = None;
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, m| {
-		address = Some(api.get_slatepack_address(m, 0)?);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			address = Some(api.get_slatepack_address(m, 0)?);
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		// send to send
-		let args = InitTxArgs {
-			src_acct_name: Some("mining".to_owned()),
-			amount: reward,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			payment_proof_recipient_address: address.clone(),
-			..Default::default()
-		};
-		let slate = api.init_send_tx(m, args)?;
-		PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
-		api.tx_lock_outputs(m, &slate)?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			// send to send
+			let args = InitTxArgs {
+				src_acct_name: Some("mining".to_owned()),
+				amount: reward,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				payment_proof_recipient_address: address.clone(),
+				..Default::default()
+			};
+			let slate = api.init_send_tx(m, args)?;
+			PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
+			api.tx_lock_outputs(m, &slate)?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::foreign_single_use(wallet2.clone(), mask2_i.clone(), |api| {
-		slate = PathToSlate((&send_file).into()).get_tx()?.0;
-		slate = api.receive_tx(&slate, None, None)?;
-		PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
-		Ok(())
-	})?;
+	wallet::controller::foreign_single_use(
+		wallet2.clone(),
+		PathBuf::from(test_dir),
+		mask2_i.clone(),
+		|api| {
+			slate = PathToSlate((&send_file).into()).get_tx()?.0;
+			slate = api.receive_tx(&slate, None, None)?;
+			PathToSlate((&receive_file).into()).put_tx(&slate, use_bin)?;
+			Ok(())
+		},
+	)?;
 
 	// wallet 1 finalises and posts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		slate = PathToSlate(receive_file.into()).get_tx()?.0;
-		slate = api.finalize_tx(m, &slate)?;
-		// Output final file for reference
-		PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
-		api.post_tx(m, &slate, false)?;
-		bh += 1;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			slate = PathToSlate(receive_file.into()).get_tx()?.0;
+			slate = api.finalize_tx(m, &slate)?;
+			// Output final file for reference
+			PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
+			api.post_tx(m, &slate, false)?;
+			bh += 1;
+			Ok(())
+		},
+	)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

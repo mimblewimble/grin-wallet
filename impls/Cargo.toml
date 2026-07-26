@@ -35,6 +35,7 @@ url = "2.1"
 arti-client = { version = "0.44.0", features = ["static", "pt-client", "onion-service-service", "onion-service-client"] }
 tor-rtcompat = { version = "0.44.0", features = ["static"] }
 fs-mistrust = "0.15.0"
+fslock-guard = "0.8"
 tor-hsservice = "0.44.0"
 tor-hsrproxy = "0.44.0"
 tor-keymgr = "0.44.0"

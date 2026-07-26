@@ -21,6 +21,9 @@ use crate::libwallet::{
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
 use easy_jsonrpc_mw;
+use grin_wallet_config::initial_setup_wallet;
+use libwallet::SlatepackAddress;
+use std::path::PathBuf;
 
 /// Public definition used to generate Foreign jsonrpc api.
 /// * When running `grin-wallet listen` with defaults, the V2 api is available at
@@ -309,6 +312,16 @@ where
 	) -> Result<VersionedSlate, Error> {
 		let version = in_slate.version();
 		let slate_from = Slate::from(in_slate);
+		let dest = match dest {
+			None => None,
+			Some(a) => match SlatepackAddress::try_from(a.as_str()) {
+				Ok(d) => Some(d),
+				Err(_) => {
+					error!("Error parsing Slatepack address: {}", a);
+					None
+				}
+			},
+		};
 		let out_slate = Foreign::receive_tx(
 			self,
 			&slate_from,
@@ -363,6 +376,14 @@ pub fn run_doctest_foreign(
 	util::init_test_logger();
 	let _ = fs::remove_dir_all(test_dir);
 	global::set_local_chain_type(ChainTypes::AutomatedTesting);
+
+	let _ = fs::create_dir_all(test_dir);
+	let config = initial_setup_wallet(
+		&ChainTypes::AutomatedTesting,
+		Some(PathBuf::from(test_dir)),
+		false,
+	)
+	.unwrap();
 
 	let mut wallet_proxy: WalletProxy<
 		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
@@ -512,8 +533,20 @@ pub fn run_doctest_foreign(
 	}
 
 	let mut api_foreign = match init_invoice_tx {
-		false => Foreign::new(wallet1, mask1, Some(test_check_middleware), true),
-		true => Foreign::new(wallet2, mask2, Some(test_check_middleware), true),
+		false => Foreign::new(
+			wallet1,
+			config.config_file_path,
+			mask1,
+			Some(test_check_middleware),
+			true,
+		),
+		true => Foreign::new(
+			wallet2,
+			config.config_file_path,
+			mask2,
+			Some(test_check_middleware),
+			true,
+		),
 	};
 	api_foreign.doctest_mode = true;
 	let foreign_api = &api_foreign as &dyn ForeignRpc;

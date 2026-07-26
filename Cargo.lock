@@ -2540,10 +2540,13 @@ dependencies = [
  "dirs 2.0.2",
  "grin_core",
  "grin_util",
+ "lazy_static",
  "rand 0.6.5",
  "serde",
  "serde_derive",
+ "tempfile",
  "toml 0.5.11",
+ "toml_edit 0.22.27",
 ]
 
 [[package]]
@@ -2588,6 +2591,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "fs-mistrust",
+ "fslock-guard",
  "futures 0.3.32",
  "grin_api",
  "grin_chain",

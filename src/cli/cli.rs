@@ -19,7 +19,8 @@ use clap::App;
 //use colored::Colorize;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_config::config::get_global_config;
+use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::Error;
 use grin_wallet_impls::DefaultWalletImpl;
@@ -107,10 +108,9 @@ pub fn start_updater_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
 }
 
 pub fn command_loop<L, C, K>(
+	config: GlobalWalletConfig,
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
-	wallet_config: &WalletConfig,
-	tor_config: &TorConfig,
 	global_wallet_args: &GlobalArgs,
 	test_mode: bool,
 ) -> Result<(), Error>
@@ -151,7 +151,7 @@ where
 
 	// catch updater messages
 	let (tx, rx) = channel();
-	let mut owner_api = Owner::new(wallet_inst, Some(tx));
+	let mut owner_api = Owner::new(wallet_inst, Some(tx), config.config_file_path.clone());
 	start_updater_thread(rx)?;
 
 	// start the automatic updater
@@ -218,11 +218,15 @@ where
 							}
 							_ => keychain_mask,
 						};
+						let config = get_global_config(&config.config_file_path)
+							.map_err(|e| Error::GenericError(e.to_string()))?;
+						let tor_config = config.tor_config();
+						let wallet_config = config.members.wallet;
 						match wallet_args::parse_and_execute(
 							&mut owner_api,
 							keychain_mask.clone(),
 							&wallet_config,
-							&tor_config,
+							tor_config,
 							&global_wallet_args,
 							&args,
 							test_mode,
