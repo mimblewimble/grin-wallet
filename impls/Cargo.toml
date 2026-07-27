@@ -22,7 +22,7 @@ ring = "0.17.14"
 chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
 tokio = { version = "1.52.3", features = ["full"] }
-reqwest = { version = "0.13.3", features = ["socks"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["socks", "native-tls", "system-proxy", "charset", "http2"] }
 
 #Socks/Tor/Bridge/Proxy
 ed25519-dalek = "2"
