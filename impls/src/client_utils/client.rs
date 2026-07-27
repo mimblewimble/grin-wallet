@@ -72,7 +72,7 @@ impl Client {
 
 		let mut builder = ClientBuilder::new()
 			.timeout(request_timeout)
-			.use_rustls_tls()
+			.use_native_tls()
 			.default_headers(headers);
 
 		if let Some(p) = proxy {
