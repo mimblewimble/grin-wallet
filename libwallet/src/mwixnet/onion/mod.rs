@@ -14,7 +14,7 @@
 
 //! Onion module definition
 
-mod crypto;
+pub mod crypto;
 pub mod onion;
 pub mod util;
 
@@ -48,7 +48,7 @@ pub struct Hop {
 }
 
 /// Crate a new hop
-#[cfg(test)]
+#[cfg(any(test, feature = "mwixnet-test"))]
 pub fn new_hop(
 	server_key: &SecretKey,
 	hop_excess: &SecretKey,
@@ -119,7 +119,7 @@ pub fn create_onion(
 
 /// Internal tests
 #[allow(missing_docs, dead_code)]
-#[cfg(test)]
+#[cfg(any(test, feature = "mwixnet-test"))]
 pub mod test_util {
 	use super::*;
 	use crypto::dalek::DalekPublicKey;

@@ -9,6 +9,9 @@ keywords = [ "crypto", "grin", "mimblewimble" ]
 exclude = ["**/*.grin", "**/*.grin2"]
 edition = "2021"
 
+[features]
+mwixnet-test = []
+
 [dependencies]
 blake2-rfc = "0.2"
 rand = "0.6"
