@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! Onion modules for mxmixnet
-mod onion;
+pub mod onion;
 mod types;
 
 pub use onion::{
