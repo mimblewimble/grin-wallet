@@ -235,7 +235,7 @@ mod tests {
 		let server_key = SecretKey::from_slice(
 			&grin_util::secp::Secp256k1::new(),
 			&grin_util::from_hex(
-				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
+				"a129111d283b13bf93957c06bf6605c3417b4b89db4b5cb2e7dab2c15e36e0a4",
 			)
 			.unwrap(),
 		)
@@ -243,15 +243,13 @@ mod tests {
 		let public_key = MwixnetServerPublicKey::from_secret(&server_key);
 		assert_eq!(
 			public_key.to_hex(),
-			"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a"
+			"96ced236bdf1aca722ef68b818445755e6ed4bacf23e19d7b71c43efc5f0077b"
 		);
-		assert_ne!(
-			crypto::dalek::DalekPublicKey::from_secret(&server_key).to_hex(),
-			public_key.to_hex()
-		);
+		let identity_key = crypto::dalek::DalekPublicKey::from_secret(&server_key).to_hex();
+		assert_ne!(identity_key, public_key.to_hex());
 
-		let commitment = test_util::rand_commit();
-		let excess = random_secret(false);
+		let commitment = crypto::secp::commit(1_000, &server_key).unwrap();
+		let excess = server_key.clone();
 		let hop = Hop {
 			server_pubkey: xPublicKey::from(public_key.to_bytes()),
 			excess: excess.clone(),
@@ -263,5 +261,15 @@ mod tests {
 
 		assert_eq!(peeled.payload.excess, excess);
 		assert_eq!(peeled.payload.fee, FeeFields::from(1u32));
+
+		let identity_key = MwixnetServerPublicKey::from_hex(&identity_key).unwrap();
+		let wrong_hop = Hop {
+			server_pubkey: xPublicKey::from(identity_key.to_bytes()),
+			excess: server_key.clone(),
+			fee: FeeFields::from(1u32),
+			rangeproof: None,
+		};
+		let wrong_onion = create_onion(&commitment, &vec![wrong_hop], true).unwrap();
+		assert!(wrong_onion.peel_layer(&server_key).is_err());
 	}
 }
