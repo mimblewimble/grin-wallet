@@ -72,6 +72,7 @@ pub use api_impl::types::{
 };
 pub use backend::{WalletBackend, WalletBatch};
 pub use internal::scan::scan;
+pub use internal::updater;
 pub use slate_versions::ser as dalek_ser;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
