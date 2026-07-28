@@ -18,13 +18,17 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
 use grin_core as core;
+use grin_core::core::FeeFields;
 use grin_util as util;
 use grin_util::secp::key::SecretKey;
 use std::path::PathBuf;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{mwixnet::MixnetReqCreationParams, InitTxArgs};
+use libwallet::{
+	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey},
+	InitTxArgs,
+};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -183,14 +187,31 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())
 					.unwrap();
 			let params = MixnetReqCreationParams {
-				server_keys: vec![server_key_1, server_key_2, server_key_3],
-				fee_per_hop: 50_000_000,
+				server_keys: vec![
+					MwixnetServerPublicKey::from_secret(&server_key_1),
+					MwixnetServerPublicKey::from_secret(&server_key_2),
+					MwixnetServerPublicKey::from_secret(&server_key_3),
+				],
+				fee_per_hop: 10_000_000,
 			};
 			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
 			// get last output
 			let last_output = outputs.1[outputs.1.len() - 1].clone();
 
+			let empty_params = MixnetReqCreationParams {
+				server_keys: vec![],
+				fee_per_hop: params.fee_per_hop,
+			};
+			assert!(api
+				.create_mwixnet_req(m, &empty_params, &last_output.commit, true)
+				.is_err());
+
 			let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
+			let peeled = mwixnet_req
+				.onion
+				.peel_layer(&server_key_1)
+				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
+			assert_eq!(peeled.payload.fee, FeeFields::try_from(params.fee_per_hop)?);
 
 			println!("MWIXNET REQ: {:?}", mwixnet_req);
 
@@ -199,6 +220,9 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			// get last output
 			let last_output = outputs.1[outputs.1.len() - 1].clone();
 			assert!(last_output.output.status == libwallet::OutputStatus::Locked);
+			assert!(api
+				.create_mwixnet_req(m, &params, &last_output.commit, false)
+				.is_err());
 
 			Ok(())
 		},

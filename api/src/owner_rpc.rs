@@ -22,10 +22,11 @@ use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	mwixnet::MixnetReqCreationParams, AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs,
-	IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, PaymentProof, Slate,
-	SlateVersion, Slatepack, SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate,
-	ViewWallet, WalletInfo, WalletLCProvider,
+	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey},
+	AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
+	SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo,
+	WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -2022,7 +2023,7 @@ pub trait OwnerRpc {
 	) -> Result<BuiltOutput, Error>;
 
 	/**
-	Networked version of [Owner::build_output](struct.Owner.html#method.create_mwixnet_req).
+	Networked version of [Owner::create_mwixnet_req](struct.Owner.html#method.create_mwixnet_req).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -2032,12 +2033,12 @@ pub trait OwnerRpc {
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
-			"fee_per_hop": "5000000",
+			"fee_per_hop": "12500000",
 			"lock_output": true,
 			"server_keys": [
-				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
-				"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e",
-				"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5"
+				"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+				"3ab3b7d1fb643393897a0b942934d34be9cb823621cd49c09b12fdfa69598d71",
+				"80f2ceadcc5a767961772f4ae04826c70b0ae497f4f50d782241ff056b71df45"
 			]
 		},
 		"id": 1
@@ -2064,7 +2065,7 @@ pub trait OwnerRpc {
 		}
 	}
 	# "#
-	# , 5, true, true, false, false);
+	# , 5, true, false, false, false);
 	```
 	 *
 	 */
@@ -2512,15 +2513,9 @@ where
 		let commit =
 			Commitment::from_vec(from_hex(&commitment).map_err(|e| Error::CommitDeser(e))?);
 
-		let secp_inst = static_secp_instance();
-		let secp = secp_inst.lock();
-
 		let mut keys = vec![];
 		for key in server_keys {
-			keys.push(SecretKey::from_slice(
-				&secp,
-				&grin_util::from_hex(&key).map_err(|e| Error::ServerKeyDeser(e))?,
-			)?)
+			keys.push(MwixnetServerPublicKey::from_hex(&key).map_err(Error::ServerKeyDeser)?)
 		}
 
 		let req_params = MixnetReqCreationParams {

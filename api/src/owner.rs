@@ -2594,7 +2594,7 @@ where
 	/// being used.
 	/// * `params` - A [MixnetReqCreationParams](../grin_wallet_libwallet/api_impl/types/struct.MixnetReqCreationParams.html)
 	/// struct containing the parameters for the request, which include:
-	/// 	`server_keys` - The public keys of the servers participating in the mixnet (each encoded internally as a `SecretKey`)
+	/// 	`server_keys` - The public keys of the servers participating in the mixnet
 	/// 	`fee_per_hop` - The fee to be paid to each server for each hop in the mixnet
 	/// * `commitment` - The commitment of the output to be mixed
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
@@ -2611,7 +2611,9 @@ where
 	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let keychain_mask = None;
 	/// let params = MixnetReqCreationParams {
-	///   server_keys: vec![], // Public keys here in secret key representation
+	///   server_keys: vec![libwallet::mwixnet::MwixnetServerPublicKey::from_hex(
+	///     "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+	///   ).unwrap()],
 	///   fee_per_hop: 100,
 	/// };
 	///

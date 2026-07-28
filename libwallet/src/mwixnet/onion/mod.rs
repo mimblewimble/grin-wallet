@@ -84,6 +84,9 @@ pub fn create_onion(
 	for i in 0..hops.len() {
 		let hop = &hops[i];
 		let shared_secret = ephemeral_sk.diffie_hellman(&hop.server_pubkey);
+		if !shared_secret.was_contributory() {
+			return Err(OnionError::NonContributorySharedSecret);
+		}
 		shared_secrets.push(shared_secret);
 
 		ephemeral_sk = StaticSecret::from(random_secret(use_test_rng).0);
@@ -203,5 +206,62 @@ pub mod test_util {
 		let sk = random_secret(false);
 		let pk = DalekPublicKey::from_secret(&sk);
 		(sk, pk)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mwixnet::MwixnetServerPublicKey;
+
+	#[test]
+	fn rejects_zero_key() {
+		let commitment = test_util::rand_commit();
+		let hop = Hop {
+			server_pubkey: xPublicKey::from([0u8; 32]),
+			excess: random_secret(false),
+			fee: FeeFields::from(1u32),
+			rangeproof: None,
+		};
+
+		assert_eq!(
+			create_onion(&commitment, &vec![hop], false),
+			Err(OnionError::NonContributorySharedSecret)
+		);
+	}
+
+	#[test]
+	fn x25519_key_roundtrip() {
+		let server_key = SecretKey::from_slice(
+			&grin_util::secp::Secp256k1::new(),
+			&grin_util::from_hex(
+				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
+			)
+			.unwrap(),
+		)
+		.unwrap();
+		let public_key = MwixnetServerPublicKey::from_secret(&server_key);
+		assert_eq!(
+			public_key.to_hex(),
+			"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a"
+		);
+		assert_ne!(
+			crypto::dalek::DalekPublicKey::from_secret(&server_key).to_hex(),
+			public_key.to_hex()
+		);
+
+		let commitment = test_util::rand_commit();
+		let excess = random_secret(false);
+		let hop = Hop {
+			server_pubkey: xPublicKey::from(public_key.to_bytes()),
+			excess: excess.clone(),
+			fee: FeeFields::from(1u32),
+			rangeproof: None,
+		};
+		let onion = create_onion(&commitment, &vec![hop], true).unwrap();
+		let peeled = onion.peel_layer(&server_key).unwrap();
+
+		assert_eq!(peeled.payload.excess, excess);
+		assert_eq!(peeled.payload.fee, FeeFields::from(1u32));
 	}
 }

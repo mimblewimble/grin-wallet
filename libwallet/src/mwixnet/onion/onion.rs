@@ -336,6 +336,9 @@ pub enum OnionError {
 	/// Invalid Key Length
 	#[error("Invalid key length for MAC initialization")]
 	InvalidKeyLength,
+	/// Non-contributory X25519 shared secret
+	#[error("Non-contributory X25519 shared secret")]
+	NonContributorySharedSecret,
 	/// Serialization Error
 	#[error("Serialization error occurred: {0:?}")]
 	SerializationError(ser::Error),
