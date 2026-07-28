@@ -26,8 +26,8 @@ use std::path::PathBuf;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
 use libwallet::{
-	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey},
-	InitTxArgs,
+	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey, MAX_MWIXNET_HOPS},
+	InitTxArgs, OutputStatus, TxLogEntryType,
 };
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -206,6 +206,24 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 				.create_mwixnet_req(m, &empty_params, &last_output.commit, true)
 				.is_err());
 
+			let too_many_params = MixnetReqCreationParams {
+				server_keys: vec![params.server_keys[0]; MAX_MWIXNET_HOPS + 1],
+				fee_per_hop: params.fee_per_hop,
+			};
+			assert!(api
+				.create_mwixnet_req(m, &too_many_params, &last_output.commit, true)
+				.is_err());
+
+			let oversized_fee_params = MixnetReqCreationParams {
+				server_keys: params.server_keys[..2].to_vec(),
+				fee_per_hop: 1 << 39,
+			};
+			assert_eq!(
+				api.create_mwixnet_req(m, &oversized_fee_params, &last_output.commit, true)
+					.unwrap_err(),
+				libwallet::Error::Fee("mwixnet total fee exceeds FeeFields limit".to_string())
+			);
+
 			let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
 			let peeled = mwixnet_req
 				.onion
@@ -215,11 +233,43 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 			println!("MWIXNET REQ: {:?}", mwixnet_req);
 
-			// check output we created comsig for is indeed locked
+			// Check the input lock and expected output are tracked together.
 			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
-			// get last output
-			let last_output = outputs.1[outputs.1.len() - 1].clone();
-			assert!(last_output.output.status == libwallet::OutputStatus::Locked);
+			let input = outputs
+				.1
+				.iter()
+				.find(|o| o.commit == last_output.commit)
+				.unwrap();
+			assert_eq!(input.output.status, OutputStatus::Locked);
+			let expected_amount =
+				last_output.output.value - params.fee_per_hop * params.server_keys.len() as u64;
+			let expected_output = outputs
+				.1
+				.iter()
+				.find(|o| {
+					o.output.status == OutputStatus::Unconfirmed
+						&& o.output.value == expected_amount
+				})
+				.unwrap();
+			assert_eq!(
+				input.output.tx_log_entry,
+				expected_output.output.tx_log_entry
+			);
+
+			let txs = api.retrieve_txs(m, false, None, None, None)?.1;
+			let tx = txs.last().unwrap();
+			assert_eq!(tx.tx_type, TxLogEntryType::TxSent);
+			assert_eq!(tx.amount_debited, last_output.output.value);
+			assert_eq!(tx.amount_credited, expected_amount);
+			assert_eq!(tx.num_inputs, 1);
+			assert_eq!(tx.num_outputs, 1);
+			assert_eq!(
+				tx.fee,
+				Some(FeeFields::try_from(
+					params.fee_per_hop * params.server_keys.len() as u64
+				)?)
+			);
+
 			assert!(api
 				.create_mwixnet_req(m, &params, &last_output.commit, false)
 				.is_err());

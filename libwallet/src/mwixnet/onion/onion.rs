@@ -339,6 +339,12 @@ pub enum OnionError {
 	/// Non-contributory X25519 shared secret
 	#[error("Non-contributory X25519 shared secret")]
 	NonContributorySharedSecret,
+	/// Too many hops
+	#[error("Mwixnet routes support at most {max} hops")]
+	TooManyHops {
+		/// Maximum supported number of hops
+		max: usize,
+	},
 	/// Serialization Error
 	#[error("Serialization error occurred: {0:?}")]
 	SerializationError(ser::Error),

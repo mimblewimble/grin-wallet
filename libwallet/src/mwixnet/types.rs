@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for MwixnetServerPublicKey {
 /// mwixnetRequest Creation Params
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MixnetReqCreationParams {
-	/// Public keys of all participating servers
+	/// Ordered public keys of 1 to [`super::MAX_MWIXNET_HOPS`] participating servers
 	pub server_keys: Vec<MwixnetServerPublicKey>,
 	/// Fees per hop
 	#[serde(with = "string_or_u64")]

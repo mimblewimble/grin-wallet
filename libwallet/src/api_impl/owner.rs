@@ -32,10 +32,12 @@ use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
-use crate::types::{AcctPathMapping, NodeClient, OutputStatus, TxLogEntry, WalletInfo};
+use crate::types::{AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletInfo};
 use crate::{
 	address,
-	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
+	mwixnet::{
+		create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq, MAX_MWIXNET_HOPS,
+	},
 	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
@@ -1449,6 +1451,12 @@ where
 			"mwixnet requires at least one server key".to_string(),
 		));
 	}
+	if params.server_keys.len() > MAX_MWIXNET_HOPS {
+		return Err(Error::GenericError(format!(
+			"mwixnet supports at most {} server keys",
+			MAX_MWIXNET_HOPS
+		)));
+	}
 
 	let parent_key_id = w.parent_key_id();
 	let keychain = w.keychain(keychain_mask)?;
@@ -1459,7 +1467,7 @@ where
 		.map(|o| o.output)
 		.ok_or_else(|| Error::GenericError("output not found".to_string()))?;
 	let current_height = w.w2n_client().get_chain_tip()?.0;
-	if output.status != OutputStatus::Unspent || !output.eligible_to_spend(current_height, 1) {
+	if !output.eligible_to_spend(current_height, 1) {
 		return Err(Error::GenericError("output is not spendable".to_string()));
 	}
 
@@ -1476,6 +1484,8 @@ where
 		.fee_per_hop
 		.checked_mul(server_pubkeys.len() as u64)
 		.ok_or_else(|| Error::Fee("mwixnet fee overflow".to_string()))?;
+	let total_fee_fields = FeeFields::try_from(total_fee)
+		.map_err(|_| Error::Fee("mwixnet total fee exceeds FeeFields limit".to_string()))?;
 	let new_amount = amount
 		.checked_sub(total_fee)
 		.ok_or_else(|| Error::Fee("mwixnet fees exceed output value".to_string()))?;
@@ -1524,9 +1534,32 @@ where
 	// Lock output if requested
 	if lock_output {
 		let mut batch = w.batch(keychain_mask)?;
+		let log_id = batch.next_tx_log_id(&parent_key_id)?;
+		let mut tx = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
+		tx.amount_debited = amount;
+		tx.amount_credited = new_amount;
+		tx.num_inputs = 1;
+		tx.num_outputs = 1;
+		tx.fee = Some(total_fee_fields);
+		tx.kernel_lookup_min_height = Some(current_height);
+
 		let mut update_output = batch.get(&output.key_id, &None)?;
-		update_output.lock();
+		update_output.tx_log_entry = Some(log_id);
 		batch.lock_output(&mut update_output)?;
+		batch.save(OutputData {
+			root_key_id: parent_key_id.clone(),
+			key_id: new_output.key_id.clone(),
+			n_child: new_output.key_id.to_path().last_path_index(),
+			commit: Some(new_output.output.commitment().to_hex()),
+			mmr_index: None,
+			value: new_amount,
+			status: OutputStatus::Unconfirmed,
+			height: current_height,
+			lock_height: 0,
+			is_coinbase: false,
+			tx_log_entry: Some(log_id),
+		})?;
+		batch.save_tx_log_entry(tx, &parent_key_id)?;
 		batch.commit()?;
 	}
 

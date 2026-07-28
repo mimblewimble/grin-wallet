@@ -34,6 +34,9 @@ use x25519_dalek::{SharedSecret, StaticSecret};
 use crypto::secp::random_secret;
 use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
 
+/// Maximum number of servers in an mwixnet route.
+pub const MAX_MWIXNET_HOPS: usize = 16;
+
 /// Onion hop struct
 #[derive(Clone)]
 pub struct Hop {
@@ -69,6 +72,11 @@ pub fn create_onion(
 	hops: &Vec<Hop>,
 	use_test_rng: bool,
 ) -> Result<Onion, OnionError> {
+	if hops.len() > MAX_MWIXNET_HOPS {
+		return Err(OnionError::TooManyHops {
+			max: MAX_MWIXNET_HOPS,
+		});
+	}
 	if hops.is_empty() {
 		return Ok(Onion {
 			ephemeral_pubkey: xPublicKey::from([0u8; 32]),
@@ -227,6 +235,32 @@ mod tests {
 		assert_eq!(
 			create_onion(&commitment, &vec![hop], false),
 			Err(OnionError::NonContributorySharedSecret)
+		);
+	}
+
+	#[test]
+	fn rejects_too_many_hops() {
+		let commitment = test_util::rand_commit();
+		let hops: Vec<Hop> = (0..=MAX_MWIXNET_HOPS)
+			.map(|_| {
+				let server_key = random_secret(false);
+				Hop {
+					server_pubkey: xPublicKey::from(&StaticSecret::from(server_key.0)),
+					excess: random_secret(false),
+					fee: FeeFields::from(1u32),
+					rangeproof: None,
+				}
+			})
+			.collect();
+		let max_hops = hops[..MAX_MWIXNET_HOPS].to_vec();
+
+		assert!(create_onion(&commitment, &max_hops, false).is_ok());
+
+		assert_eq!(
+			create_onion(&commitment, &hops, false),
+			Err(OnionError::TooManyHops {
+				max: MAX_MWIXNET_HOPS
+			})
 		);
 	}
 
