@@ -217,6 +217,26 @@ pub fn start_tor_client(config: TorConfig) -> Result<(), Error> {
 }
 
 /// Make POST request.
+fn build_post_request(json: String, url: &Uri) -> Result<Request<Full<Bytes>>, Error> {
+	let authority = url
+		.authority()
+		.ok_or_else(|| Error::GenericError(format!("URL {} has bad authority", url)))?;
+	let request_target = url
+		.path_and_query()
+		.map(|path| path.as_str())
+		.unwrap_or("/");
+
+	Request::builder()
+		.uri(request_target)
+		.method("POST")
+		.header("host", authority.as_str())
+		.header("accept", "application/json")
+		.header("content-type", "application/json")
+		.body(Full::from(json))
+		.map_err(|e| Error::TorProcess(format!("{:?}", e)))
+}
+
+/// Make POST request.
 pub fn tor_post<IN>(tor_config: &TorConfig, input: &IN, url: &str) -> Result<String, Error>
 where
 	IN: Serialize,
@@ -232,6 +252,8 @@ where
 		Some(h) => h,
 	}
 	.to_string();
+	let port = url.port_u16().unwrap_or(80);
+	let request = build_post_request(json, &url)?;
 	let timeout = tor_config.request_timeout();
 	let (state_path, cache_path) = state_cache_paths(&tor_config);
 	let (client, _) = init_client(&state_path, &cache_path, tor_config)?;
@@ -242,7 +264,7 @@ where
 				.runtime()
 				.timeout(timeout, async {
 					let stream = c
-						.connect((host, url.port_u16().unwrap_or(80)))
+						.connect((host.clone(), port))
 						.await
 						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 					let (mut request_sender, connection) =
@@ -258,16 +280,11 @@ where
 					});
 
 					let resp = request_sender
-						.send_request(
-							Request::builder()
-								.uri(url)
-								.method("POST")
-								.body::<Full<Bytes>>(Full::from(json))
-								.map_err(|e| Error::TorProcess(format!("{:?}", e)))?,
-						)
+						.send_request(request)
 						.await
 						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 
+					let status = resp.status();
 					let body_resp = resp
 						.into_body()
 						.collect()
@@ -276,6 +293,12 @@ where
 					let body = body_resp.to_bytes().into();
 					let body_text = String::from_utf8(body)
 						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					if !status.is_success() {
+						return Err(Error::TorProcess(format!(
+							"HTTP request failed with status {}: {}",
+							status, body_text
+						)));
+					}
 					Ok(body_text)
 				})
 				.await;
@@ -288,6 +311,24 @@ where
 	.join()
 	.unwrap_or_else(|e| return Err(Error::TorProcess(format!("{:?}", e))))?;
 	res
+}
+
+#[cfg(test)]
+mod tests {
+	use super::build_post_request;
+	use hyper::{Method, Uri};
+
+	#[test]
+	fn builds_origin_form_json_request() {
+		let url: Uri = "http://example.onion:8080/v1?test=1".parse().unwrap();
+		let request = build_post_request("{}".to_string(), &url).unwrap();
+
+		assert_eq!(request.method(), Method::POST);
+		assert_eq!(request.uri(), "/v1?test=1");
+		assert_eq!(request.headers()["host"], "example.onion:8080");
+		assert_eq!(request.headers()["accept"], "application/json");
+		assert_eq!(request.headers()["content-type"], "application/json");
+	}
 }
 
 /// Create Tor client.
