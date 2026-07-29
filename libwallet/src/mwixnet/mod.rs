@@ -21,4 +21,6 @@ pub use onion::{
 	MwixnetPublicKey, MAX_MWIXNET_HOPS,
 };
 
-pub use types::{Hop, MixnetReqCreationParams, MwixnetServerPublicKey, SwapReq};
+pub use types::{
+	Hop, MixnetReqCreationParams, MwixnetReqCreationResult, MwixnetServerPublicKey, SwapReq,
+};

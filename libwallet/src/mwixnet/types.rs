@@ -35,6 +35,16 @@ pub struct SwapReq {
 	pub onion: Onion,
 }
 
+/// Result of creating an mwixnet request.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MwixnetReqCreationResult {
+	/// Request to submit to the first mwixnet server.
+	#[serde(flatten)]
+	pub request: SwapReq,
+	/// Transaction log ID when the wallet output was locked.
+	pub tx_id: Option<u32>,
+}
+
 /// Public X25519 key of an mwixnet server.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MwixnetServerPublicKey([u8; 32]);

@@ -224,14 +224,16 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 				libwallet::Error::Fee("mwixnet total fee exceeds FeeFields limit".to_string())
 			);
 
-			let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
-			let peeled = mwixnet_req
+			let creation = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
+			let creation_tx_id = creation.tx_id.unwrap();
+			let peeled = creation
+				.request
 				.onion
 				.peel_layer(&server_key_1)
 				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
 			assert_eq!(peeled.payload.fee, FeeFields::try_from(params.fee_per_hop)?);
 
-			println!("MWIXNET REQ: {:?}", mwixnet_req);
+			println!("MWIXNET REQ: {:?}", creation.request);
 
 			// Check the input lock and expected output are tracked together.
 			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
@@ -258,6 +260,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 			let txs = api.retrieve_txs(m, false, None, None, None)?.1;
 			let tx = txs.last().unwrap();
+			assert_eq!(creation_tx_id, tx.id);
 			assert_eq!(tx.tx_type, TxLogEntryType::TxSent);
 			assert_eq!(tx.amount_debited, last_output.output.value);
 			assert_eq!(tx.amount_credited, expected_amount);

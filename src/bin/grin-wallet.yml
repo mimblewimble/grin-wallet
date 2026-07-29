@@ -175,6 +175,35 @@ subcommands:
         - amount_includes_fee:
             help: Transaction amount includes transaction fee. Recipient will receive (amount - fee).
             long: amount_includes_fee
+  - mwixnet:
+      about: EXPERIMENTAL - Swap a wallet output through an mwixnet route
+      args:
+        - commit:
+            help: Commitment of the wallet output to swap
+            index: 1
+            required: true
+        - server:
+            help: Ed25519 identity key or .onion address of the first mwixnet server
+            long: server
+            takes_value: true
+            required: true
+        - key:
+            help: X25519 onion key of an mwixnet server, repeated in route order
+            long: key
+            takes_value: true
+            multiple: true
+            required: true
+        - fee_per_hop:
+            help: Fee per mwixnet server in nanogrin
+            long: fee_per_hop
+            takes_value: true
+            required: true
+        - minimum_confirmations:
+            help: Minimum confirmations required for the selected output
+            short: c
+            long: min_conf
+            default_value: "10"
+            takes_value: true
   - unpack:
       about: Unpack and display an armored Slatepack Message, decrypting if possible
       args:

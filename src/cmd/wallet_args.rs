@@ -24,10 +24,12 @@ use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
+use grin_util::secp::pedersen::Commitment;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use linefeed::terminal::Signal;
@@ -544,6 +546,47 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		skip_tor,
 		bridge,
 		slatepack_qr,
+	})
+}
+
+pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, ParseError> {
+	let commitment = parse_required(args, "commit")?;
+	let commitment = grin_util::from_hex(commitment)
+		.map_err(|e| ParseError::ArgumentError(format!("Invalid output commitment: {}", e)))?;
+	if commitment.len() != 33 {
+		return Err(ParseError::ArgumentError(
+			"Output commitment must be 33 bytes".to_string(),
+		));
+	}
+
+	let server = parse_required(args, "server")?
+		.try_into()
+		.map_err(|e| ParseError::ArgumentError(format!("Invalid mwixnet server: {}", e)))?;
+	let server_keys = args
+		.values_of("key")
+		.ok_or_else(|| {
+			ParseError::ArgumentError("At least one server key is required".to_string())
+		})?
+		.map(|key| {
+			MwixnetServerPublicKey::from_hex(key).map_err(|e| {
+				ParseError::ArgumentError(format!("Invalid mwixnet server key: {}", e))
+			})
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	let fee_per_hop = parse_u64(parse_required(args, "fee_per_hop")?, "fee_per_hop")?;
+	let minimum_confirmations = parse_u64(
+		parse_required(args, "minimum_confirmations")?,
+		"minimum_confirmations",
+	)?;
+
+	Ok(command::MwixnetArgs {
+		server,
+		commitment: Commitment::from_vec(commitment),
+		minimum_confirmations,
+		params: MixnetReqCreationParams {
+			server_keys,
+			fee_per_hop,
+		},
 	})
 }
 
@@ -1224,6 +1267,10 @@ where
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
 			)
+		}
+		("mwixnet", Some(args)) => {
+			let a = arg_parse!(parse_mwixnet_args(&args));
+			command::mwixnet(owner_api, km, a, tor_config)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));

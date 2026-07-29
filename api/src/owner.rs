@@ -34,7 +34,7 @@ use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use grin_wallet_config::config::{
 	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
 };
-use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
 
@@ -2600,7 +2600,7 @@ where
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
 	///
 	/// # Returns
-	/// * Ok([SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)) if successful
+	/// * Ok([MwixnetReqCreationResult](../grin_wallet_libwallet/mwixnet/struct.MwixnetReqCreationResult.html)) if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
 	///
 	/// # Example
@@ -2627,7 +2627,7 @@ where
 	///    lock_output,
 	/// );
 	///
-	/// if let Ok(req) = result {
+	/// if let Ok(result) = result {
 	///    //...
 	/// }
 	/// ```
@@ -2638,7 +2638,7 @@ where
 		params: &MixnetReqCreationParams,
 		commitment: &Commitment,
 		lock_output: bool, // use_test_rng: bool,
-	) -> Result<SwapReq, Error> {
+	) -> Result<MwixnetReqCreationResult, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::create_mwixnet_req(

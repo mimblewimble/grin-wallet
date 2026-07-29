@@ -36,7 +36,8 @@ use crate::types::{AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogE
 use crate::{
 	address,
 	mwixnet::{
-		create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq, MAX_MWIXNET_HOPS,
+		create_onion, ComSignature, Hop, MixnetReqCreationParams, MwixnetReqCreationResult,
+		SwapReq, MAX_MWIXNET_HOPS,
 	},
 	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
@@ -1441,7 +1442,7 @@ pub fn create_mwixnet_req<C, K>(
 	commitment: &Commitment,
 	lock_output: bool,
 	use_test_rng: bool,
-) -> Result<SwapReq, Error>
+) -> Result<MwixnetReqCreationResult, Error>
 where
 	C: NodeClient,
 	K: Keychain,
@@ -1531,6 +1532,8 @@ where
 	let comsig = ComSignature::sign(amount, &input_blind, &onion_bytes, use_test_rng)
 		.map_err(|e| Error::Signature(e.to_string()))?;
 
+	let mut tx_id = None;
+
 	// Lock output if requested
 	if lock_output {
 		let mut batch = w.batch(keychain_mask)?;
@@ -1561,7 +1564,11 @@ where
 		})?;
 		batch.save_tx_log_entry(tx, &parent_key_id)?;
 		batch.commit()?;
+		tx_id = Some(log_id);
 	}
 
-	Ok(SwapReq { comsig, onion })
+	Ok(MwixnetReqCreationResult {
+		request: SwapReq { comsig, onion },
+		tx_id,
+	})
 }
