@@ -27,6 +27,7 @@ use grin_keychain as keychain;
 use grin_util::secp::key::SecretKey;
 use grin_util::Mutex;
 use grin_wallet_api::{try_slatepack_sync_workflow, Owner};
+use grin_wallet_config::config::get_global_config;
 use grin_wallet_config::{TorConfig, WalletConfig};
 use grin_wallet_controller::controller;
 use grin_wallet_controller::Error;
@@ -336,6 +337,14 @@ pub(crate) fn can_send_tor(tor_config: &TorConfig, manual: bool, test_mode: bool
 	tor_config.send_tor(skip_arg)
 }
 
+/// Tor settings from the global config instance (#769), falling back to the
+/// worker's snapshot if the path is not cached yet.
+fn live_tor_config(config_path: &PathBuf, fallback: &TorConfig) -> TorConfig {
+	get_global_config(config_path)
+		.map(|c| c.tor_config())
+		.unwrap_or_else(|_| fallback.clone())
+}
+
 /// Parameters for a send, gathered from the form
 pub struct SendParams {
 	pub amount: String,
@@ -420,7 +429,8 @@ where
 		};
 		let slate = owner.init_send_tx(mask, init_args)?;
 
-		if !can_send_tor(&ctx.tor_config, p.manual, ctx.test_mode) {
+		let tor_config = live_tor_config(&ctx.config_path, &ctx.tor_config);
+		if !can_send_tor(&tor_config, p.manual, ctx.test_mode) {
 			return slatepack_output(
 				owner,
 				mask,
@@ -448,13 +458,7 @@ where
 				);
 			}
 		};
-		match try_slatepack_sync_workflow(
-			&slate,
-			&dest_addr,
-			Some(ctx.tor_config.clone()),
-			None,
-			false,
-		) {
+		match try_slatepack_sync_workflow(&slate, &dest_addr, Some(tor_config), None, false) {
 			Ok(s) => {
 				owner.tx_lock_outputs(mask, &s)?;
 				let ret_slate = owner.finalize_tx(mask, &s)?;
@@ -545,7 +549,8 @@ where
 				Some(a) => String::try_from(a).unwrap_or_default(),
 				None => String::new(),
 			};
-			if !can_send_tor(&ctx.tor_config, manual, ctx.test_mode) {
+			let tor_config = live_tor_config(&ctx.config_path, &ctx.tor_config);
+			if !can_send_tor(&tor_config, manual, ctx.test_mode) {
 				return slatepack_output(
 					owner,
 					mask,
@@ -560,13 +565,7 @@ where
 
 			match ret_address.as_ref() {
 				Some(addr) => {
-					match try_slatepack_sync_workflow(
-						&slate,
-						addr,
-						Some(ctx.tor_config.clone()),
-						None,
-						true,
-					) {
+					match try_slatepack_sync_workflow(&slate, addr, Some(tor_config), None, true) {
 						Ok(s) => {
 							// Keep local tx state in sync after Tor handoff (see command::receive)
 							{
@@ -740,7 +739,8 @@ pub fn spawn_pay_process<L, C, K>(
 			..Default::default()
 		};
 		let slate = owner.process_invoice_tx(mask, &slate, init_args)?;
-		if !can_send_tor(&ctx.tor_config, p.manual, ctx.test_mode) {
+		let tor_config = live_tor_config(&ctx.config_path, &ctx.tor_config);
+		if !can_send_tor(&tor_config, p.manual, ctx.test_mode) {
 			return slatepack_output(
 				owner,
 				mask,
@@ -758,7 +758,7 @@ pub fn spawn_pay_process<L, C, K>(
 			s => SlatepackAddress::try_from(s).ok(),
 		};
 		match dest_addr.as_ref().and_then(|addr| {
-			try_slatepack_sync_workflow(&slate, addr, Some(ctx.tor_config.clone()), None, true).ok()
+			try_slatepack_sync_workflow(&slate, addr, Some(tor_config.clone()), None, true).ok()
 		}) {
 			Some(s) => {
 				{

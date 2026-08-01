@@ -13,15 +13,18 @@
 // limitations under the License.
 
 //! Editable wallet settings. Press Enter on a row to edit; persisted
-//! settings are written back to `grin-wallet.toml` (comments preserved by
-//! the config crate's writer), session settings apply immediately.
+//! settings go through the global config instance (#769) so multi-wallet
+//! caches stay coherent and config listeners (e.g. foreign listener Tor
+//! restart) are notified. Session-only settings apply immediately.
 
 use crate::tui::app::SharedState;
-use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
+use grin_wallet_config::config::{get_global_config, update_global_config};
+use grin_wallet_config::{TorConfig, WalletConfig};
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, Cell, ListState, Row, Table, TableState};
 use ratatui::Frame;
+use std::path::Path;
 use std::sync::atomic::Ordering;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -106,6 +109,19 @@ pub static SETTINGS: &[SettingSpec] = &[
 	},
 ];
 
+/// Prefer the global config instance when available so Settings reflects
+/// Owner-API / multi-wallet updates, not only the TUI's local snapshot.
+pub fn effective_configs(
+	config_path: &Path,
+	wallet_config: &WalletConfig,
+	tor_config: &TorConfig,
+) -> (WalletConfig, TorConfig) {
+	match get_global_config(config_path) {
+		Ok(global) => (global.members.wallet.clone(), global.tor_config()),
+		Err(_) => (wallet_config.clone(), tor_config.clone()),
+	}
+}
+
 /// The value currently in effect for a setting
 pub fn current_value(
 	kind: SettingKind,
@@ -145,8 +161,9 @@ fn parse_port(v: &str) -> Result<u16, String> {
 		.map_err(|_| "enter a valid port number".to_string())
 }
 
-/// Validate and apply a new value: stage on copies, persist atomically,
-/// then update the live in-memory configs only after a successful write.
+/// Validate and apply a new value via `update_global_config` (atomic save +
+/// multi-wallet cache + listener notify from #769). Local TUI snapshots are
+/// only updated after that succeeds.
 pub fn apply(
 	setting: &SettingSpec,
 	value: &str,
@@ -169,74 +186,65 @@ pub fn apply(
 		));
 	}
 
-	// Stage changes on copies so a failed write leaves live state unchanged.
-	let mut staged_wallet = wallet_config.clone();
-	let mut staged_tor = tor_config.clone();
-	match setting.kind {
+	// Validate before touching the global config / disk.
+	let parsed = match setting.kind {
 		SettingKind::NodeAddr => {
 			if value.is_empty() {
 				return Err("address cannot be empty".to_string());
 			}
-			staged_wallet.check_node_api_http_addr = value.to_string();
+			ParsedSetting::NodeAddr(value.to_string())
 		}
-		SettingKind::ForeignPort => staged_wallet.api_listen_port = parse_port(value)?,
-		SettingKind::OwnerPort => staged_wallet.owner_api_listen_port = Some(parse_port(value)?),
-		SettingKind::IncludeForeign => {
-			staged_wallet.owner_api_include_foreign = Some(parse_bool(value)?)
-		}
-		SettingKind::TorListener => staged_tor.use_tor_listener = parse_bool(value)?,
+		SettingKind::ForeignPort => ParsedSetting::ForeignPort(parse_port(value)?),
+		SettingKind::OwnerPort => ParsedSetting::OwnerPort(parse_port(value)?),
+		SettingKind::IncludeForeign => ParsedSetting::IncludeForeign(parse_bool(value)?),
+		SettingKind::TorListener => ParsedSetting::TorListener(parse_bool(value)?),
 		SettingKind::SocksAddr => {
 			if value.is_empty() {
 				return Err("address cannot be empty".to_string());
 			}
-			staged_tor.socks_proxy_addr = value.to_string();
+			ParsedSetting::SocksAddr(value.to_string())
 		}
-		SettingKind::SkipTorSend => staged_tor.skip_send_attempt = Some(parse_bool(value)?),
+		SettingKind::SkipTorSend => ParsedSetting::SkipTorSend(parse_bool(value)?),
 		SettingKind::MinConf => unreachable!(),
-	}
+	};
 
-	// Persist: reload the on-disk config so we only change this one key,
-	// then write via a temp file and rename for atomic replace.
-	let path = std::path::PathBuf::from(config_path);
-	let mut global_config = GlobalWalletConfig::new(path.clone())
-		.map_err(|e| format!("unable to load {}: {}", config_path, e))?;
-	{
-		let members = &mut global_config.members;
-		match setting.kind {
-			SettingKind::NodeAddr => {
-				members.wallet.check_node_api_http_addr = value.to_string();
+	let path = Path::new(config_path);
+	update_global_config(path, |config| {
+		match &parsed {
+			ParsedSetting::NodeAddr(v) => {
+				config.members.wallet.check_node_api_http_addr = v.clone();
 			}
-			SettingKind::ForeignPort => {
-				members.wallet.api_listen_port = staged_wallet.api_listen_port;
+			ParsedSetting::ForeignPort(p) => {
+				config.members.wallet.api_listen_port = *p;
 			}
-			SettingKind::OwnerPort => {
-				members.wallet.owner_api_listen_port = staged_wallet.owner_api_listen_port;
+			ParsedSetting::OwnerPort(p) => {
+				config.members.wallet.owner_api_listen_port = Some(*p);
 			}
-			SettingKind::IncludeForeign => {
-				members.wallet.owner_api_include_foreign = staged_wallet.owner_api_include_foreign;
+			ParsedSetting::IncludeForeign(b) => {
+				config.members.wallet.owner_api_include_foreign = Some(*b);
 			}
-			SettingKind::TorListener | SettingKind::SocksAddr | SettingKind::SkipTorSend => {
-				let tor = members.tor.get_or_insert_with(|| staged_tor.clone());
-				tor.use_tor_listener = staged_tor.use_tor_listener;
-				tor.socks_proxy_addr = staged_tor.socks_proxy_addr.clone();
-				tor.skip_send_attempt = staged_tor.skip_send_attempt;
+			ParsedSetting::TorListener(b) => {
+				let fallback = config.tor_config();
+				config.members.tor.get_or_insert(fallback).use_tor_listener = *b;
 			}
-			SettingKind::MinConf => unreachable!(),
+			ParsedSetting::SocksAddr(v) => {
+				let fallback = config.tor_config();
+				config.members.tor.get_or_insert(fallback).socks_proxy_addr = v.clone();
+			}
+			ParsedSetting::SkipTorSend(b) => {
+				let fallback = config.tor_config();
+				config.members.tor.get_or_insert(fallback).skip_send_attempt = Some(*b);
+			}
 		}
-	}
-	let tmp_path = path.with_extension("toml.tmp");
-	let tmp_str = tmp_path.to_string_lossy().to_string();
-	global_config
-		.write_to_file(&tmp_str, false, None, None)
-		.map_err(|e| format!("unable to write {}: {}", tmp_str, e))?;
-	std::fs::rename(&tmp_path, &path).map_err(|e| {
-		let _ = std::fs::remove_file(&tmp_path);
-		format!("unable to replace {}: {}", config_path, e)
-	})?;
+		Ok(())
+	})
+	.map_err(|e| format!("unable to update {}: {}", config_path, e))?;
 
-	// Commit staged values only after the file write succeeded.
-	*wallet_config = staged_wallet;
-	*tor_config = staged_tor;
+	// Refresh local snapshots from the global instance (source of truth).
+	let global = get_global_config(path)
+		.map_err(|e| format!("unable to read updated config {}: {}", config_path, e))?;
+	*wallet_config = global.members.wallet.clone();
+	*tor_config = global.tor_config();
 
 	let mut notice = format!("Saved '{}' to {}.", setting.label, config_path);
 	if setting.restart {
@@ -245,14 +253,28 @@ pub fn apply(
 	Ok(notice)
 }
 
+enum ParsedSetting {
+	NodeAddr(String),
+	ForeignPort(u16),
+	OwnerPort(u16),
+	IncludeForeign(bool),
+	TorListener(bool),
+	SocksAddr(String),
+	SkipTorSend(bool),
+}
+
 pub fn draw(
 	f: &mut Frame,
 	area: Rect,
 	list_state: &ListState,
+	config_path: &str,
 	wallet_config: &WalletConfig,
 	tor_config: &TorConfig,
 	shared: &SharedState,
 ) {
+	let (eff_wallet, eff_tor) =
+		effective_configs(Path::new(config_path), wallet_config, tor_config);
+
 	let rows: Vec<Row> = SETTINGS
 		.iter()
 		.map(|s| {
@@ -262,7 +284,7 @@ pub fn draw(
 			}
 			Row::new(vec![
 				Cell::from(label),
-				Cell::from(current_value(s.kind, wallet_config, tor_config, shared)),
+				Cell::from(current_value(s.kind, &eff_wallet, &eff_tor, shared)),
 			])
 		})
 		.collect();
@@ -273,7 +295,7 @@ pub fn draw(
 		.block(
 			Block::default()
 				.borders(Borders::ALL)
-				.title("Settings - Enter to edit, saved to grin-wallet.toml"),
+				.title("Settings - Enter to edit, saved via global config"),
 		)
 		.row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 

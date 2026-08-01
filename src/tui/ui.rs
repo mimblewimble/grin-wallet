@@ -207,6 +207,7 @@ fn draw_dialog(f: &mut Frame, area: Rect, dialog: &Dialog) {
 fn draw_frame(
 	f: &mut Frame,
 	app: &mut App,
+	config_path: &str,
 	wallet_config: &WalletConfig,
 	tor_config: &TorConfig,
 	shared: &SharedState,
@@ -245,6 +246,7 @@ fn draw_frame(
 			f,
 			content_area,
 			&app.settings_list,
+			config_path,
 			wallet_config,
 			tor_config,
 			shared,
@@ -426,10 +428,17 @@ where
 			}
 			Tab::Settings => {
 				if let Some(idx) = self.app.settings_list.selected() {
-					let current = settings::current_value(
-						settings::SETTINGS[idx].kind,
+					// Prefill from global config when available so multi-wallet
+					// / Owner-API updates are visible in the editor.
+					let (wallet, tor) = settings::effective_configs(
+						std::path::Path::new(&self.config_path),
 						&self.wallet_config,
 						&self.tor_config,
+					);
+					let current = settings::current_value(
+						settings::SETTINGS[idx].kind,
+						&wallet,
+						&tor,
 						&self.shared,
 					);
 					self.app.modal = Some(Modal::EditSetting(EditSettingState {
@@ -1190,12 +1199,13 @@ where
 
 	fn draw(&mut self) {
 		let app = &mut self.app;
+		let config_path = self.config_path.as_str();
 		let wallet_config = &self.wallet_config;
 		let tor_config = &self.tor_config;
 		let shared = &self.shared;
 		let _ = self
 			.terminal
-			.draw(|f| draw_frame(f, app, wallet_config, tor_config, shared));
+			.draw(|f| draw_frame(f, app, config_path, wallet_config, tor_config, shared));
 	}
 
 	/// Step the UI once. Returns `false` when it's time to quit.
