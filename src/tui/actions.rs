@@ -12,11 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! The Actions tab: a menu of every wallet subcommand, each backed by a
-//! small validated form. All actions run inside the TUI — either on a
-//! background worker thread or (for open/close/recover) via an in-TUI
-//! password modal / direct Owner API call. The alternate screen is never
-//! left while the dashboard is up.
+//! The Actions tab: a menu of wallet subcommands, each backed by a small
+//! validated form. All actions run inside the TUI — either on a background
+//! worker thread or (for open/close/recover) via an in-TUI password modal /
+//! direct Owner API call. The alternate screen is never left while the
+//! dashboard is up.
+//!
+//! # Supported command subset
+//!
+//! Form fields are a curated subset of `grin-wallet.yml` options used by
+//! interactive workflows (send/receive/finalize/invoice/pay/post/scan/…),
+//! not a full mirror of every CLI flag. Field values map straight into
+//! `worker` parameter structs (see `FormState::{text,flag,u32_opt,…}`);
+//! they are not re-parsed through clap.
 
 use crate::tui::form::TextField;
 use grin_core::core::amount_from_hr_string;
@@ -30,15 +38,14 @@ use std::convert::TryFrom;
 use std::path::Path;
 use uuid::Uuid;
 
-/// How a field's value maps to a CLI-style argument name (used for looking
-/// fields up by name and for the pure `build_argv` unit tests).
+/// How a field's value is looked up by name when building worker params.
 #[derive(Copy, Clone, PartialEq)]
 pub enum ArgKind {
-	/// Appended as a bare positional argument (only if non-empty)
+	/// Positional field (index-based via `FormState::positional`)
 	Positional,
-	/// Appended as `--<name> <value>` (only if non-empty)
+	/// Named optional text field (`--name`)
 	Opt(&'static str),
-	/// Appended as `--<name>` if the field's boolean value is true
+	/// Named boolean flag
 	Flag(&'static str),
 }
 
@@ -50,10 +57,16 @@ pub enum Validate {
 	Amount,
 	/// Required decimal grin amount, or the literal "max"
 	AmountOrMax,
-	/// Required whole number
+	/// Required whole number fitting in u64
 	U64,
-	/// Optional whole number
+	/// Optional whole number fitting in u64
 	U64Opt,
+	/// Required whole number fitting in u32 (e.g. change outputs, tx id)
+	U32,
+	/// Optional whole number fitting in u32
+	U32Opt,
+	/// Optional whole number fitting in u16 (e.g. ports)
+	U16Opt,
 	/// Optional slatepack address (http URLs also tolerated for legacy sends)
 	AddressOpt,
 	/// Optional path that must point to an existing file when set
@@ -140,7 +153,7 @@ pub static ACTIONS: &[ActionSpec] = &[
 			field!("Destination address", Opt("dest"), "", AddressOpt),
 			field!("Min confirmations", Opt("min_conf"), "10", U64),
 			field!("Use 'all' coin selection", Flag("selection_all")),
-			field!("Change outputs", Opt("change_outputs"), "1", U64),
+			field!("Change outputs", Opt("change_outputs"), "1", U32),
 			field!("TTL blocks (optional)", Opt("ttl_blocks"), "", U64Opt),
 			field!("Fluff (skip Dandelion)", Flag("fluff")),
 			field!("No payment proof", Flag("no_payment_proof")),
@@ -164,7 +177,12 @@ pub static ACTIONS: &[ActionSpec] = &[
 		subcommand: "unpack",
 		title: "Unpack / Inspect Slatepack",
 		check: None,
-		fields: &[field!("Input file (blank to paste)", Opt("input"), "", FileOpt)],
+		fields: &[field!(
+			"Input file (blank to paste)",
+			Opt("input"),
+			"",
+			FileOpt
+		)],
 	},
 	ActionSpec {
 		subcommand: "finalize",
@@ -183,7 +201,12 @@ pub static ACTIONS: &[ActionSpec] = &[
 		check: None,
 		fields: &[
 			field!("Amount", Positional, Amount),
-			field!("Encrypt for address (optional)", Opt("dest"), "", AddressOpt),
+			field!(
+				"Encrypt for address (optional)",
+				Opt("dest"),
+				"",
+				AddressOpt
+			),
 			field!("Output file (optional)", Opt("outfile"), "", None),
 		],
 	},
@@ -193,7 +216,12 @@ pub static ACTIONS: &[ActionSpec] = &[
 		check: None,
 		fields: &[
 			field!("Input file (blank to paste)", Opt("input"), "", FileOpt),
-			field!("Destination override (optional)", Opt("dest"), "", AddressOpt),
+			field!(
+				"Destination override (optional)",
+				Opt("dest"),
+				"",
+				AddressOpt
+			),
 			field!("Min confirmations", Opt("min_conf"), "10", U64),
 			field!("Use 'all' coin selection", Flag("selection_all")),
 			field!("TTL blocks (optional)", Opt("ttl_blocks"), "", U64Opt),
@@ -215,7 +243,7 @@ pub static ACTIONS: &[ActionSpec] = &[
 		title: "Repost Transaction",
 		check: None,
 		fields: &[
-			field!("Transaction ID", Opt("id"), "", U64),
+			field!("Transaction ID", Opt("id"), "", U32),
 			field!("Dump to file instead (optional)", Opt("dumpfile"), "", None),
 			field!("Fluff (skip Dandelion)", Flag("fluff")),
 		],
@@ -225,7 +253,7 @@ pub static ACTIONS: &[ActionSpec] = &[
 		title: "Cancel Transaction",
 		check: Some(check_one_of_id_txid),
 		fields: &[
-			field!("Transaction ID", Opt("id"), "", U64Opt),
+			field!("Transaction ID", Opt("id"), "", U32Opt),
 			field!("Transaction Slate UUID", Opt("txid"), "", UuidOpt),
 		],
 	},
@@ -241,7 +269,7 @@ pub static ACTIONS: &[ActionSpec] = &[
 		check: Some(check_one_of_id_txid),
 		fields: &[
 			field!("Output proof file", Positional, Required),
-			field!("Transaction ID", Opt("id"), "", U64Opt),
+			field!("Transaction ID", Opt("id"), "", U32Opt),
 			field!("Transaction Slate UUID", Opt("txid"), "", UuidOpt),
 		],
 	},
@@ -298,7 +326,7 @@ pub static ACTIONS: &[ActionSpec] = &[
 		title: "Start Listener (background)",
 		check: None,
 		fields: &[
-			field!("Port (optional)", Opt("port"), "", U64Opt),
+			field!("Port (optional)", Opt("port"), "", U16Opt),
 			field!("No Tor listener", Flag("no_tor")),
 			field!("Tor bridge line (optional)", Opt("bridge"), "", None),
 		],
@@ -308,7 +336,7 @@ pub static ACTIONS: &[ActionSpec] = &[
 		title: "Start Owner API (background)",
 		check: None,
 		fields: &[
-			field!("Port (optional)", Opt("port"), "", U64Opt),
+			field!("Port (optional)", Opt("port"), "", U16Opt),
 			field!("Also run Foreign API", Flag("run_foreign")),
 		],
 	},
@@ -449,6 +477,16 @@ impl FormState {
 		self.text(name).parse().ok()
 	}
 
+	/// Optional u32 value of the `--<name>` field (validated beforehand)
+	pub fn u32_opt(&self, name: &str) -> Option<u32> {
+		self.text(name).parse().ok()
+	}
+
+	/// Optional u16 value of the `--<name>` field (validated beforehand)
+	pub fn u16_opt(&self, name: &str) -> Option<u16> {
+		self.text(name).parse().ok()
+	}
+
 	pub fn next_field(&mut self) {
 		if self.field_count() > 0 {
 			self.focus = (self.focus + 1) % self.field_count();
@@ -492,39 +530,6 @@ impl FormState {
 		}
 		Ok(())
 	}
-
-	/// Build the `grin-wallet <subcommand> ...` argv this form represents
-	/// (kept for unit tests of field → argument mapping).
-	#[cfg(test)]
-	pub fn build_argv(&self) -> Vec<String> {
-		let spec = self.spec();
-		let mut argv = vec!["grin-wallet".to_string(), spec.subcommand.to_string()];
-
-		for (field, value) in spec.fields.iter().zip(self.values.iter()) {
-			if let (ArgKind::Positional, FieldValue::Text(t)) = (field.arg, value) {
-				if !t.value.trim().is_empty() {
-					argv.push(t.value.trim().to_string());
-				}
-			}
-		}
-
-		for (field, value) in spec.fields.iter().zip(self.values.iter()) {
-			match (field.arg, value) {
-				(ArgKind::Opt(name), FieldValue::Text(t)) => {
-					if !t.value.trim().is_empty() {
-						argv.push(format!("--{}", name));
-						argv.push(t.value.trim().to_string());
-					}
-				}
-				(ArgKind::Flag(name), FieldValue::Bool(true)) => {
-					argv.push(format!("--{}", name));
-				}
-				_ => {}
-			}
-		}
-
-		argv
-	}
 }
 
 fn validate_field(f: &FieldSpec, value: &str) -> Result<(), String> {
@@ -541,7 +546,10 @@ fn validate_field(f: &FieldSpec, value: &str) -> Result<(), String> {
 			} else {
 				match amount_from_hr_string(v) {
 					Ok(a) if !v.is_empty() && a > 0 => Ok(()),
-					_ => Err(format!("'{}' must be a valid grin amount or 'max'", f.label)),
+					_ => Err(format!(
+						"'{}' must be a valid grin amount or 'max'",
+						f.label
+					)),
 				}
 			}
 		}
@@ -556,6 +564,42 @@ fn validate_field(f: &FieldSpec, value: &str) -> Result<(), String> {
 				match v.parse::<u64>() {
 					Ok(_) => Ok(()),
 					Err(_) => Err(format!("'{}' must be a whole number", f.label)),
+				}
+			}
+		}
+		Validate::U32 => match v.parse::<u32>() {
+			Ok(_) => Ok(()),
+			Err(_) => Err(format!(
+				"'{}' must be a whole number between 0 and {}",
+				f.label,
+				u32::MAX
+			)),
+		},
+		Validate::U32Opt => {
+			if v.is_empty() {
+				Ok(())
+			} else {
+				match v.parse::<u32>() {
+					Ok(_) => Ok(()),
+					Err(_) => Err(format!(
+						"'{}' must be a whole number between 0 and {}",
+						f.label,
+						u32::MAX
+					)),
+				}
+			}
+		}
+		Validate::U16Opt => {
+			if v.is_empty() {
+				Ok(())
+			} else {
+				match v.parse::<u16>() {
+					Ok(_) => Ok(()),
+					Err(_) => Err(format!(
+						"'{}' must be a port number between 0 and {}",
+						f.label,
+						u16::MAX
+					)),
 				}
 			}
 		}
@@ -623,7 +667,8 @@ pub fn draw(f: &mut Frame, area: Rect, list_state: &mut ListState) {
 
 /// Draw the form modal for the action currently being configured
 pub fn draw_form(f: &mut Frame, area: Rect, form: &FormState) {
-	let popup = crate::tui::modals::centered_rect(70, 70.min(20 + form.field_count() as u16 * 4), area);
+	let popup =
+		crate::tui::modals::centered_rect(70, 70.min(20 + form.field_count() as u16 * 4), area);
 	f.render_widget(ratatui::widgets::Clear, popup);
 
 	let spec = form.spec();
@@ -647,7 +692,9 @@ pub fn draw_form(f: &mut Frame, area: Rect, form: &FormState) {
 	for (i, (field, value)) in spec.fields.iter().zip(form.values.iter()).enumerate() {
 		let focused = i == form.focus;
 		let label_style = if focused {
-			Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+			Style::default()
+				.fg(Color::Cyan)
+				.add_modifier(Modifier::BOLD)
 		} else {
 			Style::default()
 		};
@@ -681,35 +728,37 @@ pub fn draw_form(f: &mut Frame, area: Rect, form: &FormState) {
 mod tests {
 	use super::*;
 
+	/// Tests the runtime field → parameter mapping used by the UI dispatch.
 	#[test]
-	fn build_argv_positional_opts_and_flags() {
+	fn form_maps_fields_to_worker_params() {
 		let idx = action_index("send").unwrap();
 		let mut form = FormState::new(idx)
-			.prefill("dest", "tgrin1abc")
-			.prefill("ttl_blocks", "12");
-		// amount is the first (positional) field
+			// AddressOpt accepts http URLs without slatepack parsing.
+			.prefill("dest", "http://127.0.0.1:3415")
+			.prefill("ttl_blocks", "12")
+			.prefill("change_outputs", "2");
 		form.values[0] = FieldValue::Text(TextField::new("1.5"));
-		// set the fluff flag
 		let fluff_idx = ACTIONS[idx]
 			.fields
 			.iter()
 			.position(|f| f.arg == ArgKind::Flag("fluff"))
 			.unwrap();
 		form.values[fluff_idx] = FieldValue::Bool(true);
+		let manual_idx = ACTIONS[idx]
+			.fields
+			.iter()
+			.position(|f| f.arg == ArgKind::Flag("manual"))
+			.unwrap();
+		form.values[manual_idx] = FieldValue::Bool(true);
 
-		let argv = form.build_argv();
-		assert_eq!(argv[0], "grin-wallet");
-		assert_eq!(argv[1], "send");
-		// positional comes right after the subcommand
-		assert_eq!(argv[2], "1.5");
-		let joined = argv.join(" ");
-		assert!(joined.contains("--dest tgrin1abc"));
-		assert!(joined.contains("--ttl_blocks 12"));
-		assert!(joined.contains("--fluff"));
-		// defaults are still emitted
-		assert!(joined.contains("--min_conf 10"));
-		// empty optional fields are not
-		assert!(!joined.contains("--outfile"));
+		assert_eq!(form.positional(0), "1.5");
+		assert_eq!(form.text("dest"), "http://127.0.0.1:3415");
+		assert_eq!(form.u64_opt("ttl_blocks"), Some(12));
+		assert_eq!(form.u32_opt("change_outputs"), Some(2));
+		assert!(form.flag("fluff"));
+		assert!(form.flag("manual"));
+		assert_eq!(form.text_opt("outfile"), None);
+		assert!(form.validate().is_ok());
 	}
 
 	#[test]
@@ -723,6 +772,27 @@ mod tests {
 		assert_eq!(form.text_opt("outfile"), None);
 		assert_eq!(form.u64_opt("min_conf"), Some(10));
 		assert!(!form.flag("fluff"));
+	}
+
+	#[test]
+	fn validate_rejects_oversized_u32_and_port() {
+		let idx = action_index("repost").unwrap();
+		let too_big = (u64::from(u32::MAX) + 1).to_string();
+		assert!(FormState::new(idx)
+			.prefill("id", &too_big)
+			.validate()
+			.is_err());
+		assert!(FormState::new(idx).prefill("id", "3").validate().is_ok());
+
+		let listen = action_index("listen").unwrap();
+		assert!(FormState::new(listen)
+			.prefill("port", "70000")
+			.validate()
+			.is_err());
+		assert!(FormState::new(listen)
+			.prefill("port", "3415")
+			.validate()
+			.is_ok());
 	}
 
 	#[test]

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //! A minimal single-line, cursor-editable text field used by Action forms.
+//! Password fields zero their contents on drop / clear.
 
 /// A single-line editable text buffer with a cursor position, measured in
 /// characters (not bytes) so editing behaves correctly with multi-byte input.
@@ -20,6 +21,8 @@
 pub struct TextField {
 	pub value: String,
 	pub cursor: usize,
+	/// When true, `Drop` overwrites the buffer so passwords do not linger.
+	zeroize_on_drop: bool,
 }
 
 impl TextField {
@@ -28,7 +31,30 @@ impl TextField {
 		TextField {
 			value: default.to_string(),
 			cursor,
+			zeroize_on_drop: false,
 		}
+	}
+
+	/// Password-entry field: contents are overwritten when the field is dropped.
+	pub fn new_password() -> TextField {
+		TextField {
+			value: String::new(),
+			cursor: 0,
+			zeroize_on_drop: true,
+		}
+	}
+
+	/// Overwrite the buffer with zeros and reset the cursor.
+	pub fn clear_secure(&mut self) {
+		// SAFETY: we only write zero bytes into the existing String buffer.
+		unsafe {
+			let bytes = self.value.as_mut_vec();
+			for b in bytes.iter_mut() {
+				*b = 0;
+			}
+		}
+		self.value.clear();
+		self.cursor = 0;
 	}
 
 	fn chars(&self) -> Vec<char> {
@@ -90,6 +116,14 @@ impl TextField {
 				c if c.is_control() => {}
 				c => self.insert(c),
 			}
+		}
+	}
+}
+
+impl Drop for TextField {
+	fn drop(&mut self) {
+		if self.zeroize_on_drop {
+			self.clear_secure();
 		}
 	}
 }

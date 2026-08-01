@@ -31,7 +31,6 @@ fn account_row(a: &AcctPathMapping) -> Row<'static> {
 const HEADERS: [&str; 2] = ["Account Name", "Parent BIP-32 Derivation Path"];
 const WIDTHS: [u16; 2] = [30, 70];
 
-/// Draw the accounts view
 pub fn draw(f: &mut Frame, area: Rect, app: &mut App) {
 	if app.locked {
 		f.render_widget(Paragraph::new("Wallet is locked."), area);

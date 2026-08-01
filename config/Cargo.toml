@@ -14,9 +14,9 @@ rand = "0.6"
 serde = "1"
 serde_derive = "1"
 toml = "0.5"
+toml_edit = "0.22"
 dirs = "2.0"
-
-grin_wallet_util = { path = "../util", version = "5.4.1" }
+lazy_static = "1"
 
 ##### Grin Imports
 
@@ -26,5 +26,5 @@ grin_util = { path = "../grin/util"}
 #####
 
 [dev-dependencies]
-pretty_assertions = "0.6"
+tempfile = "3.1"
 

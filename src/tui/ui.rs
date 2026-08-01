@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Terminal driver for the wallet TUI. The UI thread only handles input
-//! and drawing; dashboard data arrives from a background refresher and
-//! wallet operations run on worker threads (see `worker.rs`), so Tor
+//! Terminal driver for the wallet TUI.
+//!
+//! Most wallet operations run on worker threads (`worker.rs`) so Tor
 //! round-trips, chain scans and node timeouts never freeze the interface.
-//! Open/close/recover use in-TUI password modals. The only place the
-//! normal terminal is used is first-run wallet creation, before the
-//! dashboard opens.
+//! Dashboard data arrives from a background refresher. Open/close/recover
+//! still run on the UI thread via in-TUI password modals (they need the
+//! interactive password prompt and update local lifecycle state). The only
+//! place the normal terminal is used is first-run wallet creation, before
+//! the dashboard opens.
 
 use crate::cmd::wallet_args;
 use crate::tui::actions::{self, FormState};
@@ -29,8 +31,7 @@ use crate::tui::modals::{
 	PasswordPurpose, PasswordState, SlatepackInputState,
 };
 use crate::tui::worker::{
-	self, OpResult, PayParams, RefreshCtrl, SendParams, SlateInput, SlateOpParams, UiMsg,
-	WorkerCtx,
+	self, OpResult, PayParams, RefreshCtrl, SendParams, SlateInput, SlateOpParams, UiMsg, WorkerCtx,
 };
 use crate::tui::{accounts, logs as logs_view, menu, modals, outputs, settings, status, txs};
 use clap::App as ClapApp;
@@ -60,7 +61,7 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use std::io::{self, Stdout, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -158,7 +159,13 @@ where
 
 	match matches.subcommand() {
 		("open", Some(_)) => {
-			let password = wallet_args::prompt_password(&global_wallet_args.password);
+			let password = match wallet_args::prompt_password(&global_wallet_args.password) {
+				Ok(p) => p,
+				Err(e) => {
+					println!("Failed to read password: {}", e);
+					return Ok(());
+				}
+			};
 			match owner_api.open_wallet(None, password, false) {
 				Ok(mask) => {
 					let _ =
@@ -175,7 +182,7 @@ where
 			owner_api,
 			keychain_mask.clone(),
 			wallet_config,
-			tor_config,
+			tor_config.clone(),
 			global_wallet_args,
 			&matches,
 			test_mode,
@@ -293,7 +300,9 @@ where
 		match self.app.focus {
 			Focus::Menu => self.app.select_menu_next(),
 			Focus::Content => match self.app.tab {
-				Tab::Actions => Self::move_list(&mut self.app.actions_list, actions::ACTIONS.len(), 1),
+				Tab::Actions => {
+					Self::move_list(&mut self.app.actions_list, actions::ACTIONS.len(), 1)
+				}
 				Tab::Settings => {
 					Self::move_list(&mut self.app.settings_list, settings::SETTINGS.len(), 1)
 				}
@@ -434,7 +443,25 @@ where
 		}
 	}
 
+	/// Block lifecycle actions (and quit) while a worker is mid-operation.
+	fn refuse_if_busy(&mut self, action: &str) -> bool {
+		if let Some(op) = self.shared.busy_with() {
+			self.app.dialog = Some(Dialog {
+				text: format!(
+					"Cannot {} while '{}' is still in progress. Wait for it to finish.",
+					action, op
+				),
+			});
+			true
+		} else {
+			false
+		}
+	}
+
 	fn switch_account(&mut self, label: String) {
+		if self.refuse_if_busy("switch account") {
+			return;
+		}
 		let mask = self.keychain_mask.clone();
 		match self.owner_api.set_active_account(mask.as_ref(), &label) {
 			Ok(_) => {
@@ -454,8 +481,9 @@ where
 		}
 	}
 
-	/// Start an open/unlock: reuse CLI `-p` password if provided, else
-	/// open the masked password modal.
+	/// Start an open/unlock: reuse CLI `-p` password once if provided, else
+	/// open the masked password modal. The long-lived CLI password copy is
+	/// cleared after the first use so it is not retained for the session.
 	fn begin_open(&mut self) {
 		if !self.app.locked {
 			self.app.dialog = Some(Dialog {
@@ -463,7 +491,10 @@ where
 			});
 			return;
 		}
-		if let Some(p) = self.global_wallet_args.password.clone() {
+		if self.refuse_if_busy("open the wallet") {
+			return;
+		}
+		if let Some(p) = self.global_wallet_args.password.take() {
 			match self.open_with_password(p) {
 				Ok(()) => {
 					self.app.dialog = Some(Dialog {
@@ -483,13 +514,17 @@ where
 	}
 
 	fn begin_recover(&mut self) {
-		if let Some(p) = self.global_wallet_args.password.clone() {
+		if self.refuse_if_busy("recover the phrase") {
+			return;
+		}
+		if let Some(p) = self.global_wallet_args.password.take() {
 			match self.recover_with_password(p) {
 				Ok(body) => {
+					// Never put the recovery phrase on the clipboard path.
 					self.app.modal = Some(Modal::Output(OutputState::from_text(
 						"Recovery Phrase".to_string(),
-						body.0,
-						Some(body.1),
+						body,
+						None,
 					)));
 				}
 				Err(e) => {
@@ -500,9 +535,9 @@ where
 			}
 			return;
 		}
-		self.app
-			.modal
-			.replace(Modal::Password(PasswordState::new(PasswordPurpose::Recover)));
+		self.app.modal.replace(Modal::Password(PasswordState::new(
+			PasswordPurpose::Recover,
+		)));
 	}
 
 	/// Returns Ok on success. Caller is responsible for UI feedback.
@@ -512,34 +547,32 @@ where
 				let _ = self
 					.owner_api
 					.set_active_account(mask.as_ref(), &self.global_wallet_args.account);
-				self.keychain_mask = mask;
-				*self.shared.mask.lock() = self.keychain_mask.clone();
+				self.keychain_mask = mask.clone();
+				*self.shared.mask.lock() = mask;
 				self.shared.locked.store(false, Ordering::Relaxed);
 				self.app.locked = false;
+				// Drop any leftover CLI password after a successful unlock.
+				self.global_wallet_args.password = None;
 				Ok(())
 			}
 			Err(e) => Err(format!("{}", e)),
 		}
 	}
 
-	/// Returns `(display_body, phrase_for_clipboard)` on success.
-	fn recover_with_password(
-		&mut self,
-		password: ZeroingString,
-	) -> Result<(String, String), String> {
+	/// Display body only — recovery phrases are never offered for clipboard copy.
+	fn recover_with_password(&mut self, password: ZeroingString) -> Result<String, String> {
 		let mut w_lock = self.owner_api.wallet_inst.lock();
-		let p = w_lock
-			.lc_provider()
-			.map_err(|e| format!("{}", e))?;
+		let p = w_lock.lc_provider().map_err(|e| format!("{}", e))?;
 		let phrase = p
 			.get_mnemonic(None, password)
 			.map_err(|e| format!("{}", e))?;
-		let words = (&*phrase).to_string();
+		// Keep phrase in ZeroingString until we format the one-shot display body.
 		let body = format!(
-			"Your recovery phrase is:\n\n{}\n\nPlease back-up these words in a non-digital format.",
-			words
+			"Your recovery phrase is:\n\n{}\n\nPlease back-up these words in a non-digital format.\n\nClipboard copy is disabled for recovery phrases.",
+			&*phrase
 		);
-		Ok((body, words))
+		// `phrase` drops here and zeroes its allocation.
+		Ok(body)
 	}
 
 	fn do_close(&mut self) {
@@ -547,6 +580,9 @@ where
 			self.app.dialog = Some(Dialog {
 				text: "Wallet is already locked.".to_string(),
 			});
+			return;
+		}
+		if self.refuse_if_busy("close the wallet") {
 			return;
 		}
 		match self.owner_api.close_wallet(None) {
@@ -600,7 +636,7 @@ where
 					dest: form.text("dest"),
 					min_conf: form.u64_opt("min_conf").unwrap_or(10),
 					strategy_all: form.flag("selection_all"),
-					change_outputs: form.u64_opt("change_outputs").unwrap_or(1) as u32,
+					change_outputs: form.u32_opt("change_outputs").unwrap_or(1),
 					ttl_blocks: form.u64_opt("ttl_blocks"),
 					fluff: form.flag("fluff"),
 					no_payment_proof: form.flag("no_payment_proof"),
@@ -656,20 +692,20 @@ where
 			),
 			"repost" => worker::spawn_repost(
 				&self.ctx,
-				form.u64_opt("id").unwrap_or(0) as u32,
+				form.u32_opt("id").unwrap_or(0),
 				form.text_opt("dumpfile"),
 				form.flag("fluff"),
 			),
 			"cancel" => worker::spawn_cancel(
 				&self.ctx,
-				form.u64_opt("id").map(|v| v as u32),
+				form.u32_opt("id"),
 				form.text_opt("txid").and_then(|s| Uuid::parse_str(&s).ok()),
 			),
 			"account" => worker::spawn_account_create(&self.ctx, form.text("create")),
 			"export_proof" => worker::spawn_proof_export(
 				&self.ctx,
 				form.positional(0),
-				form.u64_opt("id").map(|v| v as u32),
+				form.u32_opt("id"),
 				form.text_opt("txid").and_then(|s| Uuid::parse_str(&s).ok()),
 			),
 			"verify_proof" => worker::spawn_proof_verify(&self.ctx, form.positional(0)),
@@ -689,15 +725,13 @@ where
 			),
 			"listen" => worker::spawn_listener(
 				&self.ctx,
-				form.u64_opt("port").map(|p| p as u16),
+				form.u16_opt("port"),
 				form.flag("no_tor"),
 				form.text_opt("bridge"),
 			),
-			"owner_api" => worker::spawn_owner_api(
-				&self.ctx,
-				form.u64_opt("port").map(|p| p as u16),
-				form.flag("run_foreign"),
-			),
+			"owner_api" => {
+				worker::spawn_owner_api(&self.ctx, form.u16_opt("port"), form.flag("run_foreign"))
+			}
 			other => {
 				self.app.dialog = Some(Dialog {
 					text: format!("'{}' is not implemented in the TUI yet.", other),
@@ -937,9 +971,9 @@ where
 						return;
 					}
 					let password = ZeroingString::from(state.field.value.clone());
-					// Drop the plaintext from the field before we keep
-					// the modal around on error.
-					state.field = TextField::new("");
+					// Zero the plaintext field before we keep the modal on error.
+					state.field.clear_secure();
+					state.field = TextField::new_password();
 					match state.purpose {
 						PasswordPurpose::Open => match self.open_with_password(password) {
 							Ok(()) => {
@@ -954,11 +988,11 @@ where
 							}
 						},
 						PasswordPurpose::Recover => match self.recover_with_password(password) {
-							Ok((body, copy)) => {
+							Ok(body) => {
 								self.app.modal = Some(Modal::Output(OutputState::from_text(
 									"Recovery Phrase".to_string(),
 									body,
-									Some(copy),
+									None,
 								)));
 							}
 							Err(e) => {
@@ -1093,7 +1127,11 @@ where
 		}
 
 		match code {
-			KeyCode::Char('q') => self.app.should_quit = true,
+			KeyCode::Char('q') | KeyCode::Char('Q') => {
+				if !self.refuse_if_busy("quit") {
+					self.app.should_quit = true;
+				}
+			}
 			KeyCode::Char('?') => self.app.modal = Some(Modal::Help),
 			KeyCode::Char('j') | KeyCode::Down => self.on_down(),
 			KeyCode::Char('k') | KeyCode::Up => self.on_up(),
@@ -1258,6 +1296,7 @@ pub fn run<L, C, K>(
 	global_wallet_args: &GlobalArgs,
 	test_mode: bool,
 	logs_rx: Option<mpsc::Receiver<LogEntry>>,
+	config_file_path: PathBuf,
 ) -> Result<(), Error>
 where
 	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
@@ -1267,9 +1306,15 @@ where
 {
 	let (status_tx, status_rx) = mpsc::channel::<StatusMessage>();
 	let (ui_tx, ui_rx) = mpsc::channel::<UiMsg>();
-	let mut owner_api = Owner::new(wallet_inst, Some(status_tx.clone()));
+	let mut owner_api = Owner::new(
+		wallet_inst,
+		Some(status_tx.clone()),
+		config_file_path.clone(),
+	);
 	let mut keychain_mask: Option<SecretKey> = None;
 	let mut locked = true;
+	// Local copy so we can drop the CLI password after the initial unlock.
+	let mut global_args = global_wallet_args.clone();
 
 	let wallet_exists = {
 		let mut w_lock = owner_api.wallet_inst.lock();
@@ -1292,7 +1337,7 @@ where
 				&mut locked,
 				wallet_config,
 				tor_config,
-				global_wallet_args,
+				&global_args,
 				test_mode,
 			) {
 				println!("Failed to create wallet: {}", e);
@@ -1311,7 +1356,7 @@ where
 		&mut locked,
 		wallet_config,
 		tor_config,
-		global_wallet_args,
+		&global_args,
 		test_mode,
 	) {
 		println!("Failed to open wallet: {}", e);
@@ -1321,12 +1366,22 @@ where
 		println!("Could not open wallet, exiting.");
 		return Ok(());
 	}
+	// Do not retain the CLI `--pass` copy for the rest of the TUI session.
+	global_args.password = None;
 
 	let _ = owner_api.start_updater(keychain_mask.as_ref(), Duration::from_secs(30));
 
-	let shared = Arc::new(SharedState::new(global_wallet_args.account.clone()));
+	let shared = Arc::new(SharedState::new(
+		global_args.account.clone(),
+		owner_api.updater_running.clone(),
+	));
 	*shared.mask.lock() = keychain_mask.clone();
 	shared.locked.store(locked, Ordering::Relaxed);
+
+	let config_path = Path::new(&wallet_config.data_file_dir)
+		.join(WALLET_CONFIG_FILE_NAME)
+		.to_string_lossy()
+		.to_string();
 
 	let ctx = WorkerCtx {
 		wallet_inst: owner_api.wallet_inst.clone(),
@@ -1335,19 +1390,15 @@ where
 		status_tx: status_tx.clone(),
 		wallet_config: wallet_config.clone(),
 		tor_config: tor_config.clone(),
-		tls_conf: global_wallet_args.tls_conf.clone(),
-		api_secret: global_wallet_args.api_secret.clone(),
+		tls_conf: global_args.tls_conf.clone(),
+		api_secret: global_args.api_secret.clone(),
 		test_mode,
+		config_path: config_file_path,
 	};
 
 	let (refresh_tx, refresh_rx) = mpsc::channel::<RefreshCtrl>();
 	worker::spawn_refresher(ctx.clone(), refresh_rx);
 	let _ = refresh_tx.send(RefreshCtrl::Now);
-
-	let config_path = Path::new(&wallet_config.data_file_dir)
-		.join(WALLET_CONFIG_FILE_NAME)
-		.to_string_lossy()
-		.to_string();
 
 	install_panic_hook();
 	enable_raw_mode().expect("Failed to enable raw terminal mode");
@@ -1364,12 +1415,12 @@ where
 
 	let mut controller = Controller {
 		terminal,
-		app: App::new(global_wallet_args.account.clone(), locked),
+		app: App::new(global_args.account.clone(), locked),
 		owner_api,
 		keychain_mask,
 		wallet_config: wallet_config.clone(),
 		tor_config: tor_config.clone(),
-		global_wallet_args: global_wallet_args.clone(),
+		global_wallet_args: global_args,
 		shared,
 		ctx,
 		config_path,

@@ -17,28 +17,3 @@ pub mod bridge;
 pub mod config;
 pub mod process;
 pub mod proxy;
-
-/// Running Tor instance control.
-pub struct Tor {
-	/// External to process control.
-	pub process: Option<process::TorProcess>,
-	/// Integrated service.
-	pub service: Option<std::sync::Arc<tor_hsservice::RunningOnionService>>,
-	/// Integrated client.
-	pub client:
-		Option<std::sync::Arc<arti_client::TorClient<tor_rtcompat::tokio::TokioNativeTlsRuntime>>>,
-}
-
-/// Arti client runtime wrapper.
-#[derive(Clone)]
-pub struct ArtiRuntimeWrapper {
-	pub runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime,
-}
-
-impl ArtiRuntimeWrapper {
-	fn create() -> Result<ArtiRuntimeWrapper, std::io::Error> {
-		Ok(Self {
-			runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime::create()?,
-		})
-	}
-}

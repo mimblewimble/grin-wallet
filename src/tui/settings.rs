@@ -145,8 +145,8 @@ fn parse_port(v: &str) -> Result<u16, String> {
 		.map_err(|_| "enter a valid port number".to_string())
 }
 
-/// Validate and apply a new value: update the in-memory configs, persist
-/// to grin-wallet.toml when applicable, and return the notice to show.
+/// Validate and apply a new value: stage on copies, persist atomically,
+/// then update the live in-memory configs only after a successful write.
 pub fn apply(
 	setting: &SettingSpec,
 	value: &str,
@@ -169,65 +169,74 @@ pub fn apply(
 		));
 	}
 
-	// Validate & apply to the in-memory copies first
+	// Stage changes on copies so a failed write leaves live state unchanged.
+	let mut staged_wallet = wallet_config.clone();
+	let mut staged_tor = tor_config.clone();
 	match setting.kind {
 		SettingKind::NodeAddr => {
 			if value.is_empty() {
 				return Err("address cannot be empty".to_string());
 			}
-			wallet_config.check_node_api_http_addr = value.to_string();
+			staged_wallet.check_node_api_http_addr = value.to_string();
 		}
-		SettingKind::ForeignPort => wallet_config.api_listen_port = parse_port(value)?,
-		SettingKind::OwnerPort => wallet_config.owner_api_listen_port = Some(parse_port(value)?),
+		SettingKind::ForeignPort => staged_wallet.api_listen_port = parse_port(value)?,
+		SettingKind::OwnerPort => staged_wallet.owner_api_listen_port = Some(parse_port(value)?),
 		SettingKind::IncludeForeign => {
-			wallet_config.owner_api_include_foreign = Some(parse_bool(value)?)
+			staged_wallet.owner_api_include_foreign = Some(parse_bool(value)?)
 		}
-		SettingKind::TorListener => tor_config.use_tor_listener = parse_bool(value)?,
+		SettingKind::TorListener => staged_tor.use_tor_listener = parse_bool(value)?,
 		SettingKind::SocksAddr => {
 			if value.is_empty() {
 				return Err("address cannot be empty".to_string());
 			}
-			tor_config.socks_proxy_addr = value.to_string();
+			staged_tor.socks_proxy_addr = value.to_string();
 		}
-		SettingKind::SkipTorSend => tor_config.skip_send_attempt = Some(parse_bool(value)?),
+		SettingKind::SkipTorSend => staged_tor.skip_send_attempt = Some(parse_bool(value)?),
 		SettingKind::MinConf => unreachable!(),
 	}
 
 	// Persist: reload the on-disk config so we only change this one key,
-	// then write it back through the comment-preserving writer.
-	let mut global_config = GlobalWalletConfig::new(config_path)
+	// then write via a temp file and rename for atomic replace.
+	let path = std::path::PathBuf::from(config_path);
+	let mut global_config = GlobalWalletConfig::new(path.clone())
 		.map_err(|e| format!("unable to load {}: {}", config_path, e))?;
 	{
-		let members = global_config
-			.members
-			.as_mut()
-			.ok_or_else(|| "config file has no members".to_string())?;
+		let members = &mut global_config.members;
 		match setting.kind {
 			SettingKind::NodeAddr => {
 				members.wallet.check_node_api_http_addr = value.to_string();
 			}
 			SettingKind::ForeignPort => {
-				members.wallet.api_listen_port = wallet_config.api_listen_port;
+				members.wallet.api_listen_port = staged_wallet.api_listen_port;
 			}
 			SettingKind::OwnerPort => {
-				members.wallet.owner_api_listen_port = wallet_config.owner_api_listen_port;
+				members.wallet.owner_api_listen_port = staged_wallet.owner_api_listen_port;
 			}
 			SettingKind::IncludeForeign => {
-				members.wallet.owner_api_include_foreign =
-					wallet_config.owner_api_include_foreign;
+				members.wallet.owner_api_include_foreign = staged_wallet.owner_api_include_foreign;
 			}
 			SettingKind::TorListener | SettingKind::SocksAddr | SettingKind::SkipTorSend => {
-				let tor = members.tor.get_or_insert_with(|| tor_config.clone());
-				tor.use_tor_listener = tor_config.use_tor_listener;
-				tor.socks_proxy_addr = tor_config.socks_proxy_addr.clone();
-				tor.skip_send_attempt = tor_config.skip_send_attempt;
+				let tor = members.tor.get_or_insert_with(|| staged_tor.clone());
+				tor.use_tor_listener = staged_tor.use_tor_listener;
+				tor.socks_proxy_addr = staged_tor.socks_proxy_addr.clone();
+				tor.skip_send_attempt = staged_tor.skip_send_attempt;
 			}
 			SettingKind::MinConf => unreachable!(),
 		}
 	}
+	let tmp_path = path.with_extension("toml.tmp");
+	let tmp_str = tmp_path.to_string_lossy().to_string();
 	global_config
-		.write_to_file(config_path, false, None, None)
-		.map_err(|e| format!("unable to write {}: {}", config_path, e))?;
+		.write_to_file(&tmp_str, false, None, None)
+		.map_err(|e| format!("unable to write {}: {}", tmp_str, e))?;
+	std::fs::rename(&tmp_path, &path).map_err(|e| {
+		let _ = std::fs::remove_file(&tmp_path);
+		format!("unable to replace {}: {}", config_path, e)
+	})?;
+
+	// Commit staged values only after the file write succeeded.
+	*wallet_config = staged_wallet;
+	*tor_config = staged_tor;
 
 	let mut notice = format!("Saved '{}' to {}.", setting.label, config_path);
 	if setting.restart {
@@ -236,7 +245,6 @@ pub fn apply(
 	Ok(notice)
 }
 
-/// Draw the settings view
 pub fn draw(
 	f: &mut Frame,
 	area: Rect,

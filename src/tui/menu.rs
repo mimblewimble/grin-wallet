@@ -52,7 +52,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &mut App) {
 		Line::from("Esc       : Back  "),
 		Line::from("s         : Spent "),
 		Line::from("?         : Help  "),
-		Line::from("Q         : Quit  "),
+		Line::from("q         : Quit  "),
 	];
 	f.render_widget(Paragraph::new(hints), chunks[1]);
 }

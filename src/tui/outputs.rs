@@ -16,6 +16,7 @@
 
 use crate::tui::app::App;
 use grin_core::core::amount_to_hr_string;
+use grin_util::ToHex;
 use grin_wallet_libwallet::OutputCommitMapping;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -23,17 +24,19 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
-fn short_commit(commit: &Option<String>) -> String {
-	match commit {
-		Some(c) if c.len() > 16 => format!("{}...", &c[..16]),
-		Some(c) => c.clone(),
-		None => "-".to_string(),
+/// Format the reconstructed mapping commit (same source as the CLI display).
+fn short_commit(o: &OutputCommitMapping) -> String {
+	let c = o.commit.as_ref().to_hex();
+	if c.len() > 16 {
+		format!("{}...", &c[..16])
+	} else {
+		c
 	}
 }
 
 fn output_row(o: &OutputCommitMapping) -> Row<'static> {
 	Row::new(vec![
-		Cell::from(short_commit(&o.output.commit)),
+		Cell::from(short_commit(o)),
 		Cell::from(amount_to_hr_string(o.output.value, false)),
 		Cell::from(format!("{:?}", o.output.status)),
 		Cell::from(o.output.height.to_string()),
@@ -44,7 +47,6 @@ fn output_row(o: &OutputCommitMapping) -> Row<'static> {
 const HEADERS: [&str; 5] = ["Commitment", "Value", "Status", "Height", "Coinbase"];
 const WIDTHS: [u16; 5] = [30, 18, 18, 14, 10];
 
-/// Draw the outputs view
 pub fn draw(f: &mut Frame, area: Rect, app: &mut App) {
 	if app.locked {
 		f.render_widget(Paragraph::new("Wallet is locked."), area);

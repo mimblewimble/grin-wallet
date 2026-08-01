@@ -21,6 +21,7 @@ extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
 use grin_core as core;
+use std::path::PathBuf;
 
 use self::libwallet::{InitTxArgs, Slate};
 use impls::test_framework::{self, LocalWalletClient};
@@ -73,15 +74,25 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 
 	// Stop the scanning updater threads because it extends the time needed to build the chain
 	// exponentially
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, _m| {
-		api.stop_updater()?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, _m| {
+			api.stop_updater()?;
+			Ok(())
+		},
+	)?;
 
-	wallet::controller::owner_single_use(Some(wallet2.clone()), mask2, None, |api, _m| {
-		api.stop_updater()?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, _m| {
+			api.stop_updater()?;
+			Ok(())
+		},
+	)?;
 
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
@@ -94,17 +105,22 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 		let mut wallet_1_has_funds = false;
 
 		// Check wallet 1 contents
-		wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			debug!(
-				"Wallet 1 spendable - {}",
-				wallet1_info.amount_currently_spendable
-			);
-			if wallet1_info.amount_currently_spendable > reward {
-				wallet_1_has_funds = true;
-			}
-			Ok(())
-		})?;
+		wallet::controller::owner_single_use(
+			wallet1.clone(),
+			mask1,
+			PathBuf::from(test_dir),
+			|api, m| {
+				let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+				debug!(
+					"Wallet 1 spendable - {}",
+					wallet1_info.amount_currently_spendable
+				);
+				if wallet1_info.amount_currently_spendable > reward {
+					wallet_1_has_funds = true;
+				}
+				Ok(())
+			},
+		)?;
 
 		// let's say 1 in every 3 blocks has a transaction (i.e. random 0 here and wallet1 has funds)
 		let transact = rng.gen_range(0, 2) == 0;
@@ -121,14 +137,14 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 			let mut slate = Slate::blank(1, false);
 			debug!("Creating TX for {}", amount);
 			wallet::controller::owner_single_use(
-				Some(wallet1.clone()),
+				wallet1.clone(),
 				mask1,
-				None,
+				PathBuf::from(test_dir),
 				|sender_api, m| {
 					// note this will increment the block count as part of the transaction "Posting"
 					let args = InitTxArgs {
 						src_acct_name: None,
-						amount: amount,
+						amount,
 						minimum_confirmations: 1,
 						max_outputs: 500,
 						num_change_outputs: 1,

@@ -37,7 +37,7 @@ use std::{fs, thread, time};
 /// Just removes all results from previous runs
 pub fn clean_all_output(test_name_dir: &str) {
 	let target_dir = format!("target/tmp/{}", test_name_dir);
-	if let Err(e) = remove_dir_all::remove_dir_all(target_dir) {
+	if let Err(e) = fs::remove_dir_all(target_dir) {
 		println!("can't remove output from previous test :{}, may be ok", e);
 	}
 }
@@ -281,7 +281,11 @@ impl LocalServerContainer {
 		let _ = fs::create_dir_all(self.wallet_config.clone().data_file_dir);
 		let r = wallet::WalletSeed::init_file(&self.wallet_config, 32, None, "");
 
-		let client_n = HTTPNodeClient::new(&self.wallet_config.check_node_api_http_addr, None, std::time::Duration::from_secs(60));
+		let client_n = HTTPNodeClient::new(
+			&self.wallet_config.check_node_api_http_addr,
+			None,
+			std::time::Duration::from_secs(60),
+		);
 
 		if let Err(_e) = r {
 			//panic!("Error initializing wallet seed: {}", e);
@@ -354,7 +358,11 @@ impl LocalServerContainer {
 		let keychain: keychain::ExtKeychain = wallet_seed
 			.derive_keychain(false)
 			.expect("Failed to derive keychain from seed file and passphrase.");
-		let client_n = HTTPNodeClient::new(&config.check_node_api_http_addr, None, std::time::Duration::from_secs(60));
+		let client_n = HTTPNodeClient::new(
+			&config.check_node_api_http_addr,
+			None,
+			std::time::Duration::from_secs(60),
+		);
 		let mut wallet = LMDBBackend::new(config.clone(), "", client_n)
 			.unwrap_or_else(|e| panic!("Error creating wallet: {:?} Config: {:?}", e, config));
 		wallet.keychain = Some(keychain);
@@ -382,7 +390,11 @@ impl LocalServerContainer {
 			.derive_keychain(false)
 			.expect("Failed to derive keychain from seed file and passphrase.");
 
-		let client_n = HTTPNodeClient::new(&config.check_node_api_http_addr, None, std::time::Duration::from_secs(60));
+		let client_n = HTTPNodeClient::new(
+			&config.check_node_api_http_addr,
+			None,
+			std::time::Duration::from_secs(60),
+		);
 		let client_w = HTTPWalletCommAdapter::new();
 
 		let max_outputs = 500;

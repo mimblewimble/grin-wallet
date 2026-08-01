@@ -23,6 +23,7 @@ use ratatui::layout::Rect;
 use ratatui::widgets::{ListState, TableState};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Number of log lines retained in the ring buffer
 pub const LOG_BUFFER_SIZE: usize = 300;
@@ -77,11 +78,13 @@ pub enum Focus {
 	Content,
 }
 
-/// State shared between the UI thread and background worker threads
+/// State shared between the UI thread, worker threads, and optional HTTP
+/// listeners. `mask` is an `Arc` so foreign/owner listeners observe the same
+/// keychain mask as in-TUI open/close.
 pub struct SharedState {
-	/// Current keychain mask, updated on open/close
-	pub mask: Mutex<Option<SecretKey>>,
-	/// Whether the wallet is currently locked
+	/// Current keychain mask, updated on open/close (shared with listeners)
+	pub mask: Arc<Mutex<Option<SecretKey>>>,
+	/// Whether the wallet is currently locked (UI + workers)
 	pub locked: AtomicBool,
 	/// Name of the operation currently running on a worker thread, if any
 	pub busy: Mutex<Option<String>>,
@@ -95,12 +98,15 @@ pub struct SharedState {
 	pub listener_running: AtomicBool,
 	/// Whether the owner API listener is running
 	pub owner_api_running: AtomicBool,
+	/// Shared with the controller `Owner` so the refresher can report
+	/// `validated || updater_running` like the CLI status path
+	pub updater_running: Arc<AtomicBool>,
 }
 
 impl SharedState {
-	pub fn new(account: String) -> SharedState {
+	pub fn new(account: String, updater_running: Arc<AtomicBool>) -> SharedState {
 		SharedState {
-			mask: Mutex::new(None),
+			mask: Arc::new(Mutex::new(None)),
 			locked: AtomicBool::new(true),
 			busy: Mutex::new(None),
 			account: Mutex::new(account),
@@ -108,6 +114,7 @@ impl SharedState {
 			show_spent: AtomicBool::new(false),
 			listener_running: AtomicBool::new(false),
 			owner_api_running: AtomicBool::new(false),
+			updater_running,
 		}
 	}
 

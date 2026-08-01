@@ -32,7 +32,6 @@ fn grin(amount: u64) -> String {
 	amount_to_hr_string(amount, false)
 }
 
-/// Draw the account status/balance view
 pub fn draw(f: &mut Frame, area: Rect, app: &App, shared: &SharedState) {
 	let mut lines: Vec<Line> = Vec::new();
 

@@ -142,7 +142,7 @@ impl PasswordState {
 	pub fn new(purpose: PasswordPurpose) -> PasswordState {
 		PasswordState {
 			purpose,
-			field: TextField::new(""),
+			field: TextField::new_password(),
 			error: None,
 		}
 	}
@@ -182,10 +182,9 @@ pub fn draw(f: &mut Frame, area: Rect, modal: &mut Modal) {
 fn draw_password(f: &mut Frame, area: Rect, state: &PasswordState) {
 	let popup = centered_rect(55, 30, area);
 	f.render_widget(Clear, popup);
-	let block = Block::default().borders(Borders::ALL).title(format!(
-		"{} (Enter: submit, Esc: cancel)",
-		state.title()
-	));
+	let block = Block::default()
+		.borders(Borders::ALL)
+		.title(format!("{} (Enter: submit, Esc: cancel)", state.title()));
 	let inner = block.inner(popup);
 	f.render_widget(block, popup);
 
@@ -197,10 +196,7 @@ fn draw_password(f: &mut Frame, area: Rect, state: &PasswordState) {
 	])
 	.split(inner);
 
-	f.render_widget(
-		Paragraph::new("Enter wallet password:"),
-		rows[0],
-	);
+	f.render_widget(Paragraph::new("Enter wallet password:"), rows[0]);
 	// Mask the value so a shoulder-surfer can't read it off the screen
 	let masked: String = "*".repeat(state.field.value.chars().count());
 	f.render_widget(
@@ -262,9 +258,11 @@ fn draw_output(f: &mut Frame, area: Rect, state: &OutputState) {
 		hints.push("q: QR");
 	}
 	hints.push("Esc: close");
-	let block = Block::default()
-		.borders(Borders::ALL)
-		.title(format!("{} ({})", state.title, hints.join(", ")));
+	let block = Block::default().borders(Borders::ALL).title(format!(
+		"{} ({})",
+		state.title,
+		hints.join(", ")
+	));
 	let inner = block.inner(popup);
 	f.render_widget(block, popup);
 
@@ -277,11 +275,7 @@ fn draw_output(f: &mut Frame, area: Rect, state: &OutputState) {
 		}
 	}
 
-	let lines: Vec<Line> = state
-		.lines
-		.iter()
-		.map(|l| Line::from(l.clone()))
-		.collect();
+	let lines: Vec<Line> = state.lines.iter().map(|l| Line::from(l.clone())).collect();
 	let paragraph = Paragraph::new(lines)
 		.scroll((state.scroll, 0))
 		.wrap(Wrap { trim: false });
@@ -351,8 +345,7 @@ fn draw_context(f: &mut Frame, area: Rect, state: &ContextMenuState) {
 		.collect();
 	let mut list_state = ListState::default();
 	list_state.select(Some(state.selected));
-	let list =
-		List::new(items).highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+	let list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 	f.render_stateful_widget(list, inner, &mut list_state);
 }
 
@@ -360,9 +353,10 @@ fn draw_edit_setting(f: &mut Frame, area: Rect, state: &EditSettingState) {
 	let popup = centered_rect(60, 25, area);
 	f.render_widget(Clear, popup);
 	let setting = &crate::tui::settings::SETTINGS[state.setting_idx];
-	let block = Block::default()
-		.borders(Borders::ALL)
-		.title(format!("Edit: {} (Enter: save, Esc: cancel)", setting.label));
+	let block = Block::default().borders(Borders::ALL).title(format!(
+		"Edit: {} (Enter: save, Esc: cancel)",
+		setting.label
+	));
 	let inner = block.inner(popup);
 	f.render_widget(block, popup);
 

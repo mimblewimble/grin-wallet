@@ -13,11 +13,12 @@
 // limitations under the License.
 
 //! Log display: newest entries anchored to the bottom of the pane.
+//! Uses ratatui's Unicode-aware wrap so wide characters reflow correctly.
 
 use ratatui::layout::Rect;
-use ratatui::style::Color;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::tui::app::App;
@@ -32,76 +33,30 @@ fn color(level: Level) -> Color {
 	}
 }
 
-/// Word-wraps `text` to `width` columns, hard-breaking words that don't fit
-/// on their own. Empty input produces a single empty line.
-fn wrap_text(text: &str, width: usize) -> Vec<String> {
-	let width = width.max(1);
-	let mut out = Vec::new();
-	for raw_line in text.split('\n') {
-		let mut current = String::new();
-		let mut current_len = 0usize;
-		for word in raw_line.split(' ') {
-			let mut word_chars: Vec<char> = word.chars().collect();
-			while word_chars.len() > width {
-				if !current.is_empty() {
-					out.push(std::mem::take(&mut current));
-					current_len = 0;
-				}
-				let rest = word_chars.split_off(width);
-				out.push(word_chars.into_iter().collect());
-				word_chars = rest;
-			}
-			let word_len = word_chars.len();
-			let needed = word_len + if current.is_empty() { 0 } else { 1 };
-			if current_len + needed > width && !current.is_empty() {
-				out.push(std::mem::take(&mut current));
-				current_len = 0;
-			}
-			if !current.is_empty() {
-				current.push(' ');
-				current_len += 1;
-			}
-			current.push_str(&word_chars.into_iter().collect::<String>());
-			current_len += word_len;
-		}
-		out.push(current);
-	}
-	out
-}
-
-/// Draw the logs view, bottom-anchoring the newest log lines.
+/// Draw the logs view. Newest entries are kept; Paragraph + Wrap handles
+/// reflow using terminal column widths (not raw char counts).
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
-	let width = area.width as usize;
-	let height = area.height as usize;
+	// Cap to a few screens of source lines so wrap stays cheap; newest first
+	// in the ring buffer, so reverse for chronological display.
+	let max_source = (area.height as usize).saturating_mul(4).max(32);
+	let lines: Vec<Line> = app
+		.logs
+		.iter()
+		.take(max_source)
+		.rev()
+		.map(|entry| {
+			Line::from(Span::styled(
+				entry.log.trim_end_matches('\n').to_string(),
+				Style::default().fg(color(entry.level)),
+			))
+		})
+		.collect();
 
-	let mut blocks: Vec<(Vec<String>, Level)> = Vec::new();
-	let mut rows_collected = 0usize;
-	for entry in app.logs.iter() {
-		if rows_collected >= height {
-			break;
-		}
-		let wrapped = wrap_text(entry.log.trim_end_matches('\n'), width);
-		rows_collected += wrapped.len();
-		blocks.push((wrapped, entry.level));
-	}
-
-	blocks.reverse();
-
-	let mut lines: Vec<Line> = Vec::new();
-	for (wrapped, level) in &blocks {
-		for row in wrapped {
-			lines.push(Line::from(Span::styled(row.clone(), color(*level))));
-		}
-	}
-
-	if lines.len() > height {
-		lines.drain(0..lines.len() - height);
-	}
-
-	let pad = height.saturating_sub(lines.len());
-	let mut padded = Vec::with_capacity(height);
-	padded.resize_with(pad, || Line::from(""));
-	padded.extend(lines);
-
-	f.render_widget(Paragraph::new(padded), area);
+	// Approximate bottom-anchoring: if we have more source lines than the
+	// pane height, scroll by the excess (wrap may add a few more rows).
+	let scroll = lines.len().saturating_sub(area.height as usize) as u16;
+	let paragraph = Paragraph::new(lines)
+		.wrap(Wrap { trim: false })
+		.scroll((scroll, 0));
+	f.render_widget(paragraph, area);
 }

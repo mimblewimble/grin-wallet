@@ -42,6 +42,7 @@ use serde_json as json;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -109,6 +110,8 @@ where
 	pub tls_conf: Option<grin_api::TLSConfig>,
 	pub api_secret: Option<String>,
 	pub test_mode: bool,
+	/// Path to grin-wallet.toml (required by Owner / foreign listener)
+	pub config_path: PathBuf,
 }
 
 impl<L, C, K> Clone for WorkerCtx<L, C, K>
@@ -128,7 +131,19 @@ where
 			tls_conf: self.tls_conf.clone(),
 			api_secret: self.api_secret.clone(),
 			test_mode: self.test_mode,
+			config_path: self.config_path.clone(),
 		}
+	}
+}
+
+/// Clears `busy` when dropped so panics and early returns cannot stick the UI.
+struct BusyGuard {
+	shared: Arc<SharedState>,
+}
+
+impl Drop for BusyGuard {
+	fn drop(&mut self) {
+		*self.shared.busy.lock() = None;
 	}
 }
 
@@ -160,19 +175,36 @@ where
 	}
 	let ctx = ctx.clone();
 	let name = name.to_string();
-	let _ = thread::Builder::new()
+	let shared = ctx.shared.clone();
+	let ui_tx = ctx.ui_tx.clone();
+	match thread::Builder::new()
 		.name(format!("wallet-tui-{}", name))
 		.spawn(move || {
-			let mut owner = Owner::new(ctx.wallet_inst.clone(), Some(ctx.status_tx.clone()));
+			let _guard = BusyGuard {
+				shared: ctx.shared.clone(),
+			};
+			let mut owner = Owner::new(
+				ctx.wallet_inst.clone(),
+				Some(ctx.status_tx.clone()),
+				ctx.config_path.clone(),
+			);
 			let mask = ctx.shared.mask.lock().clone();
 			let res = f(&mut owner, mask.as_ref(), &ctx);
-			*ctx.shared.busy.lock() = None;
 			let msg = match res {
 				Ok(r) => r,
 				Err(e) => OpResult::Error(format!("{}", e)),
 			};
 			let _ = ctx.ui_tx.send(UiMsg::Op(msg));
-		});
+		}) {
+		Ok(_) => {}
+		Err(e) => {
+			*shared.busy.lock() = None;
+			let _ = ui_tx.send(UiMsg::Op(OpResult::Error(format!(
+				"Failed to start background operation '{}': {}",
+				name, e
+			))));
+		}
+	}
 }
 
 fn io_err(e: std::io::Error) -> Error {
@@ -293,11 +325,15 @@ where
 }
 
 /// Whether a Tor slatepack sync should be attempted (mirrors command.rs).
-fn can_send_tor(tor_config: &TorConfig, manual: bool, test_mode: bool) -> bool {
+///
+/// Pass `Some(true)` only when the user selected Manual; otherwise pass
+/// `None` so a configured `skip_send_attempt` is still respected.
+pub(crate) fn can_send_tor(tor_config: &TorConfig, manual: bool, test_mode: bool) -> bool {
 	if test_mode {
 		return false;
 	}
-	tor_config.send_tor(Some(manual))
+	let skip_arg = if manual { Some(true) } else { None };
+	tor_config.send_tor(skip_arg)
 }
 
 /// Parameters for a send, gathered from the form
@@ -324,6 +360,8 @@ where
 {
 	spawn_op(ctx, "send", move |owner, mask, ctx| {
 		let use_max = p.amount.trim() == "max";
+		// Match CLI: "max" implies the fee is included in the spendable amount.
+		let amount_includes_fee = p.amount_includes_fee || use_max;
 		let mut amount = match use_max {
 			true => 0,
 			false => amount_from_hr_string(p.amount.trim())
@@ -339,7 +377,7 @@ where
 			for strategy in ["smallest", "all"] {
 				let init_args = InitTxArgs {
 					amount,
-					amount_includes_fee: Some(p.amount_includes_fee),
+					amount_includes_fee: Some(amount_includes_fee),
 					minimum_confirmations: p.min_conf,
 					max_outputs: 500,
 					num_change_outputs: p.change_outputs,
@@ -370,7 +408,7 @@ where
 		};
 		let init_args = InitTxArgs {
 			amount,
-			amount_includes_fee: Some(p.amount_includes_fee),
+			amount_includes_fee: Some(amount_includes_fee),
 			minimum_confirmations: p.min_conf,
 			max_outputs: 500,
 			num_change_outputs: p.change_outputs,
@@ -395,9 +433,24 @@ where
 			);
 		}
 
+		let dest_addr = match SlatepackAddress::try_from(p.dest.as_str()) {
+			Ok(a) => a,
+			Err(_) => {
+				return slatepack_output(
+					owner,
+					mask,
+					&slate,
+					&p.dest,
+					p.outfile,
+					true,
+					false,
+					"Send: Slatepack Created",
+				);
+			}
+		};
 		match try_slatepack_sync_workflow(
 			&slate,
-			&p.dest,
+			&dest_addr,
 			Some(ctx.tor_config.clone()),
 			None,
 			false,
@@ -479,12 +532,17 @@ where
 			let (mut slate, ret_address) = parse_slate(owner, mask, &input)?;
 			let km = mask.cloned();
 			let account = ctx.shared.account.lock().clone();
-			controller::foreign_single_use(owner.wallet_inst.clone(), km, |api| {
-				slate = api.receive_tx(&slate, Some(&account), None)?;
-				Ok(())
-			})?;
-			let dest = match ret_address {
-				Some(a) => String::try_from(&a).unwrap_or_default(),
+			controller::foreign_single_use(
+				owner.wallet_inst.clone(),
+				ctx.config_path.clone(),
+				km,
+				|api| {
+					slate = api.receive_tx(&slate, Some(&account), None)?;
+					Ok(())
+				},
+			)?;
+			let dest = match &ret_address {
+				Some(a) => String::try_from(a).unwrap_or_default(),
 				None => String::new(),
 			};
 			if !can_send_tor(&ctx.tor_config, manual, ctx.test_mode) {
@@ -500,27 +558,41 @@ where
 				);
 			}
 
-			match try_slatepack_sync_workflow(
-				&slate,
-				&dest,
-				Some(ctx.tor_config.clone()),
-				None,
-				true,
-			) {
-				Ok(s) => {
-					// Keep local tx state in sync after Tor handoff (see command::receive)
-					{
-						let mut w_lock = owner.wallet_inst.lock();
-						let w = w_lock.lc_provider()?.wallet_inst()?;
-						let parent_key_id = w.parent_key_id();
-						let _ = update_tx_slate_state(w, mask, &parent_key_id, &s);
+			match ret_address.as_ref() {
+				Some(addr) => {
+					match try_slatepack_sync_workflow(
+						&slate,
+						addr,
+						Some(ctx.tor_config.clone()),
+						None,
+						true,
+					) {
+						Ok(s) => {
+							// Keep local tx state in sync after Tor handoff (see command::receive)
+							{
+								let mut w_lock = owner.wallet_inst.lock();
+								let w = w_lock.lc_provider()?.wallet_inst()?;
+								let parent_key_id = w.parent_key_id();
+								let _ = update_tx_slate_state(w, mask, &parent_key_id, &s);
+							}
+							Ok(OpResult::Info(format!(
+								"Transaction received and sent back to {} for finalization.",
+								dest
+							)))
+						}
+						Err(_) => slatepack_output(
+							owner,
+							mask,
+							&slate,
+							&dest,
+							outfile,
+							false,
+							false,
+							"Receive: Response Slatepack",
+						),
 					}
-					Ok(OpResult::Info(format!(
-						"Transaction received and sent back to {} for finalization.",
-						dest
-					)))
 				}
-				Err(_) => slatepack_output(
+				None => slatepack_output(
 					owner,
 					mask,
 					&slate,
@@ -543,10 +615,15 @@ where
 			let is_invoice = slate.state == SlateState::Invoice2;
 			if is_invoice {
 				let km = mask.cloned();
-				controller::foreign_single_use(owner.wallet_inst.clone(), km, |api| {
-					slate = api.finalize_tx(&slate, false)?;
-					Ok(())
-				})?;
+				controller::foreign_single_use(
+					owner.wallet_inst.clone(),
+					ctx.config_path.clone(),
+					km,
+					|api| {
+						slate = api.finalize_tx(&slate, false)?;
+						Ok(())
+					},
+				)?;
 			} else {
 				slate = owner.finalize_tx(mask, &slate)?;
 			}
@@ -580,7 +657,9 @@ where
 					});
 					PathToSlatepack::new(f.clone().into(), &packer, true).get_slatepack(false)?
 				}
-				SlateInput::Message(m) => owner.decode_slatepack_message(mask, m.clone(), vec![])?,
+				SlateInput::Message(m) => {
+					owner.decode_slatepack_message(mask, m.clone(), vec![])?
+				}
 			};
 			body.push_str("SLATEPACK CONTENTS\n------------------\n");
 			body.push_str(&format!("{}\n", slatepack));
@@ -674,14 +753,14 @@ pub fn spawn_pay_process<L, C, K>(
 			);
 		}
 
-		match try_slatepack_sync_workflow(
-			&slate,
-			&dest,
-			Some(ctx.tor_config.clone()),
-			None,
-			true,
-		) {
-			Ok(s) => {
+		let dest_addr = match dest.as_str() {
+			"" => None,
+			s => SlatepackAddress::try_from(s).ok(),
+		};
+		match dest_addr.as_ref().and_then(|addr| {
+			try_slatepack_sync_workflow(&slate, addr, Some(ctx.tor_config.clone()), None, true).ok()
+		}) {
+			Some(s) => {
 				{
 					let mut w_lock = owner.wallet_inst.lock();
 					let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -693,7 +772,7 @@ pub fn spawn_pay_process<L, C, K>(
 					dest
 				)))
 			}
-			Err(_) => slatepack_output(
+			None => slatepack_output(
 				owner,
 				mask,
 				&slate,
@@ -795,8 +874,11 @@ pub fn spawn_repost<L, C, K>(
 	});
 }
 
-pub fn spawn_cancel<L, C, K>(ctx: &WorkerCtx<L, C, K>, tx_id: Option<u32>, tx_slate_id: Option<Uuid>)
-where
+pub fn spawn_cancel<L, C, K>(
+	ctx: &WorkerCtx<L, C, K>,
+	tx_id: Option<u32>,
+	tx_slate_id: Option<Uuid>,
+) where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -979,7 +1061,8 @@ where
 }
 
 /// Start the foreign (receive) listener on a background thread, mirroring
-/// `command::listen` in cli mode.
+/// `command::listen` in cli mode. Uses the shared keychain mask so in-TUI
+/// open/close is visible to the listener.
 pub fn spawn_listener<L, C, K>(
 	ctx: &WorkerCtx<L, C, K>,
 	port: Option<u16>,
@@ -1000,14 +1083,8 @@ pub fn spawn_listener<L, C, K>(
 	if let Some(p) = port {
 		config.api_listen_port = p;
 	}
-	let mut tor_config = ctx.tor_config.clone();
-	if no_tor {
-		tor_config.use_tor_listener = false;
-	}
-	if let Some(b) = bridge {
-		tor_config.bridge.bridge_line = Some(b);
-	}
-	let mask = Arc::new(Mutex::new(ctx.shared.mask.lock().clone()));
+	let use_tor = if no_tor { Some(false) } else { None };
+	let mask = ctx.shared.mask.clone();
 	let addr = config.api_listen_addr();
 	ctx.shared.listener_running.store(true, Ordering::Relaxed);
 	let _ = ctx.ui_tx.send(UiMsg::Op(OpResult::Info(format!(
@@ -1015,17 +1092,20 @@ pub fn spawn_listener<L, C, K>(
 		addr
 	))));
 	let ctx = ctx.clone();
-	let _ = thread::Builder::new()
+	let shared = ctx.shared.clone();
+	let ui_tx = ctx.ui_tx.clone();
+	match thread::Builder::new()
 		.name("wallet-tui-listener".to_string())
 		.spawn(move || {
 			let res = controller::foreign_listener(
 				ctx.wallet_inst.clone(),
+				ctx.config_path.clone(),
+				bridge,
+				use_tor,
 				mask,
 				&config.api_listen_addr(),
 				ctx.tls_conf.clone(),
-				tor_config.use_tor_listener,
 				ctx.test_mode,
-				tor_config,
 			);
 			ctx.shared.listener_running.store(false, Ordering::Relaxed);
 			let msg = match res {
@@ -1033,10 +1113,20 @@ pub fn spawn_listener<L, C, K>(
 				Err(e) => OpResult::Error(format!("Listener failed: {}", e)),
 			};
 			let _ = ctx.ui_tx.send(UiMsg::Op(msg));
-		});
+		}) {
+		Ok(_) => {}
+		Err(e) => {
+			shared.listener_running.store(false, Ordering::Relaxed);
+			let _ = ui_tx.send(UiMsg::Op(OpResult::Error(format!(
+				"Failed to start listener: {}",
+				e
+			))));
+		}
+	}
 }
 
-/// Start the owner API listener on a background thread
+/// Start the owner API listener on a background thread. Shares the same
+/// keychain mask Arc as the TUI and forwards configured TLS settings.
 pub fn spawn_owner_api<L, C, K>(ctx: &WorkerCtx<L, C, K>, port: Option<u16>, run_foreign: bool)
 where
 	L: WalletLCProvider<'static, C, K> + Send + Sync + 'static,
@@ -1056,7 +1146,7 @@ where
 	if run_foreign {
 		config.owner_api_include_foreign = Some(true);
 	}
-	let mask = Arc::new(Mutex::new(ctx.shared.mask.lock().clone()));
+	let mask = ctx.shared.mask.clone();
 	let addr = config.owner_api_listen_addr();
 	ctx.shared.owner_api_running.store(true, Ordering::Relaxed);
 	let _ = ctx.ui_tx.send(UiMsg::Op(OpResult::Info(format!(
@@ -1064,17 +1154,25 @@ where
 		addr
 	))));
 	let ctx = ctx.clone();
-	let _ = thread::Builder::new()
+	let shared = ctx.shared.clone();
+	let ui_tx = ctx.ui_tx.clone();
+	match thread::Builder::new()
 		.name("wallet-tui-owner-api".to_string())
 		.spawn(move || {
-			let res = controller::owner_listener(
+			// OwnerAPIHandler builds its own Owner from wallet + config path;
+			// this instance only supplies those for owner_listener.
+			let mut owner = Owner::new(
 				ctx.wallet_inst.clone(),
+				Some(ctx.status_tx.clone()),
+				ctx.config_path.clone(),
+			);
+			let res = controller::owner_listener(
+				&mut owner,
 				mask,
 				config.owner_api_listen_addr().as_str(),
 				ctx.api_secret.clone(),
-				None,
+				ctx.tls_conf.clone(),
 				config.owner_api_include_foreign,
-				Some(ctx.tor_config.clone()),
 				ctx.test_mode,
 			);
 			ctx.shared.owner_api_running.store(false, Ordering::Relaxed);
@@ -1083,7 +1181,16 @@ where
 				Err(e) => OpResult::Error(format!("Owner API failed: {}", e)),
 			};
 			let _ = ctx.ui_tx.send(UiMsg::Op(msg));
-		});
+		}) {
+		Ok(_) => {}
+		Err(e) => {
+			shared.owner_api_running.store(false, Ordering::Relaxed);
+			let _ = ui_tx.send(UiMsg::Op(OpResult::Error(format!(
+				"Failed to start Owner API: {}",
+				e
+			))));
+		}
+	}
 }
 
 /// Run the dashboard refresher until the control channel closes. Reads are
@@ -1096,10 +1203,15 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let _ = thread::Builder::new()
+	let ui_tx = ctx.ui_tx.clone();
+	match thread::Builder::new()
 		.name("wallet-tui-refresher".to_string())
 		.spawn(move || {
-			let owner = Owner::new(ctx.wallet_inst.clone(), Some(ctx.status_tx.clone()));
+			let owner = Owner::new(
+				ctx.wallet_inst.clone(),
+				Some(ctx.status_tx.clone()),
+				ctx.config_path.clone(),
+			);
 			let mut cached_address: Option<String> = None;
 			loop {
 				match ctrl_rx.recv_timeout(REFRESH_INTERVAL) {
@@ -1124,7 +1236,9 @@ where
 				};
 				match owner.retrieve_summary_info(m, false, min_conf) {
 					Ok((validated, info)) => {
-						view.validated = validated;
+						// Match CLI: treat running updater as validated.
+						view.validated =
+							validated || ctx.shared.updater_running.load(Ordering::Relaxed);
 						view.info = Some(info);
 					}
 					Err(e) => view.last_error = Some(e.to_string()),
@@ -1152,5 +1266,42 @@ where
 					break;
 				}
 			}
-		});
+		}) {
+		Ok(_) => {}
+		Err(e) => {
+			let _ = ui_tx.send(UiMsg::Op(OpResult::Error(format!(
+				"Failed to start dashboard refresher: {}",
+				e
+			))));
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::can_send_tor;
+	use grin_wallet_config::TorConfig;
+
+	#[test]
+	fn can_send_tor_manual_skips() {
+		let mut tor = TorConfig::default();
+		tor.skip_send_attempt = Some(false);
+		assert!(!can_send_tor(&tor, true, false));
+		assert!(can_send_tor(&tor, false, false));
+	}
+
+	#[test]
+	fn can_send_tor_respects_config_when_not_manual() {
+		let mut tor = TorConfig::default();
+		tor.skip_send_attempt = Some(true);
+		// Manual=false must not override config with Some(false).
+		assert!(!can_send_tor(&tor, false, false));
+		assert!(!can_send_tor(&tor, true, false));
+	}
+
+	#[test]
+	fn can_send_tor_test_mode_never() {
+		let tor = TorConfig::default();
+		assert!(!can_send_tor(&tor, false, true));
+	}
 }

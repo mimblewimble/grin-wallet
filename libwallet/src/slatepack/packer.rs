@@ -24,7 +24,7 @@ use crate::{
 
 use grin_wallet_util::byte_ser;
 
-use ed25519_dalek::SecretKey as edSecretKey;
+use ed25519_dalek::SigningKey as edSecretKey;
 
 #[derive(Clone)]
 /// Arguments, mostly for encrypting decrypting a slatepack

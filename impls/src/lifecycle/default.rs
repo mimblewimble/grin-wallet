@@ -24,6 +24,7 @@ use crate::lifecycle::seed::WalletSeed;
 use crate::util::secp::key::SecretKey;
 use crate::util::ZeroingString;
 use grin_util::logger::LoggingConfig;
+use grin_wallet_config::config::reload_global_config;
 use std::fs;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
@@ -89,48 +90,11 @@ where
 		logging_config: Option<LoggingConfig>,
 		tor_config: Option<TorConfig>,
 	) -> Result<(), Error> {
-		let mut default_config = GlobalWalletConfig::for_chain(&chain_type);
-		let config_file_version = match default_config.members.as_ref() {
-			Some(m) => m.clone().config_file_version,
-			None => None,
-		};
-		let logging = match logging_config {
-			Some(l) => Some(l),
-			None => match default_config.members.as_ref() {
-				Some(m) => m.clone().logging,
-				None => None,
-			},
-		};
-		// Check if config was provided, if not load default and set update to "true"
-		let (wallet, update) = match wallet_config {
-			Some(w) => (w, false),
-			None => match default_config.members.as_ref() {
-				Some(m) => (m.clone().wallet, true),
-				None => (WalletConfig::default(), true),
-			},
-		};
-		let tor = match tor_config {
-			Some(t) => Some(t),
-			None => match default_config.members.as_ref() {
-				Some(m) => m.clone().tor,
-				None => Some(TorConfig::default()),
-			},
-		};
-		default_config = GlobalWalletConfig {
-			members: Some(GlobalWalletConfigMembers {
-				config_file_version,
-				wallet,
-				tor,
-				logging,
-			}),
-			..default_config
-		};
 		let mut config_file_name = PathBuf::from(self.data_dir.clone());
 		config_file_name.push(file_name);
 
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
-
 		if config_file_name.exists() && data_dir_name.exists() {
 			let msg = format!(
 				"{} already exists in the target directory ({}). Please remove it first",
@@ -140,10 +104,35 @@ where
 			return Err(Error::Lifecycle(msg));
 		}
 
-		// If config exists but the datadir return ok
 		if config_file_name.exists() {
 			return Ok(());
 		}
+
+		let mut default_config = GlobalWalletConfig::for_chain(&chain_type, &config_file_name);
+		let config_file_version = default_config.members.config_file_version;
+		let logging = match logging_config.clone() {
+			Some(l) => Some(l),
+			None => default_config.members.logging,
+		};
+		// Check if config was provided, if not load default and set update to "true"
+		let (wallet, update) = match wallet_config.clone() {
+			Some(w) => (w, false),
+			None => (default_config.members.wallet, true),
+		};
+		let tor = match tor_config.clone() {
+			Some(t) => Some(t),
+			None => default_config.members.tor,
+		};
+		default_config = GlobalWalletConfig {
+			members: GlobalWalletConfigMembers {
+				config_file_version,
+				wallet,
+				tor,
+				logging,
+			},
+			..default_config
+		};
+
 		// default settings are updated if no config was provided, no support for top_dir/here
 		let mut abs_path_node = std::env::current_dir()?;
 		abs_path_node.push(self.data_dir.clone());
@@ -170,6 +159,8 @@ where
 			);
 			return Err(Error::Lifecycle(msg));
 		}
+
+		reload_global_config(&config_file_name)?;
 
 		info!(
 			"File {} configured and created",

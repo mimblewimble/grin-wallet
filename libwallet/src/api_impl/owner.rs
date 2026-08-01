@@ -25,7 +25,7 @@ use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::grin_util::Mutex;
 use crate::grin_util::ToHex;
-use crate::util::{OnionV3Address, OnionV3AddressError};
+use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
@@ -41,9 +41,9 @@ use crate::{
 	WalletInitStatus, WalletInst, WalletLCProvider,
 };
 
-use ed25519_dalek::PublicKey as DalekPublicKey;
-use ed25519_dalek::SecretKey as DalekSecretKey;
+use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
 
 use std::convert::{TryFrom, TryInto};
@@ -133,16 +133,7 @@ where
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
 	let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, index)?;
-	let d_skey = match DalekSecretKey::from_bytes(&sec_addr_key.0) {
-		Ok(k) => k,
-		Err(e) => {
-			return Err(OnionV3AddressError::InvalidPrivateKey(format!(
-				"Unable to create secret key: {}",
-				e
-			))
-			.into());
-		}
-	};
+	let d_skey = DalekSecretKey::from_bytes(&sec_addr_key.0);
 	Ok(d_skey)
 }
 
@@ -479,6 +470,19 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	let payment_proof_address = if let Some(a) = &args.payment_proof_recipient_address {
+		if a.valid_network() {
+			Some(a)
+		} else {
+			return Err(Error::PaymentProofRetrieval(format!(
+				"Wrong network for address {}",
+				a
+			)));
+		}
+	} else {
+		None
+	};
+
 	let parent_key_id = match &args.src_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d.clone())?;
@@ -548,7 +552,7 @@ where
 	// probably want to allow sender to specify which one
 	let deriv_path = 0u32;
 
-	if let Some(a) = args.payment_proof_recipient_address {
+	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
 		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
@@ -1238,12 +1242,7 @@ where
 
 	// for now, simple test whether one of the addresses belongs to this wallet
 	let sec_key = address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
-	let d_skey = match DalekSecretKey::from_bytes(&sec_key.0) {
-		Ok(k) => k,
-		Err(e) => {
-			return Err(Error::ED25519Key(format!("{}", e)));
-		}
-	};
+	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
 	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
 
 	let sender_mine = my_address_pubkey == sender_pubkey;
