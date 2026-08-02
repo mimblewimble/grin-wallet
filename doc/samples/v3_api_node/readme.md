@@ -10,19 +10,21 @@ First run the Owner API:
 grin-wallet owner_api
 ```
 
-This sample doesn't use the authentication specified in the wallet's `.api_secret`, so before running the owner_api please ensure api authentication is commented out in `grin-wallet.toml`. Including the authentication token as part of the request is a function of your json-rpc client library of choice, so it's not included in the sample to make setup a bit simpler.
-
-ensure the client url in `src\index.js` is set correctly:
+The Owner API uses HTTP Basic authentication when `api_secret_path` is configured in `grin-wallet.toml`. Before running the sample, load the secret from that file into an environment variable:
 
 ```.sh
-const client = jayson.client.http('http://localhost:3420/v3/owner');
+export GRIN_OWNER_API_SECRET="$(cat /path/to/.owner_api_secret)"
 ```
+
+The sample sends it as the password for the `grin` user. If `api_secret_path` is disabled, the environment variable can be omitted.
+
+Ensure the client connection settings in `src/index.js` match the Owner API address.
 
 Then (assuming node.js and npm are installed on the system):
 
 ```.sh
 npm install
-node src/index.json
+node src/index.js
 ```
 
 Feel free to play around with the sample, modifying it to call whatever functions you'd like to see in operation!

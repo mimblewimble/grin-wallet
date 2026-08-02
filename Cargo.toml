@@ -20,13 +20,12 @@ members = ["api", "config", "controller", "impls", "libwallet", "util", "integra
 
 [dependencies]
 clap = { version = "2.33", features = ["yaml"] }
-rpassword = "4.0"
+rpassword = "7.5.4"
 thiserror = "1"
-prettytable-rs = "0.10"
 log = "0.4"
 linefeed = "0.6"
-semver = "0.10"
-rustyline = "6"
+semver = "1.0.28"
+rustyline = "9"
 lazy_static = "1"
 
 grin_wallet_api = { path = "./api", version = "5.4.1" }
@@ -34,35 +33,13 @@ grin_wallet_impls = { path = "./impls", version = "5.4.1" }
 grin_wallet_libwallet = { path = "./libwallet", version = "5.4.1" }
 grin_wallet_controller = { path = "./controller", version = "5.4.1" }
 grin_wallet_config = { path = "./config", version = "5.4.1" }
-grin_wallet_util = { path = "./util", version = "5.4.1" }
-
 
 ##### Grin Imports
 
-# For Release
-grin_core = "5.4.1"
-grin_keychain = "5.4.1"
-grin_util = "5.4.1"
-grin_api = "5.4.1"
-
-# For beta release
-
-# grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3"}
-# grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-# grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-# grin_api = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-
-# For bleeding edge
-# grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_api = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-
-# For local testing
-# grin_core = { path = "../grin/core"}
-# grin_keychain = { path = "../grin/keychain"}
-# grin_util = { path = "../grin/util"}
-# grin_api = { path = "../grin/api"}
+grin_core = { path = "grin/core"}
+grin_keychain = { path = "grin/keychain"}
+grin_util = { path = "grin/util"}
+grin_api = { path = "grin/api"}
 
 ###### 
 
@@ -72,7 +49,5 @@ built = { version = "0.8.0", features = ["git2"]}
 [dev-dependencies]
 url = "2.1"
 serde = "1"
-serde_derive = "1"
 serde_json = "1"
-remove_dir_all = "0.7"
 easy-jsonrpc-mw = "0.5.4"

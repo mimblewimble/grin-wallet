@@ -10,31 +10,15 @@ workspace = ".."
 edition = "2021"
 
 [dependencies]
-rand = "0.6"
 serde = "1"
 serde_derive = "1"
-ed25519-dalek = "1.0.0-pre.4"
+ed25519-dalek = "2"
 data-encoding = "2"
 sha3 = "0.8"
 thiserror = "1"
 
 ##### Grin Imports
 
-# For Release
-grin_util = "5.4.1"
+grin_util = { path = "../grin/util"}
 
-# For beta release
-
-# grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-
-# For bleeding edge
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-
-# For local testing
-
-# grin_util = { path = "../../grin/util"}
-
-#####
-
-[dev-dependencies]
-pretty_assertions = "0.6"
+######

@@ -14,19 +14,14 @@
 
 //! Owner API External Definition
 
-use chrono::prelude::*;
-use ed25519_dalek::SecretKey as DalekSecretKey;
-use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
-use grin_wallet_libwallet::RetrieveTxQueryArgs;
-use uuid::Uuid;
-
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
-use crate::impls::HttpSlateSender;
 use crate::impls::SlateSender as _;
+use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
+use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
@@ -36,13 +31,25 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
+use grin_wallet_config::config::{
+	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
+};
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
+use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
+
+use chrono::prelude::*;
+use ed25519_dalek::SigningKey as DalekSecretKey;
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use uuid::Uuid;
 
 /// Main interface into all wallet API functions.
 /// Wallet APIs are split into two seperate blocks of functionality
@@ -64,11 +71,13 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	/// contain all methods to manage the wallet
+	/// Contains all methods to manage the wallet
 	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	/// Wallet configuration path
+	config_path: crate::ConfigPath,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
 	pub doctest_mode: bool,
-	/// retail TLD during doctest
+	/// Retail TLD during doctest
 	pub doctest_retain_tld: bool,
 	/// Share ECDH key
 	pub shared_key: Arc<Mutex<Option<SecretKey>>>,
@@ -81,9 +90,6 @@ where
 	/// Holds all update and status messages returned by the
 	/// updater process
 	updater_messages: Arc<Mutex<Vec<StatusMessage>>>,
-	/// Optional TOR configuration, holding address of sender and
-	/// data directory
-	tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> Owner<L, C, K>
@@ -97,20 +103,22 @@ where
 	///
 	/// Each method will call the [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html)'s
 	/// [`open_with_credentials`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.open_with_credentials)
-	/// (initialising a keychain with the master seed,) perform its operation, then close the keychain
+	/// initializing a keychain with the master seed, perform its operation, then close the keychain
 	/// with a call to [`close`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.close)
 	///
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
+	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
 	/// * `custom_channel` - A custom MPSC Tx/Rx pair to capture status
 	/// updates
-	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	/// * `config_path` - Path to the wallet configuration file
 	///
 	/// # Returns
 	/// * An instance of the OwnerApi holding a reference to the provided wallet
 	///
 	/// # Example
 	/// ```
+	/// use std::path::PathBuf;
 	/// use grin_keychain as keychain;
 	/// use grin_util as util;
 	/// use grin_core;
@@ -144,14 +152,14 @@ where
 	///
 	/// // A NodeClient must first be created to handle communication between
 	/// // the wallet and the node.
-	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+	/// let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, wallet_config.api_request_timeout()).unwrap();
 	///
 	/// // impls::DefaultWalletImpl is provided for convenience in instantiating the wallet
-	/// // It contains the LMDBBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
+	/// // It contains the WalletBackend, DefaultLCProvider (lifecycle) and ExtKeychain used
 	/// // by the reference wallet implementation.
 	/// // These traits can be replaced with alternative implementations if desired
 	///
-	/// let mut wallet = Box::new(DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap())
+	/// let mut wallet = Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
 	///     as Box<dyn WalletInst<'static, DefaultLCProvider<HTTPNodeClient, ExtKeychain>, HTTPNodeClient, ExtKeychain>>;
 	///
 	/// // Wallet LifeCycle Provider provides all functions init wallet and work with seeds, etc...
@@ -168,15 +176,19 @@ where
 	/// // All wallet functions operate on an Arc::Mutex to allow multithreading where needed
 	/// let mut wallet = Arc::new(Mutex::new(wallet));
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, PathBuf::from(dir).join("grin-wallet.toml"));
 	/// // .. perform wallet operations
 	///
 	/// ```
 
-	pub fn new(
+	pub fn new<P>(
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 		custom_channel: Option<Sender<StatusMessage>>,
-	) -> Self {
+		config_path: P,
+	) -> Self
+	where
+		P: Into<crate::ConfigPath>,
+	{
 		let updater_running = Arc::new(AtomicBool::new(false));
 		let updater = Arc::new(Mutex::new(owner_updater::Updater::new(
 			wallet_inst.clone(),
@@ -195,6 +207,7 @@ where
 
 		Owner {
 			wallet_inst,
+			config_path: config_path.into(),
 			doctest_mode: false,
 			doctest_retain_tld: false,
 			shared_key: Arc::new(Mutex::new(None)),
@@ -202,21 +215,49 @@ where
 			updater_running,
 			status_tx: Mutex::new(Some(tx)),
 			updater_messages,
-			tor_config: Mutex::new(None),
 		}
 	}
 
+	/// Return the active wallet configuration path.
+	pub fn config_path(&self) -> PathBuf {
+		self.config_path.get()
+	}
+
+	/// Return the shared wallet configuration path.
+	#[doc(hidden)]
+	pub fn shared_config_path(&self) -> crate::ConfigPath {
+		self.config_path.clone()
+	}
+
 	/// Set the TOR configuration for this instance of the OwnerAPI, used during
-	/// `init_send_tx` when send args are present and a TOR address is specified
+	/// `init_send_tx` when send args are present and a TOR address is specified,
+	/// this will also update persistent config and will restart foreign listener
 	///
 	/// # Arguments
 	/// * `tor_config` - The optional [TorConfig](#) to use
 	/// # Returns
-	/// * Nothing
+	/// * Result Containing:
+	/// * `Ok(())` if the config was correctly saved
+	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///
 
-	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) {
-		let mut lock = self.tor_config.lock();
-		*lock = tor_config;
+	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
+		let _wallet_lock = self.wallet_inst.lock();
+		update_global_config(&self.config_path(), |config| {
+			if let Some(tor_config) = tor_config {
+				config.members.tor = Some(tor_config);
+			} else if let Some(tor) = config.members.tor.as_mut() {
+				tor.use_tor_listener = false;
+				tor.skip_send_attempt = Some(true);
+			} else {
+				let mut tor_config = config.tor_config();
+				tor_config.use_tor_listener = false;
+				tor_config.skip_send_attempt = Some(true);
+				config.members.tor = Some(tor_config);
+			}
+			Ok(())
+		})
+		.map_err(|e| Error::TorConfig(format!("{}", e)))
 	}
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
@@ -241,7 +282,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let result = api_owner.accounts(None);
 	///
@@ -258,7 +299,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::accounts(&mut **w)
+		owner::accounts(w)
 	}
 
 	/// Creates a new 'account', which is a mapping of a user-specified
@@ -292,7 +333,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let result = api_owner.create_account_path(None, "account1");
 	///
@@ -308,7 +349,7 @@ where
 	) -> Result<Identifier, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::create_account_path(&mut **w, keychain_mask, label)
+		owner::create_account_path(w, keychain_mask, label)
 	}
 
 	/// Sets the wallet's currently active account. This sets the
@@ -339,7 +380,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let result = api_owner.create_account_path(None, "account1");
 	///
@@ -358,7 +399,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::set_active_account(&mut **w, label)
+		owner::set_active_account(w, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
@@ -395,7 +436,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let show_spent = false;
 	/// let update_from_node = true;
 	/// let tx_id = None;
@@ -466,7 +507,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
@@ -545,7 +586,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let minimum_confirmations=10;
 	///
@@ -632,7 +673,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// // Attempt to create a transaction using the 'default' account
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
@@ -662,60 +703,59 @@ where
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
-		let slate = {
+		let dest = match send_args.as_ref() {
+			Some(args) if !args.dest.is_empty() => {
+				Some(SlatepackAddress::try_from(args.dest.as_str())?)
+			}
+			_ => None,
+		};
+		let (slate, tor_config) = {
 			let mut w_lock = self.wallet_inst.lock();
+			let tor_config = send_args
+				.as_ref()
+				.map(|_| crate::tor_config::load(&self.config_path()))
+				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			owner::init_send_tx(&mut **w, keychain_mask, args, self.doctest_mode)?
+			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+			(slate, tor_config)
 		};
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
-		let skip_tor = match send_args.as_ref() {
-			None => false,
-			Some(sa) => sa.skip_tor,
-		};
 		match send_args {
 			Some(sa) => {
-				let tor_config_lock = self.tor_config.lock();
-				let tc = tor_config_lock.clone();
-				let tc = match tc {
-					Some(mut c) => {
-						c.skip_send_attempt = Some(skip_tor);
-						Some(c)
-					}
-					None => None,
-				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					&sa.dest,
-					tc,
-					None,
-					false,
-					self.doctest_mode,
-				);
+				let tc = tor_config.ok_or_else(|| {
+					Error::TorConfig("Tor config was not loaded with send arguments".into())
+				})?;
+				let can_send = tc.send_tor(sa.skip_tor);
+				if self.doctest_mode || !can_send || dest.is_none() {
+					return Ok(slate);
+				}
+				let res =
+					try_slatepack_sync_workflow(&slate, &dest.unwrap(), Some(tc), None, false);
 				match res {
-					Ok(Some(s)) => {
+					Ok(s) => {
+						self.tx_lock_outputs(keychain_mask, &s)?;
+						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
-							self.tx_lock_outputs(keychain_mask, &s)?;
-							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
 							match result {
 								Ok(_) => {
 									info!("Tx sent ok",);
-									return Ok(ret_slate);
+									Ok(ret_slate)
 								}
 								Err(e) => {
 									error!("Tx sent fail: {}", e);
-									return Err(e);
+									Err(e)
 								}
 							}
 						} else {
-							self.tx_lock_outputs(keychain_mask, &s)?;
-							let ret_slate = self.finalize_tx(keychain_mask, &s)?;
-							return Ok(ret_slate);
+							Ok(ret_slate)
 						}
 					}
-					Ok(None) => Ok(slate),
-					Err(_) => Ok(slate),
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(slate)
+					}
 				}
 			}
 			None => Ok(slate),
@@ -724,7 +764,7 @@ where
 
 	/// Issues a new invoice transaction slate, essentially a `request for payment`.
 	/// The slate created by this function will contain the amount, an output for the amount,
-	/// as well as round 1 of singature creation complete. The slate should then be send
+	/// as well as round 1 of signature creation complete. The slate should then be sent
 	/// to the payer, who should add their inputs and signature data and return the slate
 	/// via the [Foreign API's `finalize_tx`](struct.Foreign.html#method.finalize_tx) method.
 	///
@@ -744,7 +784,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let args = IssueInvoiceTxArgs {
 	///     amount: 60_000_000_000,
@@ -764,14 +804,14 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::issue_invoice_tx(&mut **w, keychain_mask, args, self.doctest_mode)
+		owner::issue_invoice_tx(w, keychain_mask, args, self.doctest_mode)
 	}
 
-	/// Processes an invoice tranaction created by another party, essentially
+	/// Processes an invoice transaction created by another party, essentially
 	/// a `request for payment`. The incoming slate should contain a requested
-	/// amount, an output created by the invoicer convering the amount, and
+	/// amount, an output created by the invoicer converting the amount, and
 	/// part 1 of signature creation completed. This function will add inputs
-	/// equalling the amount + fees, as well as perform round 1 and 2 of signature
+	/// equaling the amount + fees, as well as perform round 1 and 2 of signature
 	/// creation.
 	///
 	/// Callers should note that no prompting of the user will be done by this function
@@ -805,7 +845,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// // . . .
 	/// // The slate has been recieved from the invoicer, somehow
@@ -834,34 +874,59 @@ where
 		slate: &Slate,
 		args: InitTxArgs,
 	) -> Result<Slate, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
 		let send_args = args.send_args.clone();
-		let slate =
-			owner::process_invoice_tx(&mut **w, keychain_mask, slate, args, self.doctest_mode)?;
+		let dest = match send_args.as_ref() {
+			Some(args) if !args.dest.is_empty() => {
+				Some(SlatepackAddress::try_from(args.dest.as_str())?)
+			}
+			_ => None,
+		};
+		let (slate, tor_config) = {
+			let mut w_lock = self.wallet_inst.lock();
+			let tor_config = send_args
+				.as_ref()
+				.map(|_| crate::tor_config::load(&self.config_path()))
+				.transpose()?;
+			let w = w_lock.lc_provider()?.wallet_inst()?;
+			let slate =
+				owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
+			(slate, tor_config)
+		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
 			Some(sa) => {
-				let tor_config_lock = self.tor_config.lock();
-				let tc = tor_config_lock.clone();
-				let tc = match tc {
-					Some(mut c) => {
-						c.skip_send_attempt = Some(sa.skip_tor);
-						Some(c)
-					}
-					None => None,
-				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					&sa.dest,
-					tc,
-					None,
-					true,
-					self.doctest_mode,
-				);
+				let tc = tor_config.ok_or_else(|| {
+					Error::TorConfig("Tor config was not loaded with send arguments".into())
+				})?;
+				let can_send = tc.send_tor(sa.skip_tor);
+				if self.doctest_mode || !can_send || dest.is_none() {
+					return Ok(slate);
+				}
+				let dest = dest.unwrap();
+				let res = try_slatepack_sync_workflow(&slate, &dest, Some(tc), None, true);
 				match res {
-					Ok(s) => Ok(s.unwrap()),
-					Err(_) => Ok(slate),
+					Ok(s) => {
+						// Update slate state.
+						{
+							let mut w_lock = self.wallet_inst.lock();
+							let w = w_lock.lc_provider()?.wallet_inst()?;
+							let parent_key_id = w.parent_key_id();
+							match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
+								Ok(_) => {}
+								Err(e) => error!("Error on updating slate state: {}", e),
+							}
+						}
+						// Output slatepack message to file.
+						match output_slatepack_file(&self, keychain_mask, &s, Some(dest)) {
+							Ok(_) => {}
+							Err(e) => error!("Error on saving output slatepack message: {}", e),
+						}
+						Ok(s)
+					}
+					Err(e) => {
+						error!("Error on sending over Tor: {}", e);
+						Ok(slate)
+					}
 				}
 			}
 			None => Ok(slate),
@@ -871,7 +936,7 @@ where
 	/// Locks the outputs associated with the inputs to the transaction in the given
 	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html),
 	/// making them unavailable for use in further transactions. This function is called
-	/// by the sender, (or more generally, all parties who have put inputs into the transaction,)
+	/// by the sender, (or more generally, all parties who have put inputs into the transaction)
 	/// and must be called before the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx)
 	/// that completes the transaction.
 	///
@@ -899,7 +964,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -929,7 +994,7 @@ where
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::tx_lock_outputs(&mut **w, keychain_mask, slate)
+		owner::tx_lock_outputs(w, keychain_mask, slate)
 	}
 
 	/// Finalizes a transaction, after all parties
@@ -961,7 +1026,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -995,7 +1060,7 @@ where
 	) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::finalize_tx(&mut **w, keychain_mask, slate)
+		owner::finalize_tx(w, keychain_mask, slate)
 	}
 
 	/// Posts a completed transaction to the listening node for validation and inclusion in a block
@@ -1020,7 +1085,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1091,7 +1156,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -1162,7 +1227,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = None;
@@ -1186,7 +1251,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::get_stored_tx(&**w, tx_id, slate_id)
+		owner::get_stored_tx(w, tx_id, slate_id)
 	}
 
 	/// Return the rewind hash of the wallet.
@@ -1206,7 +1271,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1246,7 +1311,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1310,7 +1375,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
+	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.scan(
 	///     None,
 	///     Some(20000),
@@ -1368,7 +1433,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.node_height(None);
 	///
 	/// if let Ok(node_height_result) = result {
@@ -1425,7 +1490,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let result = api_owner.get_top_level_directory();
 	///
 	/// if let Ok(dir) = result {
@@ -1450,6 +1515,9 @@ where
 	/// Set [`get_top_level_directory`](struct.Owner.html#method.get_top_level_directory) for a
 	/// description of the top level directory and default paths.
 	///
+	/// The wallet must be closed and the updater stopped before changing this directory.
+	/// Open the wallet again afterwards to load its database from the new location.
+	///
 	/// # Arguments
 	///
 	/// * `dir`: The new top-level directory path (either relative to current directory or
@@ -1473,7 +1541,7 @@ where
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let result = api_owner.set_top_level_directory(dir);
 	///
 	/// if let Ok(dir) = result {
@@ -1482,9 +1550,25 @@ where
 	/// ```
 
 	pub fn set_top_level_directory(&self, dir: &str) -> Result<(), Error> {
+		if self.updater_running.load(Ordering::Relaxed) {
+			return Err(Error::Lifecycle(
+				"Stop the updater before changing the top-level directory".into(),
+			));
+		}
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
-		lc.set_top_level_directory(dir)
+		if lc.wallet_inst().is_ok() {
+			return Err(Error::Lifecycle(
+				"Close the wallet before changing the top-level directory".into(),
+			));
+		}
+		let config_path = PathBuf::from(dir).join(WALLET_CONFIG_FILE_NAME);
+		if config_path.exists() {
+			reload_global_config(&config_path)?;
+		}
+		lc.set_top_level_directory(dir)?;
+		self.config_path.set(config_path);
+		Ok(())
 	}
 
 	/// Create a `grin-wallet.toml` configuration file in the top-level directory for the
@@ -1523,7 +1607,7 @@ where
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
@@ -1592,7 +1676,7 @@ where
 	/// #   .to_str()
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
@@ -1659,7 +1743,7 @@ where
 	/// #   .to_str()
 	/// #   .ok_or("Failed to convert tmpdir path to string.".to_owned())
 	/// #   .unwrap();
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from(dir));
 	/// let _ = api_owner.set_top_level_directory(dir);
 	///
 	/// // Create configuration
@@ -1716,7 +1800,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.close_wallet(None);
 	///
@@ -1752,7 +1836,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let pw = ZeroingString::from("my_password");
 	/// let res = api_owner.get_mnemonic(None, pw);
@@ -1797,7 +1881,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let old = ZeroingString::from("my_password");
 	/// let new = ZeroingString::from("new_password");
@@ -1840,7 +1924,7 @@ where
 	/// use grin_core::global::ChainTypes;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.delete_wallet(None);
 	///
@@ -1896,7 +1980,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -1951,7 +2035,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -1993,7 +2077,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.start_updater(None, Duration::from_secs(60));
 	///
@@ -2059,7 +2143,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.get_slatepack_address(None, 0);
 	///
@@ -2099,7 +2183,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// let res = api_owner.get_slatepack_secret_key(None, 0);
 	///
@@ -2140,9 +2224,8 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
-	/// let mut api_owner = Owner::new(wallet.clone(), None);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
 	///     amount: 2_000_000_000,
@@ -2210,7 +2293,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// // ... receive a slatepack from somewhere
 	/// # let slatepack_string = String::from("");
 	///   let res = api_owner.slate_from_slatepack_message(
@@ -2260,7 +2343,7 @@ where
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
-	/// # let api_owner = Owner::new(wallet.clone(), None);
+	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// # let slatepack_string = String::from("");
 	/// // .. receive a slatepack from somewhere
 	/// let res = api_owner.decode_slatepack_message(
@@ -2318,7 +2401,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
@@ -2387,7 +2470,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let update_from_node = true;
 	/// let tx_id = None;
 	/// let tx_slate_id = Some(Uuid::parse_str("0436430c-2b02-624c-2032-570501212b00").unwrap());
@@ -2422,7 +2505,7 @@ where
 	) -> Result<BuiltOutput, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::build_output(&mut **w, keychain_mask, features, amount)
+		owner::build_output(w, keychain_mask, features, amount)
 	}
 
 	// MWIXNET
@@ -2449,7 +2532,7 @@ where
 	/// ```
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
-	/// let api_owner = Owner::new(wallet.clone(), None);
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let keychain_mask = None;
 	/// let params = MixnetReqCreationParams {
 	///   server_keys: vec![], // Public keys here in secret key representation
@@ -2481,7 +2564,7 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::create_mwixnet_req(
-			&mut **w,
+			w,
 			keychain_mask,
 			params,
 			commitment,
@@ -2494,85 +2577,55 @@ where
 /// attempt to send slate synchronously with TOR
 pub fn try_slatepack_sync_workflow(
 	slate: &Slate,
-	dest: &str,
+	dest: &SlatepackAddress,
 	tor_config: Option<TorConfig>,
-	tor_sender: Option<HttpSlateSender>,
+	tor_sender: Option<TorSlateSender>,
 	send_to_finalize: bool,
-	test_mode: bool,
-) -> Result<Option<Slate>, libwallet::Error> {
-	if let Some(tc) = &tor_config {
-		if tc.skip_send_attempt == Some(true) {
-			return Ok(None);
-		}
-	}
+) -> Result<Slate, Error> {
 	let mut ret_slate = Slate::blank(2, false);
-	let mut send_sync = |mut sender: HttpSlateSender, method_str: &str| match sender
-		.send_tx(&slate, send_to_finalize)
-	{
-		Ok(s) => {
-			ret_slate = s;
-			return Ok(());
-		}
-		Err(e) => {
-			debug!(
-				"Send ({}): Could not send Slate via {}: {}",
-				method_str, method_str, e
-			);
-			return Err(e);
-		}
+	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| {
+		return match sender.send_tx(&slate, send_to_finalize) {
+			Ok(s) => {
+				ret_slate = s;
+				Ok(())
+			}
+			Err(e) => {
+				debug!(
+					"Send ({}): Could not send Slate via {}: {}",
+					method_str, method_str, e
+				);
+				Err(e)
+			}
+		};
 	};
 
-	// Try parsing Slatepack address
-	match SlatepackAddress::try_from(dest) {
-		Ok(address) => {
-			let tor_addr = OnionV3Address::try_from(&address).unwrap();
-			// Try sending to the destination via TOR
-			let sender = match tor_sender {
-				None => {
-					if test_mode {
-						None
-					} else {
-						match HttpSlateSender::with_socks_proxy(
-							&tor_addr.to_http_str(),
-							&tor_config.as_ref().unwrap().socks_proxy_addr,
-							&tor_config.as_ref().unwrap().send_config_dir,
-							tor_config.as_ref().unwrap().bridge.clone(),
-							tor_config.as_ref().unwrap().proxy.clone(),
-						) {
-							Ok(s) => Some(s),
-							Err(e) => {
-								debug!("Send (TOR): Cannot create TOR Slate sender {:?}", e);
-								None
-							}
-						}
-					}
-				}
-				Some(s) => {
-					if test_mode {
-						None
-					} else {
-						Some(s)
-					}
-				}
-			};
-			if let Some(s) = sender {
-				warn!("Attempting to send transaction via TOR");
-				match send_sync(s, "TOR") {
-					Ok(_) => return Ok(Some(ret_slate)),
+	let tor_addr = OnionV3Address::try_from(dest).map_err(|_| {
+		Error::SlatepackAddress(format!(
+			"Destination {} is not a valid Onion address.",
+			dest
+		))
+	})?;
+	let sender = match tor_sender {
+		None => {
+			if let Some(tc) = tor_config {
+				match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
+					Ok(s) => s,
 					Err(e) => {
-						debug!("Unable to send via TOR: {}", e);
-						warn!("Unable to send transaction via TOR");
+						debug!("Send (Tor): Cannot create TOR Slate sender {:?}", e);
+						return Err(e);
 					}
 				}
+			} else {
+				return Err(Error::TorConfig("Tor config is not set".to_string()));
 			}
 		}
-		Err(e) => {
-			debug!("Send (TOR): Destination is not SlatepackAddress {:?}", e);
-			warn!("Destination is not a valid Slatepack address. Will output Slatepack.")
-		}
+		Some(s) => s,
+	};
+	warn!("Attempting to send transaction via Tor");
+	match send_sync(sender, "Tor") {
+		Ok(_) => Ok(ret_slate),
+		Err(e) => Err(e),
 	}
-
-	Ok(None)
 }
 
 #[doc(hidden)]
@@ -2604,7 +2657,7 @@ macro_rules! doctest_helper_setup_doc_env {
 
 		use uuid::Uuid;
 
-		// don't run on windows CI, which gives very inconsistent results
+		// don't run on Windows CI, which gives very inconsistent results
 		if cfg!(windows) {
 			return;
 		}
@@ -2622,22 +2675,56 @@ macro_rules! doctest_helper_setup_doc_env {
 		wallet_config.data_file_dir = dir.to_owned();
 		let pw = ZeroingString::from("");
 
-		let node_client =
-			HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
-		let mut wallet = Box::new(
-			DefaultWalletImpl::<'static, HTTPNodeClient>::new(node_client.clone()).unwrap(),
+		let node_client = HTTPNodeClient::new(
+			&wallet_config.check_node_api_http_addr,
+			None,
+			wallet_config.api_request_timeout(),
 		)
-			as Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
-					HTTPNodeClient,
-					ExtKeychain,
-				>,
-			>;
+		.unwrap();
+		let mut wallet =
+			Box::new(DefaultWalletImpl::<HTTPNodeClient>::new(node_client.clone()).unwrap())
+				as Box<
+					dyn WalletInst<
+						'static,
+						DefaultLCProvider<HTTPNodeClient, ExtKeychain>,
+						HTTPNodeClient,
+						ExtKeychain,
+					>,
+				>;
 		let lc = wallet.lc_provider().unwrap();
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 		lc.open_wallet(None, pw, false, false);
 		let mut $wallet = Arc::new(Mutex::new(wallet));
 	};
+}
+
+/// Output slatepack message to file.
+fn output_slatepack_file<L, C, K>(
+	api: &Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: Option<SlatepackAddress>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	// encrypt for recipient by default
+	let recipients = match dest {
+		Some(a) => vec![a],
+		None => vec![],
+	};
+	let message = api.create_slatepack_message(keychain_mask, &slate, Some(0), recipients)?;
+	let tld = api.get_top_level_directory()?;
+
+	// Create a directory to which files will be output.
+	let slate_dir = format!("{}/{}", tld, "slatepack");
+	let _ = std::fs::create_dir_all(slate_dir.clone());
+	let out_file_name = format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state);
+
+	let mut output = File::create(out_file_name.clone())?;
+	output.write_all(&message.as_bytes())?;
+	output.sync_all()?;
+	Ok(())
 }

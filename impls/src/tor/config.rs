@@ -17,9 +17,9 @@ use crate::util::secp::key::SecretKey;
 use crate::Error;
 use grin_wallet_util::OnionV3Address;
 
-use ed25519_dalek::ExpandedSecretKey;
-use ed25519_dalek::PublicKey as DalekPublicKey;
-use ed25519_dalek::SecretKey as DalekSecretKey;
+use ed25519_dalek::hazmat::ExpandedSecretKey;
+use ed25519_dalek::SigningKey as DalekSecretKey;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::{self, File};
@@ -92,6 +92,14 @@ impl TorRcConfig {
 	}
 }
 
+/// Convert expanded secret key to byte array (works for both external Tor process and Arti).
+pub(crate) fn exp_sec_key_bytes(expanded_sk: ExpandedSecretKey) -> [u8; 64] {
+	let mut sk_bytes = [0_u8; 64];
+	sk_bytes[0..32].copy_from_slice(&expanded_sk.scalar.to_bytes());
+	sk_bytes[32..64].copy_from_slice(&expanded_sk.hash_prefix);
+	sk_bytes
+}
+
 pub fn create_onion_service_sec_key_file(
 	os_directory: &str,
 	sec_key: &DalekSecretKey,
@@ -101,9 +109,9 @@ pub fn create_onion_service_sec_key_file(
 	// Tag is always 32 bytes, so pad with null zeroes
 	file.write(b"== ed25519v1-secret: type0 ==\0\0\0")
 		.map_err(|_| Error::IO)?;
-	let expanded_skey: ExpandedSecretKey = ExpandedSecretKey::from(sec_key);
-	file.write_all(&expanded_skey.to_bytes())
-		.map_err(|_| Error::IO)?;
+	let expanded_skey: ExpandedSecretKey = ExpandedSecretKey::from(sec_key.as_bytes());
+	let sk_bytes = exp_sec_key_bytes(expanded_skey);
+	file.write_all(&sk_bytes).map_err(|_| Error::IO)?;
 	Ok(())
 }
 
@@ -138,8 +146,7 @@ pub fn output_onion_service_config(
 	tor_config_directory: &str,
 	sec_key: &SecretKey,
 ) -> Result<OnionV3Address, Error> {
-	let d_sec_key = DalekSecretKey::from_bytes(&sec_key.0)
-		.map_err(|_| Error::ED25519Key("Unable to parse private key".into()))?;
+	let d_sec_key = DalekSecretKey::from_bytes(&sec_key.0);
 	let address = OnionV3Address::from_private(&sec_key.0)?;
 	let hs_dir_file_path = format!(
 		"{}{}{}{}{}",
@@ -291,7 +298,7 @@ mod tests {
 	use crate::util::{self, secp, static_secp_instance};
 
 	pub fn clean_output_dir(test_dir: &str) {
-		let _ = remove_dir_all::remove_dir_all(test_dir);
+		let _ = fs::remove_dir_all(test_dir);
 	}
 
 	pub fn setup(test_dir: &str) {

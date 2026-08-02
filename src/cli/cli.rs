@@ -19,7 +19,8 @@ use clap::App;
 //use colored::Colorize;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_config::config::get_global_config;
+use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::Error;
 use grin_wallet_impls::DefaultWalletImpl;
@@ -107,15 +108,14 @@ pub fn start_updater_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
 }
 
 pub fn command_loop<L, C, K>(
+	config: GlobalWalletConfig,
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<SecretKey>,
-	wallet_config: &WalletConfig,
-	tor_config: &TorConfig,
 	global_wallet_args: &GlobalArgs,
 	test_mode: bool,
 ) -> Result<(), Error>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -151,7 +151,7 @@ where
 
 	// catch updater messages
 	let (tx, rx) = channel();
-	let mut owner_api = Owner::new(wallet_inst, Some(tx));
+	let mut owner_api = Owner::new(wallet_inst, Some(tx), config.config_file_path.clone());
 	start_updater_thread(rx)?;
 
 	// start the automatic updater
@@ -189,7 +189,7 @@ where
 								let lc = wallet_lock.lc_provider().unwrap();
 								let mask = match lc.open_wallet(
 									None,
-									wallet_args::prompt_password(&global_wallet_args.password),
+									wallet_args::prompt_password(&global_wallet_args.password)?,
 									false,
 									false,
 								) {
@@ -218,11 +218,15 @@ where
 							}
 							_ => keychain_mask,
 						};
+						let config = get_global_config(&config.config_file_path)
+							.map_err(|e| Error::GenericError(e.to_string()))?;
+						let tor_config = config.tor_config();
+						let wallet_config = config.members.wallet;
 						match wallet_args::parse_and_execute(
 							&mut owner_api,
 							keychain_mask.clone(),
 							&wallet_config,
-							&tor_config,
+							tor_config,
 							&global_wallet_args,
 							&args,
 							test_mode,
@@ -276,6 +280,8 @@ impl Completer for EditorHelper {
 }
 
 impl Hinter for EditorHelper {
+	type Hint = String;
+
 	fn hint(&self, line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<String> {
 		let mut contents = STDIN_CONTENTS.lock();
 		*contents = line.into();

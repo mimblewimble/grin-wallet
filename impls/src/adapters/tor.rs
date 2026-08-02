@@ -12,128 +12,108 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// HTTP Wallet 'plugin' implementation
 use crate::client_utils::{Client, ClientError};
 use crate::libwallet::slate_versions::{SlateVersion, VersionedSlate};
 use crate::libwallet::{Error, Slate};
+use crate::tor::arti::{start_tor_client, tor_post};
 use crate::tor::bridge::TorBridge;
+use crate::tor::config as tor_config;
+use crate::tor::process::TorProcess;
 use crate::tor::proxy::TorProxy;
 use crate::SlateSender;
-use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
+use grin_wallet_config::TorConfig;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::net::SocketAddr;
-use std::path::MAIN_SEPARATOR;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::tor::config as tor_config;
-use crate::tor::process as tor_process;
-
-const TOR_CONFIG_PATH: &str = "tor/sender";
-
 #[derive(Clone)]
-pub struct HttpSlateSender {
+pub struct TorSlateSender {
 	base_url: String,
-	use_socks: bool,
-	socks_proxy_addr: Option<SocketAddr>,
-	tor_config_dir: String,
-	process: Option<Arc<tor_process::TorProcess>>,
-	bridge: TorBridgeConfig,
-	proxy: TorProxyConfig,
+	config: TorConfig,
+	tor_process: Arc<Option<TorProcess>>,
 }
 
-impl HttpSlateSender {
+impl TorSlateSender {
 	/// Create, return Err if scheme is not "http"
-	fn new(base_url: &str) -> Result<HttpSlateSender, SchemeNotHttp> {
+	pub fn new(base_url: &str, config: TorConfig) -> Result<TorSlateSender, Error> {
 		if !base_url.starts_with("http") && !base_url.starts_with("https") {
-			Err(SchemeNotHttp)
+			Err(Error::GenericError("Scheme must be http".to_string()))
 		} else {
-			Ok(HttpSlateSender {
+			let tor = if config.use_integrated.unwrap_or(false) {
+				start_tor_client(config.clone())?;
+				None
+			} else {
+				let tor_dir = {
+					let mut path = PathBuf::from(&config.send_config_dir);
+					path.push("tor");
+					path.push("sender");
+					path
+				};
+				let p = Self::launch_tor_process(&config, &tor_dir)?;
+				Some(p)
+			};
+			Ok(TorSlateSender {
 				base_url: base_url.to_owned(),
-				use_socks: false,
-				socks_proxy_addr: None,
-				tor_config_dir: String::from(""),
-				process: None,
-				bridge: TorBridgeConfig::default(),
-				proxy: TorProxyConfig::default(),
+				config,
+				tor_process: Arc::new(tor),
 			})
 		}
 	}
 
-	/// Switch to using socks proxy
-	pub fn with_socks_proxy(
-		base_url: &str,
-		proxy_addr: &str,
-		tor_config_dir: &str,
-		tor_bridge: TorBridgeConfig,
-		tor_proxy: TorProxyConfig,
-	) -> Result<HttpSlateSender, SchemeNotHttp> {
-		let mut ret = Self::new(base_url)?;
-		ret.use_socks = true;
-		//TODO: Unwrap
-		ret.socks_proxy_addr = Some(SocketAddr::V4(proxy_addr.parse().unwrap()));
-		ret.tor_config_dir = tor_config_dir.into();
-		ret.bridge = tor_bridge;
-		ret.proxy = tor_proxy;
-		Ok(ret)
-	}
+	/// Launch external Tor process.
+	fn launch_tor_process(config: &TorConfig, tor_dir: &PathBuf) -> Result<TorProcess, Error> {
+		let mut tor = TorProcess::new();
+		let socks_proxy_addr = SocketAddr::V4(
+			config
+				.socks_proxy_addr
+				.parse()
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?,
+		);
+		info!("Starting TOR Process for send at {:?}", socks_proxy_addr);
 
-	/// launch TOR process
-	pub fn launch_tor(&mut self) -> Result<(), Error> {
-		// set up tor send process if needed
-		let mut tor = tor_process::TorProcess::new();
-		if self.use_socks && self.process.is_none() {
-			let tor_dir = format!(
-				"{}{}{}",
-				&self.tor_config_dir, MAIN_SEPARATOR, TOR_CONFIG_PATH
-			);
-			info!(
-				"Starting TOR Process for send at {:?}",
-				self.socks_proxy_addr
-			);
-
-			let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
-			if self.bridge.bridge_line.is_some() {
-				let bridge_struct = TorBridge::try_from(self.bridge.clone())
-					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-				hm_tor_bridge = bridge_struct
-					.to_hashmap()
-					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			}
-
-			let mut hm_tor_proxy: HashMap<String, String> = HashMap::new();
-			if self.proxy.transport.is_some() || self.proxy.allowed_port.is_some() {
-				let proxy = TorProxy::try_from(self.proxy.clone())
-					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-				hm_tor_proxy = proxy
-					.to_hashmap()
-					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			}
-
-			tor_config::output_tor_sender_config(
-				&tor_dir,
-				&self.socks_proxy_addr.unwrap().to_string(),
-				hm_tor_bridge,
-				hm_tor_proxy,
-			)
-			.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			// Start TOR process
-			tor.torrc_path(&format!("{}/torrc", &tor_dir))
-				.working_dir(&tor_dir)
-				.timeout(20)
-				.completion_percent(100)
-				.launch()
-				.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-			self.process = Some(Arc::new(tor));
+		let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
+		if config.bridge.bridge_line.is_some() {
+			let bridge_struct = TorBridge::try_from(config.bridge.clone())
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			hm_tor_bridge = bridge_struct
+				.to_hashmap()
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 		}
-		Ok(())
+
+		let mut hm_tor_proxy: HashMap<String, String> = HashMap::new();
+		if config.proxy.transport.is_some() || config.proxy.allowed_port.is_some() {
+			let proxy = TorProxy::try_from(config.proxy.clone())
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			hm_tor_proxy = proxy
+				.to_hashmap()
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+		}
+
+		tor_config::output_tor_sender_config(
+			tor_dir.to_str().unwrap(),
+			socks_proxy_addr.to_string().as_str(),
+			hm_tor_bridge,
+			hm_tor_proxy,
+		)
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+		// Start TOR process
+		let mut path = tor_dir.clone();
+		path.push("torrc");
+		tor.torrc_path(path.to_str().unwrap())
+			.working_dir(tor_dir.to_str().unwrap())
+			.timeout(config.bootstrap_timeout().as_secs())
+			.completion_percent(100)
+			.launch()
+			.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+		Ok(tor)
 	}
 
 	/// Check version of the listening wallet
 	pub fn check_other_version(&mut self, url: &str) -> Result<SlateVersion, Error> {
-		self.launch_tor()?;
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -141,7 +121,7 @@ impl HttpSlateSender {
 			"params": []
 		});
 
-		let res: String = self.post(url, None, req).map_err(|e| {
+		let res: String = self.post(url, req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
 			if err_string.contains("404") {
@@ -154,7 +134,8 @@ impl HttpSlateSender {
 			Error::ClientCallback(report)
 		})?;
 
-		let res: Value = serde_json::from_str(&res).unwrap();
+		let res: Value = serde_json::from_str(&res)
+			.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 		trace!("Response: {}", res);
 		if res["error"] != json!(null) {
 			let report = format!(
@@ -168,9 +149,11 @@ impl HttpSlateSender {
 		let resp_value = res["result"]["Ok"].clone();
 		trace!("resp_value: {}", resp_value.clone());
 		let foreign_api_version: u16 =
-			serde_json::from_value(resp_value["foreign_api_version"].clone()).unwrap();
+			serde_json::from_value(resp_value["foreign_api_version"].clone())
+				.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 		let supported_slate_versions: Vec<String> =
-			serde_json::from_value(resp_value["supported_slate_versions"].clone()).unwrap();
+			serde_json::from_value(resp_value["supported_slate_versions"].clone())
+				.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 
 		// trivial tests for now, but will be expanded later
 		if foreign_api_version < 2 {
@@ -188,40 +171,36 @@ impl HttpSlateSender {
 		Err(Error::ClientCallback(report))
 	}
 
-	fn post<IN>(
-		&self,
-		url: &str,
-		api_secret: Option<String>,
-		input: IN,
-	) -> Result<String, ClientError>
+	fn post<IN>(&self, url: &str, input: IN) -> Result<String, ClientError>
 	where
 		IN: Serialize,
 	{
-		let client = if !self.use_socks {
-			Client::new()
+		let res = if self.tor_process.is_some() {
+			let socks_proxy_addr =
+				SocketAddr::V4(self.config.socks_proxy_addr.parse().map_err(|_| {
+					ClientError::Internal("Socks proxy address is not set".to_string())
+				})?);
+			let timeout = self.config.request_timeout();
+			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", timeout)
+				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
+			let req = client.create_post_request(url, None, &input)?;
+			let res = client.send_request(req)?;
+			res
 		} else {
-			Client::with_proxy(
-				self.socks_proxy_addr
-					.ok_or_else(|| ClientError::Internal("No socks proxy address set".into()))?,
-				"socks5h://",
-			)
-		}
-		.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
-		let req = client.create_post_request(url, api_secret, &input)?;
-		let res = client.send_request(req)?;
+			tor_post(&self.config, &input, url)
+				.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
+		};
 		Ok(res)
 	}
 }
 
-impl SlateSender for HttpSlateSender {
+impl SlateSender for TorSlateSender {
 	fn send_tx(&mut self, slate: &Slate, finalize: bool) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
 			true => "",
 			false => "/",
 		};
 		let url_str = format!("{}{}v2/foreign", self.base_url, trailing);
-
-		self.launch_tor()?;
 
 		let slate_send = match self.check_other_version(&url_str)? {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
@@ -250,7 +229,7 @@ impl SlateSender for HttpSlateSender {
 
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = self.post(&url_str, None, req).map_err(|e| {
+		let res: String = self.post(&url_str, req).map_err(|e| {
 			let report = format!(
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e
@@ -258,7 +237,8 @@ impl SlateSender for HttpSlateSender {
 			Error::ClientCallback(report)
 		})?;
 
-		let res: Value = serde_json::from_str(&res).unwrap();
+		let res: Value = serde_json::from_str(&res)
+			.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
 		trace!("Response: {}", res);
 		if res["error"] != json!(null) {
 			let report = format!(
@@ -272,22 +252,15 @@ impl SlateSender for HttpSlateSender {
 		let slate_value = res["result"]["Ok"].clone();
 
 		trace!("slate_value: {}", slate_value);
-		let slate = Slate::deserialize_upgrade(&serde_json::to_string(&slate_value).unwrap())
-			.map_err(|e| {
+		if let Ok(slate_value) = serde_json::to_string(&slate_value) {
+			let slate = Slate::deserialize_upgrade(&slate_value).map_err(|e| {
 				error!("Error deserializing response slate: {}", e);
 				Error::SlateDeser
 			})?;
-
-		Ok(slate)
-	}
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct SchemeNotHttp;
-
-impl Into<Error> for SchemeNotHttp {
-	fn into(self) -> Error {
-		let err_str = "url scheme must be http".to_string();
-		Error::GenericError(err_str)
+			Ok(slate)
+		} else {
+			error!("Error deserializing response slate: {}", slate_value);
+			Err(Error::SlateDeser)
+		}
 	}
 }

@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Controller for wallet.. instantiates and handles listeners (or single-run
+//! Controller for wallet, instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
 use crate::config::TorConfig;
+use crate::impls::tor::config as tor_config;
+use crate::impls::tor::process as tor_process;
+use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
@@ -23,31 +26,38 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
-use futures::channel::oneshot;
 use grin_wallet_api::JsonId;
-use grin_wallet_config::types::{TorBridgeConfig, TorProxyConfig};
 use grin_wallet_util::OnionV3Address;
-use hyper::body;
+
 use hyper::header::HeaderValue;
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{Request, Response, StatusCode};
 use qr_code::QrCode;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::io::Cursor;
 use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-
-use crate::impls::tor::config as tor_config;
-use crate::impls::tor::process as tor_process;
-use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
+use std::thread;
 
 use crate::apiwallet::{
-	EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
+	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
 	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
 };
 use easy_jsonrpc_mw;
 use easy_jsonrpc_mw::{Handler, MaybeReply};
+use grin_api::ApiBody;
+use grin_wallet_config::config::{
+	add_global_config_listener, get_global_config, remove_global_config_listener,
+};
+use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
+use grin_wallet_impls::tor::process::TorProcess;
+use http_body_util::{BodyExt, Full};
+use hyper::body::Incoming;
+use tokio::sync::mpsc;
 
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
@@ -82,38 +92,20 @@ fn check_middleware(
 }
 
 /// initiate the tor listener
-fn init_tor_listener<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
+fn init_tor_listener(
+	sec_key: SecretKey,
+	tor_dir: String,
 	addr: &str,
-	bridge: TorBridgeConfig,
-	tor_proxy: TorProxyConfig,
-) -> Result<(tor_process::TorProcess, SlatepackAddress), Error>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
-{
+	tor_config: TorConfig,
+) -> Result<tor_process::TorProcess, Error> {
+	info!("Starting external Tor Process listener.");
+
 	let mut process = tor_process::TorProcess::new();
-	let mask = keychain_mask.lock();
-	// eventually want to read a list of service config keys
-	let mut w_lock = wallet.lock();
-	let lc = w_lock.lc_provider()?;
-	let w_inst = lc.wallet_inst()?;
-	let k = w_inst.keychain((&mask).as_ref())?;
-	let parent_key_id = w_inst.parent_key_id();
-	let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
-	let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
-		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-	let onion_address = OnionV3Address::from_private(&sec_key.0)
-		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-	let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+	let tor_timeout = tor_config.bootstrap_timeout().as_secs();
 
 	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
-	let mut tor_timeout = 20;
-	if bridge.bridge_line.is_some() {
-		tor_timeout = 40;
-		let bridge_config = tor_bridge::TorBridge::try_from(bridge)
+	if tor_config.bridge.bridge_line.is_some() {
+		let bridge_config = tor_bridge::TorBridge::try_from(tor_config.bridge)
 			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 		hm_tor_bridge = bridge_config
 			.to_hashmap()
@@ -121,18 +113,14 @@ where
 	}
 
 	let mut hm_tor_poxy: HashMap<String, String> = HashMap::new();
-	if tor_proxy.transport.is_some() || tor_proxy.allowed_port.is_some() {
-		let proxy_config = tor_proxy::TorProxy::try_from(tor_proxy)
+	if tor_config.proxy.transport.is_some() || tor_config.proxy.allowed_port.is_some() {
+		let proxy_config = tor_proxy::TorProxy::try_from(tor_config.proxy)
 			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 		hm_tor_poxy = proxy_config
 			.to_hashmap()
 			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
 	}
 
-	warn!(
-		"Starting Tor Hidden Service for API listener at address {}, binding to {}",
-		onion_address, addr
-	);
 	tor_config::output_tor_listener_config(
 		&tor_dir,
 		addr,
@@ -149,15 +137,15 @@ where
 		.completion_percent(100)
 		.launch()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-	Ok((process, sp_address))
+	Ok(process)
 }
 
 /// Instantiate wallet Owner API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn owner_single_use<L, F, C, K>(
-	wallet: Option<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>>,
+	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
-	api_context: Option<&mut Owner<L, C, K>>,
+	config_path: PathBuf,
 	f: F,
 ) -> Result<(), Error>
 where
@@ -166,27 +154,14 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	match api_context {
-		Some(c) => f(c, keychain_mask)?,
-		None => {
-			let wallet = match wallet {
-				Some(w) => w,
-				None => {
-					return Err(Error::GenericError(format!(
-						"Instantiated wallet or Owner API context must be provided"
-					)))
-				}
-			};
-			f(&mut Owner::new(wallet, None), keychain_mask)?
-		}
-	}
-	Ok(())
+	f(&mut Owner::new(wallet, None, config_path), keychain_mask)
 }
 
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn foreign_single_use<'a, L, F, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	config_path: PathBuf,
 	keychain_mask: Option<SecretKey>,
 	f: F,
 ) -> Result<(), Error>
@@ -198,6 +173,7 @@ where
 {
 	f(&mut Foreign::new(
 		wallet,
+		config_path,
 		keychain_mask,
 		Some(check_middleware),
 		false,
@@ -210,13 +186,12 @@ where
 /// Note keychain mask is only provided here in case the foreign listener is also being used
 /// in the same wallet instance
 pub fn owner_listener<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	api_secret: Option<String>,
 	tls_config: Option<TLSConfig>,
 	owner_api_include_foreign: Option<bool>,
-	tor_config: Option<TorConfig>,
 	test_mode: bool,
 ) -> Result<(), Error>
 where
@@ -240,12 +215,8 @@ where
 		running_foreign = true;
 	}
 
-	let api_handler_v3 = OwnerAPIHandlerV3::new(
-		wallet.clone(),
-		keychain_mask.clone(),
-		tor_config.clone(),
-		running_foreign,
-	);
+	let wallet = owner_api.wallet_inst.clone();
+	let api_handler_v3 = OwnerAPIHandlerV3::new(owner_api, keychain_mask.clone(), running_foreign);
 
 	router
 		.add_route("/v3/owner", Arc::new(api_handler_v3))
@@ -254,15 +225,18 @@ where
 	// If so configured, add the foreign API to the same port
 	if running_foreign {
 		warn!("Starting HTTP Foreign API on Owner server at {}.", addr);
-		let foreign_api_handler_v2 =
-			ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
+		let foreign_api_handler_v2 = ForeignAPIHandlerV2::new(
+			wallet,
+			owner_api.shared_config_path(),
+			keychain_mask,
+			test_mode,
+		);
 		router
 			.add_route("/v2/foreign", Arc::new(foreign_api_handler_v2))
 			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
 	}
 
-	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
-		Box::leak(Box::new(oneshot::channel::<()>()));
+	let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
 
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Owner API server at {}.", addr);
@@ -280,82 +254,162 @@ where
 /// port and wrapping the calls
 pub fn foreign_listener<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	config_path: PathBuf,
+	bridge: Option<String>,
+	use_tor: Option<bool>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	addr: &str,
 	tls_config: Option<TLSConfig>,
-	use_tor: bool,
 	test_mode: bool,
-	tor_config: Option<TorConfig>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	// Check if wallet has been opened first
-	{
-		let mut w_lock = wallet.lock();
-		let lc = w_lock.lc_provider()?;
-		let _ = lc.wallet_inst()?;
-	}
+	loop {
+		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
+		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
 
-	let (tor_bridge, tor_proxy) = match tor_config.clone() {
-		Some(s) => (s.bridge, s.proxy),
-		None => (TorBridgeConfig::default(), TorProxyConfig::default()),
-	};
+		let tor_config = listener_tor_config(&config_path, bridge.clone(), use_tor)?;
 
-	// need to keep in scope while the main listener is running
-	let (_tor_process, address) = match use_tor {
-		true => {
-			match init_tor_listener(
-				wallet.clone(),
-				keychain_mask.clone(),
-				addr,
-				tor_bridge,
-				tor_proxy,
-			) {
-				Ok((tp, addr)) => (Some(tp), Some(addr)),
+		// Check if wallet has been opened first
+		let (sec_key, tor_dir, onion_address) = {
+			let mask = keychain_mask.lock();
+			let mut w_lock = wallet.lock();
+			let lc = w_lock.lc_provider()?;
+			let w_inst = lc.wallet_inst()?;
+			let k = w_inst.keychain((&mask).as_ref())?;
+			let parent_key_id = w_inst.parent_key_id();
+			let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
+			let onion_address = OnionV3Address::from_private(&sec_key.0)
+				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			(sec_key, tor_dir, onion_address)
+		};
+
+		let api_handler_v2 = ForeignAPIHandlerV2::new(
+			wallet.clone(),
+			config_path.clone().into(),
+			keychain_mask.clone(),
+			test_mode,
+		);
+		let mut router = Router::new();
+
+		router
+			.add_route("/v2/foreign", Arc::new(api_handler_v2))
+			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
+
+		let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
+		let stop_tx = api_chan.0.clone();
+
+		let mut apis = ApiServer::new();
+		warn!("Starting HTTP Foreign listener API server at {}.", addr);
+		let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
+		let api_thread = apis
+			.start(socket_addr, router, tls_config.clone(), api_chan)
+			.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
+		warn!("HTTP Foreign listener started.");
+
+		// Need to keep external process in scope while the listener is running.
+		let _tor_service = if tor_config.use_tor_listener {
+			let use_integrated = tor_config.use_integrated.unwrap_or(false);
+
+			let res: Result<Option<TorProcess>, Error> = if use_integrated {
+				match start_tor_service(sec_key, addr, &tor_config.clone()) {
+					Ok(_) => Ok(None),
+					Err(e) => {
+						error!("Error starting integrated Tor service: {}", e);
+						Err(e)
+					}
+				}
+			} else {
+				match init_tor_listener(sec_key, tor_dir, addr, tor_config.clone()) {
+					Ok(p) => Ok(Some(p)),
+					Err(e) => {
+						error!("Error starting external Tor listener: {}", e);
+						Err(e)
+					}
+				}
+			};
+			match res {
+				Ok(service) => {
+					warn!(
+						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
+						onion_address, addr
+					);
+					let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
+					let qr_string = match QrCode::new(sp_address.to_string()) {
+						Ok(qr) => qr.to_string(false, 3),
+						Err(_) => "Failed to generate QR code!".to_string(),
+					};
+					warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+					Ok(service)
+				}
 				Err(e) => {
-					warn!("Unable to start TOR listener; Check that TOR executable is installed and on your path");
+					warn!("Unable to start TOR listener");
 					error!("Tor Error: {}", e);
-					warn!("Listener will be available via HTTP only");
-					(None, None)
+					warn!("Listener is available on {}", addr);
+					Err(e)
 				}
 			}
-		}
-		false => (None, None),
-	};
-
-	let api_handler_v2 =
-		ForeignAPIHandlerV2::new(wallet, keychain_mask, test_mode, Mutex::new(tor_config));
-	let mut router = Router::new();
-
-	router
-		.add_route("/v2/foreign", Arc::new(api_handler_v2))
-		.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
-
-	let api_chan: &'static mut (oneshot::Sender<()>, oneshot::Receiver<()>) =
-		Box::leak(Box::new(oneshot::channel::<()>()));
-
-	let mut apis = ApiServer::new();
-	warn!("Starting HTTP Foreign listener API server at {}.", addr);
-	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
-	let api_thread = apis
-		.start(socket_addr, router, tls_config, api_chan)
-		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
-
-	warn!("HTTP Foreign listener started.");
-	if let Some(a) = address {
-		let qr_string = match QrCode::new(a.to_string()) {
-			Ok(qr) => qr.to_string(false, 3),
-			Err(_) => "Failed to generate QR code!".to_string(),
+		} else {
+			warn!("Listener is available on {}", addr);
+			Ok(None)
 		};
-		warn!("Slatepack Address is: {}\n{}", a, qr_string);
-	}
 
-	api_thread
-		.join()
-		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)))
+		// Start thread to check if restart is needed.
+		let restart_needed = Arc::new(AtomicBool::new(false));
+		let t_restart_needed = restart_needed.clone();
+		thread::spawn(move || {
+			if restart_rx.recv().is_ok() {
+				t_restart_needed.store(true, Ordering::SeqCst);
+				let _ = stop_tx.try_send(());
+			}
+		});
+
+		let res = api_thread
+			.join()
+			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
+
+		if tor_config.use_tor_listener && tor_config.use_integrated.unwrap_or(false) {
+			stop_tor_service(onion_address.to_string())?;
+		}
+
+		if restart_needed.load(Ordering::Relaxed) {
+			continue;
+		}
+
+		remove_global_config_listener(&config_path, "foreign_listener");
+
+		return res;
+	}
+}
+
+fn register_config_listener(
+	config_path: &PathBuf,
+	listener_id: &str,
+	tx: std::sync::mpsc::Sender<()>,
+) -> Result<(), Error> {
+	get_global_config(config_path)?;
+	add_global_config_listener(config_path, listener_id, tx);
+	Ok(())
+}
+
+fn listener_tor_config(
+	config_path: &Path,
+	bridge: Option<String>,
+	use_tor: Option<bool>,
+) -> Result<TorConfig, Error> {
+	let mut tor_config = get_global_config(config_path)?.tor_config();
+	if let Some(bridge) = bridge {
+		tor_config.bridge.bridge_line = Some(bridge);
+	}
+	if let Some(use_tor) = use_tor {
+		tor_config.use_tor_listener = use_tor;
+	}
+	Ok(tor_config)
 }
 
 /// V3 API Handler/Wrapper for owner functions, which include a secure
@@ -551,19 +605,17 @@ impl OwnerV3Helpers {
 			None
 		};
 		match err_string {
-			Some(s) => {
-				return (
-					true,
-					serde_json::json!({
-						"jsonrpc": "2.0",
-						"id": val["id"],
-						"error": {
-							"message": s,
-							"code": -32099
-						}
-					}),
-				)
-			}
+			Some(s) => (
+				true,
+				serde_json::json!({
+					"jsonrpc": "2.0",
+					"id": val["id"],
+					"error": {
+						"message": s,
+						"code": -32099
+					}
+				}),
+			),
 			None => (false, val.clone()),
 		}
 	}
@@ -577,25 +629,24 @@ where
 {
 	/// Create a new owner API handler for GET methods
 	pub fn new(
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		owner_api: &Owner<L, C, K>,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
-		tor_config: Option<TorConfig>,
 		running_foreign: bool,
 	) -> OwnerAPIHandlerV3<L, C, K> {
-		let owner_api = Owner::new(wallet.clone(), None);
-		owner_api.set_tor_config(tor_config);
-		let owner_api = Arc::new(owner_api);
+		let wallet = owner_api.wallet_inst.clone();
+		let config_path = owner_api.shared_config_path();
+		let owner_api = Owner::new(wallet.clone(), None, config_path);
 		OwnerAPIHandlerV3 {
 			wallet,
-			owner_api,
+			owner_api: Arc::new(owner_api),
 			shared_key: Arc::new(Mutex::new(None)),
-			keychain_mask: keychain_mask,
+			keychain_mask,
 			running_foreign,
 		}
 	}
 
 	async fn call_api(
-		req: Request<Body>,
+		req: Request<Incoming>,
 		key: Arc<Mutex<Option<SecretKey>>>,
 		mask: Arc<Mutex<Option<SecretKey>>>,
 		running_foreign: bool,
@@ -661,12 +712,12 @@ where
 	}
 
 	async fn handle_post_request(
-		req: Request<Body>,
+		req: Request<Incoming>,
 		key: Arc<Mutex<Option<SecretKey>>>,
 		mask: Arc<Mutex<Option<SecretKey>>>,
 		running_foreign: bool,
 		api: Arc<Owner<L, C, K>>,
-	) -> Result<Response<Body>, Error> {
+	) -> Result<Response<ApiBody>, Error> {
 		let res = Self::call_api(req, key, mask, running_foreign, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -678,7 +729,7 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	fn post(&self, req: Request<Body>) -> ResponseFuture {
+	fn post(&self, req: Request<Incoming>) -> ResponseFuture {
 		let key = self.shared_key.clone();
 		let mask = self.keychain_mask.clone();
 		let running_foreign = self.running_foreign;
@@ -695,7 +746,7 @@ where
 		})
 	}
 
-	fn options(&self, _req: Request<Body>) -> ResponseFuture {
+	fn options(&self, _req: Request<Incoming>) -> ResponseFuture {
 		Box::pin(async { Ok(create_ok_response("{}")) })
 	}
 }
@@ -706,14 +757,14 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	/// Wallet instance
+	/// Wallet instance.
 	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	/// Wallet configuration path.
+	pub config_path: ConfigPath,
 	/// Keychain mask
 	pub keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 	/// run in doctest mode
 	pub test_mode: bool,
-	/// tor config
-	pub tor_config: Mutex<Option<TorConfig>>,
 }
 
 impl<L, C, K> ForeignAPIHandlerV2<L, C, K>
@@ -725,20 +776,20 @@ where
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		config_path: ConfigPath,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
-		tor_config: Mutex<Option<TorConfig>>,
 	) -> ForeignAPIHandlerV2<L, C, K> {
 		ForeignAPIHandlerV2 {
 			wallet,
+			config_path,
 			keychain_mask,
 			test_mode,
-			tor_config,
 		}
 	}
 
 	async fn call_api(
-		req: Request<Body>,
+		req: Request<Incoming>,
 		api: Foreign<'static, L, C, K>,
 	) -> Result<serde_json::Value, Error> {
 		let val: serde_json::Value = parse_body(req).await?;
@@ -753,14 +804,13 @@ where
 	}
 
 	async fn handle_post_request(
-		req: Request<Body>,
+		req: Request<Incoming>,
 		mask: Option<SecretKey>,
 		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		config_path: ConfigPath,
 		test_mode: bool,
-		tor_config: Option<TorConfig>,
-	) -> Result<Response<Body>, Error> {
-		let api = Foreign::new(wallet, mask, Some(check_middleware), test_mode);
-		api.set_tor_config(tor_config);
+	) -> Result<Response<ApiBody>, Error> {
+		let api = Foreign::new(wallet, config_path, mask, Some(check_middleware), test_mode);
 		let res = Self::call_api(req, api).await?;
 		Ok(json_response_pretty(&res))
 	}
@@ -772,14 +822,14 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	fn post(&self, req: Request<Body>) -> ResponseFuture {
+	fn post(&self, req: Request<Incoming>) -> ResponseFuture {
 		let mask = self.keychain_mask.lock().clone();
 		let wallet = self.wallet.clone();
 		let test_mode = self.test_mode;
-		let tor_config = self.tor_config.lock().clone();
+		let config_path = self.config_path.clone();
 
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet, test_mode, tor_config).await {
+			match Self::handle_post_request(req, mask, wallet, config_path, test_mode).await {
 				Ok(v) => Ok(v),
 				Err(e) => {
 					error!("Request Error: {:?}", e);
@@ -789,35 +839,24 @@ where
 		})
 	}
 
-	fn options(&self, _req: Request<Body>) -> ResponseFuture {
+	fn options(&self, _req: Request<Incoming>) -> ResponseFuture {
 		Box::pin(async { Ok(create_ok_response("{}")) })
 	}
 }
 
-// Utility to serialize a struct into JSON and produce a sensible Response
-// out of it.
-fn _json_response<T>(s: &T) -> Response<Body>
-where
-	T: Serialize,
-{
-	match serde_json::to_string(s) {
-		Ok(json) => response(StatusCode::OK, json),
-		Err(_) => response(StatusCode::INTERNAL_SERVER_ERROR, ""),
-	}
-}
-
-// pretty-printed version of above
-fn json_response_pretty<T>(s: &T) -> Response<Body>
+/// Utility to serialize a struct into JSON and produce a sensible Response
+/// out of it.
+fn json_response_pretty<T>(s: &T) -> Response<ApiBody>
 where
 	T: Serialize,
 {
 	match serde_json::to_string_pretty(s) {
-		Ok(json) => response(StatusCode::OK, json),
-		Err(_) => response(StatusCode::INTERNAL_SERVER_ERROR, ""),
+		Ok(json) => response(StatusCode::OK, Full::from(json).boxed()),
+		Err(_) => response(StatusCode::INTERNAL_SERVER_ERROR, Full::from("").boxed()),
 	}
 }
 
-fn create_error_response(e: Error) -> Response<Body> {
+fn create_error_response(e: Error) -> Response<ApiBody> {
 	Response::builder()
 		.status(StatusCode::INTERNAL_SERVER_ERROR)
 		.header("access-control-allow-origin", "*")
@@ -825,11 +864,11 @@ fn create_error_response(e: Error) -> Response<Body> {
 			"access-control-allow-headers",
 			"Content-Type, Authorization",
 		)
-		.body(format!("{}", e).into())
+		.body(Full::from(format!("{}", e)).boxed())
 		.unwrap()
 }
 
-fn create_ok_response(json: &str) -> Response<Body> {
+fn create_ok_response(json: &str) -> Response<ApiBody> {
 	Response::builder()
 		.status(StatusCode::OK)
 		.header("access-control-allow-origin", "*")
@@ -838,7 +877,7 @@ fn create_ok_response(json: &str) -> Response<Body> {
 			"Content-Type, Authorization",
 		)
 		.header(hyper::header::CONTENT_TYPE, "application/json")
-		.body(json.to_string().into())
+		.body(Full::from(json.to_string()).boxed())
 		.unwrap()
 }
 
@@ -846,7 +885,7 @@ fn create_ok_response(json: &str) -> Response<Body> {
 ///
 /// Whenever the status code is `StatusCode::OK` the text parameter should be
 /// valid JSON as the content type header will be set to `application/json'
-fn response<T: Into<Body>>(status: StatusCode, text: T) -> Response<Body> {
+fn response<T: Into<ApiBody>>(status: StatusCode, text: T) -> Response<ApiBody> {
 	let mut builder = Response::builder()
 		.status(status)
 		.header("access-control-allow-origin", "*")
@@ -862,14 +901,63 @@ fn response<T: Into<Body>>(status: StatusCode, text: T) -> Response<Body> {
 	builder.body(text.into()).unwrap()
 }
 
-async fn parse_body<T>(req: Request<Body>) -> Result<T, Error>
+async fn parse_body<T>(req: Request<Incoming>) -> Result<T, Error>
 where
 	for<'de> T: Deserialize<'de> + Send + 'static,
 {
-	let body = body::to_bytes(req.into_body())
+	let body_req = req
+		.into_body()
+		.collect()
 		.await
-		.map_err(|_| Error::GenericError("Failed to read request".to_string()))?;
+		.map_err(|e| Error::GenericError(format!("Failed to read request: {}", e)))?;
+	let raw = body_req.to_bytes();
 
-	serde_json::from_reader(&body[..])
+	let cursor = Cursor::new(raw);
+	serde_json::from_reader(cursor)
 		.map_err(|e| Error::GenericError(format!("Invalid request body: {}", e)))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::core::global::ChainTypes;
+	use grin_wallet_config::config::update_global_config;
+	use grin_wallet_config::GlobalWalletConfig;
+	use std::fs;
+	use std::sync::mpsc::channel;
+	use std::time::Duration;
+	use uuid::Uuid;
+
+	#[test]
+	fn listener_reload() {
+		let dir = std::env::temp_dir().join(format!("grin-wallet-listener-{}", Uuid::new_v4()));
+		fs::create_dir(&dir).unwrap();
+		let path = dir.join("grin-wallet.toml");
+		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		config
+			.write_to_file(path.to_str().unwrap(), false, None, None)
+			.unwrap();
+
+		let (restart_tx, restart_rx) = channel();
+		register_config_listener(&path, "test_listener", restart_tx).unwrap();
+
+		update_global_config(&path, |config| {
+			config.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
+			Ok(())
+		})
+		.unwrap();
+		restart_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+
+		let tor_config =
+			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();
+		assert_eq!(tor_config.socks_proxy_addr, "127.0.0.1:59051");
+		assert_eq!(
+			tor_config.bridge.bridge_line.as_deref(),
+			Some("obfs4 test-bridge")
+		);
+		assert!(!tor_config.use_tor_listener);
+
+		remove_global_config_listener(&path, "test_listener");
+		fs::remove_dir_all(dir).unwrap();
+	}
 }

@@ -11,16 +11,16 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "1.23.4", features = ["serde", "v4"] }
 serde = "1"
 rand = "0.6"
 serde_derive = "1"
 serde_json = "1"
 easy-jsonrpc-mw = "0.5.4"
 chrono = { version = "0.4.11", features = ["serde"] }
-ring = "0.16"
+ring = "0.17.14"
 base64 = "0.12"
-ed25519-dalek = "1.0.0-pre.4"
+ed25519-dalek = "2"
 
 grin_wallet_libwallet = { path = "../libwallet", version = "5.4.1" }
 grin_wallet_config = { path = "../config", version = "5.4.1" }
@@ -29,26 +29,9 @@ grin_wallet_util = { path = "../util", version = "5.4.1" }
 
 ##### Grin Imports
 
-# For Release
-grin_core = "5.4.1"
-grin_keychain = "5.4.1"
-grin_util = "5.4.1"
-
-# For beta release
-
-# grin_core = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3"}
-# grin_keychain = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-# grin_util = { git = "https://github.com/mimblewimble/grin", tag = "v5.2.0-beta.3" }
-
-# For bleeding edge
-# grin_core = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_keychain = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-# grin_util = { git = "https://github.com/mimblewimble/grin", branch = "master" }
-
-# For local testing
-# grin_core = { path = "../../grin/core"}
-# grin_keychain = { path = "../../grin/keychain"}
-# grin_util = { path = "../../grin/util"}
+grin_core = { path = "../grin/core"}
+grin_keychain = { path = "../grin/keychain"}
+grin_util = { path = "../grin/util"}
 
 #####
 

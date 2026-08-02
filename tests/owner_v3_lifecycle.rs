@@ -27,6 +27,7 @@ use std::thread;
 use std::time::Duration;
 
 use grin_keychain::ExtKeychain;
+use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
 use serde_json;
@@ -57,7 +58,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let wallet_proxy_a: Arc<
 		Mutex<
 			WalletProxy<
-				DefaultLCProvider<'static, LocalWalletClient, ExtKeychain>,
+				DefaultLCProvider<LocalWalletClient, ExtKeychain>,
 				LocalWalletClient,
 				ExtKeychain,
 			>,
@@ -74,7 +75,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 		let config2 = initial_setup_wallet(test_dir, "wallet2");
-		let wallet_config2 = config2.clone().members.unwrap().wallet;
+		let wallet_config2 = config2.clone().members.wallet;
 		//config2.api_listen_port = 23415;
 		let (wallet2, mask2_i) = instantiate_wallet(
 			wallet_config2.clone(),
@@ -192,6 +193,26 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	assert!(res.is_ok());
 	let pb = PathBuf::from(format!("{}/wallet1/grin-wallet.toml", test_dir));
 	assert!(pb.exists());
+
+	let req = serde_json::json!({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"method": "set_tor_config",
+		"params": {
+			"tor_config": null
+		}
+	});
+	let res = send_request_enc::<()>(
+		&JsonId::StrId(String::from("1")),
+		1,
+		"http://127.0.0.1:43420/v3/owner",
+		&req.to_string(),
+		&shared_key,
+	)?;
+	assert!(res.is_ok());
+	let tor = GlobalWalletConfig::new(pb.clone()).unwrap().tor_config();
+	assert!(!tor.use_tor_listener);
+	assert_eq!(tor.skip_send_attempt, Some(true));
 
 	// 5) Try and perform an operation without having a wallet open
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
@@ -382,9 +403,9 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 
 	// give this slate over to wallet 2 manually
 	grin_wallet_controller::controller::owner_single_use(
-		Some(wallet2.clone()),
+		wallet2.clone(),
 		mask2,
-		None,
+		PathBuf::from(test_dir),
 		|api, m| {
 			let args = InitTxArgs {
 				src_acct_name: None,

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use data_encoding::BASE32;
-use ed25519_dalek::PublicKey as DalekPublicKey;
-use ed25519_dalek::SecretKey as DalekSecretKey;
+use ed25519_dalek::SigningKey as DalekSecretKey;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use grin_util::from_hex;
 use sha3::{Digest, Sha3_256};
 use std::convert::TryFrom;
@@ -49,15 +49,7 @@ impl OnionV3Address {
 
 	/// populate from a private key
 	pub fn from_private(key: &[u8; 32]) -> Result<Self, OnionV3Error> {
-		let d_skey = match DalekSecretKey::from_bytes(key) {
-			Ok(k) => k,
-			Err(e) => {
-				return Err(OnionV3Error::InvalidPrivateKey(format!(
-					"Unable to create public key: {}",
-					e
-				)));
-			}
-		};
+		let d_skey = DalekSecretKey::from_bytes(key);
 		let d_pub_key: DalekPublicKey = (&d_skey).into();
 		Ok(OnionV3Address(*d_pub_key.as_bytes()))
 	}

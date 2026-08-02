@@ -21,23 +21,14 @@ use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::{Builder, Handle, Runtime};
 
 // Global Tokio runtime.
-// Needs a `Mutex` because `Runtime::block_on` requires mutable access.
-// Tokio v0.3 requires immutable self, but we are waiting on upstream
-// updates before we can upgrade.
-// See: https://github.com/seanmonstar/reqwest/pull/1076
 lazy_static! {
-	pub static ref RUNTIME: Arc<Mutex<Runtime>> = Arc::new(Mutex::new(
-		Builder::new()
-			.threaded_scheduler()
-			.enable_all()
-			.build()
-			.unwrap()
-	));
+	pub static ref RUNTIME: Arc<Runtime> =
+		Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 }
 
 #[derive(Clone, Eq, thiserror::Error, PartialEq, Debug)]
@@ -61,23 +52,26 @@ pub struct Client {
 
 impl Client {
 	/// New client
-	pub fn new() -> Result<Self, Error> {
-		Self::build(None)
+	pub fn new(request_timeout: Duration) -> Result<Self, Error> {
+		Self::build(None, request_timeout)
 	}
 
-	pub fn with_proxy(socks_proxy_addr: SocketAddr, scheme: &'static str) -> Result<Self, Error> {
-		Self::build(Some((socks_proxy_addr, scheme)))
+	pub fn with_proxy(
+		socks_proxy_addr: SocketAddr,
+		scheme: &'static str,
+		request_timeout: Duration,
+	) -> Result<Self, Error> {
+		Self::build(Some((socks_proxy_addr, scheme)), request_timeout)
 	}
 
-	fn build(proxy: Option<(SocketAddr, &str)>) -> Result<Self, Error> {
+	fn build(proxy: Option<(SocketAddr, &str)>, request_timeout: Duration) -> Result<Self, Error> {
 		let mut headers = HeaderMap::new();
 		headers.insert(USER_AGENT, HeaderValue::from_static("grin-client"));
 		headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
 		headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 		let mut builder = ClientBuilder::new()
-			.timeout(Duration::from_secs(20))
-			.use_rustls_tls()
+			.timeout(request_timeout)
 			.default_headers(headers);
 
 		if let Some(p) = proxy {
@@ -273,18 +267,11 @@ impl Client {
 		if Handle::try_current().is_ok() {
 			let rt = RUNTIME.clone();
 			let client = self.clone();
-			std::thread::spawn(move || {
-				rt.lock()
-					.unwrap()
-					.block_on(async { client.send_request_async(req).await })
-			})
-			.join()
-			.unwrap()
-		} else {
-			RUNTIME
-				.lock()
+			std::thread::spawn(move || rt.block_on(async { client.send_request_async(req).await }))
+				.join()
 				.unwrap()
-				.block_on(self.send_request_async(req))
+		} else {
+			RUNTIME.block_on(self.send_request_async(req))
 		}
 	}
 }

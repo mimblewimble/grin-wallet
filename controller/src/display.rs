@@ -152,6 +152,7 @@ pub fn txs(
 	table.set_titles(row![
 		bMG->"Id",
 		bMG->"Type",
+		bMG->"State",
 		bMG->"Shared Transaction Id",
 		bMG->"Creation Time",
 		bMG->"TTL Cutoff Height",
@@ -171,6 +172,10 @@ pub fn txs(
 	for t in txs {
 		let id = format!("{}", t.id);
 		let slate_id = match t.tx_slate_id {
+			Some(m) => format!("{}", m),
+			None => "None".to_owned(),
+		};
+		let slate_state = match t.tx_slate_state.as_ref() {
 			Some(m) => format!("{}", m),
 			None => "None".to_owned(),
 		};
@@ -220,6 +225,7 @@ pub fn txs(
 			table.add_row(row![
 				bFC->id,
 				bFC->entry_type,
+				bFC->slate_state,
 				bFC->slate_id,
 				bFB->creation_ts,
 				bFB->ttl_cutoff_height,

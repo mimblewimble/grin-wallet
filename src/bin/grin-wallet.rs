@@ -31,7 +31,7 @@ use std::env;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
 
-// include build information
+/// Include build information
 pub mod built_info {
 	include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
@@ -55,7 +55,7 @@ pub fn info_strings() -> (String, String) {
 	)
 }
 
-// Helper fuction to format paths according to OS, avoids bugs on Linux
+/// Helper function to format paths according to OS, avoids bugs on Linux
 pub fn fmt_path(path: String) -> String {
 	let sep = &MAIN_SEPARATOR.to_string();
 	let path = path.replace("/", &sep).replace("\\", &sep);
@@ -117,24 +117,24 @@ fn real_main() -> i32 {
 
 	// Load relevant config, try and load a wallet config file
 	// Use defaults for configuration if config file not found anywhere
-	let mut config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
+	let config = match config::initial_setup_wallet(&chain_type, current_dir, create_path) {
 		Ok(c) => c,
-		Err(e) => match e {
-			ConfigError::PathNotFoundError(m) => {
-				println!("Wallet configuration not found at {}. (Run `grin-wallet init` to create a new wallet)", m);
-				return 0;
+		Err(e) => {
+			return match e {
+				ConfigError::PathNotFoundError(m) => {
+					println!("Wallet configuration not found at {}. (Run `grin-wallet init` to create a new wallet)", m);
+					0
+				}
+				m => {
+					println!("Unable to load wallet configuration: {} (Run `grin-wallet init` to create a new wallet)", m);
+					0
+				}
 			}
-			m => {
-				println!("Unable to load wallet configuration: {} (Run `grin-wallet init` to create a new wallet)", m);
-				return 0;
-			}
-		},
+		}
 	};
 
-	//config.members.as_mut().unwrap().wallet.chain_type = Some(chain_type);
-
 	// Load logging config
-	let mut l = config.members.as_mut().unwrap().logging.clone().unwrap();
+	let mut l = config.members.logging.clone().unwrap();
 	// no logging to stdout if we're running cli
 	match args.subcommand() {
 		("cli", _) => l.log_to_stdout = true,
@@ -143,24 +143,16 @@ fn real_main() -> i32 {
 	init_logger(Some(l), None);
 	info!(
 		"Using wallet configuration file at {}",
-		config.config_file_path.as_ref().unwrap().to_str().unwrap()
+		config.config_file_path.to_str().unwrap()
 	);
 	log_build_info();
 
-	global::init_global_chain_type(
-		config
-			.members
-			.as_ref()
-			.unwrap()
-			.wallet
-			.chain_type
-			.as_ref()
-			.unwrap()
-			.clone(),
-	);
+	global::init_global_chain_type(config.members.wallet.chain_type.as_ref().unwrap().clone());
 
-	global::init_global_accept_fee_base(config.members.as_ref().unwrap().wallet.accept_fee_base());
-	let wallet_config = config.clone().members.unwrap().wallet;
-	let node_client = HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None).unwrap();
+	global::init_global_accept_fee_base(config.members.wallet.accept_fee_base());
+	let wallet_config = config.clone().members.wallet;
+	let timeout = wallet_config.api_request_timeout();
+	let node_client =
+		HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, timeout).unwrap();
 	cmd::wallet_command(&args, config, node_client)
 }

@@ -30,37 +30,35 @@ pub fn wallet_command<C>(
 where
 	C: NodeClient + 'static,
 {
-	// just get defaults from the global config
-	let wallet_config = config.members.clone().unwrap().wallet;
-
-	let tor_config = config.members.unwrap().tor;
-
 	// Check the node version info, and exit with report if we're not compatible
-	let global_wallet_args = wallet_args::parse_global_args(&wallet_config, &wallet_args)
+	let global_wallet_args = wallet_args::parse_global_args(&config.members.wallet, &wallet_args)
 		.expect("Can't read configuration file");
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
 
 	// This will also cache the node version info for calls to foreign API check middleware
 	if let Some(v) = node_client.clone().get_version_info() {
-		if Version::parse(&v.node_version) < Version::parse(MIN_COMPAT_NODE_VERSION) {
-			println!("The Grin Node in use (version {}) is outdated and incompatible with this wallet version.", v.node_version);
+		let node_version = Version::parse(&v.node_version);
+		let min_version = Version::parse(MIN_COMPAT_NODE_VERSION).ok();
+		if let Ok(v) = node_version {
+			if Some(v.clone()) < min_version {
+				println!("The Grin Node in use (version {}) is outdated and incompatible with this wallet version.", v);
+				println!(
+					"Please update the node to version {} or later and try again.",
+					MIN_COMPAT_NODE_VERSION
+				);
+				return 1;
+			}
+		} else {
 			println!(
-				"Please update the node to version {} or later and try again.",
-				MIN_COMPAT_NODE_VERSION
+				"Can not parse node version {}. Minimal compatible node version: {}",
+				v.node_version, MIN_COMPAT_NODE_VERSION
 			);
 			return 1;
 		}
 	}
 	// ... if node isn't available, allow offline functions
 
-	let res = wallet_args::wallet_command(
-		wallet_args,
-		wallet_config,
-		tor_config,
-		node_client,
-		false,
-		|_| {},
-	);
+	let res = wallet_args::wallet_command(wallet_args, config, node_client, false, |_| {});
 
 	// we need to give log output a chance to catch up before exiting
 	thread::sleep(Duration::from_millis(100));

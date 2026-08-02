@@ -204,7 +204,6 @@ mod tests {
 	use super::{ComSigError, ComSignature, ContextFlag, Secp256k1, SecretKey};
 
 	use grin_util::secp::rand::{thread_rng, RngCore};
-	use rand::Rng;
 
 	/// Test signing and verification of ComSignatures
 	#[test]
@@ -213,13 +212,13 @@ mod tests {
 
 		let amount = thread_rng().next_u64();
 		let blind = SecretKey::new(&secp, &mut thread_rng());
-		let msg: [u8; 16] = rand::thread_rng().gen();
+		let msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 		let comsig = ComSignature::sign(amount, &blind, &msg.to_vec(), false)?;
 
 		let commit = secp.commit(amount, blind.clone())?;
 		assert!(comsig.verify(&commit, &msg.to_vec()).is_ok());
 
-		let wrong_msg: [u8; 16] = rand::thread_rng().gen();
+		let wrong_msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
 		assert!(comsig.verify(&commit, &wrong_msg.to_vec()).is_err());
 
 		let wrong_commit = secp.commit(amount, SecretKey::new(&secp, &mut thread_rng()))?;

@@ -51,13 +51,13 @@ extern crate timer;
 
 use regex::Regex;
 use std::fs::{self, File};
-use std::io;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, MAIN_SEPARATOR};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::mpsc::channel;
 use std::thread;
+use std::{cmp, io};
 use sysinfo::{Process, ProcessExt, System, SystemExt};
 
 #[cfg(windows)]
@@ -83,7 +83,7 @@ pub struct TorProcess {
 	args: Vec<String>,
 	torrc_path: Option<String>,
 	completion_percent: u8,
-	timeout: u32,
+	timeout: u64,
 	working_dir: Option<String>,
 	pub stdout: Option<BufReader<ChildStdout>>,
 	pub process: Option<Child>,
@@ -96,8 +96,8 @@ impl TorProcess {
 			tor_cmd: TOR_EXE_NAME.to_string(),
 			args: vec![],
 			torrc_path: None,
-			completion_percent: 100 as u8,
-			timeout: 0 as u32,
+			completion_percent: 100,
+			timeout: 0,
 			working_dir: None,
 			stdout: None,
 			process: None,
@@ -137,7 +137,7 @@ impl TorProcess {
 		self
 	}
 
-	pub fn timeout(&mut self, timeout: u32) -> &mut Self {
+	pub fn timeout(&mut self, timeout: u64) -> &mut Self {
 		self.timeout = timeout;
 		self
 	}
@@ -198,10 +198,11 @@ impl TorProcess {
 		let stdout_timeout_tx = stdout_tx.clone();
 
 		let timer = timer::Timer::new();
-		let _guard =
-			timer.schedule_with_delay(chrono::Duration::seconds(self.timeout as i64), move || {
-				stdout_timeout_tx.send(Err(Error::Timeout)).unwrap_or(());
-			});
+		// Keep this below chrono's DateTime range used by timer.
+		let timeout = chrono::Duration::seconds(cmp::min(self.timeout, u32::MAX as u64) as i64);
+		let _guard = timer.schedule_with_delay(timeout, move || {
+			stdout_timeout_tx.send(Err(Error::Timeout)).unwrap_or(());
+		});
 		let stdout_thread = thread::spawn(move || {
 			stdout_tx
 				.send(Self::parse_tor_stdout(stdout, completion_percent))
@@ -225,8 +226,8 @@ impl TorProcess {
 		mut stdout: BufReader<ChildStdout>,
 		completion_perc: u8,
 	) -> Result<BufReader<ChildStdout>, Error> {
-		let re_bootstrap = Regex::new(r"^\[notice\] Bootstrapped (?P<perc>[0-9]+)%(.*): ")
-			.map_err(Error::Regex)?;
+		let re_bootstrap =
+			Regex::new(r"^\[notice] Bootstrapped (?P<perc>[0-9]+)%(.*): ").map_err(Error::Regex)?;
 
 		let timestamp_len = "May 16 02:50:08.792".len();
 		let mut warnings = Vec::new();

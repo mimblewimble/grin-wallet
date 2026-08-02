@@ -15,7 +15,7 @@
 use bech32::{self, ToBase32};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// Slatepack Types + Serialization implementation
-use ed25519_dalek::SecretKey as edSecretKey;
+use ed25519_dalek::SigningKey as edSecretKey;
 use sha2::{Digest, Sha512};
 use x25519_dalek::StaticSecret;
 
@@ -768,15 +768,15 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 fn slatepack_encrypted_meta() -> Result<(), Error> {
 	use crate::grin_core::global;
 	use crate::{Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
-	use ed25519_dalek::PublicKey as edDalekPublicKey;
-	use ed25519_dalek::SecretKey as edDalekSecretKey;
+	use ed25519_dalek::SigningKey as edDalekSecretKey;
+	use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 	use rand::{thread_rng, Rng};
 	use std::convert::TryFrom;
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
-	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes);
 	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
 	let addr = SlatepackAddress::new(&ed_pub_key);
 
@@ -817,15 +817,15 @@ fn slatepack_encrypted_meta() -> Result<(), Error> {
 fn slatepack_encrypted_meta_future() -> Result<(), Error> {
 	use crate::grin_core::global;
 	use crate::{Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
-	use ed25519_dalek::PublicKey as edDalekPublicKey;
-	use ed25519_dalek::SecretKey as edDalekSecretKey;
+	use ed25519_dalek::SigningKey as edDalekSecretKey;
+	use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 	use rand::{thread_rng, Rng};
 	use std::convert::TryFrom;
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
 
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
 
-	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_sec_key = edDalekSecretKey::from_bytes(&sec_key_bytes);
 	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
 	let addr = SlatepackAddress::new(&ed_pub_key);
 
@@ -864,11 +864,11 @@ fn slatepack_encrypted_meta_future() -> Result<(), Error> {
 
 #[cfg(test)]
 fn slatepack_test_decryption_key() -> (edSecretKey, SlatepackAddress) {
-	use ed25519_dalek::PublicKey as edDalekPublicKey;
+	use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 	use rand::{thread_rng, Rng};
 
 	let sec_key_bytes: [u8; 32] = thread_rng().gen();
-	let ed_sec_key = edSecretKey::from_bytes(&sec_key_bytes).unwrap();
+	let ed_sec_key = edSecretKey::from_bytes(&sec_key_bytes);
 	let ed_pub_key = edDalekPublicKey::from(&ed_sec_key);
 	let addr = SlatepackAddress::new(&ed_pub_key);
 

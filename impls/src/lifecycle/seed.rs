@@ -25,6 +25,7 @@ use ring::aead;
 use ring::pbkdf2;
 
 use crate::keychain::{mnemonic, Keychain};
+use crate::lifecycle::default::fmt_path;
 use crate::util::{self, ToHex};
 use crate::Error;
 
@@ -56,13 +57,6 @@ impl WalletSeed {
 		self.0.to_vec().to_hex()
 	}
 
-	// Helper fuction to format paths according to OS, avoids bugs on Linux
-	pub fn fmt_path(path: String) -> String {
-		let sep = &MAIN_SEPARATOR.to_string();
-		let path = path.replace("/", &sep);
-		let path = path.replace("\\", &sep);
-		path
-	}
 	pub fn to_mnemonic(&self) -> Result<String, Error> {
 		let result = mnemonic::from_entropy(&self.0);
 		match result {
@@ -105,7 +99,7 @@ impl WalletSeed {
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
 		let seed_file_path = &format!(
 			"{}{}{}",
-			Self::fmt_path(data_file_dir.to_string()),
+			fmt_path(data_file_dir.to_string()),
 			MAIN_SEPARATOR,
 			SEED_FILE,
 		);
@@ -145,7 +139,7 @@ impl WalletSeed {
 	) -> Result<(), Error> {
 		let seed_file_path = &format!(
 			"{}{}{}",
-			Self::fmt_path(data_file_dir.to_string()),
+			fmt_path(data_file_dir.to_string()),
 			MAIN_SEPARATOR,
 			SEED_FILE,
 		);
@@ -184,11 +178,11 @@ impl WalletSeed {
 
 		let seed_file_path = &format!(
 			"{}{}{}",
-			Self::fmt_path(data_file_dir.to_string()),
+			fmt_path(data_file_dir.to_string()),
 			MAIN_SEPARATOR,
 			SEED_FILE,
 		);
-		let data_file_dir = Self::fmt_path(data_file_dir.to_string());
+		let data_file_dir = fmt_path(data_file_dir.to_string());
 		warn!("Generating wallet seed file at: {}", seed_file_path);
 		let exists = WalletSeed::seed_file_exists(&data_file_dir)?;
 		if exists && !test_mode {
@@ -219,7 +213,7 @@ impl WalletSeed {
 
 		let seed_file_path = &format!(
 			"{}{}{}",
-			Self::fmt_path(data_file_dir.to_string()),
+			fmt_path(data_file_dir.to_string()),
 			MAIN_SEPARATOR,
 			SEED_FILE,
 		);
@@ -247,7 +241,7 @@ impl WalletSeed {
 	pub fn delete_seed_file(data_file_dir: &str) -> Result<(), Error> {
 		let seed_file_path = &format!(
 			"{}{}{}",
-			Self::fmt_path(data_file_dir.to_string()),
+			fmt_path(data_file_dir.to_string()),
 			MAIN_SEPARATOR,
 			SEED_FILE,
 		);

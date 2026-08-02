@@ -20,6 +20,7 @@ extern crate grin_wallet_impls as impls;
 use grin_core as core;
 use grin_util as util;
 use grin_util::secp::key::SecretKey;
+use std::path::PathBuf;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
@@ -64,11 +65,16 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		api.create_account_path(m, "mining")?;
-		api.create_account_path(m, "listener")?;
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.create_account_path(m, "mining")?;
+			api.create_account_path(m, "listener")?;
+			Ok(())
+		},
+	)?;
 
 	// Get some mining done
 	{
@@ -80,98 +86,123 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward);
-		// send to send
-		let args = InitTxArgs {
-			src_acct_name: Some("mining".to_owned()),
-			amount: reward * 2,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
-			..Default::default()
-		};
-		let mut slate = api.init_send_tx(m, args)?;
-		api.tx_lock_outputs(m, &slate)?;
-		// Send directly to self
-		wallet::controller::foreign_single_use(wallet1.clone(), mask1_i.clone(), |api| {
-			slate = api.receive_tx(&slate, Some("listener"), None)?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, bh * reward);
+			// send to send
+			let args = InitTxArgs {
+				src_acct_name: Some("mining".to_owned()),
+				amount: reward * 2,
+				minimum_confirmations: 2,
+				max_outputs: 500,
+				num_change_outputs: 1,
+				selection_strategy_is_use_all: true,
+				..Default::default()
+			};
+			let mut slate = api.init_send_tx(m, args)?;
+			api.tx_lock_outputs(m, &slate)?;
+			// Send directly to self
+			wallet::controller::foreign_single_use(
+				wallet1.clone(),
+				PathBuf::from(test_dir),
+				mask1_i.clone(),
+				|api| {
+					slate = api.receive_tx(&slate, Some("listener"), None)?;
+					Ok(())
+				},
+			)?;
+			slate = api.finalize_tx(m, &slate)?;
+			api.post_tx(m, &slate, false)?; // mines a block
+			bh += 1;
 			Ok(())
-		})?;
-		slate = api.finalize_tx(m, &slate)?;
-		api.post_tx(m, &slate, false)?; // mines a block
-		bh += 1;
-		Ok(())
-	})?;
+		},
+	)?;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 	bh += 3;
 
 	// Check total in mining account
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, bh * reward - reward * 2);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, bh * reward - reward * 2);
+			Ok(())
+		},
+	)?;
 
 	// Check total in 'listener' account
 	{
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("listener")?;
 	}
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-		assert!(wallet1_refreshed);
-		assert_eq!(wallet1_info.last_confirmed_height, bh);
-		assert_eq!(wallet1_info.total, 2 * reward);
-		Ok(())
-	})?;
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+			assert!(wallet1_refreshed);
+			assert_eq!(wallet1_info.last_confirmed_height, bh);
+			assert_eq!(wallet1_info.total, 2 * reward);
+			Ok(())
+		},
+	)?;
 
 	// Recipient wallet creates a mwixnet request from the last output
-	wallet::controller::owner_single_use(Some(wallet1.clone()), mask1, None, |api, m| {
-		let secp_locked = util::static_secp_instance();
-		let secp = secp_locked.lock();
-		let server_pubkey_str_1 =
-			"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332";
-		let server_pubkey_str_2 =
-			"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e";
-		let server_pubkey_str_3 =
-			"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5";
-		let server_key_1 =
-			SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_1).unwrap())
-				.unwrap();
-		let server_key_2 =
-			SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_2).unwrap())
-				.unwrap();
-		let server_key_3 =
-			SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())
-				.unwrap();
-		let params = MixnetReqCreationParams {
-			server_keys: vec![server_key_1, server_key_2, server_key_3],
-			fee_per_hop: 50_000_000,
-		};
-		let outputs = api.retrieve_outputs(mask1, false, false, None)?;
-		// get last output
-		let last_output = outputs.1[outputs.1.len() - 1].clone();
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let secp_locked = util::static_secp_instance();
+			let secp = secp_locked.lock();
+			let server_pubkey_str_1 =
+				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332";
+			let server_pubkey_str_2 =
+				"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e";
+			let server_pubkey_str_3 =
+				"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5";
+			let server_key_1 =
+				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_1).unwrap())
+					.unwrap();
+			let server_key_2 =
+				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_2).unwrap())
+					.unwrap();
+			let server_key_3 =
+				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())
+					.unwrap();
+			let params = MixnetReqCreationParams {
+				server_keys: vec![server_key_1, server_key_2, server_key_3],
+				fee_per_hop: 50_000_000,
+			};
+			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
+			// get last output
+			let last_output = outputs.1[outputs.1.len() - 1].clone();
 
-		let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
+			let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
 
-		println!("MWIXNET REQ: {:?}", mwixnet_req);
+			println!("MWIXNET REQ: {:?}", mwixnet_req);
 
-		// check output we created comsig for is indeed locked
-		let outputs = api.retrieve_outputs(mask1, false, false, None)?;
-		// get last output
-		let last_output = outputs.1[outputs.1.len() - 1].clone();
-		assert!(last_output.output.status == libwallet::OutputStatus::Locked);
+			// check output we created comsig for is indeed locked
+			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
+			// get last output
+			let last_output = outputs.1[outputs.1.len() - 1].clone();
+			assert!(last_output.output.status == libwallet::OutputStatus::Locked);
 
-		Ok(())
-	})?;
+			Ok(())
+		},
+	)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Argument parsing and error handling for wallet commands
 use crate::api::TLSConfig;
 use crate::cli::command_loop;
 use crate::config::GRIN_WALLET_DIR;
 use crate::util::file::get_first_line;
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
-/// Argument parsing and error handling for wallet commands
+
 use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{TorConfig, WalletConfig};
+use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
@@ -33,6 +34,7 @@ use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
 use std::convert::TryFrom;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -67,32 +69,46 @@ impl From<std::io::Error> for ParseError {
 	}
 }
 
-fn prompt_password_stdout(prompt: &str) -> ZeroingString {
-	ZeroingString::from(rpassword::prompt_password_stdout(prompt).unwrap())
+fn prompt_password_internal(prompt: &str) -> Result<ZeroingString, Error> {
+	print!("{}", prompt);
+	std::io::stdout().flush().unwrap();
+	let stdin = std::io::stdin();
+	let password = if stdin.is_terminal() {
+		rpassword::read_password()
+	} else {
+		rpassword::read_password_with_config(
+			rpassword::ConfigBuilder::new()
+				.input_reader(stdin)
+				.output_discard()
+				.build(),
+		)
+	}
+	.map_err(|e| Error::GenericError(format!("{}", e)))?;
+	Ok(ZeroingString::from(password))
 }
 
-pub fn prompt_password(password: &Option<ZeroingString>) -> ZeroingString {
+pub fn prompt_password(password: &Option<ZeroingString>) -> Result<ZeroingString, Error> {
 	match password {
-		None => prompt_password_stdout("Password: "),
-		Some(p) => p.clone(),
+		None => Ok(prompt_password_internal("Password: ")?),
+		Some(p) => Ok(p.clone()),
 	}
 }
 
-fn prompt_password_confirm() -> ZeroingString {
+fn prompt_password_confirm() -> Result<ZeroingString, Error> {
 	let mut first = ZeroingString::from("first");
 	let mut second = ZeroingString::from("second");
 	while first != second {
-		first = prompt_password_stdout("Password: ");
-		second = prompt_password_stdout("Confirm Password: ");
+		first = prompt_password_internal("Password: ")?;
+		second = prompt_password_internal("Confirm Password: ")?;
 	}
-	first
+	Ok(first)
 }
 
 fn prompt_recovery_phrase<L, C, K>(
 	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
 ) -> Result<ZeroingString, ParseError>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -224,12 +240,12 @@ pub fn inst_wallet<L, C, K>(
 	node_client: C,
 ) -> Result<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>, ParseError>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut wallet = Box::new(DefaultWalletImpl::<'static, C>::new(node_client.clone()).unwrap())
+	let mut wallet = Box::new(DefaultWalletImpl::<C>::new(node_client.clone()).unwrap())
 		as Box<dyn WalletInst<'static, L, C, K>>;
 	let lc = wallet.lc_provider().unwrap();
 	let _ = lc.set_top_level_directory(&config.data_file_dir);
@@ -309,7 +325,7 @@ pub fn parse_global_args(
 			let key = match config.tls_certificate_key.clone() {
 				Some(k) => k,
 				None => {
-					let msg = format!("Private key for certificate is not set");
+					let msg = "Private key for certificate is not set".to_string();
 					return Err(ParseError::ArgumentError(msg));
 				}
 			};
@@ -319,11 +335,11 @@ pub fn parse_global_args(
 
 	Ok(command::GlobalArgs {
 		account: account.to_owned(),
-		show_spent: show_spent,
-		api_secret: api_secret,
-		node_api_secret: node_api_secret,
-		password: password,
-		tls_conf: tls_conf,
+		show_spent,
+		api_secret,
+		node_api_secret,
+		password,
+		tls_conf,
 	})
 }
 
@@ -333,9 +349,9 @@ pub fn parse_init_args<L, C, K>(
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
 	_test_mode: bool,
-) -> Result<command::InitArgs, ParseError>
+) -> Result<command::InitArgs, Error>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -345,7 +361,9 @@ where
 		true => 16,
 	};
 	let recovery_phrase = match args.is_present("recover") {
-		true => Some(prompt_recovery_phrase(wallet)?),
+		true => {
+			Some(prompt_recovery_phrase(wallet).map_err(|e| Error::GenericError(e.to_string()))?)
+		}
 		false => None,
 	};
 
@@ -355,46 +373,26 @@ where
 		println!("Please enter a password for your new wallet");
 	}
 
-	let password = match g_args.password.clone() {
-		Some(p) => p,
-		None => prompt_password_confirm(),
+	let password = if let Some(p) = g_args.password.clone() {
+		p
+	} else {
+		prompt_password_confirm()?
 	};
 
 	Ok(command::InitArgs {
-		list_length: list_length,
-		password: password,
+		list_length,
+		password,
 		config: config.clone(),
-		recovery_phrase: recovery_phrase,
+		recovery_phrase,
 		restore: false,
 	})
 }
 
-pub fn parse_recover_args(
-	g_args: &command::GlobalArgs,
-) -> Result<command::RecoverArgs, ParseError>
+pub fn parse_recover_args(g_args: &command::GlobalArgs) -> Result<command::RecoverArgs, Error>
 where
 {
-	let passphrase = prompt_password(&g_args.password);
-	Ok(command::RecoverArgs {
-		passphrase: passphrase,
-	})
-}
-
-pub fn parse_listen_args(
-	config: &mut WalletConfig,
-	tor_config: &mut TorConfig,
-	args: &ArgMatches,
-) -> Result<command::ListenArgs, ParseError> {
-	if let Some(port) = args.value_of("port") {
-		config.api_listen_port = port.parse().unwrap();
-	}
-	if let Some(bridge) = args.value_of("bridge") {
-		tor_config.bridge.bridge_line = Some(bridge.into());
-	}
-	if args.is_present("no_tor") {
-		tor_config.use_tor_listener = false;
-	}
-	Ok(command::ListenArgs {})
+	let passphrase = prompt_password(&g_args.password)?;
+	Ok(command::RecoverArgs { passphrase })
 }
 
 pub fn parse_owner_api_args(
@@ -417,7 +415,7 @@ pub fn parse_scan_rewind_hash_args(
 	let start_height = parse_u64_or_none(args.value_of("start_height"));
 	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
 	if backwards_from_tip.is_some() && start_height.is_some() {
-		let msg = format!("backwards_from tip and start_height cannot both be present");
+		let msg = "backwards_from tip and start_height cannot both be present".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::ViewWalletScanArgs {
@@ -432,7 +430,7 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 		None => None,
 		Some(s) => Some(s.to_owned()),
 	};
-	Ok(command::AccountArgs { create: create })
+	Ok(command::AccountArgs { create })
 }
 
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
@@ -468,9 +466,10 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let late_lock = args.is_present("late_lock");
 
 	// dest
-	let dest = match args.value_of("dest") {
-		Some(d) => d,
-		None => "default",
+	let dest = if let Some(dest) = args.value_of("dest") {
+		Some(dest.to_owned())
+	} else {
+		None
 	};
 
 	// change_outputs
@@ -498,21 +497,26 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	};
 
 	let payment_proof_address = {
-		match args.is_present("no_payment_proof") {
-			false => match SlatepackAddress::try_from(dest) {
-				Ok(a) => Some(a),
-				Err(_) => {
-					if !estimate_selection_strategies {
-						println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
-					}
-					None
-				}
-			},
-			true => None,
+		if let Some(a) = dest.clone() {
+			match args.is_present("no_payment_proof") {
+				false => Some(a),
+				true => None,
+			}
+		} else {
+			if !estimate_selection_strategies {
+				println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
+			}
+			None
 		}
 	};
 
 	let outfile = parse_optional(args, "outfile")?;
+
+	let skip_tor = if args.is_present("manual") {
+		Some(true)
+	} else {
+		None
+	};
 
 	let bridge = match args.value_of("bridge") {
 		Some(b) => Some(b.to_string()),
@@ -522,24 +526,24 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let slatepack_qr = args.is_present("slatepack_qr");
 
 	Ok(command::SendArgs {
-		amount: amount,
-		amount_includes_fee: amount_includes_fee,
+		amount,
+		amount_includes_fee,
 		use_max_amount: spend_max,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
 		estimate_selection_strategies,
 		late_lock,
-		dest: dest.to_owned(),
-		change_outputs: change_outputs,
-		fluff: fluff,
-		max_outputs: max_outputs,
+		dest,
+		change_outputs,
+		fluff,
+		max_outputs,
 		payment_proof_address,
 		ttl_blocks,
-		target_slate_version: target_slate_version,
+		target_slate_version,
 		outfile,
-		skip_tor: args.is_present("manual"),
-		bridge: bridge,
-		slatepack_qr: slatepack_qr,
+		skip_tor,
+		bridge,
+		slatepack_qr,
 	})
 }
 
@@ -565,6 +569,12 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("manual") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
@@ -572,10 +582,10 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
-		skip_tor: args.is_present("manual"),
+		skip_tor,
 		outfile,
 		bridge,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -601,6 +611,12 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("manual") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
@@ -608,10 +624,10 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 	Ok(command::ReceiveArgs {
 		input_file,
 		input_slatepack_message,
-		skip_tor: args.is_present("manual"),
+		skip_tor,
 		outfile,
 		bridge,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -644,10 +660,10 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 	Ok(command::FinalizeArgs {
 		input_file,
 		input_slatepack_message,
-		fluff: fluff,
-		nopost: nopost,
+		fluff,
+		nopost,
 		outfile,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -679,9 +695,10 @@ pub fn parse_issue_invoice_args(
 	};
 
 	// dest, for encryption
-	let dest = match args.value_of("dest") {
-		Some(d) => d,
-		None => "default",
+	let dest = if let Some(dest) = args.value_of("dest") {
+		Some(dest.to_owned())
+	} else {
+		None
 	};
 
 	let outfile = parse_optional(args, "outfile")?;
@@ -689,14 +706,14 @@ pub fn parse_issue_invoice_args(
 	let slatepack_qr = args.is_present("slatepack_qr");
 
 	Ok(command::IssueInvoiceArgs {
-		dest: dest.into(),
+		dest,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,
 			target_slate_version,
 		},
 		outfile,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -772,9 +789,21 @@ pub fn parse_process_invoice_args(
 
 	let outfile = parse_optional(args, "outfile")?;
 
+	let skip_tor = if args.is_present("manual") {
+		Some(true)
+	} else {
+		None
+	};
+
 	let bridge = parse_optional(args, "bridge")?;
 
 	let slatepack_qr = args.is_present("slatepack_qr");
+
+	let ret_address = if let Some(a) = ret_address {
+		Some(a.to_string())
+	} else {
+		None
+	};
 
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
@@ -784,10 +813,10 @@ pub fn parse_process_invoice_args(
 		slate,
 		max_outputs,
 		ttl_blocks,
-		skip_tor: args.is_present("manual"),
+		skip_tor,
 		outfile,
 		bridge,
-		slatepack_qr: slatepack_qr,
+		slatepack_qr,
 	})
 }
 
@@ -805,7 +834,7 @@ pub fn parse_check_args(args: &ArgMatches) -> Result<command::CheckArgs, ParseEr
 	let start_height = parse_u64_or_none(args.value_of("start_height"));
 	let backwards_from_tip = parse_u64_or_none(args.value_of("backwards_from_tip"));
 	if backwards_from_tip.is_some() && start_height.is_some() {
-		let msg = format!("backwards_from tip and start_height cannot both be present");
+		let msg = "backwards_from tip and start_height cannot both be present".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::CheckArgs {
@@ -831,7 +860,7 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		},
 	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	let count = match args.value_of("count") {
@@ -840,8 +869,8 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 	};
 	Ok(command::TxsArgs {
 		id: tx_id,
-		tx_slate_id: tx_slate_id,
-		count: count,
+		tx_slate_id,
+		count,
 	})
 }
 
@@ -888,8 +917,8 @@ pub fn parse_repost_args(args: &ArgMatches) -> Result<command::RepostArgs, Parse
 
 	Ok(command::RepostArgs {
 		id: tx_id.unwrap(),
-		dump_file: dump_file,
-		fluff: fluff,
+		dump_file,
+		fluff,
 	})
 }
 
@@ -913,12 +942,12 @@ pub fn parse_cancel_args(args: &ArgMatches) -> Result<command::CancelArgs, Parse
 		},
 	};
 	if (tx_id.is_none() && tx_slate_id.is_none()) || (tx_id.is_some() && tx_slate_id.is_some()) {
-		let msg = format!("'id' (-i) or 'txid' (-t) argument is required.");
+		let msg = "'id' (-i) or 'txid' (-t) argument is required.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::CancelArgs {
-		tx_id: tx_id,
-		tx_slate_id: tx_slate_id,
+		tx_id,
+		tx_slate_id,
 		tx_id_string: tx_id_string.to_owned(),
 	})
 }
@@ -940,17 +969,17 @@ pub fn parse_export_proof_args(args: &ArgMatches) -> Result<command::ProofExport
 		},
 	};
 	if tx_id.is_some() && tx_slate_id.is_some() {
-		let msg = format!("At most one of 'id' (-i) or 'txid' (-t) may be provided.");
+		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	if tx_id.is_none() && tx_slate_id.is_none() {
-		let msg = format!("Either 'id' (-i) or 'txid' (-t) must be provided.");
+		let msg = "Either 'id' (-i) or 'txid' (-t) must be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
 	}
 	Ok(command::ProofExportArgs {
 		output_file: output_file.to_owned(),
 		id: tx_id,
-		tx_slate_id: tx_slate_id,
+		tx_slate_id,
 	})
 }
 
@@ -963,8 +992,7 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
-	mut wallet_config: WalletConfig,
-	tor_config: Option<TorConfig>,
+	config: GlobalWalletConfig,
 	mut node_client: C,
 	test_mode: bool,
 	wallet_inst_cb: F,
@@ -977,7 +1005,7 @@ where
 				Box<
 					dyn WalletInst<
 						'static,
-						DefaultLCProvider<'static, C, keychain::ExtKeychain>,
+						DefaultLCProvider<C, keychain::ExtKeychain>,
 						C,
 						keychain::ExtKeychain,
 					>,
@@ -986,6 +1014,7 @@ where
 		>,
 	),
 {
+	let mut wallet_config = config.members.wallet.clone();
 	if let Some(dir) = wallet_args.value_of("top_level_dir") {
 		wallet_config.data_file_dir = dir.to_string().clone();
 	}
@@ -1008,13 +1037,6 @@ where
 		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 	}
 
-	// for backwards compatibility: If tor config doesn't exist in the file, assume
-	// the top level directory for data
-	let tor_config = tor_config.unwrap_or_else(|| TorConfig {
-		send_config_dir: wallet_config.data_file_dir.clone(),
-		..Default::default()
-	});
-
 	// Instantiate wallet (doesn't open the wallet)
 	let wallet =
 		inst_wallet::<DefaultLCProvider<C, keychain::ExtKeychain>, C, keychain::ExtKeychain>(
@@ -1028,12 +1050,12 @@ where
 
 	{
 		let mut wallet_lock = wallet.lock();
-		let lc = wallet_lock.lc_provider().unwrap();
+		let lc = wallet_lock.lc_provider()?;
 		let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	}
 
 	// provide wallet instance back to the caller (handy for testing with
-	// local wallet proxy, etc)
+	// local wallet proxy, etc.)
 	wallet_inst_cb(wallet.clone());
 
 	// don't open wallet for certain lifecycle commands
@@ -1045,7 +1067,7 @@ where
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider().unwrap();
+			let lc = wallet_lock.lc_provider()?;
 			open_wallet = wallet_args.is_present("pass") && lc.wallet_exists(None)?;
 		}
 		_ => {}
@@ -1054,10 +1076,10 @@ where
 	let keychain_mask = match open_wallet {
 		true => {
 			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider().unwrap();
+			let lc = wallet_lock.lc_provider()?;
 			let mask = lc.open_wallet(
 				None,
-				prompt_password(&global_wallet_args.password),
+				prompt_password(&global_wallet_args.password)?,
 				false,
 				false,
 			)?;
@@ -1072,20 +1094,20 @@ where
 
 	let res = match wallet_args.subcommand() {
 		("cli", Some(_)) => command_loop(
+			config,
 			wallet,
 			keychain_mask,
-			&wallet_config,
-			&tor_config,
 			&global_wallet_args,
 			test_mode,
 		),
 		_ => {
-			let mut owner_api = Owner::new(wallet, None);
+			let tor_config = config.tor_config();
+			let mut owner_api = Owner::new(wallet, None, config.config_file_path);
 			parse_and_execute(
 				&mut owner_api,
 				keychain_mask,
 				&wallet_config,
-				&tor_config,
+				tor_config,
 				&global_wallet_args,
 				&wallet_args,
 				test_mode,
@@ -1105,14 +1127,14 @@ pub fn parse_and_execute<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
-	tor_config: &TorConfig,
+	tor_config: TorConfig,
 	global_wallet_args: &command::GlobalArgs,
 	wallet_args: &ArgMatches,
 	test_mode: bool,
 	cli_mode: bool,
 ) -> Result<(), Error>
 where
-	DefaultWalletImpl<'static, C>: WalletInst<'static, L, C, K>,
+	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
@@ -1141,14 +1163,25 @@ where
 		}
 		("listen", Some(args)) => {
 			let mut c = wallet_config.clone();
-			let mut t = tor_config.clone();
-			let a = arg_parse!(parse_listen_args(&mut c, &mut t, &args));
+			if let Some(port) = args.value_of("port") {
+				c.api_listen_port = port.parse().unwrap();
+			}
+			let bridge = if let Some(bridge) = args.value_of("bridge") {
+				Some(bridge.into())
+			} else {
+				None
+			};
+			let use_tor = if args.is_present("no_tor") {
+				Some(false)
+			} else {
+				None
+			};
 			command::listen(
 				owner_api,
 				Arc::new(Mutex::new(keychain_mask)),
-				&c,
-				&t,
-				&a,
+				c,
+				bridge,
+				use_tor,
 				&global_wallet_args.clone(),
 				cli_mode,
 				test_mode,
@@ -1159,13 +1192,12 @@ where
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
 			arg_parse!(parse_owner_api_args(&mut c, &args));
-			command::owner_api(owner_api, keychain_mask, &c, &tor_config, &g, test_mode)
+			command::owner_api(owner_api, keychain_mask, &c, &g, test_mode)
 		}
 		("web", Some(_)) => command::owner_api(
 			owner_api,
 			keychain_mask,
 			wallet_config,
-			tor_config,
 			global_wallet_args,
 			test_mode,
 		),
@@ -1187,22 +1219,15 @@ where
 			command::send(
 				owner_api,
 				km,
-				Some(tor_config.clone()),
 				a,
+				tor_config,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
 			)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(
-				owner_api,
-				km,
-				&global_wallet_args,
-				a,
-				Some(tor_config.clone()),
-				test_mode,
-			)
+			command::receive(owner_api, km, &global_wallet_args, a, tor_config, test_mode)
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
@@ -1226,7 +1251,7 @@ where
 			command::process_invoice(
 				owner_api,
 				km,
-				Some(tor_config.clone()),
+				tor_config,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
@@ -1292,8 +1317,8 @@ where
 			Ok(())
 		}
 		_ => {
-			let msg = format!("Unknown wallet command, use 'grin-wallet help' for details");
-			return Err(Error::ArgumentError(msg));
+			let msg = "Unknown wallet command, use 'grin-wallet help' for details".to_string();
+			Err(Error::ArgumentError(msg))
 		}
 	}
 }

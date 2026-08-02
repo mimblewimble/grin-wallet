@@ -74,6 +74,13 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
+		"node_api_request_timeout_secs".to_string(),
+		"
+#total timeout for requests to node API
+"
+		.to_string(),
+	);
+	retval.insert(
 		"node_api_secret_path".to_string(),
 		"
 #location of the node api secret for basic auth on the Grin API
@@ -206,8 +213,16 @@ fn comments() -> HashMap<String, String> {
 		"[tor]".to_string(),
 		"
 #########################################
-### TOR CONFIGURATION (Experimental)  ###
+### TOR CONFIGURATION                 ###
 #########################################
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"use_integrated".to_string(),
+		"
+#Whether to use integrated Tor library
 "
 		.to_string(),
 	);
@@ -215,7 +230,7 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"skip_send_attempt".to_string(),
 		"
-#Whether to skip send attempts (used for debugging) 
+#Whether to skip send attempts (default false)
 "
 		.to_string(),
 	);
@@ -245,6 +260,22 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
+		"request_timeout_secs".to_string(),
+		"
+#Tor request timeout in seconds
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"bootstrap_timeout_secs".to_string(),
+		"
+#Tor bootstrap timeout in seconds
+"
+		.to_string(),
+	);
+
+	retval.insert(
 		"[tor.bridge]".to_string(),
 		"
 #########################################
@@ -259,8 +290,11 @@ fn comments() -> HashMap<String, String> {
 		"
 #Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
 #Enable it by entering a single bridge line. To disable it, you must comment it.
-#Support of the transport: obfs4, meek and snowflake. 
-#obfs4proxy or snowflake client binary must be installed and on your path.
+#Support of the transport: webtunnel, obfs4, and snowflake.
+#webtunnel, obfs4proxy or snowflake client binary must be installed and on your path.
+#Custom path for client binary
+#bridge_bin_path = \"\"
+
 #For example, the bridge line must be in the following format for obfs4 transport: \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"
 #bridge_line = \"\"
 
@@ -279,10 +313,10 @@ fn comments() -> HashMap<String, String> {
 }
 
 fn get_key(line: &str) -> String {
-	if line.contains('[') && line.contains(']') {
+	if line.starts_with('[') && line.ends_with(']') {
 		line.to_owned()
-	} else if line.contains('=') {
-		line.split('=').collect::<Vec<&str>>()[0].trim().to_owned()
+	} else if let Some((key, _)) = line.split_once('=') {
+		key.trim().to_owned()
 	} else {
 		"NOT_FOUND".to_owned()
 	}
@@ -305,92 +339,4 @@ pub fn insert_comments(orig: String) -> String {
 		ret_val.push_str(&l);
 	}
 	ret_val
-}
-
-pub fn migrate_comments(
-	old_config: String,
-	new_config: String,
-	old_version: Option<u32>,
-) -> String {
-	let comments = comments();
-	// Prohibe the key we are basing on to introduce new comments for [tor.proxy]
-	let prohibited_key = match old_version {
-		None => vec!["[logging]"],
-		Some(_) => vec![],
-	};
-	let mut vec_old_conf = vec![];
-	let mut hm_key_cmt_old = HashMap::new();
-	let old_conf: Vec<&str> = old_config.split_inclusive('\n').collect();
-	// collect old key in a vec and insert old key/comments from the old conf in a hashmap
-	let vec_key_old = old_conf
-		.iter()
-		.filter_map(|line| {
-			let line_nospace = line.trim();
-			let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
-			match line.contains("#") || is_ascii_control {
-				true => {
-					vec_old_conf.push(line.to_owned());
-					None
-				}
-				false => {
-					let comments: String = vec_old_conf.iter().flat_map(|s| s.chars()).collect();
-					let key = get_key(line_nospace);
-					match key != "NOT_FOUND" {
-						true => {
-							vec_old_conf.clear();
-							hm_key_cmt_old.insert(key.clone(), comments);
-							Some(key)
-						}
-						false => None,
-					}
-				}
-			}
-		})
-		.collect::<Vec<String>>();
-
-	let new_conf: Vec<&str> = new_config.split_inclusive('\n').collect();
-	// collect new key and the whole key line from the new config
-	let vec_key_cmt_new = new_conf
-		.iter()
-		.filter_map(|line| {
-			let line_nospace = line.trim();
-			let is_ascii_control = line_nospace.chars().all(|x| x.is_ascii_control());
-			match !line.contains("#") && !is_ascii_control {
-				true => {
-					let key = get_key(line_nospace);
-					match key != "NOT_FOUND" {
-						true => Some((key, line_nospace.to_string())),
-						false => None,
-					}
-				}
-				false => None,
-			}
-		})
-		.collect::<Vec<(String, String)>>();
-
-	let mut new_config_str = String::from("");
-	// Merging old comments in the new config (except if the key is contained in the prohibited vec) with all new introduced key comments
-	for (key, key_line) in vec_key_cmt_new {
-		let old_key_exist = vec_key_old.iter().any(|old_key| *old_key == key);
-		let key_fmt = format!("{}\n", key_line);
-		if old_key_exist {
-			if prohibited_key.contains(&key.as_str()) {
-				// push new config key/comments
-				let value = comments.get(&key).unwrap();
-				new_config_str.push_str(value);
-				new_config_str.push_str(&key_fmt);
-			} else {
-				// push old config key/comment
-				let value = hm_key_cmt_old.get(&key).unwrap();
-				new_config_str.push_str(value);
-				new_config_str.push_str(&key_fmt);
-			}
-		} else {
-			// old key does not exist, we push new key/comments
-			let value = comments.get(&key).unwrap();
-			new_config_str.push_str(value);
-			new_config_str.push_str(&key_fmt);
-		}
-	}
-	new_config_str
 }
