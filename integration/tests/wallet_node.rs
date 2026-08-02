@@ -55,26 +55,47 @@ fn mine_to_wallet_and_summary() {
 		&wallet_addr,
 	);
 
-	// Phase 1: mine a single immature coinbase, then stop the miner.
-	// AutomatedTesting maturity is 3; keep chain height strictly below that.
-	let miner_stop = start_test_miner(&node, Some(wallet_url.clone()));
+	// Mine past coinbase maturity so we can assert exact spendable vs immature.
+	// Coinbase from block h locks until height >= h + maturity, so at chain
+	// height H there are max(0, H - maturity) mature coinbases and
+	// min(H, maturity) immature ones. Do not race stop_test_miner against
+	// the fast test miner (CI was mining through maturity before stop).
+	let maturity = global::coinbase_maturity();
+	let target = maturity + 3;
+	let miner_stop = start_test_miner(&node, Some(wallet_url));
 	let mut waited = 0;
-	while node.head().unwrap().height < 1 {
+	while node.head().unwrap().height < target {
 		thread::sleep(time::Duration::from_millis(100));
 		waited += 1;
-		assert!(waited < 600, "node did not mine first block");
+		assert!(waited < 600, "node did not mine enough blocks");
 	}
 	node.stop_test_miner(miner_stop);
-	// Wait for miner exit and foreign coinbase processing.
+	// Allow foreign coinbase processing and miner exit.
 	thread::sleep(time::Duration::from_secs(2));
 
-	let height_early = node.head().unwrap().height;
+	let height = node.head().unwrap().height;
+	info!("mined to height {}", height);
 	assert!(
-		height_early >= 1 && height_early < global::coinbase_maturity(),
-		"expected 1 <= height {} < maturity {}",
-		height_early,
-		global::coinbase_maturity()
+		height >= target,
+		"expected height {} >= target {}",
+		height,
+		target
 	);
+
+	// Coinbase lock_height = output_height + maturity → spendable iff h <= H - maturity.
+	let mature_blocks = height.saturating_sub(maturity);
+	let immature_blocks = height - mature_blocks;
+	assert!(
+		mature_blocks > 0,
+		"need at least one mature coinbase at height {}",
+		height
+	);
+	assert_eq!(
+		immature_blocks, maturity,
+		"last {} coinbases should still be immature",
+		maturity
+	);
+
 	let mask_ref = mask.as_ref();
 	controller::controller::owner_single_use(
 		wallet.clone(),
@@ -83,57 +104,22 @@ fn mine_to_wallet_and_summary() {
 		|api, m| {
 			let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
 			assert!(refreshed, "wallet should refresh against live node");
+			assert_eq!(info.last_confirmed_height, height);
+			// All coinbase from mining goes to this wallet (blocks 1..=height).
 			assert_eq!(
 				info.total,
-				height_early * consensus::REWARD,
-				"wallet should hold all early coinbase"
+				height * consensus::REWARD,
+				"total should equal all mined coinbase"
 			);
-			assert_eq!(
-				info.amount_currently_spendable, 0,
-				"coinbase must be immature before maturity height"
-			);
-			assert_eq!(
-				info.amount_immature,
-				height_early * consensus::REWARD,
-				"all early coinbase should be immature"
-			);
-			Ok(())
-		},
-	)
-	.expect("early owner summary");
-
-	// Phase 2: mine past maturity so spendable becomes non-zero.
-	let miner_stop = start_test_miner(&node, Some(wallet_url));
-	let target = global::coinbase_maturity() + 2;
-	waited = 0;
-	while node.head().unwrap().height < target {
-		thread::sleep(time::Duration::from_millis(100));
-		waited += 1;
-		assert!(waited < 600, "node did not mine enough blocks");
-	}
-	node.stop_test_miner(miner_stop);
-	thread::sleep(time::Duration::from_secs(2));
-
-	let height = node.head().unwrap().height;
-	info!("mined to height {}", height);
-	assert!(height >= target);
-
-	controller::controller::owner_single_use(
-		wallet.clone(),
-		mask_ref,
-		config_path.clone(),
-		|api, m| {
-			let (refreshed, info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(refreshed, "wallet should refresh against live node");
-			assert_eq!(info.last_confirmed_height, height);
-			// All coinbase from mining goes to this wallet.
-			assert_eq!(info.total, height * consensus::REWARD);
-			// Mature outputs should now be spendable.
-			let mature_blocks = height.saturating_sub(global::coinbase_maturity());
 			assert_eq!(
 				info.amount_currently_spendable,
 				mature_blocks * consensus::REWARD,
 				"spendable should equal mature coinbase only"
+			);
+			assert_eq!(
+				info.amount_immature,
+				immature_blocks * consensus::REWARD,
+				"immature should equal recent coinbase still locked"
 			);
 			Ok(())
 		},
