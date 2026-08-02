@@ -9,6 +9,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "jayson": "^3.2.0"
+    "jayson": "^4.3.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }
