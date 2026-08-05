@@ -473,7 +473,7 @@ where
 }
 
 /// Cancel transaction and associated outputs
-fn cancel_tx_and_outputs<C, K>(
+pub fn cancel_tx_and_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	mut tx: TxLogEntry,
