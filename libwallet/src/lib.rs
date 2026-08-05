@@ -73,8 +73,7 @@ pub use api_impl::types::{
 pub use backend::{WalletBackend, WalletBatch};
 pub use internal::scan::scan;
 pub use internal::updater::{
-	apply_advanced_tx_list_filtering, cancel_tx_and_outputs, map_wallet_outputs, refresh_outputs,
-	retrieve_info, retrieve_outputs, retrieve_txs,
+	map_wallet_outputs, refresh_outputs, retrieve_info, retrieve_outputs, retrieve_txs,
 };
 pub use slate_versions::ser as dalek_ser;
 pub use types::{

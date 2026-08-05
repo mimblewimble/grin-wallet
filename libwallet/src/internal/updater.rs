@@ -91,7 +91,7 @@ where
 }
 
 /// Apply advanced filtering to resultset from retrieve_txs below
-pub fn apply_advanced_tx_list_filtering<C, K>(
+fn apply_advanced_tx_list_filtering<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	parent_key_id: Option<&Identifier>,
 	query_args: &RetrieveTxQueryArgs,
@@ -417,8 +417,12 @@ where
 	Ok(())
 }
 
-/// build a local map of wallet outputs keyed by commit
-/// and a list of outputs we want to query the node for
+/// Build a local map of wallet outputs keyed by commit
+/// and a list of outputs we want to query the node for.
+/// If `update_all` equals `false` we will select outputs
+/// that are actually involved in an outstanding transaction.
+/// Returns mapping of output commit to tuple of derived key for output,
+/// PMMR index, tx entry log identifier and check if output is unspent
 pub fn map_wallet_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -469,7 +473,7 @@ where
 }
 
 /// Cancel transaction and associated outputs
-pub fn cancel_tx_and_outputs<C, K>(
+fn cancel_tx_and_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	mut tx: TxLogEntry,
