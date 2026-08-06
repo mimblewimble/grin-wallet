@@ -29,6 +29,8 @@ use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
 use crate::{address, WalletBackend};
+use grin_core::core::Transaction;
+use grin_core::global;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -98,7 +100,7 @@ where
 	context.amount = slate.amount;
 
 	// Store our private identifiers for each input
-	for input in inputs {
+	for input in &inputs {
 		context.add_input(&input.key_id, &input.mmr_index, input.value);
 	}
 
@@ -476,6 +478,30 @@ where
 			};
 		}
 	}
+
+	let input_len = coins.len();
+	let output_len = if total == amount_with_fee {
+		1
+	} else {
+		change_outputs + 1
+	};
+	let tx_weight = Transaction::weight_by_iok(input_len as u64, output_len as u64, 1u64);
+	let max_tx_weight = global::max_tx_weight();
+	if tx_weight > max_tx_weight {
+		let (max_amount, max_inputs) = max_spendable_amount(
+			&coins,
+			output_len as u64,
+			max_tx_weight,
+			amount_includes_fee,
+		);
+		error!(
+			"Transaction weight {}, exceeds global max_tx_weight {}, can send maximum {}, send such amount to yourself for outputs consolidation",
+			tx_weight, max_tx_weight, amount_to_hr_string(max_amount, true)
+		);
+		let fee = tx_fee(max_inputs as usize, 1, 1);
+		return Err(Error::BigAmountError(max_amount, fee, max_inputs));
+	}
+
 	// If original amount includes fee, the new amount should
 	// be reduced, to accommodate the fee.
 	let new_amount = match amount_includes_fee {
@@ -485,6 +511,64 @@ where
 		false => amount,
 	};
 	Ok((coins, total, new_amount, fee))
+}
+
+fn max_spendable_amount(
+	outputs: &[OutputData],
+	output_len: u64,
+	max_tx_weight: u64,
+	amount_includes_fee: bool,
+) -> (u64, u32) {
+	let mut values: Vec<u64> = outputs
+		.iter()
+		.map(|output| output.value)
+		.enumerate()
+		.take_while(|(index, _)| {
+			Transaction::weight_by_iok(*index as u64 + 1, output_len, 1) <= max_tx_weight
+		})
+		.map(|(_, value)| value)
+		.collect();
+
+	// sort outputs by decreasing value to calculate the best fee
+	values.sort_by(|a, b| b.cmp(a));
+
+	let mut total_value = 0;
+	let mut amount = 0;
+	let mut inputs = 0;
+	for (index, value) in values.into_iter().enumerate() {
+		let inputs_len = index + 1;
+		total_value += value;
+		if total_value > tx_fee(inputs_len, 1, 1) {
+			amount = total_value;
+			inputs = inputs_len as u32;
+		}
+	}
+
+	let amount = if amount_includes_fee {
+		amount
+	} else {
+		amount.saturating_sub(tx_fee(inputs as usize, 1, 1))
+	};
+	(amount, inputs)
+}
+
+fn eligible_outputs<C, K>(
+	wallet: &WalletBackend<C, K>,
+	current_height: u64,
+	minimum_confirmations: u64,
+	parent_key_id: &Identifier,
+) -> Result<Vec<OutputData>, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	Ok(wallet
+		.iter()?
+		.filter(|output| {
+			output.root_key_id == *parent_key_id
+				&& output.eligible_to_spend(current_height, minimum_confirmations)
+		})
+		.collect())
 }
 
 /// Selects inputs and change for a transaction
@@ -580,13 +664,8 @@ where
 	K: Keychain,
 {
 	// first find all eligible outputs based on number of confirmations
-	let mut eligible = wallet
-		.iter()?
-		.filter(|out| {
-			out.root_key_id == *parent_key_id
-				&& out.eligible_to_spend(current_height, minimum_confirmations)
-		})
-		.collect::<Vec<OutputData>>();
+	let mut eligible =
+		eligible_outputs(wallet, current_height, minimum_confirmations, parent_key_id)?;
 
 	let max_available = eligible.len();
 
@@ -685,8 +764,11 @@ where
 	slate.add_participant_info(&keychain, &context, None)?;
 
 	let mut parts = vec![];
-	for (id, _, value) in &context.get_inputs() {
-		let input = wallet.iter()?.find(|out| out.key_id == *id);
+	for (id, mmr_index, value) in &context.get_inputs() {
+		let input = match wallet.get(id, mmr_index) {
+			Ok(o) => Some(o),
+			Err(_) => wallet.iter()?.find(|out| out.key_id == *id),
+		};
 		if let Some(i) = input {
 			if i.is_coinbase {
 				parts.push(build::coinbase_input(*value, i.key_id.clone()));
@@ -705,4 +787,136 @@ where
 	// restore the original offset
 	slate.tx_or_err_mut()?.offset = slate.offset.clone();
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn output(value: u64) -> OutputData {
+		OutputData {
+			root_key_id: Identifier::zero(),
+			key_id: Identifier::zero(),
+			n_child: 0,
+			commit: None,
+			mmr_index: None,
+			value,
+			status: OutputStatus::Unspent,
+			height: 0,
+			lock_height: 0,
+			is_coinbase: false,
+			tx_log_entry: None,
+		}
+	}
+
+	#[test]
+	fn max_spendable_uses_all_outputs() {
+		global::set_local_accept_fee_base(1);
+
+		let selected = vec![output(100), output(200)];
+		let eligible = vec![output(100), output(200), output(10000)];
+		let output_len = 1;
+		let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+		assert_eq!(
+			max_spendable_amount(&selected, output_len, max_weight, true),
+			(300, 2)
+		);
+		assert_eq!(
+			max_spendable_amount(&eligible, output_len, max_weight, true),
+			(300, 2)
+		);
+
+		let max_weight = Transaction::weight_by_iok(3, output_len, 1);
+		assert_eq!(
+			max_spendable_amount(&eligible, output_len, max_weight, true),
+			(10300, 3)
+		);
+	}
+
+	#[test]
+	fn max_spendable_fee_amount() {
+		global::set_local_accept_fee_base(1);
+
+		// Can not make txs when fee equals amount and not enough outputs.
+		{
+			let fee = tx_fee(2, 1, 1);
+			let coins = vec![output(13), output(13)];
+			let output_len = 2;
+			let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+			assert_eq!(fee, coins.iter().map(|o| o.value).sum::<u64>());
+			assert_eq!(
+				max_spendable_amount(&coins, output_len, max_weight, false),
+				(0, 0)
+			);
+		}
+
+		// Can not make txs when fee more than amount and not enough outputs.
+		{
+			let fee = tx_fee(2, 1, 1);
+			let coins = vec![output(12), output(13)];
+			let output_len = 2;
+			let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+			assert!(fee > coins.iter().map(|o| o.value).sum::<u64>());
+			assert_eq!(
+				max_spendable_amount(&coins, output_len, max_weight, false),
+				(0, 0)
+			);
+		}
+
+		// Select not all outputs to cover fee.
+		{
+			let fee = tx_fee(3, 1, 1);
+			let coins = vec![output(fee), output(1), output(1)];
+			let output_len = 2;
+			let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+			assert_eq!(
+				max_spendable_amount(&coins, output_len, max_weight, false),
+				(2, 2)
+			);
+		}
+	}
+
+	#[test]
+	fn max_spendable_excludes_fee() {
+		global::set_local_accept_fee_base(500_000);
+		let coins = vec![output(1_000_000_000), output(2_000_000_000)];
+		let output_len = 2;
+		let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+
+		assert_eq!(
+			max_spendable_amount(&coins, output_len, max_weight, false),
+			(3_000_000_000 - tx_fee(2, 1, 1), 2)
+		);
+	}
+
+	#[test]
+	fn covers_fee_with_multiple_outputs() {
+		global::set_local_accept_fee_base(1);
+		let coins = vec![output(20), output(20)];
+		let output_len = 1;
+		let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+
+		assert_eq!(
+			max_spendable_amount(&coins, output_len, max_weight, true),
+			(40, 2)
+		);
+		assert_eq!(
+			max_spendable_amount(&coins, output_len, max_weight, false),
+			(40 - tx_fee(2, 1, 1), 2)
+		);
+	}
+
+	#[test]
+	fn sorts_large_values() {
+		global::set_local_accept_fee_base(1);
+		let high_value = 1_u64 << 63;
+		let coins = vec![output(1), output(high_value)];
+		let output_len = 1;
+		let max_weight = Transaction::weight_by_iok(2, output_len, 1);
+
+		assert_eq!(
+			max_spendable_amount(&coins, output_len, max_weight, true),
+			(high_value + 1, 2)
+		);
+	}
 }

@@ -132,7 +132,7 @@ pub fn clean_output_dir(test_dir: &str) {
 pub fn setup(test_dir: &str) {
 	util::init_test_logger();
 	clean_output_dir(test_dir);
-	global::set_local_chain_type(ChainTypes::AutomatedTesting);
+	setup_global_chain_type();
 }
 
 /// Some tests require the global chain_type to be configured.

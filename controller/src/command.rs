@@ -327,6 +327,21 @@ pub struct SendArgs {
 	pub slatepack_qr: bool,
 }
 
+fn max_retry_args(mut init_args: InitTxArgs, amount: u64, max_inputs: u32) -> InitTxArgs {
+	init_args.amount = amount;
+	init_args.max_outputs = max_inputs;
+	init_args.selection_strategy_is_use_all = true;
+	init_args
+}
+
+fn estimate_strategies(use_max_amount: bool) -> &'static [&'static str] {
+	if use_max_amount {
+		&["all"]
+	} else {
+		&["smallest", "all"]
+	}
+}
+
 pub fn send<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -351,16 +366,24 @@ where
 
 	let mut slate = Slate::blank(2, false);
 	let mut amount = args.amount;
+	let (info_updated, update_skipped, wallet_info) = owner_api
+		.retrieve_summary_info_with_refresh_status(
+			keychain_mask,
+			true,
+			args.minimum_confirmations,
+		)?;
 	if args.use_max_amount {
-		let (_, wallet_info) =
-			owner_api.retrieve_summary_info(keychain_mask, true, args.minimum_confirmations)?;
 		amount = wallet_info.amount_currently_spendable;
 	}
+	if !info_updated && !update_skipped {
+		warn!("Wallet info update failed: node connection error");
+	}
 	if args.estimate_selection_strategies {
-		let strategies = vec!["smallest", "all"]
-			.into_iter()
+		let strategies = estimate_strategies(args.use_max_amount)
+			.iter()
+			.copied()
 			.map(|strategy| {
-				let init_args = InitTxArgs {
+				let mut init_args = InitTxArgs {
 					src_acct_name: None,
 					amount,
 					amount_includes_fee: Some(args.amount_includes_fee),
@@ -368,10 +391,29 @@ where
 					max_outputs: args.max_outputs as u32,
 					num_change_outputs: args.change_outputs as u32,
 					selection_strategy_is_use_all: strategy == "all",
+					refresh_outputs_from_node: !info_updated,
 					estimate_only: Some(true),
 					..Default::default()
 				};
-				let slate = owner_api.init_send_tx(keychain_mask, init_args)?;
+				let result = owner_api.init_send_tx(keychain_mask, init_args.clone());
+				let slate = match result {
+					Ok(s) => s,
+					Err(e) => match e {
+						libwallet::Error::BigAmountError(a, _fee, max_inputs) => {
+							debug!("{}", e);
+							if args.use_max_amount {
+								amount = a;
+								init_args = max_retry_args(init_args, amount, max_inputs);
+								owner_api.init_send_tx(keychain_mask, init_args)?
+							} else {
+								return Err(grin_wallet_libwallet::Error::from(e));
+							}
+						}
+						_ => {
+							return Err(grin_wallet_libwallet::Error::from(e));
+						}
+					},
+				};
 				Ok((strategy, slate.amount, slate.fee_fields))
 			})
 			.collect::<Result<Vec<_>, grin_wallet_libwallet::Error>>()?;
@@ -382,7 +424,7 @@ where
 			.as_deref()
 			.map(SlatepackAddress::try_from)
 			.transpose()?;
-		let init_args = InitTxArgs {
+		let mut init_args = InitTxArgs {
 			src_acct_name: None,
 			amount,
 			amount_includes_fee: Some(args.amount_includes_fee),
@@ -390,6 +432,7 @@ where
 			max_outputs: args.max_outputs as u32,
 			num_change_outputs: args.change_outputs as u32,
 			selection_strategy_is_use_all: args.selection_strategy == "all",
+			refresh_outputs_from_node: !info_updated,
 			target_slate_version: args.target_slate_version,
 			payment_proof_recipient_address,
 			ttl_blocks: args.ttl_blocks,
@@ -397,23 +440,46 @@ where
 			late_lock: Some(args.late_lock),
 			..Default::default()
 		};
-		let result = owner_api.init_send_tx(keychain_mask, init_args);
-		slate = match result {
-			Ok(s) => {
-				info!(
-					"Tx created: {} grin to {} (strategy '{}')",
-					core::amount_to_hr_string(amount, false),
-					dest.as_ref()
-						.map(ToString::to_string)
-						.unwrap_or_else(|| "no destination".to_string()),
-					args.selection_strategy,
-				);
-				s
-			}
-			Err(e) => {
-				info!("Tx not created: {}", e);
-				return Err(Error::from(e));
-			}
+		let init_send_tx = |init_args: InitTxArgs| -> Result<Slate, libwallet::Error> {
+			let result = owner_api.init_send_tx(keychain_mask, init_args.clone());
+			let slate = match result {
+				Ok(s) => {
+					info!(
+						"Tx created: {} grin to {} (strategy '{}')",
+						core::amount_to_hr_string(init_args.amount, false),
+						dest.as_ref()
+							.map(ToString::to_string)
+							.unwrap_or_else(|| "no destination".to_string()),
+						args.selection_strategy,
+					);
+					s
+				}
+				Err(e) => return Err(e),
+			};
+			Ok(slate)
+		};
+		slate = match init_send_tx(init_args.clone()) {
+			Ok(s) => s,
+			Err(e) => match e {
+				libwallet::Error::BigAmountError(a, _fee, max_inputs) => {
+					debug!("{}", e);
+					if args.use_max_amount {
+						amount = a;
+						init_args = max_retry_args(init_args, amount, max_inputs);
+						init_send_tx(init_args).map_err(|e| {
+							info!("Tx not created: {}", e);
+							Error::from(e)
+						})?
+					} else {
+						info!("Tx not created: {}", e);
+						return Err(Error::from(e));
+					}
+				}
+				_ => {
+					info!("Tx not created: {}", e);
+					return Err(Error::from(e));
+				}
+			},
 		};
 	}
 
@@ -927,6 +993,16 @@ where
 		.transpose()?;
 	let mut slate = args.slate.clone();
 
+	// Refresh wallet state from node.
+	let (info_updated, update_skipped, _) = owner_api.retrieve_summary_info_with_refresh_status(
+		keychain_mask,
+		true,
+		args.minimum_confirmations,
+	)?;
+	if !info_updated && !update_skipped {
+		warn!("Wallet info update failed: node connection error");
+	}
+
 	if args.estimate_selection_strategies {
 		let strategies = vec!["smallest", "all"]
 			.into_iter()
@@ -938,13 +1014,14 @@ where
 					max_outputs: args.max_outputs as u32,
 					num_change_outputs: 1u32,
 					selection_strategy_is_use_all: strategy == "all",
+					refresh_outputs_from_node: !info_updated,
 					estimate_only: Some(true),
 					..Default::default()
 				};
-				let slate = owner_api.init_send_tx(keychain_mask, init_args).unwrap();
-				(strategy, slate.amount, slate.fee_fields)
+				let slate = owner_api.init_send_tx(keychain_mask, init_args)?;
+				Ok((strategy, slate.amount, slate.fee_fields))
 			})
-			.collect();
+			.collect::<Result<Vec<_>, libwallet::Error>>()?;
 		display::estimate(slate.amount, strategies, dark_scheme);
 	} else {
 		let init_args = InitTxArgs {
@@ -954,6 +1031,7 @@ where
 			max_outputs: args.max_outputs as u32,
 			num_change_outputs: 1u32,
 			selection_strategy_is_use_all: args.selection_strategy == "all",
+			refresh_outputs_from_node: !info_updated,
 			ttl_blocks: args.ttl_blocks,
 			send_args: None,
 			..Default::default()
@@ -1437,5 +1515,31 @@ where
 			error!("Proof not valid: {}", e);
 			Err(Error::from(e))
 		}
+	}
+}
+
+#[cfg(test)]
+mod send_tests {
+	use super::*;
+
+	#[test]
+	fn max_retry_updates_args() {
+		let args = InitTxArgs {
+			amount: 100,
+			max_outputs: 500,
+			selection_strategy_is_use_all: false,
+			..Default::default()
+		};
+		let args = max_retry_args(args, 42, 7);
+
+		assert_eq!(args.amount, 42);
+		assert_eq!(args.max_outputs, 7);
+		assert!(args.selection_strategy_is_use_all);
+	}
+
+	#[test]
+	fn max_estimate_uses_all() {
+		assert_eq!(estimate_strategies(true), &["all"]);
+		assert_eq!(estimate_strategies(false), &["smallest", "all"]);
 	}
 }

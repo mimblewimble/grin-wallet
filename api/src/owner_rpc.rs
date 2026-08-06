@@ -229,6 +229,51 @@ pub trait OwnerRpc {
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error>;
 
 	/**
+	Networked version of [Owner::estimate_max_sendable](struct.Owner.html#method.estimate_max_sendable).
+
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "estimate_max_sendable",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"refresh_from_node": true,
+			"minimum_confirmations": 1
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"id": 1,
+		"jsonrpc": "2.0",
+		"result": {
+			   "Ok": [
+				 true,
+				 59987500000,
+				 12500000,
+				 1
+			   ]
+		  }
+	}
+	# "#
+	# , 4, false, false, false, false);
+	```
+	 */
+
+	fn estimate_max_sendable(
+		&self,
+		token: Token,
+		refresh_from_node: bool,
+		minimum_confirmations: u64,
+	) -> Result<(bool, u64, u64, u32), Error>;
+
+	/**
 	Networked version of [Owner::retrieve_txs](struct.Owner.html#method.retrieve_txs).
 
 	# Json rpc example
@@ -461,7 +506,7 @@ pub trait OwnerRpc {
 	) -> Result<(bool, WalletInfo), Error>;
 
 	/**
-	;Networked version of [Owner::init_send_tx](struct.Owner.html#method.init_send_tx).
+	Networked version of [Owner::init_send_tx](struct.Owner.html#method.init_send_tx).
 
 	```
 		# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -478,6 +523,7 @@ pub trait OwnerRpc {
 					"max_outputs": 500,
 					"num_change_outputs": 1,
 					"selection_strategy_is_use_all": true,
+					"refresh_outputs_from_node": true,
 					"target_slate_version": null,
 					"payment_proof_recipient_address": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
 					"ttl_blocks": null,
@@ -601,6 +647,7 @@ pub trait OwnerRpc {
 					"max_outputs": 500,
 					"num_change_outputs": 1,
 					"selection_strategy_is_use_all": true,
+					"refresh_outputs_from_node": true,
 					"target_slate_version": null,
 					"payment_proof_recipient_address": null,
 					"ttl_blocks": null,
@@ -1123,54 +1170,54 @@ pub trait OwnerRpc {
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, Error>;
 
 	/**
-		Initializes the secure JSON-RPC API. This function must be called and a shared key
-		established before any other OwnerAPI JSON-RPC function can be called.
+	Initializes the secure JSON-RPC API. This function must be called and a shared key
+	established before any other OwnerAPI JSON-RPC function can be called.
 
-		The shared key will be derived using ECDH with the provided public key on the secp256k1 curve. This
-		function will return its public key used in the derivation, which the caller should multiply by its
-		private key to derive the shared key.
+	The shared key will be derived using ECDH with the provided public key on the secp256k1 curve. This
+	function will return its public key used in the derivation, which the caller should multiply by its
+	private key to derive the shared key.
 
-		Once the key is established, all further requests and responses are encrypted and decrypted with the
-		following parameters:
-		* AES-256 in GCM mode with 128-bit tags and 96 bit nonces
-		* 12 byte nonce which must be included in each request/response to use on the decrypting side
-		* Empty vector for additional data
-		* Suffix length = AES-256 GCM mode tag length = 16 bytes
-		*
+	Once the key is established, all further requests and responses are encrypted and decrypted with the
+	following parameters:
+	* AES-256 in GCM mode with 128-bit tags and 96 bit nonces
+	* 12 byte nonce which must be included in each request/response to use on the decrypting side
+	* Empty vector for additional data
+	* Suffix length = AES-256 GCM mode tag length = 16 bytes
+	*
 
-		Fully-formed JSON-RPC requests (as documented) should be encrypted using these parameters, encoded
-		into base64 and included with the one-time nonce in a request for the `encrypted_request_v3` method
-		as follows:
+	Fully-formed JSON-RPC requests (as documented) should be encrypted using these parameters, encoded
+	into base64 and included with the one-time nonce in a request for the `encrypted_request_v3` method
+	as follows:
 
-		```
-		# let s = r#"
-		{
-			 "jsonrpc": "2.0",
-			 "method": "encrypted_request_v3",
-			 "id": "1",
-			 "params": {
-					"nonce": "ef32...",
-					"body_enc": "e0bcd..."
-			 }
-		}
-		# "#;
-		```
+	```
+	# let s = r#"
+	{
+		 "jsonrpc": "2.0",
+		 "method": "encrypted_request_v3",
+		 "id": "1",
+		 "params": {
+				"nonce": "ef32...",
+				"body_enc": "e0bcd..."
+		 }
+	}
+	# "#;
+	```
 
-		With a typical response being:
+	With a typical response being:
 
-		```
-		# let s = r#"{
-		{
-			 "jsonrpc": "2.0",
-			 "method": "encrypted_response_v3",
-			 "id": "1",
-			 "Ok": {
-					"nonce": "340b...",
-					"body_enc": "3f09c..."
-			 }
-		}
-		# }"#;
-		```
+	```
+	# let s = r#"{
+	{
+		 "jsonrpc": "2.0",
+		 "method": "encrypted_response_v3",
+		 "id": "1",
+		 "Ok": {
+				"nonce": "340b...",
+				"body_enc": "3f09c..."
+		 }
+	}
+	# }"#;
+	```
 
 	*/
 
@@ -2066,6 +2113,20 @@ where
 		)
 	}
 
+	fn estimate_max_sendable(
+		&self,
+		token: Token,
+		refresh_from_node: bool,
+		minimum_confirmations: u64,
+	) -> Result<(bool, u64, u64, u32), Error> {
+		Owner::estimate_max_sendable(
+			self,
+			(&token.keychain_mask).as_ref(),
+			refresh_from_node,
+			minimum_confirmations,
+		)
+	}
+
 	fn retrieve_txs(
 		&self,
 		token: Token,
@@ -2503,7 +2564,7 @@ pub fn run_doctest_owner(
 
 	util::init_test_logger();
 	let _ = fs::remove_dir_all(test_dir);
-	global::set_local_chain_type(ChainTypes::AutomatedTesting);
+	global::set_global_chain_type(ChainTypes::AutomatedTesting);
 
 	let _ = fs::create_dir_all(test_dir);
 	let config = initial_setup_wallet(

@@ -2592,6 +2592,7 @@ dependencies = [
  "log",
  "num-bigint 0.2.6",
  "rand 0.6.5",
+ "rayon",
  "regex",
  "serde",
  "serde_derive",
