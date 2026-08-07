@@ -417,10 +417,10 @@ where
 	Ok(())
 }
 
-/// Build a local map of wallet outputs keyed by commit
-/// and a list of outputs we want to query the node for.
-/// If `update_all` equals `false` we will select outputs
-/// that are actually involved in existing transactions for account.
+/// Build a local map of wallet outputs keyed by commit.
+/// The map keys identify outputs to query from the node.
+/// If `update_all` is `false`, select outputs involved in outstanding
+/// transactions for the account and outputs without a transaction log entry.
 /// Returns mapping of output commit to tuple of derived key for output,
 /// PMMR index, tx entry log identifier and check if output is unspent
 pub fn map_wallet_outputs<C, K>(
