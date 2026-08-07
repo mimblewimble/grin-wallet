@@ -473,6 +473,69 @@ where
 		)
 	}
 
+	/// Returns max available value to send for selecting all outputs.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
+	/// being used.
+	/// * `refresh_from_node` - If true, the wallet will attempt to contact
+	/// a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	/// provided during wallet instantiation). If `false`, the results will
+	/// contain transaction information that may be out-of-date (from the last time
+	/// the wallet's output set was refreshed against the node).
+	/// Note this setting is ignored if the updater process is running via a call to
+	/// [`start_updater`](struct.Owner.html#method.start_updater)
+	/// * `minimum_confirmations` - The minimum number of confirmations an output
+	/// should have before it's included in the 'amount_currently_spendable' total
+	///
+	/// # Returns
+	/// * `(bool, u64, u64, u32)` - A tuple:
+	/// * The first `bool` element indicates whether the data was successfully
+	/// refreshed from the node (note this may be false even if the `refresh_from_node`
+	/// argument was set to `true`).
+	/// * The second `u64` is amount to send.
+	/// * The third element is fee
+	/// * The fourth is maximum input count
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let update_from_node = true;
+	/// let minimum_confirmations = 10;
+	/// let result = api_owner.estimate_max_sendable(None, update_from_node, minimum_confirmations);
+	///
+	/// if let Ok((was_updated, amount, fee, max_inputs)) = result {
+	///     //...
+	/// }
+	/// ```
+
+	pub fn estimate_max_sendable(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		minimum_confirmations: u64,
+	) -> Result<(bool, u64, u64, u32), Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
+
+		owner::estimate_max_sendable(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			refresh_from_node,
+			minimum_confirmations,
+		)
+	}
+
 	/// Returns a list of [Transaction Log Entries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
 	/// from the active account in the wallet.
 	///
@@ -604,21 +667,34 @@ where
 		refresh_from_node: bool,
 		minimum_confirmations: u64,
 	) -> Result<(bool, WalletInfo), Error> {
+		let (updated, _, info) = self.retrieve_summary_info_with_refresh_status(
+			keychain_mask,
+			refresh_from_node,
+			minimum_confirmations,
+		)?;
+		Ok((updated, info))
+	}
+
+	/// Retrieve summary info and whether refresh was skipped.
+	pub fn retrieve_summary_info_with_refresh_status(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		minimum_confirmations: u64,
+	) -> Result<(bool, bool, WalletInfo), Error> {
 		let tx = {
 			let t = self.status_tx.lock();
 			t.clone()
 		};
-		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
-			true => false,
-			false => refresh_from_node,
-		};
-		owner::retrieve_summary_info(
+		let refresh_skipped = refresh_from_node && self.updater_running.load(Ordering::Relaxed);
+		let (updated, info) = owner::retrieve_summary_info(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,
-			refresh_from_node,
+			refresh_from_node && !refresh_skipped,
 			minimum_confirmations,
-		)
+		)?;
+		Ok((updated, refresh_skipped, info))
 	}
 
 	/// Initiates a new transaction as the sender, creating a new

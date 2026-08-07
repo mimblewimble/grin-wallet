@@ -21,6 +21,7 @@ extern crate grin_wallet_libwallet as libwallet;
 use grin_core as core;
 
 use self::core::core::transaction;
+use self::core::core::Transaction;
 use self::core::global;
 use self::libwallet::{InitTxArgs, OutputStatus, Slate, SlateState};
 use impls::test_framework::{self, LocalWalletClient};
@@ -677,6 +678,128 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	Ok(())
 }
 
+fn big_amount_error(test_dir: &'static str) -> Result<(), libwallet::Error> {
+	// Create a new proxy to simulate server and wallet responses
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
+
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		true
+	);
+	let mask1 = (&mask1_i).as_ref();
+	println!("Mask1: {:?}", mask1);
+
+	// Set the wallet proxy listener running
+	thread::spawn(move || {
+		if let Err(e) = wallet_proxy.run() {
+			error!("Wallet Proxy error: {}", e);
+		}
+	});
+
+	let outputs_num = 255;
+
+	let reward = core::consensus::REWARD;
+	let cm = global::coinbase_maturity();
+	// mine a few blocks
+	let _ =
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, outputs_num, false);
+
+	let min_confirmations = 1;
+
+	// Check wallet 1 content are as expected
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (wallet1_refreshed, wallet1_info) =
+				api.retrieve_summary_info(m, true, min_confirmations)?;
+			println!(
+				"Wallet 1 Info Pre-Transaction, after {} blocks: {:?}",
+				wallet1_info.last_confirmed_height, wallet1_info
+			);
+			assert!(wallet1_refreshed);
+			assert_eq!(
+				wallet1_info.amount_currently_spendable,
+				(wallet1_info.last_confirmed_height - cm) * reward
+			);
+			assert_eq!(wallet1_info.amount_immature, cm * reward);
+			Ok(())
+		},
+	)?;
+
+	// test selecting max amount
+	let result = wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			api.init_send_tx(
+				m,
+				InitTxArgs {
+					amount: (reward * outputs_num as u64) - (cm * reward),
+					amount_includes_fee: Some(true),
+					minimum_confirmations: 0,
+					max_outputs: 500,
+					num_change_outputs: 1,
+					selection_strategy_is_use_all: true,
+					refresh_outputs_from_node: true,
+					..InitTxArgs::default()
+				},
+			)?;
+			Ok(())
+		},
+	);
+
+	println!("{:?}", result);
+
+	let max_tx_weight = global::max_tx_weight();
+	let tx_weight = Transaction::weight_by_iok(outputs_num as u64, 1, 1);
+
+	assert!(tx_weight > max_tx_weight);
+
+	assert!(result.is_err());
+	assert!(matches!(
+		result.as_ref().err().unwrap(),
+		libwallet::Error::BigAmountError { .. }
+	));
+
+	match result {
+		Ok(_) => {}
+		Err(e) => match e {
+			libwallet::Error::BigAmountError(a, fee, num_inputs) => {
+				wallet::controller::owner_single_use(
+					wallet1.clone(),
+					mask1,
+					PathBuf::from(test_dir),
+					|api, m| {
+						let (_, e_a, e_fee, e_num_inputs) =
+							api.estimate_max_sendable(m, true, min_confirmations)?;
+						assert_eq!(e_a, a - fee);
+						assert_eq!(e_fee, fee);
+						assert_eq!(e_num_inputs, num_inputs);
+						Ok(())
+					},
+				)?;
+			}
+			_ => {}
+		},
+	}
+
+	// let logging finish
+	stopper.store(false, Ordering::Relaxed);
+	thread::sleep(Duration::from_millis(200));
+	Ok(())
+}
+
 #[test]
 fn db_wallet_basic_transaction_api() {
 	let test_dir = "test_output/basic_transaction_api";
@@ -692,6 +815,16 @@ fn db_wallet_tx_rollback() {
 	let test_dir = "test_output/tx_rollback";
 	setup(test_dir);
 	if let Err(e) = tx_rollback(test_dir) {
+		panic!("Libwallet Error: {}", e);
+	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn db_wallet_big_amount_error() {
+	let test_dir = "test_output/big_amount_error";
+	setup(test_dir);
+	if let Err(e) = big_amount_error(test_dir) {
 		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);

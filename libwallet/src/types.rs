@@ -25,7 +25,7 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{self, pedersen, Secp256k1};
+use crate::grin_util::secp::{pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
 use crate::{InitTxArgs, SlateState, WalletBackend};
@@ -37,8 +37,8 @@ use rand::thread_rng;
 use serde;
 use serde_json;
 use std::collections::HashMap;
-use std::fmt;
 use std::time::Duration;
+use std::{cmp, fmt};
 use uuid::Uuid;
 
 /// Combined trait to allow dynamic wallet dispatch
@@ -358,6 +358,10 @@ impl fmt::Display for OutputStatus {
 	}
 }
 
+/// Maximum private transaction context size.
+/// Verified against `max_tx_weight()` below.
+const MAX_CONTEXT_SIZE: usize = 4 * 1024 * 1024;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 /// Holds the context for a single aggsig transaction
 pub struct Context {
@@ -396,7 +400,7 @@ pub struct Context {
 impl Context {
 	/// Create a new context with defaults
 	pub fn new(
-		secp: &secp::Secp256k1,
+		secp: &Secp256k1,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
 		is_initiator: bool,
@@ -418,7 +422,7 @@ impl Context {
 
 	/// Create a new context with a specific excess
 	pub fn with_excess(
-		secp: &secp::Secp256k1,
+		secp: &Secp256k1,
 		sec_key: SecretKey,
 		parent_key_id: &Identifier,
 		use_test_rng: bool,
@@ -484,13 +488,17 @@ impl Context {
 
 impl ser::Writeable for Context {
 	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
-		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+		let data = serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?;
+		if data.len() > MAX_CONTEXT_SIZE {
+			return Err(ser::Error::TooLargeReadErr);
+		}
+		writer.write_bytes(&data)
 	}
 }
 
 impl ser::Readable for Context {
 	fn read<R: ser::Reader>(reader: &mut R) -> Result<Context, ser::Error> {
-		let data = reader.read_bytes_len_prefix()?;
+		let data = read_bytes_len_prefix(reader)?;
 		serde_json::from_slice(&data[..]).map_err(|_| ser::Error::CorruptedData)
 	}
 }
@@ -888,6 +896,33 @@ impl ViewWalletOutputResult {
 	}
 }
 
+fn read_bytes_len_prefix<R: ser::Reader>(reader: &mut R) -> Result<Vec<u8>, ser::Error> {
+	let len = reader.read_u64()?;
+	if len > MAX_CONTEXT_SIZE as u64 {
+		return Err(ser::Error::TooLargeReadErr);
+	}
+	let mut len = len as usize;
+	match reader.read_limit() {
+		None => reader.read_fixed_bytes(len),
+		Some(limit) => {
+			if limit == 0 {
+				return reader.read_fixed_bytes(len);
+			}
+			let mut data = vec![];
+			loop {
+				if len == 0 {
+					break;
+				}
+				let read_size = cmp::min(len, limit);
+				let read_data = reader.read_fixed_bytes(read_size)?;
+				data.extend_from_slice(&read_data);
+				len -= read_size;
+			}
+			Ok(data)
+		}
+	}
+}
+
 /// Serializes an Option<Duration> to and from a string
 pub mod option_duration_as_secs {
 	use serde::de::Error;
@@ -925,6 +960,8 @@ pub mod option_duration_as_secs {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use grin_core::ser::{DeserializationMode, ProtocolVersion, Readable, Reader, StreamingReader};
+	use grin_keychain::{ExtKeychain, ExtKeychainPath};
 	use serde_json::Value;
 
 	#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -965,5 +1002,95 @@ mod tests {
 
 		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
 		assert_eq!(none, none2);
+	}
+
+	#[test]
+	fn big_context_read() {
+		let protocol_ver = ProtocolVersion(3);
+
+		let create_context = || {
+			let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
+			let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
+
+			let mut context = Context::new(sender_keychain.secp(), &parent, false, true);
+			for i in 0..3000 {
+				let key_id = ExtKeychain::derive_key_id(1, 1, i, 0, 0);
+				context.add_output(&key_id, &None, i as u64);
+			}
+			context
+		};
+
+		{
+			let context = create_context();
+			let ser_value = ser::ser_vec(&context, protocol_ver).unwrap();
+			let mut value = ser_value.as_slice();
+			assert!(value.len() > 100_000);
+			let context = ser::deserialize::<Context, &[u8]>(
+				&mut value,
+				protocol_ver,
+				DeserializationMode::Full,
+			);
+			assert!(context.is_ok());
+		}
+
+		// StreamingReader has no per-read limit and reads the complete Context.
+		let context = create_context();
+		let ser_value = ser::ser_vec(&context, protocol_ver).unwrap();
+		let mut value = ser_value.as_slice();
+		let mut streaming_reader = StreamingReader::new(&mut value, protocol_ver);
+		assert!(streaming_reader.read_limit().is_none());
+		let res = Context::read(&mut streaming_reader);
+		assert_eq!(res.unwrap().get_outputs().len(), 3000);
+	}
+
+	#[test]
+	fn context_size_limit() {
+		let protocol_ver = ProtocolVersion(3);
+		let oversized_len = ((MAX_CONTEXT_SIZE + 1) as u64).to_be_bytes();
+		let mut oversized_prefix = oversized_len.as_slice();
+		let read = ser::deserialize::<Context, &[u8]>(
+			&mut oversized_prefix,
+			protocol_ver,
+			DeserializationMode::Full,
+		);
+		assert_eq!(read.unwrap_err(), ser::Error::TooLargeReadErr);
+
+		let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
+		let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
+		let mut context = Context::new(sender_keychain.secp(), &parent, false, true);
+		context.late_lock_args = Some(InitTxArgs {
+			src_acct_name: Some("x".repeat(MAX_CONTEXT_SIZE)),
+			..Default::default()
+		});
+
+		assert_eq!(
+			ser::ser_vec(&context, protocol_ver).unwrap_err(),
+			ser::Error::TooLargeReadErr
+		);
+	}
+
+	#[test]
+	fn max_weight_context_size() {
+		global::set_local_chain_type(global::ChainTypes::Mainnet);
+		let max_tx_weight = global::max_tx_weight();
+		let max_inputs = (1..)
+			.take_while(|inputs| Transaction::weight_by_iok(*inputs, 1, 1) <= max_tx_weight)
+			.last()
+			.unwrap();
+
+		let parent = ExtKeychainPath::new(1, 1, 0, 0, 0).to_identifier();
+		let sender_keychain = ExtKeychain::from_random_seed(true).unwrap();
+		let mut context = Context::new(sender_keychain.secp(), &parent, true, true);
+		for i in 0..max_inputs {
+			let key_id = ExtKeychain::derive_key_id(1, 1, i as u32, 0, 0);
+			context.add_input(&key_id, &Some(u64::MAX), u64::MAX);
+		}
+
+		let size = serde_json::to_vec(&context).unwrap().len();
+		println!("max-weight Context: {size} bytes ({max_inputs} inputs)");
+		assert!(
+			size <= MAX_CONTEXT_SIZE,
+			"max-weight Context is {size} bytes, limit is {MAX_CONTEXT_SIZE}"
+		);
 	}
 }

@@ -68,6 +68,9 @@ pub struct InitTxArgs {
 	/// as many outputs as are needed to meet the amount, (and no more) starting with the smallest
 	/// value outputs.
 	pub selection_strategy_is_use_all: bool,
+	/// Flag to refresh outputs from node.
+	#[serde(default = "default_refresh_outputs_from_node")]
+	pub refresh_outputs_from_node: bool,
 	/// Optionally set the output target slate version (acceptable
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
@@ -117,6 +120,7 @@ impl Default for InitTxArgs {
 			max_outputs: 500,
 			num_change_outputs: 1,
 			selection_strategy_is_use_all: true,
+			refresh_outputs_from_node: true,
 			target_slate_version: None,
 			ttl_blocks: None,
 			estimate_only: Some(false),
@@ -347,6 +351,10 @@ pub struct BuiltOutput {
 	pub output: Output,
 }
 
+fn default_refresh_outputs_from_node() -> bool {
+	true
+}
+
 /// Update transaction slate state.
 pub fn update_tx_slate_state<C, K>(
 	wallet: &mut WalletBackend<C, K>,
@@ -381,4 +389,21 @@ where
 		)));
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::InitTxArgs;
+
+	#[test]
+	fn legacy_refresh_default() {
+		let mut value = serde_json::to_value(InitTxArgs::default()).unwrap();
+		value
+			.as_object_mut()
+			.unwrap()
+			.remove("refresh_outputs_from_node");
+
+		let args: InitTxArgs = serde_json::from_value(value).unwrap();
+		assert!(args.refresh_outputs_from_node);
+	}
 }

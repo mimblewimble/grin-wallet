@@ -14,7 +14,7 @@
 
 //! Error types for libwallet
 
-use crate::grin_core::core::{committed, transaction};
+use crate::grin_core::core::{amount_to_hr_string, committed, transaction};
 use crate::grin_core::libtx;
 use crate::grin_keychain;
 use crate::grin_util::secp;
@@ -36,6 +36,14 @@ pub enum Error {
 		/// Display friendly
 		needed_disp: String,
 	},
+
+	/// Big amount error.
+	#[error(
+		"Amount too large for a single transaction; can send at most {} using {2} inputs. Send that amount \
+		to yourself using the 'all' selection strategy and a maximum of {2} inputs to consolidate outputs",
+		amount_to_hr_string(*.0, true)
+	)]
+	BigAmountError(u64, u64, u32),
 
 	/// Fee error
 	#[error("Fee Error: {0}")]
@@ -365,5 +373,26 @@ impl From<&str> for Error {
 impl From<bech32::Error> for Error {
 	fn from(error: bech32::Error) -> Error {
 		Error::SlatepackAddress(format!("{}", error))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn big_amount_message() {
+		let message = Error::BigAmountError(3_000_000_000, 12_500_000, 2).to_string();
+		assert!(message.contains("3.0"));
+		assert_eq!(
+			message
+				.as_bytes()
+				.windows("2 inputs".len())
+				.filter(|&w| w == "2 inputs".as_bytes())
+				.count(),
+			2
+		);
+		assert!(message.contains("'all' selection strategy"));
+		assert!(message.contains("consolidate outputs"));
 	}
 }

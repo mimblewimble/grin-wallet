@@ -99,6 +99,7 @@ pub fn estimate_send_tx<C, K>(
 	max_outputs: usize,
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
+	refresh_outputs: bool,
 	parent_key_id: &Identifier,
 ) -> Result<
 	(
@@ -114,7 +115,9 @@ where
 	// Get lock height
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	// ensure outputs we're selecting are up to date
-	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	if refresh_outputs {
+		updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	}
 
 	// Sender selects outputs into a new slate and save our corresponding keys in
 	// a transaction context. The secret key in our transaction context will be
@@ -147,6 +150,7 @@ pub fn add_inputs_to_slate<C, K>(
 	max_outputs: usize,
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
+	refresh_outputs: bool,
 	parent_key_id: &Identifier,
 	is_initiator: bool,
 	use_test_rng: bool,
@@ -156,8 +160,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	// sender should always refresh outputs
-	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	// Refresh unless the caller already updated the wallet state.
+	if refresh_outputs {
+		updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	}
 
 	// Sender selects outputs into a new slate and save our corresponding keys in
 	// a transaction context. The secret key in our transaction context will be
@@ -260,8 +266,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	// sender should always refresh outputs
-	updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	// Refresh unless the caller already updated the wallet state.
+	if init_tx_args.refresh_outputs_from_node {
+		updater::refresh_outputs(wallet, keychain_mask, parent_key_id, false)?;
+	}
 
 	// we're just going to run a selection to get the potential fee,
 	// but this won't be locked

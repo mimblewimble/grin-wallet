@@ -18,6 +18,7 @@ use std::cmp;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
+use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
 use crate::grin_core::libtx::proof;
@@ -293,6 +294,65 @@ where
 	))
 }
 
+/// Calculate max amount to send.
+pub fn estimate_max_sendable<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	refresh_from_node: bool,
+	minimum_confirmations: u64,
+) -> Result<(bool, u64, u64, u32), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	let validated = if refresh_from_node {
+		update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)?
+	} else {
+		false
+	};
+
+	wallet_lock!(wallet_inst, w);
+
+	let parent_key_id = w.parent_key_id();
+	let wallet_info = updater::retrieve_info(w, &parent_key_id, minimum_confirmations)?;
+	let current_height = w.last_confirmed_height()?;
+	let max_outputs = 500;
+	let change_outputs = 1;
+	let (amount, fee, input_count) = match selection::select_coins_and_fee(
+		w,
+		wallet_info.amount_currently_spendable,
+		true,
+		current_height,
+		minimum_confirmations,
+		max_outputs,
+		change_outputs,
+		true,
+		&parent_key_id,
+	) {
+		Ok((coins, _total, amount, fee)) => (amount, fee, coins.len() as u32),
+		Err(e) => match e {
+			Error::BigAmountError(amount, fee, input_count) => {
+				let amount = amount.checked_sub(fee).ok_or(Error::GenericError(format!(
+					"Transaction amount {} is too small to include fee {}, send lower amount",
+					amount_to_hr_string(amount, true),
+					amount_to_hr_string(fee, true)
+				)))?;
+				(amount, fee, input_count)
+			}
+			_ => return Err(e),
+		},
+	};
+
+	Ok((validated, amount, fee, input_count))
+}
+
 /// Retrieve txs
 pub fn retrieve_txs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
@@ -512,6 +572,7 @@ where
 			args.max_outputs as usize,
 			args.num_change_outputs as usize,
 			args.selection_strategy_is_use_all,
+			args.refresh_outputs_from_node,
 			&parent_key_id,
 		)?;
 		slate.amount = total;
@@ -540,6 +601,7 @@ where
 			args.max_outputs as usize,
 			args.num_change_outputs as usize,
 			args.selection_strategy_is_use_all,
+			args.refresh_outputs_from_node,
 			&parent_key_id,
 			true,
 			use_test_rng,
@@ -696,6 +758,7 @@ where
 		args.max_outputs as usize,
 		args.num_change_outputs as usize,
 		args.selection_strategy_is_use_all,
+		args.refresh_outputs_from_node,
 		&parent_key_id,
 		false,
 		use_test_rng,

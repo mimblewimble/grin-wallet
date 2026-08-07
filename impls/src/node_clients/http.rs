@@ -24,7 +24,7 @@ use crate::libwallet::{NodeClient, NodeVersionInfo};
 use crate::util::secp::pedersen;
 use crate::util::ToHex;
 use futures::stream::FuturesUnordered;
-use futures::TryStreamExt;
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
@@ -259,17 +259,27 @@ impl NodeClient for HTTPNodeClient {
 				reqs.push(build_request("get_outputs", p));
 			}
 
-			let mut tasks = Vec::with_capacity(params.len());
-			for req in &reqs {
-				tasks.push(cl.post_async::<Request, Response>(
-					url.as_str(),
-					req,
-					api_secret.clone(),
-				));
-			}
+			let mut outputs = Vec::new();
 
-			let task: FuturesUnordered<_> = tasks.into_iter().collect();
-			task.try_collect().await
+			let max_num_requests = 16;
+			for req_chunks in reqs.chunks(max_num_requests) {
+				let mut tasks = vec![];
+				for req in req_chunks {
+					tasks.push(cl.post_async::<Request, Response>(
+						url.as_str(),
+						req,
+						api_secret.clone(),
+					));
+				}
+				let mut task: FuturesUnordered<_> = tasks.into_iter().collect();
+				while let Some(item) = task.next().await {
+					match item {
+						Ok(i) => outputs.push(i),
+						Err(e) => return Err(e),
+					}
+				}
+			}
+			Ok(outputs)
 		};
 
 		let rt = RUNTIME.clone();
