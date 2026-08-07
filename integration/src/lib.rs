@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Grin integration test crate
-
-#![deny(non_upper_case_globals)]
-#![deny(non_camel_case_types)]
-#![deny(non_snake_case)]
-#![deny(unused_mut)]
-#![warn(missing_docs)]
+//! Node + wallet multi-process integration tests.
+//!
+//! Node-only multi-server coverage lives in the [grin](https://github.com/mimblewimble/grin)
+//! `integration` crate ([#2957](https://github.com/mimblewimble/grin/issues/2957)).
+//! This crate exercises wallet listeners against a real `grin_servers` node.

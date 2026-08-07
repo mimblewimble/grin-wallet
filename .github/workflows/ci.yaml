@@ -7,14 +7,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        job_args: [api, config, controller, impls, libwallet, .]
+        job_args: [api, config, controller, impls, libwallet, integration, .]
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Test ${{ matrix.job_args }}
         working-directory: ${{ matrix.job_args }}
-        run: cargo test --release
+        # Live node+wallet tests need serial execution (fixed ports and data directories).
+        run: |
+          if [ "${{ matrix.job_args }}" = "integration" ]; then
+            cargo test --release -- --test-threads=1
+          else
+            cargo test --release
+          fi
 
   macos-tests:
     name: macOS Tests
