@@ -402,6 +402,7 @@ where
 
 /// Refreshes the outputs in a wallet with the latest information
 /// from a node
+/// Also removes stale unconfirmed coinbase outputs across all accounts
 pub fn refresh_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
