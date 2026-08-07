@@ -20,7 +20,7 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
 use crate::impls::json_rpc;
-use crate::impls::tor::arti::tor_post;
+use crate::impls::tor::arti::{tor_post, TorPostError};
 use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
 use crate::keychain;
@@ -440,10 +440,23 @@ where
 	let url = format!("{}/v1", args.server.to_http_str());
 	let rpc_params = json::json!([creation.request]);
 	let rpc_request = json_rpc::build_request("swap", &rpc_params);
-	confirm_mwixnet_response(
-		tor_post(&tor_config, &rpc_request, &url).map_err(Error::from),
-		tx_id,
-	)
+	let response = match tor_post(&tor_config, &rpc_request, &url) {
+		Ok(response) => Ok(response),
+		Err(TorPostError::PossiblySent(error)) => Err(Error::from(error)),
+		Err(TorPostError::NotSent(error)) => {
+			return match owner_api.cancel_tx(keychain_mask, Some(tx_id), None) {
+				Ok(()) => Err(Error::GenericError(format!(
+					"MWixnet request was not sent: {}. Transaction {} was cancelled and its output unlocked",
+					error, tx_id
+				))),
+				Err(cancel_error) => Err(Error::GenericError(format!(
+					"MWixnet request was not sent: {}. Could not cancel transaction {}: {}; output remains locked",
+					error, tx_id, cancel_error
+				))),
+			};
+		}
+	};
+	confirm_mwixnet_response(response, tx_id)
 }
 
 fn max_retry_args(mut init_args: InitTxArgs, amount: u64, max_inputs: u32) -> InitTxArgs {
