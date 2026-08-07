@@ -278,7 +278,7 @@ pub fn execute_command(
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
 	let config = initial_setup_wallet(test_dir, wallet_name);
-	wallet_args::wallet_command(&args, config, client.clone(), true, |_| {})
+	wallet_args::wallet_command(&args, config, client.clone(), true, None, |_| {})
 }
 
 /// As above, but without necessarily setting up the wallet
@@ -306,7 +306,7 @@ where
 	wallet_config.api_secret_path = None;
 	wallet_config.node_api_secret_path = None;
 	config.members.wallet = wallet_config;
-	wallet_args::wallet_command(&args, config, client.clone(), true, f)
+	wallet_args::wallet_command(&args, config, client.clone(), true, None, f)
 }
 
 pub fn post<IN>(url: &Url, api_secret: Option<String>, input: &IN) -> Result<String, api::Error>

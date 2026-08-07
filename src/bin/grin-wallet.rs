@@ -30,6 +30,8 @@ use grin_wallet_impls::HTTPNodeClient;
 use std::env;
 use std::path::PathBuf;
 use std::path::MAIN_SEPARATOR;
+use std::sync::mpsc;
+use util::logger::LogEntry;
 
 /// Include build information
 pub mod built_info {
@@ -135,12 +137,22 @@ fn real_main() -> i32 {
 
 	// Load logging config
 	let mut l = config.members.logging.clone().unwrap();
-	// no logging to stdout if we're running cli
+	// no logging to stdout if we're running cli; route logs through a
+	// channel instead of stdout when running the full-screen tui
+	let is_tui = cfg!(feature = "tui") && matches!(args.subcommand(), ("tui", _));
 	match args.subcommand() {
 		("cli", _) => l.log_to_stdout = true,
+		("tui", _) => l.tui_running = Some(true),
 		_ => {}
 	};
-	init_logger(Some(l), None);
+	let logs_rx = if is_tui {
+		let (logs_tx, logs_rx) = mpsc::sync_channel::<LogEntry>(200);
+		init_logger(Some(l), Some(logs_tx));
+		Some(logs_rx)
+	} else {
+		init_logger(Some(l), None);
+		None
+	};
 	info!(
 		"Using wallet configuration file at {}",
 		config.config_file_path.to_str().unwrap()
@@ -154,5 +166,14 @@ fn real_main() -> i32 {
 	let timeout = wallet_config.api_request_timeout();
 	let node_client =
 		HTTPNodeClient::new(&wallet_config.check_node_api_http_addr, None, timeout).unwrap();
+	// Keep the public wallet_command signature stable; TUI-only log routing
+	// goes through an internal entry point.
+	#[cfg(feature = "tui")]
+	{
+		if is_tui {
+			return cmd::wallet_command_with_logs(&args, config, node_client, logs_rx);
+		}
+	}
+	let _ = logs_rx;
 	cmd::wallet_command(&args, config, node_client)
 }

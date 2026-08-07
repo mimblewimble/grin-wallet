@@ -14,18 +14,47 @@
 
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
+use crate::util::logger::LogEntry;
 use clap::ArgMatches;
 use grin_wallet_libwallet::NodeClient;
 use semver::Version;
+use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
 const MIN_COMPAT_NODE_VERSION: &str = "4.0.0-alpha.1";
 
+/// Public wallet entry point — signature matches the non-TUI CLI API.
 pub fn wallet_command<C>(
 	wallet_args: &ArgMatches<'_>,
 	config: GlobalWalletConfig,
+	node_client: C,
+) -> i32
+where
+	C: NodeClient + 'static,
+{
+	wallet_command_inner(wallet_args, config, node_client, None)
+}
+
+/// Internal entry used by the binary when starting the TUI with a log channel.
+#[cfg(feature = "tui")]
+pub fn wallet_command_with_logs<C>(
+	wallet_args: &ArgMatches<'_>,
+	config: GlobalWalletConfig,
+	node_client: C,
+	logs_rx: Option<Receiver<LogEntry>>,
+) -> i32
+where
+	C: NodeClient + 'static,
+{
+	wallet_command_inner(wallet_args, config, node_client, logs_rx)
+}
+
+fn wallet_command_inner<C>(
+	wallet_args: &ArgMatches<'_>,
+	config: GlobalWalletConfig,
 	mut node_client: C,
+	logs_rx: Option<Receiver<LogEntry>>,
 ) -> i32
 where
 	C: NodeClient + 'static,
@@ -58,7 +87,7 @@ where
 	}
 	// ... if node isn't available, allow offline functions
 
-	let res = wallet_args::wallet_command(wallet_args, config, node_client, false, |_| {});
+	let res = wallet_args::wallet_command(wallet_args, config, node_client, false, logs_rx, |_| {});
 
 	// we need to give log output a chance to catch up before exiting
 	thread::sleep(Duration::from_millis(100));

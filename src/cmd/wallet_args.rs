@@ -990,11 +990,13 @@ pub fn parse_verify_proof_args(args: &ArgMatches) -> Result<command::ProofVerify
 	})
 }
 
+#[cfg_attr(not(feature = "tui"), allow(unused_variables))]
 pub fn wallet_command<C, F>(
 	wallet_args: &ArgMatches,
 	config: GlobalWalletConfig,
 	mut node_client: C,
 	test_mode: bool,
+	logs_rx: Option<std::sync::mpsc::Receiver<crate::util::logger::LogEntry>>,
 	wallet_inst_cb: F,
 ) -> Result<String, Error>
 where
@@ -1064,6 +1066,7 @@ where
 		("init", Some(_)) => open_wallet = false,
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
+		("tui", _) => open_wallet = false,
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
@@ -1100,6 +1103,23 @@ where
 			&global_wallet_args,
 			test_mode,
 		),
+		#[cfg(feature = "tui")]
+		("tui", Some(_)) => {
+			let tor_config = config.tor_config();
+			crate::tui::run(
+				wallet,
+				&wallet_config,
+				&tor_config,
+				&global_wallet_args,
+				test_mode,
+				logs_rx,
+				config.config_file_path.clone(),
+			)
+		}
+		#[cfg(not(feature = "tui"))]
+		("tui", Some(_)) => Err(Error::ArgumentError(
+			"this build of grin-wallet was compiled without TUI support".to_owned(),
+		)),
 		_ => {
 			let tor_config = config.tor_config();
 			let mut owner_api = Owner::new(wallet, None, config.config_file_path);

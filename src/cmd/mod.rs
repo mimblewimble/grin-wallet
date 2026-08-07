@@ -16,3 +16,5 @@ mod wallet;
 pub mod wallet_args;
 
 pub use self::wallet::wallet_command;
+#[cfg(feature = "tui")]
+pub use self::wallet::wallet_command_with_logs;

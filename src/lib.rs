@@ -22,3 +22,7 @@ use grin_wallet_config as config;
 
 mod cli;
 pub mod cmd;
+// TUI is an internal presentation layer used only by the binary entry
+// point; keep it private so we do not expose its generic controller API.
+#[cfg(feature = "tui")]
+mod tui;
