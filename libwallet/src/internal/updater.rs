@@ -526,7 +526,7 @@ where
 	// api output (if it exists) and refresh it in-place in the wallet.
 	// Note: minimizing the time we spend holding the wallet lock.
 	{
-		let last_confirmed_height = wallet.last_confirmed_height(Some(parent_key_id))?;
+		let last_confirmed_height = wallet.last_confirmed_height_for_parent(parent_key_id)?;
 		// If the server height is less than our confirmed height, don't apply
 		// these changes as the chain is syncing, incorrect or forking
 		if height < last_confirmed_height {
@@ -803,7 +803,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let current_height = wallet.last_confirmed_height(Some(parent_key_id))?;
+	let current_height = wallet.last_confirmed_height_for_parent(parent_key_id)?;
 	let outputs = wallet
 		.iter()?
 		.filter(|out| out.root_key_id == *parent_key_id);
