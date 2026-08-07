@@ -1177,7 +1177,7 @@ where
 	K: Keychain,
 {
 	// Refuse if TTL is expired
-	let last_confirmed_height = w.last_confirmed_height()?;
+	let last_confirmed_height = w.last_confirmed_height(None)?;
 	if slate.ttl_cutoff_height != 0 {
 		if last_confirmed_height >= slate.ttl_cutoff_height {
 			return Err(Error::TransactionExpired);

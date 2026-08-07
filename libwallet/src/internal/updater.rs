@@ -420,7 +420,7 @@ where
 /// Build a local map of wallet outputs keyed by commit
 /// and a list of outputs we want to query the node for.
 /// If `update_all` equals `false` we will select outputs
-/// that are actually involved in an outstanding transaction.
+/// that are actually involved in existing transactions for account.
 /// Returns mapping of output commit to tuple of derived key for output,
 /// PMMR index, tx entry log identifier and check if output is unspent
 pub fn map_wallet_outputs<C, K>(
@@ -526,7 +526,7 @@ where
 	// api output (if it exists) and refresh it in-place in the wallet.
 	// Note: minimizing the time we spend holding the wallet lock.
 	{
-		let last_confirmed_height = wallet.last_confirmed_height()?;
+		let last_confirmed_height = wallet.last_confirmed_height(Some(parent_key_id))?;
 		// If the server height is less than our confirmed height, don't apply
 		// these changes as the chain is syncing, incorrect or forking
 		if height < last_confirmed_height {
@@ -803,7 +803,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let current_height = wallet.last_confirmed_height()?;
+	let current_height = wallet.last_confirmed_height(Some(parent_key_id))?;
 	let outputs = wallet
 		.iter()?
 		.filter(|out| out.root_key_id == *parent_key_id);
