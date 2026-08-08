@@ -256,6 +256,15 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		},
 	)?;
 
+	// Use the requested account's stored height
+	{
+		wallet_inst!(wallet1, w);
+		assert_eq!(w.parent_key_id(), ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
+		let account2 = ExtKeychain::derive_key_id(2, 2, 0, 0, 0);
+		let account2_info = libwallet::retrieve_info(w, &account2, 1)?;
+		assert_eq!(account2_info.last_confirmed_height, 12);
+	}
+
 	// other account should be untouched
 	{
 		wallet_inst!(wallet1, w);

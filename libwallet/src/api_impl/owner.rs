@@ -322,7 +322,7 @@ where
 
 	let parent_key_id = w.parent_key_id();
 	let wallet_info = updater::retrieve_info(w, &parent_key_id, minimum_confirmations)?;
-	let current_height = w.last_confirmed_height()?;
+	let current_height = w.last_confirmed_height_for_parent(&parent_key_id)?;
 	let max_outputs = 500;
 	let change_outputs = 1;
 	let (amount, fee, input_count) = match selection::select_coins_and_fee(
