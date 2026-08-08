@@ -386,8 +386,8 @@ pub mod dalek_sig_serde {
 		String::deserialize(deserializer)
 			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
-				let mut b = [0u8; 64];
-				b.copy_from_slice(&bytes[0..64]);
+				let b = <[u8; 64]>::try_from(bytes.as_slice())
+					.map_err(|_| Error::custom("invalid signature length"))?;
 				DalekSignature::try_from(b).map_err(|err| Error::custom(err.to_string()))
 			})
 	}
@@ -422,8 +422,8 @@ pub mod option_dalek_sig_serde {
 			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
-					let mut b = [0u8; 64];
-					b.copy_from_slice(&bytes[0..64]);
+					let b = <[u8; 64]>::try_from(bytes.as_slice())
+						.map_err(|_| Error::custom("invalid signature length"))?;
 					DalekSignature::try_from(b)
 						.map(Some)
 						.map_err(|err| Error::custom(err.to_string()))
@@ -461,8 +461,8 @@ pub mod option_dalek_sig_base64 {
 			Some(string) => base64::decode(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
-					let mut b = [0u8; 64];
-					b.copy_from_slice(&bytes[0..64]);
+					let b = <[u8; 64]>::try_from(bytes.as_slice())
+						.map_err(|_| Error::custom("invalid signature length"))?;
 					DalekSignature::try_from(b)
 						.map(Some)
 						.map_err(|err| Error::custom(err.to_string()))

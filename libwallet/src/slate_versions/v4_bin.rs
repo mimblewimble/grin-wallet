@@ -345,11 +345,16 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 
 impl Readable for ProofWrap {
 	fn read<R: Reader>(reader: &mut R) -> Result<ProofWrap, grin_ser::Error> {
-		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
-		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?).unwrap();
+		let saddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
+			.map_err(|_| grin_ser::Error::CorruptedData)?;
+		let raddr = DalekPublicKey::from_bytes(&reader.read_fixed_bytes(32)?)
+			.map_err(|_| grin_ser::Error::CorruptedData)?;
 		let rsig = match reader.read_u8()? {
 			0 => None,
-			1 | _ => Some(DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..]).unwrap()),
+			1 | _ => Some(
+				DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..])
+					.map_err(|_| grin_ser::Error::CorruptedData)?,
+			),
 		};
 		Ok(ProofWrap(PaymentInfoV4 { saddr, raddr, rsig }))
 	}
