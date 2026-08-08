@@ -482,13 +482,22 @@ where
 		Ok(Identifier::from_path(&return_path))
 	}
 
-	/// Last verified height of outputs directly descending from the given parent key.
+	/// Last verified height of outputs directly descending from the current parent key.
 	pub fn last_confirmed_height(&mut self) -> Result<u64, Error> {
+		let parent_key_id = self.parent_key_id.clone();
+		self.last_confirmed_height_for_parent(&parent_key_id)
+	}
+
+	/// Last verified height of outputs directly descending from the given parent key.
+	pub(crate) fn last_confirmed_height_for_parent(
+		&mut self,
+		parent_key_id: &Identifier,
+	) -> Result<u64, Error> {
 		let batch = self.db.batch()?;
 		let last_confirmed_height = batch
 			.get_ser(
 				Some(CONFIRMED_HEIGHT_PREFIX),
-				&self.parent_key_id.to_bytes(),
+				&parent_key_id.to_bytes(),
 				None,
 			)?
 			.unwrap_or_else(|| 0);

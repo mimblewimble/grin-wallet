@@ -94,7 +94,7 @@ where
 
 	ret_slate.tx = Some(Slate::empty_transaction());
 
-	let height = w.last_confirmed_height()?;
+	let height = w.last_confirmed_height_for_parent(&parent_key_id)?;
 	let keychain = w.keychain(keychain_mask)?;
 
 	let context = tx::add_output_to_slate(

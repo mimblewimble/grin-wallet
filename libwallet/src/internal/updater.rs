@@ -91,7 +91,7 @@ where
 }
 
 /// Apply advanced filtering to resultset from retrieve_txs below
-pub fn apply_advanced_tx_list_filtering<C, K>(
+fn apply_advanced_tx_list_filtering<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	parent_key_id: Option<&Identifier>,
 	query_args: &RetrieveTxQueryArgs,
@@ -402,6 +402,7 @@ where
 
 /// Refreshes the outputs in a wallet with the latest information
 /// from a node
+/// Also removes stale unconfirmed coinbase outputs across all accounts
 pub fn refresh_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -417,8 +418,12 @@ where
 	Ok(())
 }
 
-/// build a local map of wallet outputs keyed by commit
-/// and a list of outputs we want to query the node for
+/// Build a local map of wallet outputs keyed by commit.
+/// The map keys identify outputs to query from the node.
+/// If `update_all` is `false`, select outputs involved in outstanding
+/// transactions for the account and outputs without a transaction log entry.
+/// Returns mapping of output commit to tuple of derived key for output,
+/// PMMR index, tx entry log identifier and check if output is unspent
 pub fn map_wallet_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -505,7 +510,7 @@ where
 }
 
 /// Apply refreshed API output data to the wallet
-pub fn apply_api_outputs<C, K>(
+fn apply_api_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
@@ -522,7 +527,7 @@ where
 	// api output (if it exists) and refresh it in-place in the wallet.
 	// Note: minimizing the time we spend holding the wallet lock.
 	{
-		let last_confirmed_height = wallet.last_confirmed_height()?;
+		let last_confirmed_height = wallet.last_confirmed_height_for_parent(parent_key_id)?;
 		// If the server height is less than our confirmed height, don't apply
 		// these changes as the chain is syncing, incorrect or forking
 		if height < last_confirmed_height {
@@ -799,7 +804,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let current_height = wallet.last_confirmed_height()?;
+	let current_height = wallet.last_confirmed_height_for_parent(parent_key_id)?;
 	let outputs = wallet
 		.iter()?
 		.filter(|out| out.root_key_id == *parent_key_id);
@@ -876,7 +881,7 @@ where
 
 //TODO: Split up the output creation and the wallet insertion
 /// Build a coinbase output and the corresponding kernel
-pub fn receive_coinbase<C, K>(
+fn receive_coinbase<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	block_fees: &BlockFees,
