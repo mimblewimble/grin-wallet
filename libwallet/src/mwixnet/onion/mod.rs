@@ -34,8 +34,8 @@ use x25519_dalek::{SharedSecret, StaticSecret};
 use crypto::secp::random_secret;
 use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
 
-/// Maximum number of servers in an mwixnet route.
-pub const MAX_MWIXNET_HOPS: usize = 16;
+/// Maximum route length, including the swap server.
+pub const MAX_MWIXNET_HOPS: usize = 8;
 
 /// Onion hop struct
 #[derive(Clone)]
