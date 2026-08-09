@@ -178,8 +178,8 @@ subcommands:
   - mwixnet:
       about: EXPERIMENTAL - Swap a wallet output through an mwixnet route
       args:
-        - commit:
-            help: Commitment of the wallet output to swap
+        - output:
+            help: Commitment or minimum amount of the wallet output to swap, or 'max' for the largest eligible output
             index: 1
             required: true
         - server:

@@ -32,7 +32,7 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen::Commitment;
-use crate::util::{Mutex, ZeroingString};
+use crate::util::{Mutex, ToHex, ZeroingString};
 use crate::{controller, display};
 
 use grin_wallet_util::OnionV3Address;
@@ -334,9 +334,15 @@ pub struct SendArgs {
 
 pub struct MwixnetArgs {
 	pub server: OnionV3Address,
-	pub commitment: Commitment,
+	pub output: MwixnetOutput,
 	pub minimum_confirmations: u64,
 	pub params: MixnetReqCreationParams,
+}
+
+pub enum MwixnetOutput {
+	Commitment(Commitment),
+	MinimumAmount(u64),
+	Max,
 }
 
 enum MwixnetResponse {
@@ -416,23 +422,34 @@ where
 {
 	let height = owner_api.node_height(keychain_mask)?.height;
 	let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, true, true, None)?;
-	let output = outputs
-		.iter()
-		.find(|output| output.commit == args.commitment)
-		.ok_or_else(|| Error::GenericError("MWixnet output was not found".to_string()))?;
-	if !output
-		.output
-		.eligible_to_spend(height, args.minimum_confirmations)
-	{
-		return Err(Error::GenericError(format!(
-			"MWixnet output has {} confirmations; {} required",
-			output.output.num_confirmations(height),
-			args.minimum_confirmations
-		)));
+	let eligible = |output: &&crate::libwallet::OutputCommitMapping| {
+		output
+			.output
+			.eligible_to_spend(height, args.minimum_confirmations)
+	};
+	let output = match &args.output {
+		MwixnetOutput::Commitment(commitment) => outputs
+			.iter()
+			.find(|output| output.commit == *commitment && eligible(output)),
+		MwixnetOutput::MinimumAmount(amount) => outputs
+			.iter()
+			.filter(eligible)
+			.filter(|output| output.output.value >= *amount)
+			.min_by_key(|output| output.output.value),
+		MwixnetOutput::Max => outputs
+			.iter()
+			.filter(eligible)
+			.max_by_key(|output| output.output.value),
 	}
+	.ok_or_else(|| Error::GenericError("No eligible MWixnet output was found".to_string()))?;
+	let commitment = output.commit.clone();
+	println!(
+		"Selected MWixnet output {} with value {}",
+		commitment.to_hex(),
+		core::amount_to_hr_string(output.output.value, false)
+	);
 
-	let creation =
-		owner_api.create_mwixnet_req(keychain_mask, &args.params, &args.commitment, true)?;
+	let creation = owner_api.create_mwixnet_req(keychain_mask, &args.params, &commitment, true)?;
 	let tx_id = creation.tx_id.ok_or_else(|| {
 		Error::GenericError("MWixnet request was created without locking its output".to_string())
 	})?;

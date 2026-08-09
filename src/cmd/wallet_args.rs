@@ -549,15 +549,28 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	})
 }
 
-pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, ParseError> {
-	let commitment = parse_required(args, "commit")?;
-	let commitment = grin_util::from_hex(commitment)
-		.map_err(|e| ParseError::ArgumentError(format!("Invalid output commitment: {}", e)))?;
-	if commitment.len() != 33 {
-		return Err(ParseError::ArgumentError(
-			"Output commitment must be 33 bytes".to_string(),
-		));
+fn parse_mwixnet_output(output: &str) -> Result<command::MwixnetOutput, ParseError> {
+	if output.eq_ignore_ascii_case("max") {
+		Ok(command::MwixnetOutput::Max)
+	} else if output.len() == 66 {
+		let commitment = grin_util::from_hex(output)
+			.map_err(|e| ParseError::ArgumentError(format!("Invalid output commitment: {}", e)))?;
+		Ok(command::MwixnetOutput::Commitment(Commitment::from_vec(
+			commitment,
+		)))
+	} else {
+		let amount = core::core::amount_from_hr_string(output).map_err(|e| {
+			ParseError::ArgumentError(format!(
+				"Output must be a commitment, an amount, or 'max': {}",
+				e
+			))
+		})?;
+		Ok(command::MwixnetOutput::MinimumAmount(amount))
 	}
+}
+
+pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, ParseError> {
+	let output = parse_mwixnet_output(parse_required(args, "output")?)?;
 
 	let server = parse_required(args, "server")?
 		.try_into()
@@ -581,13 +594,34 @@ pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, Par
 
 	Ok(command::MwixnetArgs {
 		server,
-		commitment: Commitment::from_vec(commitment),
+		output,
 		minimum_confirmations,
 		params: MixnetReqCreationParams {
 			server_keys,
 			fee_per_hop,
 		},
 	})
+}
+
+#[cfg(test)]
+mod mwixnet_tests {
+	use super::*;
+
+	#[test]
+	fn parses_mwixnet_output_selection() {
+		assert!(matches!(
+			parse_mwixnet_output("max").unwrap(),
+			command::MwixnetOutput::Max
+		));
+		assert!(matches!(
+			parse_mwixnet_output("10").unwrap(),
+			command::MwixnetOutput::MinimumAmount(10_000_000_000)
+		));
+		assert!(matches!(
+			parse_mwixnet_output(&format!("08{}", "00".repeat(32))).unwrap(),
+			command::MwixnetOutput::Commitment(_)
+		));
+	}
 }
 
 pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
