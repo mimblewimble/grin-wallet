@@ -25,7 +25,7 @@ use crate::impls::PathToSlatepack;
 use crate::impls::SlateGetter as _;
 use crate::keychain;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::mwixnet::MixnetReqCreationParams;
+use crate::libwallet::mwixnet::{parse_mwixnet_response, MixnetReqCreationParams, MwixnetResponse};
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
@@ -343,43 +343,6 @@ pub enum MwixnetOutput {
 	Commitment(Commitment),
 	MinimumAmount(u64),
 	Max,
-}
-
-enum MwixnetResponse {
-	Accepted,
-	Rejected(String),
-}
-
-fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, Error> {
-	let response: json_rpc::Response = json::from_str(response)
-		.map_err(|e| Error::GenericError(format!("Invalid mwixnet response: {}", e)))?;
-
-	if response.jsonrpc.as_deref() != Some("2.0") {
-		return Err(Error::GenericError(
-			"Invalid mwixnet response version".to_string(),
-		));
-	}
-	if response.id != json::json!(1) {
-		return Err(Error::GenericError(
-			"Invalid mwixnet response ID".to_string(),
-		));
-	}
-	if response.result.is_some() && response.error.is_some() {
-		return Err(Error::GenericError(
-			"MWixnet response contains both result and error".to_string(),
-		));
-	}
-	if let Some(error) = response.error {
-		return Ok(MwixnetResponse::Rejected(error.message));
-	}
-	if response.result == Some(json::json!("success")) {
-		return Ok(MwixnetResponse::Accepted);
-	}
-
-	Err(Error::GenericError(format!(
-		"Unexpected mwixnet response result: {:?}",
-		response.result
-	)))
 }
 
 fn confirm_mwixnet_response(response: Result<String, Error>, tx_id: u32) -> Result<(), Error> {
@@ -1669,28 +1632,8 @@ where
 
 #[cfg(test)]
 mod tests {
-	use super::{confirm_mwixnet_response, parse_mwixnet_response, MwixnetResponse};
+	use super::confirm_mwixnet_response;
 	use crate::Error;
-
-	#[test]
-	fn parses_mwixnet_response() {
-		assert!(matches!(
-			parse_mwixnet_response(r#"{"jsonrpc":"2.0","result":"success","id":1}"#).unwrap(),
-			MwixnetResponse::Accepted
-		));
-
-		match parse_mwixnet_response(
-			r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"invalid swap"},"id":1}"#,
-		)
-		.unwrap()
-		{
-			MwixnetResponse::Rejected(message) => assert_eq!(message, "invalid swap"),
-			MwixnetResponse::Accepted => panic!("expected rejection"),
-		}
-
-		assert!(parse_mwixnet_response(r#"{"jsonrpc":"2.0","result":"success","id":2}"#).is_err());
-		assert!(parse_mwixnet_response(r#"{"jsonrpc":"1.0","result":"success","id":1}"#).is_err());
-	}
 
 	#[test]
 	fn mwixnet_response_reports_uncertain_transactions_as_locked() {
