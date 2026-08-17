@@ -1058,12 +1058,26 @@ where
 	// local wallet proxy, etc.)
 	wallet_inst_cb(wallet.clone());
 
+	let unpack_slatepack = match wallet_args.subcommand() {
+		("unpack", Some(args)) => {
+			let args = arg_parse!(parse_unpack_args(args));
+			Some(command::read_slatepack(args)?)
+		}
+		_ => None,
+	};
+
 	// don't open wallet for certain lifecycle commands
 	let mut open_wallet = true;
 	match wallet_args.subcommand() {
 		("init", Some(_)) => open_wallet = false,
 		("recover", _) => open_wallet = false,
 		("cli", _) => open_wallet = false,
+		("unpack", _) => {
+			open_wallet = unpack_slatepack
+				.as_ref()
+				.map(|slatepack| slatepack.mode == 1)
+				.unwrap_or(false);
+		}
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
 			let mut wallet_lock = wallet.lock();
@@ -1091,6 +1105,11 @@ where
 		}
 		false => None,
 	};
+	if let Some(slatepack) = unpack_slatepack {
+		let mut owner_api = Owner::new(wallet, None, config.config_file_path);
+		command::unpack(&mut owner_api, keychain_mask.as_ref(), slatepack)?;
+		return Ok("unpack".into());
+	}
 
 	let res = match wallet_args.subcommand() {
 		("cli", Some(_)) => command_loop(
@@ -1231,7 +1250,8 @@ where
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
-			command::unpack(owner_api, km, a)
+			let slatepack = command::read_slatepack(a)?;
+			command::unpack(owner_api, km, slatepack)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
