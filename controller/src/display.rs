@@ -16,7 +16,8 @@ use crate::core::core::FeeFields;
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
 use crate::libwallet::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, ViewWallet, WalletInfo,
+	address, AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, ViewWallet,
+	WalletInfo,
 };
 use crate::util::ToHex;
 use grin_wallet_util::OnionV3Address;
@@ -537,12 +538,15 @@ pub fn accounts(acct_mappings: Vec<AcctPathMapping>) {
 
 	table.set_titles(row![
 		mMG->"Name",
-		bMG->"Parent BIP-32 Derivation Path",
+		bMG->"Output BIP-32 Parent Path",
+		bMG->"Slatepack BIP-32 Path (Index 0)",
 	]);
 	for m in acct_mappings {
+		let slatepack_path = address::address_derivation_path(&m.path, 0).to_bip_32_string();
 		table.add_row(row![
 			bFC->m.label,
 			bGC->m.path.to_bip_32_string(),
+			bGC->slatepack_path,
 		]);
 	}
 	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
