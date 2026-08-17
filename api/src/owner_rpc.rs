@@ -14,7 +14,7 @@
 
 //! JSON-RPC Stub generation for the Owner API
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
-use libwallet::mwixnet::SwapReq;
+use libwallet::mwixnet::MwixnetReqCreationResult;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -22,10 +22,11 @@ use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	mwixnet::MixnetReqCreationParams, AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs,
-	IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, PaymentProof, Slate,
-	SlateVersion, Slatepack, SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate,
-	ViewWallet, WalletInfo, WalletLCProvider,
+	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey},
+	AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
+	SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo,
+	WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -2022,7 +2023,7 @@ pub trait OwnerRpc {
 	) -> Result<BuiltOutput, Error>;
 
 	/**
-	Networked version of [Owner::build_output](struct.Owner.html#method.create_mwixnet_req).
+	Networked version of [Owner::create_mwixnet_req](struct.Owner.html#method.create_mwixnet_req).
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -2032,12 +2033,12 @@ pub trait OwnerRpc {
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
-			"fee_per_hop": "5000000",
+			"fee_per_hop": "12500000",
 			"lock_output": true,
 			"server_keys": [
-				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
-				"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e",
-				"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5"
+				"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+				"3ab3b7d1fb643393897a0b942934d34be9cb823621cd49c09b12fdfa69598d71",
+				"80f2ceadcc5a767961772f4ae04826c70b0ae497f4f50d782241ff056b71df45"
 			]
 		},
 		"id": 1
@@ -2059,12 +2060,13 @@ pub trait OwnerRpc {
 						"62ea6b8369686a0415e1e752b9b4d6e66cf5b6066a2d3c60d8818890a55f3adff4601466f4c6e6b646568b99ae93549a3595b7a7b4be815ced87d9297cabbd69518d7b2ed6edd14007528fd346aaea765a1165fe886666627ebcab9588b8ee1c9e98395ae67913c48eb6e924581b40182fce807f97312fb07fd5e216d99941f2b488babce4078a50cd66b28b30a66c4f54fcc127437408a99b30ffd6c3d0d8c7d39e864fc04e321b8c10138c8852d4cad0a4f2780412b9dadcc6e0f2657b7803a81bccb809ca392464be2e01755be7377d0e815698ad6ea51d4617cc92c3ccf852f038e33cc9c90992438ba5c49cca7cc188b682da684e2f4c9733a84a7b64ac5c2216ebf5926f0ee67b664fb5bab799109cbee755ce1aebc8cd352fea51cd84c333cb958093c53544c3f3ab05dba64d8f041c3b179796b476ec04b11044e39db6994ab767315e52cc0ef023432ec88ade2911612db7e74e0923889f765b58b00e3869c5072a4e882c1b721913f63bda986b8c97b7ae575f0d4be596a1ac3cd0db96ce6074ee000b32018b3bda16d7dba34a13ba9c3ce983946414c16e278351a3411cb8ef2cb8ef5b6e1667c4c58bc797c0324ae4fec8960d684e561c0e833ee4c3331c6c439b59042a62993535e23cc8a8a4cf705c0f9b1d62db4e3d76c22c01138800414b143ddff471e4df4413e842a1b41f43cc9647e47145fd6c86d4d1a34fb2f62f5a55b31c9353ee34743c548eff955f2d2143c1a86cbcb452104f96d0142db31153021bbeed995c71a92de8fb1f97269533a508085c543fcb3ee57000bb265e74187b858403aa97b6c7b085e5d5b6025cbfe5f6926d33c835f90e60fc62013e80bbe0a855da5938b4b8f83ac29c5e8251827795356222079a6d1612e2fdf93bd7836d1613c7a353ada48ce256f880bbbb3108e037e3b5647101bd4d549101b0ee73d2248a932a802a3b1beb0b69d777c4285d57e91d83e96fe2f8a1a2f182fe2c6ca37b18460cf8d7f56c201147b9be19f1d01f8ad305c1e9c4dd79b5d8719d6550432352cf737082b1e9de7a083ffbe1"
 					],
 					"pubkey": "e7ee7d51b11d09f268ade98bc9d7ae9be3c4ac124ce1c3a40e50d34460fa5f08"
-				}
+				},
+				"tx_id": 5
 			}
 		}
 	}
 	# "#
-	# , 5, true, true, false, false);
+	# , 5, true, false, false, false);
 	```
 	 *
 	 */
@@ -2076,7 +2078,7 @@ pub trait OwnerRpc {
 		fee_per_hop: String,
 		lock_output: bool,
 		server_keys: Vec<String>,
-	) -> Result<SwapReq, Error>;
+	) -> Result<MwixnetReqCreationResult, Error>;
 }
 
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
@@ -2508,19 +2510,13 @@ where
 		fee_per_hop: String,
 		lock_output: bool,
 		server_keys: Vec<String>,
-	) -> Result<SwapReq, Error> {
+	) -> Result<MwixnetReqCreationResult, Error> {
 		let commit =
 			Commitment::from_vec(from_hex(&commitment).map_err(|e| Error::CommitDeser(e))?);
 
-		let secp_inst = static_secp_instance();
-		let secp = secp_inst.lock();
-
 		let mut keys = vec![];
 		for key in server_keys {
-			keys.push(SecretKey::from_slice(
-				&secp,
-				&grin_util::from_hex(&key).map_err(|e| Error::ServerKeyDeser(e))?,
-			)?)
+			keys.push(MwixnetServerPublicKey::from_hex(&key).map_err(Error::ServerKeyDeser)?)
 		}
 
 		let req_params = MixnetReqCreationParams {

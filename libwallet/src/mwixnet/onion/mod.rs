@@ -34,6 +34,9 @@ use x25519_dalek::{SharedSecret, StaticSecret};
 use crypto::secp::random_secret;
 use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
 
+/// Maximum route length, including the swap server.
+pub const MAX_MWIXNET_HOPS: usize = 8;
+
 /// Onion hop struct
 #[derive(Clone)]
 pub struct Hop {
@@ -69,6 +72,11 @@ pub fn create_onion(
 	hops: &Vec<Hop>,
 	use_test_rng: bool,
 ) -> Result<Onion, OnionError> {
+	if hops.len() > MAX_MWIXNET_HOPS {
+		return Err(OnionError::TooManyHops {
+			max: MAX_MWIXNET_HOPS,
+		});
+	}
 	if hops.is_empty() {
 		return Ok(Onion {
 			ephemeral_pubkey: xPublicKey::from([0u8; 32]),
@@ -84,6 +92,9 @@ pub fn create_onion(
 	for i in 0..hops.len() {
 		let hop = &hops[i];
 		let shared_secret = ephemeral_sk.diffie_hellman(&hop.server_pubkey);
+		if !shared_secret.was_contributory() {
+			return Err(OnionError::NonContributorySharedSecret);
+		}
 		shared_secrets.push(shared_secret);
 
 		ephemeral_sk = StaticSecret::from(random_secret(use_test_rng).0);
@@ -203,5 +214,96 @@ pub mod test_util {
 		let sk = random_secret(false);
 		let pk = DalekPublicKey::from_secret(&sk);
 		(sk, pk)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mwixnet::MwixnetServerPublicKey;
+
+	#[test]
+	fn rejects_zero_key() {
+		let commitment = test_util::rand_commit();
+		let hop = Hop {
+			server_pubkey: xPublicKey::from([0u8; 32]),
+			excess: random_secret(false),
+			fee: FeeFields::from(1u32),
+			rangeproof: None,
+		};
+
+		assert_eq!(
+			create_onion(&commitment, &vec![hop], false),
+			Err(OnionError::NonContributorySharedSecret)
+		);
+	}
+
+	#[test]
+	fn rejects_too_many_hops() {
+		let commitment = test_util::rand_commit();
+		let hops: Vec<Hop> = (0..=MAX_MWIXNET_HOPS)
+			.map(|_| {
+				let server_key = random_secret(false);
+				Hop {
+					server_pubkey: xPublicKey::from(&StaticSecret::from(server_key.0)),
+					excess: random_secret(false),
+					fee: FeeFields::from(1u32),
+					rangeproof: None,
+				}
+			})
+			.collect();
+		let max_hops = hops[..MAX_MWIXNET_HOPS].to_vec();
+
+		assert!(create_onion(&commitment, &max_hops, false).is_ok());
+
+		assert_eq!(
+			create_onion(&commitment, &hops, false),
+			Err(OnionError::TooManyHops {
+				max: MAX_MWIXNET_HOPS
+			})
+		);
+	}
+
+	#[test]
+	fn x25519_key_roundtrip() {
+		let server_key = SecretKey::from_slice(
+			&grin_util::secp::Secp256k1::new(),
+			&grin_util::from_hex(
+				"a129111d283b13bf93957c06bf6605c3417b4b89db4b5cb2e7dab2c15e36e0a4",
+			)
+			.unwrap(),
+		)
+		.unwrap();
+		let public_key = MwixnetServerPublicKey::from_secret(&server_key);
+		assert_eq!(
+			public_key.to_hex(),
+			"96ced236bdf1aca722ef68b818445755e6ed4bacf23e19d7b71c43efc5f0077b"
+		);
+		let identity_key = crypto::dalek::DalekPublicKey::from_secret(&server_key).to_hex();
+		assert_ne!(identity_key, public_key.to_hex());
+
+		let commitment = crypto::secp::commit(1_000, &server_key).unwrap();
+		let excess = server_key.clone();
+		let hop = Hop {
+			server_pubkey: xPublicKey::from(public_key.to_bytes()),
+			excess: excess.clone(),
+			fee: FeeFields::from(1u32),
+			rangeproof: None,
+		};
+		let onion = create_onion(&commitment, &vec![hop], true).unwrap();
+		let peeled = onion.peel_layer(&server_key).unwrap();
+
+		assert_eq!(peeled.payload.excess, excess);
+		assert_eq!(peeled.payload.fee, FeeFields::from(1u32));
+
+		let identity_key = MwixnetServerPublicKey::from_hex(&identity_key).unwrap();
+		let wrong_hop = Hop {
+			server_pubkey: xPublicKey::from(identity_key.to_bytes()),
+			excess: server_key.clone(),
+			fee: FeeFields::from(1u32),
+			rangeproof: None,
+		};
+		let wrong_onion = create_onion(&commitment, &vec![wrong_hop], true).unwrap();
+		assert!(wrong_onion.peel_layer(&server_key).is_err());
 	}
 }

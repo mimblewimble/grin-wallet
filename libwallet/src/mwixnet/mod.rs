@@ -14,11 +14,16 @@
 
 //! Onion modules for mxmixnet
 pub mod onion;
+mod response;
 mod types;
 
 pub use onion::{
 	create_onion, onion::Onion, onion::OnionError, util as onion_util, ComSigError, ComSignature,
-	MwixnetPublicKey,
+	MwixnetPublicKey, MAX_MWIXNET_HOPS,
 };
 
-pub use types::{Hop, MixnetReqCreationParams, SwapReq};
+pub use response::{parse_mwixnet_response, MwixnetResponse, MwixnetResponseError};
+
+pub use types::{
+	Hop, MixnetReqCreationParams, MwixnetReqCreationResult, MwixnetServerPublicKey, SwapReq,
+};

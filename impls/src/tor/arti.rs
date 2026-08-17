@@ -34,6 +34,7 @@ use sha2::Sha512;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -57,6 +58,18 @@ struct TorService {
 	proxy: Arc<OnionServiceReverseProxy>,
 	worker: JoinHandle<()>,
 	state_lock: PathBuf,
+}
+
+/// Failure from an HTTP request over Tor, classified by whether delivery may
+/// have started.
+#[derive(Debug, thiserror::Error)]
+pub enum TorPostError {
+	/// The failure happened before handing the request to Hyper.
+	#[error("{0}")]
+	NotSent(Error),
+	/// Hyper started sending the request, so delivery cannot be ruled out.
+	#[error("{0}")]
+	PossiblySent(Error),
 }
 
 lazy_static! {
@@ -217,38 +230,72 @@ pub fn start_tor_client(config: TorConfig) -> Result<(), Error> {
 }
 
 /// Make POST request.
-pub fn tor_post<IN>(tor_config: &TorConfig, input: &IN, url: &str) -> Result<String, Error>
+fn build_post_request(json: String, url: &Uri) -> Result<Request<Full<Bytes>>, Error> {
+	let authority = url
+		.authority()
+		.ok_or_else(|| Error::GenericError(format!("URL {} has bad authority", url)))?;
+	let request_target = url
+		.path_and_query()
+		.map(|path| path.as_str())
+		.unwrap_or("/");
+
+	Request::builder()
+		.uri(request_target)
+		.method("POST")
+		.header("host", authority.as_str())
+		.header("accept", "application/json")
+		.header("content-type", "application/json")
+		.body(Full::from(json))
+		.map_err(|e| Error::TorProcess(format!("{:?}", e)))
+}
+
+/// Make POST request.
+pub fn tor_post<IN>(tor_config: &TorConfig, input: &IN, url: &str) -> Result<String, TorPostError>
 where
 	IN: Serialize,
 {
-	let json = serde_json::to_string(input)
-		.map_err(|_| Error::GenericError("Could not serialize data to JSON".to_owned()))?;
+	let json = serde_json::to_string(input).map_err(|_| {
+		TorPostError::NotSent(Error::GenericError(
+			"Could not serialize data to JSON".to_owned(),
+		))
+	})?;
 	let url = url.to_string();
 	let url: Uri = url
 		.parse()
-		.map_err(|_| Error::GenericError(format!("Bad URL: {}", url)))?;
+		.map_err(|_| TorPostError::NotSent(Error::GenericError(format!("Bad URL: {}", url))))?;
 	let host = match url.host() {
-		None => return Err(Error::GenericError(format!("URL {} has bad host", url))),
+		None => {
+			return Err(TorPostError::NotSent(Error::GenericError(format!(
+				"URL {} has bad host",
+				url
+			))))
+		}
 		Some(h) => h,
 	}
 	.to_string();
+	let port = url.port_u16().unwrap_or(80);
+	let request = build_post_request(json, &url).map_err(TorPostError::NotSent)?;
 	let timeout = tor_config.request_timeout();
 	let (state_path, cache_path) = state_cache_paths(&tor_config);
-	let (client, _) = init_client(&state_path, &cache_path, tor_config)?;
-	let res: Result<String, Error> = thread::spawn(move || {
+	let (client, _) =
+		init_client(&state_path, &cache_path, tor_config).map_err(TorPostError::NotSent)?;
+	let res: Result<String, TorPostError> = thread::spawn(move || {
 		let c = client.clone();
 		client.runtime().block_on(async move {
-			let res = c
-				.runtime()
-				.timeout(timeout, async {
-					let stream = c
-						.connect((host, url.port_u16().unwrap_or(80)))
-						.await
-						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+			let send_started = Arc::new(AtomicBool::new(false));
+			let send_started_in_request = send_started.clone();
+			let runtime = c.runtime().clone();
+			let res = runtime
+				.timeout(timeout, async move {
+					let stream = c.connect((host.clone(), port)).await.map_err(|e| {
+						TorPostError::NotSent(Error::TorProcess(format!("{:?}", e)))
+					})?;
 					let (mut request_sender, connection) =
 						hyper::client::conn::http1::handshake(TokioIo::new(stream))
 							.await
-							.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+							.map_err(|e| {
+								TorPostError::NotSent(Error::TorProcess(format!("{:?}", e)))
+							})?;
 
 					// Spawn a task to poll the connection and drive the HTTP state.
 					tokio::spawn(async move {
@@ -257,37 +304,63 @@ where
 						}
 					});
 
-					let resp = request_sender
-						.send_request(
-							Request::builder()
-								.uri(url)
-								.method("POST")
-								.body::<Full<Bytes>>(Full::from(json))
-								.map_err(|e| Error::TorProcess(format!("{:?}", e)))?,
-						)
-						.await
-						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					send_started_in_request.store(true, Ordering::Release);
+					let resp = request_sender.send_request(request).await.map_err(|e| {
+						TorPostError::PossiblySent(Error::TorProcess(format!("{:?}", e)))
+					})?;
 
-					let body_resp = resp
-						.into_body()
-						.collect()
-						.await
-						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					let status = resp.status();
+					let body_resp = resp.into_body().collect().await.map_err(|e| {
+						TorPostError::PossiblySent(Error::TorProcess(format!("{:?}", e)))
+					})?;
 					let body = body_resp.to_bytes().into();
-					let body_text = String::from_utf8(body)
-						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
+					let body_text = String::from_utf8(body).map_err(|e| {
+						TorPostError::PossiblySent(Error::TorProcess(format!("{:?}", e)))
+					})?;
+					if !status.is_success() {
+						return Err(TorPostError::PossiblySent(Error::TorProcess(format!(
+							"HTTP request failed with status {}: {}",
+							status, body_text
+						))));
+					}
 					Ok(body_text)
 				})
 				.await;
 			match res {
-				Err(e) => Err(Error::TorProcess(format!("{:?}", e))),
+				Err(e) if send_started.load(Ordering::Acquire) => Err(TorPostError::PossiblySent(
+					Error::TorProcess(format!("{:?}", e)),
+				)),
+				Err(e) => Err(TorPostError::NotSent(Error::TorProcess(format!("{:?}", e)))),
 				Ok(body) => Ok(body),
 			}
 		})
 	})
 	.join()
-	.unwrap_or_else(|e| return Err(Error::TorProcess(format!("{:?}", e))))?;
+	.unwrap_or_else(|e| {
+		Err(TorPostError::PossiblySent(Error::TorProcess(format!(
+			"{:?}",
+			e
+		))))
+	})?;
 	res
+}
+
+#[cfg(test)]
+mod tests {
+	use super::build_post_request;
+	use hyper::{Method, Uri};
+
+	#[test]
+	fn builds_origin_form_json_request() {
+		let url: Uri = "http://example.onion:8080/v1?test=1".parse().unwrap();
+		let request = build_post_request("{}".to_string(), &url).unwrap();
+
+		assert_eq!(request.method(), Method::POST);
+		assert_eq!(request.uri(), "/v1?test=1");
+		assert_eq!(request.headers()["host"], "example.onion:8080");
+		assert_eq!(request.headers()["accept"], "application/json");
+		assert_eq!(request.headers()["content-type"], "application/json");
+	}
 }
 
 /// Create Tor client.

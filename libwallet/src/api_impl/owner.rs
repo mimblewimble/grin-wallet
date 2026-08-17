@@ -32,10 +32,13 @@ use crate::api_impl::owner_updater::StatusMessage;
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
-use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletInfo};
+use crate::types::{AcctPathMapping, NodeClient, OutputData, OutputStatus, TxLogEntry, WalletInfo};
 use crate::{
 	address,
-	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
+	mwixnet::{
+		create_onion, ComSignature, Hop, MixnetReqCreationParams, MwixnetReqCreationResult,
+		SwapReq, MAX_MWIXNET_HOPS,
+	},
 	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
@@ -45,7 +48,7 @@ use crate::{
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
-use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
+use x25519_dalek::PublicKey as xPublicKey;
 
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
@@ -1439,43 +1442,54 @@ pub fn create_mwixnet_req<C, K>(
 	commitment: &Commitment,
 	lock_output: bool,
 	use_test_rng: bool,
-) -> Result<SwapReq, Error>
+) -> Result<MwixnetReqCreationResult, Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	let parent_key_id = w.parent_key_id();
-	let keychain = w.keychain(keychain_mask)?;
-	let outputs = updater::retrieve_outputs(w, keychain_mask, false, None, Some(&parent_key_id))?;
-
-	let mut output = None;
-	for o in &outputs {
-		if o.commit == *commitment {
-			output = Some(o.output.clone());
-			break;
-		}
+	if params.server_keys.is_empty() {
+		return Err(Error::GenericError(
+			"mwixnet requires at least one server key".to_string(),
+		));
 	}
-
-	if output.is_none() {
-		return Err(Error::GenericError(String::from("output not found")));
-	}
-
-	let amount = output.clone().unwrap().value;
-	let input_blind = keychain.derive_key(
-		amount,
-		&output.clone().unwrap().key_id,
-		SwitchCommitmentType::Regular,
-	)?;
-
-	let mut server_pubkeys = vec![];
-	for i in 0..params.server_keys.len() {
-		server_pubkeys.push(xPublicKey::from(&StaticSecret::from(
-			params.server_keys[i].0,
+	if params.server_keys.len() > MAX_MWIXNET_HOPS {
+		return Err(Error::GenericError(format!(
+			"mwixnet supports at most {} server keys",
+			MAX_MWIXNET_HOPS
 		)));
 	}
 
-	let fee = grin_core::libtx::tx_fee(1, 1, 1);
-	let new_amount = amount - (fee * server_pubkeys.len() as u64);
+	let parent_key_id = w.parent_key_id();
+	let keychain = w.keychain(keychain_mask)?;
+	let outputs = updater::retrieve_outputs(w, keychain_mask, true, None, Some(&parent_key_id))?;
+	let output = outputs
+		.into_iter()
+		.find(|o| o.commit == *commitment)
+		.map(|o| o.output)
+		.ok_or_else(|| Error::GenericError("output not found".to_string()))?;
+	let current_height = w.w2n_client().get_chain_tip()?.0;
+	if !output.eligible_to_spend(current_height, 1) {
+		return Err(Error::GenericError("output is not spendable".to_string()));
+	}
+
+	let amount = output.value;
+	let input_blind = keychain.derive_key(amount, &output.key_id, SwitchCommitmentType::Regular)?;
+
+	let server_pubkeys = params
+		.server_keys
+		.iter()
+		.map(|key| xPublicKey::from(key.to_bytes()))
+		.collect::<Vec<_>>();
+	let fee = FeeFields::try_from(params.fee_per_hop).map_err(|e| Error::Fee(e.to_string()))?;
+	let total_fee = params
+		.fee_per_hop
+		.checked_mul(server_pubkeys.len() as u64)
+		.ok_or_else(|| Error::Fee("mwixnet fee overflow".to_string()))?;
+	let total_fee_fields = FeeFields::try_from(total_fee)
+		.map_err(|_| Error::Fee("mwixnet total fee exceeds FeeFields limit".to_string()))?;
+	let new_amount = amount
+		.checked_sub(total_fee)
+		.ok_or_else(|| Error::Fee("mwixnet fees exceed output value".to_string()))?;
 	let new_output = build_output(w, keychain_mask, OutputFeatures::Plain, new_amount)?;
 	let secp = keychain.secp();
 
@@ -1486,14 +1500,14 @@ where
 	let hops = server_pubkeys
 		.iter()
 		.enumerate()
-		.map(|(i, &p)| {
+		.map(|(i, &p)| -> Result<Hop, Error> {
 			if (i + 1) == server_pubkeys.len() {
-				Hop {
+				Ok(Hop {
 					server_pubkey: p.clone(),
-					excess: blind_sum.secret_key(&secp).unwrap(),
-					fee: FeeFields::from(fee as u32),
+					excess: blind_sum.secret_key(&secp)?,
+					fee,
 					rangeproof: Some(new_output.output.proof.clone()),
-				}
+				})
 			} else {
 				let hop_excess;
 				if use_test_rng {
@@ -1501,34 +1515,60 @@ where
 				} else {
 					hop_excess = BlindingFactor::rand(&secp);
 				}
-				blind_sum = blind_sum.split(&hop_excess, &secp).unwrap();
-				Hop {
+				blind_sum = blind_sum.split(&hop_excess, &secp)?;
+				Ok(Hop {
 					server_pubkey: p.clone(),
-					excess: hop_excess.secret_key(&secp).unwrap(),
-					fee: FeeFields::from(fee as u32),
+					excess: hop_excess.secret_key(&secp)?,
+					fee,
 					rangeproof: None,
-				}
+				})
 			}
 		})
-		.collect();
+		.collect::<Result<Vec<_>, _>>()?;
 
-	let onion = create_onion(&commitment, &hops, use_test_rng).unwrap();
-	let comsig = ComSignature::sign(
-		amount,
-		&input_blind,
-		&onion.serialize().unwrap(),
-		use_test_rng,
-	)
-	.unwrap();
+	let onion = create_onion(&commitment, &hops, use_test_rng)
+		.map_err(|e| Error::GenericError(e.to_string()))?;
+	let onion_bytes = onion.serialize().map_err(Error::Deser)?;
+	let comsig = ComSignature::sign(amount, &input_blind, &onion_bytes, use_test_rng)
+		.map_err(|e| Error::Signature(e.to_string()))?;
+
+	let mut tx_id = None;
 
 	// Lock output if requested
 	if lock_output {
 		let mut batch = w.batch(keychain_mask)?;
-		let mut update_output = batch.get(&output.as_ref().unwrap().key_id, &None)?;
-		update_output.lock();
+		let log_id = batch.next_tx_log_id(&parent_key_id)?;
+		let mut tx = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
+		tx.amount_debited = amount;
+		tx.amount_credited = new_amount;
+		tx.num_inputs = 1;
+		tx.num_outputs = 1;
+		tx.fee = Some(total_fee_fields);
+		tx.kernel_lookup_min_height = Some(current_height);
+
+		let mut update_output = batch.get(&output.key_id, &None)?;
+		update_output.tx_log_entry = Some(log_id);
 		batch.lock_output(&mut update_output)?;
+		batch.save(OutputData {
+			root_key_id: parent_key_id.clone(),
+			key_id: new_output.key_id.clone(),
+			n_child: new_output.key_id.to_path().last_path_index(),
+			commit: Some(new_output.output.commitment().to_hex()),
+			mmr_index: None,
+			value: new_amount,
+			status: OutputStatus::Unconfirmed,
+			height: current_height,
+			lock_height: 0,
+			is_coinbase: false,
+			tx_log_entry: Some(log_id),
+		})?;
+		batch.save_tx_log_entry(tx, &parent_key_id)?;
 		batch.commit()?;
+		tx_id = Some(log_id);
 	}
 
-	Ok(SwapReq { comsig, onion })
+	Ok(MwixnetReqCreationResult {
+		request: SwapReq { comsig, onion },
+		tx_id,
+	})
 }

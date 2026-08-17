@@ -18,13 +18,17 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
 use grin_core as core;
+use grin_core::core::FeeFields;
 use grin_util as util;
 use grin_util::secp::key::SecretKey;
 use std::path::PathBuf;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{mwixnet::MixnetReqCreationParams, InitTxArgs};
+use libwallet::{
+	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey, MAX_MWIXNET_HOPS},
+	InitTxArgs, OutputStatus, TxLogEntryType,
+};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -183,22 +187,95 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())
 					.unwrap();
 			let params = MixnetReqCreationParams {
-				server_keys: vec![server_key_1, server_key_2, server_key_3],
-				fee_per_hop: 50_000_000,
+				server_keys: vec![
+					MwixnetServerPublicKey::from_secret(&server_key_1),
+					MwixnetServerPublicKey::from_secret(&server_key_2),
+					MwixnetServerPublicKey::from_secret(&server_key_3),
+				],
+				fee_per_hop: 10_000_000,
 			};
 			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
 			// get last output
 			let last_output = outputs.1[outputs.1.len() - 1].clone();
 
-			let mwixnet_req = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
+			let empty_params = MixnetReqCreationParams {
+				server_keys: vec![],
+				fee_per_hop: params.fee_per_hop,
+			};
+			assert!(api
+				.create_mwixnet_req(m, &empty_params, &last_output.commit, true)
+				.is_err());
 
-			println!("MWIXNET REQ: {:?}", mwixnet_req);
+			let too_many_params = MixnetReqCreationParams {
+				server_keys: vec![params.server_keys[0]; MAX_MWIXNET_HOPS + 1],
+				fee_per_hop: params.fee_per_hop,
+			};
+			assert!(api
+				.create_mwixnet_req(m, &too_many_params, &last_output.commit, true)
+				.is_err());
 
-			// check output we created comsig for is indeed locked
+			let oversized_fee_params = MixnetReqCreationParams {
+				server_keys: params.server_keys[..2].to_vec(),
+				fee_per_hop: 1 << 39,
+			};
+			assert_eq!(
+				api.create_mwixnet_req(m, &oversized_fee_params, &last_output.commit, true)
+					.unwrap_err(),
+				libwallet::Error::Fee("mwixnet total fee exceeds FeeFields limit".to_string())
+			);
+
+			let creation = api.create_mwixnet_req(m, &params, &last_output.commit, true)?;
+			let creation_tx_id = creation.tx_id.unwrap();
+			let peeled = creation
+				.request
+				.onion
+				.peel_layer(&server_key_1)
+				.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
+			assert_eq!(peeled.payload.fee, FeeFields::try_from(params.fee_per_hop)?);
+
+			println!("MWIXNET REQ: {:?}", creation.request);
+
+			// Check the input lock and expected output are tracked together.
 			let outputs = api.retrieve_outputs(mask1, false, false, None)?;
-			// get last output
-			let last_output = outputs.1[outputs.1.len() - 1].clone();
-			assert!(last_output.output.status == libwallet::OutputStatus::Locked);
+			let input = outputs
+				.1
+				.iter()
+				.find(|o| o.commit == last_output.commit)
+				.unwrap();
+			assert_eq!(input.output.status, OutputStatus::Locked);
+			let expected_amount =
+				last_output.output.value - params.fee_per_hop * params.server_keys.len() as u64;
+			let expected_output = outputs
+				.1
+				.iter()
+				.find(|o| {
+					o.output.status == OutputStatus::Unconfirmed
+						&& o.output.value == expected_amount
+				})
+				.unwrap();
+			assert_eq!(
+				input.output.tx_log_entry,
+				expected_output.output.tx_log_entry
+			);
+
+			let txs = api.retrieve_txs(m, false, None, None, None)?.1;
+			let tx = txs.last().unwrap();
+			assert_eq!(creation_tx_id, tx.id);
+			assert_eq!(tx.tx_type, TxLogEntryType::TxSent);
+			assert_eq!(tx.amount_debited, last_output.output.value);
+			assert_eq!(tx.amount_credited, expected_amount);
+			assert_eq!(tx.num_inputs, 1);
+			assert_eq!(tx.num_outputs, 1);
+			assert_eq!(
+				tx.fee,
+				Some(FeeFields::try_from(
+					params.fee_per_hop * params.server_keys.len() as u64
+				)?)
+			);
+
+			assert!(api
+				.create_mwixnet_req(m, &params, &last_output.commit, false)
+				.is_err());
 
 			Ok(())
 		},
