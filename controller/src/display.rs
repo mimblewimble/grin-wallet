@@ -157,7 +157,8 @@ pub fn txs(
 		bMG->"Creation Time",
 		bMG->"TTL Cutoff Height",
 		bMG->"Confirmed?",
-		bMG->"Confirmation Time",
+		bMG->"Conf. Height",
+		bMG->"Detected at",
 		bMG->"Num. \nInputs",
 		bMG->"Num. \nOutputs",
 		bMG->"Amount \nCredited",
@@ -183,6 +184,10 @@ pub fn txs(
 		let creation_ts = format!("{}", t.creation_ts.format("%Y-%m-%d %H:%M:%S"));
 		let ttl_cutoff_height = match t.ttl_cutoff_height {
 			Some(b) => format!("{}", b),
+			None => "None".to_owned(),
+		};
+		let confirmed_height = match t.confirmed_height {
+			Some(h) => format!("{}", h),
 			None => "None".to_owned(),
 		};
 		let confirmation_ts = match t.confirmation_ts {
@@ -230,6 +235,7 @@ pub fn txs(
 				bFB->creation_ts,
 				bFB->ttl_cutoff_height,
 				bFC->confirmed,
+				bFB->confirmed_height,
 				bFB->confirmation_ts,
 				bFC->num_inputs,
 				bFC->num_outputs,
@@ -249,6 +255,7 @@ pub fn txs(
 					bFD->slate_id,
 					bFB->creation_ts,
 					bFg->confirmed,
+					bFB->confirmed_height,
 					bFB->confirmation_ts,
 					bFD->num_inputs,
 					bFD->num_outputs,
@@ -267,6 +274,7 @@ pub fn txs(
 					bFD->slate_id,
 					bFB->creation_ts,
 					bFR->confirmed,
+					bFB->confirmed_height,
 					bFB->confirmation_ts,
 					bFD->num_inputs,
 					bFD->num_outputs,
