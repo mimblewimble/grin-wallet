@@ -146,6 +146,22 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	)?;
 	assert_eq!(slate.state, SlateState::Invoice2);
 
+	wallet::controller::owner_single_use(
+		wallet2.clone(),
+		mask2,
+		PathBuf::from(test_dir),
+		|api, m| {
+			assert_eq!(
+				api.tx_lock_outputs(m, &slate),
+				Err(libwallet::Error::SlateState)
+			);
+			let (_, txs) = api.retrieve_txs(m, false, None, None, None)?;
+			assert_eq!(txs.len(), 1);
+			assert_eq!(txs[0].tx_type, libwallet::TxLogEntryType::TxReceived);
+			Ok(())
+		},
+	)?;
+
 	// wallet 2 finalizes and posts
 	wallet::controller::foreign_single_use(
 		wallet2.clone(),
