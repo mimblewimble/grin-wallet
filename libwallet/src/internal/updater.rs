@@ -247,7 +247,7 @@ where
 			}
 		})
 		.filter(|tx_entry| {
-			if let Some(v) = query_args.min_confirmed_timestamp {
+			if let Some(v) = query_args.max_creation_timestamp {
 				tx_entry.creation_ts <= v
 			} else {
 				true

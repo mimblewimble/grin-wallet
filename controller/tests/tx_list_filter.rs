@@ -61,6 +61,25 @@ fn test_wallet_tx_filtering(
 		mask,
 		PathBuf::from(test_dir),
 		|api, _m| {
+			let query = |args| {
+				api.retrieve_txs(mask, true, None, None, Some(args))
+					.map(|(_, txs)| txs)
+			};
+			let txs = query(RetrieveTxQueryArgs::default())?;
+			assert!(!txs.is_empty());
+			let before_first_tx =
+				txs.iter().map(|tx| tx.creation_ts).min().unwrap() - Duration::from_secs(1);
+			let mut tx_query_args = RetrieveTxQueryArgs::default();
+
+			// Max creation time before all test transactions
+			tx_query_args.max_creation_timestamp = Some(before_first_tx);
+			assert!(query(tx_query_args.clone())?.is_empty());
+
+			// Min confirmation time should not affect creation time
+			tx_query_args.max_creation_timestamp = None;
+			tx_query_args.min_confirmed_timestamp = Some(before_first_tx);
+			assert_eq!(query(tx_query_args)?.len(), txs.len());
+
 			let mut tx_query_args = RetrieveTxQueryArgs::default();
 			tx_query_args.min_id = Some(5);
 
