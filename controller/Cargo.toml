@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_controller"
-version = "5.4.1"
+version = "5.5.0"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Controllers for grin wallet instantiation"
 license = "Apache-2.0"
@@ -25,11 +25,11 @@ lazy_static = "1"
 thiserror = "1"
 qr_code = "1.1.0"
 
-grin_wallet_util = { path = "../util", version = "5.4.1" }
-grin_wallet_api = { path = "../api", version = "5.4.1" }
-grin_wallet_impls = { path = "../impls", version = "5.4.1" }
-grin_wallet_libwallet = { path = "../libwallet", version = "5.4.1" }
-grin_wallet_config = { path = "../config", version = "5.4.1" }
+grin_wallet_util = { path = "../util", version = "5.5.0" }
+grin_wallet_api = { path = "../api", version = "5.5.0" }
+grin_wallet_impls = { path = "../impls", version = "5.5.0" }
+grin_wallet_libwallet = { path = "../libwallet", version = "5.5.0" }
+grin_wallet_config = { path = "../config", version = "5.5.0" }
 
 ##### Grin Imports
 

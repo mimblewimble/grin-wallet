@@ -1,4 +1,4 @@
 [submodule "grin"]
 	path = grin
-	branch = staging
+	branch = master
 	url = https://github.com/mimblewimble/grin
