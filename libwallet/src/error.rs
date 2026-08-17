@@ -24,6 +24,10 @@ use grin_store;
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]
 pub enum Error {
+	/// Invalid transaction amount
+	#[error("Invalid amount (must be greater than zero)")]
+	InvalidAmount,
+
 	/// Not enough funds
 	#[error("Not enough funds. Required: {needed_disp:?}, Available: {available_disp:?}")]
 	NotEnoughFunds {
