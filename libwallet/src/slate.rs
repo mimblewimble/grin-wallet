@@ -986,6 +986,8 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	let secp = secp.lock();
 	let mut calc_slate = Slate::blank(2, false);
 	calc_slate.fee_fields = slate.fee;
+	calc_slate.kernel_features = slate.feat;
+	calc_slate.kernel_features_args = slate.feat_args.as_ref().map(KernelFeaturesArgs::from);
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
 			public_blind_excess: d.xs,
@@ -1001,18 +1003,11 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		Ok(s) => s,
 		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
 	};
+	let features = calc_slate
+		.kernel_features()
+		.unwrap_or(KernelFeatures::Plain { fee: slate.fee });
 	let kernel = TxKernel {
-		features: match slate.feat {
-			0 => KernelFeatures::Plain { fee: slate.fee },
-			2 => KernelFeatures::HeightLocked {
-				fee: slate.fee,
-				lock_height: match slate.feat_args.as_ref() {
-					Some(a) => a.lock_hgt,
-					None => 0,
-				},
-			},
-			_ => KernelFeatures::Plain { fee: slate.fee },
-		},
+		features,
 		excess,
 		excess_sig,
 	};

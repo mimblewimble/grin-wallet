@@ -449,8 +449,8 @@ impl Writeable for SlateV4Bin {
 			proof: &v4.proof,
 		}
 		.write(writer)?;
-		// Write lock height for height locked kernels
-		if v4.feat == 2 {
+		// Write the height argument for height locked and NRD kernels
+		if matches!(v4.feat, 2 | 3) {
 			let lock_hgt = match &v4.feat_args {
 				Some(l) => l.lock_hgt,
 				None => 0,
@@ -475,7 +475,7 @@ impl Readable for SlateV4Bin {
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
-		let feat_args = if opts.feat == 2 {
+		let feat_args = if matches!(opts.feat, 2 | 3) {
 			Some(KernelFeaturesArgsV4 {
 				lock_hgt: reader.read_u64()?,
 			})

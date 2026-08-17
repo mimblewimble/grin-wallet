@@ -15,28 +15,49 @@
 
 use grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight};
 use grin_core::core::FeeFields;
-use grin_wallet_libwallet::{KernelFeaturesArgs, Slate, SlateVersion, VersionedSlate};
+use grin_wallet_libwallet::{Slate, SlateVersion, Slatepacker, SlatepackerArgs, VersionedSlate};
 
 #[test]
-fn height_locked_round_trip() {
-	let lock_height = 500_000;
-	let expected_features = KernelFeatures::HeightLocked {
-		fee: FeeFields::new(0, 42).unwrap(),
-		lock_height,
-	};
-	let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
+fn kernel_features_round_trip() {
+	let fee = FeeFields::new(0, 42).unwrap();
+	let features = [
+		KernelFeatures::HeightLocked {
+			fee,
+			lock_height: 500_000,
+		},
+		KernelFeatures::NoRecentDuplicate {
+			fee,
+			relative_height: NRDRelativeHeight::new(10).unwrap(),
+		},
+	];
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
 
-	let versioned = VersionedSlate::into_version(slate, SlateVersion::V4).unwrap();
-	let json = serde_json::to_string(&versioned).unwrap();
-	let versioned: VersionedSlate = serde_json::from_str(&json).unwrap();
-	let slate: Slate = versioned.into();
+	for expected_features in features {
+		let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
+		let expected_args = slate.kernel_features_args.clone();
 
-	assert_eq!(slate.kernel_features, expected_features.as_u8());
-	assert_eq!(
-		slate.kernel_features_args,
-		Some(KernelFeaturesArgs { lock_height })
-	);
-	assert_eq!(slate.tx.unwrap().kernels()[0].features, expected_features);
+		let versioned = VersionedSlate::into_version(slate.clone(), SlateVersion::V4).unwrap();
+		let json = serde_json::to_string(&versioned).unwrap();
+		let versioned: VersionedSlate = serde_json::from_str(&json).unwrap();
+		let json_slate: Slate = versioned.into();
+		assert_eq!(json_slate.kernel_features_args, expected_args);
+		assert_eq!(
+			json_slate.tx.unwrap().kernels()[0].features,
+			expected_features
+		);
+
+		let slatepack = packer.create_slatepack(&slate).unwrap();
+		let slatepack_slate = packer.get_slate(&slatepack).unwrap();
+		assert_eq!(slatepack_slate.kernel_features_args, expected_args);
+		assert_eq!(
+			slatepack_slate.tx.unwrap().kernels()[0].features,
+			expected_features
+		);
+	}
 }
 
 #[test]
