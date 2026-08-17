@@ -1221,6 +1221,9 @@ where
 
 	// Step 5: Cancel any transactions with an expired TTL
 	for tx in txs {
+		if tx.confirmed {
+			continue;
+		}
 		if let Some(e) = tx.ttl_cutoff_height {
 			if tip.0 >= e {
 				wallet_lock!(wallet_inst, w);
@@ -1365,10 +1368,10 @@ where
 	};
 
 	for tx in txs.iter_mut() {
-		if tx.confirmed {
+		if tx.confirmed && tx.confirmed_height.is_some() {
 			continue;
 		}
-		if tx.amount_debited != 0 && tx.amount_credited != 0 {
+		if tx.amount_debited != 0 && tx.amount_credited != 0 && tx.confirmed_height.is_some() {
 			continue;
 		}
 		if let Some(e) = tx.kernel_excess {
@@ -1381,8 +1384,11 @@ where
 				debug!("Kernel Retrieved: {:?}", k);
 				wallet_lock!(wallet_inst, w);
 				let mut batch = w.batch(keychain_mask)?;
-				tx.confirmed = true;
-				tx.update_confirmation_ts();
+				if !tx.confirmed {
+					tx.confirmed = true;
+					tx.update_confirmation_ts();
+				}
+				tx.confirmed_height = Some(k.1);
 				batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 				batch.commit()?;
 			}

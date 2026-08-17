@@ -103,6 +103,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			Ok(())
 		},
 	)?;
+	let confirmed_height = chain.head().unwrap().height;
 
 	// ensure stored excess is correct in both wallets
 	// Wallet 1 calculated the excess with the full slate // Wallet 2 only had the excess provided by
@@ -121,6 +122,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			println!("{:?}", tx);
 			println!();
 			assert!(tx.confirmed);
+			assert_eq!(tx.confirmed_height, Some(confirmed_height));
 			assert_eq!(stored_excess, tx.kernel_excess);
 			Ok(())
 		},
@@ -139,6 +141,7 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			println!("{:?}", tx);
 			println!();
 			assert!(tx.confirmed);
+			assert_eq!(tx.confirmed_height, Some(confirmed_height));
 			assert_eq!(stored_excess, tx.kernel_excess);
 			Ok(())
 		},
