@@ -826,6 +826,9 @@ where
 	K: Keychain,
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+	if slate.state == SlateState::Invoice2 && context.input_ids.is_empty() {
+		return Err(Error::SlateState);
+	}
 	let mut excess_override = None;
 
 	let mut sl = slate.clone();
