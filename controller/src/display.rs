@@ -42,9 +42,9 @@ pub fn outputs(
 		return Ok(());
 	}
 	let mut t = term::stdout().unwrap();
-	t.fg(term::color::MAGENTA).unwrap();
+	let _ = t.fg(term::color::MAGENTA);
 	writeln!(t, "{}", title).unwrap();
-	t.reset().unwrap();
+	let _ = t.reset();
 
 	let mut table = table!();
 
@@ -143,9 +143,9 @@ pub fn txs(
 		return Ok(());
 	}
 	let mut t = term::stdout().unwrap();
-	t.fg(term::color::MAGENTA).unwrap();
+	let _ = t.fg(term::color::MAGENTA);
 	writeln!(t, "{}", title).unwrap();
-	t.reset().unwrap();
+	let _ = t.reset();
 
 	let mut table = table!();
 
@@ -333,9 +333,9 @@ pub fn view_wallet_output(
 	}
 
 	let mut t = term::stdout().unwrap();
-	t.fg(term::color::MAGENTA).unwrap();
+	let _ = t.fg(term::color::MAGENTA);
 	writeln!(t, "{}", title).unwrap();
-	t.reset().unwrap();
+	let _ = t.reset();
 
 	let mut table = table!();
 
@@ -559,20 +559,20 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		return Ok(());
 	}
 	let mut t = term::stdout().unwrap();
-	t.fg(term::color::MAGENTA).unwrap();
+	let _ = t.fg(term::color::MAGENTA);
 	writeln!(t, "{}", title).unwrap();
-	t.reset().unwrap();
+	let _ = t.reset();
 
 	let pp = match &tx.payment_proof {
 		None => {
 			writeln!(t, "None").unwrap();
-			t.reset().unwrap();
+			let _ = t.reset();
 			return Ok(());
 		}
 		Some(p) => p.clone(),
 	};
 
-	t.fg(term::color::WHITE).unwrap();
+	let _ = t.fg(term::color::WHITE);
 	writeln!(t).unwrap();
 	let receiver_signature = match pp.receiver_signature {
 		Some(s) => {
@@ -628,7 +628,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	.unwrap();
 	writeln!(t, "Sender Signature: {}", sender_signature).unwrap();
 
-	t.reset().unwrap();
+	let _ = t.reset();
 
 	println!();
 
