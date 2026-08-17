@@ -30,28 +30,55 @@ jobs:
                     target/release/grin-wallet-${{  github.ref_name }}-linux-x86_64.tar.gz
                     target/release/grin-wallet-${{  github.ref_name }}-linux-x86_64-sha256sum.txt
 
-    macos-release:
-        name: macOS Release
+    macos-release-x86:
+        name: macOS Release - x86_64
         runs-on: macos-latest
         steps:
+          - name: Install Rust Target
+            run: rustup target add x86_64-apple-darwin
           - name: Checkout
             uses: actions/checkout@v6
             with:
               submodules: recursive
           - name: Build
-            run: cargo build --release
+            run: cargo build --release --target x86_64-apple-darwin
           - name: Archive
-            working-directory: target/release
+            working-directory: target/x86_64-apple-darwin/release
             run: tar -czvf grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz grin-wallet
           - name: Create Checksum
-            working-directory: target/release
+            working-directory: target/x86_64-apple-darwin/release
             run: openssl sha256 grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz > grin-wallet-${{  github.ref_name }}-macos-x86_64-sha256sum.txt
           - name: Release
             uses: softprops/action-gh-release@v1
             with:
-                files: |
-                    target/release/grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz
-                    target/release/grin-wallet-${{  github.ref_name }}-macos-x86_64-sha256sum.txt
+              files: |
+                target/x86_64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz
+                target/x86_64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-x86_64-sha256sum.txt
+
+    macos-release-arm64:
+        name: macOS Release - arm64
+        runs-on: macos-latest
+        steps:
+          - name: Install Rust Target
+            run: rustup target add aarch64-apple-darwin
+          - name: Checkout
+            uses: actions/checkout@v6
+            with:
+              submodules: recursive
+          - name: Build
+            run: cargo build --release --target aarch64-apple-darwin
+          - name: Archive
+            working-directory: target/aarch64-apple-darwin/release
+            run: tar -czvf grin-wallet-${{  github.ref_name }}-macos-arm64.tar.gz grin-wallet
+          - name: Create Checksum
+            working-directory: target/aarch64-apple-darwin/release
+            run: openssl sha256 grin-wallet-${{  github.ref_name }}-macos-arm64.tar.gz > grin-wallet-${{  github.ref_name }}-macos-arm64-sha256sum.txt
+          - name: Release
+            uses: softprops/action-gh-release@v1
+            with:
+              files: |
+                target/aarch64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-arm64.tar.gz
+                target/aarch64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-arm64-sha256sum.txt
     
     windows-release:
         name: Windows Release
