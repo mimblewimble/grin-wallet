@@ -11,8 +11,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! core::libtx specific tests
-//use grin_wallet_libwallet::Slate;
+//! Slate versioning tests
+
+use grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight};
+use grin_core::core::FeeFields;
+use grin_wallet_libwallet::{KernelFeaturesArgs, Slate, SlateVersion, VersionedSlate};
+
+#[test]
+fn height_locked_round_trip() {
+	let lock_height = 500_000;
+	let expected_features = KernelFeatures::HeightLocked {
+		fee: FeeFields::new(0, 42).unwrap(),
+		lock_height,
+	};
+	let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
+
+	let versioned = VersionedSlate::into_version(slate, SlateVersion::V4).unwrap();
+	let json = serde_json::to_string(&versioned).unwrap();
+	let versioned: VersionedSlate = serde_json::from_str(&json).unwrap();
+	let slate: Slate = versioned.into();
+
+	assert_eq!(slate.kernel_features, expected_features.as_u8());
+	assert_eq!(
+		slate.kernel_features_args,
+		Some(KernelFeaturesArgs { lock_height })
+	);
+	assert_eq!(slate.tx.unwrap().kernels()[0].features, expected_features);
+}
+
+#[test]
+fn kernel_features() {
+	let fee = FeeFields::new(0, 42).unwrap();
+	let features = [
+		KernelFeatures::Plain { fee },
+		KernelFeatures::HeightLocked {
+			fee,
+			lock_height: 500_000,
+		},
+		KernelFeatures::NoRecentDuplicate {
+			fee,
+			relative_height: NRDRelativeHeight::new(10).unwrap(),
+		},
+	];
+
+	for expected_features in features {
+		let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
+		assert_eq!(slate.kernel_features, expected_features.as_u8());
+		assert_eq!(slate.tx.unwrap().kernels()[0].features, expected_features);
+	}
+
+	assert!(matches!(
+		Slate::blank_with_kernel_features(2, false, KernelFeatures::Coinbase),
+		Err(grin_wallet_libwallet::Error::InvalidKernelFeatures(1))
+	));
+}
 
 // test all slate conversions
 /* TODO: Turn back on upon release of new slate version
