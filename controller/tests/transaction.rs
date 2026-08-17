@@ -111,6 +111,17 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		mask1,
 		PathBuf::from(test_dir),
 		|sender_api, m| {
+			let error = sender_api
+				.init_send_tx(
+					m,
+					InitTxArgs {
+						amount: 0,
+						..Default::default()
+					},
+				)
+				.unwrap_err();
+			assert_eq!(error, libwallet::Error::InvalidAmount);
+
 			// note this will increment the block count as part of the transaction "Posting"
 			let args = InitTxArgs {
 				src_acct_name: None,

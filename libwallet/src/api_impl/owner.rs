@@ -530,6 +530,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if args.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+
 	let payment_proof_address = if let Some(a) = &args.payment_proof_recipient_address {
 		if a.valid_network() {
 			Some(a)
