@@ -18,8 +18,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use uuid::Uuid;
 
-use crate::grin_core::consensus::valid_header_version;
-use crate::grin_core::core::HeaderVersion;
+use crate::grin_core::consensus::header_version;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
@@ -70,17 +69,7 @@ where
 	}
 	slate.amount = amount;
 
-	if valid_header_version(current_height, HeaderVersion(1)) {
-		slate.version_info.block_header_version = 1;
-	}
-
-	if valid_header_version(current_height, HeaderVersion(2)) {
-		slate.version_info.block_header_version = 2;
-	}
-
-	if valid_header_version(current_height, HeaderVersion(3)) {
-		slate.version_info.block_header_version = 3;
-	}
+	slate.version_info.block_header_version = header_version(current_height).0;
 
 	// Set the features explicitly to 0 here.
 	// This will generate a Plain kernel (rather than a HeightLocked kernel).
