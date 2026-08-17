@@ -196,6 +196,11 @@ where
 				return Err(Error::WalletSeedExists(msg));
 			}
 		}
+		let mnemonic_length = if mnemonic_length == 0 {
+			32
+		} else {
+			mnemonic_length
+		};
 		WalletSeed::init_file(
 			&data_dir_name,
 			mnemonic_length,
@@ -286,7 +291,7 @@ where
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let res = wallet_seed
 			.to_mnemonic()
-			.map_err(|_| Error::Lifecycle("Error recovering wallet seed".into()))?;
+			.map_err(|_| Error::Lifecycle("Wallet was created without a recovery phrase".into()))?;
 		Ok(ZeroingString::from(res))
 	}
 
@@ -380,5 +385,61 @@ where
 			}
 			Some(b) => Ok(b),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::keychain::ExtKeychain;
+	use crate::node_clients::HTTPNodeClient;
+	use std::time::Duration;
+
+	fn provider(test_dir: &str) -> DefaultLCProvider<HTTPNodeClient, ExtKeychain> {
+		let client =
+			HTTPNodeClient::new("http://127.0.0.1:1", None, Duration::from_secs(1)).unwrap();
+		let mut provider = DefaultLCProvider::new(client);
+		provider.set_top_level_directory(test_dir).unwrap();
+		provider
+	}
+
+	#[test]
+	fn default_recovery_phrase() {
+		let test_dir = "test_output/default_recovery_phrase";
+		let _ = fs::remove_dir_all(test_dir);
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let mut provider = provider(test_dir);
+		let password = ZeroingString::from("test");
+
+		provider
+			.create_wallet(None, None, 0, password.clone(), false)
+			.unwrap();
+		let mnemonic = provider.get_mnemonic(None, password).unwrap();
+
+		assert_eq!(mnemonic.split_whitespace().count(), 24);
+		fs::remove_dir_all(test_dir).unwrap();
+	}
+
+	#[test]
+	fn missing_recovery_phrase() {
+		let test_dir = "test_output/missing_recovery_phrase";
+		let _ = fs::remove_dir_all(test_dir);
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let provider = provider(test_dir);
+		let password = ZeroingString::from("test");
+		let data_dir = PathBuf::from(test_dir).join(GRIN_WALLET_DIR);
+
+		WalletSeed::init_file(data_dir.to_str().unwrap(), 0, None, password.clone(), false)
+			.unwrap();
+		let error = match provider.get_mnemonic(None, password) {
+			Ok(_) => panic!("expected missing recovery phrase error"),
+			Err(error) => error,
+		};
+
+		assert_eq!(
+			error,
+			Error::Lifecycle("Wallet was created without a recovery phrase".into())
+		);
+		fs::remove_dir_all(test_dir).unwrap();
 	}
 }
