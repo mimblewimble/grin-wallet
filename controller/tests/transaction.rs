@@ -105,6 +105,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// assert wallet contents
 	// and a single use api for a send command
 	let amount = 60_000_000_000;
+	let header_version = core::consensus::header_version(chain.head().unwrap().height).0;
 	let mut slate = Slate::blank(1, false);
 	wallet::controller::owner_single_use(
 		wallet1.clone(),
@@ -124,6 +125,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			let slate_i = sender_api.init_send_tx(m, args)?;
 
 			assert_eq!(slate_i.state, SlateState::Standard1);
+			assert_eq!(slate_i.version_info.block_header_version, header_version);
 
 			// Check we are creating a tx with the expected lock_height of 0.
 			// We will check this produces a Plain kernel later.
