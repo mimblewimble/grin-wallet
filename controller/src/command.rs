@@ -24,7 +24,7 @@ use crate::impls::SlateGetter as _;
 use crate::keychain;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
@@ -764,32 +764,34 @@ where
 	Ok(())
 }
 
+pub fn read_slatepack(args: ReceiveArgs) -> Result<Slatepack, Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	let slatepack = match args.input_file {
+		Some(f) => PathToSlatepack::new(f.into(), &packer, true).get_slatepack(false)?,
+		None => match args.input_slatepack_message {
+			Some(message) => packer.deser_slatepack(message.as_bytes(), false)?,
+			None => {
+				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
+			}
+		},
+	};
+	Ok(slatepack)
+}
+
 pub fn unpack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	args: ReceiveArgs,
+	mut slatepack: Slatepack,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slatepack = match args.input_file {
-		Some(f) => {
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				recipients: vec![],
-				dec_key: None,
-			});
-			PathToSlatepack::new(f.into(), &packer, true).get_slatepack(false)?
-		}
-		None => match args.input_slatepack_message {
-			Some(mes) => owner_api.decode_slatepack_message(keychain_mask, mes, vec![])?,
-			None => {
-				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
-			}
-		},
-	};
 	println!();
 	println!("SLATEPACK CONTENTS");
 	println!("------------------");
