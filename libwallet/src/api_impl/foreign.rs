@@ -66,6 +66,9 @@ where
 	K: Keychain,
 {
 	let mut ret_slate = slate.clone();
+	if ret_slate.state == SlateState::Invoice1 {
+		return Err(Error::InvoiceSlateRequiresPay);
+	}
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match dest_acct_name {
 		Some(d) => {
