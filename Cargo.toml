@@ -26,7 +26,7 @@ thiserror = "1"
 log = "0.4"
 linefeed = "0.6"
 semver = "1.0.28"
-rustyline = "9"
+rustyline = "10"
 lazy_static = "1"
 
 grin_wallet_api = { path = "./api", version = "5.5.0" }
@@ -52,3 +52,6 @@ url = "2.1"
 serde = "1"
 serde_json = "1"
 easy-jsonrpc-mw = "0.5.4"
+
+[patch.crates-io]
+lmdb-master-sys = { git = "https://github.com/wiesche89/heed", rev = "4c7252128a58819406f2978adfc8d41365e7f77a" }
