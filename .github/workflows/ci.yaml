@@ -5,16 +5,38 @@ jobs:
   linux-tests:
     name: Linux Tests
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        job_args: [api, config, controller, impls, libwallet, .]
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - name: Test ${{ matrix.job_args }}
-        working-directory: ${{ matrix.job_args }}
-        run: cargo test --release
+      - name: Tests
+        run: cargo test --release --all --locked
+
+  musl-tests:
+    name: Linux musl ${{ matrix.arch }} Tests
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            image: messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            image: messense/rust-musl-cross:aarch64-musl@sha256:ecae5dd62d1c938c14f8071d36c16fa699860aace03bfb5284fb1216474d2643
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Tests
+        env:
+          OPENSSL_STATIC: "1"
+        run: cargo test --release --all --locked --target ${{ matrix.target }}
 
   macos-tests:
     name: macOS Tests
@@ -25,15 +47,89 @@ jobs:
         with:
           submodules: recursive
       - name: Tests
-        run: cargo test --release --all
+        run: cargo test --release --all --locked
 
   windows-tests:
     name: Windows Tests
-    runs-on: windows-latest
+    runs-on: windows-2022
+    env:
+      ROARING_ARCH: x86-64-v2
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Tests
-        run: cargo test --release --all
+        run: cargo test --release --all --locked
+
+  bsd-tests:
+    name: ${{ matrix.name }} Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: cpa.sh {0} --sync-files runner-to-vm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: OpenBSD
+            os: openbsd
+            version: "7.9"
+            install: sudo pkg_add rust git cmake pkgconf gmake curl
+          - name: FreeBSD
+            os: freebsd
+            version: "14.4"
+            install: sudo pkg install -y rust git cmake pkgconf gmake curl perl5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Start ${{ matrix.name }}
+        uses: cross-platform-actions/action@v1.3.0
+        with:
+          operating_system: ${{ matrix.os }}
+          architecture: x86-64
+          version: ${{ matrix.version }}
+          memory: 8G
+          cpu_count: 4
+
+      - name: Install dependencies
+        run: ${{ matrix.install }}
+
+      - name: Raise SysV semaphore limits
+        if: matrix.os == 'openbsd'
+        run: |
+          # LMDB environments created by separate doctest processes accumulate during the run.
+          sudo sysctl kern.seminfo.semmni=256
+          sudo sysctl kern.seminfo.semmns=512
+          sudo sysctl kern.seminfo.semmnu=256
+
+      - name: Build tests
+        if: matrix.os == 'openbsd'
+        run: cargo test --release --all --locked --no-run
+
+      - name: Clear Cargo cache
+        if: matrix.os == 'openbsd'
+        run: rm -rf /home/runner/.cargo/registry/cache
+
+      - name: Tests
+        run: cargo test --release --all --locked
+
+  telegram-notify:
+    name: Telegram Notification
+    needs: [linux-tests, musl-tests, macos-tests, windows-tests, bsd-tests]
+    if: always() && github.event_name == 'push'
+    uses: ./.github/workflows/telegram.yaml
+    secrets: inherit
+    with:
+      title: Grin Wallet CI
+      status: ${{ contains(join(needs.*.result, ','), 'failure') && 'failed' || contains(join(needs.*.result, ','), 'cancelled') && 'cancelled' || 'success' }}
+      details: |
+        <b>Linux:</b> ${{ needs.linux-tests.result }}
+        <b>musl:</b> ${{ needs.musl-tests.result }}
+        <b>macOS:</b> ${{ needs.macos-tests.result }}
+        <b>Windows:</b> ${{ needs.windows-tests.result }}
+        <b>BSD:</b> ${{ needs.bsd-tests.result }}
+      commit_message: ${{ github.event.head_commit.message }}

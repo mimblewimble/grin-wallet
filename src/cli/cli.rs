@@ -30,7 +30,7 @@ use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
-use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper, OutputStreamType};
+use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper};
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
@@ -124,10 +124,9 @@ where
 		.history_ignore_space(true)
 		.completion_type(CompletionType::List)
 		.edit_mode(EditMode::Emacs)
-		.output_stream(OutputStreamType::Stdout)
 		.build();
 
-	let mut reader = Editor::with_config(editor);
+	let mut reader = Editor::with_config(editor).map_err(|e| Error::GenericError(e.to_string()))?;
 	reader.set_helper(Some(EditorHelper(
 		FilenameCompleter::new(),
 		MatchingBracketHighlighter::new(),

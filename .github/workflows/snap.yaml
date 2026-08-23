@@ -1,0 +1,65 @@
+name: Snap Package
+
+on:
+  workflow_call:
+    inputs:
+      build_label:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BUILD_LABEL: ${{ inputs.build_label }}
+
+jobs:
+  build-snap:
+    name: Snap ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Prepare snapcraft project
+        run: |
+          grade=devel
+          if [ "$GITHUB_REF_NAME" = master ]; then
+            grade=stable
+          elif [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != *-* ]]; then
+            grade=stable
+          fi
+          mkdir -p snap
+          sed "s/SNAP_GRADE/$grade/" .packaging/snaps/snapcraft.yaml > snap/snapcraft.yaml
+
+      - name: Build snap package
+        uses: snapcore/action-build@v1
+        with:
+          path: .
+
+      - name: Prepare artifact
+        run: |
+          snap=$(find . -maxdepth 1 -name "*.snap" -print -quit)
+          asset=grin-wallet-${BUILD_LABEL}-linux-${{ matrix.arch }}.snap
+          mv "$snap" "$asset"
+          openssl sha256 "$asset" > "${asset}-sha256sum.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: snap-${{ matrix.arch }}
+          path: |
+            grin-wallet-${{ env.BUILD_LABEL }}-linux-${{ matrix.arch }}.snap
+            grin-wallet-${{ env.BUILD_LABEL }}-linux-${{ matrix.arch }}.snap-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
