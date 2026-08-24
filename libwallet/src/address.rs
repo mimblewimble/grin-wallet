@@ -21,7 +21,15 @@ use grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
 use crate::blake2::blake2b::blake2b;
 
-/// Derive a Slatepack address path from an output parent path and index
+/// Derive a Slatepack address path from an output parent path and index.
+///
+/// Output paths:
+/// - account m/0: m/0/0/0, m/0/0/1
+/// - account m/1: m/1/0/0, m/1/0/1
+///
+/// Slatepack address paths:
+/// - account m/0: m/0/1/0, m/0/1/1
+/// - account m/1: m/1/1/0, m/1/1/1
 pub fn address_derivation_path(parent_key_id: &Identifier, index: u32) -> Identifier {
 	let mut key_path = parent_key_id.to_path();
 	key_path.path[1] = ChildNumber::from(1);
