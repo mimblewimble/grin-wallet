@@ -31,6 +31,10 @@ use crate::slate_versions::v4::{
 	VersionCompatInfoV4,
 };
 
+// KernelFeatures constants from grin_core
+const HEIGHT_LOCKED_U8: u8 = 2;
+const NO_RECENT_DUPLICATE_U8: u8 = 3;
+
 impl Writeable for SlateStateV4 {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		let b = match self {
@@ -449,8 +453,8 @@ impl Writeable for SlateV4Bin {
 			proof: &v4.proof,
 		}
 		.write(writer)?;
-		// Write lock height for height locked kernels
-		if v4.feat == 2 {
+		// Write the height argument for height locked and NRD kernels
+		if matches!(v4.feat, HEIGHT_LOCKED_U8 | NO_RECENT_DUPLICATE_U8) {
 			let lock_hgt = match &v4.feat_args {
 				Some(l) => l.lock_hgt,
 				None => 0,
@@ -475,9 +479,22 @@ impl Readable for SlateV4Bin {
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
-		let feat_args = if opts.feat == 2 {
+		let feat_args = if matches!(opts.feat, HEIGHT_LOCKED_U8 | NO_RECENT_DUPLICATE_U8) {
 			Some(KernelFeaturesArgsV4 {
-				lock_hgt: reader.read_u64()?,
+				lock_hgt: reader.read_u64().map_err(|err| {
+					if opts.feat == NO_RECENT_DUPLICATE_U8
+						&& matches!(
+							&err,
+							grin_ser::Error::IOErr(_, std::io::ErrorKind::UnexpectedEof)
+						) {
+						grin_ser::Error::IOErr(
+							"NRD Slatepack is missing relative height".into(),
+							std::io::ErrorKind::UnexpectedEof,
+						)
+					} else {
+						err
+					}
+				})?,
 			})
 		} else {
 			None

@@ -11,8 +11,106 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! core::libtx specific tests
-//use grin_wallet_libwallet::Slate;
+//! Slate versioning tests
+
+use grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight};
+use grin_core::core::FeeFields;
+use grin_wallet_libwallet::{Slate, SlateVersion, Slatepacker, SlatepackerArgs, VersionedSlate};
+
+#[test]
+fn kernel_features_round_trip() {
+	let fee = FeeFields::new(0, 42).unwrap();
+	let features = [
+		KernelFeatures::HeightLocked {
+			fee,
+			lock_height: 500_000,
+		},
+		KernelFeatures::NoRecentDuplicate {
+			fee,
+			relative_height: NRDRelativeHeight::new(10).unwrap(),
+		},
+	];
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+
+	for expected_features in features {
+		let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
+		let expected_args = slate.kernel_features_args.clone();
+
+		let versioned = VersionedSlate::into_version(slate.clone(), SlateVersion::V4).unwrap();
+		let json = serde_json::to_string(&versioned).unwrap();
+		let versioned: VersionedSlate = serde_json::from_str(&json).unwrap();
+		let json_slate: Slate = versioned.into();
+		assert_eq!(json_slate.kernel_features_args, expected_args);
+		assert_eq!(
+			json_slate.tx.unwrap().kernels()[0].features,
+			expected_features
+		);
+
+		let slatepack = packer.create_slatepack(&slate).unwrap();
+		let slatepack_slate = packer.get_slate(&slatepack).unwrap();
+		assert_eq!(slatepack_slate.kernel_features_args, expected_args);
+		assert_eq!(
+			slatepack_slate.tx.unwrap().kernels()[0].features,
+			expected_features
+		);
+	}
+}
+
+#[test]
+fn nrd_missing_height() {
+	let features = KernelFeatures::NoRecentDuplicate {
+		fee: FeeFields::new(0, 42).unwrap(),
+		relative_height: NRDRelativeHeight::new(10).unwrap(),
+	};
+	let slate = Slate::blank_with_kernel_features(2, false, features).unwrap();
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	let mut slatepack = packer.create_slatepack(&slate).unwrap();
+
+	slatepack.payload.truncate(slatepack.payload.len() - 8);
+	let error = packer.get_slate(&slatepack).unwrap_err();
+	match error {
+		grin_wallet_libwallet::Error::SlatepackDeser(message) => assert!(
+			message.contains("NRD Slatepack is missing relative height"),
+			"unexpected error: {message}"
+		),
+		error => panic!("unexpected error: {error:?}"),
+	}
+}
+
+#[test]
+fn kernel_features() {
+	let fee = FeeFields::new(0, 42).unwrap();
+	let features = [
+		KernelFeatures::Plain { fee },
+		KernelFeatures::HeightLocked {
+			fee,
+			lock_height: 500_000,
+		},
+		KernelFeatures::NoRecentDuplicate {
+			fee,
+			relative_height: NRDRelativeHeight::new(10).unwrap(),
+		},
+	];
+
+	for expected_features in features {
+		let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
+		assert_eq!(slate.kernel_features, expected_features.as_u8());
+		assert_eq!(slate.tx.unwrap().kernels()[0].features, expected_features);
+	}
+
+	assert!(matches!(
+		Slate::blank_with_kernel_features(2, false, KernelFeatures::Coinbase),
+		Err(grin_wallet_libwallet::Error::InvalidKernelFeatures(1))
+	));
+}
 
 // test all slate conversions
 /* TODO: Turn back on upon release of new slate version

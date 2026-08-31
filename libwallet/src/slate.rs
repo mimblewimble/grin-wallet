@@ -276,6 +276,38 @@ impl Slate {
 			kernel_features_args: None,
 		}
 	}
+
+	/// Create a new slate with the provided kernel features.
+	pub fn blank_with_kernel_features(
+		num_participants: u8,
+		is_invoice: bool,
+		kernel_features: KernelFeatures,
+	) -> Result<Slate, Error> {
+		let feature = kernel_features.as_u8();
+		let (fee_fields, kernel_features_args) = match kernel_features {
+			KernelFeatures::Plain { fee } => (fee, None),
+			KernelFeatures::Coinbase => return Err(Error::InvalidKernelFeatures(feature)),
+			KernelFeatures::HeightLocked { fee, lock_height } => {
+				(fee, Some(KernelFeaturesArgs { lock_height }))
+			}
+			KernelFeatures::NoRecentDuplicate {
+				fee,
+				relative_height,
+			} => (
+				fee,
+				Some(KernelFeaturesArgs {
+					lock_height: relative_height.into(),
+				}),
+			),
+		};
+		let mut slate = Slate::blank(num_participants, is_invoice);
+		slate.fee_fields = fee_fields;
+		slate.kernel_features = feature;
+		slate.kernel_features_args = kernel_features_args;
+		slate.update_kernel()?;
+		Ok(slate)
+	}
+
 	/// Removes any signature data that isn't mine, for compacting
 	/// slates for a return journey
 	pub fn remove_other_sigdata<K>(
@@ -954,6 +986,8 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	let secp = secp.lock();
 	let mut calc_slate = Slate::blank(2, false);
 	calc_slate.fee_fields = slate.fee;
+	calc_slate.kernel_features = slate.feat;
+	calc_slate.kernel_features_args = slate.feat_args.as_ref().map(KernelFeaturesArgs::from);
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
 			public_blind_excess: d.xs,
@@ -969,18 +1003,11 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		Ok(s) => s,
 		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
 	};
+	let features = calc_slate
+		.kernel_features()
+		.unwrap_or(KernelFeatures::Plain { fee: slate.fee });
 	let kernel = TxKernel {
-		features: match slate.feat {
-			0 => KernelFeatures::Plain { fee: slate.fee },
-			1 => KernelFeatures::HeightLocked {
-				fee: slate.fee,
-				lock_height: match slate.feat_args.as_ref() {
-					Some(a) => a.lock_hgt,
-					None => 0,
-				},
-			},
-			_ => KernelFeatures::Plain { fee: slate.fee },
-		},
+		features,
 		excess,
 		excess_sig,
 	};
