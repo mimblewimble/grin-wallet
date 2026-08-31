@@ -77,13 +77,22 @@ impl From<VersionedSlate> for Slate {
 	}
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize)]
 #[serde(untagged)]
 /// Binary versions, can only be parsed 1:1 into the appropriate
 /// version, and VersionedSlate can up/downgrade from there
 pub enum VersionedBinSlate {
 	/// Version 4, binary
 	V4(SlateV4Bin),
+}
+
+impl<'de> serde::Deserialize<'de> for VersionedBinSlate {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		<SlateV4Bin as serde::Deserialize>::deserialize(deserializer).map(Self::V4)
+	}
 }
 
 impl TryFrom<VersionedSlate> for VersionedBinSlate {

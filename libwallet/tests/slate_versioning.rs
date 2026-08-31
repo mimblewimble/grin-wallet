@@ -61,6 +61,31 @@ fn kernel_features_round_trip() {
 }
 
 #[test]
+fn nrd_missing_height() {
+	let features = KernelFeatures::NoRecentDuplicate {
+		fee: FeeFields::new(0, 42).unwrap(),
+		relative_height: NRDRelativeHeight::new(10).unwrap(),
+	};
+	let slate = Slate::blank_with_kernel_features(2, false, features).unwrap();
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	let mut slatepack = packer.create_slatepack(&slate).unwrap();
+
+	slatepack.payload.truncate(slatepack.payload.len() - 8);
+	let error = packer.get_slate(&slatepack).unwrap_err();
+	match error {
+		grin_wallet_libwallet::Error::SlatepackDeser(message) => assert!(
+			message.contains("NRD Slatepack is missing relative height"),
+			"unexpected error: {message}"
+		),
+		error => panic!("unexpected error: {error:?}"),
+	}
+}
+
+#[test]
 fn kernel_features() {
 	let fee = FeeFields::new(0, 42).unwrap();
 	let features = [
