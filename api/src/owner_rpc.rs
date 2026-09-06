@@ -2537,7 +2537,8 @@ where
 			message,
 			secret_indices,
 		)?;
-		let version = SlateVersion::V4;
+		// Keep the decoded version; lowest_for would downgrade a plain V5 slate
+		let version = SlateVersion::try_from(slate.version_info.version)?;
 		VersionedSlate::into_version(slate, version)
 	}
 
@@ -2890,4 +2891,45 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 			);
 		}
 	};
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::libwallet::{SlatepackArmor, VersionedBinSlate};
+	use grin_wallet_util::byte_ser;
+	use tempfile::tempdir;
+
+	#[test]
+	fn slatepack_keeps_v5() {
+		let slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V5).unwrap();
+		let slate = VersionedBinSlate::try_from(slate).unwrap();
+		let mut slatepack = Slatepack::default();
+		slatepack.payload = byte_ser::to_bytes(&slate).unwrap();
+		let message = SlatepackArmor::encode(&slatepack).unwrap();
+		let request = serde_json::json!({
+			"jsonrpc": "2.0",
+			"method": "slate_from_slatepack_message",
+			"params": {
+				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"secret_indices": [],
+				"message": message
+			},
+			"id": 1
+		});
+		let dir = tempdir().unwrap();
+		let response = run_doctest_owner(
+			request,
+			dir.path().to_str().unwrap(),
+			0,
+			false,
+			false,
+			false,
+			false,
+		)
+		.unwrap()
+		.unwrap();
+
+		assert_eq!(response["result"]["Ok"]["ver"], "5:3");
+	}
 }

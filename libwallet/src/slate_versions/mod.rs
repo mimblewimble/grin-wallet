@@ -52,6 +52,18 @@ pub enum SlateVersion {
 	V4,
 }
 
+impl TryFrom<u16> for SlateVersion {
+	type Error = Error;
+
+	fn try_from(version: u16) -> Result<Self, Self::Error> {
+		match version {
+			4 => Ok(Self::V4),
+			5 => Ok(Self::V5),
+			version => Err(Error::SlateVersion(version)),
+		}
+	}
+}
+
 impl SlateVersion {
 	/// The lowest version that can represent this slate without losing data, so a slate
 	/// is only sent as V5 when it has to be. V4 carries the payment proof's sender and
@@ -478,5 +490,16 @@ pub mod tests {
 			.is_none());
 
 		Ok(())
+	}
+
+	#[test]
+	fn slate_version_numbers() {
+		for (number, version) in [(4, SlateVersion::V4), (5, SlateVersion::V5)] {
+			assert_eq!(SlateVersion::try_from(number).unwrap(), version);
+		}
+		assert!(matches!(
+			SlateVersion::try_from(6),
+			Err(Error::SlateVersion(6))
+		));
 	}
 }

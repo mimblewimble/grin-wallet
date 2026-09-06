@@ -43,7 +43,6 @@ Separating side effects until the 'save_step' part would make these functions mu
    of searching by commitment.
  - Move payment-proof creation and verification onto `Slate` so it can also be used
    outside contracts and is versioned with the slate format.
- - Keep V5 when decoding Slatepacks through Owner RPC.
  - Preserve kernel features and their arguments across V4 and V5; see #793.
  - Choose the sender derivation path explicitly and keep encrypted outgoing files
    identifiable locally.
