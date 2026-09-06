@@ -78,14 +78,13 @@ account selected with `--account`.
 
 * Only one or two participants are supported. Larger contracts remain disabled because of
   the [known multi-party attack](https://forum.grin.mw/t/grin-wallet-contract-prototype/9745/18)
-* Early payment proofs are only implemented for contracts and are only available through
-  the API. Invoice proofs support both flows; sender-nonce proofs support RSR. Both require
-  the experimental Slate V5 format. The full proposal is described in
-  [Early Payment Proofs](https://github.com/mimblewimble/grin-rfcs/pull/70). Proof data is
-  stored in the wallet database and cannot be recovered from the wallet seed alone
-* There are no contract-specific history, lookup or transport commands. Payment proof
-  memos cannot be set through the contract API or CLI. Early proofs support UTF-8 memos
-  up to 1024 bytes and bind their Blake2b hash
+* Early payment proofs are available for contracts through the API and CLI. Use `--proof-type`
+  and optionally `--memo` (up to 1024 bytes of UTF-8 text). The proof binds the memo's Blake2b hash
+* Invoice proofs work with SRS and RSR. Sender-nonce proofs only work with RSR. Both need
+  experimental Slate V5; see
+  [Early Payment Proofs](https://github.com/mimblewimble/grin-rfcs/pull/70)
+* Proof data is stored in the wallet database and cannot be restored from the seed
+* There are no contract-specific history, lookup or transport commands
 * If writing the signed transaction file fails, the wallet state has already been saved.
   Cancelling the transaction releases the locked inputs
 

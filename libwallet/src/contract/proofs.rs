@@ -513,6 +513,7 @@ where
 	let index = slate.find_index_matching_context(&keychain, context)?;
 	let mut early_proof = EarlyPaymentProof::from_slate(&slate, index, proof_args.sender_address)?;
 	early_proof.proof_type = proof_args.proof_type;
+	early_proof.memo = proof_args.memo.clone();
 	let derivation_index = match context.payment_proof_derivation_index {
 		Some(i) => i,
 		None => 0,

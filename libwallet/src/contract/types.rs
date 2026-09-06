@@ -16,7 +16,7 @@
 
 use crate::error::Error;
 use crate::grin_core::libtx::secp_ser;
-pub use crate::slate::PaymentProofType as ProofType;
+pub use crate::slate::{PaymentMemo, PaymentProofType as ProofType};
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 
@@ -95,6 +95,8 @@ pub struct ProofArgs {
 	pub suppress_proof: bool,
 	/// Requested early payment proof type
 	pub proof_type: ProofType,
+	/// Memo used when this step creates the payment proof
+	pub memo: Option<PaymentMemo>,
 	/// Sender address (required at some stage, may not necessarily be in slate so can be provided explicitly)
 	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]
 	pub sender_address: Option<DalekPublicKey>,
@@ -107,6 +109,7 @@ impl Default for ProofArgs {
 			// invoice promise with no sender address, failing with NoSenderAddressProvided.
 			suppress_proof: true,
 			proof_type: ProofType::Invoice,
+			memo: None,
 			sender_address: None,
 		}
 	}

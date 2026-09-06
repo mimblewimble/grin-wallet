@@ -517,6 +517,17 @@ subcommands:
                     short: u
                     long: outfile
                     takes_value: true
+                - proof-type:
+                    help: Create an early payment proof of this type (requires a positive --receive amount and --encrypt-for)
+                    long: proof-type
+                    possible_values:
+                      - invoice
+                      - sender-nonce
+                    takes_value: true
+                - memo:
+                    help: UTF-8 memo to bind to the early payment proof (max 1024 bytes)
+                    long: memo
+                    takes_value: true
         - sign:
             about: Sign a contract
             args:
@@ -573,6 +584,16 @@ subcommands:
                     help: Don't broadcast the transaction if it was finalized
                     long: no-broadcast
                     takes_value: false
+                - proof-type:
+                    help: Create an early payment proof of this type (requires a positive --receive amount and a Slatepack sender or --encrypt-for)
+                    long: proof-type
+                    possible_values:
+                      - invoice
+                    takes_value: true
+                - memo:
+                    help: UTF-8 memo to bind to the early payment proof (max 1024 bytes)
+                    long: memo
+                    takes_value: true
         - view:
             about: View a contract
             args:

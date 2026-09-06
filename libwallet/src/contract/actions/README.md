@@ -48,7 +48,7 @@ Separating side effects until the 'save_step' part would make these functions mu
  - Choose the sender derivation path explicitly and keep encrypted outgoing files
    identifiable locally.
  - Decide whether `target_slate_version` should control Slatepack output or be removed.
- - Add contract history, lookup by id, transport support and configurable proof memos.
+ - Add contract history, lookup and transport.
  - Decide whether the foreign JSON-RPC API should expose `new` and `sign`.
  - Add full API and RPC examples once the contract interface is stable.
  - Separate side effects out from the computation, as described above.

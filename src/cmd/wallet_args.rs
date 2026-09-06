@@ -27,6 +27,7 @@ use grin_wallet_api::Owner;
 use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+use grin_wallet_libwallet::contract::types::{PaymentMemo, ProofType};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
 use linefeed::terminal::Signal;
@@ -1016,6 +1017,28 @@ fn parse_contract_fee_rate(args: &ArgMatches) -> Result<Option<u32>, ParseError>
 		.map_err(|_| ParseError::ArgumentError("Contract fee rate is too large".to_string()))
 }
 
+fn parse_contract_proof(
+	args: &ArgMatches,
+) -> Result<(Option<ProofType>, Option<PaymentMemo>), ParseError> {
+	let proof_type = match args.value_of("proof-type") {
+		Some("invoice") => Some(ProofType::Invoice),
+		Some("sender-nonce") => Some(ProofType::SenderNonce),
+		Some(value) => {
+			return Err(ParseError::ArgumentError(format!(
+				"Unsupported proof type: {}",
+				value
+			)))
+		}
+		None => None,
+	};
+	let memo = args
+		.value_of("memo")
+		.map(|memo| PaymentMemo::new(memo.to_string()))
+		.transpose()
+		.map_err(|e| ParseError::ArgumentError(e.to_string()))?;
+	Ok((proof_type, memo))
+}
+
 pub fn parse_contract_new_args(
 	args: &ArgMatches,
 	account: &String,
@@ -1048,6 +1071,7 @@ pub fn parse_contract_new_args(
 		"minimum_confirmations",
 	)?;
 	let fee_rate = parse_contract_fee_rate(args)?;
+	let (proof_type, memo) = parse_contract_proof(args)?;
 	let outfile = parse_optional(args, "outfile")?;
 	let ttl_blocks = match args.value_of("ttl_blocks") {
 		Some(value) => {
@@ -1119,6 +1143,8 @@ pub fn parse_contract_new_args(
 		fee_rate,
 		ttl_blocks,
 		outfile,
+		proof_type,
+		memo,
 	})
 }
 
@@ -1149,6 +1175,7 @@ pub fn parse_contract_setup_args(
 		None => None,
 	};
 	let fee_rate = parse_contract_fee_rate(args)?;
+	let (proof_type, memo) = parse_contract_proof(args)?;
 	let outfile = parse_optional(args, "outfile")?;
 	let no_payjoin = args.is_present("no-payjoin");
 	let use_inputs = match args.value_of("use-inputs") {
@@ -1194,6 +1221,8 @@ pub fn parse_contract_setup_args(
 		minimum_confirmations,
 		fee_rate,
 		outfile,
+		proof_type,
+		memo,
 	})
 }
 

@@ -29,6 +29,7 @@ use std::time::Duration;
 use grin_core::core::Transaction;
 use grin_keychain::ExtKeychain;
 use grin_wallet_impls::DefaultLCProvider;
+use grin_wallet_libwallet::contract::types::{PaymentMemo, ProofType};
 
 mod common;
 use common::{clean_output_dir, execute_command, initial_setup_wallet, instantiate_wallet, setup};
@@ -164,7 +165,7 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
-	// Wallet 2 can also view a slatepack encrypted for its address
+	// Wallet 2 can also view a proof-bearing slatepack encrypted for its address
 	let mut recipient = None;
 	grin_wallet_controller::controller::owner_single_use(
 		wallet2.clone(),
@@ -183,12 +184,17 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 		"password1",
 		"contract",
 		"new",
-		"--send",
+		"--receive",
 		"1",
+		"--no-payjoin",
 		"--min_conf",
 		"1",
 		"--encrypt-for",
 		&recipient,
+		"--proof-type",
+		"sender-nonce",
+		"--memo",
+		"CLI payment",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
@@ -279,7 +285,7 @@ fn parses_contract_options() {
 			"grin-wallet",
 			"contract",
 			"new",
-			"--send",
+			"--receive",
 			"1",
 			"--min_conf",
 			"3",
@@ -289,6 +295,10 @@ fn parses_contract_options() {
 			"20",
 			"--outfile",
 			"new.slatepack",
+			"--proof-type",
+			"sender-nonce",
+			"--memo",
+			"new payment",
 		])
 		.unwrap();
 	let contract = args.subcommand_matches("contract").unwrap();
@@ -299,6 +309,36 @@ fn parses_contract_options() {
 	assert_eq!(parsed.fee_rate, Some(2));
 	assert_eq!(parsed.ttl_blocks, Some(20));
 	assert_eq!(parsed.outfile.as_deref(), Some("new.slatepack"));
+	assert_eq!(parsed.proof_type, Some(ProofType::SenderNonce));
+	assert_eq!(
+		parsed.memo.as_ref().map(PaymentMemo::as_str),
+		Some("new payment")
+	);
+	let memo = "a".repeat(PaymentMemo::MAX_LEN + 1);
+	let args = app
+		.clone()
+		.get_matches_from_safe(vec![
+			"grin-wallet",
+			"contract",
+			"new",
+			"--receive",
+			"1",
+			"--proof-type",
+			"invoice",
+			"--memo",
+			&memo,
+		])
+		.unwrap();
+	let new_args = args
+		.subcommand_matches("contract")
+		.unwrap()
+		.subcommand_matches("new")
+		.unwrap();
+	assert!(matches!(
+		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account),
+		Err(grin_wallet::cmd::wallet_args::ParseError::ArgumentError(message))
+			if message.contains("Payment memo exceeds 1024 bytes")
+	));
 
 	let expected = grin_wallet_libwallet::contract::types::DEFAULT_MINIMUM_CONFIRMATIONS;
 	let args = app
@@ -384,6 +424,10 @@ fn parses_contract_options() {
 			"2",
 			"--outfile",
 			"sign.slatepack",
+			"--proof-type",
+			"invoice",
+			"--memo",
+			"sign payment",
 		])
 		.unwrap();
 	let contract = args.subcommand_matches("contract").unwrap();
@@ -393,6 +437,11 @@ fn parses_contract_options() {
 	assert_eq!(parsed.fee_rate, Some(2));
 	assert_eq!(parsed.outfile.as_deref(), Some("sign.slatepack"));
 	assert_eq!(parsed.use_inputs.as_deref(), Some("commitment"));
+	assert_eq!(parsed.proof_type, Some(ProofType::Invoice));
+	assert_eq!(
+		parsed.memo.as_ref().map(PaymentMemo::as_str),
+		Some("sign payment")
+	);
 
 	let args = app
 		.get_matches_from_safe(vec![

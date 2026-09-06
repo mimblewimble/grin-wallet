@@ -27,7 +27,9 @@ use grin_wallet_libwallet as libwallet;
 use grin_util::secp::{Secp256k1, Signature};
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI, ProofType};
+use libwallet::contract::types::{
+	ContractNewArgsAPI, ContractSetupArgsAPI, PaymentMemo, ProofType,
+};
 use libwallet::{Slate, SlateState, Slatepacker, SlatepackerArgs, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -94,6 +96,7 @@ fn contract_early_proofs_rsr_test_impl(
 			// Proofs are opt-in; enable and supply the sender address.
 			args.setup_args.proof_args.suppress_proof = false;
 			args.setup_args.proof_args.proof_type = proof_type;
+			args.setup_args.proof_args.memo = Some(PaymentMemo::new("RSR payment".into())?);
 			args.setup_args.proof_args.sender_address = sender_address;
 			slate = api.contract_new(m, args)?;
 			recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
@@ -223,6 +226,10 @@ fn contract_early_proofs_rsr_test_impl(
 	let early_proof = early_proof.unwrap();
 	assert_eq!(early_proof.proof_type, proof_type);
 	assert_eq!(early_proof.amount, 5_000_000_000);
+	assert_eq!(
+		early_proof.memo.as_ref().map(PaymentMemo::as_str),
+		Some("RSR payment")
+	);
 	assert_eq!(
 		early_proof
 			.witness_data

@@ -24,6 +24,7 @@ use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::contract::can_finalize;
 use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs,
+	PaymentMemo, ProofArgs, ProofType,
 };
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
@@ -1698,6 +1699,56 @@ pub struct ContractNewArgs {
 	pub outfile: Option<String>,
 	/// Select and lock outputs early
 	pub add_outputs: bool,
+	/// Early payment proof type
+	pub proof_type: Option<ProofType>,
+	/// Early payment proof memo
+	pub memo: Option<PaymentMemo>,
+}
+
+fn contract_proof_args(
+	proof_type: Option<ProofType>,
+	memo: Option<PaymentMemo>,
+	receiving: bool,
+) -> Result<ProofArgs, Error> {
+	if memo.is_some() && proof_type.is_none() {
+		return Err(Error::ArgumentError(
+			"--memo requires --proof-type".to_string(),
+		));
+	}
+	if proof_type.is_some() && !receiving {
+		return Err(Error::ArgumentError(
+			"Early payment proofs require a positive --receive amount".to_string(),
+		));
+	}
+	Ok(match proof_type {
+		Some(proof_type) => ProofArgs {
+			suppress_proof: false,
+			proof_type,
+			memo,
+			..Default::default()
+		},
+		None => ProofArgs::default(),
+	})
+}
+
+fn set_proof_sender(
+	proof_args: &mut ProofArgs,
+	sender: Option<&SlatepackAddress>,
+	fallback: Option<&SlatepackAddress>,
+) -> Result<(), Error> {
+	if !proof_args.suppress_proof {
+		proof_args.sender_address = Some(
+			sender
+				.or(fallback)
+				.ok_or_else(|| {
+					Error::ArgumentError(
+						"Early payment proofs require a Slatepack sender address".into(),
+					)
+				})?
+				.pub_key,
+		);
+	}
+	Ok(())
 }
 
 impl ContractNewArgs {
@@ -1739,7 +1790,11 @@ impl ContractNewArgs {
 					make_outputs: self.make_outputs.clone(),
 					..Default::default()
 				},
-				proof_args: Default::default(),
+				proof_args: contract_proof_args(
+					self.proof_type,
+					self.memo.clone(),
+					self.receive.unwrap_or(0) > 0,
+				)?,
 			},
 			..Default::default()
 		})
@@ -1756,8 +1811,13 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let contract_new_args = args.to_api_args()?;
+	let mut contract_new_args = args.to_api_args()?;
 	let recipient = slatepack_recipient(args.counterparty_addr.as_deref())?;
+	set_proof_sender(
+		&mut contract_new_args.setup_args.proof_args,
+		recipient.as_ref(),
+		None,
+	)?;
 	let wallet_inst = owner_api.wallet_inst.clone();
 	let config_path = owner_api.config_path();
 	controller::owner_single_use(wallet_inst, keychain_mask, config_path, |api, m| {
@@ -1799,6 +1859,10 @@ pub struct ContractSetupArgs {
 	pub fee_rate: Option<u32>,
 	/// Override the output Slatepack file
 	pub outfile: Option<String>,
+	/// Early payment proof type
+	pub proof_type: Option<ProofType>,
+	/// Early payment proof memo
+	pub memo: Option<PaymentMemo>,
 
 	// Future features
 	/// Whether we should automatically sign a receive of any value
@@ -1841,6 +1905,11 @@ impl ContractSetupArgs {
 				make_outputs: self.make_outputs.clone(),
 				..Default::default()
 			},
+			proof_args: contract_proof_args(
+				self.proof_type,
+				self.memo.clone(),
+				self.receive.unwrap_or(0) > 0,
+			)?,
 			..Default::default()
 		})
 	}
@@ -1857,8 +1926,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	// Args for signing are just setup args
-	let contract_sign_args = args.to_api_args()?;
+	let mut contract_sign_args = args.to_api_args()?;
 	let recipient = slatepack_recipient(args.counterparty_addr.as_deref())?;
 	print_contract_status("Paste slatepack:", args.as_json);
 	let mut slatepack_msg = String::new();
@@ -1867,6 +1935,12 @@ where
 		.map_err(|e| libwallet::Error::GenericError(format!("Failed to read from stdin: {}", e)))?;
 	let (mut slate, sender, _) =
 		parse_slatepack_with_mode(owner_api, keychain_mask, None, Some(slatepack_msg))?;
+	// Bind the proof to the Slatepack sender; --encrypt-for is only the fallback
+	set_proof_sender(
+		&mut contract_sign_args.proof_args,
+		sender.as_ref(),
+		recipient.as_ref(),
+	)?;
 	// Prefer --encrypt-for, then reply to the sender. Without either, use plaintext.
 	let recipient = recipient.or(sender);
 	let wallet_inst = owner_api.wallet_inst.clone();
@@ -2068,7 +2142,7 @@ mod contract_tests {
 	fn contract_sign_args() {
 		let args = ContractSetupArgs {
 			counterparty_addr: None,
-			receive: None,
+			receive: Some(1),
 			send: None,
 			as_json: false,
 			use_inputs: Some("commitment".to_string()),
@@ -2077,13 +2151,50 @@ mod contract_tests {
 			fee_rate: Some(2),
 			outfile: None,
 			add_outputs: false,
+			proof_type: Some(ProofType::Invoice),
+			memo: Some(PaymentMemo::new("payment".into()).unwrap()),
 		};
-		let api_args = args.to_api_args().unwrap();
+		let mut api_args = args.to_api_args().unwrap();
+		let key = SigningKey::from_bytes(&[1; 32]);
+		let sender = SlatepackAddress {
+			hrp: "tgrin".to_string(),
+			pub_key: VerifyingKey::from(&key),
+		};
+		let fallback = SlatepackAddress {
+			hrp: "tgrin".to_string(),
+			pub_key: VerifyingKey::from(&SigningKey::from_bytes(&[2; 32])),
+		};
+		set_proof_sender(&mut api_args.proof_args, Some(&sender), Some(&fallback)).unwrap();
 		assert_eq!(api_args.fee_rate, Some(2));
+		assert_eq!(api_args.proof_args.proof_type, ProofType::Invoice);
+		assert_eq!(api_args.proof_args.sender_address, Some(sender.pub_key));
+		assert_eq!(
+			api_args.proof_args.memo.as_ref().map(PaymentMemo::as_str),
+			Some("payment")
+		);
 		assert_eq!(
 			api_args.selection_args.use_inputs.as_deref(),
 			Some("commitment")
 		);
+
+		let mut invalid = args;
+		invalid.receive = None;
+		assert!(matches!(
+			invalid.to_api_args(),
+			Err(Error::ArgumentError(message))
+				if message == "Early payment proofs require a positive --receive amount"
+		));
+		invalid.receive = Some(0);
+		assert!(matches!(
+			invalid.to_api_args(),
+			Err(Error::ArgumentError(message))
+				if message == "Early payment proofs require a positive --receive amount"
+		));
+		invalid.proof_type = None;
+		assert!(matches!(
+			invalid.to_api_args(),
+			Err(Error::ArgumentError(message)) if message == "--memo requires --proof-type"
+		));
 	}
 
 	#[test]
@@ -2102,8 +2213,23 @@ mod contract_tests {
 			fee_rate: None,
 			outfile: None,
 			add_outputs: false,
+			proof_type: Some(ProofType::SenderNonce),
+			memo: Some(PaymentMemo::new("payment".into()).unwrap()),
 		};
 		let api_args = args.to_api_args().unwrap();
+		assert_eq!(
+			api_args.setup_args.proof_args.proof_type,
+			ProofType::SenderNonce
+		);
+		assert_eq!(
+			api_args
+				.setup_args
+				.proof_args
+				.memo
+				.as_ref()
+				.map(PaymentMemo::as_str),
+			Some("payment")
+		);
 		assert_eq!(
 			api_args.setup_args.selection_args.use_inputs.as_deref(),
 			Some("commitment")

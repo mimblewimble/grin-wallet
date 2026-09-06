@@ -26,7 +26,7 @@ use grin_wallet_libwallet as libwallet;
 
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
+use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI, PaymentMemo};
 use libwallet::{NodeVersionInfo, Slate, SlateState, Slatepacker, SlatepackerArgs, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -112,6 +112,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 			};
 			// Proofs are opt-in; enable and supply the sender address.
 			args.proof_args.suppress_proof = false;
+			args.proof_args.memo = Some(PaymentMemo::new("SRS payment".into())?);
 			args.proof_args.sender_address = sender_address;
 			slate = api.contract_sign(m, &slate, args)?;
 			recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
@@ -224,6 +225,10 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 
 	let early_proof = early_proof.unwrap();
 	assert_eq!(early_proof.amount, 5_000_000_000);
+	assert_eq!(
+		early_proof.memo.as_ref().map(PaymentMemo::as_str),
+		Some("SRS payment")
+	);
 	let early_proof_json = serde_json::to_string(&early_proof).unwrap();
 
 	// Should have all proof fields filled out
