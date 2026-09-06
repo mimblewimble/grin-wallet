@@ -41,8 +41,6 @@ Separating side effects until the 'save_step' part would make these functions mu
    races a transaction already in the mempool.
  - Add a Grin node API for kernel lookup by MMR index, then use the witness index instead
    of searching by commitment.
- - Implement sender-nonce proofs for the RSR flow and expose both early-proof types
-   through one API.
  - Move payment-proof creation and verification onto `Slate` so it can also be used
    outside contracts and is versioned with the slate format.
  - Keep V5 when decoding Slatepacks through Owner RPC.

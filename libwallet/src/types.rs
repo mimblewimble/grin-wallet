@@ -405,6 +405,8 @@ pub struct Context {
 	pub log_id: Option<u32>,
 	/// Contract signing deadline copied from the slate
 	pub contract_ttl_cutoff_height: Option<u64>,
+	/// Untweaked public nonce used for a sender-nonce payment proof
+	pub sender_public_nonce: Option<PublicKey>,
 }
 
 impl Context {
@@ -457,6 +459,7 @@ impl Context {
 			setup_args: None,
 			log_id: None,
 			contract_ttl_cutoff_height: None,
+			sender_public_nonce: None,
 		}
 	}
 }
@@ -786,8 +789,7 @@ pub struct StoredProofInfo {
 	/// sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
-	// Fields beyond here are specific to early payment proofs,
-	// invoice and sender nonce
+	// Fields beyond here are specific to early payment proofs
 	/// Assumed to be 0x00 (Legacy) if missing
 	pub proof_type: Option<u8>,
 	/// receiver's public nonce from signing
@@ -803,6 +805,8 @@ pub struct StoredProofInfo {
 	pub promise_signature: Option<DalekSignature>,
 	/// Original Sender partial key
 	pub sender_part_sig: Option<Signature>,
+	/// Untweaked sender public nonce for a sender-nonce proof
+	pub sender_public_nonce: Option<PublicKey>,
 }
 
 impl StoredProofInfo {
@@ -826,6 +830,7 @@ impl StoredProofInfo {
 			memo: None,
 			promise_signature: None,
 			sender_part_sig: None,
+			sender_public_nonce: None,
 		}
 	}
 }

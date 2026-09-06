@@ -259,6 +259,47 @@ pub mod dalek_pubkey_base64 {
 	}
 }
 
+/// Serializes an Option<secp::PublicKey> to and from hex
+pub mod option_pubkey_serde {
+	use crate::grin_util::secp::key::PublicKey;
+	use crate::grin_util::{from_hex, static_secp_instance, ToHex};
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	///
+	pub fn serialize<S>(key: &Option<PublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => {
+				let secp = static_secp_instance();
+				let secp = secp.lock();
+				serializer.serialize_str(&key.serialize_vec(&secp, true).to_hex())
+			}
+			None => serializer.serialize_none(),
+		}
+	}
+
+	///
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<PublicKey>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|value| match value {
+			Some(value) => {
+				let bytes = from_hex(&value).map_err(Error::custom)?;
+				let secp = static_secp_instance();
+				let secp = secp.lock();
+				PublicKey::from_slice(&secp, &bytes)
+					.map(Some)
+					.map_err(Error::custom)
+			}
+			None => Ok(None),
+		})
+	}
+}
+
 /// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
 pub mod option_dalek_pubkey_base64 {
 	use base64;

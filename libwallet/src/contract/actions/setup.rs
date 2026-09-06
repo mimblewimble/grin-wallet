@@ -89,7 +89,9 @@ where
 	contract::utils::verify_setup_args_consistency(context_args, setup_args)?;
 
 	// Add keys and payment proof to slate (both are idempotent operations)
-	contract::slate::add_keys(&mut sl, &w.keychain(keychain_mask)?, &mut context)?;
+	let keychain = w.keychain(keychain_mask)?;
+	contract::proofs::commit_sender_nonce(&sl, &mut context, keychain.secp())?;
+	contract::slate::add_keys(&mut sl, &keychain, &mut context)?;
 	contract::slate::add_payment_proof(
 		w,
 		&mut sl,

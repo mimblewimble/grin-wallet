@@ -44,7 +44,7 @@ fn reject_proof_verification(
 ) -> Result<(), libwallet::Error> {
 	assert!(matches!(
 		method,
-		grin_wallet_api::ForeignCheckMiddlewareFn::VerifyPaymentProofInvoice
+		grin_wallet_api::ForeignCheckMiddlewareFn::VerifyPaymentProofEarly
 	));
 	assert!(slate.is_none());
 	Err(libwallet::Error::GenericError(
@@ -208,26 +208,26 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		},
 	)?;
 
-	let mut invoice_proof = None;
+	let mut early_proof = None;
 	// Now some time has passed, sender retrieves and verify the payment proof
 	wallet::controller::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
 		|api, _m| {
-			// Extract the stored data as an invoice proof
-			invoice_proof =
-				Some(api.retrieve_payment_proof_invoice(send_mask, true, None, Some(slate.id))?);
+			// Extract the stored early payment proof
+			early_proof =
+				Some(api.retrieve_payment_proof_early(send_mask, true, None, Some(slate.id))?);
 			Ok(())
 		},
 	)?;
 
-	let invoice_proof = invoice_proof.unwrap();
-	assert_eq!(invoice_proof.amount, 5_000_000_000);
-	let invoice_proof_json = serde_json::to_string(&invoice_proof).unwrap();
+	let early_proof = early_proof.unwrap();
+	assert_eq!(early_proof.amount, 5_000_000_000);
+	let early_proof_json = serde_json::to_string(&early_proof).unwrap();
 
 	// Should have all proof fields filled out
-	println!("INVOICE PROOF: {}", invoice_proof_json);
+	println!("EARLY PAYMENT PROOF: {}", early_proof_json);
 	{
 		let api = grin_wallet_api::Foreign::new(
 			recv_wallet.clone(),
@@ -237,7 +237,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 			false,
 		);
 		let err = api
-			.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &invoice_proof)
+			.verify_payment_proof_early(recipient_address.as_ref().unwrap(), &early_proof)
 			.unwrap_err();
 		assert!(matches!(
 			err,
@@ -251,12 +251,12 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		PathBuf::from(test_dir),
 		recv_mask.cloned(),
 		|api| {
-			let mut proof = serde_json::from_str(&invoice_proof_json).unwrap();
-			api.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &proof)?;
+			let mut proof = serde_json::from_str(&early_proof_json).unwrap();
+			api.verify_payment_proof_early(recipient_address.as_ref().unwrap(), &proof)?;
 			// tweak something and it shouldn't verify
 			proof.amount = 400000;
 			let retval =
-				api.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &proof);
+				api.verify_payment_proof_early(recipient_address.as_ref().unwrap(), &proof);
 			assert!(retval.is_err());
 			Ok(())
 		},

@@ -24,9 +24,10 @@ extern crate log;
 
 use grin_wallet_libwallet as libwallet;
 
+use grin_util::secp::{Secp256k1, Signature};
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
+use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI, ProofType};
 use libwallet::{Slate, SlateState, Slatepacker, SlatepackerArgs, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -49,7 +50,10 @@ fn roundtrip_slate(slate: &Slate, version: u16) -> Result<Slate, libwallet::Erro
 }
 
 /// Development + Tests of early payment proof functionality - RSR workflow
-fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
+fn contract_early_proofs_rsr_test_impl(
+	test_dir: &'static str,
+	proof_type: ProofType,
+) -> Result<(), libwallet::Error> {
 	// create two wallets and mine 4 blocks in each (we want both to have balance to get a payjoin)
 	let (wallets, chain, stopper, mut bh) =
 		create_wallets(vec![vec![("default", 4)], vec![("default", 4)]], test_dir).unwrap();
@@ -89,6 +93,7 @@ fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), lib
 			};
 			// Proofs are opt-in; enable and supply the sender address.
 			args.setup_args.proof_args.suppress_proof = false;
+			args.setup_args.proof_args.proof_type = proof_type;
 			args.setup_args.proof_args.sender_address = sender_address;
 			slate = api.contract_new(m, args)?;
 			recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
@@ -201,39 +206,75 @@ fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), lib
 		},
 	)?;
 
-	let mut invoice_proof = None;
+	let mut early_proof = None;
 	// Now some time has passed, sender retrieves and verify the payment proof
 	wallet::controller::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
 		|api, _m| {
-			// Extract the stored data as an invoice proof
-			invoice_proof =
-				Some(api.retrieve_payment_proof_invoice(send_mask, true, None, Some(slate.id))?);
+			// Extract the stored early payment proof
+			early_proof =
+				Some(api.retrieve_payment_proof_early(send_mask, true, None, Some(slate.id))?);
 			Ok(())
 		},
 	)?;
 
-	let invoice_proof = invoice_proof.unwrap();
-	assert_eq!(invoice_proof.amount, 5_000_000_000);
-	let invoice_proof_json = serde_json::to_string(&invoice_proof).unwrap();
+	let early_proof = early_proof.unwrap();
+	assert_eq!(early_proof.proof_type, proof_type);
+	assert_eq!(early_proof.amount, 5_000_000_000);
+	assert_eq!(
+		early_proof
+			.witness_data
+			.as_ref()
+			.unwrap()
+			.sender_public_nonce
+			.is_some(),
+		proof_type == ProofType::SenderNonce
+	);
+	let early_proof_json = serde_json::to_string(&early_proof).unwrap();
 
 	// Should have all proof fields filled out
-	println!("INVOICE PROOF: {}", invoice_proof_json);
+	println!("EARLY PAYMENT PROOF: {}", early_proof_json);
 
 	wallet::controller::foreign_single_use(
 		recv_wallet.clone(),
 		PathBuf::from(test_dir),
 		recv_mask.cloned(),
 		|api| {
-			let mut proof = serde_json::from_str(&invoice_proof_json).unwrap();
-			api.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &proof)?;
+			let mut proof = serde_json::from_str(&early_proof_json).unwrap();
+			api.verify_payment_proof_early(recipient_address.as_ref().unwrap(), &proof)?;
+			if proof_type == ProofType::SenderNonce {
+				let mut invalid = proof.clone();
+				let nonce = invalid
+					.receiver_public_nonce
+					.serialize_vec(&Secp256k1::new(), true);
+				let sender_sig = &invalid.witness_data.as_ref().unwrap().sender_partial_sig;
+				let mut raw_sig = [0; 64];
+				raw_sig.copy_from_slice(&sender_sig[..]);
+				raw_sig[..32].copy_from_slice(&nonce[1..]);
+				invalid.witness_data.as_mut().unwrap().sender_partial_sig =
+					Signature::from_raw_data(&raw_sig)?;
+				let err =
+					api.verify_payment_proof_early(recipient_address.as_ref().unwrap(), &invalid);
+				assert!(matches!(
+					err,
+					Err(libwallet::Error::PaymentProofValidation(ref msg))
+						if msg == "Sender partial signature nonce does not match the proof"
+				));
+			}
 			// tweak something and it shouldn't verify
 			proof.amount = 400000;
-			let retval =
-				api.verify_payment_proof_invoice(recipient_address.as_ref().unwrap(), &proof);
-			assert!(retval.is_err());
+			let err = api.verify_payment_proof_early(recipient_address.as_ref().unwrap(), &proof);
+			if proof_type == ProofType::SenderNonce {
+				assert!(matches!(
+					err,
+					Err(libwallet::Error::PaymentProofValidation(ref msg))
+						if msg == "Sender nonce does not commit to the payment details"
+				));
+			} else {
+				assert!(err.is_err());
+			}
 			Ok(())
 		},
 	)?;
@@ -247,9 +288,19 @@ fn contract_early_proofs_rsr_test_impl(test_dir: &'static str) -> Result<(), lib
 
 #[test]
 fn contract_early_proofs_rsr() -> Result<(), libwallet::Error> {
-	let test_dir = "test_output/contract_early_proofs_rsr";
-	setup(test_dir);
-	contract_early_proofs_rsr_test_impl(test_dir)?;
-	clean_output_dir(test_dir);
+	for (test_dir, proof_type) in [
+		(
+			"test_output/contract_early_proofs_rsr_invoice",
+			ProofType::Invoice,
+		),
+		(
+			"test_output/contract_early_proofs_rsr_sender_nonce",
+			ProofType::SenderNonce,
+		),
+	] {
+		setup(test_dir);
+		contract_early_proofs_rsr_test_impl(test_dir, proof_type)?;
+		clean_output_dir(test_dir);
+	}
 	Ok(())
 }

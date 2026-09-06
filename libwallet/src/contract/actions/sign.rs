@@ -122,7 +122,7 @@ where
 	// Add outputs to the slate, verify the payment proof and sign the slate
 	contract::slate::add_outputs(w, keychain_mask, &mut sl, &context)?;
 	contract::slate::verify_own_commitments(w, keychain_mask, &sl, &context)?;
-	contract::slate::verify_invoice_promise(&sl, &w.keychain(keychain_mask)?, &context)?;
+	contract::slate::verify_payment_promise(&sl, &w.keychain(keychain_mask)?, &context)?;
 
 	contract::slate::sign(w, keychain_mask, &mut sl, &mut context)?;
 	contract::slate::transition_state(&mut sl)?;

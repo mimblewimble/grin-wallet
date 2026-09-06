@@ -22,7 +22,7 @@ use crate::api_impl::owner::contract_sign as owner_contract_sign;
 use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::api_impl::types::update_tx_slate_state;
 use crate::backend::WalletBackend;
-use crate::contract::proofs::InvoiceProof;
+use crate::contract::proofs::EarlyPaymentProof;
 use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
@@ -291,11 +291,11 @@ where
 	owner_contract_sign(w, keychain_mask, args, slate)
 }
 
-/// Verify an invoice payment proof
-pub fn verify_payment_proof_invoice<C, K>(
+/// Verify an early payment proof
+pub fn verify_payment_proof_early<C, K>(
 	w: &mut WalletBackend<C, K>,
 	recipient_address: &DalekPublicKey,
-	proof: &InvoiceProof,
+	proof: &EarlyPaymentProof,
 ) -> Result<(), Error>
 where
 	C: NodeClient,
@@ -307,7 +307,7 @@ where
 		Some(w) => w,
 		None => {
 			return Err(Error::PaymentProof(
-				"Cannot verify invoice proof with no witness data".to_string(),
+				"Cannot verify early payment proof with no witness data".to_string(),
 			))
 		}
 	};

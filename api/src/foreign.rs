@@ -17,7 +17,7 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::contract::proofs::InvoiceProof;
+use crate::libwallet::contract::proofs::EarlyPaymentProof;
 use crate::libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
@@ -49,8 +49,8 @@ pub enum ForeignCheckMiddlewareFn {
 	ContractSign,
 	/// finalize_tx
 	FinalizeTx,
-	/// verify_payment_proof_invoice
-	VerifyPaymentProofInvoice,
+	/// verify_payment_proof_early
+	VerifyPaymentProofEarly,
 }
 
 /// Main interface into all wallet API functions.
@@ -506,22 +506,22 @@ where
 		foreign::contract_sign(w, (&self.keychain_mask).as_ref(), args, slate)
 	}
 
-	/// Verify an invoice payment proof against the chain.
-	pub fn verify_payment_proof_invoice(
+	/// Verify an early payment proof against the chain
+	pub fn verify_payment_proof_early(
 		&self,
 		recipient_address: &DalekPublicKey,
-		proof: &InvoiceProof,
+		proof: &EarlyPaymentProof,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
 			m(
-				ForeignCheckMiddlewareFn::VerifyPaymentProofInvoice,
+				ForeignCheckMiddlewareFn::VerifyPaymentProofEarly,
 				w.w2n_client().get_version_info(),
 				None,
 			)?;
 		}
-		foreign::verify_payment_proof_invoice(w, recipient_address, proof)
+		foreign::verify_payment_proof_early(w, recipient_address, proof)
 	}
 }
 

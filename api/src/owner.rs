@@ -23,7 +23,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
-use crate::libwallet::contract::proofs::InvoiceProof;
+use crate::libwallet::contract::proofs::EarlyPaymentProof;
 use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, ContractView,
 };
@@ -2576,15 +2576,14 @@ where
 		)
 	}
 
-	/// Retrieve the invoice payment proof for a stored transaction.
-	/// FUTURE: likely merge with retrieve_payment_proof above.
-	pub fn retrieve_payment_proof_invoice(
+	/// Retrieve an early payment proof for a stored transaction
+	pub fn retrieve_payment_proof_early(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		refresh_from_node: bool,
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
-	) -> Result<InvoiceProof, Error> {
+	) -> Result<EarlyPaymentProof, Error> {
 		let tx = {
 			let t = self.status_tx.lock();
 			t.clone()
@@ -2593,7 +2592,7 @@ where
 			true => false,
 			false => refresh_from_node,
 		};
-		owner::retrieve_payment_proof_invoice(
+		owner::retrieve_payment_proof_early(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,

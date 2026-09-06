@@ -20,7 +20,7 @@ use crate::contract::types::ContractSetupArgsAPI;
 use crate::grin_core::libtx::tx_fee;
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::secp::key::SecretKey;
-use crate::slate::Slate;
+use crate::slate::{PaymentProofType, Slate};
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
@@ -117,6 +117,13 @@ where
 				.participant_data
 				.get(participant_index ^ 1)
 				.ok_or(Error::ContextToIndex)?;
+			let sender_public_nonce = if p.proof_type == PaymentProofType::SenderNonce {
+				Some(context.sender_public_nonce.ok_or_else(|| {
+					Error::PaymentProofValidation("Missing sender nonce context".into())
+				})?)
+			} else {
+				None
+			};
 
 			tx_log_entry.payment_proof = Some(StoredProofInfo {
 				receiver_address: p.receiver_address,
@@ -133,6 +140,7 @@ where
 				memo: p.memo.clone(),
 				promise_signature: p.promise_signature,
 				sender_part_sig: sender.part_sig,
+				sender_public_nonce,
 			});
 		}
 	}

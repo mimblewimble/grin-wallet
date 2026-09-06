@@ -23,14 +23,14 @@ use crate::grin_util::from_hex;
 use crate::grin_util::secp::constants::PEDERSEN_COMMITMENT_SIZE;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
-use crate::slate::{PaymentProofType, Slate, SlateState};
+use crate::slate::{Slate, SlateState};
 use crate::types::{Context, NodeClient, OutputData};
 use crate::util::OnionV3Address;
 use crate::Error;
 use std::collections::BTreeSet;
 
 use super::types::{OwnCommitmentStatus, ProofArgs};
-use crate::contract::proofs::InvoiceProof;
+use crate::contract::proofs::EarlyPaymentProof;
 
 /// Add payment proof data to slate, noop for sender
 pub fn add_payment_proof<C, K>(
@@ -60,8 +60,8 @@ where
 	Ok(())
 }
 
-/// Verify the receiver's invoice promise before paying
-pub fn verify_invoice_promise<K>(
+/// Verify the receiver's early payment promise before paying
+pub fn verify_payment_promise<K>(
 	slate: &Slate,
 	keychain: &K,
 	context: &Context,
@@ -70,7 +70,7 @@ where
 	K: Keychain,
 {
 	// FUTURE: move proof verification onto Slate itself so it can be versioned (slate.verify_payment_proof_sig()).
-	debug!("contract::slate::verify_invoice_promise => called");
+	debug!("contract::slate::verify_payment_promise => called");
 	if context.get_net_change()? >= 0 {
 		return Ok(());
 	}
@@ -78,12 +78,10 @@ where
 		Some(proof) => proof,
 		None => return Ok(()),
 	};
-	payment_proof
-		.proof_type
-		.validate(PaymentProofType::Invoice)?;
+	super::proofs::check_proof_type(&payment_proof.proof_type)?;
 	if slate.participant_data.len() != 2 {
 		return Err(Error::GenericError(format!(
-			"Expected 2 participants for an invoice promise, found {}",
+			"Expected 2 participants for a payment promise, found {}",
 			slate.participant_data.len()
 		)));
 	}
@@ -94,7 +92,7 @@ where
 		.iter()
 		.enumerate()
 		.find_map(|(index, _)| (index != payer_index).then_some(index))
-		.ok_or_else(|| Error::GenericError("Invoice promise has no receiver".to_string()))?;
+		.ok_or_else(|| Error::GenericError("Payment promise has no receiver".to_string()))?;
 	let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
 	let sender_key = crate::address::address_from_derivation_path(
 		keychain,
@@ -102,8 +100,8 @@ where
 		derivation_index,
 	)?;
 	let sender_address = OnionV3Address::from_private(&sender_key.0)?.to_ed25519()?;
-	let invoice_proof = InvoiceProof::from_slate(slate, receiver_index, Some(sender_address))?;
-	invoice_proof.verify_promise_signature(&payment_proof.receiver_address)
+	let proof = EarlyPaymentProof::from_slate(slate, receiver_index, Some(sender_address))?;
+	proof.verify_promise_signature(&payment_proof.receiver_address)
 }
 
 /// Adds inputs and outputs to slate

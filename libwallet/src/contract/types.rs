@@ -93,7 +93,7 @@ impl Default for OutputSelectionArgs {
 pub struct ProofArgs {
 	/// If net change is positive during this step, whether to suppress the creation of payment proof
 	pub suppress_proof: bool,
-	/// Requested proof type. Only invoice proofs are currently supported.
+	/// Requested early payment proof type
 	pub proof_type: ProofType,
 	/// Sender address (required at some stage, may not necessarily be in slate so can be provided explicitly)
 	#[serde(with = "dalek_ser::option_dalek_pubkey_serde")]

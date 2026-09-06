@@ -18,7 +18,7 @@ use std::cmp;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
-use crate::contract::proofs::{InvoiceProof, ProofWitness};
+use crate::contract::proofs::{EarlyPaymentProof, ProofWitness};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
@@ -523,16 +523,15 @@ where
 	})
 }
 
-/// Retrieve invoice payment proof
-/// TODO: Need to unify with legacy above
-pub fn retrieve_payment_proof_invoice<'a, L, C, K>(
+/// Retrieve an early payment proof
+pub fn retrieve_payment_proof_early<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
-) -> Result<InvoiceProof, Error>
+) -> Result<EarlyPaymentProof, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -571,32 +570,36 @@ where
 	let tx = txs.1[0].clone();
 	// Contract tx logs store the agreed net change separately from the fee.
 	let amount = tx.amount_credited.abs_diff(tx.amount_debited);
+	let sender_public_nonce = tx
+		.payment_proof
+		.as_ref()
+		.and_then(|proof| proof.sender_public_nonce);
 
 	let (mut proof, sender_part_sig) = match tx.payment_proof {
 		Some(p) => {
 			if p.receiver_public_nonce.is_none() {
 				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored receiver public nonce".into(),
+					"Early payment proof requires stored receiver public nonce".into(),
 				));
 			};
 			if p.receiver_public_excess.is_none() {
 				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored receiver public excess".into(),
+					"Early payment proof requires stored receiver public excess".into(),
 				));
 			};
 			if p.timestamp.is_none() {
 				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored timestamp".into(),
+					"Early payment proof requires stored timestamp".into(),
 				));
 			};
 			if p.sender_part_sig.is_none() {
 				return Err(Error::PaymentProofRetrieval(
-					"Invoice Proof requires stored sender partial signature".into(),
+					"Early payment proof requires stored sender partial signature".into(),
 				));
 			};
 
 			(
-				InvoiceProof {
+				EarlyPaymentProof {
 					proof_type: PaymentProofType::try_from(
 						p.proof_type.unwrap_or(PaymentProofType::Invoice.as_u8()),
 					)?,
@@ -630,7 +633,7 @@ where
 		Some(k) => k,
 		None => {
 			return Err(Error::PaymentProofRetrieval(format!(
-				"Invoice proof transaction kernel excess missing",
+				"Early payment proof transaction kernel excess missing",
 			)))
 		}
 	};
@@ -655,6 +658,7 @@ where
 		kernel_index: index,
 		kernel_commitment: retrieved_kernel.excess,
 		sender_partial_sig: sender_part_sig,
+		sender_public_nonce,
 	});
 
 	Ok(proof)

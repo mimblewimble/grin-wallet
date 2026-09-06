@@ -29,11 +29,10 @@ use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Secp256k1;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::static_secp_instance;
-use crate::slate::{PaymentInfo, PaymentMemo, PaymentProofType, Slate};
+use crate::slate::{PaymentInfo, PaymentMemo, PaymentProofType, Slate, SlateState};
 use crate::slate_versions::ser as dalek_ser;
 use crate::types::{Context, NodeClient};
 use crate::{address, Error};
-use byteorder::{BigEndian, ByteOrder};
 use chrono::{DateTime, Utc};
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -43,11 +42,22 @@ use grin_util::secp::Message;
 
 pub(super) fn check_proof_type(proof_type: &ProofType) -> Result<(), Error> {
 	match proof_type {
-		ProofType::Invoice => Ok(()),
+		ProofType::Invoice | ProofType::SenderNonce => Ok(()),
 		_ => Err(Error::GenericError(
-			"Only invoice contract proofs are supported".to_string(),
+			"Unsupported contract proof type".to_string(),
 		)),
 	}
+}
+
+fn write_amount<W: Writer>(writer: &mut W, amount: u64) -> Result<(), grin_ser::Error> {
+	let amount_bytes = amount.to_be_bytes();
+	if amount_bytes[0] != 0 {
+		return Err(grin_ser::Error::UnexpectedData {
+			expected: vec![0],
+			received: vec![amount_bytes[0]],
+		});
+	}
+	writer.write_fixed_bytes(&amount_bytes[1..])
 }
 
 fn verify_receiver_sig(
@@ -76,6 +86,24 @@ fn verify_receiver_sig(
 	Ok(())
 }
 
+fn recover_receiver_sig(
+	secp: &Secp256k1,
+	excess_sig: &Signature,
+	sender_sig: &Signature,
+	receiver_nonce: &PublicKey,
+) -> Result<Signature, Error> {
+	let mut scalar = SecretKey::from_slice(secp, &excess_sig[32..])?;
+	let mut sender_scalar = SecretKey::from_slice(secp, &sender_sig[32..])?;
+	sender_scalar.neg_assign(secp)?;
+	scalar.add_assign(secp, &sender_scalar)?;
+
+	let nonce = receiver_nonce.serialize_vec(secp, true);
+	let mut signature = [0; 64];
+	signature[..32].copy_from_slice(&nonce[1..]);
+	signature[32..].copy_from_slice(&scalar.0);
+	Signature::from_raw_data(&signature).map_err(Error::from)
+}
+
 /// All elements required to validate a proof within a single struct
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ProofWitness {
@@ -93,13 +121,19 @@ pub struct ProofWitness {
 	/// sender partial signature, used to recover receiver partial signature
 	#[serde(with = "secp_ser::sig_serde")]
 	pub sender_partial_sig: Signature,
+	/// Untweaked sender nonce used by sender-nonce proofs
+	#[serde(
+		default,
+		with = "dalek_ser::option_pubkey_serde",
+		skip_serializing_if = "Option::is_none"
+	)]
+	pub sender_public_nonce: Option<PublicKey>,
 }
 
-/// Payment proof, to be extracted from slates for
-/// signing (when wrapped as InvoiceProofBin) or json export from stored tx data
+/// Early payment proof extracted from a slate and stored transaction data
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct InvoiceProof {
-	/// Proof type, 0x00 legacy (though this will use StoredProofInfo above, 1 invoice, 2 Sender nonce)
+pub struct EarlyPaymentProof {
+	/// Proof type
 	#[serde(with = "crate::slate::payment_proof_type_serde")]
 	pub proof_type: PaymentProofType,
 	/// amount
@@ -128,23 +162,18 @@ pub struct InvoiceProof {
 	pub witness_data: Option<ProofWitness>,
 }
 
-struct InvoiceProofBin<'a>(&'a InvoiceProof);
+struct PromiseBin<'a>(&'a EarlyPaymentProof);
 
-impl Writeable for InvoiceProofBin<'_> {
+impl Writeable for PromiseBin<'_> {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		writer.write_u8(self.0.proof_type.as_u8())?;
-
-		// Amount field is 7 bytes, throw error if value is greater
-		let mut amount_bytes = [0; 8];
-		BigEndian::write_u64(&mut amount_bytes, self.0.amount);
-
-		if amount_bytes[0] > 0 {
-			return Err(grin_ser::Error::UnexpectedData {
-				expected: [0u8].to_vec(),
-				received: [amount_bytes[0]].to_vec(),
-			});
+		match self.0.proof_type {
+			PaymentProofType::Invoice => write_amount(writer, self.0.amount)?,
+			PaymentProofType::SenderNonce => writer.write_fixed_bytes(&[0; 7])?,
+			PaymentProofType::Legacy => {
+				return Err(grin_ser::Error::CorruptedData);
+			}
 		}
-		writer.write_fixed_bytes(amount_bytes[1..].to_vec())?;
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
@@ -160,15 +189,29 @@ impl Writeable for InvoiceProofBin<'_> {
 			)?;
 		}
 		writer.write_fixed_bytes(self.0.sender_address.as_bytes())?;
-		writer.write_i64(self.0.timestamp)?;
-		let memo = self.0.memo.as_ref().map(PaymentMemo::as_str).unwrap_or("");
-		writer.write_fixed_bytes(blake2b(32, &[], memo.as_bytes()).as_bytes())?;
+		if self.0.proof_type == PaymentProofType::Invoice {
+			writer.write_i64(self.0.timestamp)?;
+			let memo = self.0.memo.as_ref().map(PaymentMemo::as_str).unwrap_or("");
+			writer.write_fixed_bytes(blake2b(32, &[], memo.as_bytes()).as_bytes())?;
+		}
 		Ok(())
 	}
 }
 
-impl InvoiceProof {
-	/// Extracts as much data as possible from the slate to create an invoice proof
+struct SenderNonceMessage<'a>(&'a EarlyPaymentProof);
+
+impl Writeable for SenderNonceMessage<'_> {
+	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
+		writer.write_u8(PaymentProofType::SenderNonce.as_u8())?;
+		write_amount(writer, self.0.amount)?;
+		writer.write_i64(self.0.timestamp)?;
+		let memo = self.0.memo.as_ref().map(PaymentMemo::as_str).unwrap_or("");
+		writer.write_fixed_bytes(blake2b(32, &[], memo.as_bytes()).as_bytes())
+	}
+}
+
+impl EarlyPaymentProof {
+	/// Extract as much proof data as possible from a slate
 	pub fn from_slate(
 		slate: &Slate,
 		participant_index: usize,
@@ -232,24 +275,25 @@ impl InvoiceProof {
 		})
 	}
 
-	/// Sign the invoice proof, provided all fields are populated
+	/// Sign the payment promise
 	pub fn sign(&self, sec_key: &SecretKey) -> Result<(DalekSignature, DalekPublicKey), Error> {
 		let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
 		let pub_key = d_skey.verifying_key();
 		let mut sig_data_bin = Vec::new();
-		grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self)).map_err(|e| {
-			Error::GenericError(format!("InvoiceProof serialization failed: {}", e))
+		grin_ser::serialize_default(&mut sig_data_bin, &PromiseBin(self)).map_err(|e| {
+			Error::GenericError(format!("Payment proof serialization failed: {}", e))
 		})?;
 
 		Ok((d_skey.sign(&sig_data_bin), pub_key))
 	}
 
-	/// Verify the signature of the invoice proof
+	/// Verify the receiver's promise signature
+	/// Sender-nonce payment details are only checked by `verify_witness`
 	pub fn verify_promise_signature(
 		&self,
 		recipient_address: &DalekPublicKey,
 	) -> Result<(), Error> {
-		self.proof_type.validate(PaymentProofType::Invoice)?;
+		check_proof_type(&self.proof_type)?;
 		if self.promise_signature.is_none() {
 			return Err(Error::PaymentProofValidation(
 				"Missing promise signature".into(),
@@ -258,8 +302,8 @@ impl InvoiceProof {
 
 		// Rebuild message
 		let mut sig_data_bin = Vec::new();
-		grin_ser::serialize_default(&mut sig_data_bin, &InvoiceProofBin(self)).map_err(|e| {
-			Error::GenericError(format!("InvoiceProof serialization failed: {}", e))
+		grin_ser::serialize_default(&mut sig_data_bin, &PromiseBin(self)).map_err(|e| {
+			Error::GenericError(format!("Payment proof serialization failed: {}", e))
 		})?;
 
 		if recipient_address
@@ -292,47 +336,124 @@ impl InvoiceProof {
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();
 
-			let receiver_part_sig =
-				aggsig::subtract_signature(&static_secp, &excess_sig, &wd.sender_partial_sig)?;
-
 			// Retrieve the public nonce sum from the kernel excess signature
 			let mut pub_nonce_sum_bytes = [3u8; 33];
 			pub_nonce_sum_bytes[1..33].copy_from_slice(&excess_sig[0..32]);
 			let pub_nonce_sum = PublicKey::from_slice(&static_secp, &pub_nonce_sum_bytes)?;
+			let receiver_part_sigs = if self.proof_type == PaymentProofType::SenderNonce {
+				let sender_nonce = wd.sender_public_nonce.as_ref().ok_or_else(|| {
+					Error::PaymentProofValidation("Missing sender nonce witness".into())
+				})?;
+				let mut expected_sender_nonce = sender_nonce.clone();
+				expected_sender_nonce.add_exp_assign(
+					&static_secp,
+					&sender_nonce_tweak(&static_secp, sender_nonce, self)?,
+				)?;
+				let expected_sum = PublicKey::from_combination(
+					&static_secp,
+					vec![&expected_sender_nonce, &self.receiver_public_nonce],
+				)?;
+				if expected_sum.serialize_vec(&static_secp, true)[1..] != excess_sig[0..32] {
+					return Err(Error::PaymentProofValidation(
+						"Sender nonce does not commit to the payment details".into(),
+					));
+				}
+				let sender_nonce = expected_sender_nonce.serialize_vec(&static_secp, true);
+				if wd.sender_partial_sig[0..32] != sender_nonce[1..] {
+					return Err(Error::PaymentProofValidation(
+						"Sender partial signature nonce does not match the proof".into(),
+					));
+				}
+				vec![recover_receiver_sig(
+					&static_secp,
+					excess_sig,
+					&wd.sender_partial_sig,
+					&self.receiver_public_nonce,
+				)?]
+			} else {
+				let (signature, alternative) =
+					aggsig::subtract_signature(&static_secp, excess_sig, &wd.sender_partial_sig)?;
+				alternative.into_iter().chain(Some(signature)).collect()
+			};
 
 			// Retrieve the public key sum from the kernel excess
 			let pub_blind_sum = wd.kernel_commitment.to_pubkey(&static_secp)?;
-			if verify_receiver_sig(
-				&static_secp,
-				&receiver_part_sig.0,
-				&self.receiver_public_nonce,
-				&pub_nonce_sum,
-				&self.receiver_public_excess,
-				&pub_blind_sum,
-				&msg,
-			)
-			.is_err()
-			{
-				// Try other possibility
-				if let Some(s) = receiver_part_sig.1 {
-					verify_receiver_sig(
-						&static_secp,
-						&s,
-						&self.receiver_public_nonce,
-						&pub_nonce_sum,
-						&self.receiver_public_excess,
-						&pub_blind_sum,
-						&msg,
-					)?;
-				} else {
-					return Err(Error::PaymentProofValidation(
-						"Receiver signature does not match the promise".into(),
-					));
-				}
+			if !receiver_part_sigs.iter().any(|signature| {
+				verify_receiver_sig(
+					&static_secp,
+					signature,
+					&self.receiver_public_nonce,
+					&pub_nonce_sum,
+					&self.receiver_public_excess,
+					&pub_blind_sum,
+					&msg,
+				)
+				.is_ok()
+			}) {
+				return Err(Error::PaymentProofValidation(
+					"Receiver signature does not match the promise".into(),
+				));
 			}
 		}
 		Ok(())
 	}
+}
+
+fn sender_nonce_tweak(
+	secp: &Secp256k1,
+	sender_nonce: &PublicKey,
+	proof: &EarlyPaymentProof,
+) -> Result<SecretKey, Error> {
+	let mut message = Vec::new();
+	grin_ser::serialize_default(&mut message, &SenderNonceMessage(proof)).map_err(|e| {
+		Error::GenericError(format!("Sender nonce message serialization failed: {}", e))
+	})?;
+	let nonce = sender_nonce.serialize_vec(secp, true);
+	let mut data = Vec::with_capacity(nonce.len() + message.len());
+	data.extend_from_slice(&nonce);
+	data.extend_from_slice(&message);
+	let hash = blake2b(32, &[], &data);
+	SecretKey::from_slice(secp, hash.as_bytes()).map_err(Error::from)
+}
+
+/// Commit the payer nonce to the sender-nonce proof fields
+pub(super) fn commit_sender_nonce(
+	slate: &Slate,
+	context: &mut Context,
+	secp: &Secp256k1,
+) -> Result<(), Error> {
+	if context.get_net_change()? >= 0 {
+		return Ok(());
+	}
+	let payment_proof = match slate.payment_proof.as_ref() {
+		Some(proof) if proof.proof_type == PaymentProofType::SenderNonce => proof,
+		_ => return Ok(()),
+	};
+	if slate.state != SlateState::Invoice1 || slate.participant_data.len() != 1 {
+		return Err(Error::PaymentProofValidation(
+			"Sender nonce proofs require the first RSR signing round".into(),
+		));
+	}
+	let sender_address = payment_proof
+		.sender_address
+		.ok_or(Error::NoSenderAddressProvided)?;
+	let proof = EarlyPaymentProof::from_slate(slate, 0, Some(sender_address))?;
+	if let Some(base_public) = context.sender_public_nonce.as_ref() {
+		let mut expected = base_public.clone();
+		expected.add_exp_assign(secp, &sender_nonce_tweak(secp, base_public, &proof)?)?;
+		if PublicKey::from_secret_key(secp, &context.sec_nonce)? != expected {
+			return Err(Error::PaymentProofValidation(
+				"Sender nonce proof details changed".into(),
+			));
+		}
+	} else {
+		let base_public = PublicKey::from_secret_key(secp, &context.sec_nonce)?;
+		context
+			.sec_nonce
+			.add_assign(secp, &sender_nonce_tweak(secp, &base_public, &proof)?)?;
+		context.sender_public_nonce = Some(base_public);
+	}
+	Ok(())
 }
 
 /// Adds all info needed for a payment proof to a slate, complete with signed recipient data
@@ -347,45 +468,51 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let (invoice_proof, promise_signature, receiver_address) =
-		generate_invoice_signature(wallet, keychain_mask, slate, context, proof_args)?;
+	if proof_args.proof_type == PaymentProofType::SenderNonce && slate.state != SlateState::Invoice1
+	{
+		return Err(Error::PaymentProofValidation(
+			"Sender nonce proofs are only supported for RSR contracts".into(),
+		));
+	}
+	let (early_proof, promise_signature, receiver_address) =
+		generate_promise_signature(wallet, keychain_mask, slate, context, proof_args)?;
 	// Carry over the timestamp the promise signature was made over rather than reading
 	// the clock a second time. The signature binds it, so a tick between the two reads
 	// would leave a proof that cannot verify.
-	let timestamp = DateTime::from_timestamp(invoice_proof.timestamp, 0).ok_or_else(|| {
+	let timestamp = DateTime::from_timestamp(early_proof.timestamp, 0).ok_or_else(|| {
 		Error::GenericError(format!(
 			"Invalid proof timestamp: {}",
-			invoice_proof.timestamp
+			early_proof.timestamp
 		))
 	})?;
 
 	let proof = PaymentInfo {
-		proof_type: invoice_proof.proof_type,
+		proof_type: early_proof.proof_type,
 		sender_address: proof_args.sender_address.clone(),
 		receiver_address,
 		timestamp: Some(timestamp),
 		promise_signature: Some(promise_signature),
-		memo: invoice_proof.memo,
+		memo: early_proof.memo,
 	};
 	slate.payment_proof = Some(proof);
 	Ok(())
 }
 
-/// Generates a signature for proof type 'Invoice'
-fn generate_invoice_signature<C, K>(
+fn generate_promise_signature<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &mut Slate,
 	context: &Context,
 	proof_args: &ProofArgs,
-) -> Result<(InvoiceProof, DalekSignature, DalekPublicKey), Error>
+) -> Result<(EarlyPaymentProof, DalekSignature, DalekPublicKey), Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
 	let keychain = wallet.keychain(keychain_mask)?;
 	let index = slate.find_index_matching_context(&keychain, context)?;
-	let mut invoice_proof = InvoiceProof::from_slate(&slate, index, proof_args.sender_address)?;
+	let mut early_proof = EarlyPaymentProof::from_slate(&slate, index, proof_args.sender_address)?;
+	early_proof.proof_type = proof_args.proof_type;
 	let derivation_index = match context.payment_proof_derivation_index {
 		Some(i) => i,
 		None => 0,
@@ -395,9 +522,9 @@ where
 	let recp_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
 
-	invoice_proof.timestamp = Utc::now().timestamp();
-	let (sig, addr) = invoice_proof.sign(&recp_key)?;
-	Ok((invoice_proof, sig, addr))
+	early_proof.timestamp = Utc::now().timestamp();
+	let (sig, addr) = early_proof.sign(&recp_key)?;
+	Ok((early_proof, sig, addr))
 }
 
 #[cfg(test)]
@@ -409,7 +536,7 @@ mod tests {
 	fn rejects_unsupported_proofs() {
 		assert!(check_proof_type(&ProofType::Invoice).is_ok());
 		assert!(check_proof_type(&ProofType::Legacy).is_err());
-		assert!(check_proof_type(&ProofType::SenderNonce).is_err());
+		assert!(check_proof_type(&ProofType::SenderNonce).is_ok());
 	}
 
 	#[test]
@@ -462,36 +589,70 @@ mod tests {
 	}
 
 	#[test]
-	fn ser_invoice_proof_bin() -> Result<(), Error> {
+	fn proof_promise() -> Result<(), Error> {
+		use crate::grin_util::ToHex;
+
 		let mut slate = populate_test_slate()?;
 		slate.amount |= 0xFF00_0000_0000_0000;
 		// Bin serialization doesn't include promise sig as it's used to create signature data
 		slate.payment_proof.as_mut().unwrap().promise_signature = None;
 
 		// Should fail, amount too big
-		let invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+		let proof = EarlyPaymentProof::from_slate(&slate, 1, None)?;
 		let mut vec = Vec::new();
-		assert!(grin_ser::serialize_default(&mut vec, &InvoiceProofBin(&invoice_proof)).is_err());
+		assert!(grin_ser::serialize_default(&mut vec, &PromiseBin(&proof)).is_err());
 
 		// Should be okay now
 		slate.amount = 1234;
-		let mut invoice_proof = InvoiceProof::from_slate(&slate, 1, None)?;
+		slate.payment_proof.as_mut().unwrap().timestamp = DateTime::from_timestamp(123456789, 0);
+		let mut proof = EarlyPaymentProof::from_slate(&slate, 1, None)?;
+		let secp = Secp256k1::new();
+		proof.receiver_public_nonce =
+			PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&secp, &[1; 32])?)?;
+		proof.receiver_public_excess =
+			PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&secp, &[2; 32])?)?;
 		let mut vec = Vec::new();
-		grin_ser::serialize_default(&mut vec, &InvoiceProofBin(&invoice_proof))
-			.expect("Serialization Failed");
-		let memo = invoice_proof.memo.as_ref().unwrap().as_str();
+		grin_ser::serialize_default(&mut vec, &PromiseBin(&proof)).expect("Serialization Failed");
 		assert_eq!(
-			&vec[vec.len() - 32..],
-			blake2b(32, &[], memo.as_bytes()).as_bytes()
+			vec.to_hex(),
+			"01000000000004d2031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb00000000075bcd15c60e4f851ed93b6641571e6810f608fe42ee566f7e199915061ea13b3b04e772"
 		);
 		let proof_key = SecretKey::from_slice(&Secp256k1::new(), &[7; 32])?;
-		let (signature, recipient) = invoice_proof.sign(&proof_key)?;
-		invoice_proof.promise_signature = Some(signature);
-		invoice_proof.verify_promise_signature(&recipient)?;
-		invoice_proof.memo = Some(PaymentMemo::new("changed details".to_string())?);
-		assert!(invoice_proof.verify_promise_signature(&recipient).is_err());
+		let (signature, recipient) = proof.sign(&proof_key)?;
+		proof.promise_signature = Some(signature);
+		proof.verify_promise_signature(&recipient)?;
+		proof.memo = Some(PaymentMemo::new("changed details".to_string())?);
+		assert!(proof.verify_promise_signature(&recipient).is_err());
 
-		let mut wrong_type = invoice_proof;
+		let mut sender_nonce = proof.clone();
+		sender_nonce.memo = slate.payment_proof.as_ref().unwrap().memo.clone();
+		sender_nonce.proof_type = PaymentProofType::SenderNonce;
+		let mut promise = Vec::new();
+		grin_ser::serialize_default(&mut promise, &PromiseBin(&sender_nonce))
+			.expect("Serialization Failed");
+		assert_eq!(
+			promise.to_hex(),
+			"0200000000000000031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb"
+		);
+		let mut sender_message = Vec::new();
+		grin_ser::serialize_default(&mut sender_message, &SenderNonceMessage(&sender_nonce))
+			.expect("Serialization Failed");
+		assert_eq!(
+			sender_message.to_hex(),
+			"02000000000004d200000000075bcd15c60e4f851ed93b6641571e6810f608fe42ee566f7e199915061ea13b3b04e772"
+		);
+		let base = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&secp, &[9; 32])?)?;
+		assert_eq!(
+			sender_nonce_tweak(&secp, &base, &sender_nonce)?.0.to_hex(),
+			"6bd7c4e86bd61999c26fdd4cc1af90cdcb0a79e39644f4d8045e2a6599bd4db0"
+		);
+		let (signature, recipient) = sender_nonce.sign(&proof_key)?;
+		sender_nonce.promise_signature = Some(signature);
+		sender_nonce.amount += 1;
+		sender_nonce.timestamp += 1;
+		sender_nonce.verify_promise_signature(&recipient)?;
+
+		let mut wrong_type = proof;
 		wrong_type.proof_type = PaymentProofType::Legacy;
 		assert!(wrong_type
 			.verify_promise_signature(&slate.payment_proof.unwrap().receiver_address)
