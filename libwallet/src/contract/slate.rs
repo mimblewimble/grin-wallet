@@ -501,15 +501,9 @@ where
 
 /// We can finalize if all partial sigs are present
 pub fn can_finalize(slate: &Slate) -> bool {
-	let res = slate
-		.participant_data
-		.clone()
-		.into_iter()
-		.filter(|v| !v.is_complete())
-		.count();
-
 	// We can finalize if the number of partial sigs is the same as the number of participants
-	res == 0 && slate.participant_data.len() == slate.num_participants as usize
+	slate.participant_data.iter().all(|v| v.is_complete())
+		&& slate.participant_data.len() == slate.num_participants as usize
 }
 
 /// Finalize slate

@@ -1753,6 +1753,11 @@ fn set_proof_sender(
 
 impl ContractNewArgs {
 	fn get_net_change(&self) -> Result<i64, Error> {
+		if self.receive.is_some() && self.send.is_some() {
+			return Err(Error::ArgumentError(
+				"Can't pass both --receive and --send parameters.".into(),
+			));
+		}
 		let to_i64 = |v: u64| {
 			i64::try_from(v).map_err(|_| Error::ArgumentError(format!("Amount {} is too large", v)))
 		};
@@ -2234,5 +2239,13 @@ mod contract_tests {
 			api_args.setup_args.selection_args.use_inputs.as_deref(),
 			Some("commitment")
 		);
+
+		let mut invalid = args;
+		invalid.send = Some(1);
+		assert!(matches!(
+			invalid.to_api_args(),
+			Err(Error::ArgumentError(message))
+				if message == "Can't pass both --receive and --send parameters."
+		));
 	}
 }

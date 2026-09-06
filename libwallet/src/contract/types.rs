@@ -67,8 +67,9 @@ impl OutputSelectionArgs {
 	}
 	/// Returns the sum of our output amounts
 	pub fn sum_output_amounts(&self) -> Result<u64, Error> {
-		self.output_amounts()?
+		self.make_outputs
 			.iter()
+			.flatten()
 			.try_fold(0u64, |acc, v| acc.checked_add(*v))
 			.ok_or_else(|| Error::GenericError("output amounts sum overflow".to_string()))
 	}
@@ -173,17 +174,7 @@ impl Default for ContractNewArgsAPI {
 	fn default() -> ContractNewArgsAPI {
 		ContractNewArgsAPI {
 			ttl_blocks: None,
-			setup_args: ContractSetupArgsAPI {
-				src_acct_name: None,
-				net_change: None,
-				num_participants: 2,
-				fee_rate: None,
-				add_outputs: false,
-				selection_args: OutputSelectionArgs {
-					..Default::default()
-				},
-				proof_args: ProofArgs::default(),
-			},
+			setup_args: ContractSetupArgsAPI::default(),
 		}
 	}
 }

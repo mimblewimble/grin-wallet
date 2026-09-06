@@ -1057,7 +1057,7 @@ pub fn parse_contract_new_args(
 	};
 	if receive.is_some() && send.is_some() {
 		return Err(ParseError::ArgumentError(String::from(
-			"You can only specify receive or send, not both.",
+			"Can't pass both --receive and --send parameters.",
 		)));
 	};
 	if receive.is_none() && send.is_none() {
@@ -1166,7 +1166,7 @@ pub fn parse_contract_setup_args(
 	};
 	if receive.is_some() && send.is_some() {
 		return Err(ParseError::ArgumentError(String::from(
-			"You can only specify receive or send, not both.",
+			"Can't pass both --receive and --send parameters.",
 		)));
 	};
 	let as_json = args.is_present("as-json");

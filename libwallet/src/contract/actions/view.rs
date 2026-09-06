@@ -114,8 +114,7 @@ where
 	// Count signatures present (a participant is "complete" once it has a partial sig).
 	let num_sigs = slate
 		.participant_data
-		.clone()
-		.into_iter()
+		.iter()
 		.filter(|v| v.is_complete())
 		.count();
 
