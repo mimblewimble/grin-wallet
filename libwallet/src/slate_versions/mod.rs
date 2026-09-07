@@ -43,6 +43,13 @@ pub const CURRENT_SLATE_VERSION: u16 = 5;
 /// The grin block header this slate is intended to be compatible with
 pub const GRIN_BLOCK_HEADER_VERSION: u16 = 3;
 
+const HEIGHT_LOCKED_FEATURE: u8 = 2;
+const NRD_FEATURE: u8 = 3;
+
+fn kernel_has_height_arg(feature: u8) -> bool {
+	matches!(feature, HEIGHT_LOCKED_FEATURE | NRD_FEATURE)
+}
+
 /// Existing versions of the slate
 #[derive(EnumIter, Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum SlateVersion {
@@ -177,7 +184,8 @@ impl VersionedCoinbase {
 /// Shared slate fixtures, used by the version conversion tests
 #[cfg(test)]
 pub mod tests {
-	use crate::grin_core::core::transaction::OutputFeatures;
+	use crate::grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight, OutputFeatures};
+	use crate::grin_core::core::FeeFields;
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
 	use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
@@ -468,6 +476,53 @@ pub mod tests {
 				assert_eq!(recovered.version(), version);
 			}
 		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn kernel_features_round_trip() -> Result<(), Error> {
+		set_local_chain_type(ChainTypes::Mainnet);
+		let fee = FeeFields::new(0, 42).unwrap();
+
+		for version in [SlateVersion::V4, SlateVersion::V5] {
+			let features = [
+				KernelFeatures::Plain { fee },
+				KernelFeatures::HeightLocked {
+					fee,
+					lock_height: 500_000,
+				},
+				KernelFeatures::NoRecentDuplicate {
+					fee,
+					relative_height: NRDRelativeHeight::new(10).unwrap(),
+				},
+			];
+
+			for expected in features {
+				let mut slate = Slate::blank_with_kernel_features(2, false, expected)?;
+				assert_eq!(slate.tx.as_ref().unwrap().kernels()[0].features, expected);
+				slate.payment_proof = None;
+				slate.tx = populate_test_slate()?.tx;
+
+				let versioned = VersionedSlate::into_version(slate.clone(), version.clone())?;
+				let json = serde_json::to_string(&versioned).unwrap();
+				let recovered: Slate = serde_json::from_str::<VersionedSlate>(&json)
+					.unwrap()
+					.into();
+				assert_eq!(recovered.tx.unwrap().kernels()[0].features, expected);
+
+				let bin: VersionedBinSlate = versioned.try_into()?;
+				let bytes = byte_ser::to_bytes(&bin).unwrap();
+				let recovered: Slate = VersionedSlate::from(
+					byte_ser::from_bytes::<VersionedBinSlate>(&bytes).unwrap(),
+				)
+				.into();
+
+				assert_eq!(recovered.tx.unwrap().kernels()[0].features, expected);
+			}
+		}
+
+		assert!(Slate::blank_with_kernel_features(2, false, KernelFeatures::Coinbase).is_err());
 
 		Ok(())
 	}

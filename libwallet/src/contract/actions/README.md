@@ -41,9 +41,9 @@ Separating side effects until the 'save_step' part would make these functions mu
    races a transaction already in the mempool.
  - Add a Grin node API for kernel lookup by MMR index, then use the witness index instead
    of searching by commitment.
+ - Expose the kernel feature constants from `grin_core` and reuse them here.
  - Move payment-proof creation and verification onto `Slate` so it can also be used
    outside contracts and is versioned with the slate format.
- - Preserve kernel features and their arguments across V4 and V5; see #793.
  - Choose the sender derivation path explicitly and keep encrypted outgoing files
    identifiable locally.
  - Add contract history, lookup and transport.
