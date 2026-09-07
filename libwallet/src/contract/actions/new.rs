@@ -70,6 +70,8 @@ where
 	// Initialize a new contract (if net_change is positive, I'm the receiver meaning this is invoice flow)
 	let num_participants = setup_args.num_participants;
 	let mut slate = Slate::blank(num_participants, net_change > 0);
+	// Contracts start with V4 and move to V5 when their proof data requires it
+	slate.version_info.version = 4;
 	// Use a caller-supplied id when given, so a retried creation reuses the same context.
 	let mut reused_context = false;
 	if let Some(id) = slate_id {

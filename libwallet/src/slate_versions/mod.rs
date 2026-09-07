@@ -65,14 +65,22 @@ impl TryFrom<u16> for SlateVersion {
 }
 
 impl SlateVersion {
-	/// The lowest version that can represent this slate without losing data, so a slate
-	/// is only sent as V5 when it has to be. V4 carries the payment proof's sender and
-	/// receiver addresses and its signature, but not the proof type, timestamp or memo.
+	/// Use V5 only when the slate has fields that V4 cannot store
+	/// V4 does not support the proof type, timestamp or memo
 	pub fn lowest_for(slate: &Slate) -> SlateVersion {
 		match &slate.payment_proof {
 			Some(p) if p.requires_v5() => SlateVersion::V5,
 			_ => SlateVersion::V4,
 		}
+	}
+
+	/// The requested output version, raised when the slate needs a newer version
+	pub fn output_for(slate: &Slate) -> Result<SlateVersion, Error> {
+		let requested = SlateVersion::try_from(slate.version_info.version)?;
+		Ok(match SlateVersion::lowest_for(slate) {
+			SlateVersion::V5 => SlateVersion::V5,
+			SlateVersion::V4 => requested,
+		})
 	}
 }
 
@@ -318,7 +326,7 @@ pub mod tests {
 	}
 
 	#[test]
-	fn create_slatepack_emits_lowest_version() -> Result<(), Error> {
+	fn create_slatepack_uses_output_version() -> Result<(), Error> {
 		set_local_chain_type(ChainTypes::Mainnet);
 		let packer = Slatepacker::new(SlatepackerArgs {
 			sender: None,
@@ -334,16 +342,20 @@ pub mod tests {
 		assert_eq!(recovered_v5.version_info.version, 5);
 		assert!(recovered_v5.payment_proof.unwrap().memo.is_some());
 
-		// Without a proof, V4 is sufficient and is emitted for interoperability with V4 peers.
+		// A plain slate keeps its requested version.
 		let mut slate_no_proof = populate_test_slate()?;
 		slate_no_proof.payment_proof = None;
+		let recovered_v5 = packer.get_slate(&packer.create_slatepack(&slate_no_proof)?)?;
+		assert_eq!(recovered_v5.version_info.version, 5);
+
+		slate_no_proof.version_info.version = 4;
 		let recovered_v4 = packer.get_slate(&packer.create_slatepack(&slate_no_proof)?)?;
 		assert_eq!(recovered_v4.version_info.version, 4);
 
-		// A legacy send proof uses no V5 field. It must stay V4 so V4-only wallets can read it,
-		// and the proof has to survive the round trip intact.
+		// A legacy send proof also fits in V4 and survives the round trip intact.
 		let mut slate_legacy_proof = populate_test_slate()?;
 		use_legacy_proof(&mut slate_legacy_proof);
+		slate_legacy_proof.version_info.version = 4;
 		let proof = slate_legacy_proof.payment_proof.clone().unwrap();
 		let recovered_legacy = packer.get_slate(&packer.create_slatepack(&slate_legacy_proof)?)?;
 		assert_eq!(recovered_legacy.version_info.version, 4);
@@ -358,6 +370,7 @@ pub mod tests {
 		proof.timestamp = None;
 		proof.memo = None;
 		proof.promise_signature = None;
+		partial_proof.version_info.version = 4;
 		let recovered = packer.get_slate(&packer.create_slatepack(&partial_proof)?)?;
 		assert_eq!(recovered.version_info.version, 5);
 		let proof = recovered.payment_proof.unwrap();

@@ -46,7 +46,6 @@ Separating side effects until the 'save_step' part would make these functions mu
  - Preserve kernel features and their arguments across V4 and V5; see #793.
  - Choose the sender derivation path explicitly and keep encrypted outgoing files
    identifiable locally.
- - Decide whether `target_slate_version` should control Slatepack output or be removed.
  - Add contract history, lookup and transport.
  - Decide whether the foreign JSON-RPC API should expose `new` and `sign`.
  - Add full API and RPC examples once the contract interface is stable.

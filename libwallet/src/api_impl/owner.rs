@@ -42,9 +42,9 @@ use crate::{
 	address, contract,
 	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
 	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
-	WalletInitStatus, WalletInst, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, SlateVersion,
+	Slatepack, SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet,
+	WalletBackend, WalletInitStatus, WalletInst, WalletLCProvider,
 };
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
@@ -675,6 +675,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if let Some(v) = args.target_slate_version {
+		SlateVersion::try_from(v)?;
+	}
+
 	let payment_proof_address = if let Some(a) = &args.payment_proof_recipient_address {
 		if a.valid_network() {
 			Some(a)
@@ -801,6 +805,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if let Some(v) = args.target_slate_version {
+		SlateVersion::try_from(v)?;
+	}
+
 	let parent_key_id = match args.dest_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d)?;

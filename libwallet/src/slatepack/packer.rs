@@ -94,9 +94,7 @@ impl<'a> Slatepacker<'a> {
 
 	/// Create slatepack from slate and args
 	pub fn create_slatepack(&self, slate: &Slate) -> Result<Slatepack, Error> {
-		// Emit the lowest version that can represent this slate, for maximum
-		// interoperability with V4-only wallets.
-		let version = SlateVersion::lowest_for(slate);
+		let version = SlateVersion::output_for(slate)?;
 		let out_slate = VersionedSlate::into_version(slate.clone(), version)?;
 		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| Error::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();

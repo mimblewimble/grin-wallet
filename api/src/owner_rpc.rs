@@ -2119,6 +2119,11 @@ pub trait OwnerRpc {
 	) -> Result<SwapReq, Error>;
 }
 
+fn versioned_output(slate: Slate) -> Result<VersionedSlate, Error> {
+	let version = SlateVersion::output_for(&slate)?;
+	VersionedSlate::into_version(slate, version)
+}
+
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
 where
 	L: WalletLCProvider<'static, C, K>,
@@ -2216,8 +2221,7 @@ where
 
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error> {
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)?;
-		let version = SlateVersion::V4;
-		VersionedSlate::into_version(slate, version)
+		versioned_output(slate)
 	}
 
 	fn contract_new(
@@ -2238,20 +2242,13 @@ where
 		in_slate: VersionedSlate,
 		args: ContractSetupArgsAPI,
 	) -> Result<VersionedSlate, Error> {
-		let in_version = in_slate.version();
 		let slate = Owner::contract_sign(
 			self,
 			(&token.keychain_mask).as_ref(),
 			&Slate::from(in_slate),
 			&args,
 		)?;
-		// Keep the version the counterparty sent us, since they can clearly read it, but
-		// never below what the slate needs to represent its payment proof.
-		let version = match SlateVersion::lowest_for(&slate) {
-			SlateVersion::V5 => SlateVersion::V5,
-			SlateVersion::V4 => in_version,
-		};
-		VersionedSlate::into_version(slate, version)
+		versioned_output(slate)
 	}
 
 	fn contract_view(&self, token: Token, slate: VersionedSlate) -> Result<ContractView, Error> {
@@ -2278,8 +2275,7 @@ where
 		args: IssueInvoiceTxArgs,
 	) -> Result<VersionedSlate, Error> {
 		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)?;
-		let version = SlateVersion::V4;
-		VersionedSlate::into_version(slate, version)
+		versioned_output(slate)
 	}
 
 	fn process_invoice_tx(
@@ -2294,8 +2290,7 @@ where
 			&Slate::from(in_slate),
 			args,
 		)?;
-		let version = SlateVersion::V4;
-		VersionedSlate::into_version(out_slate, version)
+		versioned_output(out_slate)
 	}
 
 	fn tx_lock_outputs(&self, token: Token, in_slate: VersionedSlate) -> Result<(), Error> {
@@ -2312,8 +2307,7 @@ where
 			(&token.keychain_mask).as_ref(),
 			&Slate::from(in_slate),
 		)?;
-		let version = SlateVersion::V4;
-		VersionedSlate::into_version(out_slate, version)
+		versioned_output(out_slate)
 	}
 
 	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), Error> {
@@ -2538,8 +2532,7 @@ where
 			secret_indices,
 		)?;
 		// Keep the decoded version; lowest_for would downgrade a plain V5 slate
-		let version = SlateVersion::try_from(slate.version_info.version)?;
-		VersionedSlate::into_version(slate, version)
+		versioned_output(slate)
 	}
 
 	fn decode_slatepack_message(
@@ -2901,6 +2894,18 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
+	fn output_keeps_version() {
+		for version in [4, 5] {
+			let mut slate = Slate::blank(2, false);
+			slate.version_info.version = version;
+			assert_eq!(
+				versioned_output(slate).unwrap().version(),
+				SlateVersion::try_from(version).unwrap()
+			);
+		}
+	}
+
+	#[test]
 	fn slatepack_keeps_v5() {
 		let slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V5).unwrap();
 		let slate = VersionedBinSlate::try_from(slate).unwrap();
@@ -2931,5 +2936,36 @@ mod tests {
 		.unwrap();
 
 		assert_eq!(response["result"]["Ok"]["ver"], "5:3");
+	}
+
+	#[test]
+	fn invoice_uses_target_version() {
+		let request = serde_json::json!({
+			"jsonrpc": "2.0",
+			"method": "issue_invoice_tx",
+			"params": {
+				"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+				"args": {
+					"amount": "6000000000",
+					"dest_acct_name": null,
+					"target_slate_version": 5
+				}
+			},
+			"id": 1
+		});
+		let dir = tempdir().unwrap();
+		let response = run_doctest_owner(
+			request,
+			dir.path().to_str().unwrap(),
+			0,
+			false,
+			false,
+			false,
+			false,
+		)
+		.unwrap()
+		.unwrap();
+
+		assert_eq!(response["result"]["Ok"]["ver"], "5:1");
 	}
 }

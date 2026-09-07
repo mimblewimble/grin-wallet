@@ -72,8 +72,7 @@ pub struct InitTxArgs {
 	#[serde(default = "default_refresh_outputs_from_node")]
 	pub refresh_outputs_from_node: bool,
 	/// Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
+	/// down to the minimum slate version compatible with the current. If `None`, V4 is used.
 	pub target_slate_version: Option<u16>,
 	/// Number of blocks from current after which TX should be ignored
 	#[serde(with = "secp_ser::opt_string_or_u64")]
@@ -142,8 +141,7 @@ pub struct IssueInvoiceTxArgs {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
+	/// down to the minimum slate version compatible with the current. If `None`, V4 is used.
 	pub target_slate_version: Option<u16>,
 }
 

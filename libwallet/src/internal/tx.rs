@@ -57,6 +57,8 @@ where
 {
 	let current_height = wallet.w2n_client().get_chain_tip()?.0;
 	let mut slate = Slate::blank(num_participants, is_invoice);
+	// Start with V4 for compatibility unless the caller requests a newer version
+	slate.version_info.version = 4;
 	if let Some(b) = ttl_blocks {
 		slate.ttl_cutoff_height = current_height + b;
 	}
