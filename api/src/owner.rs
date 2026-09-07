@@ -2345,7 +2345,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender
 	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
-	/// slate). If an empty vec, the payload will remain unencrypted
+	/// slate). The sender is also able to decrypt it. If empty, the payload remains unencrypted
 	///
 	/// # Returns
 	/// * Ok with a String representing an armored slatepack if successful

@@ -44,8 +44,6 @@ Separating side effects until the 'save_step' part would make these functions mu
  - Expose the kernel feature constants from `grin_core` and reuse them here.
  - Move payment-proof creation and verification onto `Slate` so it can also be used
    outside contracts and is versioned with the slate format.
- - Choose the sender derivation path explicitly and keep encrypted outgoing files
-   identifiable locally.
  - Add contract history, lookup and transport.
  - Decide whether the foreign JSON-RPC API should expose `new` and `sign`.
  - Add full API and RPC examples once the contract interface is stable.

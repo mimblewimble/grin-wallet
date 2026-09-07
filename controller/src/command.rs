@@ -721,7 +721,6 @@ where
 			Some(a) => vec![a],
 			None => vec![],
 		};
-		// TODO: what is sender_index?
 		message = api.create_slatepack_message(m, &slate, Some(0), recipients)?;
 		// Trim the \n at the end.
 		let len_withoutcrlf = message.trim_end().len();

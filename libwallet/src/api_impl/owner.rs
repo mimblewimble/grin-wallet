@@ -148,7 +148,7 @@ pub fn create_slatepack_message<'a, L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	sender_index: Option<u32>,
-	recipients: Vec<SlatepackAddress>,
+	mut recipients: Vec<SlatepackAddress>,
 ) -> Result<String, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -159,6 +159,13 @@ where
 		Some(i) => Some(get_slatepack_address(wallet_inst, keychain_mask, i)?),
 		None => None,
 	};
+	if !recipients.is_empty() {
+		if let Some(sender) = &sender {
+			if !recipients.contains(sender) {
+				recipients.push(sender.clone());
+			}
+		}
+	}
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender,
 		recipients,

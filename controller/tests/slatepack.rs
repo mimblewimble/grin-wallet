@@ -594,10 +594,17 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 				..Default::default()
 			};
 			let slate = api.init_send_tx(m, args)?;
-			// create an encrypted slatepack (just encrypted for self)
-			let enc_addr = api.get_slatepack_address(m, 0)?;
-			let slatepack = api.create_slatepack_message(m, &slate, Some(0), vec![enc_addr])?;
+			let recipient_key = edDalekSecretKey::from_bytes(&[1u8; 32]);
+			let recipient = SlatepackAddress::new(&edDalekPublicKey::from(&recipient_key));
+			let slatepack = api.create_slatepack_message(m, &slate, Some(0), vec![recipient])?;
 			println!("{}", slatepack);
+			let recipient_packer = Slatepacker::new(SlatepackerArgs {
+				sender: None,
+				recipients: vec![],
+				dec_key: Some(&recipient_key),
+			});
+			let recipient_copy = recipient_packer.deser_slatepack(slatepack.as_bytes(), true)?;
+			recipient_packer.get_slate(&recipient_copy)?;
 			let slatepack_raw = api.decode_slatepack_message(m, slatepack.clone(), vec![0])?;
 			println!("{}", slatepack_raw);
 			let decoded_slate = api.slate_from_slatepack_message(m, slatepack, vec![0])?;
