@@ -53,7 +53,6 @@ without a user confirmation step.
  - Revisit automatic receive signing once there is a user confirmation step.
  - Infer `--receive` and `--send` from the slate state.
  - Revisit `remove_other_sigdata` before allowing more than two participants.
- - Stop relying on TxLog offsets in contract tests.
 
 ### Side-effects
 

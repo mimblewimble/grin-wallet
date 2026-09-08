@@ -222,7 +222,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			assert_eq!(wallet_info.last_confirmed_height, bh);
 			assert!(refreshed);
 			assert_eq!(txs.len(), 5); // 4 mined and 1 received
-			let tx_log = txs[4].clone();
+			let tx_log = common::tx_log_for_slate(api, m, &slate)?;
 			assert_eq!(tx_log.tx_type, TxLogEntryType::TxReceived);
 			assert_eq!(tx_log.amount_credited, 5_000_000_000);
 			assert_eq!(tx_log.amount_debited, 0);
@@ -254,7 +254,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			assert_eq!(wallet_info.last_confirmed_height, bh);
 			assert!(refreshed);
 			assert_eq!(txs.len() as u64, bh - 4 + 1); // send_wallet didn't mine 4 blocks and made 1 tx
-			let tx_log = txs[txs.len() - 5].clone(); // TODO: why -5 and not -4?
+			let tx_log = common::tx_log_for_slate(api, m, &slate)?;
 			assert_eq!(tx_log.tx_type, TxLogEntryType::TxSent);
 			assert_eq!(tx_log.amount_credited, 0);
 			assert_eq!(tx_log.amount_debited, 5_000_000_000);

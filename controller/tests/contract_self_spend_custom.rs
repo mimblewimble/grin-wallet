@@ -141,7 +141,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 			assert_eq!(wallet_info.last_confirmed_height, bh);
 			assert!(refreshed);
 			assert_eq!(txs.len() as u64, bh + 1); // send wallet didn't mine 4 blocks and made 1 tx
-			let tx_log = txs[txs.len() - 5].clone(); // TODO: why -5 and not -4?
+			let tx_log = common::tx_log_for_slate(api, m, &slate)?;
 			assert_eq!(tx_log.tx_type, TxLogEntryType::TxSelfSpend);
 			assert_eq!(tx_log.amount_credited, 0);
 			assert_eq!(tx_log.amount_debited, 0);

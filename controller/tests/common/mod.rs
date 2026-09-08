@@ -185,6 +185,22 @@ pub fn wallet_progress(
 	})
 }
 
+#[allow(dead_code)]
+pub fn tx_log_for_slate(
+	api: &TestOwner,
+	keychain_mask: Option<&SecretKey>,
+	slate: &libwallet::Slate,
+) -> Result<libwallet::TxLogEntry, libwallet::Error> {
+	let (_, mut txs) = api.retrieve_txs(keychain_mask, false, None, Some(slate.id), None)?;
+	assert_eq!(
+		txs.len(),
+		1,
+		"expected one tx log entry for slate {}",
+		slate.id
+	);
+	Ok(txs.pop().unwrap())
+}
+
 pub fn setup(test_dir: &str) {
 	util::init_test_logger();
 	clean_output_dir(test_dir);

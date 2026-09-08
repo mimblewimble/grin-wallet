@@ -85,7 +85,7 @@ fn contract_self_spend_cancel_impl(test_dir: &'static str) -> Result<(), libwall
 			let (refreshed, txs) = api.retrieve_txs(m, true, None, None, Some(query_args))?;
 			assert!(refreshed);
 			assert_eq!(txs.len() as u64, 5); // send wallet didn't mine 4 blocks and made 1 tx
-			let tx_log = txs[4].clone(); // TODO: why -5 and not -4?
+			let tx_log = common::tx_log_for_slate(api, m, &slate)?;
 			assert_eq!(tx_log.tx_type, TxLogEntryType::TxSelfSpendCancelled);
 			for query in [
 				RetrieveTxQueryArgs {
