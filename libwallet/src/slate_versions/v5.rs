@@ -14,8 +14,7 @@
 
 //! Contains V5 of the slate (version as yet undetermined)
 //!
-//! TODO: Should be considered experimental and remain in an experimental branch
-//! until such time as the relevant RFCs are accepted
+//! V5 is experimental and should remain so until the relevant RFCs are accepted.
 //!
 //! Changes from V4:
 //! #### Top-Level Slate Struct

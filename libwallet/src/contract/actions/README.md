@@ -45,8 +45,12 @@ without a user confirmation step.
  - Add a Grin node API for kernel lookup by MMR index, then use the witness index instead
    of searching by commitment.
  - Expose the kernel feature constants from `grin_core` and reuse them here.
- - Move payment-proof creation and verification onto `Slate` so it can also be used
-   outside contracts and is versioned with the slate format.
+ - Move payment-proof handling onto `Slate` so it can be used outside contracts and
+   versioned with the slate format
+ - Unify legacy and early payment-proof storage
+ - Add compact Slatepack support for contracts
+ - Allow choosing the address path for contract proofs and outgoing Slatepacks
+ - Keep Slate V5 experimental until the related RFCs are accepted
  - Add contract history, lookup and transport.
  - Separate side effects out from the computation, as described above.
  - Store transactions in LMDB so they can be committed with the wallet state.

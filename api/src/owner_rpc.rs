@@ -566,9 +566,6 @@ pub trait OwnerRpc {
 	```
 	*/
 
-	/**
-	   TODO: Full docs once API has stabilised
-	*/
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
 
 	/**
