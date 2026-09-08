@@ -50,6 +50,13 @@ without a user confirmation step.
  - Add contract history, lookup and transport.
  - Separate side effects out from the computation, as described above.
  - Store transactions in LMDB so they can be committed with the wallet state.
+ - Revisit automatic receive signing once there is a user confirmation step.
+ - Infer `--receive` and `--send` from the slate state.
+ - Revisit `remove_other_sigdata` before allowing more than two participants.
+ - Stop relying on TxLog offsets in contract tests.
+ - Finish the account-switching tests in `contract_accounts.rs`.
+ - Reuse the workspace `serde_with` version.
+ - Define and test how self-spends are handled by the sent and received filters.
 
 ### Side-effects
 
