@@ -55,7 +55,6 @@ without a user confirmation step.
  - Revisit `remove_other_sigdata` before allowing more than two participants.
  - Stop relying on TxLog offsets in contract tests.
  - Finish the account-switching tests in `contract_accounts.rs`.
- - Reuse the workspace `serde_with` version.
 
 ### Side-effects
 

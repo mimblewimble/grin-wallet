@@ -299,12 +299,16 @@ pub mod tests {
 	}
 
 	#[test]
-	fn v5_proof_requires_type() -> Result<(), Error> {
-		let v5 = SlateV5::from(populate_test_slate()?);
+	fn v5_proof_json() -> Result<(), Error> {
+		let mut v5 = SlateV5::from(populate_test_slate()?);
+		let timestamp = 1_234_567_890;
+		v5.proof.as_mut().unwrap().ts = DateTime::from_timestamp(timestamp, 0);
 		let mut value = serde_json::to_value(v5).unwrap();
-		let proof = value["proof"].as_object_mut().unwrap();
-		assert_eq!(proof["ptype"].as_u64(), Some(1));
-		proof.remove("ptype");
+		assert_eq!(value["proof"]["ptype"].as_u64(), Some(1));
+		assert_eq!(value["proof"]["ts"].as_i64(), Some(timestamp));
+		let decoded: SlateV5 = serde_json::from_value(value.clone()).unwrap();
+		assert_eq!(decoded.proof.unwrap().ts.unwrap().timestamp(), timestamp);
+		value["proof"].as_object_mut().unwrap().remove("ptype");
 		assert!(serde_json::from_value::<SlateV5>(value.clone()).is_err());
 
 		value["proof"]["ptype"] = serde_json::json!(3);
