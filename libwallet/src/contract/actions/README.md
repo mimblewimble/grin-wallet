@@ -35,6 +35,9 @@ communicated through a &ChainState parameter which would collect these values be
 Setup still reads an existing Context again; passing it through would avoid that DB read.
 Separating side effects until the 'save_step' part would make these functions much easier to test.
 
+`new` and `sign` stay on the Rust Foreign API for now. They are not exposed over JSON-RPC
+without a user confirmation step.
+
 #### TODOs
 
  - Add RBF support to the Grin node before raising the replacement fee when `revoke`
@@ -45,7 +48,6 @@ Separating side effects until the 'save_step' part would make these functions mu
  - Move payment-proof creation and verification onto `Slate` so it can also be used
    outside contracts and is versioned with the slate format.
  - Add contract history, lookup and transport.
- - Decide whether the foreign JSON-RPC API should expose `new` and `sign`.
  - Separate side effects out from the computation, as described above.
  - Store transactions in LMDB so they can be committed with the wallet state.
 
