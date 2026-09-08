@@ -752,11 +752,6 @@ where
 		message: message,
 	};
 
-	// TODO: We save the slatepack, but it is encrypted for the counterparty. It seems hard to
-	// know which slatepack is which if we can't decrypt them. Either add some more metadata
-	// to slatepacks e.g. timestamp, counterparty address or save also a version that is encrypted with
-	// our own address so we can view it.
-
 	Ok(slate_out)
 }
 
