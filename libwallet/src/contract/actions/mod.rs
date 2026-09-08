@@ -29,8 +29,8 @@ pub use self::setup::setup;
 pub use self::sign::sign;
 pub use self::view::view;
 
-// Net change expected from the other party at the first step
-fn initial_net_change(state: &SlateState, amount: u64) -> Result<Option<i64>, Error> {
+/// Net change implied for the signer of a first-step slate
+pub fn initial_net_change(state: &SlateState, amount: u64) -> Result<Option<i64>, Error> {
 	let sign = match state {
 		SlateState::Standard1 => 1,
 		SlateState::Invoice1 => -1,

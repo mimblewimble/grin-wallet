@@ -518,7 +518,7 @@ subcommands:
                     long: outfile
                     takes_value: true
                 - proof-type:
-                    help: Create an early payment proof of this type (requires a positive --receive amount and --encrypt-for)
+                    help: Create an early payment proof of this type (requires a receiving contract and --encrypt-for)
                     long: proof-type
                     possible_values:
                       - invoice
@@ -585,7 +585,7 @@ subcommands:
                     long: no-broadcast
                     takes_value: false
                 - proof-type:
-                    help: Create an early payment proof of this type (requires a positive --receive amount and a Slatepack sender or --encrypt-for)
+                    help: Create an early payment proof of this type (requires a receiving contract and a Slatepack sender or --encrypt-for)
                     long: proof-type
                     possible_values:
                       - invoice

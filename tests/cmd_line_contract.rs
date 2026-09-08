@@ -405,6 +405,8 @@ fn parses_contract_options() {
 	let contract = args.subcommand_matches("contract").unwrap();
 	let sign_args = contract.subcommand_matches("sign").unwrap();
 	let parsed = grin_wallet::cmd::wallet_args::parse_contract_setup_args(sign_args).unwrap();
+	assert_eq!(parsed.receive, None);
+	assert_eq!(parsed.send, None);
 	assert_eq!(parsed.minimum_confirmations, None);
 	assert_eq!(parsed.fee_rate, None);
 

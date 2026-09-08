@@ -22,7 +22,7 @@ mod slate;
 pub mod types;
 mod utils;
 
-pub use self::actions::{new, revoke, setup, sign, view};
+pub use self::actions::{initial_net_change, new, revoke, setup, sign, view};
 
 pub use self::slate::can_finalize;
 pub use self::utils::my_fee_contribution;

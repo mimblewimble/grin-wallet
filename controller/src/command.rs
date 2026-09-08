@@ -21,11 +21,11 @@ use crate::error::Error;
 use crate::impls::PathToSlatepack;
 use crate::keychain;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::contract::can_finalize;
 use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs,
 	PaymentMemo, ProofArgs, ProofType,
 };
+use crate::libwallet::contract::{can_finalize, initial_net_change};
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
@@ -1716,7 +1716,7 @@ fn contract_proof_args(
 	}
 	if proof_type.is_some() && !receiving {
 		return Err(Error::ArgumentError(
-			"Early payment proofs require a positive --receive amount".to_string(),
+			"Early payment proofs require a receiving contract".to_string(),
 		));
 	}
 	Ok(match proof_type {
@@ -1894,8 +1894,11 @@ impl ContractSetupArgs {
 	}
 
 	// Create a ContractSetupArgsAPI from the ContractSetupArgs
-	fn to_api_args(&self) -> Result<ContractSetupArgsAPI, Error> {
-		let net_change = self.get_net_change()?;
+	fn to_api_args(&self, slate: &Slate) -> Result<ContractSetupArgsAPI, Error> {
+		let net_change = match self.get_net_change()? {
+			Some(value) => Some(value),
+			None => initial_net_change(&slate.state, slate.amount)?,
+		};
 		Ok(ContractSetupArgsAPI {
 			fee_rate: self.fee_rate,
 			net_change: net_change,
@@ -1912,7 +1915,7 @@ impl ContractSetupArgs {
 			proof_args: contract_proof_args(
 				self.proof_type,
 				self.memo.clone(),
-				self.receive.unwrap_or(0) > 0,
+				net_change.unwrap_or(0) > 0,
 			)?,
 			..Default::default()
 		})
@@ -1930,7 +1933,6 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut contract_sign_args = args.to_api_args()?;
 	let recipient = slatepack_recipient(args.counterparty_addr.as_deref())?;
 	print_contract_status("Paste slatepack:", args.as_json);
 	let mut slatepack_msg = String::new();
@@ -1939,6 +1941,7 @@ where
 		.map_err(|e| libwallet::Error::GenericError(format!("Failed to read from stdin: {}", e)))?;
 	let (mut slate, sender, _) =
 		parse_slatepack_with_mode(owner_api, keychain_mask, None, Some(slatepack_msg))?;
+	let mut contract_sign_args = args.to_api_args(&slate)?;
 	// Bind the proof to the Slatepack sender; --encrypt-for is only the fallback
 	set_proof_sender(
 		&mut contract_sign_args.proof_args,
@@ -2158,7 +2161,8 @@ mod contract_tests {
 			proof_type: Some(ProofType::Invoice),
 			memo: Some(PaymentMemo::new("payment".into()).unwrap()),
 		};
-		let mut api_args = args.to_api_args().unwrap();
+		let slate = Slate::blank(2, false);
+		let mut api_args = args.to_api_args(&slate).unwrap();
 		let key = SigningKey::from_bytes(&[1; 32]);
 		let sender = SlatepackAddress {
 			hrp: "tgrin".to_string(),
@@ -2170,6 +2174,7 @@ mod contract_tests {
 		};
 		set_proof_sender(&mut api_args.proof_args, Some(&sender), Some(&fallback)).unwrap();
 		assert_eq!(api_args.fee_rate, Some(2));
+		assert_eq!(api_args.net_change, Some(1));
 		assert_eq!(api_args.proof_args.proof_type, ProofType::Invoice);
 		assert_eq!(api_args.proof_args.sender_address, Some(sender.pub_key));
 		assert_eq!(
@@ -2181,22 +2186,39 @@ mod contract_tests {
 			Some("commitment")
 		);
 
+		for (state, expected) in [
+			(SlateState::Standard1, Some(10)),
+			(SlateState::Invoice1, Some(-10)),
+			(SlateState::Standard2, None),
+			(SlateState::Invoice2, None),
+		] {
+			let mut inferred = args.clone();
+			inferred.receive = None;
+			inferred.proof_type = None;
+			inferred.memo = None;
+			let mut slate = Slate::blank(2, false);
+			slate.state = state;
+			slate.amount = 10;
+			let api_args = inferred.to_api_args(&slate).unwrap();
+			assert_eq!(api_args.net_change, expected);
+		}
+
 		let mut invalid = args;
 		invalid.receive = None;
 		assert!(matches!(
-			invalid.to_api_args(),
+			invalid.to_api_args(&slate),
 			Err(Error::ArgumentError(message))
-				if message == "Early payment proofs require a positive --receive amount"
+				if message == "Early payment proofs require a receiving contract"
 		));
 		invalid.receive = Some(0);
 		assert!(matches!(
-			invalid.to_api_args(),
+			invalid.to_api_args(&slate),
 			Err(Error::ArgumentError(message))
-				if message == "Early payment proofs require a positive --receive amount"
+				if message == "Early payment proofs require a receiving contract"
 		));
 		invalid.proof_type = None;
 		assert!(matches!(
-			invalid.to_api_args(),
+			invalid.to_api_args(&slate),
 			Err(Error::ArgumentError(message)) if message == "--memo requires --proof-type"
 		));
 	}

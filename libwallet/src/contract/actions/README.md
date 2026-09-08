@@ -51,7 +51,6 @@ without a user confirmation step.
  - Separate side effects out from the computation, as described above.
  - Store transactions in LMDB so they can be committed with the wallet state.
  - Revisit automatic receive signing once there is a user confirmation step.
- - Infer `--receive` and `--send` from the slate state.
  - Revisit `remove_other_sigdata` before allowing more than two participants.
 
 ### Side-effects

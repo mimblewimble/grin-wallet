@@ -20,8 +20,8 @@ and `revoke`.
 
 `--send` and `--receive` are the amount being transferred, before each side pays its own
 fee. The sender spends the amount plus its fee. The receiver gets the amount minus its
-fee. Each side pays for the inputs and outputs it adds, plus its rounded-up share of the
-kernel fee.
+fee. Without either option, `contract sign` reads both from the first slate. Each side pays
+for its own inputs and outputs and a rounded-up share of the kernel fee.
 
 CLI amounts are human readable. Values passed to the API, including `make_outputs`, are in
 nanogrin. Outputs requested with `make_outputs` are added together with the output needed

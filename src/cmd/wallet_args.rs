@@ -1208,7 +1208,6 @@ pub fn parse_contract_setup_args(
 		}
 		None => None,
 	};
-	// FUTURE: detect a reversed --receive/--send from the slate state (S1 -> receive, I1 -> send).
 
 	Ok(command::ContractSetupArgs {
 		counterparty_addr: counterparty_addr,
