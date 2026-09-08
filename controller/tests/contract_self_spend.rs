@@ -22,7 +22,7 @@ use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::{Slate, SlateState, TxLogEntryType};
+use libwallet::{RetrieveTxQueryArgs, Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -113,6 +113,25 @@ fn contract_self_spend_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 			assert_eq!(tx_log.num_inputs, 1);
 			assert_eq!(tx_log.num_outputs, 1);
 			assert_eq!(tx_log.fee, Some(my_fee_contribution(1, 1, 1, 1)?));
+
+			for query in [
+				RetrieveTxQueryArgs {
+					include_sent_only: Some(true),
+					..Default::default()
+				},
+				RetrieveTxQueryArgs {
+					include_received_only: Some(true),
+					..Default::default()
+				},
+				RetrieveTxQueryArgs {
+					include_self_spend_only: Some(true),
+					..Default::default()
+				},
+			] {
+				let (_, filtered) = api.retrieve_txs(m, false, None, None, Some(query))?;
+				assert_eq!(filtered.len(), 1);
+				assert_eq!(filtered[0].tx_type, TxLogEntryType::TxSelfSpend);
+			}
 			Ok(())
 		},
 	)?;

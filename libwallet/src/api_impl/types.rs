@@ -200,9 +200,9 @@ pub struct RetrieveTxQueryArgs {
 	pub include_outstanding_only: Option<bool>,
 	/// whether to only consider confirmed-only transactions
 	pub include_confirmed_only: Option<bool>,
-	/// whether to only consider sent transactions
+	/// whether to only consider sent transactions, including self spends
 	pub include_sent_only: Option<bool>,
-	/// whether to only consider received transactions
+	/// whether to only consider received transactions, including self spends
 	pub include_received_only: Option<bool>,
 	/// whether to only consider coinbase transactions
 	pub include_coinbase_only: Option<bool>,

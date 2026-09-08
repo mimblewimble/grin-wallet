@@ -56,7 +56,6 @@ without a user confirmation step.
  - Stop relying on TxLog offsets in contract tests.
  - Finish the account-switching tests in `contract_accounts.rs`.
  - Reuse the workspace `serde_with` version.
- - Define and test how self-spends are handled by the sent and received filters.
 
 ### Side-effects
 

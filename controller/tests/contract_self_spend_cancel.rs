@@ -20,7 +20,7 @@ extern crate log;
 use grin_wallet_libwallet as libwallet;
 
 use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use libwallet::{Slate, SlateState, TxLogEntryType};
+use libwallet::{RetrieveTxQueryArgs, Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -87,6 +87,24 @@ fn contract_self_spend_cancel_impl(test_dir: &'static str) -> Result<(), libwall
 			assert_eq!(txs.len() as u64, 5); // send wallet didn't mine 4 blocks and made 1 tx
 			let tx_log = txs[4].clone(); // TODO: why -5 and not -4?
 			assert_eq!(tx_log.tx_type, TxLogEntryType::TxSelfSpendCancelled);
+			for query in [
+				RetrieveTxQueryArgs {
+					include_sent_only: Some(true),
+					..Default::default()
+				},
+				RetrieveTxQueryArgs {
+					include_received_only: Some(true),
+					..Default::default()
+				},
+				RetrieveTxQueryArgs {
+					include_self_spend_only: Some(true),
+					..Default::default()
+				},
+			] {
+				let (_, filtered) = api.retrieve_txs(m, false, None, None, Some(query))?;
+				assert_eq!(filtered.len(), 1);
+				assert_eq!(filtered[0].tx_type, TxLogEntryType::TxSelfSpendCancelled);
+			}
 			Ok(())
 		},
 	)?;
