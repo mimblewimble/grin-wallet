@@ -475,6 +475,32 @@ where
 	// Below is a foreign wrapper around owner calls to 'new' and 'sign' which are only executed
 	// if this is a receiving contract. This preserves the ability to receive on a foreign interface.
 	/// Start a receiving contract through the foreign API.
+	///
+	/// This is the first step of an RSR flow. The caller must confirm the request
+	/// with the user before continuing.
+	///
+	/// # Arguments
+	/// * `args` - Contract setup and expiry options. `net_change` must be positive.
+	///
+	/// # Returns
+	/// The new contract slate.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractNewArgsAPI;
+	///
+	/// let api_foreign = Foreign::new(
+	///     wallet,
+	///     std::path::PathBuf::from("grin-wallet.toml"),
+	///     None,
+	///     None,
+	///     false,
+	/// );
+	/// let mut args = ContractNewArgsAPI::default();
+	/// args.setup_args.net_change = Some(1_000_000_000);
+	/// let result = api_foreign.contract_new(&args);
+	/// ```
 	pub fn contract_new(&self, args: &ContractNewArgsAPI) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -489,6 +515,34 @@ where
 	}
 
 	/// Sign the receiving side of a contract through the foreign API.
+	///
+	/// The caller must show the incoming slate and ask the user before signing.
+	/// The slate must come from an existing receiving contract.
+	///
+	/// # Arguments
+	/// * `slate` - The incoming contract slate.
+	/// * `args` - This wallet's setup and expected balance change.
+	///
+	/// # Returns
+	/// The updated contract slate.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractSetupArgsAPI;
+	///
+	/// let api_foreign = Foreign::new(
+	///     wallet,
+	///     std::path::PathBuf::from("grin-wallet.toml"),
+	///     None,
+	///     None,
+	///     false,
+	/// );
+	/// let slate = Slate::blank(2, false);
+	/// let mut args = ContractSetupArgsAPI::default();
+	/// args.net_change = Some(1_000_000_000);
+	/// let result = api_foreign.contract_sign(&slate, &args);
+	/// ```
 	pub fn contract_sign(
 		&self,
 		slate: &Slate,

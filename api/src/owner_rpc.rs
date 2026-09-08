@@ -572,16 +572,136 @@ pub trait OwnerRpc {
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
 
 	/**
-	   TODO: Full docs once API has stabilised
-	*/
+	Networked version of [Owner::contract_new](struct.Owner.html#method.contract_new).
 
+	# Json rpc example
+
+	```
+	# use grin_wallet_api::run_doctest_owner;
+	# use serde_json::{self, Value};
+	# use tempfile::tempdir;
+	# let request = r#"
+	{
+	  "jsonrpc": "2.0",
+	  "method": "contract_new",
+	  "params": {
+		"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+		"args": {
+		  "setup_args": {
+			"src_acct_name": null,
+			"net_change": -1000000000,
+			"num_participants": 2,
+			"fee_rate": null,
+			"add_outputs": false,
+			"selection_args": {
+			  "minimum_confirmations": 1,
+			  "use_inputs": "any",
+			  "make_outputs": null
+			},
+			"proof_args": {
+			  "suppress_proof": true,
+			  "proof_type": "Invoice",
+			  "memo": null,
+			  "sender_address": null
+			}
+		  },
+		  "ttl_blocks": null
+		}
+	  },
+	  "id": 1
+	}
+	# "#;
+	# let dir = tempdir().unwrap();
+	# let request: Value = serde_json::from_str(request).unwrap();
+	# let response = run_doctest_owner(
+	#     request,
+	#     dir.path().to_str().unwrap(),
+	#     4,
+	#     false,
+	#     false,
+	#     false,
+	#     false,
+	# ).unwrap().unwrap();
+	# assert_eq!(response["result"]["Ok"]["sta"], "S1", "{response}");
+	```
+	*/
 	fn contract_new(&self, token: Token, args: ContractNewArgsAPI)
 		-> Result<VersionedSlate, Error>;
 
 	/**
-	   TODO: Full docs once API has stabilised
-	*/
+	Networked version of [Owner::contract_sign](struct.Owner.html#method.contract_sign).
 
+	Pass the slate returned by `contract_new` or an earlier `contract_sign` call as `slate`.
+	This example signs a one-party self-spend.
+
+	# Json rpc example
+
+	```
+	# use easy_jsonrpc_mw::Handler;
+	# use grin_wallet_api::run_doctest_owner_with;
+	# use grin_wallet_libwallet::contract::types::{
+	#     ContractNewArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs,
+	# };
+	# use serde_json::json;
+	# use tempfile::tempdir;
+	# let token = "d202964900000000d302964900000000d402964900000000d502964900000000";
+	# let setup_args = ContractNewArgsAPI {
+	#     setup_args: ContractSetupArgsAPI {
+	#         net_change: Some(0),
+	#         num_participants: 1,
+	#         selection_args: OutputSelectionArgs {
+	#             minimum_confirmations: Some(1),
+	#             ..Default::default()
+	#         },
+	#         ..Default::default()
+	#     },
+	#     ..Default::default()
+	# };
+	# let setup_request = json!({
+	#     "jsonrpc": "2.0",
+	#     "method": "contract_new",
+	#     "params": { "token": token, "args": setup_args },
+	#     "id": 1
+	# });
+	# let dir = tempdir().unwrap();
+	# let response = run_doctest_owner_with(
+	#     dir.path().to_str().unwrap(), 4, false, false, false, false, false,
+	#     move |api| {
+	#         let setup = api.handle_request(setup_request).as_option().unwrap();
+	#         let slate = setup["result"]["Ok"].clone();
+	let request = json!({
+	  "jsonrpc": "2.0",
+	  "method": "contract_sign",
+	  "params": {
+		"token": token,
+		"slate": slate,
+		"args": {
+		  "src_acct_name": null,
+		  "net_change": null,
+		  "num_participants": 1,
+		  "fee_rate": null,
+		  "add_outputs": false,
+		  "selection_args": {
+			"minimum_confirmations": 1,
+			"use_inputs": "any",
+			"make_outputs": null
+		  },
+		  "proof_args": {
+			"suppress_proof": true,
+			"proof_type": "Invoice",
+			"memo": null,
+			"sender_address": null
+		  }
+		}
+	  },
+	  "id": 2
+	});
+	#         api.handle_request(request).as_option()
+	#     },
+	# ).unwrap().unwrap();
+	# assert_eq!(response["result"]["Ok"]["sta"], "S2", "{response}");
+	```
+	*/
 	fn contract_sign(
 		&self,
 		token: Token,
@@ -590,15 +710,124 @@ pub trait OwnerRpc {
 	) -> Result<VersionedSlate, Error>;
 
 	/**
-	   TODO: Full docs once API has stabilised
-	*/
+	Networked version of [Owner::contract_view](struct.Owner.html#method.contract_view).
 
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+	  "jsonrpc": "2.0",
+	  "method": "contract_view",
+	  "params": {
+		"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+		"slate": {
+		  "ver": "4:3",
+		  "id": "0436430c-2b02-624c-2032-570501212b00",
+		  "sta": "S1",
+		  "sigs": [],
+		  "coms": []
+		}
+	  },
+	  "id": 1
+	}
+	# "#,
+	# r#"
+	{
+	  "id": 1,
+	  "jsonrpc": "2.0",
+	  "result": {
+		"Ok": {
+		  "agreed_net_change": null,
+		  "balance_change": null,
+		  "is_executed": false,
+		  "num_participants": 2,
+		  "num_sigs": 0,
+		  "own_commitment_status": "clean",
+		  "own_fee": null,
+		  "suggested_net_change": 0
+		}
+	  }
+	}
+	# "#,
+	# 0, false, false, false, false);
+	```
+	*/
 	fn contract_view(&self, token: Token, slate: VersionedSlate) -> Result<ContractView, Error>;
 
 	/**
-	   TODO: Full docs once API has stabilised
-	*/
+	Networked version of [Owner::contract_revoke](struct.Owner.html#method.contract_revoke).
 
+	Returns a replacement self-spend when the wallet contributed an input.
+
+	# Json rpc example
+
+	```
+	# use easy_jsonrpc_mw::Handler;
+	# use grin_wallet_api::run_doctest_owner_with;
+	# use grin_wallet_libwallet::contract::types::{
+	#     ContractNewArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs,
+	# };
+	# use serde_json::json;
+	# use tempfile::tempdir;
+	# let token = "d202964900000000d302964900000000d402964900000000d502964900000000";
+	# let setup_args = ContractNewArgsAPI {
+	#     setup_args: ContractSetupArgsAPI {
+	#         net_change: Some(-1_000_000_000),
+	#         add_outputs: true,
+	#         selection_args: OutputSelectionArgs {
+	#             minimum_confirmations: Some(1),
+	#             ..Default::default()
+	#         },
+	#         ..Default::default()
+	#     },
+	#     ..Default::default()
+	# };
+	# let setup_request = json!({
+	#     "jsonrpc": "2.0",
+	#     "method": "contract_new",
+	#     "params": { "token": token, "args": setup_args },
+	#     "id": 1
+	# });
+	# let dir = tempdir().unwrap();
+	# let response = run_doctest_owner_with(
+	#     dir.path().to_str().unwrap(), 4, false, false, false, false, false,
+	#     move |api| {
+	#         let setup = api.handle_request(setup_request).as_option().unwrap();
+	#         let slate_id = setup["result"]["Ok"]["id"].clone();
+	#         let txs = api.handle_request(json!({
+	#             "jsonrpc": "2.0",
+	#             "method": "retrieve_txs",
+	#             "params": {
+	#                 "token": token,
+	#                 "refresh_from_node": false,
+	#                 "tx_id": null,
+	#                 "tx_slate_id": slate_id
+	#             },
+	#             "id": 2
+	#         })).as_option().unwrap();
+	#         let tx_id = txs["result"]["Ok"][1][0]["id"].clone();
+	let request = json!({
+	  "jsonrpc": "2.0",
+	  "method": "contract_revoke",
+	  "params": {
+		"token": token,
+		"args": {
+		  "tx_id": tx_id,
+		  "src_acct_name": null
+		}
+	  },
+	  "id": 3
+	});
+	#         api.handle_request(request).as_option()
+	#     },
+	# ).unwrap().unwrap();
+	# let replacement = &response["result"]["Ok"];
+	# assert!(!replacement.is_null(), "{response}");
+	# assert_eq!(replacement["sta"], "S2", "{response}");
+	```
+	*/
 	fn contract_revoke(
 		&self,
 		token: Token,
@@ -2637,6 +2866,35 @@ pub fn run_doctest_owner(
 	payment_proof: bool,
 ) -> Result<Option<serde_json::Value>, String> {
 	use easy_jsonrpc_mw::Handler;
+
+	let close_wallet = request["method"] == "set_top_level_directory";
+	run_doctest_owner_with(
+		test_dir,
+		blocks_to_mine,
+		perform_tx,
+		lock_tx,
+		finalize_tx,
+		payment_proof,
+		close_wallet,
+		move |owner_api| owner_api.handle_request(request).as_option(),
+	)
+}
+
+/// Set up an owner doctest and run several requests against the same wallet
+#[doc(hidden)]
+pub fn run_doctest_owner_with<F>(
+	test_dir: &str,
+	blocks_to_mine: u64,
+	perform_tx: bool,
+	lock_tx: bool,
+	finalize_tx: bool,
+	payment_proof: bool,
+	close_wallet: bool,
+	run: F,
+) -> Result<Option<serde_json::Value>, String>
+where
+	F: FnOnce(&(dyn OwnerRpc + 'static)) -> Option<serde_json::Value>,
+{
 	use grin_keychain::ExtKeychain;
 	use grin_wallet_config::initial_setup_wallet;
 	use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
@@ -2832,11 +3090,11 @@ pub fn run_doctest_owner(
 
 	let mut api_owner = Owner::new(wallet1, None, config.config_file_path);
 	api_owner.doctest_mode = true;
-	if request["method"] == "set_top_level_directory" {
+	if close_wallet {
 		api_owner.close_wallet(None).unwrap();
 	}
-	let owner_api = &api_owner as &dyn OwnerRpc;
-	let res = owner_api.handle_request(request).as_option();
+	let owner_api = &api_owner as &(dyn OwnerRpc + 'static);
+	let res = run(owner_api);
 	let _ = fs::remove_dir_all(test_dir);
 	Ok(res)
 }

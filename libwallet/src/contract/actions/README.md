@@ -46,7 +46,6 @@ Separating side effects until the 'save_step' part would make these functions mu
    outside contracts and is versioned with the slate format.
  - Add contract history, lookup and transport.
  - Decide whether the foreign JSON-RPC API should expose `new` and `sign`.
- - Add full API and RPC examples once the contract interface is stable.
  - Separate side effects out from the computation, as described above.
  - Store transactions in LMDB so they can be committed with the wallet state.
 

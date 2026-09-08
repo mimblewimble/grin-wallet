@@ -888,6 +888,24 @@ where
 	}
 
 	/// Initiate a new contract. Also performs the initial setup on the slate.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask, if one is used.
+	/// * `args` - Contract setup and expiry options.
+	///
+	/// # Returns
+	/// The new contract slate.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractNewArgsAPI;
+	///
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let mut new_args = ContractNewArgsAPI::default();
+	/// new_args.setup_args.net_change = Some(-1_000_000_000);
+	/// let result = api_owner.contract_new(None, &new_args);
+	/// ```
 	pub fn contract_new(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -899,6 +917,14 @@ where
 	}
 
 	/// Summarise a contract slate, including its participants, signatures and net change.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let slate = Slate::blank(2, false);
+	/// let result = api_owner.contract_view(None, &slate);
+	/// ```
 	pub fn contract_view(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -910,6 +936,17 @@ where
 	}
 
 	/// Sign a contract, running setup first if it has not been done yet.
+	/// The slate must come from an existing contract.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractSetupArgsAPI;
+	///
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let slate = Slate::blank(2, false);
+	/// let result = api_owner.contract_sign(None, &slate, &ContractSetupArgsAPI::default());
+	/// ```
 	pub fn contract_sign(
 		&self,
 		keychain_mask: Option<&SecretKey>,
@@ -933,6 +970,22 @@ where
 	}
 
 	/// Revoke a contract by double-spending one of its locked inputs.
+	/// The transaction id must identify an existing contract.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractRevokeArgsAPI;
+	///
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let result = api_owner.contract_revoke(
+	///     None,
+	///     &ContractRevokeArgsAPI {
+	///         tx_id: 1,
+	///         src_acct_name: None,
+	///     },
+	/// );
+	/// ```
 	pub fn contract_revoke(
 		&self,
 		keychain_mask: Option<&SecretKey>,
