@@ -54,7 +54,6 @@ without a user confirmation step.
  - Infer `--receive` and `--send` from the slate state.
  - Revisit `remove_other_sigdata` before allowing more than two participants.
  - Stop relying on TxLog offsets in contract tests.
- - Finish the account-switching tests in `contract_accounts.rs`.
 
 ### Side-effects
 

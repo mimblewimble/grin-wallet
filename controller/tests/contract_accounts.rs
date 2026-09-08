@@ -145,12 +145,27 @@ fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 			// check tx log as well
 			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 			assert_eq!(txs.len(), 0);
+
+			// Do not fall back to another account when the active account has no funds
+			let progress = common::wallet_progress(api, m)?;
+			let err = api
+				.contract_new(
+					m,
+					&ContractNewArgsAPI {
+						setup_args: ContractSetupArgsAPI {
+							net_change: Some(-(reward as i64)),
+							selection_args: common::contract_selection_args(),
+							..Default::default()
+						},
+						..Default::default()
+					},
+				)
+				.unwrap_err();
+			assert!(matches!(err, libwallet::Error::NotEnoughFunds { .. }));
+			assert_eq!(common::wallet_progress(api, m)?, progress);
 			Ok(())
 		},
 	)?;
-
-	// TODO: check what send_tx_slate_direct call does in accounts.rs test
-	// TODO: check that you can't call send on the default account because you have no funds
 
 	// Send a tx from wallet1::account1 -> wallet2::listener_account
 	{
