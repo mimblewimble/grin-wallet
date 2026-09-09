@@ -49,7 +49,6 @@ without a user confirmation step.
    versioned with the slate format
  - Unify legacy and early payment-proof storage
  - Add compact Slatepack support for contracts
- - Allow choosing the address path for contract proofs and outgoing Slatepacks
  - Keep Slate V5 experimental until the related RFCs are accepted
  - Add contract history, lookup and transport.
  - Separate side effects out from the computation, as described above.
