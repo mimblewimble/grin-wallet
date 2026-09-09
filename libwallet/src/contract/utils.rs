@@ -126,21 +126,20 @@ where
 			};
 
 			tx_log_entry.payment_proof = Some(StoredProofInfo {
-				receiver_address: p.receiver_address,
-				receiver_signature: p.promise_signature,
-				sender_address: sender_address.to_ed25519()?,
-				sender_address_path,
-				sender_signature: None,
-				// Filled as separate steps for now; could be merged into a general case
-				// once we know which nonces here belong to the recipient.
 				proof_type: Some(p.proof_type.as_u8()),
 				receiver_public_nonce: Some(recipient.public_nonce),
 				receiver_public_excess: Some(recipient.public_blind_excess),
 				timestamp: Some(timestamp),
 				memo: p.memo.clone(),
-				promise_signature: p.promise_signature,
 				sender_part_sig: sender.part_sig,
 				sender_public_nonce,
+				..StoredProofInfo::new(
+					p.receiver_address,
+					p.promise_signature,
+					sender_address.to_ed25519()?,
+					sender_address_path,
+					None,
+				)
 			});
 		}
 	}

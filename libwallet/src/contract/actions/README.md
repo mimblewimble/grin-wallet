@@ -47,7 +47,6 @@ without a user confirmation step.
  - Expose the kernel feature constants from `grin_core` and reuse them here.
  - Move payment-proof handling onto `Slate` so it can be used outside contracts and
    versioned with the slate format
- - Unify legacy and early payment-proof storage
  - Add compact Slatepack support for contracts
  - Keep Slate V5 experimental until the related RFCs are accepted
  - Add contract history, lookup and transport.

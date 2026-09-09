@@ -779,14 +779,14 @@ pub struct StoredProofInfo {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
-	/// receiver signature
+	/// Receiver signature for legacy proofs, or promise signature for early proofs
 	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
 	pub sender_address_path: u32,
 	/// sender address
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	/// sender signature
+	/// Legacy sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
 	// Fields beyond here are specific to early payment proofs
@@ -800,10 +800,7 @@ pub struct StoredProofInfo {
 	pub timestamp: Option<DateTime<Utc>>,
 	/// Optional payment memo
 	pub memo: Option<PaymentMemo>,
-	/// recipient promise signature
-	#[serde(default, with = "dalek_ser::option_dalek_sig_serde")]
-	pub promise_signature: Option<DalekSignature>,
-	/// Original Sender partial key
+	/// Early-proof sender partial signature
 	pub sender_part_sig: Option<Signature>,
 	/// Untweaked sender public nonce for a sender-nonce proof
 	pub sender_public_nonce: Option<PublicKey>,
@@ -828,7 +825,6 @@ impl StoredProofInfo {
 			receiver_public_excess: None,
 			timestamp: None,
 			memo: None,
-			promise_signature: None,
 			sender_part_sig: None,
 			sender_public_nonce: None,
 		}
@@ -1103,7 +1099,10 @@ mod tests {
 		});
 
 		let proof: StoredProofInfo = serde_json::from_value(proof).unwrap();
-		assert!(proof.promise_signature.is_none());
+		assert!(proof.receiver_signature.is_none());
+		let proof = serde_json::to_value(proof).unwrap();
+		assert!(proof.get("receiver_signature").is_some());
+		assert!(proof.get("promise_signature").is_none());
 	}
 
 	#[test]

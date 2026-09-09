@@ -616,7 +616,7 @@ where
 					sender_address: p.sender_address,
 					timestamp: p.timestamp.unwrap().timestamp(),
 					memo: p.memo,
-					promise_signature: p.promise_signature,
+					promise_signature: p.receiver_signature,
 					witness_data: None,
 				},
 				p.sender_part_sig.unwrap(),
