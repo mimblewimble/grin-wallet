@@ -44,7 +44,6 @@ without a user confirmation step.
  - Add a Grin node API for kernel lookup by MMR index, then use the witness index instead
    of searching by commitment.
  - Expose the kernel feature constants from `grin_core` and reuse them here.
- - Make sender-nonce commitment handling reusable outside contracts
  - Add compact Slatepack support for contracts
  - Keep Slate V5 experimental until the related RFCs are accepted
  - Add contract history, lookup and transport.
@@ -52,6 +51,8 @@ without a user confirmation step.
  - Store transactions in LMDB so they can be committed with the wallet state.
  - Revisit automatic receive signing once there is a user confirmation step.
  - Revisit `remove_other_sigdata` before allowing more than two participants.
+ - Check all preserved slate fields in the round-trip tests
+ - Test a full MWixnet round with a received contract output
 
 ### Side-effects
 

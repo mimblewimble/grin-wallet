@@ -279,6 +279,37 @@ impl EarlyPaymentProof {
 		Ok(proof)
 	}
 
+	/// Commit the sender nonce before sharing its public value
+	/// Save the base nonce on the first call and verify it on retries
+	pub fn commit_sender_nonce(
+		&self,
+		secp: &Secp256k1,
+		secret_nonce: &mut SecretKey,
+		base_public_nonce: &mut Option<PublicKey>,
+	) -> Result<(), Error> {
+		if self.proof_type != PaymentProofType::SenderNonce {
+			return Err(Error::PaymentProofValidation(
+				"Sender nonce commitment requires a sender-nonce proof".into(),
+			));
+		}
+		if let Some(base_public) = base_public_nonce.as_ref() {
+			let mut expected = base_public.clone();
+			expected.add_exp_assign(secp, &sender_nonce_tweak(secp, base_public, self)?)?;
+			if PublicKey::from_secret_key(secp, secret_nonce)? != expected {
+				return Err(Error::PaymentProofValidation(
+					"Sender nonce proof details changed".into(),
+				));
+			}
+		} else {
+			let base_public = PublicKey::from_secret_key(secp, secret_nonce)?;
+			let mut committed_nonce = secret_nonce.clone();
+			committed_nonce.add_assign(secp, &sender_nonce_tweak(secp, &base_public, self)?)?;
+			*secret_nonce = committed_nonce;
+			*base_public_nonce = Some(base_public);
+		}
+		Ok(())
+	}
+
 	/// Sign the payment promise
 	pub fn sign(&self, sec_key: &SecretKey) -> Result<(DalekSignature, DalekPublicKey), Error> {
 		let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
@@ -403,7 +434,7 @@ impl EarlyPaymentProof {
 	}
 }
 
-pub(crate) fn sender_nonce_tweak(
+fn sender_nonce_tweak(
 	secp: &Secp256k1,
 	sender_nonce: &PublicKey,
 	proof: &EarlyPaymentProof,
@@ -644,6 +675,21 @@ mod tests {
 			sender_nonce_tweak(&secp, &base, &sender_nonce)?.0.to_hex(),
 			"6bd7c4e86bd61999c26fdd4cc1af90cdcb0a79e39644f4d8045e2a6599bd4db0"
 		);
+		let mut secret_nonce = SecretKey::from_slice(&secp, &[9; 32])?;
+		let mut public_nonce = None;
+		assert!(proof
+			.commit_sender_nonce(&secp, &mut secret_nonce, &mut public_nonce)
+			.is_err());
+		sender_nonce.commit_sender_nonce(&secp, &mut secret_nonce, &mut public_nonce)?;
+		assert_eq!(public_nonce, Some(base));
+		let committed_nonce = secret_nonce.clone();
+		sender_nonce.commit_sender_nonce(&secp, &mut secret_nonce, &mut public_nonce)?;
+		assert_eq!(secret_nonce, committed_nonce);
+		let mut changed = sender_nonce.clone();
+		changed.memo = Some(PaymentMemo::new("changed details".into())?);
+		assert!(changed
+			.commit_sender_nonce(&secp, &mut secret_nonce, &mut public_nonce)
+			.is_err());
 		let (signature, recipient) = sender_nonce.sign(&proof_key)?;
 		sender_nonce.promise_signature = Some(signature);
 		sender_nonce.amount += 1;

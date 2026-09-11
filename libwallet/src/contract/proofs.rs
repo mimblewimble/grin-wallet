@@ -17,9 +17,9 @@
 use crate::backend::WalletBackend;
 use crate::contract::types::ProofArgs;
 use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::{PublicKey, SecretKey};
+use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::Secp256k1;
-use crate::payment_proof::{sender_nonce_tweak, EarlyPaymentProof};
+use crate::payment_proof::EarlyPaymentProof;
 use crate::slate::{PaymentProofType, Slate};
 use crate::types::{Context, NodeClient};
 use crate::{address, Error};
@@ -46,22 +46,11 @@ pub(super) fn commit_sender_nonce(
 		.sender_address
 		.ok_or(Error::NoSenderAddressProvided)?;
 	let proof = EarlyPaymentProof::from_slate(slate, 0, Some(sender_address))?;
-	if let Some(base_public) = context.sender_public_nonce.as_ref() {
-		let mut expected = base_public.clone();
-		expected.add_exp_assign(secp, &sender_nonce_tweak(secp, base_public, &proof)?)?;
-		if PublicKey::from_secret_key(secp, &context.sec_nonce)? != expected {
-			return Err(Error::PaymentProofValidation(
-				"Sender nonce proof details changed".into(),
-			));
-		}
-	} else {
-		let base_public = PublicKey::from_secret_key(secp, &context.sec_nonce)?;
-		context
-			.sec_nonce
-			.add_assign(secp, &sender_nonce_tweak(secp, &base_public, &proof)?)?;
-		context.sender_public_nonce = Some(base_public);
-	}
-	Ok(())
+	proof.commit_sender_nonce(
+		secp,
+		&mut context.sec_nonce,
+		&mut context.sender_public_nonce,
+	)
 }
 
 /// Add the receiver's proof data to a contract slate.
