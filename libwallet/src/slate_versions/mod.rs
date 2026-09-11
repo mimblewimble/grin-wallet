@@ -184,11 +184,12 @@ impl VersionedCoinbase {
 /// Shared slate fixtures, used by the version conversion tests
 #[cfg(test)]
 pub mod tests {
+	use super::HEIGHT_LOCKED_FEATURE;
 	use crate::grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight, OutputFeatures};
 	use crate::grin_core::core::FeeFields;
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
-	use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+	use crate::grin_util::secp::pedersen::Commitment;
 	use crate::grin_util::secp::Signature;
 	use crate::slate::{
 		KernelFeaturesArgs, ParticipantData, PaymentInfo, PaymentMemo, PaymentProofType,
@@ -203,7 +204,7 @@ pub mod tests {
 	use ed25519_dalek::Signature as DalekSignature;
 	use ed25519_dalek::VerifyingKey as DalekPublicKey;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
-	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+	use grin_keychain::{BlindingFactor, ExtKeychain, Keychain, SwitchCommitmentType};
 	use grin_wallet_util::byte_ser;
 	use std::convert::TryInto;
 
@@ -247,11 +248,22 @@ pub mod tests {
 		let com2 = CommitsV5 {
 			f: OutputFeatures::Plain.into(),
 			c: Commitment::from_vec([4u8; 1].to_vec()),
-			p: Some(RangeProof::zero()),
+			p: Some(keychain.secp().bullet_proof(
+				42,
+				skey1.clone(),
+				skey1.clone(),
+				skey2,
+				None,
+				None,
+			)),
 		};
 
 		let mut coms = vec![];
-		coms.push(com1.clone());
+		coms.push(CommitsV5 {
+			f: OutputFeatures::Coinbase.into(),
+			c: Commitment::from_vec([5u8; 1].to_vec()),
+			p: None,
+		});
 		coms.push(com1.clone());
 		coms.push(com1.clone());
 		coms.push(com2);
@@ -262,8 +274,11 @@ pub mod tests {
 
 		// basic fields
 		slate_internal.amount = 23820323;
-		slate_internal.kernel_features = 1;
-		slate_internal.num_participants = 2;
+		slate_internal.kernel_features = HEIGHT_LOCKED_FEATURE;
+		slate_internal.num_participants = 3;
+		slate_internal.fee_fields = FeeFields::new(0, 42)?;
+		slate_internal.ttl_cutoff_height = 100;
+		slate_internal.offset = BlindingFactor::from_secret_key(skey1);
 		slate_internal.kernel_features_args = Some(KernelFeaturesArgs {
 			lock_height: 2323223,
 		});
@@ -277,7 +292,7 @@ pub mod tests {
 		let ts = DateTime::from_timestamp(Utc::now().timestamp(), 0).unwrap();
 		let pm = PaymentMemo::new("payment details".to_string()).unwrap();
 
-		let psig = DalekSignature::from_bytes(&[0u8; 64]);
+		let psig = DalekSignature::from_bytes(&[11u8; 64]);
 		slate_internal.payment_proof = Some(PaymentInfo {
 			proof_type: PaymentProofType::Invoice,
 			sender_address: Some(d_pkey.clone()),
@@ -331,9 +346,14 @@ pub mod tests {
 
 		let slate_unpacked = slate_packer.get_slate(&slate_packed).unwrap();
 
-		// Just verifying payment proof for now, extend later to cover EQ for full slate if needs
-		// be
 		assert_eq!(slate_internal.payment_proof, slate_unpacked.payment_proof);
+		let version = SlateVersion::output_for(&slate_internal)?;
+		let expected = VersionedSlate::into_version(slate_internal, version.clone())?;
+		let recovered = VersionedSlate::into_version(slate_unpacked, version)?;
+		assert_eq!(
+			serde_json::to_value(recovered).unwrap(),
+			serde_json::to_value(expected).unwrap()
+		);
 		Ok(())
 	}
 
@@ -448,6 +468,10 @@ pub mod tests {
 				let json = serde_json::to_string(&versioned).unwrap();
 				let recovered: VersionedSlate = serde_json::from_str(&json).unwrap();
 				assert_eq!(recovered.version(), version, "json round trip: {}", json);
+				assert_eq!(
+					serde_json::to_value(&recovered).unwrap(),
+					serde_json::to_value(&versioned).unwrap()
+				);
 			}
 		}
 
@@ -472,12 +496,14 @@ pub mod tests {
 					SlateVersion::V5 => 5,
 				};
 				let versioned = VersionedSlate::into_version(slate, version.clone())?;
+				let expected = serde_json::to_value(&versioned).unwrap();
 				let bin: VersionedBinSlate = versioned.try_into().unwrap();
 				let bytes = byte_ser::to_bytes(&bin).unwrap();
 				let recovered: VersionedSlate = byte_ser::from_bytes::<VersionedBinSlate>(&bytes)
 					.unwrap()
 					.into();
 				assert_eq!(recovered.version(), version);
+				assert_eq!(serde_json::to_value(&recovered).unwrap(), expected);
 			}
 		}
 

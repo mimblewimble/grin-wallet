@@ -467,6 +467,7 @@ mod tests {
 	#[test]
 	fn slate_proof_data() -> Result<(), Error> {
 		let mut slate = populate_test_slate()?;
+		slate.num_participants = 2;
 		let mut legacy_proof = slate.payment_proof.take().unwrap();
 		let sender_address = legacy_proof.sender_address.unwrap();
 		assert!(slate.verify_payment_proof_sig(1, None).is_err());

@@ -51,7 +51,6 @@ without a user confirmation step.
  - Store transactions in LMDB so they can be committed with the wallet state.
  - Revisit automatic receive signing once there is a user confirmation step.
  - Revisit `remove_other_sigdata` before allowing more than two participants.
- - Check all preserved slate fields in the round-trip tests
  - Test a full MWixnet round with a received contract output
 
 ### Side-effects
