@@ -27,7 +27,7 @@ use uuid::Uuid;
 
 /// Deterministic slate id for the self-spend that revokes a given contract slate.
 /// Derived from the revoked slate id so a revoke interrupted between creating and
-/// signing the self-spend resumes by reusing the same context (get_or_create), rather
+/// signing the self-spend resumes by reusing the same context, rather
 /// than orphaning a fresh self-spend on each retry.
 fn self_spend_slate_id(revoked_slate_id: Uuid) -> Uuid {
 	let hash = blake2b(16, b"grin-contract-revoke", revoked_slate_id.as_bytes());

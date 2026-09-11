@@ -32,7 +32,6 @@ the slate when signing, so the counterparty does not see them earlier.
 Ideally we'd also separate side effects out of these functions e.g. computing the current_height
 or refreshing the outputs with updater::refresh_outputs(...). The current_height could be
 communicated through a &ChainState parameter which would collect these values before the call.
-Setup still reads an existing Context again; passing it through would avoid that DB read.
 Separating side effects until the 'save_step' part would make these functions much easier to test.
 
 `new` and `sign` stay on the Rust Foreign API for now. They are not exposed over JSON-RPC

@@ -23,6 +23,7 @@ use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient};
+use grin_core::core::FeeFields;
 
 // Contract deadlines use the node tip because the active account may not own the context
 fn check_contract_ttl<C, K>(w: &mut WalletBackend<C, K>, slate: &Slate) -> Result<(), Error>
@@ -57,7 +58,7 @@ where
 	}
 	contract::utils::verify_not_signed(w, slate.id)?;
 	// Compute state for 'setup'
-	let (slate, context) = compute(w, keychain_mask, slate, setup_args)?;
+	let (slate, context) = compute(w, keychain_mask, slate, setup_args, None)?;
 
 	// Atomically commit state
 	contract::utils::save_step(w, keychain_mask, &slate, context, setup_args.add_outputs)?;
@@ -71,6 +72,7 @@ pub fn compute<C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	setup_args: &ContractSetupArgsAPI,
+	existing_context: Option<Context>,
 ) -> Result<(Slate, Context), Error>
 where
 	C: NodeClient,
@@ -80,7 +82,10 @@ where
 	check_contract_ttl(w, &sl)?;
 
 	// Get or create the Context and check the setup arguments
-	let mut context = contract::context::get_or_create(w, keychain_mask, &mut sl, setup_args)?;
+	let mut context = match existing_context {
+		Some(context) => context,
+		None => contract::context::get_or_create(w, keychain_mask, &mut sl, setup_args)?,
+	};
 	contract::utils::verify_ttl(context.contract_ttl_cutoff_height, &sl)?;
 	let context_args = context
 		.setup_args
@@ -90,6 +95,19 @@ where
 
 	// Add keys and payment proof to slate (both are idempotent operations)
 	let keychain = w.keychain(keychain_mask)?;
+	// Restore our fee when a stored context is applied to a slate without our keys
+	if context.log_id.is_some() {
+		let has_our_keys = match sl.find_index_matching_context(&keychain, &context) {
+			Ok(_) => true,
+			Err(Error::ContextToIndex) => false,
+			Err(e) => return Err(e),
+		};
+		if !has_our_keys {
+			if let Some(fee) = context.fee {
+				sl.fee_fields = FeeFields::new(0, sl.fee_fields.fee() + fee.fee())?;
+			}
+		}
+	}
 	contract::proofs::commit_sender_nonce(&sl, &mut context, keychain.secp())?;
 	contract::slate::add_keys(&mut sl, &keychain, &mut context)?;
 	contract::slate::add_payment_proof(

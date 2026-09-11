@@ -667,6 +667,34 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		},
 	)?;
 
+	// Keep our fee when setup is retried with the original slate
+	let sender_args = ContractSetupArgsAPI {
+		selection_args: common::contract_selection_args(),
+		net_change: Some(-1_000_000_000),
+		..Default::default()
+	};
+	let receiver_args = ContractSetupArgsAPI {
+		selection_args: common::contract_selection_args(),
+		net_change: Some(1_000_000_000),
+		..Default::default()
+	};
+	let incoming = {
+		wallet_inst!(send_wallet, w);
+		libwallet::contract::new(w, send_mask, &sender_args, None, None)?
+	};
+	let signed = {
+		wallet_inst!(recv_wallet, w);
+		let first = libwallet::contract::setup(w, recv_mask, &incoming, &receiver_args)?;
+		let retried = libwallet::contract::setup(w, recv_mask, &incoming, &receiver_args)?;
+		assert_eq!(retried.fee_fields, first.fee_fields);
+		libwallet::contract::sign(w, recv_mask, &incoming, &receiver_args)?
+	};
+	{
+		wallet_inst!(send_wallet, w);
+		let signed = libwallet::contract::sign(w, send_mask, &signed, &sender_args)?;
+		assert_eq!(signed.state, SlateState::Standard3);
+	}
+
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));

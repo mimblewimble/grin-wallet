@@ -27,7 +27,7 @@ use uuid::Uuid;
 
 /// Create a new contract with initial setup done by the initiator. `slate_id`, when
 /// provided, fixes the slate id (rather than a random one) so the caller can make a
-/// retried creation idempotent: get_or_create reuses the existing context for that id.
+/// retried creation idempotent by reusing the existing context for that id.
 pub fn new<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -73,19 +73,19 @@ where
 	// Contracts start with V4 and move to V5 when their proof data requires it
 	slate.version_info.version = 4;
 	// Use a caller-supplied id when given, so a retried creation reuses the same context.
-	let mut reused_context = false;
+	let mut existing_context = None;
 	if let Some(id) = slate_id {
 		slate.id = id;
 		match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
 			Ok(context) => {
 				slate.ttl_cutoff_height = context.contract_ttl_cutoff_height.unwrap_or(0);
-				reused_context = true;
+				existing_context = Some(context);
 			}
 			Err(Error::NotFoundErr(_)) => {}
 			Err(e) => return Err(e),
 		}
 	}
-	if !reused_context {
+	if existing_context.is_none() {
 		if let Some(blocks) = ttl_blocks {
 			if blocks == 0 {
 				return Err(Error::GenericError(
@@ -104,5 +104,5 @@ where
 	debug!("contract::new => slate amount: {}", slate.amount);
 
 	// Perform setup for the slate
-	setup::compute(w, keychain_mask, &mut slate, setup_args)
+	setup::compute(w, keychain_mask, &slate, setup_args, existing_context)
 }

@@ -72,13 +72,7 @@ where
 		.map(|context| !context.has_inputs_or_outputs())
 		.unwrap_or(true);
 	// Compute state for 'sign'
-	let (sl, context) = compute(
-		w,
-		keychain_mask,
-		slate,
-		setup_args,
-		existing_context.as_ref(),
-	)?;
+	let (sl, context) = compute(w, keychain_mask, slate, setup_args, existing_context)?;
 
 	// Atomically commit state
 	contract::utils::save_step(w, keychain_mask, &sl, context, will_add_outputs)?;
@@ -92,20 +86,20 @@ pub fn compute<C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	setup_args: &ContractSetupArgsAPI,
-	existing_context: Option<&Context>,
+	existing_context: Option<Context>,
 ) -> Result<(Slate, Context), Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	let mut sl = slate.clone();
+	let sl = slate.clone();
 	contract::utils::verify_not_signed(w, sl.id)?;
 	// Reject terminal and unknown states before setup reserves keys.
 	contract::slate::next_state(&sl.state)?;
 
 	// Ensure net_change has been provided
 	let expected_net_change =
-		contract::utils::get_net_change(existing_context, setup_args.net_change)?;
+		contract::utils::get_net_change(existing_context.as_ref(), setup_args.net_change)?;
 	if existing_context.is_none() {
 		verify_first_sign_net_change(&sl.state, sl.amount, expected_net_change)?;
 	}
@@ -118,7 +112,8 @@ where
 	contract::slate::verify_incoming_own_commitments(w, keychain_mask, &sl)?;
 
 	// Ensure Setup phase is done and that inputs/outputs have been added to the Context
-	let (mut sl, mut context) = setup::compute(w, keychain_mask, &mut sl, &setup_args)?;
+	let (mut sl, mut context) =
+		setup::compute(w, keychain_mask, &sl, &setup_args, existing_context)?;
 	// Add outputs to the slate, verify the payment proof and sign the slate
 	contract::slate::add_outputs(w, keychain_mask, &mut sl, &context)?;
 	contract::slate::verify_own_commitments(w, keychain_mask, &sl, &context)?;

@@ -208,6 +208,16 @@ fn contract_revoke_resume_impl(test_dir: &'static str) -> Result<(), wallet::Err
 		create_wallets(vec![vec![("default", 4)]], test_dir).unwrap();
 	let wallet1 = wallets[0].0.clone();
 	let mask1 = wallets[0].1.as_ref();
+	let args = ContractNewArgsAPI {
+		setup_args: ContractSetupArgsAPI {
+			selection_args: common::contract_selection_args(),
+			net_change: Some(-1_000_000_000),
+			num_participants: 2,
+			add_outputs: true,
+			..Default::default()
+		},
+		..Default::default()
+	};
 
 	// Send (with early lock), locking an input under the contract tx.
 	let mut slate = Slate::blank(0, true);
@@ -216,21 +226,26 @@ fn contract_revoke_resume_impl(test_dir: &'static str) -> Result<(), wallet::Err
 		mask1,
 		PathBuf::from(test_dir),
 		|api, m| {
-			let args = &ContractNewArgsAPI {
-				setup_args: ContractSetupArgsAPI {
-					selection_args: common::contract_selection_args(),
-					net_change: Some(-1_000_000_000),
-					num_participants: 2,
-					add_outputs: true,
-					..Default::default()
-				},
-				..Default::default()
-			};
-			slate = api.contract_new(m, args)?;
+			slate = api.contract_new(m, &args)?;
 			Ok(())
 		},
 	)?;
 	assert_eq!(slate.state, SlateState::Standard1);
+	{
+		wallet_inst!(wallet1, w);
+		let retried =
+			libwallet::contract::new(w, mask1, &args.setup_args, args.ttl_blocks, Some(slate.id))?;
+		assert_eq!(retried.id, slate.id);
+		assert_eq!(retried.fee_fields, slate.fee_fields);
+		assert_eq!(
+			retried.participant_data[0].public_nonce,
+			slate.participant_data[0].public_nonce
+		);
+		assert_eq!(
+			retried.participant_data[0].public_blind_excess,
+			slate.participant_data[0].public_blind_excess
+		);
+	}
 
 	let mut tx_id = 0;
 	wallet::controller::owner_single_use(
