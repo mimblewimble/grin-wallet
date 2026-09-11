@@ -22,12 +22,12 @@ use crate::api_impl::owner::contract_sign as owner_contract_sign;
 use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::api_impl::types::update_tx_slate_state;
 use crate::backend::WalletBackend;
-use crate::contract::proofs::EarlyPaymentProof;
 use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
+use crate::payment_proof::EarlyPaymentProof;
 use crate::slate::PaymentProofType;
 use crate::slate_versions::SlateVersion;
 use crate::{

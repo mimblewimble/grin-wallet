@@ -18,7 +18,6 @@ use std::cmp;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
-use crate::contract::proofs::{EarlyPaymentProof, ProofWitness};
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::hash::Hashed;
 use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
@@ -27,6 +26,7 @@ use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::{Mutex, ToHex};
+use crate::payment_proof::{EarlyPaymentProof, ProofWitness};
 use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;

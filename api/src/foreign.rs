@@ -17,8 +17,8 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::contract::proofs::EarlyPaymentProof;
 use crate::libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
+use crate::libwallet::EarlyPaymentProof;
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,

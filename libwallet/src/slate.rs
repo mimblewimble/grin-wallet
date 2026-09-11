@@ -28,6 +28,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, static_secp_instance};
+use crate::payment_proof::{check_proof_type, EarlyPaymentProof};
 use chrono::prelude::{DateTime, Utc};
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
@@ -311,6 +312,98 @@ pub struct VersionCompatInfo {
 }
 
 impl Slate {
+	/// Whether the slate is in the first invoice signing round.
+	pub(crate) fn is_first_invoice_round(&self) -> bool {
+		self.state == SlateState::Invoice1
+			&& self.num_participants == 2
+			&& self.participant_data.len() == 1
+	}
+
+	/// Add the receiver's signed early payment proof
+	/// Replaces a matching unsigned legacy proof and rejects existing signed proofs
+	/// Sender-nonce proofs need a separate payer nonce commitment
+	pub fn add_payment_proof_data(
+		&mut self,
+		participant_index: usize,
+		proof_type: PaymentProofType,
+		sender_address: DalekPublicKey,
+		receiver_key: &SecretKey,
+		memo: Option<PaymentMemo>,
+	) -> Result<(), Error> {
+		check_proof_type(&proof_type)?;
+		if proof_type == PaymentProofType::SenderNonce && !self.is_first_invoice_round() {
+			return Err(Error::PaymentProofValidation(
+				"Sender nonce proofs require the first invoice signing round".into(),
+			));
+		}
+		let legacy_addresses = if let Some(proof) = self.payment_proof.as_ref() {
+			if proof.proof_type != PaymentProofType::Legacy {
+				return Err(Error::PaymentProofValidation(
+					"Slate already contains an early payment proof".to_string(),
+				));
+			}
+			if proof.promise_signature.is_some() {
+				return Err(Error::PaymentProofValidation(
+					"Slate already contains a signed payment proof".to_string(),
+				));
+			}
+			Some((proof.sender_address, proof.receiver_address))
+		} else {
+			None
+		};
+		if legacy_addresses
+			.and_then(|(sender, _)| sender)
+			.is_some_and(|address| address != sender_address)
+		{
+			return Err(Error::PaymentProofValidation(
+				"Early payment proof sender does not match legacy proof".to_string(),
+			));
+		}
+		let timestamp = Utc::now().timestamp();
+		let proof = EarlyPaymentProof::new(
+			self,
+			participant_index,
+			proof_type,
+			sender_address,
+			timestamp,
+			memo,
+		)?;
+		let (promise_signature, receiver_address) = proof.sign(receiver_key)?;
+		if legacy_addresses.is_some_and(|(_, address)| address != receiver_address) {
+			return Err(Error::PaymentProofValidation(
+				"Early payment proof receiver does not match legacy proof".to_string(),
+			));
+		}
+		let timestamp = DateTime::from_timestamp(timestamp, 0).ok_or_else(|| {
+			Error::GenericError(format!("Invalid proof timestamp: {}", timestamp))
+		})?;
+		self.payment_proof = Some(PaymentInfo {
+			proof_type,
+			sender_address: Some(sender_address),
+			receiver_address,
+			promise_signature: Some(promise_signature),
+			timestamp: Some(timestamp),
+			memo: proof.memo,
+		});
+		Ok(())
+	}
+
+	/// Verify the receiver's early payment promise signature
+	/// Full sender-nonce verification requires the transaction witness
+	pub fn verify_payment_proof_sig(
+		&self,
+		participant_index: usize,
+		sender_address: Option<DalekPublicKey>,
+	) -> Result<(), Error> {
+		let payment_proof = self
+			.payment_proof
+			.as_ref()
+			.ok_or_else(|| Error::PaymentProofValidation("Missing payment proof".to_string()))?;
+		check_proof_type(&payment_proof.proof_type)?;
+		EarlyPaymentProof::from_slate(self, participant_index, sender_address)?
+			.verify_promise_signature(&payment_proof.receiver_address)
+	}
+
 	/// Return the transaction, throwing an error if it doesn't exist
 	/// to be used at points in the code where the existence of a transaction
 	/// is assumed

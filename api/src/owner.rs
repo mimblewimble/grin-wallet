@@ -23,10 +23,10 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
-use crate::libwallet::contract::proofs::EarlyPaymentProof;
 use crate::libwallet::contract::types::{
 	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, ContractView,
 };
+use crate::libwallet::EarlyPaymentProof;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,

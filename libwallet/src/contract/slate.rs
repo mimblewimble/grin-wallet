@@ -30,7 +30,6 @@ use crate::Error;
 use std::collections::BTreeSet;
 
 use super::types::{OwnCommitmentStatus, ProofArgs};
-use crate::contract::proofs::EarlyPaymentProof;
 
 /// Add payment proof data to slate, noop for sender
 pub fn add_payment_proof<C, K>(
@@ -45,10 +44,9 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	// FUTURE: move proof handling onto Slate itself so it can be versioned (slate.add_payment_proof_data()).
 	debug!("contract::slate::add_payment_proof => called");
 	if !proof_args.suppress_proof {
-		super::proofs::check_proof_type(&proof_args.proof_type)?;
+		crate::payment_proof::check_proof_type(&proof_args.proof_type)?;
 	}
 	// If we're a recipient, generate proof unless explicity told not to
 	if let Some(ref c) = net_change {
@@ -69,16 +67,13 @@ pub fn verify_payment_promise<K>(
 where
 	K: Keychain,
 {
-	// FUTURE: move proof verification onto Slate itself so it can be versioned (slate.verify_payment_proof_sig()).
 	debug!("contract::slate::verify_payment_promise => called");
 	if context.get_net_change()? >= 0 {
 		return Ok(());
 	}
-	let payment_proof = match slate.payment_proof.as_ref() {
-		Some(proof) => proof,
-		None => return Ok(()),
-	};
-	super::proofs::check_proof_type(&payment_proof.proof_type)?;
+	if slate.payment_proof.is_none() {
+		return Ok(());
+	}
 	if slate.participant_data.len() != 2 {
 		return Err(Error::GenericError(format!(
 			"Expected 2 participants for a payment promise, found {}",
@@ -100,8 +95,7 @@ where
 		derivation_index,
 	)?;
 	let sender_address = OnionV3Address::from_private(&sender_key.0)?.to_ed25519()?;
-	let proof = EarlyPaymentProof::from_slate(slate, receiver_index, Some(sender_address))?;
-	proof.verify_promise_signature(&payment_proof.receiver_address)
+	slate.verify_payment_proof_sig(receiver_index, Some(sender_address))
 }
 
 /// Adds inputs and outputs to slate

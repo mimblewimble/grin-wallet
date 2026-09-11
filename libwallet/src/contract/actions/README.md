@@ -45,8 +45,7 @@ without a user confirmation step.
  - Add a Grin node API for kernel lookup by MMR index, then use the witness index instead
    of searching by commitment.
  - Expose the kernel feature constants from `grin_core` and reuse them here.
- - Move payment-proof handling onto `Slate` so it can be used outside contracts and
-   versioned with the slate format
+ - Make sender-nonce commitment handling reusable outside contracts
  - Add compact Slatepack support for contracts
  - Keep Slate V5 experimental until the related RFCs are accepted
  - Add contract history, lookup and transport.
