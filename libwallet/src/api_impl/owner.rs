@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
 use crate::grin_core::core::amount_to_hr_string;
 use crate::grin_core::core::hash::Hashed;
-use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
+use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction, TxKernel};
 use crate::grin_core::libtx::proof;
 use crate::grin_keychain::ViewKey;
 use crate::grin_util::secp::key::SecretKey;
@@ -542,6 +542,24 @@ where
 	})
 }
 
+/// Look up the kernel used by a payment proof
+pub(super) fn payment_proof_kernel<C: NodeClient>(
+	client: &mut C,
+	excess: &Commitment,
+) -> Result<(TxKernel, u64), Error> {
+	match client.get_kernel(excess, None, None) {
+		Err(e) => Err(Error::PaymentProof(format!(
+			"Error retrieving kernel from chain: {}",
+			e
+		))),
+		Ok(None) => Err(Error::PaymentProof(format!(
+			"Transaction kernel with excess {:?} not found on chain",
+			excess
+		))),
+		Ok(Some((kernel, _, index))) => Ok((kernel, index)),
+	}
+}
+
 /// Retrieve an early payment proof
 pub fn retrieve_payment_proof_early<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
@@ -613,30 +631,11 @@ where
 		w.w2n_client().clone()
 	};
 
-	let kernel_excess = match tx.kernel_excess {
-		Some(k) => k,
-		None => {
-			return Err(Error::PaymentProofRetrieval(format!(
-				"Early payment proof transaction kernel excess missing",
-			)))
-		}
-	};
+	let kernel_excess = tx.kernel_excess.ok_or_else(|| {
+		Error::PaymentProofRetrieval("Early payment proof transaction kernel excess missing".into())
+	})?;
 
-	let (retrieved_kernel, index) = match client.get_kernel(&kernel_excess, None, None) {
-		Err(e) => {
-			return Err(Error::PaymentProof(format!(
-				"Error retrieving kernel from chain: {}",
-				e
-			)));
-		}
-		Ok(None) => {
-			return Err(Error::PaymentProof(format!(
-				"Transaction kernel with excess {:?} not found on chain",
-				kernel_excess
-			)));
-		}
-		Ok(Some((k, _, index))) => (k, index),
-	};
+	let (retrieved_kernel, index) = payment_proof_kernel(&mut client, &kernel_excess)?;
 
 	proof.witness_data = Some(ProofWitness {
 		kernel_index: index,
@@ -1415,21 +1414,7 @@ where
 	};
 
 	// Check kernel exists
-	match client.get_kernel(&proof.excess, None, None) {
-		Err(e) => {
-			return Err(Error::PaymentProof(format!(
-				"Error retrieving kernel from chain: {}",
-				e
-			)));
-		}
-		Ok(None) => {
-			return Err(Error::PaymentProof(format!(
-				"Transaction kernel with excess {:?} not found on chain",
-				proof.excess
-			)));
-		}
-		Ok(Some(_)) => {}
-	};
+	payment_proof_kernel(&mut client, &proof.excess)?;
 
 	// Check Sigs
 	let recipient_pubkey = proof.recipient_address.pub_key;

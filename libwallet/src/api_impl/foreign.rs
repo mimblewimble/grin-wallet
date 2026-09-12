@@ -19,7 +19,7 @@ use strum::IntoEnumIterator;
 use super::owner::tx_lock_outputs;
 use crate::api_impl::owner::contract_new as owner_contract_new;
 use crate::api_impl::owner::contract_sign as owner_contract_sign;
-use crate::api_impl::owner::{check_ttl, post_tx};
+use crate::api_impl::owner::{check_ttl, payment_proof_kernel, post_tx};
 use crate::api_impl::types::update_tx_slate_state;
 use crate::backend::WalletBackend;
 use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
@@ -307,21 +307,7 @@ where
 		Error::PaymentProof("Cannot verify early payment proof with no witness data".to_string())
 	})?;
 
-	let (retrieved_kernel, _) = match client.get_kernel(&wd.kernel_commitment, None, None) {
-		Err(e) => {
-			return Err(Error::PaymentProof(format!(
-				"Error retrieving kernel from chain: {}",
-				e
-			)));
-		}
-		Ok(None) => {
-			return Err(Error::PaymentProof(format!(
-				"Transaction kernel with excess {:?} not found on chain",
-				wd.kernel_commitment
-			)));
-		}
-		Ok(Some((k, _, index))) => (k, index),
-	};
+	let (retrieved_kernel, _) = payment_proof_kernel(&mut client, &wd.kernel_commitment)?;
 
 	// Now verify with retrieved data
 	proof.verify_witness(
