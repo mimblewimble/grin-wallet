@@ -95,6 +95,7 @@ pub struct ProofArgs {
 	/// If net change is positive during this step, whether to suppress the creation of payment proof
 	pub suppress_proof: bool,
 	/// Requested early payment proof type
+	#[serde(with = "crate::slate::payment_proof_type_serde")]
 	pub proof_type: ProofType,
 	/// Memo used when this step creates the payment proof
 	pub memo: Option<PaymentMemo>,
@@ -248,6 +249,29 @@ pub struct ContractRevokeArgsAPI {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn proof_args_json() {
+		for (proof_type, value) in [
+			(ProofType::Legacy, 0),
+			(ProofType::Invoice, 1),
+			(ProofType::SenderNonce, 2),
+		] {
+			let args = ProofArgs {
+				proof_type,
+				..Default::default()
+			};
+			let json = serde_json::to_value(args).unwrap();
+			assert_eq!(json["proof_type"], value);
+			let recovered: ProofArgs = serde_json::from_value(json).unwrap();
+			assert_eq!(recovered.proof_type, proof_type);
+		}
+		let mut json = serde_json::to_value(ProofArgs::default()).unwrap();
+		for invalid in [serde_json::json!(3), serde_json::json!("Invoice")] {
+			json["proof_type"] = invalid;
+			assert!(serde_json::from_value::<ProofArgs>(json.clone()).is_err());
+		}
+	}
 
 	#[test]
 	fn selection_args_json() {

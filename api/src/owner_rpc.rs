@@ -597,7 +597,7 @@ pub trait OwnerRpc {
 			},
 			"proof_args": {
 			  "suppress_proof": true,
-			  "proof_type": "Invoice",
+			  "proof_type": 1,
 			  "memo": null,
 			  "sender_address": null
 			}
@@ -685,7 +685,7 @@ pub trait OwnerRpc {
 		  },
 		  "proof_args": {
 			"suppress_proof": true,
-			"proof_type": "Invoice",
+			"proof_type": 1,
 			"memo": null,
 			"sender_address": null
 		  }

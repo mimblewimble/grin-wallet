@@ -791,18 +791,41 @@ pub struct StoredProofInfo {
 	pub sender_signature: Option<DalekSignature>,
 	// Fields beyond here are specific to early payment proofs
 	/// Assumed to be 0x00 (Legacy) if missing
+	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub proof_type: Option<u8>,
 	/// receiver's public nonce from signing
+	#[serde(
+		default,
+		with = "dalek_ser::option_pubkey_serde",
+		skip_serializing_if = "Option::is_none"
+	)]
 	pub receiver_public_nonce: Option<PublicKey>,
 	/// receiver's public excess from signing
+	#[serde(
+		default,
+		with = "dalek_ser::option_pubkey_serde",
+		skip_serializing_if = "Option::is_none"
+	)]
 	pub receiver_public_excess: Option<PublicKey>,
 	/// Timestamp provided by recipient when signing
+	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub timestamp: Option<DateTime<Utc>>,
 	/// Optional payment memo
+	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub memo: Option<PaymentMemo>,
 	/// Early-proof sender partial signature
+	#[serde(
+		default,
+		with = "secp_ser::option_sig_serde",
+		skip_serializing_if = "Option::is_none"
+	)]
 	pub sender_part_sig: Option<Signature>,
 	/// Untweaked sender public nonce for a sender-nonce proof
+	#[serde(
+		default,
+		with = "dalek_ser::option_pubkey_serde",
+		skip_serializing_if = "Option::is_none"
+	)]
 	pub sender_public_nonce: Option<PublicKey>,
 }
 
@@ -1098,11 +1121,47 @@ mod tests {
 			"sender_signature": null
 		});
 
+		let expected = proof.clone();
 		let proof: StoredProofInfo = serde_json::from_value(proof).unwrap();
 		assert!(proof.receiver_signature.is_none());
 		let proof = serde_json::to_value(proof).unwrap();
 		assert!(proof.get("receiver_signature").is_some());
 		assert!(proof.get("promise_signature").is_none());
+		assert_eq!(proof, expected);
+	}
+
+	#[test]
+	fn stored_proof_json() {
+		let secp = Secp256k1::new();
+		let key = SecretKey::from_slice(&secp, &[1; 32]).unwrap();
+		let public_key = PublicKey::from_secret_key(&secp, &key).unwrap();
+		let signature = Signature::from_compact(&secp, &[11; 64]).unwrap();
+		let address = DalekSecretKey::from_bytes(&[1; 32]).verifying_key();
+		let proof = StoredProofInfo {
+			proof_type: Some(1),
+			receiver_public_nonce: Some(public_key),
+			receiver_public_excess: Some(public_key),
+			sender_public_nonce: Some(public_key),
+			sender_part_sig: Some(signature),
+			..StoredProofInfo::new(address, None, address, 0, None)
+		};
+		let value = serde_json::to_value(&proof).unwrap();
+		for field in [
+			"receiver_public_nonce",
+			"receiver_public_excess",
+			"sender_public_nonce",
+		] {
+			assert_eq!(value[field], public_key.serialize_vec(&secp, true).to_hex());
+		}
+		assert_eq!(value["sender_part_sig"], [11u8; 64].to_hex());
+		let recovered: StoredProofInfo = serde_json::from_value(value).unwrap();
+		assert_eq!(recovered.receiver_public_nonce, proof.receiver_public_nonce);
+		assert_eq!(
+			recovered.receiver_public_excess,
+			proof.receiver_public_excess
+		);
+		assert_eq!(recovered.sender_public_nonce, proof.sender_public_nonce);
+		assert_eq!(recovered.sender_part_sig, proof.sender_part_sig);
 	}
 
 	#[test]
