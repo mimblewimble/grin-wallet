@@ -328,7 +328,7 @@ where
 	/// Get an (Optional) tx log entry by parent key id and log id.
 	pub fn get_tx_log_entry_by_id(
 		&self,
-		parent_id: Identifier,
+		parent_id: &Identifier,
 		log_id: u32,
 	) -> Result<Option<TxLogEntry>, Error> {
 		let tx_log_key = to_key_u64(parent_id.to_bytes(), log_id as u64);

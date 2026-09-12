@@ -71,10 +71,8 @@ where
 pub fn compute(
 	setup_args: &ContractSetupArgsAPI,
 	committed_fee: Option<FeeFields>,
-	inputs: &mut Vec<OutputData>,
-) -> Result<(Vec<OutputData>, Vec<u64>, FeeFields), Error>
-where
-{
+	inputs: &mut [OutputData],
+) -> Result<(Vec<OutputData>, Vec<u64>, FeeFields), Error> {
 	let (inputs, fee) = select_inputs(setup_args, committed_fee, inputs)?;
 	let input_sum = inputs
 		.iter()
@@ -88,10 +86,8 @@ where
 fn select_inputs(
 	setup_args: &ContractSetupArgsAPI,
 	committed_fee: Option<FeeFields>,
-	inputs: &mut Vec<OutputData>,
-) -> Result<(Vec<OutputData>, FeeFields), Error>
-where
-{
+	inputs: &mut [OutputData],
+) -> Result<(Vec<OutputData>, FeeFields), Error> {
 	// We use 'lhs' and 'rhs' to denote the amounts on the left/right-hand side of the equation.
 	// To simulate receive/payment value we:
 	// - add positive net_change to the 'lhs' for the receiver (to simulate sender's input)
@@ -142,15 +138,16 @@ where
 	}
 	// NOTE: that these are inputs that MUST be selected. We should lock the inputs if they're
 	// required to minimize any potential race conditions.
-	let must_use_list = required_inputs.unwrap_or(vec![]);
-	if must_use_list.len() > 0 {
+	let must_use_list = required_inputs.unwrap_or_default();
+	if !must_use_list.is_empty() {
 		// Sort the inputs first by the ones listed in the use_inputs and then by value
 		inputs.sort_by_key(|out| {
 			(
 				// We have to negate the boolean to prioritize truthy values because
 				// false is 0 and hence would be sorted before truthy entries
-				!(out.commit.is_some()
-					&& must_use_list.contains(&&out.commit.as_ref().unwrap()[..])),
+				!out.commit
+					.as_deref()
+					.is_some_and(|commit| must_use_list.contains(&commit)),
 				out.value,
 			)
 		});
@@ -171,7 +168,7 @@ where
 	// We want to count how many inputs we've picked _so far_. This is used to prevent picking
 	// all 0*H +r*G outputs when we call with min_input_amount=0 and want just a payjoin.
 	let mut n_inputs = 0;
-	let mut must_use_list_cnt: u32 = 0;
+	let mut must_use_list_cnt: usize = 0;
 	// If we have already committed to a fee (context.fee) then set this as our "minimum" fee. The reason we have to
 	// do this is to avoid solving the equation for less than the committed fee. We have to guarantee the inputs we take
 	// are enough to cover the committed fee. At the end of selection, we check that the fees for the selection were not
@@ -193,8 +190,10 @@ where
 	let mut selected_inputs = Vec::new();
 	for out in inputs.iter() {
 		// Take the commitment if it is listed as one of those we MUST take
-		let must_take =
-			out.commit.is_some() && must_use_list.contains(&&out.commit.as_ref().unwrap()[..]);
+		let must_take = out
+			.commit
+			.as_deref()
+			.is_some_and(|commit| must_use_list.contains(&commit));
 		// Compute the fee without this input
 		let fee_without = fee_contribution(
 			n_inputs,
@@ -251,13 +250,15 @@ where
 	}
 
 	// Return an error if the fee computed is larger than the committed fee
-	if committed_fee.is_some() && my_fee.fee() > committed_fee.unwrap().fee() {
-		let msg = format!(
-			"Fee computed ({}) is larger than the committed fee ({}); cancel the transaction and retry",
-			my_fee.fee(),
-			committed_fee.unwrap().fee()
-		);
-		return Err(Error::Fee(msg).into());
+	if let Some(committed_fee) = committed_fee {
+		if my_fee.fee() > committed_fee.fee() {
+			let msg = format!(
+				"Fee computed ({}) is larger than the committed fee ({}); cancel the transaction and retry",
+				my_fee.fee(),
+				committed_fee.fee()
+			);
+			return Err(Error::Fee(msg));
+		}
 	}
 
 	// Check that the inputs we picked are enough to cover all our output amounts and fees
@@ -276,19 +277,18 @@ where
 			available_disp: amount_to_hr_string(total, false),
 			needed,
 			needed_disp: amount_to_hr_string(needed, false),
-		}
-		.into());
-		// return Err(ErrorKind::GenericError(msg.into()).into());
+		});
 	}
 
 	// Assert that all the use_inputs have been selected
-	if must_use_list.len() != must_use_list_cnt as usize {
-		let msg = format!(
-			"We have not found all the inputs that have been requested. {}, found only: {}",
-			setup_args.selection_args.use_inputs.as_ref().unwrap(),
-			must_use_list_cnt
-		);
-		return Err(Error::GenericError(msg.into()).into());
+	if let Some(use_inputs) = &setup_args.selection_args.use_inputs {
+		if must_use_list.len() != must_use_list_cnt {
+			let msg = format!(
+				"We have not found all the inputs that have been requested. {}, found only: {}",
+				use_inputs, must_use_list_cnt
+			);
+			return Err(Error::GenericError(msg));
+		}
 	}
 
 	debug!(
@@ -307,7 +307,7 @@ fn build_output_amount_list(
 	let expected_net_change = setup_args.net_change.ok_or_else(|| {
 		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
 	})?;
-	let mut my_output_amounts = setup_args.selection_args.output_amounts()?;
+	let mut my_output_amounts = setup_args.selection_args.output_amounts();
 	let custom_outputs_sum = my_output_amounts
 		.iter()
 		.try_fold(0u64, |acc, v| acc.checked_add(*v))

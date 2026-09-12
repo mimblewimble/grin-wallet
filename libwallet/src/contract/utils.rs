@@ -33,7 +33,7 @@ pub fn create_tx_log_entry(
 	net_change: i64,
 	parent_key_id: Identifier,
 	log_id: u32,
-) -> Result<TxLogEntry, Error> {
+) -> TxLogEntry {
 	let log_type = if slate.num_participants == 1 {
 		TxLogEntryType::TxSelfSpend
 	} else {
@@ -43,7 +43,7 @@ pub fn create_tx_log_entry(
 			TxLogEntryType::TxSent
 		}
 	};
-	let mut t = TxLogEntry::new(parent_key_id.clone(), log_type, log_id);
+	let mut t = TxLogEntry::new(parent_key_id, log_type, log_id);
 	// stored_tx is set in save_step, once we have signed and the transaction is written.
 
 	t.tx_slate_id = Some(slate.id);
@@ -57,7 +57,7 @@ pub fn create_tx_log_entry(
 		n => Some(n),
 	};
 
-	Ok(t)
+	t
 }
 
 /// Update TxLogEntry with data from the sign step
@@ -158,16 +158,13 @@ pub fn get_net_change(
 		// We have a context so we must have agreed on a certain net_change value in Context.net_change.
 		// If we have both Context.net_change and setup_args.net_change, then they must be equal.
 		let ctx_net_change = context.get_net_change()?;
-		match expected_net_change {
-			Some(args_net_change) => {
-				if ctx_net_change != args_net_change {
-					return Err(Error::GenericError(format!(
-						"Expected net change mismatch! Context.net_change: {}, setup_args.net_change: {}",
-						ctx_net_change, args_net_change
-					)));
-				}
+		if let Some(args_net_change) = expected_net_change {
+			if ctx_net_change != args_net_change {
+				return Err(Error::GenericError(format!(
+					"Expected net change mismatch! Context.net_change: {}, setup_args.net_change: {}",
+					ctx_net_change, args_net_change
+				)));
 			}
-			None => (),
 		}
 		expected_net_change = Some(ctx_net_change);
 	} else {
@@ -176,18 +173,15 @@ pub fn get_net_change(
 
 	// Fail if net_change was not passed to setup_args and was also not present in the context.
 	// This means it has not been explicitly agreed on and we require the user to pass it.
-	if expected_net_change.is_none() {
-		return Err(Error::GenericError(
-			"You did not agree on the expected net difference.".into(),
-		)
-		.into());
-	}
+	let expected_net_change = expected_net_change.ok_or_else(|| {
+		Error::GenericError("You did not agree on the expected net difference.".into())
+	})?;
 	debug!(
 		"contract::utils::get_net_change => expected_net_change: {}",
-		expected_net_change.unwrap()
+		expected_net_change
 	);
 
-	Ok(expected_net_change.unwrap())
+	Ok(expected_net_change)
 }
 
 /// Lock inputs and store the Context, TxLogEntry and OutputData atomically
@@ -221,15 +215,14 @@ where
 	// We are at step2 if we don't have context.log_id and we have signed the slate
 	let is_step2 = context.log_id.is_none() && is_signed;
 
-	let mut tx_log_entry = {
-		if context.log_id.is_none() {
+	let mut tx_log_entry = match context.log_id {
+		None => {
 			// We create a new entry with log_id=0 and but replace it with the real id before committing
-			create_tx_log_entry(slate, context.get_net_change()?, parent_key_id.clone(), 0)?
-		} else {
-			let log_id = context.log_id.unwrap();
-			w.get_tx_log_entry_by_id(parent_key_id.clone(), log_id)?
-				.ok_or_else(|| Error::NotFoundErr(format!("Transaction log entry {}", log_id)))?
+			create_tx_log_entry(slate, context.get_net_change()?, parent_key_id.clone(), 0)
 		}
+		Some(log_id) => w
+			.get_tx_log_entry_by_id(parent_key_id, log_id)?
+			.ok_or_else(|| Error::NotFoundErr(format!("Transaction log entry {}", log_id)))?,
 	};
 
 	// Update TxLogEntry if we have signed the contract (we have data about the kernel)
@@ -280,11 +273,11 @@ where
 	// Update TxLogEntry
 	if context.log_id.is_none() {
 		// If we just created the TxLogEntry, we have to assign it an id
-		let log_id = batch.next_tx_log_id(&parent_key_id)?;
+		let log_id = batch.next_tx_log_id(parent_key_id)?;
 		tx_log_entry.id = log_id;
 		context.log_id = Some(log_id);
 	}
-	batch.save_tx_log_entry(tx_log_entry.clone(), &parent_key_id)?;
+	batch.save_tx_log_entry(tx_log_entry, parent_key_id)?;
 	// Create OutputData entries and lock inputs if we added outputs at this step
 	if step_added_outputs {
 		// Create an OutputData entry for every created output
@@ -493,16 +486,16 @@ pub fn verify_setup_args_consistency(
 /// active account.
 pub fn parent_key_for<C, K>(
 	w: &mut WalletBackend<C, K>,
-	src_acct_name: Option<&String>,
+	src_acct_name: Option<&str>,
 ) -> Result<Identifier, Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
 	let parent_key_id = match src_acct_name {
-		Some(d) => match w.get_acct_path(d.clone())? {
+		Some(d) => match w.get_acct_path(d.to_owned())? {
 			Some(p) => p.path,
-			None => return Err(Error::UnknownAccountLabel(d.clone())),
+			None => return Err(Error::UnknownAccountLabel(d.to_owned())),
 		},
 		None => w.parent_key_id(),
 	};
@@ -519,7 +512,7 @@ mod tests {
 		for (net_change, credited, debited) in
 			[(1, 1, 0), (0, 0, 0), (-1, 0, 1), (i64::MIN, 0, 1u64 << 63)]
 		{
-			let entry = create_tx_log_entry(&slate, net_change, Identifier::zero(), 0).unwrap();
+			let entry = create_tx_log_entry(&slate, net_change, Identifier::zero(), 0);
 			assert_eq!(entry.amount_credited, credited);
 			assert_eq!(entry.amount_debited, debited);
 		}

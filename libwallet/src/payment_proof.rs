@@ -328,11 +328,10 @@ impl EarlyPaymentProof {
 		recipient_address: &DalekPublicKey,
 	) -> Result<(), Error> {
 		check_proof_type(&self.proof_type)?;
-		if self.promise_signature.is_none() {
-			return Err(Error::PaymentProofValidation(
-				"Missing promise signature".into(),
-			));
-		}
+		let promise_signature = self
+			.promise_signature
+			.as_ref()
+			.ok_or_else(|| Error::PaymentProofValidation("Missing promise signature".into()))?;
 
 		// Rebuild message
 		let mut sig_data_bin = Vec::new();
@@ -341,7 +340,7 @@ impl EarlyPaymentProof {
 		})?;
 
 		if recipient_address
-			.verify(&sig_data_bin, self.promise_signature.as_ref().unwrap())
+			.verify(&sig_data_bin, promise_signature)
 			.is_err()
 		{
 			return Err(Error::PaymentProof(
@@ -359,13 +358,13 @@ impl EarlyPaymentProof {
 		excess_sig: &Signature,
 		msg: &Message,
 	) -> Result<(), Error> {
-		if self.witness_data.is_none() {
-			return Err(Error::PaymentProofValidation("Missing witness data".into()));
-		}
+		let wd = self
+			.witness_data
+			.as_ref()
+			.ok_or_else(|| Error::PaymentProofValidation("Missing witness data".into()))?;
 
 		self.verify_promise_signature(recipient_address)?;
 
-		let wd = self.witness_data.as_ref().unwrap().clone();
 		{
 			let static_secp = static_secp_instance();
 			let static_secp = static_secp.lock();

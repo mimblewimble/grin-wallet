@@ -49,21 +49,14 @@ impl OutputSelectionArgs {
 	}
 	/// Return a list of commitments we must use
 	pub fn required_inputs(&self) -> Option<Vec<&str>> {
-		if self.use_inputs.is_some() {
-			Some(
-				self.use_inputs.as_ref().unwrap()[..]
-					.split(",")
-					.filter(|x| *x != "any")
-					.collect(),
-			)
-		} else {
-			None
-		}
+		self.use_inputs
+			.as_deref()
+			.map(|inputs| inputs.split(',').filter(|x| *x != "any").collect())
 	}
 	/// Returns the output amounts (nanogrin) we have to create. Amounts arrive already
 	/// parsed by the caller (e.g. the CLI), so this is just an accessor.
-	pub fn output_amounts(&self) -> Result<Vec<u64>, Error> {
-		Ok(self.make_outputs.clone().unwrap_or_default())
+	pub fn output_amounts(&self) -> Vec<u64> {
+		self.make_outputs.clone().unwrap_or_default()
 	}
 	/// Returns the sum of our output amounts
 	pub fn sum_output_amounts(&self) -> Result<u64, Error> {

@@ -571,51 +571,39 @@ where
 		.as_ref()
 		.and_then(|proof| proof.sender_public_nonce);
 
-	let (mut proof, sender_part_sig) = match tx.payment_proof {
-		Some(p) => {
-			if p.receiver_public_nonce.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Early payment proof requires stored receiver public nonce".into(),
-				));
-			};
-			if p.receiver_public_excess.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Early payment proof requires stored receiver public excess".into(),
-				));
-			};
-			if p.timestamp.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Early payment proof requires stored timestamp".into(),
-				));
-			};
-			if p.sender_part_sig.is_none() {
-				return Err(Error::PaymentProofRetrieval(
-					"Early payment proof requires stored sender partial signature".into(),
-				));
-			};
-
-			(
-				EarlyPaymentProof {
-					proof_type: PaymentProofType::try_from(
-						p.proof_type.unwrap_or(PaymentProofType::Invoice.as_u8()),
-					)?,
-					amount,
-					receiver_public_nonce: p.receiver_public_nonce.unwrap(),
-					receiver_public_excess: p.receiver_public_excess.unwrap(),
-					sender_address: p.sender_address,
-					timestamp: p.timestamp.unwrap().timestamp(),
-					memo: p.memo,
-					promise_signature: p.receiver_signature,
-					witness_data: None,
-				},
-				p.sender_part_sig.unwrap(),
-			)
-		}
-		None => {
-			return Err(Error::PaymentProofRetrieval(
-				"Transaction does not contain a payment proof".to_owned(),
-			));
-		}
+	let p = tx.payment_proof.ok_or_else(|| {
+		Error::PaymentProofRetrieval("Transaction does not contain a payment proof".to_owned())
+	})?;
+	let receiver_public_nonce = p.receiver_public_nonce.ok_or_else(|| {
+		Error::PaymentProofRetrieval(
+			"Early payment proof requires stored receiver public nonce".into(),
+		)
+	})?;
+	let receiver_public_excess = p.receiver_public_excess.ok_or_else(|| {
+		Error::PaymentProofRetrieval(
+			"Early payment proof requires stored receiver public excess".into(),
+		)
+	})?;
+	let timestamp = p.timestamp.ok_or_else(|| {
+		Error::PaymentProofRetrieval("Early payment proof requires stored timestamp".into())
+	})?;
+	let sender_part_sig = p.sender_part_sig.ok_or_else(|| {
+		Error::PaymentProofRetrieval(
+			"Early payment proof requires stored sender partial signature".into(),
+		)
+	})?;
+	let mut proof = EarlyPaymentProof {
+		proof_type: PaymentProofType::try_from(
+			p.proof_type.unwrap_or(PaymentProofType::Invoice.as_u8()),
+		)?,
+		amount,
+		receiver_public_nonce,
+		receiver_public_excess,
+		sender_address: p.sender_address,
+		timestamp: timestamp.timestamp(),
+		memo: p.memo,
+		promise_signature: p.receiver_signature,
+		witness_data: None,
 	};
 
 	// Now to kernel lookup, to fill in the witness data

@@ -303,14 +303,9 @@ where
 {
 	let mut client = w.w2n_client().clone();
 
-	let wd = match proof.witness_data.clone() {
-		Some(w) => w,
-		None => {
-			return Err(Error::PaymentProof(
-				"Cannot verify early payment proof with no witness data".to_string(),
-			))
-		}
-	};
+	let wd = proof.witness_data.as_ref().ok_or_else(|| {
+		Error::PaymentProof("Cannot verify early payment proof with no witness data".to_string())
+	})?;
 
 	let (retrieved_kernel, _) = match client.get_kernel(&wd.kernel_commitment, None, None) {
 		Err(e) => {

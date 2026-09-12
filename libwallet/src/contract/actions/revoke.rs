@@ -55,7 +55,7 @@ where
 	// cannot be built until the input is unlocked.
 	// FUTURE: we may want to boost fees if we notice the original tx in the mempool.
 	let tx_id = args.tx_id;
-	let parent_key_id = utils::parent_key_for(w, args.src_acct_name.as_ref())?;
+	let parent_key_id = utils::parent_key_for(w, args.src_acct_name.as_deref())?;
 
 	// Inputs we contributed to tx_id that are still recoverable. Locked => the original tx
 	// is still active; Unspent => a previous revoke cancelled it but the self-spend did not
@@ -75,7 +75,7 @@ where
 	// it is already a *Cancelled type (and the inputs are Unspent), so we skip straight to
 	// re-spending them.
 	let revoked = w
-		.get_tx_log_entry_by_id(parent_key_id.clone(), tx_id)?
+		.get_tx_log_entry_by_id(&parent_key_id, tx_id)?
 		.ok_or_else(|| Error::NotFoundErr(format!("Transaction {}", tx_id)))?;
 	let revoked_slate_id = revoked.tx_slate_id;
 	let needs_cancel = matches!(

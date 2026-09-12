@@ -46,7 +46,7 @@ where
 			// Get data required for creating a context
 			let height = w.w2n_client().get_chain_tip()?.0;
 			let parent_key_id =
-				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_ref())?;
+				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?;
 			self::create(
 				w,
 				keychain_mask,
@@ -179,14 +179,14 @@ where
 		)));
 	}
 	// Add selected/created inputs/outputs to the context
-	add_inputs_to_ctx(context, &inputs)?;
+	add_inputs_to_ctx(context, &inputs);
 	add_outputs_to_ctx(w, keychain_mask, context, my_output_amounts)?;
 
 	Ok(())
 }
 
 /// Add inputs to Context
-fn add_inputs_to_ctx(context: &mut Context, inputs: &Vec<OutputData>) -> Result<(), Error> {
+fn add_inputs_to_ctx(context: &mut Context, inputs: &[OutputData]) {
 	debug!("contract::utils::add_inputs_to_ctx => adding inputs to context");
 	for input in inputs {
 		context.add_input(&input.key_id, &input.mmr_index, input.value);
@@ -195,8 +195,6 @@ fn add_inputs_to_ctx(context: &mut Context, inputs: &Vec<OutputData>) -> Result<
 			&input.key_id, input.value
 		);
 	}
-
-	Ok(())
 }
 
 /// Add outputs to Context
