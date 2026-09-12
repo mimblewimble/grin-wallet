@@ -1812,22 +1812,15 @@ where
 		recipient.as_ref(),
 		None,
 	)?;
-	let wallet_inst = owner_api.wallet_inst.clone();
-	let config_path = owner_api.config_path();
-	controller::owner_single_use(wallet_inst, keychain_mask, config_path, |api, m| {
-		let slate = api.contract_new(m, &contract_new_args)?;
-
-		print_slatepack(
-			api,
-			keychain_mask,
-			&slate,
-			recipient.clone(),
-			args.outfile,
-			args.as_json,
-		)?;
-
-		Ok(())
-	})?;
+	let slate = owner_api.contract_new(keychain_mask, &contract_new_args)?;
+	print_slatepack(
+		owner_api,
+		keychain_mask,
+		&slate,
+		recipient,
+		args.outfile,
+		args.as_json,
+	)?;
 
 	Ok(())
 }
@@ -1951,7 +1944,7 @@ where
 	print_contract_status("Paste slatepack:", args.as_json);
 	let slatepack_msg = read_slatepack(&mut io::stdin().lock())
 		.map_err(|e| libwallet::Error::GenericError(format!("Failed to read from stdin: {}", e)))?;
-	let (mut slate, sender, _) =
+	let (slate, sender, _) =
 		parse_slatepack_with_mode(owner_api, keychain_mask, None, Some(slatepack_msg))?;
 	let mut contract_sign_args = args.to_api_args(&slate)?;
 	// Bind the proof to the Slatepack sender; --encrypt-for is only the fallback
@@ -1962,28 +1955,22 @@ where
 	)?;
 	// Prefer --encrypt-for, then reply to the sender. Without either, use plaintext.
 	let recipient = recipient.or(sender);
-	let wallet_inst = owner_api.wallet_inst.clone();
-	let config_path = owner_api.config_path();
-	controller::owner_single_use(wallet_inst, keychain_mask, config_path, |api, m| {
-		slate = api.contract_sign(m, &slate, &contract_sign_args)?;
+	let slate = owner_api.contract_sign(keychain_mask, &slate, &contract_sign_args)?;
 
-		let slate_out = prepare_slatepack(api, keychain_mask, &slate, recipient, args.outfile)?;
+	let slate_out = prepare_slatepack(owner_api, keychain_mask, &slate, recipient, args.outfile)?;
 
-		if broadcast_tx && slate_out.is_finalized {
-			if let Err(e) = api.post_tx(keychain_mask, &slate, true) {
-				slate_out.print(args.as_json);
-				return Err(e);
-			}
-			if args.as_json {
-				slate_out.print(true);
-			}
-			print_contract_status("Transaction was broadcasted.", args.as_json);
-		} else {
+	if broadcast_tx && slate_out.is_finalized {
+		if let Err(e) = owner_api.post_tx(keychain_mask, &slate, true) {
 			slate_out.print(args.as_json);
+			return Err(e.into());
 		}
-
-		Ok(())
-	})?;
+		if args.as_json {
+			slate_out.print(true);
+		}
+		print_contract_status("Transaction was broadcasted.", args.as_json);
+	} else {
+		slate_out.print(args.as_json);
+	}
 
 	Ok(())
 }
@@ -2013,13 +2000,8 @@ where
 		args.input_slatepack_message,
 	)?;
 
-	let wallet_inst = owner_api.wallet_inst.clone();
-	let config_path = owner_api.config_path();
-	controller::owner_single_use(wallet_inst, keychain_mask, config_path, |api, m| {
-		let view = api.contract_view(m, &slate)?;
-		display::contract_view(&slate, &view, was_encrypted);
-		Ok(())
-	})?;
+	let view = owner_api.contract_view(keychain_mask, &slate)?;
+	display::contract_view(&slate, &view, was_encrypted);
 
 	Ok(())
 }
@@ -2042,26 +2024,20 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let wallet_inst = owner_api.wallet_inst.clone();
-	let config_path = owner_api.config_path();
-	controller::owner_single_use(wallet_inst, keychain_mask, config_path, |api, m| {
-		let slate_opt = api.contract_revoke(
-			m,
-			&ContractRevokeArgsAPI {
-				tx_id: args.tx_id,
-				src_acct_name: None,
-			},
-		)?;
-		if let Some(slate) = slate_opt {
-			// A revoke has no counterparty, so write the replacement as plaintext.
-			let slate_out = prepare_slatepack(api, keychain_mask, &slate, None, args.outfile)?;
-			println!("{}", slate_out);
-		} else {
-			println!("Contract revoked. No replacement transaction was created.");
-		}
-
-		Ok(())
-	})?;
+	let slate_opt = owner_api.contract_revoke(
+		keychain_mask,
+		&ContractRevokeArgsAPI {
+			tx_id: args.tx_id,
+			src_acct_name: None,
+		},
+	)?;
+	if let Some(slate) = slate_opt {
+		// A revoke has no counterparty, so write the replacement as plaintext.
+		let slate_out = prepare_slatepack(owner_api, keychain_mask, &slate, None, args.outfile)?;
+		println!("{}", slate_out);
+	} else {
+		println!("Contract revoked. No replacement transaction was created.");
+	}
 
 	Ok(())
 }
