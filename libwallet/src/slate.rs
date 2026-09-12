@@ -51,7 +51,7 @@ use crate::Context;
 
 /// Payment proof type from https://github.com/mimblewimble/grin-rfcs/pull/70
 #[repr(u8)]
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PaymentProofType {
 	/// Legacy payment proof
 	Legacy = 0,
@@ -95,23 +95,22 @@ impl TryFrom<u8> for PaymentProofType {
 	}
 }
 
-pub(crate) mod payment_proof_type_serde {
-	use super::PaymentProofType;
-	use serde::{Deserialize, Deserializer, Serializer};
-
-	pub fn serialize<S>(proof_type: &PaymentProofType, serializer: S) -> Result<S::Ok, S::Error>
+impl serde::Serialize for PaymentProofType {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
-		S: Serializer,
+		S: serde::Serializer,
 	{
-		serializer.serialize_u8(proof_type.as_u8())
+		serializer.serialize_u8(self.as_u8())
 	}
+}
 
-	pub fn deserialize<'de, D>(deserializer: D) -> Result<PaymentProofType, D::Error>
+impl<'de> serde::Deserialize<'de> for PaymentProofType {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
-		D: Deserializer<'de>,
+		D: serde::Deserializer<'de>,
 	{
 		let value = u8::deserialize(deserializer)?;
-		PaymentProofType::try_from(value).map_err(serde::de::Error::custom)
+		Self::try_from(value).map_err(serde::de::Error::custom)
 	}
 }
 

@@ -127,7 +127,6 @@ pub struct ProofWitness {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct EarlyPaymentProof {
 	/// Proof type
-	#[serde(with = "crate::slate::payment_proof_type_serde")]
 	pub proof_type: PaymentProofType,
 	/// amount
 	#[serde(with = "secp_ser::string_or_u64")]

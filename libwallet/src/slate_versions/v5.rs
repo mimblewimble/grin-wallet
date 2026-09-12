@@ -196,7 +196,6 @@ fn default_part_sig_none() -> Option<Signature> {
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfoV5 {
-	#[serde(with = "crate::slate::payment_proof_type_serde")]
 	pub ptype: PaymentProofType,
 	#[serde(default)]
 	#[serde(with = "ser::option_dalek_pubkey_serde")]

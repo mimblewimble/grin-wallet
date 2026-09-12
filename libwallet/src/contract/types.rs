@@ -95,7 +95,6 @@ pub struct ProofArgs {
 	/// If net change is positive during this step, whether to suppress the creation of payment proof
 	pub suppress_proof: bool,
 	/// Requested early payment proof type
-	#[serde(with = "crate::slate::payment_proof_type_serde")]
 	pub proof_type: ProofType,
 	/// Memo used when this step creates the payment proof
 	pub memo: Option<PaymentMemo>,
@@ -257,6 +256,11 @@ mod tests {
 			(ProofType::Invoice, 1),
 			(ProofType::SenderNonce, 2),
 		] {
+			assert_eq!(serde_json::to_value(proof_type).unwrap(), value);
+			assert_eq!(
+				serde_json::from_value::<ProofType>(serde_json::json!(value)).unwrap(),
+				proof_type
+			);
 			let args = ProofArgs {
 				proof_type,
 				..Default::default()
@@ -268,6 +272,7 @@ mod tests {
 		}
 		let mut json = serde_json::to_value(ProofArgs::default()).unwrap();
 		for invalid in [serde_json::json!(3), serde_json::json!("Invoice")] {
+			assert!(serde_json::from_value::<ProofType>(invalid.clone()).is_err());
 			json["proof_type"] = invalid;
 			assert!(serde_json::from_value::<ProofArgs>(json.clone()).is_err());
 		}
