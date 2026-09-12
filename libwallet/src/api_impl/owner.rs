@@ -434,6 +434,41 @@ where
 	Ok((validated, wallet_info))
 }
 
+fn retrieve_payment_proof_tx<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	refresh_from_node: bool,
+	tx_id: Option<u32>,
+	tx_slate_id: Option<Uuid>,
+) -> Result<TxLogEntry, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	if tx_id.is_none() && tx_slate_id.is_none() {
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction ID or Slate UUID must be specified".to_owned(),
+		));
+	}
+	let (_, mut txs) = retrieve_txs(
+		wallet_inst,
+		keychain_mask,
+		status_send_channel,
+		refresh_from_node,
+		tx_id,
+		tx_slate_id,
+		None,
+	)?;
+	if txs.len() != 1 {
+		return Err(Error::PaymentProofRetrieval(
+			"Transaction doesn't exist".to_owned(),
+		));
+	}
+	Ok(txs.pop().unwrap())
+}
+
 /// Retrieve payment proof
 pub fn retrieve_payment_proof<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
@@ -448,37 +483,14 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if tx_id.is_none() && tx_slate_id.is_none() {
-		return Err(Error::PaymentProofRetrieval(
-			"Transaction ID or Slate UUID must be specified".to_owned(),
-		));
-	}
-	if refresh_from_node {
-		update_wallet_state(
-			wallet_inst.clone(),
-			keychain_mask,
-			status_send_channel,
-			false,
-		)?
-	} else {
-		false
-	};
-	let txs = retrieve_txs(
-		wallet_inst.clone(),
+	let tx = retrieve_payment_proof_tx(
+		wallet_inst,
 		keychain_mask,
 		status_send_channel,
 		refresh_from_node,
 		tx_id,
 		tx_slate_id,
-		None,
 	)?;
-	if txs.1.len() != 1 {
-		return Err(Error::PaymentProofRetrieval(
-			"Transaction doesn't exist".to_owned(),
-		));
-	}
-	// Pull out all needed fields, returning an error if they're not present
-	let tx = txs.1[0].clone();
 	let proof = match tx.payment_proof {
 		Some(p) => p,
 		None => {
@@ -544,37 +556,14 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if tx_id.is_none() && tx_slate_id.is_none() {
-		return Err(Error::PaymentProofRetrieval(
-			"Transaction ID or Slate UUID must be specified".to_owned(),
-		));
-	}
-	if refresh_from_node {
-		update_wallet_state(
-			wallet_inst.clone(),
-			keychain_mask,
-			status_send_channel,
-			false,
-		)?
-	} else {
-		false
-	};
-	let txs = retrieve_txs(
+	let tx = retrieve_payment_proof_tx(
 		wallet_inst.clone(),
 		keychain_mask,
 		status_send_channel,
 		refresh_from_node,
 		tx_id,
 		tx_slate_id,
-		None,
 	)?;
-	if txs.1.len() != 1 {
-		return Err(Error::PaymentProofRetrieval(
-			"Transaction doesn't exist".to_owned(),
-		));
-	}
-	// Pull out all needed fields, returning an error if they're not present
-	let tx = txs.1[0].clone();
 	// Contract tx logs store the agreed net change separately from the fee.
 	let amount = tx.amount_credited.abs_diff(tx.amount_debited);
 	let sender_public_nonce = tx
