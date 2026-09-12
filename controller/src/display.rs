@@ -26,6 +26,15 @@ use prettytable;
 use std::io::prelude::Write;
 use term;
 
+/// Print a status message to stdout or stderr
+pub fn print_status(message: &str, stderr: bool) {
+	if stderr {
+		eprintln!("{}", message);
+	} else {
+		println!("{}", message);
+	}
+}
+
 /// Display outputs in a pretty way
 pub fn outputs(
 	account: &str,

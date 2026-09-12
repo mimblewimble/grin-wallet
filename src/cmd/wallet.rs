@@ -15,20 +15,13 @@
 use crate::cmd::wallet_args;
 use crate::config::GlobalWalletConfig;
 use clap::ArgMatches;
+use grin_wallet_controller::display;
 use grin_wallet_libwallet::NodeClient;
 use semver::Version;
 use std::thread;
 use std::time::Duration;
 
 const MIN_COMPAT_NODE_VERSION: &str = "4.0.0-alpha.1";
-
-fn print_status(message: &str, stderr: bool) {
-	if stderr {
-		eprintln!("{}", message);
-	} else {
-		println!("{}", message);
-	}
-}
 
 pub fn wallet_command<C>(
 	wallet_args: &ArgMatches<'_>,
@@ -73,10 +66,10 @@ where
 	thread::sleep(Duration::from_millis(100));
 
 	if let Err(e) = res {
-		print_status(&format!("Wallet command failed: {}", e), json_output);
+		display::print_status(&format!("Wallet command failed: {}", e), json_output);
 		1
 	} else {
-		print_status(
+		display::print_status(
 			&format!(
 				"Command '{}' completed successfully",
 				wallet_args.subcommand().0

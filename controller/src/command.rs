@@ -686,14 +686,6 @@ fn slatepack_recipient(dest: Option<&str>) -> Result<Option<SlatepackAddress>, E
 		.map_err(Error::from)
 }
 
-fn print_contract_status(message: &str, as_json: bool) {
-	if as_json {
-		eprintln!("{}", message);
-	} else {
-		println!("{}", message);
-	}
-}
-
 pub fn print_slatepack<L, C, K>(
 	api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -1914,7 +1906,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let recipient = slatepack_recipient(args.counterparty_addr.as_deref())?;
-	print_contract_status("Paste slatepack:", args.as_json);
+	display::print_status("Paste slatepack:", args.as_json);
 	let slatepack_msg = read_slatepack(&mut io::stdin().lock())
 		.map_err(|e| libwallet::Error::GenericError(format!("Failed to read from stdin: {}", e)))?;
 	let (slate, sender, _) =
@@ -1940,7 +1932,7 @@ where
 		if args.as_json {
 			slate_out.print(true);
 		}
-		print_contract_status("Transaction was broadcasted.", args.as_json);
+		display::print_status("Transaction was broadcasted.", args.as_json);
 	} else {
 		slate_out.print(args.as_json);
 	}
