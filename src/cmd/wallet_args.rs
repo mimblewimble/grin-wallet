@@ -1039,13 +1039,7 @@ fn parse_contract_proof(
 	Ok((proof_type, memo))
 }
 
-pub fn parse_contract_new_args(
-	args: &ArgMatches,
-	account: &String,
-) -> Result<command::ContractNewArgs, ParseError> {
-	// Optional: without --encrypt-for the contract slatepack is produced unencrypted.
-	let counterparty_addr = args.value_of("encrypt-for").map(String::from);
-
+fn parse_contract_amounts(args: &ArgMatches) -> Result<(Option<u64>, Option<u64>), ParseError> {
 	// Parse receive and send params and convert them to nano grin
 	let receive = match args.value_of("receive") {
 		Some(g) => Some(parse_grin_amount(g, "receive")?),
@@ -1060,32 +1054,12 @@ pub fn parse_contract_new_args(
 			"Can't pass both --receive and --send parameters.",
 		)));
 	};
-	if receive.is_none() && send.is_none() {
-		return Err(ParseError::ArgumentError(String::from(
-			"You must specify either --receive or --send.",
-		)));
-	};
-	let src_acct_name = Some(String::from(account));
-	let minimum_confirmations = parse_u64(
-		parse_required(args, "minimum_confirmations")?,
-		"minimum_confirmations",
-	)?;
-	let fee_rate = parse_contract_fee_rate(args)?;
-	let (proof_type, memo) = parse_contract_proof(args)?;
-	let outfile = parse_optional(args, "outfile")?;
-	let ttl_blocks = match args.value_of("ttl_blocks") {
-		Some(value) => {
-			let blocks = parse_u64(value, "ttl_blocks")?;
-			if blocks == 0 {
-				return Err(ParseError::ArgumentError(
-					"Contract TTL must be at least 1 block".to_string(),
-				));
-			}
-			Some(blocks)
-		}
-		None => None,
-	};
-	let as_json = args.is_present("as-json");
+	Ok((receive, send))
+}
+
+fn parse_contract_selection(
+	args: &ArgMatches,
+) -> Result<(Option<String>, Option<Vec<u64>>), ParseError> {
 	let no_payjoin = args.is_present("no-payjoin");
 	let use_inputs = match args.value_of("use-inputs") {
 		Some(v) => {
@@ -1117,6 +1091,44 @@ pub fn parse_contract_new_args(
 		}
 		None => None,
 	};
+	Ok((use_inputs, make_outputs))
+}
+
+pub fn parse_contract_new_args(
+	args: &ArgMatches,
+	account: &String,
+) -> Result<command::ContractNewArgs, ParseError> {
+	// Optional: without --encrypt-for the contract slatepack is produced unencrypted.
+	let counterparty_addr = args.value_of("encrypt-for").map(String::from);
+
+	let (receive, send) = parse_contract_amounts(args)?;
+	if receive.is_none() && send.is_none() {
+		return Err(ParseError::ArgumentError(String::from(
+			"You must specify either --receive or --send.",
+		)));
+	};
+	let src_acct_name = Some(String::from(account));
+	let minimum_confirmations = parse_u64(
+		parse_required(args, "minimum_confirmations")?,
+		"minimum_confirmations",
+	)?;
+	let fee_rate = parse_contract_fee_rate(args)?;
+	let (proof_type, memo) = parse_contract_proof(args)?;
+	let outfile = parse_optional(args, "outfile")?;
+	let ttl_blocks = match args.value_of("ttl_blocks") {
+		Some(value) => {
+			let blocks = parse_u64(value, "ttl_blocks")?;
+			if blocks == 0 {
+				return Err(ParseError::ArgumentError(
+					"Contract TTL must be at least 1 block".to_string(),
+				));
+			}
+			Some(blocks)
+		}
+		None => None,
+	};
+	let as_json = args.is_present("as-json");
+	let (use_inputs, make_outputs) = parse_contract_selection(args)?;
 	// Check the flags because use_inputs also contains the payjoin default.
 	let add_outputs = args.is_present("add-outputs")
 		|| args.is_present("use-inputs")
@@ -1155,20 +1167,7 @@ pub fn parse_contract_setup_args(
 		Some(v) => Some(String::from(v)),
 		None => None,
 	};
-	// Parse receive and send params and convert them to nano grin
-	let receive = match args.value_of("receive") {
-		Some(g) => Some(parse_grin_amount(g, "receive")?),
-		None => None,
-	};
-	let send = match args.value_of("send") {
-		Some(g) => Some(parse_grin_amount(g, "send")?),
-		None => None,
-	};
-	if receive.is_some() && send.is_some() {
-		return Err(ParseError::ArgumentError(String::from(
-			"Can't pass both --receive and --send parameters.",
-		)));
-	};
+	let (receive, send) = parse_contract_amounts(args)?;
 	let as_json = args.is_present("as-json");
 	let minimum_confirmations = match args.value_of("minimum_confirmations") {
 		Some(value) => Some(parse_u64(value, "minimum_confirmations")?),
@@ -1177,37 +1176,7 @@ pub fn parse_contract_setup_args(
 	let fee_rate = parse_contract_fee_rate(args)?;
 	let (proof_type, memo) = parse_contract_proof(args)?;
 	let outfile = parse_optional(args, "outfile")?;
-	let no_payjoin = args.is_present("no-payjoin");
-	let use_inputs = match args.value_of("use-inputs") {
-		Some(v) => {
-			if no_payjoin {
-				return Err(ParseError::ArgumentError(String::from(
-					"Can't use --no-payjoin with --use-inputs.",
-				)));
-			}
-			Some(String::from(v))
-		}
-		None => {
-			if no_payjoin {
-				None
-			} else {
-				// Some("any") means pick an available input to contribute (payjoin)
-				Some(String::from("any"))
-			}
-		}
-	};
-	let make_outputs = match args.value_of("make-outputs") {
-		Some(v) => {
-			// Parse each comma-separated grin amount into nanogrin at the CLI boundary,
-			// so the API and Context carry explicit u64 amounts.
-			let mut amounts = Vec::new();
-			for amt in v.split(',') {
-				amounts.push(parse_grin_amount(amt, "make-outputs")?);
-			}
-			Some(amounts)
-		}
-		None => None,
-	};
+	let (use_inputs, make_outputs) = parse_contract_selection(args)?;
 
 	Ok(command::ContractSetupArgs {
 		counterparty_addr: counterparty_addr,
