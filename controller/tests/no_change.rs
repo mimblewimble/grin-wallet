@@ -22,7 +22,7 @@ use std::path::PathBuf;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use libwallet::{InitTxArgs, IssueInvoiceTxArgs, Slate};
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs, NodeVersionInfo, Slate};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -30,6 +30,21 @@ use std::time::Duration;
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
+
+fn reject_finalize(
+	method: grin_wallet_api::ForeignCheckMiddlewareFn,
+	_node_version: Option<NodeVersionInfo>,
+	slate: Option<&Slate>,
+) -> Result<(), libwallet::Error> {
+	assert!(matches!(
+		method,
+		grin_wallet_api::ForeignCheckMiddlewareFn::FinalizeTx
+	));
+	assert!(slate.is_some());
+	Err(libwallet::Error::GenericError(
+		"Finalize rejected by middleware".to_string(),
+	))
+}
 
 fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
@@ -182,6 +197,21 @@ fn no_change_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	)?;
 
 	// wallet 2 finalizes and posts
+	{
+		let api = grin_wallet_api::Foreign::new(
+			wallet2.clone(),
+			PathBuf::from(test_dir),
+			mask2_i.clone(),
+			Some(reject_finalize),
+			false,
+		);
+		let err = api.finalize_tx(&slate, false).unwrap_err();
+		assert!(matches!(
+			err,
+			libwallet::Error::GenericError(ref msg)
+				if msg == "Finalize rejected by middleware"
+		));
+	}
 	wallet::controller::foreign_single_use(
 		wallet2.clone(),
 		PathBuf::from(test_dir),

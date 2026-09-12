@@ -240,7 +240,9 @@ where
 
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Owner API server at {}.", addr);
-	let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
+	let socket_addr: SocketAddr = addr
+		.parse()
+		.map_err(|_| Error::GenericError(format!("Invalid owner API address: {}", addr)))?;
 	let api_thread = apis
 		.start(socket_addr, router, tls_config, api_chan)
 		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;

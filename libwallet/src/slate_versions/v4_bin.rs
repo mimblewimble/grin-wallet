@@ -64,7 +64,7 @@ impl Readable for SlateStateV4 {
 }
 
 /// Allow serializing of Uuids not defined in crate
-struct UuidWrap(Uuid);
+pub struct UuidWrap(pub Uuid);
 
 impl Writeable for UuidWrap {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
@@ -82,7 +82,7 @@ impl Readable for UuidWrap {
 }
 
 /// Helper struct to serialize optional fields efficiently
-struct SlateOptFields {
+pub struct SlateOptFields {
 	/// num parts, default 2
 	pub num_parts: u8,
 	/// amt, default 0
@@ -449,8 +449,8 @@ impl Writeable for SlateV4Bin {
 			proof: &v4.proof,
 		}
 		.write(writer)?;
-		// Write lock height for height locked kernels
-		if v4.feat == 2 {
+		// HeightLocked and NRD both carry a height argument
+		if super::kernel_has_height_arg(v4.feat) {
 			let lock_hgt = match &v4.feat_args {
 				Some(l) => l.lock_hgt,
 				None => 0,
@@ -463,8 +463,17 @@ impl Writeable for SlateV4Bin {
 
 impl Readable for SlateV4Bin {
 	fn read<R: Reader>(reader: &mut R) -> Result<SlateV4Bin, grin_ser::Error> {
+		// VersionedBinSlate is untagged, so reject a slate that does not declare V4 here;
+		// otherwise it can be parsed as the wrong variant.
+		let version = reader.read_u16()?;
+		if version != 4 {
+			return Err(grin_ser::Error::UnexpectedData {
+				expected: 4u16.to_be_bytes().to_vec(),
+				received: version.to_be_bytes().to_vec(),
+			});
+		}
 		let ver = VersionCompatInfoV4 {
-			version: reader.read_u16()?,
+			version,
 			block_header_version: reader.read_u16()?,
 		};
 		let id = UuidWrap::read(reader)?.0;
@@ -475,7 +484,7 @@ impl Readable for SlateV4Bin {
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
-		let feat_args = if opts.feat == 2 {
+		let feat_args = if super::kernel_has_height_arg(opts.feat) {
 			Some(KernelFeaturesArgsV4 {
 				lock_hgt: reader.read_u64()?,
 			})
@@ -511,7 +520,7 @@ fn slate_v4_serialize_deserialize() {
 
 	set_local_chain_type(ChainTypes::Mainnet);
 	let slate = Slate::blank(1, false);
-	let mut v4 = SlateV4::from(slate);
+	let mut v4 = SlateV4::try_from(slate).unwrap();
 
 	let keychain = ExtKeychain::from_random_seed(true).unwrap();
 	let switch = SwitchCommitmentType::Regular;

@@ -135,11 +135,11 @@ fn real_main() -> i32 {
 
 	// Load logging config
 	let mut l = config.members.logging.clone().unwrap();
-	// no logging to stdout if we're running cli
-	match args.subcommand() {
-		("cli", _) => l.log_to_stdout = true,
-		_ => {}
-	};
+	if cmd::wallet_args::contract_json_output(&args) {
+		l.log_to_stdout = false;
+	} else if let ("cli", _) = args.subcommand() {
+		l.log_to_stdout = true;
+	}
 	init_logger(Some(l), None);
 	info!(
 		"Using wallet configuration file at {}",

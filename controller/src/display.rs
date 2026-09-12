@@ -13,10 +13,12 @@
 // limitations under the License.
 
 use crate::core::core::FeeFields;
-use crate::core::core::{self, amount_to_hr_string};
+use crate::core::core::{self, amount_to_hr_string, Inputs, OutputFeatures};
 use crate::core::global;
+use crate::libwallet::contract::types::{ContractView, OwnCommitmentStatus};
 use crate::libwallet::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, TxLogEntry, ViewWallet, WalletInfo,
+	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, Slate, TxLogEntry, ViewWallet,
+	WalletInfo,
 };
 use crate::util::ToHex;
 use grin_wallet_util::OnionV3Address;
@@ -633,4 +635,213 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	println!();
 
 	Ok(())
+}
+
+/// Display a summary of a contract slate
+pub fn contract_view(slate: &Slate, view: &ContractView, was_encrypted: bool) {
+	println!("\n____ Contract ____\n");
+	contract_view_table(slate, view, was_encrypted).printstd();
+	println!();
+}
+
+fn contract_view_table(
+	slate: &Slate,
+	view: &ContractView,
+	was_encrypted: bool,
+) -> prettytable::Table {
+	let mut table = table!();
+
+	table.add_row(row![bFC->"Slate Id", bGC->slate.id]);
+	table.add_row(row![bFC->"State", bGC->slate.state]);
+	table.add_row(row![bFC->"Encrypted for This Wallet", bGC->yes_no(was_encrypted)]);
+	let deadline = match slate.ttl_cutoff_height {
+		0 => "None".to_string(),
+		height => height.to_string(),
+	};
+	table.add_row(row![bFC->"Signing Deadline Height", bGC->deadline]);
+	table.add_row(row![bFC->"Participants", bGC->view.num_participants]);
+	table.add_row(row![bFC->"Signatures", bGC->view.num_sigs]);
+	table.add_row(row![bFC->"Transfer Amount", bGC->amount_to_hr_string(slate.amount, false)]);
+	let suggested = view
+		.suggested_net_change
+		.map(|change| format_net_change(Some(change)))
+		.unwrap_or_else(|| "Not applicable".to_string());
+	table.add_row(row![bFC->"Expected Amount Change (Before Fee)", bGC->suggested]);
+	let agreed = view
+		.agreed_net_change
+		.map(|change| format_net_change(Some(change)))
+		.unwrap_or_else(|| "Not agreed yet".to_string());
+	table.add_row(row![bFC->"Agreed Amount Change (Before Fee)", bGC->agreed]);
+	table.add_row(
+		row![bFC->"Current Transaction Fee", bGC->amount_to_hr_string(slate.fee_fields.fee(), false)],
+	);
+	let own_fee = view
+		.own_fee
+		.map(|fee| amount_to_hr_string(fee, false))
+		.unwrap_or_else(|| "Not known before signing".to_string());
+	table.add_row(row![bFC->"Your Fee", bGC->own_fee]);
+	let balance_change = match view.balance_change {
+		Some(change) => format_net_change(Some(change)),
+		None => "Not known before signing".to_string(),
+	};
+	table.add_row(row![bFC->"Your Balance Change", bGC->balance_change]);
+	table.add_row(row![bFC->"Confirmed", bGC->yes_no(view.is_executed)]);
+	let (unexpected, warning) = match view.own_commitment_status {
+		OwnCommitmentStatus::UnexpectedInput => ("Input", true),
+		OwnCommitmentStatus::UnexpectedOutput => ("Output", true),
+		OwnCommitmentStatus::UnexpectedInputAndOutput => ("Input and output", true),
+		OwnCommitmentStatus::Clean => ("No", false),
+		OwnCommitmentStatus::Unknown => ("Unknown", false),
+	};
+	if warning {
+		table.add_row(row![bFC->"Unexpected Wallet Inputs/Outputs", bFR->unexpected]);
+	} else {
+		table.add_row(row![bFC->"Unexpected Wallet Inputs/Outputs", bGC->unexpected]);
+	}
+	if let Some(tx) = slate.tx.as_ref() {
+		let inputs = tx.inputs();
+		table.add_row(row![bFC->"Inputs", bGC->inputs.len()]);
+		match inputs {
+			Inputs::CommitOnly(inputs) => {
+				for (index, input) in inputs.iter().enumerate() {
+					table.add_row(
+						row![bFC->format!("Input {}", index + 1), bGC->input.commitment().as_ref().to_hex()],
+					);
+				}
+			}
+			Inputs::FeaturesAndCommit(inputs) => {
+				for (index, input) in inputs.iter().enumerate() {
+					let commitment = input.commitment().as_ref().to_hex();
+					let value = match input.features {
+						OutputFeatures::Plain => commitment,
+						OutputFeatures::Coinbase => format!("Coinbase {}", commitment),
+					};
+					table.add_row(row![bFC->format!("Input {}", index + 1), bGC->value]);
+				}
+			}
+		}
+		table.add_row(row![bFC->"Outputs", bGC->tx.outputs().len()]);
+		for (index, output) in tx.outputs().iter().enumerate() {
+			let commitment = output.commitment().as_ref().to_hex();
+			let value = match output.features() {
+				OutputFeatures::Plain => commitment,
+				OutputFeatures::Coinbase => format!("Coinbase {}", commitment),
+			};
+			table.add_row(row![bFC->format!("Output {}", index + 1), bGC->value]);
+		}
+	} else {
+		table.add_row(row![bFC->"Inputs", bGC->"Not in slate"]);
+		table.add_row(row![bFC->"Outputs", bGC->"Not in slate"]);
+	}
+
+	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+	table
+}
+
+fn yes_no(value: bool) -> &'static str {
+	if value {
+		"Yes"
+	} else {
+		"No"
+	}
+}
+
+fn format_net_change(change: Option<i64>) -> String {
+	match change {
+		Some(value) => format!(
+			"{}{}",
+			if value < 0 { "-" } else { "+" },
+			amount_to_hr_string(value.unsigned_abs(), false)
+		),
+		None => String::from("None"),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{contract_view_table, format_net_change};
+	use crate::core::core::{FeeFields, Input, Inputs, Output, OutputFeatures, Transaction};
+	use crate::core::global;
+	use crate::libwallet::contract::types::ContractView;
+	use crate::libwallet::Slate;
+	use crate::util::secp::pedersen::{Commitment, RangeProof};
+
+	fn table_value(table: &prettytable::Table, label: &str) -> String {
+		let row = table
+			.row_iter()
+			.find(|row| {
+				row.get_cell(0)
+					.map(|cell| cell.get_content() == label)
+					.unwrap_or(false)
+			})
+			.unwrap_or_else(|| panic!("missing table row: {}", label));
+		row.get_cell(1)
+			.expect("table row has a value")
+			.get_content()
+	}
+
+	#[test]
+	fn net_change_sign() {
+		assert_eq!(format_net_change(Some(1_000_000_000)), "+1.000000000");
+		assert_eq!(format_net_change(Some(-1_000_000_000)), "-1.000000000");
+		assert_eq!(format_net_change(None), "None");
+	}
+
+	#[test]
+	fn contract_view_rows() {
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let mut slate = Slate::blank(2, false);
+		slate.amount = 1_000_000_000;
+		slate.ttl_cutoff_height = 42;
+		slate.fee_fields = FeeFields::new(0, 4_000_000).unwrap();
+		let input_commit = Commitment::from_vec(vec![3]);
+		let output_commit = Commitment::from_vec(vec![4]);
+		slate.tx = Some(
+			slate
+				.tx
+				.take()
+				.unwrap()
+				.with_input(Input::new(OutputFeatures::Plain, input_commit))
+				.with_output(Output::new(
+					OutputFeatures::Coinbase,
+					output_commit,
+					RangeProof::zero(),
+				)),
+		);
+		let view = ContractView {
+			own_fee: Some(2_000_000),
+			balance_change: Some(-1_002_000_000),
+			..Default::default()
+		};
+		let table = contract_view_table(&slate, &view, true);
+
+		assert_eq!(table_value(&table, "Encrypted for This Wallet"), "Yes");
+		assert_eq!(table_value(&table, "Signing Deadline Height"), "42");
+		assert_eq!(table_value(&table, "Transfer Amount"), "1.000000000");
+		assert_eq!(
+			table_value(&table, "Current Transaction Fee"),
+			"0.004000000"
+		);
+		assert_eq!(table_value(&table, "Your Fee"), "0.002000000");
+		assert_eq!(table_value(&table, "Your Balance Change"), "-1.002000000");
+		assert_eq!(table_value(&table, "Confirmed"), "No");
+		assert_eq!(table_value(&table, "Inputs"), "1");
+		assert!(table_value(&table, "Input 1").starts_with("03"));
+		assert_eq!(table_value(&table, "Outputs"), "1");
+		assert!(table_value(&table, "Output 1").starts_with("Coinbase 04"));
+
+		let table = contract_view_table(&slate, &view, false);
+		assert_eq!(table_value(&table, "Encrypted for This Wallet"), "No");
+		slate.ttl_cutoff_height = 0;
+		let table = contract_view_table(&slate, &view, false);
+		assert_eq!(table_value(&table, "Signing Deadline Height"), "None");
+
+		slate.tx = Some(Transaction::new(
+			Inputs::CommitOnly(vec![input_commit.into()]),
+			&[],
+			&[],
+		));
+		let table = contract_view_table(&slate, &view, false);
+		assert!(table_value(&table, "Input 1").starts_with("03"));
+	}
 }

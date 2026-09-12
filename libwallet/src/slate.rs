@@ -28,6 +28,8 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::pedersen::Commitment;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, static_secp_instance};
+use crate::payment_proof::{check_proof_type, EarlyPaymentProof};
+use chrono::prelude::{DateTime, Utc};
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use serde::ser::{Serialize, Serializer};
@@ -39,18 +41,138 @@ use crate::slate_versions::v4::{
 	CommitsV4, KernelFeaturesArgsV4, OutputFeaturesV4, ParticipantDataV4, PaymentInfoV4,
 	SlateStateV4, SlateV4, VersionCompatInfoV4,
 };
+use crate::slate_versions::v5::{
+	CommitsV5, KernelFeaturesArgsV5, OutputFeaturesV5, ParticipantDataV5, PaymentInfoV5,
+	SlateStateV5, SlateV5, VersionCompatInfoV5,
+};
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::Context;
 
-#[derive(Debug, Clone)]
+/// Payment proof type from https://github.com/mimblewimble/grin-rfcs/pull/70
+#[repr(u8)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub enum PaymentProofType {
+	/// Legacy payment proof
+	Legacy = 0,
+	/// Invoice payment proof
+	Invoice = 1,
+	/// Sender nonce payment proof
+	SenderNonce = 2,
+}
+
+impl PaymentProofType {
+	/// Wire value
+	pub fn as_u8(self) -> u8 {
+		self as u8
+	}
+
+	pub(crate) fn validate(self, expected: Self) -> Result<(), Error> {
+		if self == expected {
+			Ok(())
+		} else {
+			Err(Error::PaymentProof(format!(
+				"Invalid payment proof type: expected {:?}, got {:?}",
+				expected, self
+			)))
+		}
+	}
+}
+
+impl TryFrom<u8> for PaymentProofType {
+	type Error = Error;
+
+	fn try_from(value: u8) -> Result<Self, Self::Error> {
+		match value {
+			0 => Ok(Self::Legacy),
+			1 => Ok(Self::Invoice),
+			2 => Ok(Self::SenderNonce),
+			_ => Err(Error::PaymentProof(format!(
+				"Invalid payment proof type: {}",
+				value
+			))),
+		}
+	}
+}
+
+pub(crate) mod payment_proof_type_serde {
+	use super::PaymentProofType;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	pub fn serialize<S>(proof_type: &PaymentProofType, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_u8(proof_type.as_u8())
+	}
+
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<PaymentProofType, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let value = u8::deserialize(deserializer)?;
+		PaymentProofType::try_from(value).map_err(serde::de::Error::custom)
+	}
+}
+
+/// Payment details bound to an early payment proof
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(try_from = "String")]
+pub struct PaymentMemo(String);
+
+impl PaymentMemo {
+	/// Maximum memo size from the early payment proofs proposal
+	pub const MAX_LEN: usize = 1024;
+
+	/// Create a payment memo
+	pub fn new(memo: String) -> Result<Self, Error> {
+		if memo.len() > Self::MAX_LEN {
+			return Err(Error::PaymentProof(format!(
+				"Payment memo exceeds {} bytes",
+				Self::MAX_LEN
+			)));
+		}
+		Ok(Self(memo))
+	}
+
+	/// Memo text
+	pub fn as_str(&self) -> &str {
+		&self.0
+	}
+}
+
+impl TryFrom<String> for PaymentMemo {
+	type Error = Error;
+
+	fn try_from(memo: String) -> Result<Self, Self::Error> {
+		Self::new(memo)
+	}
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PaymentInfo {
+	/// Proof type
+	pub proof_type: PaymentProofType,
 	/// Sender address
-	pub sender_address: DalekPublicKey,
+	pub sender_address: Option<DalekPublicKey>,
 	/// Receiver address
 	pub receiver_address: DalekPublicKey,
-	/// Receiver signature
-	pub receiver_signature: Option<DalekSignature>,
+	/// Promise signature
+	pub promise_signature: Option<DalekSignature>,
+	/// Timestamp
+	pub timestamp: Option<DateTime<Utc>>,
+	/// Memo
+	pub memo: Option<PaymentMemo>,
+}
+
+impl PaymentInfo {
+	/// Whether this proof needs fields that are only available in V5
+	pub(crate) fn requires_v5(&self) -> bool {
+		self.proof_type != PaymentProofType::Legacy
+			|| self.sender_address.is_none()
+			|| self.timestamp.is_some()
+			|| self.memo.is_some()
+	}
 }
 
 /// Public data for each participant in the slate
@@ -190,6 +312,98 @@ pub struct VersionCompatInfo {
 }
 
 impl Slate {
+	/// Whether the slate is in the first invoice signing round.
+	pub(crate) fn is_first_invoice_round(&self) -> bool {
+		self.state == SlateState::Invoice1
+			&& self.num_participants == 2
+			&& self.participant_data.len() == 1
+	}
+
+	/// Add the receiver's signed early payment proof
+	/// Replaces a matching unsigned legacy proof and rejects existing signed proofs
+	/// Sender-nonce proofs need a separate payer nonce commitment
+	pub fn add_payment_proof_data(
+		&mut self,
+		participant_index: usize,
+		proof_type: PaymentProofType,
+		sender_address: DalekPublicKey,
+		receiver_key: &SecretKey,
+		memo: Option<PaymentMemo>,
+	) -> Result<(), Error> {
+		check_proof_type(&proof_type)?;
+		if proof_type == PaymentProofType::SenderNonce && !self.is_first_invoice_round() {
+			return Err(Error::PaymentProofValidation(
+				"Sender nonce proofs require the first invoice signing round".into(),
+			));
+		}
+		let legacy_addresses = if let Some(proof) = self.payment_proof.as_ref() {
+			if proof.proof_type != PaymentProofType::Legacy {
+				return Err(Error::PaymentProofValidation(
+					"Slate already contains an early payment proof".to_string(),
+				));
+			}
+			if proof.promise_signature.is_some() {
+				return Err(Error::PaymentProofValidation(
+					"Slate already contains a signed payment proof".to_string(),
+				));
+			}
+			Some((proof.sender_address, proof.receiver_address))
+		} else {
+			None
+		};
+		if legacy_addresses
+			.and_then(|(sender, _)| sender)
+			.is_some_and(|address| address != sender_address)
+		{
+			return Err(Error::PaymentProofValidation(
+				"Early payment proof sender does not match legacy proof".to_string(),
+			));
+		}
+		let timestamp = Utc::now().timestamp();
+		let proof = EarlyPaymentProof::new(
+			self,
+			participant_index,
+			proof_type,
+			sender_address,
+			timestamp,
+			memo,
+		)?;
+		let (promise_signature, receiver_address) = proof.sign(receiver_key)?;
+		if legacy_addresses.is_some_and(|(_, address)| address != receiver_address) {
+			return Err(Error::PaymentProofValidation(
+				"Early payment proof receiver does not match legacy proof".to_string(),
+			));
+		}
+		let timestamp = DateTime::from_timestamp(timestamp, 0).ok_or_else(|| {
+			Error::GenericError(format!("Invalid proof timestamp: {}", timestamp))
+		})?;
+		self.payment_proof = Some(PaymentInfo {
+			proof_type,
+			sender_address: Some(sender_address),
+			receiver_address,
+			promise_signature: Some(promise_signature),
+			timestamp: Some(timestamp),
+			memo: proof.memo,
+		});
+		Ok(())
+	}
+
+	/// Verify the receiver's early payment promise signature
+	/// Full sender-nonce verification requires the transaction witness
+	pub fn verify_payment_proof_sig(
+		&self,
+		participant_index: usize,
+		sender_address: Option<DalekPublicKey>,
+	) -> Result<(), Error> {
+		let payment_proof = self
+			.payment_proof
+			.as_ref()
+			.ok_or_else(|| Error::PaymentProofValidation("Missing payment proof".to_string()))?;
+		check_proof_type(&payment_proof.proof_type)?;
+		EarlyPaymentProof::from_slate(self, participant_index, sender_address)?
+			.verify_promise_signature(&payment_proof.receiver_address)
+	}
+
 	/// Return the transaction, throwing an error if it doesn't exist
 	/// to be used at points in the code where the existence of a transaction
 	/// is assumed
@@ -226,10 +440,11 @@ impl Slate {
 
 	/// Upgrade a versioned slate
 	pub fn upgrade(v_slate: VersionedSlate) -> Result<Slate, Error> {
-		let v4: SlateV4 = match v_slate {
-			VersionedSlate::V4(s) => s,
+		let internal: Slate = match v_slate {
+			VersionedSlate::V4(s) => s.into(),
+			VersionedSlate::V5(s) => s.into(),
 		};
-		Ok(v4.into())
+		Ok(internal.into())
 	}
 	/// Compact the slate for initial sending, storing the excess + offset explicit
 	/// and removing my input/output data
@@ -276,8 +491,43 @@ impl Slate {
 			kernel_features_args: None,
 		}
 	}
+
+	/// Create a new slate with the provided kernel features
+	pub fn blank_with_kernel_features(
+		num_participants: u8,
+		is_invoice: bool,
+		kernel_features: KernelFeatures,
+	) -> Result<Slate, Error> {
+		let feature = kernel_features.as_u8();
+		let (fee_fields, kernel_features_args) = match kernel_features {
+			KernelFeatures::Plain { fee } => (fee, None),
+			KernelFeatures::Coinbase => return Err(Error::InvalidKernelFeatures(feature)),
+			KernelFeatures::HeightLocked { fee, lock_height } => {
+				(fee, Some(KernelFeaturesArgs { lock_height }))
+			}
+			KernelFeatures::NoRecentDuplicate {
+				fee,
+				relative_height,
+			} => (
+				fee,
+				Some(KernelFeaturesArgs {
+					lock_height: relative_height.into(),
+				}),
+			),
+		};
+		let mut slate = Slate::blank(num_participants, is_invoice);
+		slate.fee_fields = fee_fields;
+		slate.kernel_features = feature;
+		slate.kernel_features_args = kernel_features_args;
+		slate.update_kernel()?;
+		Ok(slate)
+	}
+
 	/// Removes any signature data that isn't mine, for compacting
 	/// slates for a return journey
+	// TODO: Check if this is a noop when we have only 2 parties. The first sig appears at
+	// 	step2 and removing everything except your sig means you remove nothing. For more than
+	//  2 parties, we should probably never remove the part_sigs so that everyone can verify them.
 	pub fn remove_other_sigdata<K>(
 		&mut self,
 		keychain: &K,
@@ -310,13 +560,22 @@ impl Slate {
 		K: Keychain,
 		B: ProofBuild,
 	{
+		debug!("slate::add_transaction_elements => start");
 		self.update_kernel()?;
+
+		debug!("slate::add_transaction_elements => kernel updated");
 		if elems.is_empty() {
+			debug!("slate::add_transaction_elements => elems is empty, returning");
 			return Ok(BlindingFactor::zero());
 		}
+
 		let (tx, blind) =
 			build::partial_transaction(self.tx_or_err()?.clone(), &elems, keychain, builder)?;
+
+		debug!("slate::add_transaction_elements => built partial transaction");
 		self.tx = Some(tx);
+
+		debug!("slate::add_transaction_elements => slate.tx is set");
 		Ok(blind)
 	}
 
@@ -377,6 +636,29 @@ impl Slate {
 		Ok(msg)
 	}
 
+	/// Matches a participant index on the slate with the stored context
+	pub fn find_index_matching_context<K>(
+		&self,
+		keychain: &K,
+		context: &Context,
+	) -> Result<usize, Error>
+	where
+		K: Keychain,
+	{
+		let calc_pub_excess = PublicKey::from_secret_key(keychain.secp(), &context.sec_key)?;
+		let calc_pub_nonce = PublicKey::from_secret_key(keychain.secp(), &context.sec_nonce)?;
+		// Iterate over the entries the slate actually carries rather than indexing by
+		// position up to num_participants, which a counterparty can send short. Both keys
+		// have to match, as fill_round_2 requires, so an entry sharing only one of them is
+		// not mistaken for ours.
+		for (i, p) in self.participant_data.iter().enumerate() {
+			// find my entry
+			if p.public_blind_excess == calc_pub_excess && p.public_nonce == calc_pub_nonce {
+				return Ok(i);
+			}
+		}
+		return Err(Error::ContextToIndex);
+	}
 	/// Completes caller's part of round 2, completing signatures
 	pub fn fill_round_2<K>(
 		&mut self,
@@ -402,12 +684,11 @@ impl Slate {
 		)?;
 		let pub_excess = PublicKey::from_secret_key(keychain.secp(), &sec_key)?;
 		let pub_nonce = PublicKey::from_secret_key(keychain.secp(), &sec_nonce)?;
-		for i in 0..self.num_participants() as usize {
+		// As in find_index_matching_context, iterate the entries we actually have
+		for p in self.participant_data.iter_mut() {
 			// find my entry
-			if self.participant_data[i].public_blind_excess == pub_excess
-				&& self.participant_data[i].public_nonce == pub_nonce
-			{
-				self.participant_data[i].part_sig = Some(sig_part);
+			if p.public_blind_excess == pub_excess && p.public_nonce == pub_nonce {
+				p.part_sig = Some(sig_part);
 				break;
 			}
 		}
@@ -570,7 +851,7 @@ impl Slate {
 	}
 
 	/// Verifies all of the partial signatures in the Slate are valid
-	fn verify_part_sigs(&self, secp: &secp::Secp256k1) -> Result<(), Error> {
+	pub(crate) fn verify_part_sigs(&self, secp: &secp::Secp256k1) -> Result<(), Error> {
 		// collect public nonces
 		for p in self.participant_data.iter() {
 			if p.is_complete() {
@@ -686,15 +967,15 @@ impl Serialize for Slate {
 	where
 		S: Serializer,
 	{
-		let v4 = SlateV4::from(self);
-		v4.serialize(serializer)
+		let v5 = SlateV5::from(self);
+		v5.serialize(serializer)
 	}
 }
 // Current slate version to versioned conversions
 
-// Slate to versioned
-impl From<Slate> for SlateV4 {
-	fn from(slate: Slate) -> SlateV4 {
+////// V5
+impl From<Slate> for SlateV5 {
+	fn from(slate: Slate) -> SlateV5 {
 		let Slate {
 			num_participants: num_parts,
 			id,
@@ -710,18 +991,18 @@ impl From<Slate> for SlateV4 {
 			payment_proof,
 			kernel_features_args,
 		} = slate.clone();
-		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
-		let ver = VersionCompatInfoV4::from(&version_info);
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let ver = VersionCompatInfoV5::from(&version_info);
 		let payment_proof = match payment_proof {
-			Some(p) => Some(PaymentInfoV4::from(&p)),
+			Some(p) => Some(PaymentInfoV5::from(&p)),
 			None => None,
 		};
 		let feat_args = match kernel_features_args {
-			Some(a) => Some(KernelFeaturesArgsV4::from(&a)),
+			Some(a) => Some(KernelFeaturesArgsV5::from(&a)),
 			None => None,
 		};
-		let sta = SlateStateV4::from(&state);
-		SlateV4 {
+		let sta = SlateStateV5::from(&state);
+		SlateV5 {
 			num_parts,
 			id,
 			sta,
@@ -739,8 +1020,391 @@ impl From<Slate> for SlateV4 {
 	}
 }
 
-impl From<&Slate> for SlateV4 {
-	fn from(slate: &Slate) -> SlateV4 {
+impl From<&Slate> for SlateV5 {
+	fn from(slate: &Slate) -> SlateV5 {
+		let Slate {
+			num_participants: num_parts,
+			id,
+			state,
+			tx: _,
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height: ttl,
+			offset,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		} = slate;
+		let num_parts = *num_parts;
+		let id = *id;
+		let amount = *amount;
+		let fee_fields = *fee_fields;
+		let feat = *kernel_features;
+		let ttl = *ttl;
+		let off = offset.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let ver = VersionCompatInfoV5::from(version_info);
+		let payment_proof = match payment_proof {
+			Some(p) => Some(PaymentInfoV5::from(p)),
+			None => None,
+		};
+		let sta = SlateStateV5::from(state);
+		let feat_args = match kernel_features_args {
+			Some(a) => Some(KernelFeaturesArgsV5::from(a)),
+			None => None,
+		};
+		SlateV5 {
+			num_parts,
+			id,
+			sta,
+			coms: slate.into(),
+			amt: amount,
+			fee: fee_fields,
+			feat,
+			ttl,
+			off,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		}
+	}
+}
+
+impl From<&Slate> for Option<Vec<CommitsV5>> {
+	fn from(slate: &Slate) -> Self {
+		match slate.tx {
+			None => None,
+			Some(ref tx) => {
+				let mut ret_vec = vec![];
+				match tx.inputs() {
+					Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
+					Inputs::FeaturesAndCommit(ref inputs) => {
+						for input in inputs {
+							ret_vec.push(input.into());
+						}
+					}
+				}
+				for output in tx.outputs() {
+					ret_vec.push(output.into());
+				}
+				Some(ret_vec)
+			}
+		}
+	}
+}
+
+impl From<&ParticipantData> for ParticipantDataV5 {
+	fn from(data: &ParticipantData) -> ParticipantDataV5 {
+		let ParticipantData {
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+		} = data;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		ParticipantDataV5 {
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
+		}
+	}
+}
+
+impl From<&SlateState> for SlateStateV5 {
+	fn from(data: &SlateState) -> SlateStateV5 {
+		match data {
+			SlateState::Unknown => SlateStateV5::Unknown,
+			SlateState::Standard1 => SlateStateV5::Standard1,
+			SlateState::Standard2 => SlateStateV5::Standard2,
+			SlateState::Standard3 => SlateStateV5::Standard3,
+			SlateState::Invoice1 => SlateStateV5::Invoice1,
+			SlateState::Invoice2 => SlateStateV5::Invoice2,
+			SlateState::Invoice3 => SlateStateV5::Invoice3,
+		}
+	}
+}
+
+impl From<&KernelFeaturesArgs> for KernelFeaturesArgsV5 {
+	fn from(data: &KernelFeaturesArgs) -> KernelFeaturesArgsV5 {
+		let KernelFeaturesArgs { lock_height } = data;
+		let lock_hgt = *lock_height;
+		KernelFeaturesArgsV5 { lock_hgt }
+	}
+}
+
+impl From<&VersionCompatInfo> for VersionCompatInfoV5 {
+	fn from(data: &VersionCompatInfo) -> VersionCompatInfoV5 {
+		let VersionCompatInfo {
+			version: _,
+			block_header_version,
+		} = data;
+		// The declared version describes the structure we are producing, so it is fixed
+		// here rather than carried over from the internal slate. Readers rely on it to
+		// select the matching variant.
+		VersionCompatInfoV5 {
+			version: 5,
+			block_header_version: *block_header_version,
+		}
+	}
+}
+
+impl From<&PaymentInfo> for PaymentInfoV5 {
+	fn from(data: &PaymentInfo) -> PaymentInfoV5 {
+		let PaymentInfo {
+			proof_type,
+			sender_address,
+			receiver_address,
+			promise_signature,
+			timestamp,
+			memo,
+		} = data;
+		let proof_type = *proof_type;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let promise_signature = *promise_signature;
+		let timestamp = *timestamp;
+		let memo = memo.clone();
+		PaymentInfoV5 {
+			ptype: proof_type,
+			saddr: sender_address,
+			raddr: receiver_address,
+			psig: promise_signature,
+			ts: timestamp,
+			memo: memo,
+		}
+	}
+}
+
+impl From<OutputFeatures> for OutputFeaturesV5 {
+	fn from(of: OutputFeatures) -> OutputFeaturesV5 {
+		let index = match of {
+			OutputFeatures::Plain => 0,
+			OutputFeatures::Coinbase => 1,
+		};
+		OutputFeaturesV5(index)
+	}
+}
+
+///// V5
+impl From<SlateV5> for Slate {
+	fn from(slate: SlateV5) -> Slate {
+		let SlateV5 {
+			num_parts: num_participants,
+			id,
+			sta,
+			coms: _,
+			amt: amount,
+			fee: fee_fields,
+			feat: kernel_features,
+			ttl: ttl_cutoff_height,
+			off: offset,
+			sigs: participant_data,
+			ver,
+			proof: payment_proof,
+			feat_args,
+		} = slate.clone();
+		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
+		let version_info = VersionCompatInfo::from(&ver);
+		let payment_proof = match &payment_proof {
+			Some(p) => Some(PaymentInfo::from(p)),
+			None => None,
+		};
+		let kernel_features_args = match &feat_args {
+			Some(a) => Some(KernelFeaturesArgs::from(a)),
+			None => None,
+		};
+		let state = SlateState::from(&sta);
+		Slate {
+			num_participants,
+			id,
+			state,
+			tx: (&slate).into(),
+			amount,
+			fee_fields,
+			kernel_features,
+			ttl_cutoff_height,
+			offset,
+			participant_data,
+			version_info,
+			payment_proof,
+			kernel_features_args,
+		}
+	}
+}
+
+pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
+	let coms = match slate.coms.as_ref() {
+		Some(c) => c,
+		None => return None,
+	};
+	let secp = static_secp_instance();
+	let secp = secp.lock();
+	let mut calc_slate = Slate::blank(2, false);
+	calc_slate.fee_fields = slate.fee;
+	calc_slate.kernel_features = slate.feat;
+	calc_slate.kernel_features_args = slate.feat_args.as_ref().map(KernelFeaturesArgs::from);
+	for d in slate.sigs.iter() {
+		calc_slate.participant_data.push(ParticipantData {
+			public_blind_excess: d.xs,
+			public_nonce: d.nonce,
+			part_sig: d.part,
+		});
+	}
+	let excess = match calc_slate.calc_excess(&secp) {
+		Ok(e) => e,
+		Err(_) => Commitment::from_vec(vec![0]),
+	};
+	let excess_sig = match calc_slate.finalize_signature(&secp) {
+		Ok(s) => s,
+		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
+	};
+	let kernel = TxKernel {
+		features: calc_slate.kernel_features().ok()?,
+		excess,
+		excess_sig,
+	};
+	let mut tx = Slate::empty_transaction().with_kernel(kernel);
+
+	let mut outputs = vec![];
+	let mut inputs = vec![];
+
+	for c in coms.iter() {
+		match &c.p {
+			Some(p) => {
+				outputs.push(Output::new(c.f.into(), c.c, p.clone()));
+			}
+			None => {
+				inputs.push(Input {
+					features: c.f.into(),
+					commit: c.c,
+				});
+			}
+		}
+	}
+
+	tx.body = tx
+		.body
+		.replace_inputs(inputs.as_slice().into())
+		.replace_outputs(outputs.as_slice());
+	tx.offset = slate.off.clone();
+	Some(tx)
+}
+
+// Node's Transaction object and lock height to SlateV5 `coms`
+impl From<&SlateV5> for Option<Transaction> {
+	fn from(slate: &SlateV5) -> Option<Transaction> {
+		tx_from_slate_v5(slate)
+	}
+}
+
+impl From<&ParticipantDataV5> for ParticipantData {
+	fn from(data: &ParticipantDataV5) -> ParticipantData {
+		let ParticipantDataV5 {
+			xs: public_blind_excess,
+			nonce: public_nonce,
+			part: part_sig,
+		} = data;
+		let public_blind_excess = *public_blind_excess;
+		let public_nonce = *public_nonce;
+		let part_sig = *part_sig;
+		ParticipantData {
+			public_blind_excess,
+			public_nonce,
+			part_sig,
+		}
+	}
+}
+
+impl From<&KernelFeaturesArgsV5> for KernelFeaturesArgs {
+	fn from(data: &KernelFeaturesArgsV5) -> KernelFeaturesArgs {
+		let KernelFeaturesArgsV5 { lock_hgt } = data;
+		let lock_height = *lock_hgt;
+		KernelFeaturesArgs { lock_height }
+	}
+}
+
+impl From<&SlateStateV5> for SlateState {
+	fn from(data: &SlateStateV5) -> SlateState {
+		match data {
+			SlateStateV5::Unknown => SlateState::Unknown,
+			SlateStateV5::Standard1 => SlateState::Standard1,
+			SlateStateV5::Standard2 => SlateState::Standard2,
+			SlateStateV5::Standard3 => SlateState::Standard3,
+			SlateStateV5::Invoice1 => SlateState::Invoice1,
+			SlateStateV5::Invoice2 => SlateState::Invoice2,
+			SlateStateV5::Invoice3 => SlateState::Invoice3,
+		}
+	}
+}
+
+impl From<&VersionCompatInfoV5> for VersionCompatInfo {
+	fn from(data: &VersionCompatInfoV5) -> VersionCompatInfo {
+		let VersionCompatInfoV5 {
+			version,
+			block_header_version,
+		} = data;
+		let version = *version;
+		let block_header_version = *block_header_version;
+		VersionCompatInfo {
+			version,
+			block_header_version,
+		}
+	}
+}
+
+impl From<&PaymentInfoV5> for PaymentInfo {
+	fn from(data: &PaymentInfoV5) -> PaymentInfo {
+		let PaymentInfoV5 {
+			ptype: proof_type,
+			saddr: sender_address,
+			raddr: receiver_address,
+			psig: promise_signature,
+			ts: timestamp,
+			memo,
+		} = data;
+		let proof_type = *proof_type;
+		let sender_address = *sender_address;
+		let receiver_address = *receiver_address;
+		let promise_signature = *promise_signature;
+		let timestamp = *timestamp;
+		let memo = memo.clone();
+		PaymentInfo {
+			proof_type,
+			sender_address,
+			receiver_address,
+			promise_signature: promise_signature,
+			timestamp,
+			memo,
+		}
+	}
+}
+
+impl From<OutputFeaturesV5> for OutputFeatures {
+	fn from(of: OutputFeaturesV5) -> OutputFeatures {
+		match of.0 {
+			1 => OutputFeatures::Coinbase,
+			0 | _ => OutputFeatures::Plain,
+		}
+	}
+}
+
+///////// V4
+impl TryFrom<Slate> for SlateV4 {
+	type Error = Error;
+
+	fn try_from(slate: Slate) -> Result<SlateV4, Self::Error> {
+		Self::try_from(&slate)
+	}
+}
+
+impl TryFrom<&Slate> for SlateV4 {
+	type Error = Error;
+
+	fn try_from(slate: &Slate) -> Result<SlateV4, Self::Error> {
 		let Slate {
 			num_participants: num_parts,
 			id,
@@ -765,16 +1429,16 @@ impl From<&Slate> for SlateV4 {
 		let off = offset.clone();
 		let participant_data = map_vec!(participant_data, |data| ParticipantDataV4::from(data));
 		let ver = VersionCompatInfoV4::from(version_info);
-		let payment_proof = match payment_proof {
-			Some(p) => Some(PaymentInfoV4::from(p)),
-			None => None,
-		};
+		let payment_proof = payment_proof
+			.as_ref()
+			.map(PaymentInfoV4::try_from)
+			.transpose()?;
 		let sta = SlateStateV4::from(state);
 		let feat_args = match kernel_features_args {
 			Some(a) => Some(KernelFeaturesArgsV4::from(a)),
 			None => None,
 		};
-		SlateV4 {
+		Ok(SlateV4 {
 			num_parts,
 			id,
 			sta,
@@ -788,7 +1452,7 @@ impl From<&Slate> for SlateV4 {
 			ver,
 			proof: payment_proof,
 			feat_args,
-		}
+		})
 	}
 }
 
@@ -858,33 +1522,39 @@ impl From<&KernelFeaturesArgs> for KernelFeaturesArgsV4 {
 impl From<&VersionCompatInfo> for VersionCompatInfoV4 {
 	fn from(data: &VersionCompatInfo) -> VersionCompatInfoV4 {
 		let VersionCompatInfo {
-			version,
+			version: _,
 			block_header_version,
 		} = data;
-		let version = *version;
-		let block_header_version = *block_header_version;
+		// See VersionCompatInfoV5: the declared version always matches the structure.
 		VersionCompatInfoV4 {
-			version,
-			block_header_version,
+			version: 4,
+			block_header_version: *block_header_version,
 		}
 	}
 }
 
-impl From<&PaymentInfo> for PaymentInfoV4 {
-	fn from(data: &PaymentInfo) -> PaymentInfoV4 {
+impl TryFrom<&PaymentInfo> for PaymentInfoV4 {
+	type Error = Error;
+
+	fn try_from(data: &PaymentInfo) -> Result<PaymentInfoV4, Self::Error> {
+		if data.requires_v5() {
+			return Err(Error::SlateInvalidDowngrade(
+				"Payment proof requires slate version 5".to_string(),
+			));
+		}
 		let PaymentInfo {
 			sender_address,
 			receiver_address,
-			receiver_signature,
+			promise_signature: receiver_signature,
+			..
 		} = data;
-		let sender_address = *sender_address;
-		let receiver_address = *receiver_address;
-		let receiver_signature = *receiver_signature;
-		PaymentInfoV4 {
-			saddr: sender_address,
-			raddr: receiver_address,
-			rsig: receiver_signature,
-		}
+		Ok(PaymentInfoV4 {
+			saddr: sender_address.ok_or_else(|| {
+				Error::SlateInvalidDowngrade("Payment proof requires a sender address".to_string())
+			})?,
+			raddr: *receiver_address,
+			rsig: *receiver_signature,
+		})
 	}
 }
 
@@ -954,6 +1624,8 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 	let secp = secp.lock();
 	let mut calc_slate = Slate::blank(2, false);
 	calc_slate.fee_fields = slate.fee;
+	calc_slate.kernel_features = slate.feat;
+	calc_slate.kernel_features_args = slate.feat_args.as_ref().map(KernelFeaturesArgs::from);
 	for d in slate.sigs.iter() {
 		calc_slate.participant_data.push(ParticipantData {
 			public_blind_excess: d.xs,
@@ -970,17 +1642,7 @@ pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
 		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
 	};
 	let kernel = TxKernel {
-		features: match slate.feat {
-			0 => KernelFeatures::Plain { fee: slate.fee },
-			1 => KernelFeatures::HeightLocked {
-				fee: slate.fee,
-				lock_height: match slate.feat_args.as_ref() {
-					Some(a) => a.lock_hgt,
-					None => 0,
-				},
-			},
-			_ => KernelFeatures::Plain { fee: slate.fee },
-		},
+		features: calc_slate.kernel_features().ok()?,
 		excess,
 		excess_sig,
 	};
@@ -1084,9 +1746,12 @@ impl From<&PaymentInfoV4> for PaymentInfo {
 		let receiver_address = *receiver_address;
 		let receiver_signature = *receiver_signature;
 		PaymentInfo {
-			sender_address,
+			proof_type: PaymentProofType::Legacy,
+			sender_address: Some(sender_address),
 			receiver_address,
-			receiver_signature,
+			promise_signature: receiver_signature,
+			timestamp: None,
+			memo: None,
 		}
 	}
 }
@@ -1097,5 +1762,73 @@ impl From<OutputFeaturesV4> for OutputFeatures {
 			1 => OutputFeatures::Coinbase,
 			0 | _ => OutputFeatures::Plain,
 		}
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use crate::grin_keychain::ExtKeychain;
+
+	// A counterparty controls the participant list, so it can be shorter than
+	// num_participants claims, or hold an entry that matches only one of our two keys.
+	fn context_and_keys() -> (ExtKeychain, Context, PublicKey, PublicKey) {
+		let keychain = ExtKeychain::from_random_seed(true).unwrap();
+		let parent_key_id = ExtKeychain::derive_key_id(1, 0, 0, 0, 0);
+		let context = Context::new(keychain.secp(), &parent_key_id, true, true);
+		let our_excess = PublicKey::from_secret_key(keychain.secp(), &context.sec_key).unwrap();
+		let our_nonce = PublicKey::from_secret_key(keychain.secp(), &context.sec_nonce).unwrap();
+		(keychain, context, our_excess, our_nonce)
+	}
+
+	#[test]
+	fn find_index_handles_short_participant_list() {
+		let (keychain, context, _, _) = context_and_keys();
+		// A key that matches neither of ours, so the search runs off the end of the list
+		let other_id = ExtKeychain::derive_key_id(1, 1, 0, 0, 0);
+		let other_key = keychain
+			.derive_key(0, &other_id, SwitchCommitmentType::Regular)
+			.unwrap();
+		let other = PublicKey::from_secret_key(keychain.secp(), &other_key).unwrap();
+
+		let mut slate = Slate::blank(2, false);
+		// Claims two participants but carries one, and it is not ours
+		slate.num_participants = 2;
+		slate.participant_data.push(ParticipantData {
+			public_blind_excess: other,
+			public_nonce: other,
+			part_sig: None,
+		});
+		assert!(slate
+			.find_index_matching_context(&keychain, &context)
+			.is_err());
+	}
+
+	#[test]
+	fn find_index_requires_both_keys_to_match() {
+		let (keychain, context, our_excess, our_nonce) = context_and_keys();
+		let mut slate = Slate::blank(2, false);
+		// Shares our nonce but not our excess, so it is not our entry
+		slate.participant_data.push(ParticipantData {
+			public_blind_excess: our_nonce,
+			public_nonce: our_nonce,
+			part_sig: None,
+		});
+		assert!(slate
+			.find_index_matching_context(&keychain, &context)
+			.is_err());
+
+		// Both keys match, so this one is ours
+		slate.participant_data.push(ParticipantData {
+			public_blind_excess: our_excess,
+			public_nonce: our_nonce,
+			part_sig: None,
+		});
+		assert_eq!(
+			slate
+				.find_index_matching_context(&keychain, &context)
+				.unwrap(),
+			1
+		);
 	}
 }

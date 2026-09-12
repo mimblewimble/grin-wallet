@@ -17,6 +17,8 @@
 use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
+use crate::libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
+use crate::libwallet::EarlyPaymentProof;
 use crate::libwallet::{
 	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
 	WalletLCProvider,
@@ -24,8 +26,8 @@ use crate::libwallet::{
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
 use crate::util::Mutex;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use libwallet::SlatepackAddress;
-
 use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
@@ -33,17 +35,22 @@ pub type ForeignCheckMiddleware =
 	fn(ForeignCheckMiddlewareFn, Option<NodeVersionInfo>, Option<&Slate>) -> Result<(), Error>;
 
 /// Middleware Identifiers for each function
+#[non_exhaustive]
 pub enum ForeignCheckMiddlewareFn {
 	/// check_version
 	CheckVersion,
 	/// build_coinbase
 	BuildCoinbase,
-	/// verify_slate_messages
-	VerifySlateMessages,
 	/// receive_tx
 	ReceiveTx,
+	/// contract_new
+	ContractNew,
+	/// contract_sign
+	ContractSign,
 	/// finalize_tx
 	FinalizeTx,
+	/// verify_payment_proof_early
+	VerifyPaymentProofEarly,
 }
 
 /// Main interface into all wallet API functions.
@@ -451,11 +458,124 @@ where
 	pub fn finalize_tx(&self, slate: &Slate, post_automatically: bool) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::FinalizeTx,
+				w.w2n_client().get_version_info(),
+				Some(slate),
+			)?;
+		}
 		let post_automatically = match self.doctest_mode {
 			true => false,
 			false => post_automatically,
 		};
 		foreign::finalize_tx(w, (&self.keychain_mask).as_ref(), slate, post_automatically)
+	}
+
+	// Below is a foreign wrapper around owner calls to 'new' and 'sign' which are only executed
+	// if this is a receiving contract. This preserves the ability to receive on a foreign interface.
+	/// Start a receiving contract through the foreign API.
+	///
+	/// This is the first step of an RSR flow. The caller must confirm the request
+	/// with the user before continuing.
+	///
+	/// # Arguments
+	/// * `args` - Contract setup and expiry options. `net_change` must be positive.
+	///
+	/// # Returns
+	/// The new contract slate.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractNewArgsAPI;
+	///
+	/// let api_foreign = Foreign::new(
+	///     wallet,
+	///     std::path::PathBuf::from("grin-wallet.toml"),
+	///     None,
+	///     None,
+	///     false,
+	/// );
+	/// let mut args = ContractNewArgsAPI::default();
+	/// args.setup_args.net_change = Some(1_000_000_000);
+	/// let result = api_foreign.contract_new(&args);
+	/// ```
+	pub fn contract_new(&self, args: &ContractNewArgsAPI) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::ContractNew,
+				w.w2n_client().get_version_info(),
+				None,
+			)?;
+		}
+		foreign::contract_new(w, (&self.keychain_mask).as_ref(), args)
+	}
+
+	/// Sign the receiving side of a contract through the foreign API.
+	///
+	/// The caller must show the incoming slate and ask the user before signing.
+	/// The slate must come from an existing receiving contract.
+	///
+	/// # Arguments
+	/// * `slate` - The incoming contract slate.
+	/// * `args` - This wallet's setup and expected balance change.
+	///
+	/// # Returns
+	/// The updated contract slate.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env_foreign!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractSetupArgsAPI;
+	///
+	/// let api_foreign = Foreign::new(
+	///     wallet,
+	///     std::path::PathBuf::from("grin-wallet.toml"),
+	///     None,
+	///     None,
+	///     false,
+	/// );
+	/// let slate = Slate::blank(2, false);
+	/// let mut args = ContractSetupArgsAPI::default();
+	/// args.net_change = Some(1_000_000_000);
+	/// let result = api_foreign.contract_sign(&slate, &args);
+	/// ```
+	pub fn contract_sign(
+		&self,
+		slate: &Slate,
+		args: &ContractSetupArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::ContractSign,
+				w.w2n_client().get_version_info(),
+				Some(slate),
+			)?;
+		}
+		foreign::contract_sign(w, (&self.keychain_mask).as_ref(), args, slate)
+	}
+
+	/// Verify an early payment proof against the chain
+	pub fn verify_payment_proof_early(
+		&self,
+		recipient_address: &DalekPublicKey,
+		proof: &EarlyPaymentProof,
+	) -> Result<(), Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		if let Some(m) = self.middleware.as_ref() {
+			m(
+				ForeignCheckMiddlewareFn::VerifyPaymentProofEarly,
+				w.w2n_client().get_version_info(),
+				None,
+			)?;
+		}
+		foreign::verify_payment_proof_early(w, recipient_address, proof)
 	}
 }
 

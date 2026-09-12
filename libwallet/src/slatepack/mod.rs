@@ -22,4 +22,4 @@ mod types;
 pub use self::address::SlatepackAddress;
 pub use self::armor::{max_size, min_size, SlatepackArmor};
 pub use self::packer::{Slatepacker, SlatepackerArgs};
-pub use self::types::{Slatepack, SlatepackBin};
+pub use self::types::{Slatepack, SlatepackBin, SlatepackMode};

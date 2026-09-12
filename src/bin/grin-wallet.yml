@@ -446,3 +446,172 @@ subcommands:
           - input:
               help: Filename of a proof file
               index: 1
+  - contract:
+      subcommands:
+        - new:
+            about: Create a new contract with initial setup
+            args:
+                - encrypt-for:
+                    help: The counter party grin address (optional; omit to produce an unencrypted slatepack)
+                    short: e
+                    long: encrypt-for
+                    takes_value: true
+                    # index: 1
+                - receive:
+                    help: How much you want to receive
+                    short: r
+                    long: receive
+                    takes_value: true
+                - send:
+                    help: How much you want to send
+                    short: s
+                    long: send
+                    takes_value: true
+                - num-participants:
+                    help: How many participants are involved? (can be 1 or 2)
+                    short: n
+                    long: num-participants
+                    takes_value: true
+                    default_value: "2"
+                - as-json:
+                    help: Show result as JSON
+                    short: j
+                    long: as-json
+                    takes_value: false
+                - no-payjoin:
+                    help: Don't make it a payjoin (if receiver)
+                    long: no-payjoin
+                    takes_value: false
+                - add-outputs:
+                    help: Pick and lock inputs now and prepare outputs as unconfirmed
+                    short: a
+                    long: add-outputs
+                    takes_value: false
+                - use-inputs:
+                    help: Which inputs to use and lock now (provide comma separated commitments)
+                    short: i
+                    long: use-inputs
+                    takes_value: true
+                - make-outputs:
+                    help: Outputs to prepare now; they appear as unconfirmed (provide comma separated amounts)
+                    short: o
+                    long: make-outputs
+                    takes_value: true
+                - minimum_confirmations:
+                    help: Minimum confirmations required for an output; 0 allows unconfirmed outputs
+                    short: c
+                    long: min_conf
+                    default_value: "10"
+                    takes_value: true
+                - fee_rate:
+                    help: Fee rate in nanogrin per unit of transaction weight (defaults to accept_fee_base)
+                    long: fee_rate
+                    takes_value: true
+                - ttl_blocks:
+                    help: Positive number of blocks until wallets stop signing the contract
+                    short: b
+                    long: ttl_blocks
+                    takes_value: true
+                - outfile:
+                    help: If present, overrides the filename and location of the output Slatepack file.
+                    short: u
+                    long: outfile
+                    takes_value: true
+                - proof-type:
+                    help: Create an early payment proof of this type (requires a receiving contract and --encrypt-for)
+                    long: proof-type
+                    possible_values:
+                      - invoice
+                      - sender-nonce
+                    takes_value: true
+                - memo:
+                    help: UTF-8 memo to bind to the early payment proof (max 1024 bytes)
+                    long: memo
+                    takes_value: true
+        - sign:
+            about: Sign a contract
+            args:
+                - encrypt-for:
+                    help: The counter party grin address (optional; defaults to the slate sender, else unencrypted)
+                    short: e
+                    long: encrypt-for
+                    takes_value: true
+                    # index: 1
+                - receive:
+                    help: How much you want to receive
+                    short: r
+                    long: receive
+                    takes_value: true
+                - send:
+                    help: How much you want to send
+                    short: s
+                    long: send
+                    takes_value: true
+                - as-json:
+                    help: Show result as JSON
+                    short: j
+                    long: as-json
+                    takes_value: false
+                - no-payjoin:
+                    help: Don't make it a payjoin (if receiver)
+                    long: no-payjoin
+                    takes_value: false
+                - use-inputs:
+                    help: Which inputs to use and lock when first joining (provide comma separated commitments)
+                    short: i
+                    long: use-inputs
+                    takes_value: true
+                - make-outputs:
+                    help: Outputs to prepare when first joining; they appear as unconfirmed (provide comma separated amounts)
+                    short: o
+                    long: make-outputs
+                    takes_value: true
+                - minimum_confirmations:
+                    help: Minimum confirmations when first joining the contract; 0 allows unconfirmed outputs
+                    short: c
+                    long: min_conf
+                    takes_value: true
+                - fee_rate:
+                    help: Fee rate to use when first joining, in nanogrin per unit of transaction weight (defaults to accept_fee_base)
+                    long: fee_rate
+                    takes_value: true
+                - outfile:
+                    help: If present, overrides the filename and location of the output Slatepack file.
+                    short: u
+                    long: outfile
+                    takes_value: true
+                - no-broadcast:
+                    help: Don't broadcast the transaction if it was finalized
+                    long: no-broadcast
+                    takes_value: false
+                - proof-type:
+                    help: Create an early payment proof of this type (requires a receiving contract and a Slatepack sender or --encrypt-for)
+                    long: proof-type
+                    possible_values:
+                      - invoice
+                    takes_value: true
+                - memo:
+                    help: UTF-8 memo to bind to the early payment proof (max 1024 bytes)
+                    long: memo
+                    takes_value: true
+        - view:
+            about: View a contract
+            args:
+                - input:
+                    help: Slatepack file containing the contract to view.
+                    short: i
+                    long: input
+                    takes_value: true
+        - revoke:
+            about: Attempt to revoke a contract
+            args:
+                - tx-id:
+                    help: Id of a transaction we want to cancel
+                    short: i
+                    long: tx-id
+                    takes_value: true
+                - outfile:
+                    help: If present, overrides the filename and location of the output Slatepack file.
+                    short: u
+                    long: outfile
+                    takes_value: true

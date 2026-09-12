@@ -325,6 +325,18 @@ where
 		Ok(items.into_iter())
 	}
 
+	/// Get an (Optional) tx log entry by parent key id and log id.
+	pub fn get_tx_log_entry_by_id(
+		&self,
+		parent_id: Identifier,
+		log_id: u32,
+	) -> Result<Option<TxLogEntry>, Error> {
+		let tx_log_key = to_key_u64(parent_id.to_bytes(), log_id as u64);
+		self.db
+			.get_ser(Some(TX_LOG_ENTRY_PREFIX), &tx_log_key, None)
+			.map_err(|e| e.into())
+	}
+
 	/// Get an (Optional) tx log entry by uuid.
 	pub fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
 		self.db
@@ -454,32 +466,32 @@ where
 
 	/// Return the current child index.
 	pub fn current_child_index(&mut self, parent_key_id: &Identifier) -> Result<u32, Error> {
-		let index = {
-			let batch = self.db.batch()?;
-			batch
-				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
-		};
-		Ok(index)
+		self.batch_no_mask()?.current_child_index(parent_key_id)
+	}
+
+	/// Next child ID for the given parent key, when we want to create a new output.
+	/// Used by contracts so outputs derive under the contract's account rather than
+	/// whatever account happens to be active.
+	pub fn next_child_for(
+		&mut self,
+		parent_key_id: &Identifier,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<Identifier, Error> {
+		let mut batch = self.batch(keychain_mask)?;
+		let mut deriv_idx = batch.current_child_index(parent_key_id)?;
+		let mut return_path = parent_key_id.to_path();
+		return_path.depth += 1;
+		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
+		deriv_idx += 1;
+		batch.save_child_index(parent_key_id, deriv_idx)?;
+		batch.commit()?;
+		Ok(Identifier::from_path(&return_path))
 	}
 
 	/// Next child ID when we want to create a new output, based on current parent.
 	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
 		let parent_key_id = self.parent_key_id.clone();
-		let mut deriv_idx = {
-			let batch = self.db.batch()?;
-			batch
-				.get_ser(Some(DERIV_PREFIX), &self.parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
-		};
-		let mut return_path = self.parent_key_id.to_path();
-		return_path.depth += 1;
-		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
-		deriv_idx += 1;
-		let mut batch = self.batch(keychain_mask)?;
-		batch.save_child_index(&parent_key_id, deriv_idx)?;
-		batch.commit()?;
-		Ok(Identifier::from_path(&return_path))
+		self.next_child_for(&parent_key_id, keychain_mask)
 	}
 
 	/// Last verified height of outputs directly descending from the current parent key.
@@ -599,6 +611,14 @@ where
 		};
 		self.db.delete(Some(OUTPUT_PREFIX), &key)?;
 		Ok(())
+	}
+
+	/// Return the current child index.
+	pub fn current_child_index(&self, parent_id: &Identifier) -> Result<u32, Error> {
+		Ok(self
+			.db
+			.get_ser(Some(DERIV_PREFIX), &parent_id.to_bytes(), None)?
+			.unwrap_or_else(|| 0))
 	}
 
 	/// Save last stored child index of a given parent.
@@ -761,4 +781,41 @@ fn to_key_u64<K: AsRef<[u8]>>(k: K, val: u64) -> Vec<u8> {
 	let mut res = k.as_ref().to_vec();
 	res.write_u64::<BigEndian>(val).unwrap();
 	res
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn child_index_in_batch() -> Result<(), Error> {
+		grin_core::global::set_local_chain_type(grin_core::global::ChainTypes::AutomatedTesting);
+		let data_dir = std::env::temp_dir().join(format!("grin_wallet_{}", Uuid::new_v4()));
+		let db_dir = data_dir.join(DB_DIR);
+		fs::create_dir_all(&db_dir)?;
+		let store = Store::new(
+			db_dir.to_str().unwrap(),
+			None,
+			Some(DB_DIR),
+			DB_PREFIXES.to_vec(),
+			None,
+			None,
+		)?;
+		let parent = ExtKeychain::derive_key_id(2, 0, 0, 0, 0);
+
+		{
+			let mut batch = WalletBatch::<ExtKeychain> {
+				db: store.batch()?,
+				keychain: None,
+			};
+			assert_eq!(batch.current_child_index(&parent)?, 0);
+			batch.save_child_index(&parent, 1)?;
+			assert_eq!(batch.current_child_index(&parent)?, 1);
+			batch.commit()?;
+		}
+
+		drop(store);
+		fs::remove_dir_all(data_dir)?;
+		Ok(())
+	}
 }

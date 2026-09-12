@@ -22,6 +22,14 @@ use std::time::Duration;
 
 const MIN_COMPAT_NODE_VERSION: &str = "4.0.0-alpha.1";
 
+fn print_status(message: &str, stderr: bool) {
+	if stderr {
+		eprintln!("{}", message);
+	} else {
+		println!("{}", message);
+	}
+}
+
 pub fn wallet_command<C>(
 	wallet_args: &ArgMatches<'_>,
 	config: GlobalWalletConfig,
@@ -30,6 +38,7 @@ pub fn wallet_command<C>(
 where
 	C: NodeClient + 'static,
 {
+	let json_output = wallet_args::contract_json_output(wallet_args);
 	// Check the node version info, and exit with report if we're not compatible
 	let global_wallet_args = wallet_args::parse_global_args(&config.members.wallet, &wallet_args)
 		.expect("Can't read configuration file");
@@ -41,15 +50,15 @@ where
 		let min_version = Version::parse(MIN_COMPAT_NODE_VERSION).ok();
 		if let Ok(v) = node_version {
 			if Some(v.clone()) < min_version {
-				println!("The Grin Node in use (version {}) is outdated and incompatible with this wallet version.", v);
-				println!(
+				eprintln!("The Grin Node in use (version {}) is outdated and incompatible with this wallet version.", v);
+				eprintln!(
 					"Please update the node to version {} or later and try again.",
 					MIN_COMPAT_NODE_VERSION
 				);
 				return 1;
 			}
 		} else {
-			println!(
+			eprintln!(
 				"Can not parse node version {}. Minimal compatible node version: {}",
 				v.node_version, MIN_COMPAT_NODE_VERSION
 			);
@@ -64,12 +73,15 @@ where
 	thread::sleep(Duration::from_millis(100));
 
 	if let Err(e) = res {
-		println!("Wallet command failed: {}", e);
+		print_status(&format!("Wallet command failed: {}", e), json_output);
 		1
 	} else {
-		println!(
-			"Command '{}' completed successfully",
-			wallet_args.subcommand().0
+		print_status(
+			&format!(
+				"Command '{}' completed successfully",
+				wallet_args.subcommand().0
+			),
+			json_output,
 		);
 		0
 	}

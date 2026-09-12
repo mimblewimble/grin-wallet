@@ -16,6 +16,7 @@
 //! implementation
 
 use crate::config::{TorConfig, WalletConfig};
+use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
 use crate::grin_core::core::hash::Hash;
 use crate::grin_core::core::FeeFields;
@@ -25,8 +26,9 @@ use crate::grin_core::{global, ser};
 use crate::grin_keychain::{Identifier, Keychain};
 use crate::grin_util::logger::LoggingConfig;
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{pedersen, Secp256k1};
+use crate::grin_util::secp::{pedersen, Secp256k1, Signature};
 use crate::grin_util::{ToHex, ZeroingString};
+use crate::slate::PaymentMemo;
 use crate::slate_versions::ser as dalek_ser;
 use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
@@ -395,6 +397,16 @@ pub struct Context {
 	/// for invoice I2 Only, store the tx excess so we can
 	/// remove it from the slate on return
 	pub calculated_excess: Option<pedersen::Commitment>,
+	/// Arguments that define which outputs to pick for a contract
+	pub setup_args: Option<ContractSetupArgsAPI>,
+	/// TxLogEntry id (needed to avoid a linear scan). Services that keep a long
+	/// history might need to search through a list to update a txlogentry, so we
+	/// keep the id in the context.
+	pub log_id: Option<u32>,
+	/// Contract signing deadline copied from the slate
+	pub contract_ttl_cutoff_height: Option<u64>,
+	/// Untweaked public nonce used for a sender-nonce payment proof
+	pub sender_public_nonce: Option<PublicKey>,
 }
 
 impl Context {
@@ -444,11 +456,27 @@ impl Context {
 			payment_proof_derivation_index: None,
 			late_lock_args: None,
 			calculated_excess: None,
+			setup_args: None,
+			log_id: None,
+			contract_ttl_cutoff_height: None,
+			sender_public_nonce: None,
 		}
 	}
 }
 
 impl Context {
+	/// Returns net_change for the contract. Context is shared with the standard
+	/// transaction flows, where setup_args is None, so a context that does not belong to
+	/// a contract is reported rather than unwrapped.
+	pub fn get_net_change(&self) -> Result<i64, Error> {
+		self.setup_args
+			.as_ref()
+			.and_then(|args| args.net_change)
+			.ok_or_else(|| {
+				Error::GenericError("Context carries no contract net change".to_string())
+			})
+	}
+
 	/// Tracks an output contributing to my excess value (if it needs to
 	/// be kept between invocations
 	pub fn add_output(&mut self, output_id: &Identifier, mmr_index: &Option<u64>, amount: u64) {
@@ -470,6 +498,11 @@ impl Context {
 	/// Returns all stored input identifiers
 	pub fn get_inputs(&self) -> Vec<(Identifier, Option<u64>, u64)> {
 		self.input_ids.clone()
+	}
+
+	/// Whether inputs or outputs have already been selected for this context
+	pub fn has_inputs_or_outputs(&self) -> bool {
+		!self.input_ids.is_empty() || !self.output_ids.is_empty()
 	}
 
 	/// Returns private key, private nonce
@@ -605,6 +638,10 @@ pub enum TxLogEntryType {
 	TxSentCancelled,
 	/// Received transaction that was reverted on-chain
 	TxReverted,
+	/// Self spend, as per contracts and mwixnet
+	TxSelfSpend,
+	/// Self Spend Cancelled (has to happen before sent to chain, flag rather than delete)
+	TxSelfSpendCancelled,
 }
 
 impl fmt::Display for TxLogEntryType {
@@ -616,6 +653,8 @@ impl fmt::Display for TxLogEntryType {
 			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx\n- Cancelled"),
 			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx\n- Cancelled"),
 			TxLogEntryType::TxReverted => write!(f, "Received Tx\n- Reverted"),
+			TxLogEntryType::TxSelfSpend => write!(f, "Self Spend"),
+			TxLogEntryType::TxSelfSpendCancelled => write!(f, "Self Spend\n- Cancelled"),
 		}
 	}
 }
@@ -740,16 +779,56 @@ pub struct StoredProofInfo {
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
-	/// receiver signature
+	/// Receiver signature for legacy proofs, or promise signature for early proofs
 	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
 	pub sender_address_path: u32,
 	/// sender address
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
-	/// sender signature
+	/// Legacy sender signature
 	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
+	// Fields beyond here are specific to early payment proofs
+	/// Assumed to be 0x00 (Legacy) if missing
+	pub proof_type: Option<u8>,
+	/// receiver's public nonce from signing
+	pub receiver_public_nonce: Option<PublicKey>,
+	/// receiver's public excess from signing
+	pub receiver_public_excess: Option<PublicKey>,
+	/// Timestamp provided by recipient when signing
+	pub timestamp: Option<DateTime<Utc>>,
+	/// Optional payment memo
+	pub memo: Option<PaymentMemo>,
+	/// Early-proof sender partial signature
+	pub sender_part_sig: Option<Signature>,
+	/// Untweaked sender public nonce for a sender-nonce proof
+	pub sender_public_nonce: Option<PublicKey>,
+}
+
+impl StoredProofInfo {
+	pub(crate) fn new(
+		receiver_address: DalekPublicKey,
+		receiver_signature: Option<DalekSignature>,
+		sender_address: DalekPublicKey,
+		sender_address_path: u32,
+		sender_signature: Option<DalekSignature>,
+	) -> Self {
+		Self {
+			receiver_address,
+			receiver_signature,
+			sender_address_path,
+			sender_address,
+			sender_signature,
+			proof_type: None,
+			receiver_public_nonce: None,
+			receiver_public_excess: None,
+			timestamp: None,
+			memo: None,
+			sender_part_sig: None,
+			sender_public_nonce: None,
+		}
+	}
 }
 
 impl ser::Writeable for StoredProofInfo {
@@ -960,6 +1039,7 @@ pub mod option_duration_as_secs {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use ed25519_dalek::SigningKey as DalekSecretKey;
 	use grin_core::ser::{DeserializationMode, ProtocolVersion, Readable, Reader, StreamingReader};
 	use grin_keychain::{ExtKeychain, ExtKeychainPath};
 	use serde_json::Value;
@@ -1002,6 +1082,27 @@ mod tests {
 
 		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
 		assert_eq!(none, none2);
+	}
+
+	#[test]
+	fn reads_old_payment_proof() {
+		let address = DalekSecretKey::from_bytes(&[1; 32])
+			.verifying_key()
+			.to_bytes()
+			.to_hex();
+		let proof = serde_json::json!({
+			"receiver_address": address,
+			"receiver_signature": null,
+			"sender_address_path": 0,
+			"sender_address": address,
+			"sender_signature": null
+		});
+
+		let proof: StoredProofInfo = serde_json::from_value(proof).unwrap();
+		assert!(proof.receiver_signature.is_none());
+		let proof = serde_json::to_value(proof).unwrap();
+		assert!(proof.get("receiver_signature").is_some());
+		assert!(proof.get("promise_signature").is_none());
 	}
 
 	#[test]

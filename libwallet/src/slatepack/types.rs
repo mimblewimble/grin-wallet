@@ -32,6 +32,57 @@ use std::io::{Cursor, Read, Write};
 pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
 pub const SLATEPACK_MINOR_VERSION: u8 = 0;
 
+/// Slatepack payload encoding mode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum SlatepackMode {
+	/// Plaintext payload
+	Plaintext = 0,
+	/// Payload encrypted for one or more recipients using age
+	AgeEncrypted = 1,
+}
+
+impl From<SlatepackMode> for u8 {
+	fn from(mode: SlatepackMode) -> Self {
+		mode as u8
+	}
+}
+
+impl TryFrom<u8> for SlatepackMode {
+	type Error = Error;
+
+	fn try_from(mode: u8) -> Result<Self, Self::Error> {
+		match mode {
+			0 => Ok(Self::Plaintext),
+			1 => Ok(Self::AgeEncrypted),
+			_ => Err(Error::SlatepackDeser(format!(
+				"Unsupported Slatepack mode: {}",
+				mode
+			))),
+		}
+	}
+}
+
+impl serde::Serialize for SlatepackMode {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		serializer.serialize_u8((*self).into())
+	}
+}
+
+impl<'de> serde::Deserialize<'de> for SlatepackMode {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		let mode = u8::deserialize(deserializer)?;
+		Self::try_from(mode).map_err(serde::de::Error::custom)
+	}
+}
+
 /// Basic Slatepack definition
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Slatepack {
@@ -39,8 +90,8 @@ pub struct Slatepack {
 	/// Versioning info
 	#[serde(with = "slatepack_version")]
 	pub slatepack: SlatepackVersion,
-	/// Delivery Mode, 0 = plain_text, 1 = age encrypted
-	pub mode: u8,
+	/// Delivery mode
+	pub mode: SlatepackMode,
 
 	// Optional Fields
 	/// Optional Sender address
@@ -101,7 +152,7 @@ impl Default for Slatepack {
 				major: SLATEPACK_MAJOR_VERSION,
 				minor: SLATEPACK_MINOR_VERSION,
 			},
-			mode: 0,
+			mode: SlatepackMode::Plaintext,
 			sender: None,
 			encrypted_meta: default_enc_metadata(),
 			payload: vec![],
@@ -111,6 +162,11 @@ impl Default for Slatepack {
 }
 
 impl Slatepack {
+	/// Whether the payload is encrypted.
+	pub fn is_encrypted(&self) -> bool {
+		self.mode == SlatepackMode::AgeEncrypted
+	}
+
 	/// return length of optional fields
 	pub fn opt_fields_len(&self) -> Result<usize, ser::Error> {
 		let mut retval = 0;
@@ -174,13 +230,13 @@ impl Slatepack {
 		writer.write_all(&to_encrypt)?;
 		writer.finish()?;
 		self.payload = encrypted.to_vec();
-		self.mode = 1;
+		self.mode = SlatepackMode::AgeEncrypted;
 		Ok(())
 	}
 
 	/// As above, decrypt if needed
 	pub fn try_decrypt_payload(&mut self, dec_key: Option<&edSecretKey>) -> Result<(), Error> {
-		if self.mode == 0 {
+		if !self.is_encrypted() {
 			return Ok(());
 		}
 		let dec_key = match dec_key {
@@ -201,7 +257,11 @@ impl Slatepack {
 
 		let decryptor = match age::Decryptor::new(&self.payload[..])? {
 			age::Decryptor::Recipients(d) => d,
-			_ => unreachable!(),
+			age::Decryptor::Passphrase(_) => {
+				return Err(Error::SlatepackDeser(
+					"Passphrase encrypted Slatepacks are not supported".into(),
+				));
+			}
 		};
 		let mut decrypted = vec![];
 		let mut reader = decryptor.decrypt(std::iter::once(&key as &dyn age::Identity))?;
@@ -230,7 +290,7 @@ impl Slatepack {
 			.0;
 		self.sender = meta.sender;
 		self.encrypted_meta.recipients = meta.recipients;
-		self.mode = 0;
+		self.mode = SlatepackMode::Plaintext;
 
 		Ok(())
 	}
@@ -320,7 +380,7 @@ impl Writeable for SlatepackBin {
 		// Version (2)
 		sp.slatepack.write(writer)?;
 		// Mode (1)
-		writer.write_u8(sp.mode)?;
+		writer.write_u8(sp.mode.into())?;
 
 		// 16 bits of optional content flags (2), most reserved for future use
 		let mut opt_flags: u16 = 0;
@@ -350,13 +410,11 @@ impl Readable for SlatepackBin {
 		// Version (2)
 		let slatepack = SlatepackVersion::read(reader)?;
 		// Mode (1)
-		let mode = reader.read_u8()?;
-		if mode > 1 {
-			return Err(ser::Error::UnexpectedData {
-				expected: vec![0, 1],
-				received: vec![mode],
-			});
-		}
+		let mode_value = reader.read_u8()?;
+		let mode = SlatepackMode::try_from(mode_value).map_err(|_| ser::Error::UnexpectedData {
+			expected: vec![0, 1],
+			received: vec![mode_value],
+		})?;
 		// optional content flags (2)
 		let opt_flags = reader.read_u16()?;
 
@@ -763,7 +821,7 @@ fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
 }
 
 // test encryption and encrypted metadata, which only gets written
-// if mode == 1
+// in AgeEncrypted mode
 #[test]
 fn slatepack_encrypted_meta() -> Result<(), Error> {
 	use crate::grin_core::global;
@@ -899,7 +957,7 @@ fn slatepack_decrypt_rejects_malformed_plaintexts() -> Result<(), Error> {
 
 	for plaintext in vec![vec![], vec![0], vec![0, 0, 0], vec![0xff; 4]] {
 		let mut slatepack = Slatepack {
-			mode: 1,
+			mode: SlatepackMode::AgeEncrypted,
 			payload: encrypt_plaintext_to_slatepack_recipient(&addr, &plaintext)?,
 			..Slatepack::default()
 		};
@@ -908,6 +966,29 @@ fn slatepack_decrypt_rejects_malformed_plaintexts() -> Result<(), Error> {
 			Err(Error::SlatepackDeser(_))
 		));
 	}
+
+	Ok(())
+}
+
+#[test]
+fn rejects_passphrase_payload() -> Result<(), Error> {
+	let encryptor =
+		age::Encryptor::with_user_passphrase(age::secrecy::Secret::new("passphrase".to_string()));
+	let mut payload = vec![];
+	let mut writer = encryptor.wrap_output(&mut payload)?;
+	writer.write_all(b"payload")?;
+	writer.finish()?;
+
+	let mut slatepack = Slatepack {
+		mode: SlatepackMode::AgeEncrypted,
+		payload,
+		..Slatepack::default()
+	};
+	let key = edSecretKey::from_bytes(&[1; 32]);
+	assert!(matches!(
+		slatepack.try_decrypt_payload(Some(&key)),
+		Err(Error::SlatepackDeser(_))
+	));
 
 	Ok(())
 }

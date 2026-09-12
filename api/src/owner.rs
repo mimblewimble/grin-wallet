@@ -23,6 +23,10 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::contract::types::{
+	ContractNewArgsAPI, ContractRevokeArgsAPI, ContractSetupArgsAPI, ContractView,
+};
+use crate::libwallet::EarlyPaymentProof;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -881,6 +885,115 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		owner::issue_invoice_tx(w, keychain_mask, args, self.doctest_mode)
+	}
+
+	/// Initiate a new contract. Also performs the initial setup on the slate.
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask, if one is used.
+	/// * `args` - Contract setup and expiry options.
+	///
+	/// # Returns
+	/// The new contract slate.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractNewArgsAPI;
+	///
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let mut new_args = ContractNewArgsAPI::default();
+	/// new_args.setup_args.net_change = Some(-1_000_000_000);
+	/// let result = api_owner.contract_new(None, &new_args);
+	/// ```
+	pub fn contract_new(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractNewArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_new(w, keychain_mask, args)
+	}
+
+	/// Summarise a contract slate, including its participants, signatures and net change.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let slate = Slate::blank(2, false);
+	/// let result = api_owner.contract_view(None, &slate);
+	/// ```
+	pub fn contract_view(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<ContractView, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_view(w, keychain_mask, slate)
+	}
+
+	/// Sign a contract, running setup first if it has not been done yet.
+	/// The slate must come from an existing contract.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractSetupArgsAPI;
+	///
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let slate = Slate::blank(2, false);
+	/// let result = api_owner.contract_sign(None, &slate, &ContractSetupArgsAPI::default());
+	/// ```
+	pub fn contract_sign(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+		args: &ContractSetupArgsAPI,
+	) -> Result<Slate, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_sign(w, keychain_mask, args, slate)
+	}
+
+	/// Return the participant index in the slate that matches this wallet's context.
+	pub fn get_slate_index_matching_my_context(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		slate: &Slate,
+	) -> Result<usize, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::get_slate_index_matching_my_context(w, keychain_mask, slate)
+	}
+
+	/// Revoke a contract by double-spending one of its locked inputs.
+	/// The transaction id must identify an existing contract.
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// use libwallet::contract::types::ContractRevokeArgsAPI;
+	///
+	/// let api_owner = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let result = api_owner.contract_revoke(
+	///     None,
+	///     &ContractRevokeArgsAPI {
+	///         tx_id: 1,
+	///         src_acct_name: None,
+	///     },
+	/// );
+	/// ```
+	pub fn contract_revoke(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		args: &ContractRevokeArgsAPI,
+	) -> Result<Option<Slate>, Error> {
+		let mut w_lock = self.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		owner::contract_revoke(w, keychain_mask, args)
 	}
 
 	/// Processes an invoice transaction created by another party, essentially
@@ -2012,6 +2125,7 @@ where
 	pub fn delete_wallet(&self, name: Option<&str>) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
+		lc.close_wallet(name)?;
 		lc.delete_wallet(name)
 	}
 
@@ -2284,7 +2398,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender
 	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
-	/// slate). If an empty vec, the payload will remain unencrypted
+	/// slate). The sender is also able to decrypt it. If empty, the payload remains unencrypted
 	///
 	/// # Returns
 	/// * Ok with a String representing an armored slatepack if successful
@@ -2506,6 +2620,32 @@ where
 			false => refresh_from_node,
 		};
 		owner::retrieve_payment_proof(
+			self.wallet_inst.clone(),
+			keychain_mask,
+			&tx,
+			refresh_from_node,
+			tx_id,
+			tx_slate_id,
+		)
+	}
+
+	/// Retrieve an early payment proof for a stored transaction
+	pub fn retrieve_payment_proof_early(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		refresh_from_node: bool,
+		tx_id: Option<u32>,
+		tx_slate_id: Option<Uuid>,
+	) -> Result<EarlyPaymentProof, Error> {
+		let tx = {
+			let t = self.status_tx.lock();
+			t.clone()
+		};
+		let refresh_from_node = match self.updater_running.load(Ordering::Relaxed) {
+			true => false,
+			false => refresh_from_node,
+		};
+		owner::retrieve_payment_proof_early(
 			self.wallet_inst.clone(),
 			keychain_mask,
 			&tx,

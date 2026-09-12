@@ -53,6 +53,11 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"owner_api_listen_port".to_string(),
 		"
+#owner api address, for example 0.0.0.0:3420 for docker
+#overrides owner_api_listen_port when set
+#do not expose the owner api to an untrusted network
+#owner_api_listen_addr = \"127.0.0.1:3420\"
+
 #port for wallet owner api
 "
 		.to_string(),
