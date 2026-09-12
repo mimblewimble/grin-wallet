@@ -684,9 +684,25 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	};
 	let signed = {
 		wallet_inst!(recv_wallet, w);
+		let mut retry_args = receiver_args.clone();
+		retry_args.net_change = None;
+		let err = libwallet::contract::setup(w, recv_mask, &incoming, &retry_args).unwrap_err();
+		assert!(matches!(err, libwallet::Error::GenericError(ref msg)
+			if msg == "Contract requires a net change (--send or --receive)"));
 		let first = libwallet::contract::setup(w, recv_mask, &incoming, &receiver_args)?;
 		let retried = libwallet::contract::setup(w, recv_mask, &incoming, &receiver_args)?;
 		assert_eq!(retried.fee_fields, first.fee_fields);
+		let retried = libwallet::contract::setup(w, recv_mask, &incoming, &retry_args)?;
+		assert_eq!(retried.fee_fields, first.fee_fields);
+		assert_eq!(retried.participant_data.len(), first.participant_data.len());
+		for (retried, first) in retried.participant_data.iter().zip(&first.participant_data) {
+			assert_eq!(retried.public_blind_excess, first.public_blind_excess);
+			assert_eq!(retried.public_nonce, first.public_nonce);
+		}
+		retry_args.net_change = Some(2_000_000_000);
+		let err = libwallet::contract::setup(w, recv_mask, &incoming, &retry_args).unwrap_err();
+		assert!(matches!(err, libwallet::Error::GenericError(ref msg)
+			if msg == "Expected net change mismatch! Context.net_change: 1000000000, setup_args.net_change: 2000000000"));
 		libwallet::contract::sign(w, recv_mask, &incoming, &receiver_args)?
 	};
 	{

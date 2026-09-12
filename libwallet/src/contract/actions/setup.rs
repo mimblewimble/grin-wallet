@@ -86,12 +86,17 @@ where
 		Some(context) => context,
 		None => contract::context::get_or_create(w, keychain_mask, &mut sl, setup_args)?,
 	};
+	let mut setup_args = setup_args.clone();
+	setup_args.net_change = Some(contract::utils::get_net_change(
+		Some(&context),
+		setup_args.net_change,
+	)?);
 	contract::utils::verify_ttl(context.contract_ttl_cutoff_height, &sl)?;
 	let context_args = context
 		.setup_args
 		.as_ref()
 		.ok_or_else(|| Error::GenericError("Context carries no contract setup args".to_string()))?;
-	contract::utils::verify_setup_args_consistency(context_args, setup_args)?;
+	contract::utils::verify_setup_args_consistency(context_args, &setup_args)?;
 
 	// Add keys and payment proof to slate (both are idempotent operations)
 	let keychain = w.keychain(keychain_mask)?;
