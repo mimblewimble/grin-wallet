@@ -54,9 +54,9 @@ fn kernel_has_height_arg(feature: u8) -> bool {
 #[derive(EnumIter, Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum SlateVersion {
 	/// V5 (Most Current)
-	V5,
+	V5 = 5,
 	/// V4
-	V4,
+	V4 = 4,
 }
 
 impl TryFrom<u16> for SlateVersion {
@@ -207,6 +207,21 @@ pub mod tests {
 	use grin_keychain::{BlindingFactor, ExtKeychain, Keychain, SwitchCommitmentType};
 	use grin_wallet_util::byte_ser;
 	use std::convert::TryInto;
+
+	#[test]
+	fn version_order() {
+		use strum::IntoEnumIterator;
+
+		assert!(SlateVersion::V4 < SlateVersion::V5);
+		assert_eq!(
+			SlateVersion::V4.cmp(&SlateVersion::V5),
+			std::cmp::Ordering::Less
+		);
+		assert_eq!(
+			SlateVersion::iter().collect::<Vec<_>>(),
+			vec![SlateVersion::V5, SlateVersion::V4]
+		);
+	}
 
 	/// Populate a test internal slate with all fields to test conversions
 	pub fn populate_test_slate() -> Result<Slate, Error> {
