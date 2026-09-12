@@ -1615,8 +1615,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let mut slate = slate.clone();
-	contract::view(&mut *w, keychain_mask, &mut slate)
+	contract::view(&mut *w, keychain_mask, slate)
 }
 
 /// Sign transaction contract

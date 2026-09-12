@@ -975,47 +975,7 @@ impl Serialize for Slate {
 ////// V5
 impl From<Slate> for SlateV5 {
 	fn from(slate: Slate) -> SlateV5 {
-		let Slate {
-			num_participants: num_parts,
-			id,
-			state,
-			tx: _,
-			amount,
-			fee_fields,
-			kernel_features,
-			ttl_cutoff_height: ttl,
-			offset: off,
-			participant_data,
-			version_info,
-			payment_proof,
-			kernel_features_args,
-		} = slate.clone();
-		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
-		let ver = VersionCompatInfoV5::from(&version_info);
-		let payment_proof = match payment_proof {
-			Some(p) => Some(PaymentInfoV5::from(&p)),
-			None => None,
-		};
-		let feat_args = match kernel_features_args {
-			Some(a) => Some(KernelFeaturesArgsV5::from(&a)),
-			None => None,
-		};
-		let sta = SlateStateV5::from(&state);
-		SlateV5 {
-			num_parts,
-			id,
-			sta,
-			coms: (&slate).into(),
-			amt: amount,
-			fee: fee_fields,
-			feat: kernel_features,
-			ttl,
-			off,
-			sigs: participant_data,
-			ver,
-			proof: payment_proof,
-			feat_args,
-		}
+		Self::from(&slate)
 	}
 }
 
@@ -1191,6 +1151,7 @@ impl From<OutputFeatures> for OutputFeaturesV5 {
 ///// V5
 impl From<SlateV5> for Slate {
 	fn from(slate: SlateV5) -> Slate {
+		let tx = (&slate).into();
 		let SlateV5 {
 			num_parts: num_participants,
 			id,
@@ -1205,7 +1166,7 @@ impl From<SlateV5> for Slate {
 			ver,
 			proof: payment_proof,
 			feat_args,
-		} = slate.clone();
+		} = slate;
 		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
 		let version_info = VersionCompatInfo::from(&ver);
 		let payment_proof = match &payment_proof {
@@ -1221,7 +1182,7 @@ impl From<SlateV5> for Slate {
 			num_participants,
 			id,
 			state,
-			tx: (&slate).into(),
+			tx,
 			amount,
 			fee_fields,
 			kernel_features,

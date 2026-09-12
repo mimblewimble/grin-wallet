@@ -58,7 +58,7 @@ fn tx_net_change(tx: &TxLogEntry) -> Result<i64, Error> {
 pub fn view<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
-	slate: &mut Slate,
+	slate: &Slate,
 ) -> Result<ContractView, Error>
 where
 	C: NodeClient,
