@@ -41,7 +41,7 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::fs::File;
 use std::io;
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
@@ -777,7 +777,7 @@ where
 			pts.get_slatepack(false)?
 		}
 		None => match message {
-			Some(message) => packer.deser_slatepack(message.as_bytes(), false)?,
+			Some(message) => packer.deser_slatepack(message.trim_start().as_bytes(), false)?,
 			None => {
 				let msg = "No slate provided via file or direct input";
 				return Err(Error::GenericError(msg.into()).into());
@@ -1917,6 +1917,30 @@ impl ContractSetupArgs {
 	}
 }
 
+fn read_slatepack(reader: &mut impl BufRead) -> io::Result<String> {
+	let mut message = String::new();
+	let mut periods = 0;
+	// Header, payload and footer each end with a period
+	while periods < 3 {
+		let start = message.len();
+		if reader.read_line(&mut message)? == 0 {
+			break;
+		}
+		if start == 0 && message.trim().is_empty() {
+			message.clear();
+			continue;
+		}
+		if message.trim_start().starts_with('{') {
+			match serde_json::from_str::<serde::de::IgnoredAny>(&message) {
+				Err(e) if e.is_eof() => continue,
+				_ => break,
+			}
+		}
+		periods += message[start..].bytes().filter(|b| *b == b'.').count();
+	}
+	Ok(message)
+}
+
 pub fn contract_sign<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -1930,9 +1954,7 @@ where
 {
 	let recipient = slatepack_recipient(args.counterparty_addr.as_deref())?;
 	print_contract_status("Paste slatepack:", args.as_json);
-	let mut slatepack_msg = String::new();
-	io::stdin()
-		.read_line(&mut slatepack_msg)
+	let slatepack_msg = read_slatepack(&mut io::stdin().lock())
 		.map_err(|e| libwallet::Error::GenericError(format!("Failed to read from stdin: {}", e)))?;
 	let (mut slate, sender, _) =
 		parse_slatepack_with_mode(owner_api, keychain_mask, None, Some(slatepack_msg))?;
@@ -2079,6 +2101,55 @@ mod send_tests {
 mod contract_tests {
 	use super::*;
 	use ed25519_dalek::{SigningKey, VerifyingKey};
+
+	#[test]
+	fn slatepack_input() {
+		use libwallet::{Slatepack, SlatepackArmor};
+
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let packer = Slatepacker::new(SlatepackerArgs {
+			sender: None,
+			recipients: vec![],
+			dec_key: None,
+		});
+		for size in [32, 4096] {
+			let mut slatepack = Slatepack::default();
+			slatepack.payload = vec![1; size];
+			let armor = SlatepackArmor::encode(&slatepack).unwrap();
+			if size == 4096 {
+				assert!(armor.lines().count() > 1);
+			}
+			for encoded in [
+				armor,
+				format!("{}\n", serde_json::to_string(&slatepack).unwrap()),
+				format!("{}\n", serde_json::to_string_pretty(&slatepack).unwrap()),
+			] {
+				let mut input = io::Cursor::new(format!("\n \t\n{}next input\n", encoded));
+				let message = read_slatepack(&mut input).unwrap();
+				assert_eq!(message, encoded);
+				assert_eq!(
+					packer.deser_slatepack(message.as_bytes(), false).unwrap(),
+					slatepack
+				);
+				let mut remaining = String::new();
+				input.read_to_string(&mut remaining).unwrap();
+				assert_eq!(remaining, "next input\n");
+			}
+		}
+
+		let mut input = io::Cursor::new("{invalid}\nnext input\n");
+		assert_eq!(read_slatepack(&mut input).unwrap(), "{invalid}\n");
+		let incomplete_json = "{\n\"payload\":";
+		assert_eq!(
+			read_slatepack(&mut io::Cursor::new(incomplete_json)).unwrap(),
+			incomplete_json
+		);
+
+		let incomplete = "BEGINSLATEPACK.\nunfinished";
+		let message = read_slatepack(&mut io::Cursor::new(incomplete)).unwrap();
+		assert_eq!(message, incomplete);
+		assert!(SlatepackArmor::decode(message.as_bytes()).is_err());
+	}
 
 	#[test]
 	fn invalid_recipient() {
