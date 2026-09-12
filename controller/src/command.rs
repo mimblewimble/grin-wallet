@@ -542,6 +542,36 @@ where
 	Ok(())
 }
 
+fn slatepack_message<L, C, K>(
+	owner_api: &Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest: Option<SlatepackAddress>,
+	out_file_override: Option<String>,
+) -> Result<(String, String), libwallet::Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let recipients = dest.into_iter().collect();
+	let message = owner_api.create_slatepack_message(keychain_mask, slate, Some(0), recipients)?;
+	let tld = owner_api.get_top_level_directory()?;
+	let slate_dir = format!("{}/{}", tld, "slatepack");
+	let _ = std::fs::create_dir_all(&slate_dir);
+	let out_file_name = match out_file_override {
+		None => format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state),
+		Some(f) => f,
+	};
+	Ok((message, out_file_name))
+}
+
+fn write_slatepack(message: &str, out_file: &str) -> io::Result<()> {
+	let mut output = File::create(out_file)?;
+	output.write_all(message.as_bytes())?;
+	output.sync_all()
+}
+
 pub fn output_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -557,31 +587,20 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	// Output the slatepack file to stdout and to a file
-	// encrypt for recipient by default
-	let recipients = match dest.clone() {
-		Some(a) => vec![a],
-		None => vec![],
-	};
-	let message = owner_api.create_slatepack_message(keychain_mask, &slate, Some(0), recipients)?;
-	let tld = owner_api.get_top_level_directory()?;
-
-	// create a directory to which files will be output
-	let slate_dir = format!("{}/{}", tld, "slatepack");
-	let _ = std::fs::create_dir_all(slate_dir.clone());
-	let out_file_name = match out_file_override {
-		None => format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state),
-		Some(f) => f,
-	};
+	let (message, out_file_name) = slatepack_message(
+		owner_api,
+		keychain_mask,
+		slate,
+		dest.clone(),
+		out_file_override,
+	)?;
 
 	if lock {
 		owner_api.tx_lock_outputs(keychain_mask, &slate)?;
 	}
 
 	println!("{}", out_file_name);
-	let mut output = File::create(out_file_name.clone())?;
-	output.write_all(&message.as_bytes())?;
-	output.sync_all()?;
+	write_slatepack(&message, &out_file_name)?;
 
 	println!();
 	if !finalizing {
@@ -708,39 +727,15 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	// Same as output_slatepack except that we don't write to stdout, care about locking or whether the slate was finalized.
-
-	// Output the slatepack file to stdout and to a file
-	let mut message = String::from("");
-	let mut tld = String::from("");
-	let wallet_inst = owner_api.wallet_inst.clone();
-	let config_path = owner_api.config_path();
-	controller::owner_single_use(wallet_inst, keychain_mask, config_path, |api, m| {
-		// encrypt for recipient by default
-		let recipients = match dest.clone() {
-			Some(a) => vec![a],
-			None => vec![],
-		};
-		message = api.create_slatepack_message(m, &slate, Some(0), recipients)?;
-		// Trim the \n at the end.
-		let len_withoutcrlf = message.trim_end().len();
-		message.truncate(len_withoutcrlf);
-
-		tld = api.get_top_level_directory()?;
-		Ok(())
-	})?;
-
-	// create a directory to which files will be output
-	let slate_dir = format!("{}/{}", tld, "slatepack");
-	let _ = std::fs::create_dir_all(slate_dir.clone());
-	let out_file_name = match out_file_override {
-		None => format!("{}/{}.{}.slatepack", slate_dir, slate.id, slate.state),
-		Some(f) => f,
-	};
-
-	let mut output = File::create(out_file_name.clone())?;
-	output.write_all(&message.as_bytes())?;
-	output.sync_all()?;
+	let (mut message, out_file_name) = slatepack_message(
+		owner_api,
+		keychain_mask,
+		slate,
+		dest.clone(),
+		out_file_override,
+	)?;
+	message.truncate(message.trim_end().len());
+	write_slatepack(&message, &out_file_name)?;
 
 	// Since we always finalize if we can, we can also use this to know if the tx is finalized
 	let is_finalized = can_finalize(slate);
