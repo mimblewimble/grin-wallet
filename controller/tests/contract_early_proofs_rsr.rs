@@ -105,7 +105,6 @@ fn contract_early_proofs_rsr_test_impl(
 	)?;
 
 	assert_eq!(slate.state, SlateState::Invoice1);
-	println!("I1 State slate: {}", slate);
 	slate = roundtrip_slate(&slate, 5)?;
 
 	wallet::controller::owner_single_use(
@@ -123,7 +122,6 @@ fn contract_early_proofs_rsr_test_impl(
 			Ok(())
 		},
 	)?;
-	println!("I2 State slate: {}", slate);
 
 	assert_eq!(slate.state, SlateState::Invoice2);
 	slate = roundtrip_slate(&slate, 5)?;
@@ -240,9 +238,6 @@ fn contract_early_proofs_rsr_test_impl(
 		proof_type == ProofType::SenderNonce
 	);
 	let early_proof_json = serde_json::to_string(&early_proof).unwrap();
-
-	// Should have all proof fields filled out
-	println!("EARLY PAYMENT PROOF: {}", early_proof_json);
 
 	wallet::controller::foreign_single_use(
 		recv_wallet.clone(),

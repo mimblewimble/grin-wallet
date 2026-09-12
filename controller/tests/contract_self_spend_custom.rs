@@ -51,7 +51,6 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 		PathBuf::from(test_dir),
 		|api, m| {
 			let (_, commits) = api.retrieve_outputs(m, true, false, None)?;
-			println!("OOOT: {:?}", commits[0].output);
 			use_inputs = format!(
 				"{},{}",
 				commits[0].output.commit.as_ref().unwrap(),

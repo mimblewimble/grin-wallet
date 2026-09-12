@@ -234,11 +234,6 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 				wallet_info.amount_currently_spendable,
 				4 * 60_000_000_000 + 5_000_000_000 - expected_fees_paid.unwrap().fee() // we expect the balance of 4 mined blocks + 5 Grin - fees paid
 			);
-			// println!("txlogentry: {:#?}", tx_log);
-			// println!("wallet info: {:#?}", wallet_info);
-			// let (validated, commits) = api.retrieve_outputs(m, true, false, Some(tx_log.id))?;
-			// println!("commits: {:#?}", commits);
-			// panic!("lala");
 			Ok(())
 		},
 	)?;

@@ -50,7 +50,7 @@ pub fn create_tx_log_entry(
 	if net_change > 0 {
 		t.amount_credited = net_change as u64;
 	} else {
-		t.amount_debited = -net_change as u64;
+		t.amount_debited = net_change.unsigned_abs();
 	}
 	t.ttl_cutoff_height = match slate.ttl_cutoff_height {
 		0 => None,
@@ -519,6 +519,18 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn tx_log_amounts() {
+		let slate = Slate::blank(2, false);
+		for (net_change, credited, debited) in
+			[(1, 1, 0), (0, 0, 0), (-1, 0, 1), (i64::MIN, 0, 1u64 << 63)]
+		{
+			let entry = create_tx_log_entry(&slate, net_change, Identifier::zero(), 0).unwrap();
+			assert_eq!(entry.amount_credited, credited);
+			assert_eq!(entry.amount_debited, debited);
+		}
+	}
 
 	#[test]
 	fn fee_contribution_kernel_split() {

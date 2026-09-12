@@ -231,8 +231,6 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	);
 	let early_proof_json = serde_json::to_string(&early_proof).unwrap();
 
-	// Should have all proof fields filled out
-	println!("EARLY PAYMENT PROOF: {}", early_proof_json);
 	{
 		let api = grin_wallet_api::Foreign::new(
 			recv_wallet.clone(),

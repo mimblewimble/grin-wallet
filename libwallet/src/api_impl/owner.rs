@@ -1657,21 +1657,6 @@ where
 	contract::revoke(&mut *w, keychain_mask, &args)
 }
 
-/// Return the slate participant index matching this wallet's context
-pub fn get_slate_index_matching_my_context<C, K>(
-	w: &mut WalletBackend<C, K>,
-	keychain_mask: Option<&SecretKey>,
-	slate: &Slate,
-) -> Result<usize, Error>
-where
-	C: NodeClient,
-	K: Keychain,
-{
-	let keychain = w.keychain(keychain_mask)?;
-	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
-	slate.find_index_matching_context(&keychain, &context)
-}
-
 /// Create MXMixnet request
 pub fn create_mwixnet_req<C, K>(
 	w: &mut WalletBackend<C, K>,

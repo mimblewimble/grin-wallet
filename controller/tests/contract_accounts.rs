@@ -274,7 +274,6 @@ fn contract_accounts_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 			assert_eq!(wallet1_info.last_confirmed_height, 13);
 			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			println!("{:?}", txs);
 			assert_eq!(txs.len(), 5);
 			Ok(())
 		},

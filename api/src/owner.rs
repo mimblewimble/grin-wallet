@@ -958,17 +958,6 @@ where
 		owner::contract_sign(w, keychain_mask, args, slate)
 	}
 
-	/// Return the participant index in the slate that matches this wallet's context.
-	pub fn get_slate_index_matching_my_context(
-		&self,
-		keychain_mask: Option<&SecretKey>,
-		slate: &Slate,
-	) -> Result<usize, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
-		owner::get_slate_index_matching_my_context(w, keychain_mask, slate)
-	}
-
 	/// Revoke a contract by double-spending one of its locked inputs.
 	/// The transaction id must identify an existing contract.
 	///
