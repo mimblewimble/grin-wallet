@@ -121,6 +121,7 @@ where
 	let required_inputs = setup_args.selection_args.required_inputs();
 	let is_payjoin = setup_args.selection_args.is_payjoin();
 	let is_self_spend = setup_args.num_participants == 1;
+	let my_num_outputs = setup_args.selection_args.num_custom_outputs() + 1;
 	debug!(
 		"contract::selection::selecting inputs: num_participants: {}, min_input_amount: {}, is_payjoin: {}",
 		setup_args.num_participants, rhs, is_payjoin
@@ -132,7 +133,7 @@ where
 			vec![],
 			fee_contribution(
 				0,
-				setup_args.selection_args.num_custom_outputs() + 1,
+				my_num_outputs,
 				1,
 				setup_args.num_participants,
 				setup_args.fee_rate,
@@ -171,17 +172,20 @@ where
 	// all 0*H +r*G outputs when we call with min_input_amount=0 and want just a payjoin.
 	let mut n_inputs = 0;
 	let mut must_use_list_cnt: u32 = 0;
-	let my_num_outputs = setup_args.selection_args.num_custom_outputs() + 1;
 	// If we have already committed to a fee (context.fee) then set this as our "minimum" fee. The reason we have to
 	// do this is to avoid solving the equation for less than the committed fee. We have to guarantee the inputs we take
 	// are enough to cover the committed fee. At the end of selection, we check that the fees for the selection were not
 	// higher than the fee value we committed to.
-	let mut my_fee = if committed_fee.is_some() {
-		committed_fee.unwrap()
-	} else {
-		// We start with a fee of 1 output and a shared kernel which is minimum for both parties
-		fee_contribution(0, 1, 1, setup_args.num_participants, setup_args.fee_rate)?
-		// FeeFields::zero()
+	let mut my_fee = match committed_fee {
+		Some(fee) => fee,
+		// Start with our outputs and share of the kernel fee
+		None => fee_contribution(
+			0,
+			my_num_outputs,
+			1,
+			setup_args.num_participants,
+			setup_args.fee_rate,
+		)?,
 	};
 
 	// NOTE: This always takes at least one input if it is available. We take the inputs we must take and then we take
@@ -213,7 +217,7 @@ where
 		}
 		// If we don't have a "must take" input, have contributed an input and have enough to balance the equation, we can stop
 		let needed_without = rhs
-			.checked_add(fee_without.fee())
+			.checked_add(fee_without.fee().max(my_fee.fee()))
 			.ok_or_else(|| Error::GenericError("required amount plus fee overflow".to_string()))?;
 		let can_finish = lhs >= needed_without && n_inputs > 0 && !must_take;
 		if can_finish {
@@ -670,6 +674,28 @@ mod tests {
 	}
 
 	#[test]
+	fn receiver_split_output() {
+		let setup_args = ContractSetupArgsAPI {
+			net_change: Some(1_000_000_000),
+			selection_args: OutputSelectionArgs {
+				make_outputs: Some(vec![100_000_000]),
+				..Default::default()
+			},
+			..Default::default()
+		};
+		let expected_fee = my_fee_contribution(0, 2, 1, 2).unwrap();
+		let result = compute(&setup_args, None, &mut vec![]).unwrap();
+		assert_eq!(
+			result,
+			(
+				vec![],
+				vec![100_000_000, 900_000_000 - expected_fee.fee()],
+				expected_fee,
+			)
+		);
+	}
+
+	#[test]
 	fn sender_use_inputs_ok() {
 		let setup_args = ContractSetupArgsAPI {
 			// we expect to receive exactly our fee contribution my_fees(1, 1)
@@ -793,6 +819,30 @@ mod tests {
 			compute(&setup_args, None, &mut inputs),
 			Err(Error::NotEnoughFunds { .. })
 		));
+	}
+
+	#[test]
+	fn committed_fee_retry() {
+		let setup_args = ContractSetupArgsAPI {
+			net_change: Some(-1_000),
+			fee_rate: Some(2),
+			..Default::default()
+		};
+		let mut inputs = _create_output_data_for(vec![300, 300, 500]);
+		let (selected, _, committed_fee) = compute(&setup_args, None, &mut inputs).unwrap();
+		assert_eq!(selected.len(), 3);
+
+		// One input covers the new fee estimate, but not the agreed fee
+		let one_input_fee = fee_contribution(1, 1, 1, 2, Some(2)).unwrap();
+		assert!(one_input_fee.fee() < committed_fee.fee());
+		let first = 1_000 + one_input_fee.fee();
+		let second = first + 1;
+		let mut inputs = _create_output_data_for(vec![first, second]);
+		let (selected, outputs, fee) =
+			compute(&setup_args, Some(committed_fee), &mut inputs).unwrap();
+		assert_eq!(selected, inputs);
+		assert_eq!(fee, committed_fee);
+		assert_eq!(outputs, vec![first + second - 1_000 - committed_fee.fee()]);
 	}
 
 	#[test]
