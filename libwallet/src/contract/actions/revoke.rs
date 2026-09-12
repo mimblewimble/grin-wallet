@@ -62,7 +62,6 @@ where
 	// finish. Once the self-spend completes these reference the self-spend's tx id instead
 	// and are no longer matched here, which makes a repeat revoke a no-op.
 	let my_contributed_inputs = w
-		.batch(keychain_mask)?
 		.iter()?
 		.filter(|out| {
 			out.tx_log_entry == Some(tx_id)
