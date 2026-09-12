@@ -246,6 +246,20 @@ where
 	Ok(sl)
 }
 
+// The foreign API only handles the receiving side
+fn check_receiving_contract(net_change: Option<i64>, action: &str) -> Result<(), Error> {
+	let net_change = net_change.ok_or_else(|| {
+		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
+	})?;
+	if net_change <= 0 {
+		return Err(Error::GenericError(format!(
+			"Can't {} a non-receiving contract from a foreign API.",
+			action
+		)));
+	}
+	Ok(())
+}
+
 /// Initialize a receive transaction contract
 pub fn contract_new<C, K>(
 	w: &mut WalletBackend<C, K>,
@@ -256,15 +270,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let net_change = args.setup_args.net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
-	// The foreign API only handles the receiving side.
-	if net_change <= 0 {
-		return Err(Error::GenericError(
-			"Can't create a non-receiving contract from a foreign API.".to_string(),
-		));
-	}
+	check_receiving_contract(args.setup_args.net_change, "create")?;
 	owner_contract_new(w, keychain_mask, args)
 }
 
@@ -279,15 +285,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let net_change = args.net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
-	// The foreign API only handles the receiving side.
-	if net_change <= 0 {
-		return Err(Error::GenericError(
-			"Can't sign a non-receiving contract from a foreign API.".to_string(),
-		));
-	}
+	check_receiving_contract(args.net_change, "sign")?;
 	owner_contract_sign(w, keychain_mask, args, slate)
 }
 
