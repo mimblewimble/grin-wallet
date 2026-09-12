@@ -1740,30 +1740,27 @@ fn set_proof_sender(
 	Ok(())
 }
 
-impl ContractNewArgs {
-	fn get_net_change(&self) -> Result<i64, Error> {
-		if self.receive.is_some() && self.send.is_some() {
-			return Err(Error::ArgumentError(
-				"Can't pass both --receive and --send parameters.".into(),
-			));
-		}
-		let to_i64 = |v: u64| {
-			i64::try_from(v).map_err(|_| Error::ArgumentError(format!("Amount {} is too large", v)))
-		};
-		match self.receive {
-			None => match self.send {
-				None => Err(Error::ArgumentError(
-					"Send or receive not specified.".into(),
-				)),
-				Some(v) => Ok(-to_i64(v)?), // negative net change on send
-			},
-			Some(v) => to_i64(v), // positive net change on receive
-		}
+fn contract_net_change(receive: Option<u64>, send: Option<u64>) -> Result<Option<i64>, Error> {
+	if receive.is_some() && send.is_some() {
+		return Err(Error::ArgumentError(
+			"Can't pass both --receive and --send parameters.".into(),
+		));
 	}
+	let to_i64 = |v: u64| {
+		i64::try_from(v).map_err(|_| Error::ArgumentError(format!("Amount {} is too large", v)))
+	};
+	Ok(match (receive, send) {
+		(Some(value), _) => Some(to_i64(value)?),
+		(_, Some(value)) => Some(-to_i64(value)?),
+		(None, None) => None,
+	})
+}
 
+impl ContractNewArgs {
 	// Create a ContractNewArgsAPI from the ContractNewArgs
 	fn to_api_args(&self) -> Result<ContractNewArgsAPI, Error> {
-		let net_change = self.get_net_change()?;
+		let net_change = contract_net_change(self.receive, self.send)?
+			.ok_or_else(|| Error::ArgumentError("Send or receive not specified.".into()))?;
 		Ok(ContractNewArgsAPI {
 			ttl_blocks: self.ttl_blocks,
 			setup_args: ContractSetupArgsAPI {
@@ -1850,42 +1847,18 @@ pub struct ContractSetupArgs {
 	pub proof_type: Option<ProofType>,
 	/// Early payment proof memo
 	pub memo: Option<PaymentMemo>,
-
-	// Future features
-	/// Whether we should automatically sign a receive of any value
-	// pub auto_receive: Option<bool>,
-	/// Add outputs
-	pub add_outputs: bool, // lock outputs early
 }
 
 impl ContractSetupArgs {
-	fn get_net_change(&self) -> Result<Option<i64>, Error> {
-		if self.receive.is_some() && self.send.is_some() {
-			return Err(Error::ArgumentError(
-				"Can't pass both --receive and --send parameters.".into(),
-			));
-		}
-		let to_i64 = |v: u64| {
-			i64::try_from(v).map_err(|_| Error::ArgumentError(format!("Amount {} is too large", v)))
-		};
-		let net_change = match (self.receive, self.send) {
-			(Some(v), _) => Some(to_i64(v)?),
-			(_, Some(v)) => Some(-to_i64(v)?),
-			(None, None) => None,
-		};
-		Ok(net_change)
-	}
-
 	// Create a ContractSetupArgsAPI from the ContractSetupArgs
 	fn to_api_args(&self, slate: &Slate) -> Result<ContractSetupArgsAPI, Error> {
-		let net_change = match self.get_net_change()? {
+		let net_change = match contract_net_change(self.receive, self.send)? {
 			Some(value) => Some(value),
 			None => initial_net_change(&slate.state, slate.amount)?,
 		};
 		Ok(ContractSetupArgsAPI {
 			fee_rate: self.fee_rate,
 			net_change: net_change,
-			add_outputs: self.add_outputs,
 			selection_args: OutputSelectionArgs {
 				minimum_confirmations: self.minimum_confirmations,
 				use_inputs: match self.use_inputs.as_ref() {
@@ -2183,6 +2156,32 @@ mod contract_tests {
 	}
 
 	#[test]
+	fn contract_amounts() {
+		for (receive, send, expected) in [
+			(None, None, None),
+			(Some(0), None, Some(0)),
+			(None, Some(0), Some(0)),
+			(Some(i64::MAX as u64), None, Some(i64::MAX)),
+			(None, Some(i64::MAX as u64), Some(-i64::MAX)),
+		] {
+			assert_eq!(contract_net_change(receive, send).unwrap(), expected);
+		}
+		let too_large = i64::MAX as u64 + 1;
+		for (receive, send) in [(Some(too_large), None), (None, Some(too_large))] {
+			assert!(matches!(
+				contract_net_change(receive, send),
+				Err(Error::ArgumentError(message))
+					if message == format!("Amount {} is too large", too_large)
+			));
+		}
+		assert!(matches!(
+			contract_net_change(Some(too_large), Some(1)),
+			Err(Error::ArgumentError(message))
+				if message == "Can't pass both --receive and --send parameters."
+		));
+	}
+
+	#[test]
 	fn contract_sign_args() {
 		let args = ContractSetupArgs {
 			counterparty_addr: None,
@@ -2194,7 +2193,6 @@ mod contract_tests {
 			minimum_confirmations: None,
 			fee_rate: Some(2),
 			outfile: None,
-			add_outputs: false,
 			proof_type: Some(ProofType::Invoice),
 			memo: Some(PaymentMemo::new("payment".into()).unwrap()),
 		};
@@ -2212,6 +2210,7 @@ mod contract_tests {
 		set_proof_sender(&mut api_args.proof_args, Some(&sender), Some(&fallback)).unwrap();
 		assert_eq!(api_args.fee_rate, Some(2));
 		assert_eq!(api_args.net_change, Some(1));
+		assert!(!api_args.add_outputs);
 		assert_eq!(api_args.proof_args.proof_type, ProofType::Invoice);
 		assert_eq!(api_args.proof_args.sender_address, Some(sender.pub_key));
 		assert_eq!(
@@ -2304,6 +2303,12 @@ mod contract_tests {
 			invalid.to_api_args(),
 			Err(Error::ArgumentError(message))
 				if message == "Can't pass both --receive and --send parameters."
+		));
+		invalid.receive = None;
+		invalid.send = None;
+		assert!(matches!(
+			invalid.to_api_args(),
+			Err(Error::ArgumentError(message)) if message == "Send or receive not specified."
 		));
 	}
 }

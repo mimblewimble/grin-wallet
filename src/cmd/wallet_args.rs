@@ -1183,7 +1183,6 @@ pub fn parse_contract_setup_args(
 		receive: receive,
 		send: send,
 		as_json: as_json,
-		add_outputs: false,
 		use_inputs: use_inputs,
 		make_outputs: make_outputs,
 		minimum_confirmations,

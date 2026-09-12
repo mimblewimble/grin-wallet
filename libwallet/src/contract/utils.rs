@@ -452,18 +452,11 @@ where
 
 /// Compares the setup args provided at call with those in the Context and checks whether they conflict.
 /// This is relevant to see if there's any conflict in the arguments provided at step1 with step3.
+/// The caller resolves net_change with get_net_change before this check
 pub fn verify_setup_args_consistency(
 	ctx_setup_args: &ContractSetupArgsAPI,
 	cur_setup_args: &ContractSetupArgsAPI,
 ) -> Result<(), Error> {
-	// Compare net_change
-	if ctx_setup_args.net_change.unwrap() != cur_setup_args.net_change.unwrap() {
-		return Err(Error::GenericError(format!(
-			"Inconsistent net change. Ctx net_change:{}, Current net_change: {}",
-			ctx_setup_args.net_change.unwrap(),
-			cur_setup_args.net_change.unwrap()
-		)));
-	}
 	// Compare num_participants
 	if ctx_setup_args.num_participants != cur_setup_args.num_participants {
 		return Err(Error::GenericError(format!(
@@ -567,23 +560,14 @@ mod tests {
 	#[test]
 	fn fee_rate_consistency() {
 		let setup = ContractSetupArgsAPI {
-			net_change: Some(-1),
 			fee_rate: Some(2),
 			..Default::default()
 		};
 		assert!(verify_setup_args_consistency(&setup, &setup).is_ok());
-		assert!(verify_setup_args_consistency(
-			&setup,
-			&ContractSetupArgsAPI {
-				net_change: Some(-1),
-				..Default::default()
-			}
-		)
-		.is_ok());
+		assert!(verify_setup_args_consistency(&setup, &ContractSetupArgsAPI::default()).is_ok());
 		let err = verify_setup_args_consistency(
 			&setup,
 			&ContractSetupArgsAPI {
-				net_change: Some(-1),
 				fee_rate: Some(3),
 				..Default::default()
 			},
