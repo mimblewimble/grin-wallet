@@ -2456,10 +2456,7 @@ where
 		args: ContractNewArgsAPI,
 	) -> Result<VersionedSlate, Error> {
 		let slate = Owner::contract_new(self, (&token.keychain_mask).as_ref(), &args)?;
-		// An early payment proof needs V5: its promise signature binds the timestamp and
-		// memo, which a V4 slate cannot carry.
-		let version = SlateVersion::lowest_for(&slate);
-		VersionedSlate::into_version(slate, version)
+		versioned_output(slate)
 	}
 
 	fn contract_sign(
@@ -2489,8 +2486,7 @@ where
 		let slate_opt = Owner::contract_revoke(self, (&token.keychain_mask).as_ref(), &args)?;
 		// We return a slate only when we had to perform a self-spend safe cancel
 		if let Some(slate) = slate_opt {
-			let version = SlateVersion::lowest_for(&slate);
-			return Ok(Some(VersionedSlate::into_version(slate, version)?));
+			return Ok(Some(versioned_output(slate)?));
 		}
 		Ok(None)
 	}
