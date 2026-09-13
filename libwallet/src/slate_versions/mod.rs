@@ -74,7 +74,7 @@ impl TryFrom<u16> for SlateVersion {
 impl SlateVersion {
 	/// Use V5 only when the slate has fields that V4 cannot store
 	/// V4 does not support the proof type, timestamp or memo
-	pub fn lowest_for(slate: &Slate) -> SlateVersion {
+	fn lowest_for(slate: &Slate) -> SlateVersion {
 		match &slate.payment_proof {
 			Some(p) if p.requires_v5() => SlateVersion::V5,
 			_ => SlateVersion::V4,

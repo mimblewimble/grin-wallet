@@ -25,7 +25,7 @@ use crate::grin_util::secp::Secp256k1;
 use crate::grin_util::secp::Signature;
 use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentMemo, PaymentProofType, Slate};
-use crate::slate_versions::ser as dalek_ser;
+use crate::slate_versions::ser::{dalek_pubkey_serde, option_dalek_sig_serde, option_pubkey_serde};
 use crate::Error;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -117,7 +117,7 @@ pub struct ProofWitness {
 	/// Untweaked sender nonce used by sender-nonce proofs
 	#[serde(
 		default,
-		with = "dalek_ser::option_pubkey_serde",
+		with = "option_pubkey_serde",
 		skip_serializing_if = "Option::is_none"
 	)]
 	pub sender_public_nonce: Option<PublicKey>,
@@ -138,7 +138,7 @@ pub struct EarlyPaymentProof {
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub receiver_public_excess: PublicKey,
 	/// Sender's address
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(with = "dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
 	/// Timestamp provided by recipient when signing
 	pub timestamp: i64,
@@ -146,7 +146,7 @@ pub struct EarlyPaymentProof {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub memo: Option<PaymentMemo>,
 	/// Not serialized in binary format
-	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	#[serde(with = "option_dalek_sig_serde")]
 	pub promise_signature: Option<DalekSignature>,
 	/// Not serialized in binary format, just a convenient place to insert
 	/// the witness kernel commitment index

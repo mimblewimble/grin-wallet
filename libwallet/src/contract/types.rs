@@ -136,6 +136,15 @@ pub struct ContractSetupArgsAPI {
 	pub proof_args: ProofArgs,
 }
 
+impl ContractSetupArgsAPI {
+	/// Return the net change or fail if it is missing
+	pub fn required_net_change(&self) -> Result<i64, Error> {
+		self.net_change.ok_or_else(|| {
+			Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
+		})
+	}
+}
+
 impl Default for ContractSetupArgsAPI {
 	fn default() -> ContractSetupArgsAPI {
 		ContractSetupArgsAPI {
@@ -144,16 +153,14 @@ impl Default for ContractSetupArgsAPI {
 			num_participants: 2,
 			fee_rate: None,
 			add_outputs: false,
-			selection_args: OutputSelectionArgs {
-				..Default::default()
-			},
+			selection_args: OutputSelectionArgs::default(),
 			proof_args: ProofArgs::default(),
 		}
 	}
 }
 
 /// Contract New
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ContractNewArgsAPI {
 	/// Setup args - contract new also initiates the setup by default
 	pub setup_args: ContractSetupArgsAPI,
@@ -161,15 +168,6 @@ pub struct ContractNewArgsAPI {
 	/// Only used when creating a new contract context
 	#[serde(with = "secp_ser::opt_string_or_u64", default)]
 	pub ttl_blocks: Option<u64>,
-}
-
-impl Default for ContractNewArgsAPI {
-	fn default() -> ContractNewArgsAPI {
-		ContractNewArgsAPI {
-			ttl_blocks: None,
-			setup_args: ContractSetupArgsAPI::default(),
-		}
-	}
 }
 
 /// ContractView
@@ -185,7 +183,7 @@ pub struct ContractView {
 	pub own_fee: Option<u64>,
 	/// Agreed balance change after this wallet's fee, or None while the fee is unknown
 	pub balance_change: Option<i64>,
-	/// Number of singatures on the contract
+	/// Number of signatures on the contract
 	pub num_sigs: u8,
 	/// Has the contract been executed on chain
 	pub is_executed: bool,
@@ -241,6 +239,19 @@ pub struct ContractRevokeArgsAPI {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn required_net_change() {
+		let mut args = ContractSetupArgsAPI::default();
+		assert_eq!(
+			args.required_net_change().unwrap_err(),
+			Error::GenericError("Contract requires a net change (--send or --receive)".into())
+		);
+		for change in [i64::MIN, -1, 0, 1, i64::MAX] {
+			args.net_change = Some(change);
+			assert_eq!(args.required_net_change().unwrap(), change);
+		}
+	}
 
 	#[test]
 	fn proof_args_json() {

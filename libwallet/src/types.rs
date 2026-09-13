@@ -29,7 +29,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{pedersen, Secp256k1, Signature};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate::PaymentMemo;
-use crate::slate_versions::ser as dalek_ser;
+use crate::slate_versions::ser::{dalek_pubkey_serde, option_dalek_sig_serde, option_pubkey_serde};
 use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
@@ -776,18 +776,18 @@ impl TxLogEntry {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredProofInfo {
 	/// receiver address
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(with = "dalek_pubkey_serde")]
 	pub receiver_address: DalekPublicKey,
-	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	#[serde(with = "option_dalek_sig_serde")]
 	/// Receiver signature for legacy proofs, or promise signature for early proofs
 	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
 	pub sender_address_path: u32,
 	/// sender address
-	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
+	#[serde(with = "dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
 	/// Legacy sender signature
-	#[serde(with = "dalek_ser::option_dalek_sig_serde")]
+	#[serde(with = "option_dalek_sig_serde")]
 	pub sender_signature: Option<DalekSignature>,
 	// Fields beyond here are specific to early payment proofs
 	/// Assumed to be 0x00 (Legacy) if missing
@@ -796,14 +796,14 @@ pub struct StoredProofInfo {
 	/// receiver's public nonce from signing
 	#[serde(
 		default,
-		with = "dalek_ser::option_pubkey_serde",
+		with = "option_pubkey_serde",
 		skip_serializing_if = "Option::is_none"
 	)]
 	pub receiver_public_nonce: Option<PublicKey>,
 	/// receiver's public excess from signing
 	#[serde(
 		default,
-		with = "dalek_ser::option_pubkey_serde",
+		with = "option_pubkey_serde",
 		skip_serializing_if = "Option::is_none"
 	)]
 	pub receiver_public_excess: Option<PublicKey>,
@@ -823,7 +823,7 @@ pub struct StoredProofInfo {
 	/// Untweaked sender public nonce for a sender-nonce proof
 	#[serde(
 		default,
-		with = "dalek_ser::option_pubkey_serde",
+		with = "option_pubkey_serde",
 		skip_serializing_if = "Option::is_none"
 	)]
 	pub sender_public_nonce: Option<PublicKey>,

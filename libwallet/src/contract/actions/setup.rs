@@ -115,12 +115,12 @@ where
 	}
 	contract::proofs::commit_sender_nonce(&sl, &mut context, keychain.secp())?;
 	contract::slate::add_keys(&mut sl, &keychain, &mut context)?;
-	contract::slate::add_payment_proof(
+	contract::slate::maybe_add_payment_proof(
 		w,
 		&mut sl,
 		keychain_mask,
-		&mut context,
-		&setup_args.net_change,
+		&context,
+		setup_args.net_change,
 		&setup_args.proof_args,
 	)?; // noop for the sender
 

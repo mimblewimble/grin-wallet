@@ -154,7 +154,7 @@ pub fn get_net_change(
 ) -> Result<i64, Error> {
 	let mut expected_net_change: Option<i64> = setup_args_net_change;
 	if let Some(context) = context {
-		debug!("contract::sign => context found");
+		debug!("contract::utils::get_net_change => context found");
 		// We have a context so we must have agreed on a certain net_change value in Context.net_change.
 		// If we have both Context.net_change and setup_args.net_change, then they must be equal.
 		let ctx_net_change = context.get_net_change()?;
@@ -296,11 +296,10 @@ where
 
 	// Update context
 	if is_signed && !is_step2 {
-		// NOTE: We MUST forget the context when we sign. Ideally, these two would be atomic or perhaps
-		// when we call slate::sigadd_partial_signaturen we could swap the secret key with a temporary one just to be safe.
-		// Keep the step2 context for contract view
+		// Forget the signing context in the same batch as the transaction log update
 		batch.delete_private_context(slate.id.as_bytes())?;
 	} else {
+		// Keep unsigned contexts for retries and the step2 context for contract view
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 	}
 

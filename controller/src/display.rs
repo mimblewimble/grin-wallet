@@ -20,6 +20,7 @@ use crate::libwallet::{
 	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, Slate, TxLogEntry, ViewWallet,
 	WalletInfo,
 };
+use crate::util::secp::pedersen::Commitment;
 use crate::util::ToHex;
 use grin_wallet_util::OnionV3Address;
 use prettytable;
@@ -673,12 +674,12 @@ fn contract_view_table(
 	table.add_row(row![bFC->"Transfer Amount", bGC->amount_to_hr_string(slate.amount, false)]);
 	let suggested = view
 		.suggested_net_change
-		.map(|change| format_net_change(Some(change)))
+		.map(format_net_change)
 		.unwrap_or_else(|| "Not applicable".to_string());
 	table.add_row(row![bFC->"Expected Amount Change (Before Fee)", bGC->suggested]);
 	let agreed = view
 		.agreed_net_change
-		.map(|change| format_net_change(Some(change)))
+		.map(format_net_change)
 		.unwrap_or_else(|| "Not agreed yet".to_string());
 	table.add_row(row![bFC->"Agreed Amount Change (Before Fee)", bGC->agreed]);
 	table.add_row(
@@ -689,10 +690,10 @@ fn contract_view_table(
 		.map(|fee| amount_to_hr_string(fee, false))
 		.unwrap_or_else(|| "Not known before signing".to_string());
 	table.add_row(row![bFC->"Your Fee", bGC->own_fee]);
-	let balance_change = match view.balance_change {
-		Some(change) => format_net_change(Some(change)),
-		None => "Not known before signing".to_string(),
-	};
+	let balance_change = view
+		.balance_change
+		.map(format_net_change)
+		.unwrap_or_else(|| "Not known before signing".to_string());
 	table.add_row(row![bFC->"Your Balance Change", bGC->balance_change]);
 	table.add_row(row![bFC->"Confirmed", bGC->yes_no(view.is_executed)]);
 	let (unexpected, warning) = match view.own_commitment_status {
@@ -720,22 +721,14 @@ fn contract_view_table(
 			}
 			Inputs::FeaturesAndCommit(inputs) => {
 				for (index, input) in inputs.iter().enumerate() {
-					let commitment = input.commitment().as_ref().to_hex();
-					let value = match input.features {
-						OutputFeatures::Plain => commitment,
-						OutputFeatures::Coinbase => format!("Coinbase {}", commitment),
-					};
+					let value = format_commitment(input.commitment(), input.features);
 					table.add_row(row![bFC->format!("Input {}", index + 1), bGC->value]);
 				}
 			}
 		}
 		table.add_row(row![bFC->"Outputs", bGC->tx.outputs().len()]);
 		for (index, output) in tx.outputs().iter().enumerate() {
-			let commitment = output.commitment().as_ref().to_hex();
-			let value = match output.features() {
-				OutputFeatures::Plain => commitment,
-				OutputFeatures::Coinbase => format!("Coinbase {}", commitment),
-			};
+			let value = format_commitment(output.commitment(), output.features());
 			table.add_row(row![bFC->format!("Output {}", index + 1), bGC->value]);
 		}
 	} else {
@@ -755,15 +748,20 @@ fn yes_no(value: bool) -> &'static str {
 	}
 }
 
-fn format_net_change(change: Option<i64>) -> String {
-	match change {
-		Some(value) => format!(
-			"{}{}",
-			if value < 0 { "-" } else { "+" },
-			amount_to_hr_string(value.unsigned_abs(), false)
-		),
-		None => String::from("None"),
+fn format_commitment(commitment: Commitment, features: OutputFeatures) -> String {
+	let commitment = commitment.as_ref().to_hex();
+	match features {
+		OutputFeatures::Plain => commitment,
+		OutputFeatures::Coinbase => format!("Coinbase {}", commitment),
 	}
+}
+
+fn format_net_change(change: i64) -> String {
+	format!(
+		"{}{}",
+		if change < 0 { "-" } else { "+" },
+		amount_to_hr_string(change.unsigned_abs(), false)
+	)
 }
 
 #[cfg(test)]
@@ -791,9 +789,9 @@ mod tests {
 
 	#[test]
 	fn net_change_sign() {
-		assert_eq!(format_net_change(Some(1_000_000_000)), "+1.000000000");
-		assert_eq!(format_net_change(Some(-1_000_000_000)), "-1.000000000");
-		assert_eq!(format_net_change(None), "None");
+		assert_eq!(format_net_change(1_000_000_000), "+1.000000000");
+		assert_eq!(format_net_change(-1_000_000_000), "-1.000000000");
+		assert_eq!(format_net_change(0), "+0.000000000");
 	}
 
 	#[test]

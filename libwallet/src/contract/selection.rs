@@ -95,9 +95,7 @@ fn select_inputs(
 	// For either party, the following MUST hold for the inputs the function returns:
 	//  Σmy_inputs >= Σmy_outputs + my_fee_cost
 	// Each party later balances the equation by adding an additional output (change output or receiver output)
-	let net_change = setup_args.net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
+	let net_change = setup_args.required_net_change()?;
 	let custom_outputs_amount_sum = setup_args.selection_args.sum_output_amounts()?;
 	// unsigned_abs, as abs() panics on i64::MIN
 	let pay_amount = if net_change < 0 {
@@ -304,9 +302,7 @@ fn build_output_amount_list(
 	my_fee_cost: u64,
 	setup_args: &ContractSetupArgsAPI,
 ) -> Result<Vec<u64>, Error> {
-	let expected_net_change = setup_args.net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
+	let expected_net_change = setup_args.required_net_change()?;
 	let mut my_output_amounts = setup_args.selection_args.output_amounts();
 	let custom_outputs_sum = my_output_amounts
 		.iter()

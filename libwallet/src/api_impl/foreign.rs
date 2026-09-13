@@ -247,10 +247,8 @@ where
 }
 
 // The foreign API only handles the receiving side
-fn check_receiving_contract(net_change: Option<i64>, action: &str) -> Result<(), Error> {
-	let net_change = net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
+fn check_receiving_contract(args: &ContractSetupArgsAPI, action: &str) -> Result<(), Error> {
+	let net_change = args.required_net_change()?;
 	if net_change <= 0 {
 		return Err(Error::GenericError(format!(
 			"Can't {} a non-receiving contract from a foreign API.",
@@ -270,7 +268,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	check_receiving_contract(args.setup_args.net_change, "create")?;
+	check_receiving_contract(&args.setup_args, "create")?;
 	owner_contract_new(w, keychain_mask, args)
 }
 
@@ -285,7 +283,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	check_receiving_contract(args.net_change, "sign")?;
+	check_receiving_contract(args, "sign")?;
 	owner_contract_sign(w, keychain_mask, args, slate)
 }
 

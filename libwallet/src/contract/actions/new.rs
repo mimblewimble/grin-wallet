@@ -62,9 +62,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let net_change = setup_args.net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
+	let net_change = setup_args.required_net_change()?;
 	debug!("contract::new => net_change passed: {}", net_change);
 
 	// Initialize a new contract (if net_change is positive, I'm the receiver meaning this is invoice flow)

@@ -32,26 +32,26 @@ use std::collections::BTreeSet;
 use super::types::{OwnCommitmentStatus, ProofArgs};
 
 /// Add payment proof data to slate, noop for sender
-pub fn add_payment_proof<C, K>(
+pub fn maybe_add_payment_proof<C, K>(
 	w: &mut WalletBackend<C, K>,
 	slate: &mut Slate,
 	keychain_mask: Option<&SecretKey>,
 	context: &Context,
-	net_change: &Option<i64>,
+	net_change: Option<i64>,
 	proof_args: &ProofArgs,
 ) -> Result<(), Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	debug!("contract::slate::add_payment_proof => called");
+	debug!("contract::slate::maybe_add_payment_proof => called");
 	if !proof_args.suppress_proof {
 		crate::payment_proof::check_proof_type(&proof_args.proof_type)?;
 	}
-	// If we're a recipient, generate proof unless explicity told not to
-	if let Some(ref c) = net_change {
-		if *c > 0 && !proof_args.suppress_proof && slate.payment_proof.is_none() {
-			super::proofs::add_payment_proof(w, keychain_mask, slate, &context, proof_args)?;
+	// If we're a recipient, generate proof unless explicitly told not to
+	if let Some(change) = net_change {
+		if change > 0 && !proof_args.suppress_proof && slate.payment_proof.is_none() {
+			super::proofs::add_payment_proof(w, keychain_mask, slate, context, proof_args)?;
 		}
 	}
 

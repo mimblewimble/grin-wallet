@@ -85,9 +85,7 @@ where
 	updater::refresh_outputs(w, keychain_mask, parent_key_id, false)?;
 
 	// Fee contribution estimation
-	let net_change = setup_args.net_change.ok_or_else(|| {
-		Error::GenericError("Contract requires a net change (--send or --receive)".to_string())
-	})?;
+	let net_change = setup_args.required_net_change()?;
 	// select inputs to estimate fee cost
 	let (inputs, _, my_fee) =
 		prepare_outputs(w, &parent_key_id, current_height, &setup_args, None)?;
@@ -98,7 +96,7 @@ where
 	);
 	// Make sure `my_fee < net_change` holds for the receiver. This can't be true for a self-spend, because nobody
 	// has a net_change > 0 which makes a self-spend ok to be a net negative when fees are included.
-	if net_change > 0 && my_fee.fee() > net_change.abs() as u64 {
+	if net_change > 0 && my_fee.fee() > net_change as u64 {
 		return Err(Error::GenericError(format!(
 			"My contribution as a receiver would be net negative. my_fee: {}, net_change: {}",
 			my_fee.fee(),
