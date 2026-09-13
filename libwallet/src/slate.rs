@@ -42,8 +42,8 @@ use crate::slate_versions::v4::{
 	SlateStateV4, SlateV4, VersionCompatInfoV4,
 };
 use crate::slate_versions::v5::{
-	CommitsV5, KernelFeaturesArgsV5, OutputFeaturesV5, ParticipantDataV5, PaymentInfoV5,
-	SlateStateV5, SlateV5, VersionCompatInfoV5,
+	KernelFeaturesArgsV5, ParticipantDataV5, PaymentInfoV5, SlateStateV5, SlateV5,
+	VersionCompatInfoV5,
 };
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
@@ -1032,72 +1032,6 @@ impl From<&Slate> for SlateV5 {
 	}
 }
 
-impl From<&Slate> for Option<Vec<CommitsV5>> {
-	fn from(slate: &Slate) -> Self {
-		slate_commitments(slate)
-	}
-}
-
-fn slate_commitments<C>(slate: &Slate) -> Option<Vec<C>>
-where
-	C: for<'a> From<&'a Input> + for<'a> From<&'a Output>,
-{
-	let tx = slate.tx.as_ref()?;
-	let mut commitments = vec![];
-	match tx.inputs() {
-		Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
-		Inputs::FeaturesAndCommit(ref inputs) => {
-			for input in inputs {
-				commitments.push(input.into());
-			}
-		}
-	}
-	for output in tx.outputs() {
-		commitments.push(output.into());
-	}
-	Some(commitments)
-}
-
-impl From<&ParticipantData> for ParticipantDataV5 {
-	fn from(data: &ParticipantData) -> ParticipantDataV5 {
-		let ParticipantData {
-			public_blind_excess,
-			public_nonce,
-			part_sig,
-		} = data;
-		let public_blind_excess = *public_blind_excess;
-		let public_nonce = *public_nonce;
-		let part_sig = *part_sig;
-		ParticipantDataV5 {
-			xs: public_blind_excess,
-			nonce: public_nonce,
-			part: part_sig,
-		}
-	}
-}
-
-impl From<&SlateState> for SlateStateV5 {
-	fn from(data: &SlateState) -> SlateStateV5 {
-		match data {
-			SlateState::Unknown => SlateStateV5::Unknown,
-			SlateState::Standard1 => SlateStateV5::Standard1,
-			SlateState::Standard2 => SlateStateV5::Standard2,
-			SlateState::Standard3 => SlateStateV5::Standard3,
-			SlateState::Invoice1 => SlateStateV5::Invoice1,
-			SlateState::Invoice2 => SlateStateV5::Invoice2,
-			SlateState::Invoice3 => SlateStateV5::Invoice3,
-		}
-	}
-}
-
-impl From<&KernelFeaturesArgs> for KernelFeaturesArgsV5 {
-	fn from(data: &KernelFeaturesArgs) -> KernelFeaturesArgsV5 {
-		let KernelFeaturesArgs { lock_height } = data;
-		let lock_hgt = *lock_height;
-		KernelFeaturesArgsV5 { lock_hgt }
-	}
-}
-
 impl From<&VersionCompatInfo> for VersionCompatInfoV5 {
 	fn from(data: &VersionCompatInfo) -> VersionCompatInfoV5 {
 		let VersionCompatInfo {
@@ -1138,16 +1072,6 @@ impl From<&PaymentInfo> for PaymentInfoV5 {
 			ts: timestamp,
 			memo: memo,
 		}
-	}
-}
-
-impl From<OutputFeatures> for OutputFeaturesV5 {
-	fn from(of: OutputFeatures) -> OutputFeaturesV5 {
-		let index = match of {
-			OutputFeatures::Plain => 0,
-			OutputFeatures::Coinbase => 1,
-		};
-		OutputFeaturesV5(index)
 	}
 }
 
@@ -1273,46 +1197,6 @@ impl From<&SlateV5> for Option<Transaction> {
 	}
 }
 
-impl From<&ParticipantDataV5> for ParticipantData {
-	fn from(data: &ParticipantDataV5) -> ParticipantData {
-		let ParticipantDataV5 {
-			xs: public_blind_excess,
-			nonce: public_nonce,
-			part: part_sig,
-		} = data;
-		let public_blind_excess = *public_blind_excess;
-		let public_nonce = *public_nonce;
-		let part_sig = *part_sig;
-		ParticipantData {
-			public_blind_excess,
-			public_nonce,
-			part_sig,
-		}
-	}
-}
-
-impl From<&KernelFeaturesArgsV5> for KernelFeaturesArgs {
-	fn from(data: &KernelFeaturesArgsV5) -> KernelFeaturesArgs {
-		let KernelFeaturesArgsV5 { lock_hgt } = data;
-		let lock_height = *lock_hgt;
-		KernelFeaturesArgs { lock_height }
-	}
-}
-
-impl From<&SlateStateV5> for SlateState {
-	fn from(data: &SlateStateV5) -> SlateState {
-		match data {
-			SlateStateV5::Unknown => SlateState::Unknown,
-			SlateStateV5::Standard1 => SlateState::Standard1,
-			SlateStateV5::Standard2 => SlateState::Standard2,
-			SlateStateV5::Standard3 => SlateState::Standard3,
-			SlateStateV5::Invoice1 => SlateState::Invoice1,
-			SlateStateV5::Invoice2 => SlateState::Invoice2,
-			SlateStateV5::Invoice3 => SlateState::Invoice3,
-		}
-	}
-}
-
 impl From<&VersionCompatInfoV5> for VersionCompatInfo {
 	fn from(data: &VersionCompatInfoV5) -> VersionCompatInfo {
 		let VersionCompatInfoV5 {
@@ -1351,15 +1235,6 @@ impl From<&PaymentInfoV5> for PaymentInfo {
 			promise_signature: promise_signature,
 			timestamp,
 			memo,
-		}
-	}
-}
-
-impl From<OutputFeaturesV5> for OutputFeatures {
-	fn from(of: OutputFeaturesV5) -> OutputFeatures {
-		match of.0 {
-			1 => OutputFeatures::Coinbase,
-			0 | _ => OutputFeatures::Plain,
 		}
 	}
 }
@@ -1430,7 +1305,20 @@ impl TryFrom<&Slate> for SlateV4 {
 
 impl From<&Slate> for Option<Vec<CommitsV4>> {
 	fn from(slate: &Slate) -> Self {
-		slate_commitments(slate)
+		let tx = slate.tx.as_ref()?;
+		let mut commitments = vec![];
+		match tx.inputs() {
+			Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
+			Inputs::FeaturesAndCommit(ref inputs) => {
+				for input in inputs {
+					commitments.push(input.into());
+				}
+			}
+		}
+		for output in tx.outputs() {
+			commitments.push(output.into());
+		}
+		Some(commitments)
 	}
 }
 

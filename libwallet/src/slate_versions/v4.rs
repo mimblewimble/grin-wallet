@@ -54,17 +54,18 @@
 //! * `rsig` may be omitted if it has not yet been filled out
 
 use crate::grin_core::core::FeeFields;
-use crate::grin_core::core::{Input, Output, TxKernel};
 use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::{BlindingFactor, Identifier};
-use crate::grin_util::secp;
-use crate::grin_util::secp::key::PublicKey;
-use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-use crate::grin_util::secp::Signature;
-use crate::{slate_versions::ser, CbData};
+use crate::grin_keychain::BlindingFactor;
+use crate::slate_versions::ser;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use uuid::Uuid;
+
+pub use crate::slate_versions::common::{
+	sig_is_blank, Coinbase as CoinbaseV4, Commits as CommitsV4,
+	KernelFeaturesArgs as KernelFeaturesArgsV4, OutputFeatures as OutputFeaturesV4,
+	ParticipantData as ParticipantDataV4, SlateState as SlateStateV4,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SlateV4 {
@@ -163,57 +164,12 @@ fn default_kernel_features_none() -> Option<KernelFeaturesArgsV4> {
 	None
 }
 
-/// Slate state definition
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum SlateStateV4 {
-	/// Unknown, coming from earlier versions of the slate
-	Unknown,
-	/// Standard flow, freshly init
-	Standard1,
-	/// Standard flow, return journey
-	Standard2,
-	/// Standard flow, ready for transaction posting
-	Standard3,
-	/// Invoice flow, freshly init
-	Invoice1,
-	///Invoice flow, return journey
-	Invoice2,
-	/// Invoice flow, ready for tranasction posting
-	Invoice3,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-/// Kernel features arguments definition
-pub struct KernelFeaturesArgsV4 {
-	/// Lock height, for HeightLocked
-	pub lock_hgt: u64,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct VersionCompatInfoV4 {
 	/// The current version of the slate format
 	pub version: u16,
 	/// Version of grin block header this slate is compatible with
 	pub block_header_version: u16,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct ParticipantDataV4 {
-	/// Public key corresponding to private blinding factor
-	#[serde(with = "secp_ser::pubkey_serde")]
-	pub xs: PublicKey,
-	/// Public key corresponding to private nonce
-	#[serde(with = "secp_ser::pubkey_serde")]
-	pub nonce: PublicKey,
-	/// Public partial signature
-	#[serde(default = "default_part_sig_none")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[serde(with = "secp_ser::option_sig_serde")]
-	pub part: Option<Signature>,
-}
-
-fn default_part_sig_none() -> Option<Signature> {
-	None
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
@@ -229,71 +185,6 @@ pub struct PaymentInfoV4 {
 }
 
 fn default_receiver_signature_none() -> Option<DalekSignature> {
-	None
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct CommitsV4 {
-	/// Options for an output's structure or use
-	#[serde(default = "default_output_feature")]
-	#[serde(skip_serializing_if = "output_feature_is_plain")]
-	pub f: OutputFeaturesV4,
-	/// The homomorphic commitment representing the output amount
-	#[serde(
-		serialize_with = "secp_ser::as_hex",
-		deserialize_with = "secp_ser::commitment_from_hex"
-	)]
-	pub c: Commitment,
-	/// A proof that the commitment is in the right range
-	/// Only applies for transaction outputs
-	#[serde(with = "ser::option_rangeproof_hex")]
-	#[serde(default = "default_range_proof")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub p: Option<RangeProof>,
-}
-
-impl From<&Output> for CommitsV4 {
-	fn from(out: &Output) -> CommitsV4 {
-		CommitsV4 {
-			f: out.features().into(),
-			c: out.commitment(),
-			p: Some(out.proof()),
-		}
-	}
-}
-
-// This will need to be reworked once we no longer support input features with "commit only" inputs.
-impl From<&Input> for CommitsV4 {
-	fn from(input: &Input) -> CommitsV4 {
-		CommitsV4 {
-			f: input.features.into(),
-			c: input.commitment(),
-			p: None,
-		}
-	}
-}
-
-fn default_output_feature() -> OutputFeaturesV4 {
-	OutputFeaturesV4(0)
-}
-
-fn output_feature_is_plain(o: &OutputFeaturesV4) -> bool {
-	o.0 == 0
-}
-
-#[derive(Serialize, Deserialize, Copy, Debug, Clone, PartialEq, Eq)]
-pub struct OutputFeaturesV4(pub u8);
-
-pub fn sig_is_blank(s: &secp::Signature) -> bool {
-	for b in s.to_raw_data().iter() {
-		if *b != 0 {
-			return false;
-		}
-	}
-	true
-}
-
-fn default_range_proof() -> Option<RangeProof> {
 	None
 }
 
@@ -315,73 +206,4 @@ fn fee_is_zero(f: &FeeFields) -> bool {
 
 fn default_fee() -> FeeFields {
 	FeeFields::zero()
-}
-
-/// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CoinbaseV4 {
-	/// Output
-	output: CbOutputV4,
-	/// Kernel
-	kernel: CbKernelV4,
-	/// Key Id
-	key_id: Option<Identifier>,
-}
-
-impl From<CbData> for CoinbaseV4 {
-	fn from(cb: CbData) -> CoinbaseV4 {
-		CoinbaseV4 {
-			output: CbOutputV4::from(&cb.output),
-			kernel: CbKernelV4::from(&cb.kernel),
-			key_id: cb.key_id,
-		}
-	}
-}
-
-impl From<&Output> for CbOutputV4 {
-	fn from(output: &Output) -> CbOutputV4 {
-		CbOutputV4 {
-			features: CbOutputFeatures::Coinbase,
-			commit: output.commitment(),
-			proof: output.proof(),
-		}
-	}
-}
-
-impl From<&TxKernel> for CbKernelV4 {
-	fn from(kernel: &TxKernel) -> CbKernelV4 {
-		CbKernelV4 {
-			features: CbKernelFeatures::Coinbase,
-			excess: kernel.excess,
-			excess_sig: kernel.excess_sig,
-		}
-	}
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-enum CbOutputFeatures {
-	Coinbase,
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-enum CbKernelFeatures {
-	Coinbase,
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-struct CbOutputV4 {
-	features: CbOutputFeatures,
-	#[serde(serialize_with = "secp_ser::as_hex")]
-	commit: Commitment,
-	#[serde(serialize_with = "secp_ser::as_hex")]
-	proof: RangeProof,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct CbKernelV4 {
-	features: CbKernelFeatures,
-	#[serde(serialize_with = "secp_ser::as_hex")]
-	excess: Commitment,
-	#[serde(with = "secp_ser::sig_serde")]
-	excess_sig: secp::Signature,
 }

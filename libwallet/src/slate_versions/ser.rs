@@ -682,50 +682,7 @@ pub mod slate_state_v4 {
 	}
 }
 
-/// Serializes slates 'state' field - V5
-pub mod slate_state_v5 {
-	use serde::de::Error;
-	use serde::{Deserialize, Deserializer, Serializer};
-
-	use crate::slate_versions::v5::SlateStateV5;
-
-	///
-	pub fn serialize<S>(st: &SlateStateV5, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		let label = match st {
-			SlateStateV5::Unknown => "NA",
-			SlateStateV5::Standard1 => "S1",
-			SlateStateV5::Standard2 => "S2",
-			SlateStateV5::Standard3 => "S3",
-			SlateStateV5::Invoice1 => "I1",
-			SlateStateV5::Invoice2 => "I2",
-			SlateStateV5::Invoice3 => "I3",
-		};
-		serializer.serialize_str(label)
-	}
-
-	///
-	pub fn deserialize<'de, D>(deserializer: D) -> Result<SlateStateV5, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		String::deserialize(deserializer).and_then(|s| {
-			let retval = match s.as_str() {
-				"NA" => SlateStateV5::Unknown,
-				"S1" => SlateStateV5::Standard1,
-				"S2" => SlateStateV5::Standard2,
-				"S3" => SlateStateV5::Standard3,
-				"I1" => SlateStateV5::Invoice1,
-				"I2" => SlateStateV5::Invoice2,
-				"I3" => SlateStateV5::Invoice3,
-				_ => return Err(Error::custom("Invalid Slate state")),
-			};
-			Ok(retval)
-		})
-	}
-}
+pub use slate_state_v4 as slate_state_v5;
 
 /// Serializes an secp256k1 pubkey to base64
 pub mod uuid_base64 {

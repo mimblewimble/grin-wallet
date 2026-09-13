@@ -175,8 +175,8 @@ impl Readable for SlateOptFields {
 	}
 }
 
-struct SigsWrap(Vec<ParticipantDataV4>);
-struct SigsWrapRef<'a>(&'a Vec<ParticipantDataV4>);
+pub(super) struct SigsWrap(pub(super) Vec<ParticipantDataV4>);
+pub(super) struct SigsWrapRef<'a>(pub(super) &'a Vec<ParticipantDataV4>);
 
 impl<'a> Writeable for SigsWrapRef<'a> {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
@@ -278,8 +278,8 @@ impl Readable for SlateOptStructs {
 	}
 }
 
-struct ComsWrap(Vec<CommitsV4>);
-struct ComsWrapRef<'a>(&'a Vec<CommitsV4>);
+pub(super) struct ComsWrap(pub(super) Vec<CommitsV4>);
+pub(super) struct ComsWrapRef<'a>(pub(super) &'a Vec<CommitsV4>);
 
 impl<'a> Writeable for ComsWrapRef<'a> {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {

@@ -26,6 +26,7 @@ use crate::types::CbData;
 use crate::Error;
 use std::convert::TryFrom;
 
+mod common;
 pub mod ser;
 
 #[allow(missing_docs)]
@@ -603,6 +604,40 @@ pub mod tests {
 			.is_none());
 
 		Ok(())
+	}
+
+	#[test]
+	fn slate_states() {
+		use crate::grin_core::ser::{deserialize_default, serialize_default};
+		use crate::slate::SlateState;
+		use crate::slate_versions::v5::SlateStateV5;
+
+		for (state, label, byte) in [
+			(SlateState::Unknown, "NA", 0),
+			(SlateState::Standard1, "S1", 1),
+			(SlateState::Standard2, "S2", 2),
+			(SlateState::Standard3, "S3", 3),
+			(SlateState::Invoice1, "I1", 4),
+			(SlateState::Invoice2, "I2", 5),
+			(SlateState::Invoice3, "I3", 6),
+		] {
+			let mut slate = Slate::blank(2, false);
+			slate.state = state;
+			for version in [SlateVersion::V4, SlateVersion::V5] {
+				let versioned = VersionedSlate::into_version(slate.clone(), version).unwrap();
+				let json = serde_json::to_value(&versioned).unwrap();
+				assert_eq!(json["sta"], label);
+				let recovered: Slate = serde_json::from_value::<VersionedSlate>(json)
+					.unwrap()
+					.into();
+				assert_eq!(recovered.state, slate.state);
+			}
+			let mut bytes = vec![];
+			serialize_default(&mut bytes, &SlateStateV5::from(&slate.state)).unwrap();
+			assert_eq!(bytes, vec![byte]);
+			let recovered: SlateStateV5 = deserialize_default(&mut &bytes[..]).unwrap();
+			assert_eq!(SlateState::from(&recovered), slate.state);
+		}
 	}
 
 	#[test]

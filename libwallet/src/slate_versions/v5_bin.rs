@@ -14,13 +14,9 @@
 
 //! Wraps a V5 Slate into a V5 Binary slate
 
-use crate::grin_core::core::transaction::OutputFeatures;
 use crate::grin_core::ser as grin_ser;
 use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
 use crate::grin_keychain::BlindingFactor;
-use crate::grin_util::secp::key::PublicKey;
-use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-use crate::grin_util::secp::Signature;
 use crate::slate::{PaymentMemo, PaymentProofType};
 use chrono::DateTime;
 use ed25519_dalek::Signature as DalekSignature;
@@ -28,90 +24,12 @@ use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use std::convert::TryFrom;
 
 use crate::slate_versions::v5::{
-	CommitsV5, KernelFeaturesArgsV5, ParticipantDataV5, PaymentInfoV5, SlateStateV5, SlateV5,
-	VersionCompatInfoV5,
+	CommitsV5, KernelFeaturesArgsV5, PaymentInfoV5, SlateStateV5, SlateV5, VersionCompatInfoV5,
 };
 
-use crate::slate_versions::v4_bin::{SlateOptFields, UuidWrap};
-
-impl Writeable for SlateStateV5 {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		let b = match self {
-			SlateStateV5::Unknown => 0,
-			SlateStateV5::Standard1 => 1,
-			SlateStateV5::Standard2 => 2,
-			SlateStateV5::Standard3 => 3,
-			SlateStateV5::Invoice1 => 4,
-			SlateStateV5::Invoice2 => 5,
-			SlateStateV5::Invoice3 => 6,
-		};
-		writer.write_u8(b)
-	}
-}
-
-impl Readable for SlateStateV5 {
-	fn read<R: Reader>(reader: &mut R) -> Result<SlateStateV5, grin_ser::Error> {
-		let b = reader.read_u8()?;
-		let sta = match b {
-			0 => SlateStateV5::Unknown,
-			1 => SlateStateV5::Standard1,
-			2 => SlateStateV5::Standard2,
-			3 => SlateStateV5::Standard3,
-			4 => SlateStateV5::Invoice1,
-			5 => SlateStateV5::Invoice2,
-			6 => SlateStateV5::Invoice3,
-			_ => SlateStateV5::Unknown,
-		};
-		Ok(sta)
-	}
-}
-
-struct SigsWrap(Vec<ParticipantDataV5>);
-struct SigsWrapRef<'a>(&'a Vec<ParticipantDataV5>);
-
-impl<'a> Writeable for SigsWrapRef<'a> {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		writer.write_u8(self.0.len() as u8)?;
-		for s in self.0.iter() {
-			//0 means part sig is not yet included
-			//1 means part sig included
-			if s.part.is_some() {
-				writer.write_u8(1)?;
-			} else {
-				writer.write_u8(0)?;
-			}
-			s.xs.write(writer)?;
-			s.nonce.write(writer)?;
-			if let Some(s) = s.part {
-				s.write(writer)?;
-			}
-		}
-		Ok(())
-	}
-}
-
-impl Readable for SigsWrap {
-	fn read<R: Reader>(reader: &mut R) -> Result<SigsWrap, grin_ser::Error> {
-		let sigs_len = reader.read_u8()?;
-		let sigs = {
-			let mut ret = vec![];
-			for _ in 0..sigs_len as usize {
-				let has_partial = reader.read_u8()?;
-				let c = ParticipantDataV5 {
-					xs: PublicKey::read(reader)?,
-					nonce: PublicKey::read(reader)?,
-					part: match has_partial {
-						1 => Some(Signature::read(reader)?),
-						0 | _ => None,
-					},
-				};
-				ret.push(c);
-			}
-			ret
-		};
-		Ok(SigsWrap(sigs))
-	}
-}
+use crate::slate_versions::v4_bin::{
+	ComsWrap, ComsWrapRef, SigsWrap, SigsWrapRef, SlateOptFields, UuidWrap,
+};
 
 /// Serialization of optional structs
 struct SlateOptStructsRef<'a> {
@@ -166,53 +84,6 @@ impl Readable for SlateOptStructs {
 			None
 		};
 		Ok(SlateOptStructs { coms, proof })
-	}
-}
-
-struct ComsWrap(Vec<CommitsV5>);
-struct ComsWrapRef<'a>(&'a Vec<CommitsV5>);
-
-impl<'a> Writeable for ComsWrapRef<'a> {
-	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		writer.write_u16(self.0.len() as u16)?;
-		for o in self.0.iter() {
-			//0 means input
-			//1 means output with proof
-			if o.p.is_some() {
-				writer.write_u8(1)?;
-			} else {
-				writer.write_u8(0)?;
-			}
-			OutputFeatures::from(o.f).write(writer)?;
-			o.c.write(writer)?;
-			if let Some(p) = o.p {
-				p.write(writer)?;
-			}
-		}
-		Ok(())
-	}
-}
-
-impl Readable for ComsWrap {
-	fn read<R: Reader>(reader: &mut R) -> Result<ComsWrap, grin_ser::Error> {
-		let coms_len = reader.read_u16()?;
-		let coms = {
-			let mut ret = vec![];
-			for _ in 0..coms_len as usize {
-				let is_output = reader.read_u8()?;
-				let c = CommitsV5 {
-					f: OutputFeatures::read(reader)?.into(),
-					c: Commitment::read(reader)?,
-					p: match is_output {
-						1 => Some(RangeProof::read(reader)?),
-						0 | _ => None,
-					},
-				};
-				ret.push(c);
-			}
-			ret
-		};
-		Ok(ComsWrap(coms))
 	}
 }
 
@@ -485,8 +356,12 @@ impl Readable for SlateV5Bin {
 
 #[test]
 fn slate_v5_serialize_deserialize() {
+	use crate::grin_core::core::transaction::OutputFeatures;
 	use crate::grin_util::from_hex;
 	use crate::grin_util::secp::key::PublicKey;
+	use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
+	use crate::grin_util::secp::Signature;
+	use crate::slate_versions::v5::ParticipantDataV5;
 	use crate::Slate;
 	use chrono::Utc;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
