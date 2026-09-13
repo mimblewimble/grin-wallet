@@ -25,7 +25,7 @@ use crate::grin_core::libtx::{aggsig, build, proof::ProofBuild, tx_fee};
 use crate::grin_core::map_vec;
 use crate::grin_keychain::{BlindSum, BlindingFactor, Keychain, SwitchCommitmentType};
 use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::pedersen::Commitment;
+use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
 use crate::grin_util::{secp, static_secp_instance};
 use crate::payment_proof::{check_proof_type, EarlyPaymentProof};
@@ -1034,25 +1034,28 @@ impl From<&Slate> for SlateV5 {
 
 impl From<&Slate> for Option<Vec<CommitsV5>> {
 	fn from(slate: &Slate) -> Self {
-		match slate.tx {
-			None => None,
-			Some(ref tx) => {
-				let mut ret_vec = vec![];
-				match tx.inputs() {
-					Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
-					Inputs::FeaturesAndCommit(ref inputs) => {
-						for input in inputs {
-							ret_vec.push(input.into());
-						}
-					}
-				}
-				for output in tx.outputs() {
-					ret_vec.push(output.into());
-				}
-				Some(ret_vec)
+		slate_commitments(slate)
+	}
+}
+
+fn slate_commitments<C>(slate: &Slate) -> Option<Vec<C>>
+where
+	C: for<'a> From<&'a Input> + for<'a> From<&'a Output>,
+{
+	let tx = slate.tx.as_ref()?;
+	let mut commitments = vec![];
+	match tx.inputs() {
+		Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
+		Inputs::FeaturesAndCommit(ref inputs) => {
+			for input in inputs {
+				commitments.push(input.into());
 			}
 		}
 	}
+	for output in tx.outputs() {
+		commitments.push(output.into());
+	}
+	Some(commitments)
 }
 
 impl From<&ParticipantData> for ParticipantDataV5 {
@@ -1197,23 +1200,32 @@ impl From<SlateV5> for Slate {
 }
 
 pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
-	let coms = match slate.coms.as_ref() {
-		Some(c) => c,
-		None => return None,
-	};
+	let coms = slate.coms.as_ref()?;
+	transaction_from_parts(
+		slate.fee,
+		slate.feat,
+		slate.feat_args.as_ref().map(KernelFeaturesArgs::from),
+		slate.sigs.iter().map(ParticipantData::from),
+		coms.iter().map(|c| (c.f.into(), c.c, c.p.as_ref())),
+		&slate.off,
+	)
+}
+
+fn transaction_from_parts<'a>(
+	fee: FeeFields,
+	features: u8,
+	feature_args: Option<KernelFeaturesArgs>,
+	participants: impl Iterator<Item = ParticipantData>,
+	commitments: impl Iterator<Item = (OutputFeatures, Commitment, Option<&'a RangeProof>)>,
+	offset: &BlindingFactor,
+) -> Option<Transaction> {
 	let secp = static_secp_instance();
 	let secp = secp.lock();
 	let mut calc_slate = Slate::blank(2, false);
-	calc_slate.fee_fields = slate.fee;
-	calc_slate.kernel_features = slate.feat;
-	calc_slate.kernel_features_args = slate.feat_args.as_ref().map(KernelFeaturesArgs::from);
-	for d in slate.sigs.iter() {
-		calc_slate.participant_data.push(ParticipantData {
-			public_blind_excess: d.xs,
-			public_nonce: d.nonce,
-			part_sig: d.part,
-		});
-	}
+	calc_slate.fee_fields = fee;
+	calc_slate.kernel_features = features;
+	calc_slate.kernel_features_args = feature_args;
+	calc_slate.participant_data.extend(participants);
 	let excess = match calc_slate.calc_excess(&secp) {
 		Ok(e) => e,
 		Err(_) => Commitment::from_vec(vec![0]),
@@ -1232,15 +1244,15 @@ pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
 	let mut outputs = vec![];
 	let mut inputs = vec![];
 
-	for c in coms.iter() {
-		match &c.p {
+	for (features, commitment, proof) in commitments {
+		match proof {
 			Some(p) => {
-				outputs.push(Output::new(c.f.into(), c.c, p.clone()));
+				outputs.push(Output::new(features, commitment, *p));
 			}
 			None => {
 				inputs.push(Input {
-					features: c.f.into(),
-					commit: c.c,
+					features,
+					commit: commitment,
 				});
 			}
 		}
@@ -1250,7 +1262,7 @@ pub fn tx_from_slate_v5(slate: &SlateV5) -> Option<Transaction> {
 		.body
 		.replace_inputs(inputs.as_slice().into())
 		.replace_outputs(outputs.as_slice());
-	tx.offset = slate.off.clone();
+	tx.offset = offset.clone();
 	Some(tx)
 }
 
@@ -1418,24 +1430,7 @@ impl TryFrom<&Slate> for SlateV4 {
 
 impl From<&Slate> for Option<Vec<CommitsV4>> {
 	fn from(slate: &Slate) -> Self {
-		match slate.tx {
-			None => None,
-			Some(ref tx) => {
-				let mut ret_vec = vec![];
-				match tx.inputs() {
-					Inputs::CommitOnly(_) => panic!("commit only inputs unsupported"),
-					Inputs::FeaturesAndCommit(ref inputs) => {
-						for input in inputs {
-							ret_vec.push(input.into());
-						}
-					}
-				}
-				for output in tx.outputs() {
-					ret_vec.push(output.into());
-				}
-				Some(ret_vec)
-			}
-		}
+		slate_commitments(slate)
 	}
 }
 
@@ -1576,61 +1571,15 @@ impl From<SlateV4> for Slate {
 }
 
 pub fn tx_from_slate_v4(slate: &SlateV4) -> Option<Transaction> {
-	let coms = match slate.coms.as_ref() {
-		Some(c) => c,
-		None => return None,
-	};
-	let secp = static_secp_instance();
-	let secp = secp.lock();
-	let mut calc_slate = Slate::blank(2, false);
-	calc_slate.fee_fields = slate.fee;
-	calc_slate.kernel_features = slate.feat;
-	calc_slate.kernel_features_args = slate.feat_args.as_ref().map(KernelFeaturesArgs::from);
-	for d in slate.sigs.iter() {
-		calc_slate.participant_data.push(ParticipantData {
-			public_blind_excess: d.xs,
-			public_nonce: d.nonce,
-			part_sig: d.part,
-		});
-	}
-	let excess = match calc_slate.calc_excess(&secp) {
-		Ok(e) => e,
-		Err(_) => Commitment::from_vec(vec![0]),
-	};
-	let excess_sig = match calc_slate.finalize_signature(&secp) {
-		Ok(s) => s,
-		Err(_) => Signature::from_raw_data(&[0; 64]).unwrap(),
-	};
-	let kernel = TxKernel {
-		features: calc_slate.kernel_features().ok()?,
-		excess,
-		excess_sig,
-	};
-	let mut tx = Slate::empty_transaction().with_kernel(kernel);
-
-	let mut outputs = vec![];
-	let mut inputs = vec![];
-
-	for c in coms.iter() {
-		match &c.p {
-			Some(p) => {
-				outputs.push(Output::new(c.f.into(), c.c, p.clone()));
-			}
-			None => {
-				inputs.push(Input {
-					features: c.f.into(),
-					commit: c.c,
-				});
-			}
-		}
-	}
-
-	tx.body = tx
-		.body
-		.replace_inputs(inputs.as_slice().into())
-		.replace_outputs(outputs.as_slice());
-	tx.offset = slate.off.clone();
-	Some(tx)
+	let coms = slate.coms.as_ref()?;
+	transaction_from_parts(
+		slate.fee,
+		slate.feat,
+		slate.feat_args.as_ref().map(KernelFeaturesArgs::from),
+		slate.sigs.iter().map(ParticipantData::from),
+		coms.iter().map(|c| (c.f.into(), c.c, c.p.as_ref())),
+		&slate.off,
+	)
 }
 
 // Node's Transaction object and lock height to SlateV4 `coms`
