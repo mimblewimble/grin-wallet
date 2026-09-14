@@ -142,6 +142,25 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		},
 	)?;
 
+	// receive must reject every slate state except S1
+	for state in [
+		SlateState::Unknown,
+		SlateState::Standard2,
+		SlateState::Standard3,
+		SlateState::Invoice2,
+		SlateState::Invoice3,
+	] {
+		let mut bad_slate = slate.clone();
+		bad_slate.state = state.clone();
+		let res = wallet::controller::foreign_single_use(
+			wallet1.clone(),
+			PathBuf::from(test_dir),
+			mask1_i.clone(),
+			|api| api.receive_tx(&bad_slate, None, None).map(|_| ()),
+		);
+		assert_eq!(res, Err(libwallet::Error::SlateState), "state {}", state);
+	}
+
 	wallet::controller::owner_single_use(
 		wallet1.clone(),
 		mask1,
