@@ -147,6 +147,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		SlateState::Unknown,
 		SlateState::Standard2,
 		SlateState::Standard3,
+		SlateState::Invoice1,
 		SlateState::Invoice2,
 		SlateState::Invoice3,
 	] {
