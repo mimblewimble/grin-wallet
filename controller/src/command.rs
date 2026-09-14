@@ -596,7 +596,7 @@ where
 	)?;
 
 	if lock {
-		owner_api.tx_lock_outputs(keychain_mask, &slate)?;
+		owner_api.tx_lock_outputs(keychain_mask, slate)?;
 	}
 
 	println!("{}", out_file_name);
@@ -702,7 +702,7 @@ where
 	// For now, we don't compact slates with sl.compact(). We first make them work without compaction.
 	// Writing the file, serializing and encrypting can all fail for ordinary reasons, so
 	// report them through the normal CLI error path rather than unwrapping.
-	let slate_out = prepare_slatepack(api, keychain_mask, &slate, counterparty_addr, out_file)?;
+	let slate_out = prepare_slatepack(api, keychain_mask, slate, counterparty_addr, out_file)?;
 	slate_out.print(as_json);
 	Ok(())
 }
@@ -734,9 +734,9 @@ where
 
 	let slate_out = SlatepackOut {
 		is_encrypted: dest.is_some(),
-		is_finalized: is_finalized,
+		is_finalized,
 		out_file: out_file_name,
-		message: message,
+		message,
 	};
 
 	Ok(slate_out)
@@ -767,7 +767,7 @@ where
 			Some(message) => packer.deser_slatepack(message.trim_start().as_bytes(), false)?,
 			None => {
 				let msg = "No slate provided via file or direct input";
-				return Err(Error::GenericError(msg.into()).into());
+				return Err(Error::GenericError(msg.into()));
 			}
 		},
 	};
@@ -1757,21 +1757,14 @@ impl ContractNewArgs {
 			ttl_blocks: self.ttl_blocks,
 			setup_args: ContractSetupArgsAPI {
 				fee_rate: self.fee_rate,
-				src_acct_name: match self.src_acct_name.as_ref() {
-					Some(v) => Some(v.to_string()),
-					None => None,
-				},
+				src_acct_name: self.src_acct_name.clone(),
 				net_change: Some(net_change),
 				num_participants: self.num_participants,
 				add_outputs: self.add_outputs,
 				selection_args: OutputSelectionArgs {
 					minimum_confirmations: Some(self.minimum_confirmations),
-					use_inputs: match self.use_inputs.as_ref() {
-						Some(v) => Some(v.to_string()),
-						None => None,
-					},
+					use_inputs: self.use_inputs.clone(),
 					make_outputs: self.make_outputs.clone(),
-					..Default::default()
 				},
 				proof_args: contract_proof_args(
 					self.proof_type,
@@ -1779,7 +1772,6 @@ impl ContractNewArgs {
 					self.receive.unwrap_or(0) > 0,
 				)?,
 			},
-			..Default::default()
 		})
 	}
 }
@@ -1850,15 +1842,11 @@ impl ContractSetupArgs {
 		};
 		Ok(ContractSetupArgsAPI {
 			fee_rate: self.fee_rate,
-			net_change: net_change,
+			net_change,
 			selection_args: OutputSelectionArgs {
 				minimum_confirmations: self.minimum_confirmations,
-				use_inputs: match self.use_inputs.as_ref() {
-					Some(v) => Some(v.to_string()),
-					None => None,
-				},
+				use_inputs: self.use_inputs.clone(),
 				make_outputs: self.make_outputs.clone(),
-				..Default::default()
 			},
 			proof_args: contract_proof_args(
 				self.proof_type,

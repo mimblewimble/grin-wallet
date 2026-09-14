@@ -161,7 +161,7 @@ impl Writeable for PromiseBin<'_> {
 		writer.write_u8(self.0.proof_type.as_u8())?;
 		match self.0.proof_type {
 			PaymentProofType::Invoice => write_amount(writer, self.0.amount)?,
-			PaymentProofType::SenderNonce => writer.write_fixed_bytes(&[0; 7])?,
+			PaymentProofType::SenderNonce => writer.write_fixed_bytes([0; 7])?,
 			PaymentProofType::Legacy => {
 				return Err(grin_ser::Error::CorruptedData);
 			}
@@ -261,7 +261,7 @@ impl EarlyPaymentProof {
 					.ok_or_else(|| Error::PaymentProof("Missing proof timestamp".to_string()))?
 					.timestamp(),
 				p.memo.clone(),
-				p.promise_signature.clone(),
+				p.promise_signature,
 			),
 			None => (PaymentProofType::Invoice, 0, None, None),
 		};
@@ -292,7 +292,7 @@ impl EarlyPaymentProof {
 			));
 		}
 		if let Some(base_public) = base_public_nonce.as_ref() {
-			let mut expected = base_public.clone();
+			let mut expected = *base_public;
 			expected.add_exp_assign(secp, &sender_nonce_tweak(secp, base_public, self)?)?;
 			if PublicKey::from_secret_key(secp, secret_nonce)? != expected {
 				return Err(Error::PaymentProofValidation(
@@ -377,7 +377,7 @@ impl EarlyPaymentProof {
 				let sender_nonce = wd.sender_public_nonce.as_ref().ok_or_else(|| {
 					Error::PaymentProofValidation("Missing sender nonce witness".into())
 				})?;
-				let mut expected_sender_nonce = sender_nonce.clone();
+				let mut expected_sender_nonce = *sender_nonce;
 				expected_sender_nonce.add_exp_assign(
 					&static_secp,
 					&sender_nonce_tweak(&static_secp, sender_nonce, self)?,
@@ -419,7 +419,7 @@ impl EarlyPaymentProof {
 					&pub_nonce_sum,
 					&self.receiver_public_excess,
 					&pub_blind_sum,
-					&msg,
+					msg,
 				)
 				.is_ok()
 			}) {

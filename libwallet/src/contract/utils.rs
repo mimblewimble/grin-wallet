@@ -254,7 +254,7 @@ where
 				key_id: key_id.clone(),
 				mmr_index: None,
 				n_child: key_id.to_path().last_path_index(),
-				commit: commit,
+				commit,
 				value: amount,
 				status: OutputStatus::Unconfirmed,
 				height: current_height,

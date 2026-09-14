@@ -135,14 +135,13 @@ where
 
 	let ct_view = ContractView {
 		num_participants: slate.num_participants,
-		suggested_net_change: suggested_net_change,
+		suggested_net_change,
 		agreed_net_change,
 		own_fee,
 		balance_change,
 		num_sigs: num_sigs as u8,
-		is_executed: is_executed,
+		is_executed,
 		own_commitment_status,
-		..Default::default()
 	};
 	Ok(ct_view)
 }

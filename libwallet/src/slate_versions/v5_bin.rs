@@ -61,10 +61,10 @@ impl<'a> Writeable for SlateOptStructsRef<'a> {
 		};
 		writer.write_u8(status)?;
 		if let Some(c) = self.coms {
-			ComsWrapRef(&c).write(writer)?;
+			ComsWrapRef(c).write(writer)?;
 		}
 		if let Some(p) = self.proof {
-			ProofWrapRef(&p).write(writer)?;
+			ProofWrapRef(p).write(writer)?;
 		}
 		Ok(())
 	}
@@ -111,7 +111,7 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 		match self.0.psig {
 			Some(s) => {
 				writer.write_u8(1)?;
-				writer.write_fixed_bytes(&s.to_bytes().to_vec())?;
+				writer.write_fixed_bytes(s.to_bytes())?;
 			}
 			None => writer.write_u8(0)?,
 		}

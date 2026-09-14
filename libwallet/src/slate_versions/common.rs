@@ -38,7 +38,7 @@ pub enum SlateState {
 	Invoice1,
 	/// Invoice flow, return journey
 	Invoice2,
-	/// Invoice flow, ready for tranasction posting
+	/// Invoice flow, ready for transaction posting
 	Invoice3,
 }
 

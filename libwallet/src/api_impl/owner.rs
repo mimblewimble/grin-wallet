@@ -1602,7 +1602,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	contract::sign(&mut *w, keychain_mask, slate, &args)
+	contract::sign(&mut *w, keychain_mask, slate, args)
 }
 
 /// Revoke transaction contract
@@ -1615,7 +1615,7 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	contract::revoke(&mut *w, keychain_mask, &args)
+	contract::revoke(&mut *w, keychain_mask, args)
 }
 
 /// Create MXMixnet request

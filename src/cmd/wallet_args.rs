@@ -1142,15 +1142,15 @@ pub fn parse_contract_new_args(
 	};
 
 	Ok(command::ContractNewArgs {
-		counterparty_addr: counterparty_addr,
-		receive: receive,
-		send: send,
-		src_acct_name: src_acct_name,
-		num_participants: num_participants,
-		as_json: as_json,
-		add_outputs: add_outputs,
-		use_inputs: use_inputs,
-		make_outputs: make_outputs,
+		counterparty_addr,
+		receive,
+		send,
+		src_acct_name,
+		num_participants,
+		as_json,
+		add_outputs,
+		use_inputs,
+		make_outputs,
 		minimum_confirmations,
 		fee_rate,
 		ttl_blocks,
@@ -1163,10 +1163,7 @@ pub fn parse_contract_new_args(
 pub fn parse_contract_setup_args(
 	args: &ArgMatches,
 ) -> Result<command::ContractSetupArgs, ParseError> {
-	let counterparty_addr = match args.value_of("encrypt-for") {
-		Some(v) => Some(String::from(v)),
-		None => None,
-	};
+	let counterparty_addr = args.value_of("encrypt-for").map(String::from);
 	let (receive, send) = parse_contract_amounts(args)?;
 	let as_json = args.is_present("as-json");
 	let minimum_confirmations = match args.value_of("minimum_confirmations") {
@@ -1179,12 +1176,12 @@ pub fn parse_contract_setup_args(
 	let (use_inputs, make_outputs) = parse_contract_selection(args)?;
 
 	Ok(command::ContractSetupArgs {
-		counterparty_addr: counterparty_addr,
-		receive: receive,
-		send: send,
-		as_json: as_json,
-		use_inputs: use_inputs,
-		make_outputs: make_outputs,
+		counterparty_addr,
+		receive,
+		send,
+		as_json,
+		use_inputs,
+		make_outputs,
 		minimum_confirmations,
 		fee_rate,
 		outfile,
@@ -1575,24 +1572,26 @@ where
 		("contract", Some(args)) => match args.subcommand() {
 			("new", Some(new_args)) => {
 				let account = &global_wallet_args.account;
-				let a = arg_parse!(parse_contract_new_args(&new_args, account));
+				let a = arg_parse!(parse_contract_new_args(new_args, account));
 				command::contract_new(owner_api, km, a)
 			}
 			("sign", Some(sign_args)) => {
 				// Sign command takes setup_args so we use the same parser
-				let setup_args = arg_parse!(parse_contract_setup_args(&sign_args));
+				let setup_args = arg_parse!(parse_contract_setup_args(sign_args));
 				let broadcast_tx = !sign_args.is_present("no-broadcast");
 				command::contract_sign(owner_api, km, setup_args, broadcast_tx)
 			}
 			("view", Some(view_args)) => {
-				let a = arg_parse!(parse_contract_view_args(&view_args));
+				let a = arg_parse!(parse_contract_view_args(view_args));
 				command::contract_view(owner_api, km, a)
 			}
 			("revoke", Some(revoke_args)) => {
-				let a = arg_parse!(parse_contract_revoke_args(&revoke_args));
+				let a = arg_parse!(parse_contract_revoke_args(revoke_args));
 				command::contract_revoke(owner_api, km, a)
 			}
-			_ => Err(Error::ArgumentError(String::from("Unknown contract subcommand.")).into()),
+			_ => Err(Error::ArgumentError(String::from(
+				"Unknown contract subcommand.",
+			))),
 		},
 		_ => {
 			let msg = "Unknown wallet command, use 'grin-wallet help' for details".to_string();

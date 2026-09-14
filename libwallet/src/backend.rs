@@ -618,7 +618,7 @@ where
 		Ok(self
 			.db
 			.get_ser(Some(DERIV_PREFIX), &parent_id.to_bytes(), None)?
-			.unwrap_or_else(|| 0))
+			.unwrap_or(0))
 	}
 
 	/// Save last stored child index of a given parent.

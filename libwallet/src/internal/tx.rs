@@ -361,7 +361,7 @@ where
 		Some(&parent_key_id),
 		false,
 	)?;
-	if tx_vec.len() == 0 {
+	if tx_vec.is_empty() {
 		return Err(Error::TransactionDoesntExist(tx_id_string));
 	}
 	// Collect the entries and their outputs first: the batch that cancels them borrows the
@@ -385,7 +385,7 @@ where
 			keychain_mask,
 			false,
 			Some(tx.id),
-			Some(&parent_key_id),
+			Some(parent_key_id),
 		)?;
 		let outputs = res.iter().map(|m| m.output.clone()).collect();
 		to_cancel.push((tx, outputs));
@@ -431,7 +431,7 @@ where
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		if let Some(saddr) = p.sender_address {
-			let derivation_index = context.payment_proof_derivation_index.unwrap_or_else(|| 0);
+			let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
 			let keychain = wallet.keychain(keychain_mask)?;
 			let parent_key_id = wallet.parent_key_id();
 			let excess = slate.calc_excess(keychain.secp())?;

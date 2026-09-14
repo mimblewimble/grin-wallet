@@ -87,8 +87,7 @@ where
 	// Fee contribution estimation
 	let net_change = setup_args.required_net_change()?;
 	// select inputs to estimate fee cost
-	let (inputs, _, my_fee) =
-		prepare_outputs(w, &parent_key_id, current_height, &setup_args, None)?;
+	let (inputs, _, my_fee) = prepare_outputs(w, parent_key_id, current_height, setup_args, None)?;
 	// The number of outputs we expect is the number of custom outputs plus one change output
 	debug!(
 		"My fee contribution estimation: {} for n_inputs: {}, n_outputs: {}, n_kernels: {}, num_participants: {}",
@@ -110,7 +109,7 @@ where
 	// Create a Context for this slate
 	let keychain = w.keychain(keychain_mask)?;
 	// is_initiator only affects the deterministic test RNG; contracts always pass true.
-	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
+	let mut context = Context::new(keychain.secp(), parent_key_id, use_test_rng, true);
 	// Context.fee will hold _our_ fee contribution and not the total slate fee
 	context.fee = my_fee.as_opt();
 	// Context.amount is not used in contracts, but we set it anyway.
@@ -160,7 +159,7 @@ where
 		&mut *w,
 		parent_key_id,
 		current_height,
-		&setup_args,
+		setup_args,
 		context.fee,
 	)?;
 	// An old or damaged context, or a future change to the fee schedule, can reach this

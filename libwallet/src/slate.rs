@@ -443,7 +443,7 @@ impl Slate {
 			VersionedSlate::V4(s) => s.into(),
 			VersionedSlate::V5(s) => s.into(),
 		};
-		Ok(internal.into())
+		Ok(internal)
 	}
 	/// Compact the slate for initial sending, storing the excess + offset explicit
 	/// and removing my input/output data
@@ -656,7 +656,7 @@ impl Slate {
 				return Ok(i);
 			}
 		}
-		return Err(Error::ContextToIndex);
+		Err(Error::ContextToIndex)
 	}
 	/// Completes caller's part of round 2, completing signatures
 	pub fn fill_round_2<K>(
@@ -1003,17 +1003,13 @@ impl From<&Slate> for SlateV5 {
 		let feat = *kernel_features;
 		let ttl = *ttl;
 		let off = offset.clone();
-		let participant_data = map_vec!(participant_data, |data| ParticipantDataV5::from(data));
+		let participant_data = map_vec!(participant_data, ParticipantDataV5::from);
 		let ver = VersionCompatInfoV5::from(version_info);
-		let payment_proof = match payment_proof {
-			Some(p) => Some(PaymentInfoV5::from(p)),
-			None => None,
-		};
+		let payment_proof = payment_proof.as_ref().map(PaymentInfoV5::from);
 		let sta = SlateStateV5::from(state);
-		let feat_args = match kernel_features_args {
-			Some(a) => Some(KernelFeaturesArgsV5::from(a)),
-			None => None,
-		};
+		let feat_args = kernel_features_args
+			.as_ref()
+			.map(KernelFeaturesArgsV5::from);
 		SlateV5 {
 			num_parts,
 			id,
@@ -1070,7 +1066,7 @@ impl From<&PaymentInfo> for PaymentInfoV5 {
 			raddr: receiver_address,
 			psig: promise_signature,
 			ts: timestamp,
-			memo: memo,
+			memo,
 		}
 	}
 }
@@ -1094,16 +1090,10 @@ impl From<SlateV5> for Slate {
 			proof: payment_proof,
 			feat_args,
 		} = slate;
-		let participant_data = map_vec!(participant_data, |data| ParticipantData::from(data));
+		let participant_data = map_vec!(participant_data, ParticipantData::from);
 		let version_info = VersionCompatInfo::from(&ver);
-		let payment_proof = match &payment_proof {
-			Some(p) => Some(PaymentInfo::from(p)),
-			None => None,
-		};
-		let kernel_features_args = match &feat_args {
-			Some(a) => Some(KernelFeaturesArgs::from(a)),
-			None => None,
-		};
+		let payment_proof = payment_proof.as_ref().map(PaymentInfo::from);
+		let kernel_features_args = feat_args.as_ref().map(KernelFeaturesArgs::from);
 		let state = SlateState::from(&sta);
 		Slate {
 			num_participants,
@@ -1232,7 +1222,7 @@ impl From<&PaymentInfoV5> for PaymentInfo {
 			proof_type,
 			sender_address,
 			receiver_address,
-			promise_signature: promise_signature,
+			promise_signature,
 			timestamp,
 			memo,
 		}

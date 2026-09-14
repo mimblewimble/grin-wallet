@@ -266,7 +266,7 @@ pub mod option_pubkey_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Serialize an optional public key as compressed hex
 	pub fn serialize<S>(key: &Option<PublicKey>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -281,7 +281,7 @@ pub mod option_pubkey_serde {
 		}
 	}
 
-	///
+	/// Read an optional public key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<PublicKey>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -566,7 +566,7 @@ pub mod version_info_v4 {
 			if v.len() != 2 {
 				return Err(Error::custom("Cannot parse version"));
 			}
-			match u16::from_str_radix(v[0], 10) {
+			match v[0].parse::<u16>() {
 				// VersionedSlate is untagged, so the declared version must be checked here:
 				// otherwise a slate is silently parsed as the wrong variant.
 				Ok(4) => retval.version = 4,
@@ -578,7 +578,7 @@ pub mod version_info_v4 {
 				}
 				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
 			}
-			match u16::from_str_radix(v[1], 10) {
+			match v[1].parse::<u16>() {
 				Ok(u) => retval.block_header_version = u,
 				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
 			}
@@ -594,7 +594,7 @@ pub mod version_info_v5 {
 
 	use crate::slate_versions::v5::VersionCompatInfoV5;
 
-	///
+	/// Write the slate and block header versions separated by a colon
 	pub fn serialize<S>(v: &VersionCompatInfoV5, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -602,7 +602,7 @@ pub mod version_info_v5 {
 		serializer.serialize_str(&format!("{}:{}", v.version, v.block_header_version))
 	}
 
-	///
+	/// Read the versions and require a V5 slate
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<VersionCompatInfoV5, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -616,7 +616,7 @@ pub mod version_info_v5 {
 			if v.len() != 2 {
 				return Err(Error::custom("Cannot parse version"));
 			}
-			match u16::from_str_radix(v[0], 10) {
+			match v[0].parse::<u16>() {
 				// See the V4 deserializer: the declared version disambiguates the
 				// untagged VersionedSlate variants.
 				Ok(5) => retval.version = 5,
@@ -628,7 +628,7 @@ pub mod version_info_v5 {
 				}
 				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
 			}
-			match u16::from_str_radix(v[1], 10) {
+			match v[1].parse::<u16>() {
 				Ok(u) => retval.block_header_version = u,
 				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
 			}
