@@ -98,6 +98,40 @@ pub fn contract_selection_args() -> libwallet::contract::types::OutputSelectionA
 }
 
 #[allow(dead_code)]
+pub fn contract_setup_args(
+	net_change: Option<i64>,
+) -> libwallet::contract::types::ContractSetupArgsAPI {
+	libwallet::contract::types::ContractSetupArgsAPI {
+		selection_args: contract_selection_args(),
+		net_change,
+		..Default::default()
+	}
+}
+
+#[allow(dead_code)]
+pub fn contract_new_args(net_change: i64) -> libwallet::contract::types::ContractNewArgsAPI {
+	libwallet::contract::types::ContractNewArgsAPI {
+		setup_args: contract_setup_args(Some(net_change)),
+		..Default::default()
+	}
+}
+
+#[allow(dead_code)]
+pub fn roundtrip_slate(
+	slate: &libwallet::Slate,
+	version: u16,
+) -> Result<libwallet::Slate, libwallet::Error> {
+	let packer = libwallet::Slatepacker::new(libwallet::SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	let slate = packer.get_slate(&packer.create_slatepack(slate)?)?;
+	assert_eq!(slate.version_info.version, version);
+	Ok(slate)
+}
+
+#[allow(dead_code)]
 pub struct ExpectedContractSlate {
 	pub amount: u64,
 	pub fee: u64,

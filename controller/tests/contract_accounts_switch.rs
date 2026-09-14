@@ -62,8 +62,8 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
 			assert!(wallet1_refreshed);
 			assert_eq!(wallet1_info.last_confirmed_height, 10);
-			assert_eq!(wallet1_info.total, 1 * reward);
-			assert_eq!(wallet1_info.amount_currently_spendable, 1 * reward);
+			assert_eq!(wallet1_info.total, reward);
+			assert_eq!(wallet1_info.amount_currently_spendable, reward);
 			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 			assert_eq!(txs.len(), 1);
 			Ok(())
@@ -116,7 +116,6 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 					net_change: Some(-5_000_000_000),
 					..Default::default()
 				},
-				..Default::default()
 			};
 			slate = api.contract_new(m, args)?;
 			Ok(())
@@ -227,7 +226,7 @@ fn contract_accounts_switch_impl(test_dir: &'static str) -> Result<(), libwallet
 			assert_eq!(wallet1_info.last_confirmed_height, 11);
 			assert_eq!(
 				wallet1_info.total,
-				1 * reward - 5_000_000_000 - my_fee_contribution(1, 1, 1, 2)?.fee() // we subtract also our fee contribution
+				reward - 5_000_000_000 - my_fee_contribution(1, 1, 1, 2)?.fee() // we subtract also our fee contribution
 			);
 			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
 			assert_eq!(txs.len(), 2);

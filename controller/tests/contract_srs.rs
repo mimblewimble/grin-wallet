@@ -95,7 +95,6 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 					net_change: Some(-5_000_000_000),
 					..Default::default()
 				},
-				..Default::default()
 			};
 			let progress = common::wallet_progress(api, m)?;
 			for count in [0, 3] {

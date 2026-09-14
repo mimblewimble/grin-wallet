@@ -274,15 +274,16 @@ pub mod tests {
 			)),
 		};
 
-		let mut coms = vec![];
-		coms.push(CommitsV5 {
-			f: OutputFeatures::Coinbase.into(),
-			c: Commitment::from_vec([5u8; 1].to_vec()),
-			p: None,
-		});
-		coms.push(com1.clone());
-		coms.push(com1.clone());
-		coms.push(com2);
+		let coms = vec![
+			CommitsV5 {
+				f: OutputFeatures::Coinbase.into(),
+				c: Commitment::from_vec([5u8; 1].to_vec()),
+				p: None,
+			},
+			com1,
+			com1,
+			com2,
+		];
 
 		v5.coms = Some(coms);
 
@@ -311,9 +312,9 @@ pub mod tests {
 		let psig = DalekSignature::from_bytes(&[11u8; 64]);
 		slate_internal.payment_proof = Some(PaymentInfo {
 			proof_type: PaymentProofType::Invoice,
-			sender_address: Some(d_pkey.clone()),
-			receiver_address: d_pkey.clone(),
-			timestamp: Some(ts.clone()),
+			sender_address: Some(d_pkey),
+			receiver_address: d_pkey,
+			timestamp: Some(ts),
 			promise_signature: Some(psig),
 			memo: Some(pm),
 		});

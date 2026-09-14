@@ -228,11 +228,11 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			assert_eq!(tx_log.amount_debited, 0);
 			assert_eq!(tx_log.num_inputs, 1);
 			assert_eq!(tx_log.num_outputs, 1);
-			let expected_fees_paid = Some(my_fee_contribution(1, 1, 1, 2)?);
-			assert_eq!(tx_log.fee, expected_fees_paid);
+			let expected_fees_paid = my_fee_contribution(1, 1, 1, 2)?;
+			assert_eq!(tx_log.fee, Some(expected_fees_paid));
 			assert_eq!(
 				wallet_info.amount_currently_spendable,
-				4 * 60_000_000_000 + 5_000_000_000 - expected_fees_paid.unwrap().fee() // we expect the balance of 4 mined blocks + 5 Grin - fees paid
+				4 * 60_000_000_000 + 5_000_000_000 - expected_fees_paid.fee() // we expect the balance of 4 mined blocks + 5 Grin - fees paid
 			);
 			Ok(())
 		},

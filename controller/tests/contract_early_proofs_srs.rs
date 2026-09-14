@@ -26,8 +26,8 @@ use grin_wallet_libwallet as libwallet;
 
 use impls::test_framework::{self};
 use libwallet::contract::my_fee_contribution;
-use libwallet::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI, PaymentMemo};
-use libwallet::{NodeVersionInfo, Slate, SlateState, Slatepacker, SlatepackerArgs, TxLogEntryType};
+use libwallet::contract::types::PaymentMemo;
+use libwallet::{NodeVersionInfo, Slate, SlateState, TxLogEntryType};
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -52,17 +52,6 @@ fn reject_proof_verification(
 	))
 }
 
-fn roundtrip_slate(slate: &Slate, version: u16) -> Result<Slate, libwallet::Error> {
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		recipients: vec![],
-		dec_key: None,
-	});
-	let slate = packer.get_slate(&packer.create_slatepack(slate)?)?;
-	assert_eq!(slate.version_info.version, version);
-	Ok(slate)
-}
-
 /// Development + Tests of early payment proof functionality
 fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// create two wallets and mine 4 blocks in each (we want both to have balance to get a payjoin)
@@ -82,21 +71,14 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		PathBuf::from(test_dir),
 		|api, m| {
 			// Send wallet inititates a standard transaction with --send=5
-			let args = &ContractNewArgsAPI {
-				setup_args: ContractSetupArgsAPI {
-					selection_args: common::contract_selection_args(),
-					net_change: Some(-5_000_000_000),
-					..Default::default()
-				},
-				..Default::default()
-			};
+			let args = &common::contract_new_args(-5_000_000_000);
 			slate = api.contract_new(m, args)?;
 			sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
 			Ok(())
 		},
 	)?;
 	assert_eq!(slate.state, SlateState::Standard1);
-	slate = roundtrip_slate(&slate, 4)?;
+	slate = common::roundtrip_slate(&slate, 4)?;
 
 	let mut recipient_address = None;
 	wallet::controller::owner_single_use(
@@ -105,11 +87,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		PathBuf::from(test_dir),
 		|api, m| {
 			// Receive wallet calls --receive=5
-			let args = &mut ContractSetupArgsAPI {
-				selection_args: common::contract_selection_args(),
-				net_change: Some(5_000_000_000),
-				..Default::default()
-			};
+			let args = &mut common::contract_setup_args(Some(5_000_000_000));
 			// Proofs are opt-in; enable and supply the sender address.
 			args.proof_args.suppress_proof = false;
 			args.proof_args.memo = Some(PaymentMemo::new("SRS payment".into())?);
@@ -120,7 +98,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		},
 	)?;
 	assert_eq!(slate.state, SlateState::Standard2);
-	slate = roundtrip_slate(&slate, 5)?;
+	slate = common::roundtrip_slate(&slate, 5)?;
 
 	// Send wallet finalizes and posts
 	//let mut sender_part_sig = None;
@@ -129,10 +107,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		send_mask,
 		PathBuf::from(test_dir),
 		|api, m| {
-			let args = &ContractSetupArgsAPI {
-				selection_args: common::contract_selection_args(),
-				..Default::default()
-			};
+			let args = &common::contract_setup_args(None);
 			let mut tampered = slate.clone();
 			let proof = tampered.payment_proof.as_mut().unwrap();
 			*proof.timestamp.as_mut().unwrap() += Duration::from_secs(1);
@@ -143,7 +118,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		},
 	)?;
 	assert_eq!(slate.state, SlateState::Standard3);
-	slate = roundtrip_slate(&slate, 5)?;
+	slate = common::roundtrip_slate(&slate, 5)?;
 
 	wallet::controller::owner_single_use(
 		send_wallet.clone(),
@@ -177,11 +152,11 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 			assert_eq!(tx_log.amount_debited, 0);
 			assert_eq!(tx_log.num_inputs, 1);
 			assert_eq!(tx_log.num_outputs, 1);
-			let expected_fees_paid = Some(my_fee_contribution(1, 1, 1, 2)?);
-			assert_eq!(tx_log.fee, expected_fees_paid);
+			let expected_fees_paid = my_fee_contribution(1, 1, 1, 2)?;
+			assert_eq!(tx_log.fee, Some(expected_fees_paid));
 			assert_eq!(
 				wallet_info.amount_currently_spendable,
-				4 * 60_000_000_000 + 5_000_000_000 - expected_fees_paid.unwrap().fee() // we expect the balance of 4 mined blocks + 5 Grin - fees paid
+				4 * 60_000_000_000 + 5_000_000_000 - expected_fees_paid.fee() // we expect the balance of 4 mined blocks + 5 Grin - fees paid
 			);
 			Ok(())
 		},

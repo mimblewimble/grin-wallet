@@ -405,11 +405,7 @@ fn slate_v5_serialize_deserialize() {
 		c: Commitment::from_vec([4u8; 1].to_vec()),
 		p: Some(RangeProof::zero()),
 	};
-	let mut coms = vec![];
-	coms.push(com1.clone());
-	coms.push(com1.clone());
-	coms.push(com1.clone());
-	coms.push(com2);
+	let coms = vec![com1, com1, com1, com2];
 
 	v5.coms = Some(coms);
 	v5.amt = 234324899824;
@@ -421,7 +417,7 @@ fn slate_v5_serialize_deserialize() {
 
 	let v4_bin = SlateV5Bin(v5);
 	let mut vec = Vec::new();
-	let _ = grin_ser::serialize_default(&mut vec, &v4_bin).expect("serialization failed");
+	grin_ser::serialize_default(&mut vec, &v4_bin).expect("serialization failed");
 	let b4_bin_2: SlateV5Bin = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
 	let v4_2 = b4_bin_2.0.clone();
 	assert_eq!(v4_1.ver, v4_2.ver);
@@ -448,9 +444,9 @@ fn slate_v5_serialize_deserialize() {
 	let pm = PaymentMemo::new("payment details".to_string()).unwrap();
 	v5.proof = Some(PaymentInfoV5 {
 		ptype: PaymentProofType::Invoice,
-		raddr: d_pkey.clone(),
-		saddr: Some(d_pkey.clone()),
-		ts: Some(ts.clone()),
+		raddr: d_pkey,
+		saddr: Some(d_pkey),
+		ts: Some(ts),
 		psig: None,
 		memo: Some(pm),
 	});
@@ -458,7 +454,7 @@ fn slate_v5_serialize_deserialize() {
 	let v5_1 = v5.clone();
 	let v5_bin = SlateV5Bin(v5);
 	let mut vec = Vec::new();
-	let _ = grin_ser::serialize_default(&mut vec, &v5_bin).expect("serialization failed");
+	grin_ser::serialize_default(&mut vec, &v5_bin).expect("serialization failed");
 	let b4_bin_2: SlateV5Bin = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
 	let v5_2 = b4_bin_2.0.clone();
 	assert_eq!(v5_1.ver, v5_2.ver);
