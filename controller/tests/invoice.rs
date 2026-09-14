@@ -130,10 +130,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		mask1_i.clone(),
 		|api| api.receive_tx(&slate, None, None).map(|_| ()),
 	);
-	assert_eq!(
-		receive_result,
-		Err(libwallet::Error::InvoiceSlateRequiresPay)
-	);
+	assert_eq!(receive_result, Err(libwallet::Error::SlateState));
 	wallet::controller::owner_single_use(
 		wallet1.clone(),
 		mask1,

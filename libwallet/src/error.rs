@@ -217,10 +217,6 @@ pub enum Error {
 	#[error("Invalid slate state")]
 	SlateState,
 
-	/// Invoice passed to receive
-	#[error("Use the 'pay' command to process invoice slates")]
-	InvoiceSlateRequiresPay,
-
 	/// Can't serialize slate pack
 	#[error("Can't Serialize slatepack")]
 	SlatepackSer,
