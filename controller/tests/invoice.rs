@@ -113,6 +113,17 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		mask2,
 		PathBuf::from(test_dir),
 		|api, m| {
+			let error = api
+				.issue_invoice_tx(
+					m,
+					IssueInvoiceTxArgs {
+						amount: 0,
+						..Default::default()
+					},
+				)
+				.unwrap_err();
+			assert_eq!(error, libwallet::Error::InvalidAmount);
+
 			// Wallet 2 inititates an invoice transaction, requesting payment
 			let args = IssueInvoiceTxArgs {
 				amount: reward * 2,
