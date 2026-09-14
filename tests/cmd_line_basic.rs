@@ -567,6 +567,22 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		test_dir
 	);
 
+	// receive and finalize should point to pay
+	for cmd in ["receive", "finalize"] {
+		let arg_vec = vec![
+			"grin-wallet",
+			"-a",
+			"mining",
+			"-p",
+			"password1",
+			cmd,
+			"-i",
+			&file_name,
+		];
+		let e = execute_command(&app, test_dir, "wallet1", &client1, arg_vec).unwrap_err();
+		assert!(e.to_string().contains("'pay'"), "{}", e);
+	}
+
 	// now pay the invoice tx, wallet 1
 	let arg_vec = vec![
 		"grin-wallet",
