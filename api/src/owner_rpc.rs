@@ -1239,7 +1239,7 @@ pub trait OwnerRpc {
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sigs": [],
 				"sta": "S3",
-				"ver": "4:3"
+				"ver": "4:5"
 			}
 		}
 	}
@@ -3140,7 +3140,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::libwallet::{SlatepackArmor, VersionedBinSlate};
+	use crate::libwallet::{SlatepackArmor, VersionedBinSlate, GRIN_BLOCK_HEADER_VERSION};
 	use grin_wallet_util::byte_ser;
 	use tempfile::tempdir;
 
@@ -3186,7 +3186,10 @@ mod tests {
 		.unwrap()
 		.unwrap();
 
-		assert_eq!(response["result"]["Ok"]["ver"], "5:3");
+		assert_eq!(
+			response["result"]["Ok"]["ver"],
+			format!("5:{}", GRIN_BLOCK_HEADER_VERSION)
+		);
 	}
 
 	#[test]

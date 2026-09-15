@@ -41,8 +41,8 @@ pub mod v5_bin;
 /// The most recent version of the slate
 pub const CURRENT_SLATE_VERSION: u16 = 5;
 
-/// The grin block header this slate is intended to be compatible with
-pub const GRIN_BLOCK_HEADER_VERSION: u16 = 3;
+/// The latest grin block header version this wallet supports
+pub const GRIN_BLOCK_HEADER_VERSION: u16 = 5;
 
 const HEIGHT_LOCKED_FEATURE: u8 = 2;
 const NRD_FEATURE: u8 = 3;

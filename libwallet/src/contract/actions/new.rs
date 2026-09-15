@@ -21,6 +21,7 @@ use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
+use crate::internal::tx;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient};
 use uuid::Uuid;
@@ -65,11 +66,15 @@ where
 	let net_change = setup_args.required_net_change()?;
 	debug!("contract::new => net_change passed: {}", net_change);
 
-	// Initialize a new contract (if net_change is positive, I'm the receiver meaning this is invoice flow)
-	let num_participants = setup_args.num_participants;
-	let mut slate = Slate::blank(num_participants, net_change > 0);
-	// Contracts start with V4 and move to V5 when their proof data requires it
-	slate.version_info.version = 4;
+	// invoice flow if net_change is positive
+	let mut slate = tx::new_tx_slate(
+		w,
+		net_change.unsigned_abs(),
+		net_change > 0,
+		setup_args.num_participants,
+		false,
+		None,
+	)?;
 	// Use a caller-supplied id when given, so a retried creation reuses the same context.
 	let mut existing_context = None;
 	if let Some(id) = slate_id {
@@ -96,9 +101,6 @@ where
 			})?;
 		}
 	}
-	// We set slate.amount to contain the _positive_ net_change for the other party so they can derive expectations.
-	// unsigned_abs avoids the i64::MIN overflow panic of abs().
-	slate.amount = net_change.unsigned_abs();
 	debug!("contract::new => slate amount: {}", slate.amount);
 
 	// Perform setup for the slate

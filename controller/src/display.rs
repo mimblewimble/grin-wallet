@@ -17,12 +17,11 @@ use crate::core::core::{self, amount_to_hr_string, Inputs, OutputFeatures};
 use crate::core::global;
 use crate::libwallet::contract::types::{ContractView, OwnCommitmentStatus};
 use crate::libwallet::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, Slate, TxLogEntry, ViewWallet,
-	WalletInfo,
+	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, Slate, SlatepackAddress, TxLogEntry,
+	ViewWallet, WalletInfo,
 };
 use crate::util::secp::pedersen::Commitment;
 use crate::util::ToHex;
-use grin_wallet_util::OnionV3Address;
 use prettytable;
 use std::io::prelude::Write;
 use term;
@@ -615,7 +614,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	writeln!(
 		t,
 		"Receiver Address: {}",
-		OnionV3Address::from_bytes(pp.receiver_address.to_bytes())
+		SlatepackAddress::new(&pp.receiver_address)
 	)
 	.unwrap();
 	writeln!(t, "Receiver Signature: {}", receiver_signature).unwrap();
@@ -624,7 +623,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	writeln!(
 		t,
 		"Sender Address: {}",
-		OnionV3Address::from_bytes(pp.sender_address.to_bytes())
+		SlatepackAddress::new(&pp.sender_address)
 	)
 	.unwrap();
 	writeln!(t, "Sender Signature: {}", sender_signature).unwrap();
