@@ -124,6 +124,44 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	)?;
 	assert_eq!(slate.state, SlateState::Invoice1);
 
+	let receive_result = wallet::controller::foreign_single_use(
+		wallet1.clone(),
+		PathBuf::from(test_dir),
+		mask1_i.clone(),
+		|api| api.receive_tx(&slate, None, None).map(|_| ()),
+	);
+	assert_eq!(receive_result, Err(libwallet::Error::SlateState));
+	wallet::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let (_, txs) = api.retrieve_txs(m, false, None, Some(slate.id), None)?;
+			assert!(txs.is_empty());
+			Ok(())
+		},
+	)?;
+
+	// receive must reject every slate state except S1
+	for state in [
+		SlateState::Unknown,
+		SlateState::Standard2,
+		SlateState::Standard3,
+		SlateState::Invoice1,
+		SlateState::Invoice2,
+		SlateState::Invoice3,
+	] {
+		let mut bad_slate = slate.clone();
+		bad_slate.state = state.clone();
+		let res = wallet::controller::foreign_single_use(
+			wallet1.clone(),
+			PathBuf::from(test_dir),
+			mask1_i.clone(),
+			|api| api.receive_tx(&bad_slate, None, None).map(|_| ()),
+		);
+		assert_eq!(res, Err(libwallet::Error::SlateState), "state {}", state);
+	}
+
 	wallet::controller::owner_single_use(
 		wallet1.clone(),
 		mask1,
