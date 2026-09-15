@@ -26,14 +26,17 @@ use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntryType};
 use uuid::Uuid;
 
 /// Deterministic slate id for the self-spend that revokes a given contract slate.
-/// Derived from the revoked slate id so a revoke interrupted between creating and
-/// signing the self-spend resumes by reusing the same context, rather
+/// Derived from the revoked slate id and our input so a revoke interrupted between creating
+/// and signing the self-spend resumes by reusing the same context, rather
 /// than orphaning a fresh self-spend on each retry.
-fn self_spend_slate_id(revoked_slate_id: Uuid) -> Uuid {
-	let hash = blake2b(16, b"grin-contract-revoke", revoked_slate_id.as_bytes());
+fn self_spend_slate_id(revoked_slate_id: Uuid, input_commit: &str) -> Uuid {
+	let mut data = revoked_slate_id.as_bytes().to_vec();
+	data.extend_from_slice(input_commit.as_bytes());
+	let hash = blake2b(16, b"grin-contract-revoke", &data);
 	let mut bytes = [0u8; 16];
 	bytes.copy_from_slice(hash.as_bytes());
-	Uuid::from_bytes(bytes)
+	// valid v4 uuid
+	uuid::Builder::from_random_bytes(bytes).into_uuid()
 }
 
 /// Contract revocation is done by double-spending the input
@@ -119,7 +122,7 @@ where
 	// Deterministic self-spend slate id (when we know the revoked slate) so a crash
 	// between new() and sign() is resumed by reusing the same context rather than
 	// orphaning a fresh self-spend on the retry.
-	let self_spend_id = revoked_slate_id.map(self_spend_slate_id);
+	let self_spend_id = revoked_slate_id.map(|id| self_spend_slate_id(id, input_commit));
 	// 2. Create a 1-1 self-spend transaction using this input
 	let ct_slate = new(
 		w,
@@ -171,12 +174,25 @@ mod tests {
 	#[test]
 	fn self_spend_id_is_deterministic_and_distinct() {
 		let revoked = Uuid::parse_str("936da01f-9abd-4d9d-80c7-02af85c822a8").unwrap();
+		let input = "08a1";
 		// Same revoked slate -> same self-spend id, so a retried revoke reuses the context.
-		assert_eq!(self_spend_slate_id(revoked), self_spend_slate_id(revoked));
+		assert_eq!(
+			self_spend_slate_id(revoked, input),
+			self_spend_slate_id(revoked, input)
+		);
 		// Distinct from the revoked id (the self-spend is a different tx).
-		assert_ne!(self_spend_slate_id(revoked), revoked);
+		assert_ne!(self_spend_slate_id(revoked, input), revoked);
 		// Different revoked slates -> different self-spend ids.
 		let other = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-		assert_ne!(self_spend_slate_id(revoked), self_spend_slate_id(other));
+		assert_ne!(
+			self_spend_slate_id(revoked, input),
+			self_spend_slate_id(other, input)
+		);
+		// each party revokes with its own input
+		assert_ne!(
+			self_spend_slate_id(revoked, input),
+			self_spend_slate_id(revoked, "09b2")
+		);
+		assert_eq!(self_spend_slate_id(revoked, input).get_version_num(), 4);
 	}
 }
