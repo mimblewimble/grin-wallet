@@ -23,7 +23,7 @@ use grin_core as core;
 use self::core::core::transaction;
 use self::core::core::Transaction;
 use self::core::global;
-use self::libwallet::{InitTxArgs, OutputStatus, Slate, SlateState};
+use self::libwallet::{InitTxArgs, OutputStatus, Slate, SlateState, GRIN_BLOCK_HEADER_VERSION};
 use impls::test_framework::{self, LocalWalletClient};
 use std::convert::TryInto;
 use std::path::PathBuf;
@@ -133,6 +133,26 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 			slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
 			assert_eq!(slate.state, SlateState::Standard2);
+
+			// wallet2 already has this slate, so accepted versions fail on the duplicate check
+			for bhv in 1..=GRIN_BLOCK_HEADER_VERSION + 1 {
+				let mut s = slate_i.clone();
+				s.version_info.block_header_version = bhv;
+				let res = wallet::controller::foreign_single_use(
+					wallet2.clone(),
+					PathBuf::from(test_dir),
+					mask2_i.clone(),
+					|api| api.receive_tx(&s, None, None).map(|_| ()),
+				);
+				if bhv <= GRIN_BLOCK_HEADER_VERSION {
+					assert!(matches!(
+						res,
+						Err(libwallet::Error::TransactionAlreadyReceived(_))
+					));
+				} else {
+					assert!(matches!(res, Err(libwallet::Error::Compatibility(_))));
+				}
+			}
 			sender_api.tx_lock_outputs(m, &slate)?;
 			slate = sender_api.finalize_tx(m, &slate)?;
 			assert_eq!(slate.state, SlateState::Standard3);
