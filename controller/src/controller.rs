@@ -66,22 +66,18 @@ lazy_static! {
 
 fn check_middleware(
 	name: ForeignCheckMiddlewareFn,
-	node_version_info: Option<NodeVersionInfo>,
+	_node_version_info: Option<NodeVersionInfo>,
 	slate: Option<&Slate>,
 ) -> Result<(), Error> {
 	match name {
 		// allow coinbases to be built regardless
 		ForeignCheckMiddlewareFn::BuildCoinbase => Ok(()),
 		_ => {
-			let mut bhv = 3;
-			if let Some(n) = node_version_info {
-				bhv = n.block_header_version;
-			}
 			if let Some(s) = slate {
-				if bhv > 4 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
+				if s.version_info.block_header_version > GRIN_BLOCK_HEADER_VERSION {
 					Err(Error::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
-						 Please upgrade the node or use a different one."
+						 Please upgrade the wallet."
 							.into(),
 					))?;
 				}
