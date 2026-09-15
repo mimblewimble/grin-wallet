@@ -17,6 +17,7 @@
 //! Versions earlier than V3 are removed for the 4.0.0 release, but versioning code
 //! remains for future needs
 
+use crate::grin_core::core::transaction::KernelFeatures;
 use crate::slate::Slate;
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::slate_versions::v4_bin::SlateV4Bin;
@@ -44,11 +45,11 @@ pub const CURRENT_SLATE_VERSION: u16 = 5;
 /// The latest grin block header version this wallet supports
 pub const GRIN_BLOCK_HEADER_VERSION: u16 = 5;
 
-const HEIGHT_LOCKED_FEATURE: u8 = 2;
-const NRD_FEATURE: u8 = 3;
-
 fn kernel_has_height_arg(feature: u8) -> bool {
-	matches!(feature, HEIGHT_LOCKED_FEATURE | NRD_FEATURE)
+	matches!(
+		feature,
+		KernelFeatures::HEIGHT_LOCKED_U8 | KernelFeatures::NO_RECENT_DUPLICATE_U8
+	)
 }
 
 /// Existing versions of the slate
@@ -185,7 +186,6 @@ impl VersionedCoinbase {
 /// Shared slate fixtures, used by the version conversion tests
 #[cfg(test)]
 pub mod tests {
-	use super::HEIGHT_LOCKED_FEATURE;
 	use crate::grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight, OutputFeatures};
 	use crate::grin_core::core::FeeFields;
 	use crate::grin_util::from_hex;
@@ -291,7 +291,7 @@ pub mod tests {
 
 		// basic fields
 		slate_internal.amount = 23820323;
-		slate_internal.kernel_features = HEIGHT_LOCKED_FEATURE;
+		slate_internal.kernel_features = KernelFeatures::HEIGHT_LOCKED_U8;
 		slate_internal.num_participants = 3;
 		slate_internal.fee_fields = FeeFields::new(0, 42)?;
 		slate_internal.ttl_cutoff_height = 100;
