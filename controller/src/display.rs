@@ -22,6 +22,7 @@ use crate::libwallet::{
 use crate::util::ToHex;
 use grin_wallet_util::OnionV3Address;
 use prettytable;
+use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use std::io::prelude::Write;
 use term;
 
@@ -538,8 +539,8 @@ pub fn accounts(acct_mappings: Vec<AcctPathMapping>) {
 
 	table.set_titles(row![
 		mMG->"Name",
-		bMG->"Output BIP-32 Parent Path",
-		bMG->"Slatepack BIP-32 Path (Index 0)",
+		bMG->"Parent Output Key",
+		bMG->"Slatepack Address (Index 0)",
 	]);
 	for m in acct_mappings {
 		let slatepack_path = address::address_derivation_path(&m.path, 0).to_bip_32_string();
@@ -549,7 +550,18 @@ pub fn accounts(acct_mappings: Vec<AcctPathMapping>) {
 			bGC->slatepack_path,
 		]);
 	}
-	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+	table.set_format(
+		FormatBuilder::new()
+			.column_separator('|')
+			.separators(
+				&[LinePosition::Top, LinePosition::Title],
+				LineSeparator::new('-', '+', '+', '+'),
+			)
+			.padding(1, 1)
+			.build(),
+	);
+	let width = table.to_string().find('\n').unwrap_or(0);
+	println!("{:^1$}", "BIP-32 Derivation Path", width);
 	table.printstd();
 	println!();
 }
