@@ -236,7 +236,8 @@ where
 			sender_id: m.dest,
 			dest: m.sender_id,
 			method: m.method,
-			body: serde_json::to_string(&SlateV4::from(slate)).unwrap(),
+			body: serde_json::to_string(&SlateV4::try_from(slate)?)
+				.map_err(|e| libwallet::Error::ClientCallback(e.to_string()))?,
 		})
 	}
 
@@ -397,7 +398,8 @@ impl LocalWalletClient {
 			sender_id: self.id.clone(),
 			dest: dest.to_owned(),
 			method: "send_tx_slate".to_owned(),
-			body: serde_json::to_string(&SlateV4::from(slate)).unwrap(),
+			body: serde_json::to_string(&SlateV4::try_from(slate)?)
+				.map_err(|e| libwallet::Error::ClientCallback(e.to_string()))?,
 		};
 		{
 			let p = self.proxy_tx.lock();

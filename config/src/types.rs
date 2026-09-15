@@ -28,6 +28,9 @@ pub struct WalletConfig {
 	pub chain_type: Option<ChainTypes>,
 	/// The port this wallet will run on
 	pub api_listen_port: u16,
+	/// Address this wallet's owner API will listen on
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub owner_api_listen_addr: Option<String>,
 	/// The port this wallet's owner API will run on
 	pub owner_api_listen_port: Option<u16>,
 	/// Location of the secret for basic auth on the Owner API
@@ -63,6 +66,7 @@ impl Default for WalletConfig {
 		WalletConfig {
 			chain_type: Some(ChainTypes::Mainnet),
 			api_listen_port: 3415,
+			owner_api_listen_addr: None,
 			owner_api_listen_port: Some(WalletConfig::default_owner_api_listen_port()),
 			api_secret_path: Some(".owner_api_secret".to_string()),
 			node_api_secret_path: Some(".foreign_api_secret".to_string()),
@@ -106,7 +110,9 @@ impl WalletConfig {
 
 	/// Owner API listen address
 	pub fn owner_api_listen_addr(&self) -> String {
-		format!("127.0.0.1:{}", self.owner_api_listen_port())
+		self.owner_api_listen_addr
+			.clone()
+			.unwrap_or_else(|| format!("127.0.0.1:{}", self.owner_api_listen_port()))
 	}
 
 	/// Accept fee base
@@ -124,6 +130,21 @@ impl WalletConfig {
 		)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::WalletConfig;
+
+	#[test]
+	fn owner_api_address() {
+		let mut config = WalletConfig::default();
+		assert_eq!(config.owner_api_listen_addr(), "127.0.0.1:3420");
+
+		config.owner_api_listen_addr = Some("0.0.0.0:3420".to_string());
+		assert_eq!(config.owner_api_listen_addr(), "0.0.0.0:3420");
+	}
+}
+
 /// Error type wrapping config errors.
 #[derive(Debug)]
 pub enum ConfigError {

@@ -204,13 +204,14 @@ where
 				sender_address_path,
 			)?;
 			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
-			t.payment_proof = Some(StoredProofInfo {
-				receiver_address: p.receiver_address,
-				receiver_signature: p.receiver_signature,
-				sender_address: sender_address.to_ed25519()?,
+
+			t.payment_proof = Some(StoredProofInfo::new(
+				p.receiver_address,
+				p.promise_signature,
+				sender_address.to_ed25519()?,
 				sender_address_path,
-				sender_signature: None,
-			});
+				None,
+			));
 		};
 
 		// write the output representing our change

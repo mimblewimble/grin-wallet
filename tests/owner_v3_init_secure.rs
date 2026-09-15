@@ -116,7 +116,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 
 	// 5) A normal request, incorrect key
 	let mut bad_key = shared_key.clone();
-	bad_key.0[0] = 0;
+	bad_key.0[0] ^= 1;
 	let req = include_str!("data/v3_reqs/retrieve_info.req.json");
 	let res = send_request_enc::<RetrieveSummaryInfoResp>(
 		&JsonId::StrId(String::from("1")),

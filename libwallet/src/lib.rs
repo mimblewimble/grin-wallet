@@ -35,6 +35,8 @@ use blake2_rfc as blake2;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
+extern crate serde_with;
+#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
@@ -46,23 +48,29 @@ extern crate strum_macros;
 pub mod address;
 pub mod api_impl;
 mod backend;
+pub mod contract;
 mod error;
 mod internal;
 pub mod mwixnet;
+mod payment_proof;
 mod slate;
 pub mod slate_versions;
 pub mod slatepack;
 mod types;
 
 pub use crate::error::Error;
-pub use crate::slate::{ParticipantData, Slate, SlateState};
+pub use crate::payment_proof::{EarlyPaymentProof, ProofWitness};
+pub use crate::slate::{
+	KernelFeaturesArgs, ParticipantData, PaymentMemo, PaymentProofType, Slate, SlateState,
+};
 pub use crate::slate_versions::v4::sig_is_blank;
 pub use crate::slate_versions::{
 	SlateVersion, VersionedBinSlate, VersionedCoinbase, VersionedSlate, CURRENT_SLATE_VERSION,
 	GRIN_BLOCK_HEADER_VERSION,
 };
 pub use crate::slatepack::{
-	Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin, Slatepacker, SlatepackerArgs,
+	Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin, SlatepackMode, Slatepacker,
+	SlatepackerArgs,
 };
 pub use api_impl::owner_updater::StatusMessage;
 pub use api_impl::types::{

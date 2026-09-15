@@ -214,6 +214,9 @@ pub mod dalek_xpubkey_serde {
 		String::deserialize(deserializer)
 			.and_then(|string| from_hex(&string).map_err(|err| Error::custom(err.to_string())))
 			.and_then(|bytes: Vec<u8>| {
+				if bytes.len() != 32 {
+					return Err(Error::custom("unexpected byte length"));
+				}
 				let mut b = [0u8; 32];
 				b.copy_from_slice(&bytes[0..32]);
 				Ok(xDalekPublicKey::from(b))
@@ -256,6 +259,47 @@ pub mod dalek_pubkey_base64 {
 	}
 }
 
+/// Serializes an Option<secp::PublicKey> to and from hex
+pub mod option_pubkey_serde {
+	use crate::grin_util::secp::key::PublicKey;
+	use crate::grin_util::{from_hex, static_secp_instance, ToHex};
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	/// Serialize an optional public key as compressed hex
+	pub fn serialize<S>(key: &Option<PublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match key {
+			Some(key) => {
+				let secp = static_secp_instance();
+				let secp = secp.lock();
+				serializer.serialize_str(&key.serialize_vec(&secp, true).to_hex())
+			}
+			None => serializer.serialize_none(),
+		}
+	}
+
+	/// Read an optional public key from hex
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<PublicKey>, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		Option::<String>::deserialize(deserializer).and_then(|value| match value {
+			Some(value) => {
+				let bytes = from_hex(&value).map_err(Error::custom)?;
+				let secp = static_secp_instance();
+				let secp = secp.lock();
+				PublicKey::from_slice(&secp, &bytes)
+					.map(Some)
+					.map_err(Error::custom)
+			}
+			None => Ok(None),
+		})
+	}
+}
+
 /// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
 pub mod option_dalek_pubkey_base64 {
 	use base64;
@@ -283,6 +327,9 @@ pub mod option_dalek_pubkey_base64 {
 			Some(string) => base64::decode(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 32 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					DalekPublicKey::from_bytes(&b)
@@ -325,6 +372,9 @@ pub mod option_dalek_pubkey_serde {
 			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 32 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					DalekPublicKey::from_bytes(&b)
@@ -364,6 +414,9 @@ pub mod option_xdalek_pubkey_serde {
 			Some(string) => from_hex(&string)
 				.map_err(|err| Error::custom(err.to_string()))
 				.and_then(|bytes: Vec<u8>| {
+					if bytes.len() != 32 {
+						return Err(Error::custom("unexpected byte length"));
+					}
 					let mut b = [0u8; 32];
 					b.copy_from_slice(&bytes[0..32]);
 					Ok(Some(xDalekPublicKey::from(b)))
@@ -484,7 +537,7 @@ pub mod option_dalek_sig_base64 {
 	}
 }
 
-/// Serializes slates 'version_info' field
+/// Serializes slates 'version_info' field - V4
 pub mod version_info_v4 {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
@@ -513,11 +566,19 @@ pub mod version_info_v4 {
 			if v.len() != 2 {
 				return Err(Error::custom("Cannot parse version"));
 			}
-			match u16::from_str_radix(v[0], 10) {
-				Ok(u) => retval.version = u,
+			match v[0].parse::<u16>() {
+				// VersionedSlate is untagged, so the declared version must be checked here:
+				// otherwise a slate is silently parsed as the wrong variant.
+				Ok(4) => retval.version = 4,
+				Ok(u) => {
+					return Err(Error::custom(format!(
+						"Expected a V4 slate, found version {}",
+						u
+					)))
+				}
 				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
 			}
-			match u16::from_str_radix(v[1], 10) {
+			match v[1].parse::<u16>() {
 				Ok(u) => retval.block_header_version = u,
 				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
 			}
@@ -526,7 +587,57 @@ pub mod version_info_v4 {
 	}
 }
 
-/// Serializes slates 'state' field
+/// Serializes slates 'version_info' field - V5
+pub mod version_info_v5 {
+	use serde::de::Error;
+	use serde::{Deserialize, Deserializer, Serializer};
+
+	use crate::slate_versions::v5::VersionCompatInfoV5;
+
+	/// Write the slate and block header versions separated by a colon
+	pub fn serialize<S>(v: &VersionCompatInfoV5, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&format!("{}:{}", v.version, v.block_header_version))
+	}
+
+	/// Read the versions and require a V5 slate
+	pub fn deserialize<'de, D>(deserializer: D) -> Result<VersionCompatInfoV5, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		String::deserialize(deserializer).and_then(|s| {
+			let mut retval = VersionCompatInfoV5 {
+				version: 0,
+				block_header_version: 0,
+			};
+			let v: Vec<&str> = s.split(':').collect();
+			if v.len() != 2 {
+				return Err(Error::custom("Cannot parse version"));
+			}
+			match v[0].parse::<u16>() {
+				// See the V4 deserializer: the declared version disambiguates the
+				// untagged VersionedSlate variants.
+				Ok(5) => retval.version = 5,
+				Ok(u) => {
+					return Err(Error::custom(format!(
+						"Expected a V5 slate, found version {}",
+						u
+					)))
+				}
+				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
+			}
+			match v[1].parse::<u16>() {
+				Ok(u) => retval.block_header_version = u,
+				Err(e) => return Err(Error::custom(format!("Cannot parse version: {}", e))),
+			}
+			Ok(retval)
+		})
+	}
+}
+
+/// Serializes slates 'state' field - V4
 pub mod slate_state_v4 {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
@@ -571,6 +682,8 @@ pub mod slate_state_v4 {
 	}
 }
 
+pub use slate_state_v4 as slate_state_v5;
+
 /// Serializes an secp256k1 pubkey to base64
 pub mod uuid_base64 {
 	use base64;
@@ -596,6 +709,9 @@ pub mod uuid_base64 {
 				base64::decode(&string).map_err(|err| Error::custom(err.to_string()))
 			})
 			.and_then(|bytes: Vec<u8>| {
+				if bytes.len() != 16 {
+					return Err(Error::custom("unexpected byte length"));
+				}
 				let mut b = [0u8; 16];
 				b.copy_from_slice(&bytes[0..16]);
 				Ok(Uuid::from_bytes(b))
@@ -662,5 +778,23 @@ mod test {
 			println!();
 			assert_eq!(s, deserialized);
 		}
+	}
+
+	#[test]
+	fn rejects_malformed_dalek_fields() {
+		// A too-short fixed-length field used to panic inside copy_from_slice during
+		// deserialization; it must now surface as an error instead.
+		let json = serde_json::to_string(&SerTest::random()).unwrap();
+		let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+		// Signature field shorter than 64 bytes (exercises the dalek_sig_serde guard).
+		let mut bad = value.clone();
+		bad["sig"] = serde_json::Value::String("00".to_string());
+		assert!(serde_json::from_value::<SerTest>(bad).is_err());
+
+		// Public-key field shorter than 32 bytes.
+		let mut bad = value;
+		bad["pub_key"] = serde_json::Value::String("00".to_string());
+		assert!(serde_json::from_value::<SerTest>(bad).is_err());
 	}
 }

@@ -29,6 +29,9 @@ To use the command-line wallet, we recommend using the latest release from the [
 
 Full documentation outlining how to use the command line wallet can be found on [Grin's Wiki](https://github.com/mimblewimble/docs/wiki/Wallet-User-Guide)
 
+The experimental contract workflow and its current limitations are described in
+[doc/contracts.md](doc/contracts.md).
+
 To build locally install Rust and execute in the project directory:
 ```
 git submodule update --init --recursive

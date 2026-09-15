@@ -336,7 +336,7 @@ pub fn initial_setup_wallet(
 		Some(p) => p,
 		None => get_wallet_path(chain_type, create_path)?,
 	};
-	println!("Wallet path: {}", wallet_path.display());
+	eprintln!("Wallet path: {}", wallet_path.display());
 	// Get path to the node directory,
 	let node_path = get_node_path(Some(wallet_path.clone()), chain_type)?;
 

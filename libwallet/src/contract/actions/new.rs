@@ -1,0 +1,108 @@
+// Copyright 2022 The Grin Developers
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Implementation of contract new
+
+use crate::backend::WalletBackend;
+use crate::contract;
+use crate::contract::actions::setup;
+use crate::contract::types::ContractSetupArgsAPI;
+use crate::error::Error;
+use crate::grin_keychain::Keychain;
+use crate::grin_util::secp::key::SecretKey;
+use crate::internal::tx;
+use crate::slate::Slate;
+use crate::types::{Context, NodeClient};
+use uuid::Uuid;
+
+/// Create a new contract with initial setup done by the initiator. `slate_id`, when
+/// provided, fixes the slate id (rather than a random one) so the caller can make a
+/// retried creation idempotent by reusing the existing context for that id.
+pub fn new<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	setup_args: &ContractSetupArgsAPI,
+	ttl_blocks: Option<u64>,
+	slate_id: Option<Uuid>,
+) -> Result<Slate, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	contract::utils::verify_num_participants(setup_args.num_participants)?;
+	contract::utils::verify_fee_rate(setup_args.fee_rate)?;
+	// Compute state for 'new'
+	let (slate, context) = compute(w, keychain_mask, setup_args, ttl_blocks, slate_id)?;
+
+	// Atomically commit state
+	contract::utils::save_step(w, keychain_mask, &slate, context, setup_args.add_outputs)?;
+
+	Ok(slate)
+}
+
+/// Compute logic for new
+pub fn compute<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	setup_args: &ContractSetupArgsAPI,
+	ttl_blocks: Option<u64>,
+	slate_id: Option<Uuid>,
+) -> Result<(Slate, Context), Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let net_change = setup_args.required_net_change()?;
+	debug!("contract::new => net_change passed: {}", net_change);
+
+	// invoice flow if net_change is positive
+	let mut slate = tx::new_tx_slate(
+		w,
+		net_change.unsigned_abs(),
+		net_change > 0,
+		setup_args.num_participants,
+		false,
+		None,
+	)?;
+	// Use a caller-supplied id when given, so a retried creation reuses the same context.
+	let mut existing_context = None;
+	if let Some(id) = slate_id {
+		slate.id = id;
+		match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
+			Ok(context) => {
+				slate.ttl_cutoff_height = context.contract_ttl_cutoff_height.unwrap_or(0);
+				existing_context = Some(context);
+			}
+			Err(Error::NotFoundErr(_)) => {}
+			Err(e) => return Err(e),
+		}
+	}
+	if existing_context.is_none() {
+		if let Some(blocks) = ttl_blocks {
+			if blocks == 0 {
+				return Err(Error::GenericError(
+					"Contract TTL must be at least 1 block".to_string(),
+				));
+			}
+			let height = w.w2n_client().get_chain_tip()?.0;
+			slate.ttl_cutoff_height = height.checked_add(blocks).ok_or_else(|| {
+				Error::GenericError("Contract TTL exceeds the maximum block height".to_string())
+			})?;
+		}
+	}
+	debug!("contract::new => slate amount: {}", slate.amount);
+
+	// Perform setup for the slate
+	setup::compute(w, keychain_mask, &slate, setup_args, existing_context)
+}

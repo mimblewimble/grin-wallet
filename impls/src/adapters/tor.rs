@@ -112,8 +112,8 @@ impl TorSlateSender {
 		Ok(tor)
 	}
 
-	/// Check version of the listening wallet
-	pub fn check_other_version(&mut self, url: &str) -> Result<SlateVersion, Error> {
+	/// Check whether the listening wallet supports the slate's output version
+	pub fn check_other_version(&mut self, url: &str, slate: &Slate) -> Result<SlateVersion, Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -162,13 +162,7 @@ impl TorSlateSender {
 			return Err(Error::ClientCallback(report));
 		}
 
-		if supported_slate_versions.contains(&"V4".to_owned()) {
-			return Ok(SlateVersion::V4);
-		}
-
-		let report = "Unable to negotiate slate format with other wallet.".to_string();
-		error!("{}", report);
-		Err(Error::ClientCallback(report))
+		slate_version(slate, &supported_slate_versions)
 	}
 
 	fn post<IN>(&self, url: &str, input: IN) -> Result<String, ClientError>
@@ -194,6 +188,17 @@ impl TorSlateSender {
 	}
 }
 
+fn slate_version(slate: &Slate, supported: &[String]) -> Result<SlateVersion, Error> {
+	let version = SlateVersion::output_for(slate)?;
+	let version_name = json!(version);
+	if supported.iter().any(|name| version_name == name.as_str()) {
+		return Ok(version);
+	}
+	let report = "Unable to negotiate slate format with other wallet.".to_string();
+	error!("{}", report);
+	Err(Error::ClientCallback(report))
+}
+
 impl SlateSender for TorSlateSender {
 	fn send_tx(&mut self, slate: &Slate, finalize: bool) -> Result<Slate, Error> {
 		let trailing = match self.base_url.ends_with('/') {
@@ -202,9 +207,8 @@ impl SlateSender for TorSlateSender {
 		};
 		let url_str = format!("{}{}v2/foreign", self.base_url, trailing);
 
-		let slate_send = match self.check_other_version(&url_str)? {
-			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
-		};
+		let version = self.check_other_version(&url_str, slate)?;
+		let slate_send = VersionedSlate::into_version(slate.clone(), version)?;
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = match finalize {
 			false => json!({
@@ -262,5 +266,37 @@ impl SlateSender for TorSlateSender {
 			error!("Error deserializing response slate: {}", slate_value);
 			Err(Error::SlateDeser)
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn slate_versions() {
+		let mut slate = Slate::blank(2, false);
+		for (requested, expected) in [(4, SlateVersion::V4), (5, SlateVersion::V5)] {
+			slate.version_info.version = requested;
+			assert_eq!(
+				slate_version(&slate, &["V5".into(), "V4".into()]).unwrap(),
+				expected
+			);
+			assert_eq!(
+				slate_version(&slate, &[format!("V{}", requested)]).unwrap(),
+				expected
+			);
+			let other = if requested == 4 { "V5" } else { "V4" };
+			assert!(matches!(
+				slate_version(&slate, &[other.into()]),
+				Err(Error::ClientCallback(_))
+			));
+			assert!(slate_version(&slate, &[]).is_err());
+		}
+		slate.version_info.version = 6;
+		assert!(matches!(
+			slate_version(&slate, &["V5".into(), "V4".into()]),
+			Err(Error::SlateVersion(6))
+		));
 	}
 }
