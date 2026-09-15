@@ -57,7 +57,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	keys::accounts(w)
+	let mut accounts = keys::accounts(w)?;
+	// Put active account on top.
+	accounts.sort_by_key(|k| k.path != w.parent_key_id());
+	Ok(accounts)
 }
 
 /// new account path
