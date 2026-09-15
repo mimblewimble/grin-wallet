@@ -696,6 +696,25 @@ where
 		args.input_file,
 		args.input_slatepack_message,
 	)?;
+	match slate.state {
+		SlateState::Invoice1 => {
+			return Err(Error::GenericError(
+				"Use the 'pay' command to process this invoice transaction".to_string(),
+			))
+		}
+		SlateState::Standard2 | SlateState::Invoice2 => {
+			return Err(Error::GenericError(
+				"Use the 'finalize' command to complete this transaction".to_string(),
+			))
+		}
+		SlateState::Standard3 | SlateState::Invoice3 => {
+			return Err(Error::GenericError(
+				"Use the 'post' command to post this finalized transaction to the chain"
+					.to_string(),
+			))
+		}
+		_ => {}
+	}
 
 	let km = match keychain_mask.as_ref() {
 		None => None,
@@ -859,6 +878,25 @@ where
 		args.input_file.clone(),
 		args.input_slatepack_message.clone(),
 	)?;
+	match slate.state {
+		SlateState::Standard1 => {
+			return Err(Error::GenericError(
+				"Use the 'receive' command on the recipient's wallet first".to_string(),
+			))
+		}
+		SlateState::Invoice1 => {
+			return Err(Error::GenericError(
+				"Use the 'pay' command on the payer's wallet first".to_string(),
+			))
+		}
+		SlateState::Standard3 | SlateState::Invoice3 => {
+			return Err(Error::GenericError(
+				"Use the 'post' command to post this finalized transaction to the chain"
+					.to_string(),
+			))
+		}
+		_ => {}
+	}
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
