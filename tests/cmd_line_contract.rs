@@ -210,6 +210,62 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 	];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
+	// slatepack for another account needs --account
+	let arg_vec = vec!["grin-wallet", "-p", "password1", "account", "-c", "second"];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	let mut second = None;
+	grin_wallet_controller::controller::owner_single_use(
+		wallet1.clone(),
+		mask1,
+		std::path::PathBuf::from(test_dir),
+		|api, m| {
+			api.set_active_account(m, "second")?;
+			second = Some(api.get_slatepack_address(m, 0)?.to_string());
+			api.set_active_account(m, "default")?;
+			Ok(())
+		},
+	)?;
+	let second = second.unwrap();
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password2",
+		"contract",
+		"new",
+		"--receive",
+		"1",
+		"--no-payjoin",
+		"--min_conf",
+		"1",
+		"--encrypt-for",
+		&second,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+	let file_name = only_slatepack(test_dir, "wallet2");
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password1",
+		"contract",
+		"view",
+		"-i",
+		&file_name,
+	];
+	let err = execute_command(&app, test_dir, "wallet1", &client1, arg_vec).unwrap_err();
+	assert!(err.to_string().contains("account 'second'"), "{}", err);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password1",
+		"-a",
+		"second",
+		"contract",
+		"view",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
 	// A file that isn't there is reported, not panicked on
 	let arg_vec = vec![
 		"grin-wallet",

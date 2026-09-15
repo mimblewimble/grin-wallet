@@ -598,14 +598,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 		Some(f) => f.fee(), // apply fee mask past HF4
 		None => 0,
 	};
-	let amount = if tx.amount_credited >= tx.amount_debited {
-		core::amount_to_hr_string(tx.amount_credited - tx.amount_debited, true)
-	} else {
-		format!(
-			"{}",
-			core::amount_to_hr_string(tx.amount_debited - tx.amount_credited - fee, true)
-		)
-	};
+	let amount = core::amount_to_hr_string(proof_amount(tx, pp.proof_type.is_some(), fee), true);
 
 	let sender_signature = match pp.sender_signature {
 		Some(s) => {
@@ -645,6 +638,15 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	println!();
 
 	Ok(())
+}
+
+/// Contract tx logs store the net amount, so early proofs don't subtract the fee
+fn proof_amount(tx: &TxLogEntry, early_proof: bool, fee: u64) -> u64 {
+	if early_proof || tx.amount_credited >= tx.amount_debited {
+		tx.amount_credited.abs_diff(tx.amount_debited)
+	} else {
+		tx.amount_debited - tx.amount_credited - fee
+	}
 }
 
 /// Display a summary of a contract slate
@@ -766,11 +768,12 @@ fn format_net_change(change: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-	use super::{contract_view_table, format_net_change};
+	use super::{contract_view_table, format_net_change, proof_amount};
 	use crate::core::core::{FeeFields, Input, Inputs, Output, OutputFeatures, Transaction};
 	use crate::core::global;
+	use crate::keychain::Identifier;
 	use crate::libwallet::contract::types::ContractView;
-	use crate::libwallet::Slate;
+	use crate::libwallet::{Slate, TxLogEntry, TxLogEntryType};
 	use crate::util::secp::pedersen::{Commitment, RangeProof};
 
 	fn table_value(table: &prettytable::Table, label: &str) -> String {
@@ -792,6 +795,19 @@ mod tests {
 		assert_eq!(format_net_change(1_000_000_000), "+1.000000000");
 		assert_eq!(format_net_change(-1_000_000_000), "-1.000000000");
 		assert_eq!(format_net_change(0), "+0.000000000");
+	}
+
+	#[test]
+	fn proof_amount_legacy_and_early() {
+		let mut tx = TxLogEntry::new(Identifier::zero(), TxLogEntryType::TxSent, 0);
+		// legacy send
+		tx.amount_debited = 1_500_000_000;
+		tx.amount_credited = 477_000_000;
+		assert_eq!(proof_amount(&tx, false, 23_000_000), 1_000_000_000);
+		// contract send
+		tx.amount_debited = 200_000_000;
+		tx.amount_credited = 0;
+		assert_eq!(proof_amount(&tx, true, 11_750_000), 200_000_000);
 	}
 
 	#[test]

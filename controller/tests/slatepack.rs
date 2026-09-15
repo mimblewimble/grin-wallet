@@ -609,6 +609,17 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			println!("{}", slatepack_raw);
 			let decoded_slate = api.slate_from_slatepack_message(m, slatepack, vec![0])?;
 			println!("{}", decoded_slate);
+			// wrong active account, the error names the right one
+			let own_address = api.get_slatepack_address(m, 0)?;
+			let own_slatepack =
+				api.create_slatepack_message(m, &slate, Some(0), vec![own_address])?;
+			api.create_account_path(m, "second")?;
+			api.set_active_account(m, "second")?;
+			let err = api
+				.slate_from_slatepack_message(m, own_slatepack, vec![0])
+				.unwrap_err();
+			assert!(err.to_string().contains("account 'default'"), "{}", err);
+			api.set_active_account(m, "default")?;
 			Ok(())
 		},
 	)?;

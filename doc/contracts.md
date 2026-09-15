@@ -52,6 +52,7 @@ does not, revoke the contract and create a new one.
 
 Each side's account is fixed when it first joins the contract. Changing the active account
 later does not affect setup or signing; they use the account stored in the context.
+Encrypted Slatepacks still need their account selected with `--account`; the error names it.
 
 ## View and revoke
 
@@ -80,6 +81,7 @@ account selected with `--account`.
   the [known multi-party attack](https://forum.grin.mw/t/grin-wallet-contract-prototype/9745/18)
 * Early payment proofs are available for contracts through the API and CLI. Use `--proof-type`
   and optionally `--memo` (up to 1024 bytes of UTF-8 text). The proof binds the memo's Blake2b hash
+* `export_proof` and `verify_proof` also handle early proofs
 * Invoice proofs work with SRS and RSR. Sender-nonce proofs only work with RSR. Both need
   experimental Slate V5; see
   [Early Payment Proofs](https://github.com/mimblewimble/grin-rfcs/pull/70)

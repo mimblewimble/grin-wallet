@@ -240,6 +240,49 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 		},
 	)?;
 
+	// export and verify through the CLI
+	let proof_file = format!("{}/early_proof.json", test_dir);
+	let tampered_file = format!("{}/early_proof_tampered.json", test_dir);
+	wallet::controller::owner_single_use(
+		send_wallet.clone(),
+		send_mask,
+		PathBuf::from(test_dir),
+		|api, m| {
+			wallet::command::proof_export(
+				api,
+				m,
+				wallet::command::ProofExportArgs {
+					output_file: proof_file.clone(),
+					id: None,
+					tx_slate_id: Some(slate.id),
+				},
+			)
+			.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
+			wallet::command::proof_verify(
+				api,
+				m,
+				wallet::command::ProofVerifyArgs {
+					input_file: proof_file.clone(),
+				},
+			)
+			.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
+			// tweak the amount and it shouldn't verify
+			let mut tampered: serde_json::Value =
+				serde_json::from_str(&std::fs::read_to_string(&proof_file).unwrap()).unwrap();
+			tampered["proof"]["amount"] = serde_json::Value::from("400000");
+			std::fs::write(&tampered_file, tampered.to_string()).unwrap();
+			let retval = wallet::command::proof_verify(
+				api,
+				m,
+				wallet::command::ProofVerifyArgs {
+					input_file: tampered_file.clone(),
+				},
+			);
+			assert!(retval.is_err());
+			Ok(())
+		},
+	)?;
+
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));

@@ -27,8 +27,8 @@ use crate::libwallet::contract::types::{
 };
 use crate::libwallet::contract::{can_finalize, initial_net_change};
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
+	self, EarlyPaymentProof, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate,
+	SlateState, SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
@@ -774,7 +774,22 @@ where
 	let was_encrypted = slatepack.is_encrypted();
 	if was_encrypted {
 		let dec_key = owner_api.get_slatepack_secret_key(keychain_mask, 0)?;
-		slatepack.try_decrypt_payload(Some(&dec_key))?;
+		if let Err(e) = slatepack.try_decrypt_payload(Some(&dec_key)) {
+			// tell the user which account can decrypt it
+			let account = libwallet::api_impl::owner::slatepack_account(
+				owner_api.wallet_inst.clone(),
+				keychain_mask,
+				&slatepack,
+			)?;
+			return Err(match account {
+				Some(label) => libwallet::Error::SlatepackDecryption(format!(
+					"it is encrypted for account '{}' of this wallet, select it with --account {}",
+					label, label
+				))
+				.into(),
+				None => e.into(),
+			});
+		}
 	}
 	let slate = packer.get_slate(&slatepack)?;
 	Ok((slate, slatepack.sender, was_encrypted))
@@ -1554,6 +1569,13 @@ pub struct ProofExportArgs {
 	pub tx_slate_id: Option<Uuid>,
 }
 
+/// Exported early proof, with the receiver address needed to verify it
+#[derive(Serialize, Deserialize)]
+struct EarlyProofFile {
+	recipient_address: SlatepackAddress,
+	proof: EarlyPaymentProof,
+}
+
 pub fn proof_export<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -1564,14 +1586,34 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let result = owner_api.retrieve_payment_proof(keychain_mask, true, args.id, args.tx_slate_id);
+	// early proofs have no sender signature
+	let (_, txs) = owner_api.retrieve_txs(keychain_mask, false, args.id, args.tx_slate_id, None)?;
+	let early_recipient = txs
+		.first()
+		.and_then(|tx| tx.payment_proof.as_ref())
+		.filter(|p| p.proof_type.is_some())
+		.map(|p| SlatepackAddress::new(&p.receiver_address));
+	let result = match early_recipient {
+		Some(recipient_address) => owner_api
+			.retrieve_payment_proof_early(keychain_mask, true, args.id, args.tx_slate_id)
+			.map(|proof| {
+				json::to_string_pretty(&EarlyProofFile {
+					recipient_address,
+					proof,
+				})
+				.unwrap()
+			}),
+		None => owner_api
+			.retrieve_payment_proof(keychain_mask, true, args.id, args.tx_slate_id)
+			.map(|p| json::to_string_pretty(&p).unwrap()),
+	};
 	match result {
 		Ok(p) => {
 			// actually export proof
 			let mut proof_file = File::create(args.output_file.clone())
 				.map_err(|e| Error::GenericError(format!("{}", e)))?;
 			proof_file
-				.write_all(json::to_string_pretty(&p).unwrap().as_bytes())
+				.write_all(p.as_bytes())
 				.map_err(|e| Error::GenericError(format!("{}", e)))?;
 			proof_file
 				.sync_all()
@@ -1616,6 +1658,13 @@ where
 	proof_f
 		.read_to_string(&mut proof)
 		.map_err(|e| Error::GenericError(format!("{}", e)))?;
+	// early proof file
+	let is_early = json::from_str::<json::Value>(&proof)
+		.map(|v| v.get("proof").is_some())
+		.unwrap_or(false);
+	if is_early {
+		return proof_verify_early(owner_api, keychain_mask, &proof);
+	}
 	// read
 	let proof: PaymentProof = match json::from_str(&proof) {
 		Ok(p) => p,
@@ -1628,18 +1677,7 @@ where
 	let result = owner_api.verify_payment_proof(keychain_mask, &proof);
 	match result {
 		Ok((iam_sender, iam_recipient)) => {
-			println!("Payment proof's signatures are valid.");
-			if iam_sender {
-				println!("The proof's sender address belongs to this wallet.");
-			}
-			if iam_recipient {
-				println!("The proof's recipient address belongs to this wallet.");
-			}
-			if !iam_recipient && !iam_sender {
-				println!(
-					"Neither the proof's sender nor recipient address belongs to this wallet."
-				);
-			}
+			print_proof_verified(iam_sender, iam_recipient);
 			Ok(())
 		}
 		Err(e) => {
@@ -1647,6 +1685,54 @@ where
 			Err(Error::from(e))
 		}
 	}
+}
+
+fn print_proof_verified(iam_sender: bool, iam_recipient: bool) {
+	println!("Payment proof's signatures are valid.");
+	if iam_sender {
+		println!("The proof's sender address belongs to this wallet.");
+	}
+	if iam_recipient {
+		println!("The proof's recipient address belongs to this wallet.");
+	}
+	if !iam_recipient && !iam_sender {
+		println!("Neither the proof's sender nor recipient address belongs to this wallet.");
+	}
+}
+
+fn proof_verify_early<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	proof: &str,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let file: EarlyProofFile = json::from_str(proof).map_err(|e| {
+		error!("Unable to parse payment proof file: {}", e);
+		Error::from(libwallet::Error::PaymentProofParsing(format!("{}", e)))
+	})?;
+	let result = {
+		let mut w_lock = owner_api.wallet_inst.lock();
+		let w = w_lock.lc_provider()?.wallet_inst()?;
+		libwallet::api_impl::foreign::verify_payment_proof_early(
+			w,
+			&file.recipient_address.pub_key,
+			&file.proof,
+		)
+	};
+	if let Err(e) = result {
+		error!("Proof not valid: {}", e);
+		return Err(Error::from(e));
+	}
+	let my_address = owner_api.get_slatepack_address(keychain_mask, 0)?.pub_key;
+	print_proof_verified(
+		file.proof.sender_address == my_address,
+		file.recipient_address.pub_key == my_address,
+	);
+	Ok(())
 }
 
 /// Create new contract command arguments

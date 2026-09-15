@@ -142,6 +142,31 @@ where
 	Ok(d_skey)
 }
 
+/// Label of another account that can decrypt the slatepack, if any
+pub fn slatepack_account<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	slatepack: &Slatepack,
+) -> Result<Option<String>, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	wallet_lock!(wallet_inst, w);
+	let active = w.parent_key_id();
+	let k = w.keychain(keychain_mask)?;
+	for acct in w.acct_path_iter()?.filter(|acct| acct.path != active) {
+		let sec_addr_key = address::address_from_derivation_path(&k, &acct.path, 0)?;
+		let dec_key = DalekSecretKey::from_bytes(&sec_addr_key.0);
+		let mut candidate = slatepack.clone();
+		if candidate.try_decrypt_payload(Some(&dec_key)).is_ok() {
+			return Ok(Some(acct.label));
+		}
+	}
+	Ok(None)
+}
+
 /// Create a slatepack message from the given slate
 pub fn create_slatepack_message<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
@@ -217,11 +242,24 @@ where
 			};
 			return packer.get_slate(&slatepack);
 		}
-		Err(Error::SlatepackDecryption(
-			"Could not decrypt slatepack with any provided index on the address derivation path"
-				.to_owned(),
-		)
-		.into())
+		// maybe it's for another account
+		let packer = Slatepacker::new(SlatepackerArgs {
+			sender: None,
+			recipients: vec![],
+			dec_key: None,
+		});
+		let encrypted = packer.deser_slatepack(slatepack.as_bytes(), false)?;
+		let msg = match slatepack_account(wallet_inst, keychain_mask, &encrypted)? {
+			Some(label) => format!(
+				"it is encrypted for account '{}' of this wallet, make it the active account",
+				label
+			),
+			None => {
+				"Could not decrypt slatepack with any provided index on the address derivation path"
+					.to_owned()
+			}
+		};
+		Err(Error::SlatepackDecryption(msg))
 	}
 }
 

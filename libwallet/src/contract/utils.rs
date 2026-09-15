@@ -240,6 +240,8 @@ where
 		// field to report whether the transaction data is held.
 		tx_log_entry.stored_tx = Some(format!("{}.grintx", slate.id));
 	}
+	// as update_tx_slate_state does
+	tx_log_entry.tx_slate_state = Some(slate.state.clone());
 	// If we added outputs in this step, we have to create OutputData here because 'batch'
 	// takes the mutable ref and we can no longer call calc_commit_for_cache for output
 	let added_outputs = if !step_added_outputs {
