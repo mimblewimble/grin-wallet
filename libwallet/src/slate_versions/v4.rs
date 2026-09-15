@@ -95,7 +95,7 @@ pub struct SlateV4 {
 	/// base amount (excluding fee)
 	#[serde(with = "secp_ser::string_or_u64")]
 	#[serde(skip_serializing_if = "u64_is_blank")]
-	#[serde(default = "default_u64_0")]
+	#[serde(default)]
 	pub amt: u64,
 	/// fee
 	#[serde(skip_serializing_if = "fee_is_zero")]
@@ -103,13 +103,13 @@ pub struct SlateV4 {
 	pub fee: FeeFields,
 	/// kernel features, if any
 	#[serde(skip_serializing_if = "u8_is_blank")]
-	#[serde(default = "default_u8_0")]
+	#[serde(default)]
 	pub feat: u8,
 	/// TTL, the block height at which wallets
 	/// should refuse to process the transaction and unlock all
 	#[serde(with = "secp_ser::string_or_u64")]
 	#[serde(skip_serializing_if = "u64_is_blank")]
-	#[serde(default = "default_u64_0")]
+	#[serde(default)]
 	pub ttl: u64,
 	// Structs always required
 	/// Participant data, each participant in the transaction will
@@ -118,22 +118,18 @@ pub struct SlateV4 {
 	pub sigs: Vec<ParticipantDataV4>,
 	// Situational, but required at some point in the tx
 	/// Inputs/Output commits added to slate
-	#[serde(default = "default_coms_none")]
+	#[serde(default)]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub coms: Option<Vec<CommitsV4>>,
 	// Optional Structs
 	/// Payment Proof
-	#[serde(default = "default_payment_none")]
+	#[serde(default)]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub proof: Option<PaymentInfoV4>,
 	/// Kernel features arguments
-	#[serde(default = "default_kernel_features_none")]
+	#[serde(default)]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub feat_args: Option<KernelFeaturesArgsV4>,
-}
-
-fn default_payment_none() -> Option<PaymentInfoV4> {
-	None
 }
 
 fn default_offset_zero() -> BlindingFactor {
@@ -144,24 +140,12 @@ fn offset_is_zero(o: &BlindingFactor) -> bool {
 	*o == BlindingFactor::zero()
 }
 
-fn default_coms_none() -> Option<Vec<CommitsV4>> {
-	None
-}
-
-fn default_u64_0() -> u64 {
-	0
-}
-
 fn num_parts_is_2(n: &u8) -> bool {
 	*n == 2
 }
 
 fn default_num_participants_2() -> u8 {
 	2
-}
-
-fn default_kernel_features_none() -> Option<KernelFeaturesArgsV4> {
-	None
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -178,22 +162,14 @@ pub struct PaymentInfoV4 {
 	pub saddr: DalekPublicKey,
 	#[serde(with = "ser::dalek_pubkey_serde")]
 	pub raddr: DalekPublicKey,
-	#[serde(default = "default_receiver_signature_none")]
+	#[serde(default)]
 	#[serde(with = "ser::option_dalek_sig_serde")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub rsig: Option<DalekSignature>,
 }
 
-fn default_receiver_signature_none() -> Option<DalekSignature> {
-	None
-}
-
 fn u64_is_blank(u: &u64) -> bool {
 	*u == 0
-}
-
-fn default_u8_0() -> u8 {
-	0
 }
 
 fn u8_is_blank(u: &u8) -> bool {

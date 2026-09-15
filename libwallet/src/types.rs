@@ -769,6 +769,20 @@ impl TxLogEntry {
 	pub fn update_confirmation_ts(&mut self) {
 		self.confirmation_ts = Some(Utc::now());
 	}
+
+	/// Amount covered by the stored payment proof; early (contract) proofs don't subtract the fee
+	pub fn payment_proof_amount(&self) -> u64 {
+		let early = self
+			.payment_proof
+			.as_ref()
+			.is_some_and(|p| p.proof_type.is_some());
+		if early || self.amount_credited >= self.amount_debited {
+			self.amount_credited.abs_diff(self.amount_debited)
+		} else {
+			let fee = self.fee.map(|f| f.fee()).unwrap_or(0); // apply fee mask past HF4
+			self.amount_debited - self.amount_credited - fee
+		}
+	}
 }
 
 /// Payment proof information. Differs from what is sent via
@@ -1071,6 +1085,23 @@ mod tests {
 	struct TestSer {
 		#[serde(with = "option_duration_as_secs", default)]
 		dur: Option<Duration>,
+	}
+
+	#[test]
+	fn payment_proof_amount() {
+		let key = DalekSecretKey::from_bytes(&[1u8; 32]).verifying_key();
+		let mut tx = TxLogEntry::new(Identifier::zero(), TxLogEntryType::TxSent, 0);
+		tx.fee = Some(FeeFields::new(0, 23_000_000).unwrap());
+		tx.payment_proof = Some(StoredProofInfo::new(key, None, key, 0, None));
+		// legacy send
+		tx.amount_debited = 1_500_000_000;
+		tx.amount_credited = 477_000_000;
+		assert_eq!(tx.payment_proof_amount(), 1_000_000_000);
+		// contract send
+		tx.amount_debited = 200_000_000;
+		tx.amount_credited = 0;
+		tx.payment_proof.as_mut().unwrap().proof_type = Some(1);
+		assert_eq!(tx.payment_proof_amount(), 200_000_000);
 	}
 
 	#[test]

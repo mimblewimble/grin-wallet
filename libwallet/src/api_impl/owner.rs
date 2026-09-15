@@ -529,7 +529,7 @@ where
 		tx_id,
 		tx_slate_id,
 	)?;
-	let proof = match tx.payment_proof {
+	let proof = match tx.payment_proof.as_ref() {
 		Some(p) => p,
 		None => {
 			return Err(Error::PaymentProofRetrieval(
@@ -537,15 +537,7 @@ where
 			));
 		}
 	};
-	let amount = if tx.amount_credited >= tx.amount_debited {
-		tx.amount_credited - tx.amount_debited
-	} else {
-		let fee = match tx.fee {
-			Some(f) => f.fee(), // apply fee mask past HF4
-			None => 0,
-		};
-		tx.amount_debited - tx.amount_credited - fee
-	};
+	let amount = tx.payment_proof_amount();
 	let excess = match tx.kernel_excess {
 		Some(e) => e,
 		None => {
@@ -620,16 +612,11 @@ where
 		tx_id,
 		tx_slate_id,
 	)?;
-	// Contract tx logs store the agreed net change separately from the fee.
-	let amount = tx.amount_credited.abs_diff(tx.amount_debited);
-	let sender_public_nonce = tx
-		.payment_proof
-		.as_ref()
-		.and_then(|proof| proof.sender_public_nonce);
-
-	let p = tx.payment_proof.ok_or_else(|| {
+	let p = tx.payment_proof.as_ref().ok_or_else(|| {
 		Error::PaymentProofRetrieval("Transaction does not contain a payment proof".to_owned())
 	})?;
+	let amount = tx.payment_proof_amount();
+	let sender_public_nonce = p.sender_public_nonce;
 	let receiver_public_nonce = p.receiver_public_nonce.ok_or_else(|| {
 		Error::PaymentProofRetrieval(
 			"Early payment proof requires stored receiver public nonce".into(),
@@ -657,7 +644,7 @@ where
 		receiver_public_excess,
 		sender_address: p.sender_address,
 		timestamp: timestamp.timestamp(),
-		memo: p.memo,
+		memo: p.memo.clone(),
 		promise_signature: p.receiver_signature,
 		witness_data: None,
 	};

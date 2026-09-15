@@ -712,6 +712,59 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		assert_eq!(signed.state, SlateState::Standard3);
 	}
 
+	// proof export of a proofless contract whose amount is below the sender's fee
+	let small_args = |net_change| ContractSetupArgsAPI {
+		selection_args: common::contract_selection_args(),
+		net_change,
+		..Default::default()
+	};
+	let receiver_fee = my_fee_contribution(0, 1, 1, 2)?.fee();
+	let net = i64::try_from((receiver_fee + participant_fee) / 2).unwrap();
+	let mut small = Slate::blank(0, false);
+	wallet::controller::owner_single_use(
+		send_wallet.clone(),
+		send_mask,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let args = ContractNewArgsAPI {
+				setup_args: small_args(Some(-net)),
+				..Default::default()
+			};
+			small = api.contract_new(m, &args)?;
+			Ok(())
+		},
+	)?;
+	wallet::controller::owner_single_use(
+		recv_wallet.clone(),
+		recv_mask,
+		PathBuf::from(test_dir),
+		|api, m| {
+			let mut args = small_args(Some(net));
+			args.selection_args.use_inputs = None;
+			small = api.contract_sign(m, &small, &args)?;
+			Ok(())
+		},
+	)?;
+	wallet::controller::owner_single_use(
+		send_wallet.clone(),
+		send_mask,
+		PathBuf::from(test_dir),
+		|api, m| {
+			small = api.contract_sign(m, &small, &small_args(None))?;
+			let tx_log = common::tx_log_for_slate(api, m, &small)?;
+			assert!(tx_log.fee.map(|f| f.fee()).unwrap_or(0) > tx_log.amount_debited);
+			assert!(matches!(
+				api.retrieve_payment_proof(m, false, None, Some(small.id)),
+				Err(libwallet::Error::PaymentProofRetrieval(_))
+			));
+			assert!(matches!(
+				api.retrieve_payment_proof_early(m, false, None, Some(small.id)),
+				Err(libwallet::Error::PaymentProofRetrieval(_))
+			));
+			Ok(())
+		},
+	)?;
+
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));

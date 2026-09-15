@@ -59,14 +59,10 @@ pub struct ParticipantData {
 	#[serde(with = "secp_ser::pubkey_serde")]
 	pub nonce: PublicKey,
 	/// Public partial signature
-	#[serde(default = "default_part_sig_none")]
+	#[serde(default)]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[serde(with = "secp_ser::option_sig_serde")]
 	pub part: Option<Signature>,
-}
-
-fn default_part_sig_none() -> Option<Signature> {
-	None
 }
 
 /// Input commitment or output with its range proof
@@ -85,7 +81,7 @@ pub struct Commits {
 	/// A proof that the commitment is in the right range
 	/// Only applies for transaction outputs
 	#[serde(with = "ser::option_rangeproof_hex")]
-	#[serde(default = "default_range_proof")]
+	#[serde(default)]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub p: Option<RangeProof>,
 }
@@ -131,10 +127,6 @@ pub fn sig_is_blank(s: &secp::Signature) -> bool {
 		}
 	}
 	true
-}
-
-fn default_range_proof() -> Option<RangeProof> {
-	None
 }
 
 /// A mining node requests new coinbase via the foreign api every time a new candidate block is built.
