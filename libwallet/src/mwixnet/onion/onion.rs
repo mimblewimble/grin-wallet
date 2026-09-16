@@ -366,7 +366,7 @@ impl From<ser::Error> for OnionError {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
 	use super::*;
 	use crate::mwixnet::onion::crypto::secp::random_secret;
 	use crate::mwixnet::onion::{new_hop, Hop};

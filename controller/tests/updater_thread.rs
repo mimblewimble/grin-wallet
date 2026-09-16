@@ -46,7 +46,8 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 	let mask1 = (&mask1_i).as_ref();
 	create_wallet_and_add!(
@@ -57,7 +58,8 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		"wallet2",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api2
 	);
 	let mask2 = (&mask2_i).as_ref();
 
@@ -69,28 +71,11 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	});
 
 	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "mining")?;
-			api.create_account_path(m, "listener")?;
-			Ok(())
-		},
-	)?;
+	api1.create_account_path(mask1, "mining")?;
+	api1.create_account_path(mask1, "listener")?;
 
-	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "account1")?;
-			api.create_account_path(m, "account2")?;
-			Ok(())
-		},
-	)?;
+	api2.create_account_path(mask2, "account1")?;
+	api2.create_account_path(mask2, "account2")?;
 
 	// Get some mining done
 	{
