@@ -40,6 +40,7 @@ use grin_wallet_util::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
+use libwallet::wallet_lock;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
@@ -709,9 +710,9 @@ where
 	/// is confirmed. This method also returns a function that will perform that locking, and it is
 	/// up to the caller to decide the best time to call the lock function
 	/// (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) method).
-	/// If the exchange method is intended to be synchronous (such as via a direct http call,)
+	/// If the exchange method is intended to be synchronous (such as via a direct http call)
 	/// then the lock call can wait until the response is confirmed. If it is asynchronous, (such
-	/// as via file transfer,) the lock call should happen immediately (before the file is sent
+	/// as via file transfer) the lock call should happen immediately (before the file is sent
 	/// to the recipient).
 	///
 	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
@@ -719,7 +720,7 @@ where
 	/// function will attempt to send the slate back to the sender using the slatepack sync
 	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
 	/// sync_send was successful (it should be S2 if the sync sent successfully). It will also post
-	/// the transction if the `post_tx` field is set.
+	/// the transaction if the `post_tx` field is set.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
@@ -730,11 +731,15 @@ where
 	/// # Returns
 	/// * a result containing:
 	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html),
-	/// which can be forwarded to the recieving party by any means. Once the caller is relatively
-	/// certain that the transaction has been sent to the recipient, the associated wallet
-	/// transaction outputs should be locked via a call to
-	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs). This must be called before calling
-	/// [`finalize_tx`](struct.Owner.html#method.finalize_tx).
+	/// which can be forwarded to the receiving party by any means. With normal locking, an
+	/// attempted Tor send already locks the outputs, even if sending fails. Do not call
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) again when forwarding manually.
+	/// If sending was not requested or was skipped, lock the outputs before forwarding the slate.
+	/// With late locking, outputs are locked during finalization instead.
+	/// If `skip_tor` is omitted, `skip_send_attempt` in the Tor config decides whether to send.
+	/// With normal locking, a returned S1 slate alone does not tell you whether outputs are locked.
+	/// Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
+	/// for the slate ID before locking manually.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
@@ -768,7 +773,7 @@ where
 	/// if let Ok(slate) = result {
 	///     // Send slate somehow
 	///     // ...
-	///     // Lock our outputs if we're happy the slate was (or is being) sent
+	///     // Lock outputs for manual sending without late locking
 	///     api_owner.tx_lock_outputs(None, &slate);
 	/// }
 	/// ```
@@ -785,32 +790,36 @@ where
 			}
 			_ => None,
 		};
-		let (slate, tor_config) = {
-			let mut w_lock = self.wallet_inst.lock();
-			let tor_config = send_args
-				.as_ref()
-				.map(|_| crate::tor_config::load(&self.config_path()))
-				.transpose()?;
-			let w = w_lock.lc_provider()?.wallet_inst()?;
-			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
-			(slate, tor_config)
-		};
+
+		let tor_config = send_args
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path()))
+			.transpose()?;
+
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
 		match send_args {
 			Some(sa) => {
-				let tc = tor_config.ok_or_else(|| {
-					Error::TorConfig("Tor config was not loaded with send arguments".into())
-				})?;
-				let can_send = tc.send_tor(sa.skip_tor);
-				if self.doctest_mode || !can_send || dest.is_none() {
-					return Ok(slate);
-				}
+				let slate = {
+					wallet_lock!(self.wallet_inst, w);
+					let late_lock = args.late_lock.unwrap_or(false);
+					let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+					let tc = tor_config.as_ref().ok_or_else(|| {
+						Error::TorConfig("Tor config was not loaded with send arguments".into())
+					})?;
+					let can_send = tc.send_tor(sa.skip_tor);
+					if self.doctest_mode || !can_send || dest.is_none() {
+						return Ok(slate);
+					}
+					if !late_lock {
+						owner::tx_lock_outputs(w, keychain_mask, &slate)?;
+					}
+					slate
+				};
 				let res =
-					try_slatepack_sync_workflow(&slate, &dest.unwrap(), Some(tc), None, false);
+					try_slatepack_sync_workflow(&slate, &dest.unwrap(), tor_config, None, false);
 				match res {
 					Ok(s) => {
-						self.tx_lock_outputs(keychain_mask, &s)?;
 						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
@@ -834,7 +843,11 @@ where
 					}
 				}
 			}
-			None => Ok(slate),
+			None => {
+				wallet_lock!(self.wallet_inst, w);
+				let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+				Ok(slate)
+			}
 		}
 	}
 
@@ -2353,7 +2366,7 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `slatepack` - A string representing an armored slatepack
-	/// * `secret_indices` - Indices along this wallet's deriviation path with which to attempt
+	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
 	/// decryption. This function will attempt to use secret keys at each index along this path
 	/// to attempt to decrypt the payload, returning an error if none of the keys match.
 	///

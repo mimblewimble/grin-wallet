@@ -100,7 +100,8 @@ fn slatepack_exchange_test_impl(
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 	let mask1 = (&mask1_i).as_ref();
 	create_wallet_and_add!(
@@ -111,7 +112,8 @@ fn slatepack_exchange_test_impl(
 		"wallet2",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api2
 	);
 	let mask2 = (&mask2_i).as_ref();
 
@@ -126,28 +128,11 @@ fn slatepack_exchange_test_impl(
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "mining")?;
-			api.create_account_path(m, "listener")?;
-			Ok(())
-		},
-	)?;
+	api1.create_account_path(mask1, "mining")?;
+	api1.create_account_path(mask1, "listener")?;
 
-	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "account1")?;
-			api.create_account_path(m, "account2")?;
-			Ok(())
-		},
-	)?;
+	api2.create_account_path(mask2, "account1")?;
+	api2.create_account_path(mask2, "account2")?;
 
 	// Get some mining done
 	{
@@ -160,19 +145,9 @@ fn slatepack_exchange_test_impl(
 
 	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
 		true => {
-			let mut rec_address = SlatepackAddress::random();
-			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]);
-			wallet::controller::owner_single_use(
-				wallet1.clone(),
-				mask1,
-				PathBuf::from(test_dir),
-				|api, m| {
-					sec_key = api.get_slatepack_secret_key(m, 0)?;
-					let pub_key = edDalekPublicKey::from(&sec_key);
-					rec_address = SlatepackAddress::new(&pub_key);
-					Ok(())
-				},
-			)?;
+			let sec_key = api1.get_slatepack_secret_key(mask1, 0)?;
+			let pub_key = edDalekPublicKey::from(&sec_key);
+			let rec_address = SlatepackAddress::new(&pub_key);
 			(
 				vec![rec_address.clone()],
 				Some(sec_key),
@@ -184,19 +159,9 @@ fn slatepack_exchange_test_impl(
 
 	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
 		true => {
-			let mut rec_address = SlatepackAddress::random();
-			let mut sec_key = edDalekSecretKey::from_bytes(&[0u8; 32]);
-			wallet::controller::owner_single_use(
-				wallet2.clone(),
-				mask2,
-				PathBuf::from(test_dir),
-				|api, m| {
-					sec_key = api.get_slatepack_secret_key(m, 0)?;
-					let pub_key = edDalekPublicKey::from(&sec_key);
-					rec_address = SlatepackAddress::new(&pub_key);
-					Ok(())
-				},
-			)?;
+			let sec_key = api2.get_slatepack_secret_key(mask2, 0)?;
+			let pub_key = edDalekPublicKey::from(&sec_key);
+			let rec_address = SlatepackAddress::new(&pub_key);
 			(
 				vec![rec_address.clone()],
 				Some(sec_key),
@@ -219,39 +184,31 @@ fn slatepack_exchange_test_impl(
 		),
 	};
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, bh);
-			assert_eq!(wallet1_info.total, bh * reward);
-			// send to send
-			let args = InitTxArgs {
-				src_acct_name: Some("mining".to_owned()),
-				amount: reward * 2,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			let slate = api.init_send_tx(m, args)?;
-			// output tx file
-			output_slatepack(
-				&slate,
-				&send_file,
-				use_armored,
-				use_bin,
-				sender_1.clone(),
-				recipients_2.clone(),
-			)?;
-			api.tx_lock_outputs(m, &slate)?;
-			Ok(())
-		},
+	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	assert_eq!(wallet1_info.last_confirmed_height, bh);
+	assert_eq!(wallet1_info.total, bh * reward);
+	// send to send
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount: reward * 2,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: true,
+		..Default::default()
+	};
+	let slate = api1.init_send_tx(mask1, args)?;
+	// output tx file
+	output_slatepack(
+		&slate,
+		&send_file,
+		use_armored,
+		use_bin,
+		sender_1.clone(),
+		recipients_2.clone(),
 	)?;
+	api1.tx_lock_outputs(mask1, &slate)?;
 
 	// Get some mining done
 	{
@@ -286,52 +243,27 @@ fn slatepack_exchange_test_impl(
 	)?;
 
 	// wallet 1 finalizes and posts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, mut slate) =
-				slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
-			slate = api.finalize_tx(m, &slate)?;
-			// Output final file for reference
-			output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
-			api.post_tx(m, &slate, false)?;
-			bh += 1;
-			Ok(())
-		},
-	)?;
+	let (_, mut slate) = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
+	slate = api1.finalize_tx(mask1, &slate)?;
+	// Output final file for reference
+	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
+	api1.post_tx(mask1, &slate, false)?;
+	bh += 1;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 	bh += 3;
 
 	// Check total in mining account
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, bh);
-			assert_eq!(wallet1_info.total, bh * reward - reward * 2);
-			Ok(())
-		},
-	)?;
+	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	assert_eq!(wallet1_info.last_confirmed_height, bh);
+	assert_eq!(wallet1_info.total, bh * reward - reward * 2);
 
 	// Check total in 'wallet 2' account
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet2_refreshed);
-			assert_eq!(wallet2_info.last_confirmed_height, bh);
-			assert_eq!(wallet2_info.total, 2 * reward);
-			Ok(())
-		},
-	)?;
+	let (wallet2_refreshed, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+	assert!(wallet2_refreshed);
+	assert_eq!(wallet2_info.last_confirmed_height, bh);
+	assert_eq!(wallet2_info.total, 2 * reward);
 
 	// Now other types of exchange, for reference
 	// Invoice transaction
@@ -348,61 +280,43 @@ fn slatepack_exchange_test_impl(
 		),
 	};
 
-	let mut slate = Slate::blank(2, true);
-
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = IssueInvoiceTxArgs {
-				amount: 1000000000,
-				..Default::default()
-			};
-			slate = api.issue_invoice_tx(m, args)?;
-			output_slatepack(
-				&slate,
-				&send_file,
-				use_armored,
-				use_bin,
-				sender_2.clone(),
-				recipients_1.clone(),
-			)?;
-			Ok(())
-		},
+	let args = IssueInvoiceTxArgs {
+		amount: 1000000000,
+		..Default::default()
+	};
+	let mut slate = api2.issue_invoice_tx(mask2, args)?;
+	output_slatepack(
+		&slate,
+		&send_file,
+		use_armored,
+		use_bin,
+		sender_2.clone(),
+		recipients_1.clone(),
 	)?;
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = InitTxArgs {
-				src_acct_name: None,
-				amount: slate.amount,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			let res = slate_from_packed(&send_file, use_armored, (&dec_key_1).as_ref())?;
-			slatepack = res.0;
-			slate = res.1;
-			slate = api.process_invoice_tx(m, &slate, args)?;
-			api.tx_lock_outputs(m, &slate)?;
-			output_slatepack(
-				&slate,
-				&receive_file,
-				use_armored,
-				use_bin,
-				sender_1.clone(),
-				match slatepack.sender.clone() {
-					Some(s) => vec![s.clone()],
-					None => vec![],
-				},
-			)?;
-			Ok(())
+	let args = InitTxArgs {
+		src_acct_name: None,
+		amount: slate.amount,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: true,
+		..Default::default()
+	};
+	let res = slate_from_packed(&send_file, use_armored, (&dec_key_1).as_ref())?;
+	slatepack = res.0;
+	slate = res.1;
+	slate = api1.process_invoice_tx(mask1, &slate, args)?;
+	api1.tx_lock_outputs(mask1, &slate)?;
+	output_slatepack(
+		&slate,
+		&receive_file,
+		use_armored,
+		use_bin,
+		sender_1.clone(),
+		match slatepack.sender.clone() {
+			Some(s) => vec![s.clone()],
+			None => vec![],
 		},
 	)?;
 	wallet::controller::foreign_single_use(
@@ -418,15 +332,7 @@ fn slatepack_exchange_test_impl(
 			Ok(())
 		},
 	)?;
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.post_tx(m, &slate, false)?;
-			Ok(())
-		},
-	)?;
+	api1.post_tx(mask1, &slate, false)?;
 
 	// Standard, with payment proof
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
@@ -443,47 +349,29 @@ fn slatepack_exchange_test_impl(
 		),
 	};
 
-	let mut slate = Slate::blank(2, true);
-	let mut address = None;
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			address = Some(api.get_slatepack_address(m, 0)?);
-			Ok(())
-		},
-	)?;
+	let address = Some(api2.get_slatepack_address(mask2, 0)?);
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			// send to send
-			let args = InitTxArgs {
-				src_acct_name: Some("mining".to_owned()),
-				amount: reward,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				payment_proof_recipient_address: address.clone(),
-				..Default::default()
-			};
-			let slate = api.init_send_tx(m, args)?;
-			output_slatepack(
-				&slate,
-				&send_file,
-				use_armored,
-				use_bin,
-				sender_1,
-				recipients_2.clone(),
-			)?;
-			api.tx_lock_outputs(m, &slate)?;
-			Ok(())
-		},
+	// send to send
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount: reward,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: true,
+		payment_proof_recipient_address: address.clone(),
+		..Default::default()
+	};
+	let mut slate = api1.init_send_tx(mask1, args)?;
+	output_slatepack(
+		&slate,
+		&send_file,
+		use_armored,
+		use_bin,
+		sender_1,
+		recipients_2.clone(),
 	)?;
+	api1.tx_lock_outputs(mask1, &slate)?;
 
 	wallet::controller::foreign_single_use(
 		wallet2.clone(),
@@ -509,22 +397,13 @@ fn slatepack_exchange_test_impl(
 		},
 	)?;
 
-	// wallet 1 finalises and posts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let res = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
-			slate = res.1;
-			slate = api.finalize_tx(m, &slate)?;
-			// Output final file for reference
-			output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
-			api.post_tx(m, &slate, false)?;
-			bh += 1;
-			Ok(())
-		},
-	)?;
+	// wallet 1 finalizes and posts
+	let res = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
+	slate = res.1;
+	slate = api1.finalize_tx(mask1, &slate)?;
+	// Output final file for reference
+	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
+	api1.post_tx(mask1, &slate, false)?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
@@ -550,7 +429,8 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 	let mask1 = (&mask1_i).as_ref();
 
@@ -569,32 +449,24 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = InitTxArgs {
-				src_acct_name: Some("mining".to_owned()),
-				amount: reward * 2,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			let slate = api.init_send_tx(m, args)?;
-			// create an encrypted slatepack (just encrypted for self)
-			let enc_addr = api.get_slatepack_address(m, 0)?;
-			let slatepack = api.create_slatepack_message(m, &slate, Some(0), vec![enc_addr])?;
-			println!("{}", slatepack);
-			let slatepack_raw = api.decode_slatepack_message(m, slatepack.clone(), vec![0])?;
-			println!("{}", slatepack_raw);
-			let decoded_slate = api.slate_from_slatepack_message(m, slatepack, vec![0])?;
-			println!("{}", decoded_slate);
-			Ok(())
-		},
-	)?;
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount: reward * 2,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: true,
+		..Default::default()
+	};
+	let slate = api1.init_send_tx(mask1, args)?;
+	// create an encrypted slatepack (just encrypted for self)
+	let enc_addr = api1.get_slatepack_address(mask1, 0)?;
+	let slatepack = api1.create_slatepack_message(mask1, &slate, Some(0), vec![enc_addr])?;
+	println!("{}", slatepack);
+	let slatepack_raw = api1.decode_slatepack_message(mask1, slatepack.clone(), vec![0])?;
+	println!("{}", slatepack_raw);
+	let decoded_slate = api1.slate_from_slatepack_message(mask1, slatepack, vec![0])?;
+	println!("{}", decoded_slate);
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
@@ -609,8 +481,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 	let stopper = wallet_proxy.running.clone();
 	let config_path = PathBuf::from(test_dir).join("grin-wallet.toml");
 	GlobalWalletConfig::for_chain(&core::global::ChainTypes::AutomatedTesting, &config_path)
-		.write_to_file(config_path.to_str().unwrap(), false, None, None)
-		.unwrap();
+		.write_to_file(config_path.to_str().unwrap(), false, None, None)?;
 
 	create_wallet_and_add!(
 		client1,
@@ -620,7 +491,8 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 	let mask1 = (&mask1_i).as_ref();
 
@@ -632,7 +504,8 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		"wallet2",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api2
 	);
 	let mask2 = (&mask2_i).as_ref();
 
@@ -644,62 +517,57 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 
 	let reward = core::consensus::REWARD;
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 6, false);
-	let mut slate = Slate::blank(2, true);
-
-	wallet::controller::owner_single_use(wallet2.clone(), mask2, config_path.clone(), |api, m| {
-		slate = api.issue_invoice_tx(
-			m,
-			IssueInvoiceTxArgs {
-				amount: reward,
-				..Default::default()
-			},
-		)?;
-		Ok(())
-	})?;
-
-	wallet::controller::owner_single_use(wallet1.clone(), mask1, config_path, |api, m| {
-		let args = InitTxArgs {
-			src_acct_name: Some("mining".to_owned()),
+	let slate = api2.issue_invoice_tx(
+		mask2,
+		IssueInvoiceTxArgs {
 			amount: reward,
-			minimum_confirmations: 2,
-			max_outputs: 500,
-			num_change_outputs: 1,
-			selection_strategy_is_use_all: true,
 			..Default::default()
-		};
+		},
+	)?;
 
-		let mut wrong_net_args = args.clone();
-		wrong_net_args.send_args = Some(InitTxSendArgs {
-			dest: "grin1dvge9z4uqgqlpspmljrd7smh3grrw9xu2r9lkz3u67s3emj3ud2sd5gk9p".to_string(),
-			post_tx: false,
-			fluff: false,
-			skip_tor: Some(true),
-		});
-		assert!(api.init_send_tx(m, wrong_net_args.clone()).is_err());
-		assert!(api.process_invoice_tx(m, &slate, wrong_net_args).is_err());
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount: reward,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: true,
+		..Default::default()
+	};
 
-		let mut invalid_args = args.clone();
-		invalid_args.send_args = Some(InitTxSendArgs {
-			dest: "tgrinaddr10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7"
-				.to_string(),
-			post_tx: false,
-			fluff: false,
-			skip_tor: Some(true),
-		});
-		assert!(api.init_send_tx(m, invalid_args.clone()).is_err());
-		assert!(api.process_invoice_tx(m, &slate, invalid_args).is_err());
+	let mut wrong_net_args = args.clone();
+	wrong_net_args.send_args = Some(InitTxSendArgs {
+		dest: "grin1dvge9z4uqgqlpspmljrd7smh3grrw9xu2r9lkz3u67s3emj3ud2sd5gk9p".to_string(),
+		post_tx: false,
+		fluff: false,
+		skip_tor: Some(true),
+	});
+	assert!(api1.init_send_tx(mask1, wrong_net_args.clone()).is_err());
+	assert!(api1
+		.process_invoice_tx(mask1, &slate, wrong_net_args)
+		.is_err());
 
-		let mut valid_args = args;
-		valid_args.send_args = Some(InitTxSendArgs {
-			dest: "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp".to_string(),
-			post_tx: false,
-			fluff: false,
-			skip_tor: Some(true),
-		});
-		api.process_invoice_tx(m, &slate, valid_args.clone())?;
-		api.init_send_tx(m, valid_args)?;
-		Ok(())
-	})?;
+	let mut invalid_args = args.clone();
+	invalid_args.send_args = Some(InitTxSendArgs {
+		dest: "tgrinaddr10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqnlumr7".to_string(),
+		post_tx: false,
+		fluff: false,
+		skip_tor: Some(true),
+	});
+	assert!(api1.init_send_tx(mask1, invalid_args.clone()).is_err());
+	assert!(api1
+		.process_invoice_tx(mask1, &slate, invalid_args)
+		.is_err());
+
+	let mut valid_args = args;
+	valid_args.send_args = Some(InitTxSendArgs {
+		dest: "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp".to_string(),
+		post_tx: false,
+		fluff: false,
+		skip_tor: Some(true),
+	});
+	api1.process_invoice_tx(mask1, &slate, valid_args.clone())?;
+	api1.init_send_tx(mask1, valid_args)?;
 
 	stopper.store(false, Ordering::Relaxed);
 	proxy_thread.join().expect("wallet proxy thread panicked");
@@ -710,7 +578,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 fn slatepack_exchange_json() {
 	let test_dir = "test_output/slatepack_exchange_json";
 	setup(test_dir);
-	// Json output
+	// JSON output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false, false) {
 		panic!("Libwallet Error: {}", e);
 	}
@@ -743,7 +611,7 @@ fn slatepack_exchange_armored() {
 fn slatepack_exchange_json_enc() {
 	let test_dir = "test_output/slatepack_exchange_json_enc";
 	setup(test_dir);
-	// Json output
+	// JSON output
 	if let Err(e) = slatepack_exchange_test_impl(test_dir, false, false, true) {
 		panic!("Libwallet Error: {}", e);
 	}
@@ -776,7 +644,7 @@ fn slatepack_exchange_armored_enc() {
 fn slatepack_api() {
 	let test_dir = "test_output/slatepack_api";
 	setup(test_dir);
-	// Json output
+	// JSON output
 	if let Err(e) = slatepack_api_impl(test_dir) {
 		panic!("Libwallet Error: {}", e);
 	}

@@ -136,23 +136,6 @@ fn init_tor_listener(
 	Ok(process)
 }
 
-/// Instantiate wallet Owner API for a single-use (command line) call
-/// Return a function containing a loaded API context to call
-pub fn owner_single_use<L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-	keychain_mask: Option<&SecretKey>,
-	config_path: PathBuf,
-	f: F,
-) -> Result<(), Error>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	F: FnOnce(&mut Owner<L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
-{
-	f(&mut Owner::new(wallet, None, config_path), keychain_mask)
-}
-
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn foreign_single_use<'a, L, F, C, K>(
