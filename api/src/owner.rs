@@ -806,11 +806,11 @@ where
 				if self.doctest_mode || !can_send || dest.is_none() {
 					return Ok(slate);
 				}
+				self.tx_lock_outputs(keychain_mask, &slate)?;
 				let res =
 					try_slatepack_sync_workflow(&slate, &dest.unwrap(), Some(tc), None, false);
 				match res {
 					Ok(s) => {
-						self.tx_lock_outputs(keychain_mask, &s)?;
 						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
