@@ -19,7 +19,7 @@ extern crate log;
 
 extern crate grin_wallet;
 
-use grin_wallet_api::{ECDHPubkey, JsonId};
+use grin_wallet_api::{ECDHPubkey, JsonId, Owner};
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 use clap::App;
@@ -64,7 +64,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			>,
 		>,
 	> = Arc::new(Mutex::new(WalletProxy::new(test_dir)));
-	let (chain, wallet2, mask2_i) = {
+	let (chain, wallet2, mask2_i, config2) = {
 		let mut wallet_proxy = wallet_proxy_a.lock();
 		let chain = wallet_proxy.chain.clone();
 
@@ -118,7 +118,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			)
 			.unwrap();
 		});
-		(chain, wallet2, mask2_i)
+		(chain, wallet2, mask2_i, config2)
 	};
 	// give a bit for wallet to init and populate proxy with wallet via callback in thread above
 	thread::sleep(Duration::from_millis(500));
@@ -402,27 +402,20 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let mut slate: Slate = res.unwrap().into();
 
 	// give this slate over to wallet 2 manually
-	grin_wallet_controller::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = InitTxArgs {
-				src_acct_name: None,
-				amount: slate.amount,
-				minimum_confirmations: 1,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: false,
-				..Default::default()
-			};
-			let res = api.process_invoice_tx(m, &slate, args);
-			assert!(res.is_ok());
-			slate = res.unwrap();
-			api.tx_lock_outputs(m, &slate)?;
-			Ok(())
-		},
-	)?;
+	let api2 = Owner::new(wallet2.clone(), None, config2.config_file_path.clone());
+	let args = InitTxArgs {
+		src_acct_name: None,
+		amount: slate.amount,
+		minimum_confirmations: 1,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: false,
+		..Default::default()
+	};
+	let res = api2.process_invoice_tx(mask2, &slate, args);
+	assert!(res.is_ok());
+	slate = res?;
+	api2.tx_lock_outputs(mask2, &slate)?;
 
 	//16) Finalize the invoice tx (to foreign api)
 	// (Tests that foreign API on same port also has its stored mask updated)

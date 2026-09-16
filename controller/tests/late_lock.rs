@@ -18,9 +18,8 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use self::libwallet::{InitTxArgs, Slate};
+use self::libwallet::InitTxArgs;
 use impls::test_framework::{self, LocalWalletClient};
-use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -28,6 +27,7 @@ use std::time::Duration;
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
+use libwallet::InitTxSendArgs;
 
 /// self send impl
 fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
@@ -46,7 +46,8 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 	let mask1 = (&mask1_i).as_ref();
 	create_wallet_and_add!(
@@ -57,7 +58,8 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		"wallet2",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api2
 	);
 	let mask2 = (&mask2_i).as_ref();
 
@@ -69,26 +71,8 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	});
 
 	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "mining")?;
-			Ok(())
-		},
-	)?;
-
-	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "account1")?;
-			Ok(())
-		},
-	)?;
+	api1.create_account_path(mask1, "mining")?;
+	api2.create_account_path(mask2, "account1")?;
 
 	// Get some mining done
 	{
@@ -102,70 +86,75 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false)?;
 
-	let mut slate = Slate::blank(2, false);
 	let amount = 100_000_000_000;
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|sender_api, m| {
-			let args = InitTxArgs {
-				src_acct_name: Some("mining".to_owned()),
-				amount,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: false,
-				late_lock: Some(true),
-				..Default::default()
-			};
-			let slate_i = sender_api.init_send_tx(m, args)?;
-			println!("S1 SLATE: {}", slate_i);
-			slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
-			println!("S2 SLATE: {}", slate);
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: false,
+		late_lock: Some(true),
+		..Default::default()
+	};
+	let slate_i = api1.init_send_tx(mask1, args)?;
+	println!("S1 SLATE: {}", slate_i);
+	let mut slate = client1.send_tx_slate_direct("wallet2", &slate_i)?;
+	println!("S2 SLATE: {}", slate);
 
-			// Note we don't call `tx_lock_outputs` on the sender side here,
-			// as the outputs will only be locked during finalization
+	// Note we don't call `tx_lock_outputs` on the sender side here,
+	// as the outputs will only be locked during finalization
 
-			slate = sender_api.finalize_tx(m, &slate)?;
-			println!("S3 SLATE: {}", slate);
+	slate = api1.finalize_tx(mask1, &slate)?;
+	println!("S3 SLATE: {}", slate);
 
-			// Now post tx to our node for inclusion in the next block.
-			sender_api.post_tx(m, &slate, true)?;
-
-			Ok(())
-		},
-	)?;
+	// Now post tx to our node for inclusion in the next block.
+	api1.post_tx(mask1, &slate, true)?;
 
 	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false)?;
 
 	// update/test contents of both accounts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			// Reward from mining 11 blocks, minus the amount sent.
-			// Note: We mined the block containing the tx, so fees are effectively refunded.
-			assert_eq!(560_000_000_000, wallet_info.amount_currently_spendable);
-			Ok(())
-		},
-	)?;
+	let (wallet1_refreshed, wallet_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	// Reward from mining 11 blocks, minus the amount sent.
+	// Note: We mined the block containing the tx, so fees are effectively refunded.
+	assert_eq!(560_000_000_000, wallet_info.amount_currently_spendable);
 
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet2_refreshed, wallet_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet2_refreshed);
-			assert_eq!(amount, wallet_info.amount_currently_spendable);
-			Ok(())
-		},
-	)?;
+	// Make sure outputs are not locked on failed send with arguments.
+	// Fail sending without starting Tor
+	api1.set_tor_config(Some(grin_wallet_config::TorConfig {
+		use_integrated: Some(false),
+		socks_proxy_addr: "invalid".into(),
+		..Default::default()
+	}))?;
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: false,
+		late_lock: Some(true),
+		send_args: Some(InitTxSendArgs {
+			dest: "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp".into(),
+			post_tx: false,
+			fluff: false,
+			skip_tor: Some(false),
+		}),
+		..Default::default()
+	};
+	let slate = api1.init_send_tx(mask1, args)?;
+	let (_, txs) = api1.retrieve_txs(mask1, false, None, Some(slate.id), None)?;
+	assert!(txs.is_empty());
+	// Make sure spendable balance not changed.
+	let (wallet1_refreshed, wallet_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	assert_eq!(560_000_000_000, wallet_info.amount_currently_spendable);
+
+	let (wallet2_refreshed, wallet_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+	assert!(wallet2_refreshed);
+	assert_eq!(amount, wallet_info.amount_currently_spendable);
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

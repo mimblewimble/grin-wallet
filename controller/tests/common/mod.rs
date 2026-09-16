@@ -19,11 +19,15 @@ extern crate grin_wallet_libwallet as libwallet;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
+use std::env;
+use std::path::PathBuf;
 
 use self::core::global;
 use self::core::global::ChainTypes;
 use self::keychain::ExtKeychain;
 use self::libwallet::WalletInst;
+use grin_wallet_api::Owner;
+use grin_wallet_config::{initial_setup_wallet, GRIN_WALLET_DIR};
 use impls::test_framework::{LocalWalletClient, WalletProxy};
 use impls::{DefaultLCProvider, DefaultWalletImpl};
 use std::sync::Arc;
@@ -41,9 +45,9 @@ macro_rules! wallet_inst {
 
 #[macro_export]
 macro_rules! create_wallet_and_add {
-	($client:ident, $wallet: ident, $mask: ident, $test_dir: expr, $name: expr, $seed_phrase: expr, $proxy: expr, $create_mask: expr) => {
+	($client:ident, $wallet: ident, $mask: ident, $test_dir: expr, $name: expr, $seed_phrase: expr, $proxy: expr, $create_mask: expr, $owner_api: ident) => {
 		let $client = LocalWalletClient::new($name, $proxy.tx.clone());
-		let ($wallet, $mask) = common::create_local_wallet(
+		let ($wallet, $mask, $owner_api) = common::create_local_wallet(
 			$test_dir,
 			$name,
 			$seed_phrase.clone(),
@@ -125,7 +129,18 @@ pub fn create_local_wallet(
 		>,
 	>,
 	Option<SecretKey>,
+	Owner<DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>,
 ) {
+	let mut current_dir;
+	current_dir = env::current_dir().unwrap_or_else(|e| {
+		panic!("Error creating config file: {}", e);
+	});
+	current_dir.push(test_dir);
+	current_dir.push(name);
+	let config =
+		initial_setup_wallet(&ChainTypes::AutomatedTesting, Some(current_dir), true).unwrap();
+	let mut wallet_config = config.clone().members.wallet;
+
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client).unwrap())
 		as Box<
 			dyn WalletInst<
@@ -135,13 +150,25 @@ pub fn create_local_wallet(
 			>,
 		>;
 	let lc = wallet.lc_provider().unwrap();
-	let _ = lc.set_top_level_directory(&format!("{}/{}", test_dir, name));
+	// legacy hack to avoid the need for changes in existing grin-wallet.toml files
+	// remove `wallet_data` from end of path as
+	// new lifecycle provider assumes grin_wallet.toml is in root of data directory
+	let mut top_level_wallet_dir = PathBuf::from(wallet_config.clone().data_file_dir);
+	if top_level_wallet_dir.ends_with(GRIN_WALLET_DIR) {
+		top_level_wallet_dir.pop();
+		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
+	}
+	let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	lc.create_wallet(None, mnemonic, 32, ZeroingString::from(""), false)
 		.unwrap();
 	let mask = lc
 		.open_wallet(None, ZeroingString::from(""), create_mask, false)
 		.unwrap();
-	(Arc::new(Mutex::new(wallet)), mask)
+
+	let wallet = Arc::new(Mutex::new(wallet));
+	let owner_api = Owner::new(wallet.clone(), None, config.config_file_path.clone());
+
+	(wallet, mask, owner_api)
 }
 
 #[allow(dead_code)]

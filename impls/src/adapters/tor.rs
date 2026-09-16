@@ -124,7 +124,7 @@ impl TorSlateSender {
 		let res: String = self.post(url, req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
-			if err_string.contains("404") {
+			if !self.config.use_integrated.unwrap_or(false) && err_string.contains("404") {
 				// Report that the other version of the wallet is out of date
 				report = "Other wallet is incompatible and requires an upgrade. \
 				          Please urge the other wallet owner to upgrade and try the transaction again."

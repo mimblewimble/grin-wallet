@@ -25,7 +25,6 @@ use grin_util::{secp, ZeroingString};
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::LocalWalletClient;
 use rand::{thread_rng, Rng};
-use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -37,7 +36,7 @@ use common::{clean_output_dir, create_wallet_proxy, setup};
 fn build_output_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Generate seed so we can verify the blinding factor is derived correctly
 	let seed: [u8; 32] = thread_rng().gen();
-	let keychain = ExtKeychain::from_seed(&seed, false).unwrap();
+	let keychain = ExtKeychain::from_seed(&seed, false)?;
 	let mnemonic = mnemonic::from_entropy(&seed).unwrap();
 
 	// Create a new proxy to simulate server and wallet responses
@@ -52,7 +51,8 @@ fn build_output_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 		"wallet1",
 		Some(ZeroingString::from(mnemonic)),
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 
 	let mask1 = (&mask1_i).as_ref();
@@ -67,28 +67,19 @@ fn build_output_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 	let secp = secp::Secp256k1::with_caps(secp::ContextFlag::Commit);
 	let features = OutputFeatures::Plain;
 	let amount = 60_000_000_000;
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|sender_api, m| {
-			let built_output = sender_api.build_output(m, features, amount)?;
+	let built_output = api1.build_output(mask1, features, amount)?;
 
-			let key_id = built_output.key_id;
-			assert_eq!(key_id.to_path(), ExtKeychainPath::new(3, 0, 0, 0, 0));
+	let key_id = built_output.key_id;
+	assert_eq!(key_id.to_path(), ExtKeychainPath::new(3, 0, 0, 0, 0));
 
-			let blind = built_output.blind;
-			let key = keychain.derive_key(amount, &key_id, SwitchCommitmentType::Regular)?;
-			assert_eq!(blind, BlindingFactor::from_secret_key(key.clone()));
+	let blind = built_output.blind;
+	let key = keychain.derive_key(amount, &key_id, SwitchCommitmentType::Regular)?;
+	assert_eq!(blind, BlindingFactor::from_secret_key(key.clone()));
 
-			let output = built_output.output;
-			assert_eq!(output.features(), features);
-			assert_eq!(output.commitment(), secp.commit(amount, key)?);
-			output.verify_proof()?;
-
-			Ok(())
-		},
-	)?;
+	let output = built_output.output;
+	assert_eq!(output.features(), features);
+	assert_eq!(output.commitment(), secp.commit(amount, key)?);
+	output.verify_proof()?;
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

@@ -48,7 +48,8 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		true
+		true,
+		api1
 	);
 	let mask1 = (&mask1_i).as_ref();
 
@@ -63,16 +64,8 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let reward = core::consensus::REWARD;
 
 	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.create_account_path(m, "mining")?;
-			api.create_account_path(m, "listener")?;
-			Ok(())
-		},
-	)?;
+	api1.create_account_path(mask1, "mining")?;
+	api1.create_account_path(mask1, "listener")?;
 
 	// Get some mining done
 	{
@@ -84,78 +77,54 @@ fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(
+	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	assert_eq!(wallet1_info.last_confirmed_height, bh);
+	assert_eq!(wallet1_info.total, bh * reward);
+	// send to send
+	let args = InitTxArgs {
+		src_acct_name: Some("mining".to_owned()),
+		amount: reward * 2,
+		minimum_confirmations: 2,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: true,
+		..Default::default()
+	};
+	let mut slate = api1.init_send_tx(mask1, args)?;
+	api1.tx_lock_outputs(mask1, &slate)?;
+	// Send directly to self
+	wallet::controller::foreign_single_use(
 		wallet1.clone(),
-		mask1,
 		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, bh);
-			assert_eq!(wallet1_info.total, bh * reward);
-			// send to send
-			let args = InitTxArgs {
-				src_acct_name: Some("mining".to_owned()),
-				amount: reward * 2,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			let mut slate = api.init_send_tx(m, args)?;
-			api.tx_lock_outputs(m, &slate)?;
-			// Send directly to self
-			wallet::controller::foreign_single_use(
-				wallet1.clone(),
-				PathBuf::from(test_dir),
-				mask1_i.clone(),
-				|api| {
-					slate = api.receive_tx(&slate, Some("listener"), None)?;
-					Ok(())
-				},
-			)?;
-			slate = api.finalize_tx(m, &slate)?;
-			api.post_tx(m, &slate, false)?; // mines a block
-			bh += 1;
+		mask1_i.clone(),
+		|api| {
+			slate = api.receive_tx(&slate, Some("listener"), None)?;
 			Ok(())
 		},
 	)?;
+	slate = api1.finalize_tx(mask1, &slate)?;
+	api1.post_tx(mask1, &slate, false)?; // mines a block
+	bh += 1;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 	bh += 3;
 
 	// Check total in mining account
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, bh);
-			assert_eq!(wallet1_info.total, bh * reward - reward * 2);
-			Ok(())
-		},
-	)?;
+	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	assert_eq!(wallet1_info.last_confirmed_height, bh);
+	assert_eq!(wallet1_info.total, bh * reward - reward * 2);
 
 	// Check total in 'listener' account
 	{
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("listener")?;
 	}
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, bh);
-			assert_eq!(wallet1_info.total, 2 * reward);
-			Ok(())
-		},
-	)?;
+	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+	assert!(wallet1_refreshed);
+	assert_eq!(wallet1_info.last_confirmed_height, bh);
+	assert_eq!(wallet1_info.total, 2 * reward);
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);

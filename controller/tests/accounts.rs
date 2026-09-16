@@ -19,7 +19,6 @@ extern crate grin_wallet_impls as impls;
 
 use grin_core as core;
 use grin_keychain as keychain;
-use std::path::PathBuf;
 
 use self::core::global;
 use self::keychain::{ExtKeychain, Keychain};
@@ -49,7 +48,8 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api1
 	);
 
 	let mask1 = (&mask1_i).as_ref();
@@ -62,7 +62,8 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		"wallet2",
 		None,
 		&mut wallet_proxy,
-		false
+		false,
+		api2
 	);
 
 	let mask2 = (&mask2_i).as_ref();
@@ -79,48 +80,30 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
 
 	// test default accounts exist
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let accounts = api.accounts(m)?;
-			assert_eq!(accounts[0].label, "default");
-			assert_eq!(accounts[0].path, ExtKeychain::derive_key_id(2, 0, 0, 0, 0));
-			Ok(())
-		},
-	)?;
+	{
+		let accounts = api1.accounts(mask1)?;
+		assert_eq!(accounts[0].label, "default");
+		assert_eq!(accounts[0].path, ExtKeychain::derive_key_id(2, 0, 0, 0, 0));
+	}
 
 	// add some accounts
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let new_path = api.create_account_path(m, "account1").unwrap();
-			assert_eq!(new_path, ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
-			let new_path = api.create_account_path(m, "account2").unwrap();
-			assert_eq!(new_path, ExtKeychain::derive_key_id(2, 2, 0, 0, 0));
-			let new_path = api.create_account_path(m, "account3").unwrap();
-			assert_eq!(new_path, ExtKeychain::derive_key_id(2, 3, 0, 0, 0));
-			// trying to add same label again should fail
-			let res = api.create_account_path(m, "account1");
-			assert!(res.is_err());
-			Ok(())
-		},
-	)?;
+	{
+		let new_path = api1.create_account_path(mask1, "account1").unwrap();
+		assert_eq!(new_path, ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
+		let new_path = api1.create_account_path(mask1, "account2").unwrap();
+		assert_eq!(new_path, ExtKeychain::derive_key_id(2, 2, 0, 0, 0));
+		let new_path = api1.create_account_path(mask1, "account3").unwrap();
+		assert_eq!(new_path, ExtKeychain::derive_key_id(2, 3, 0, 0, 0));
+		// trying to add same label again should fail
+		let res = api1.create_account_path(mask1, "account1");
+		assert!(res.is_err());
+	}
 
 	// add account to wallet 2
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let new_path = api.create_account_path(m, "listener_account").unwrap();
-			assert_eq!(new_path, ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
-			Ok(())
-		},
-	)?;
+	{
+		let new_path = api2.create_account_path(mask2, "listener_account").unwrap();
+		assert_eq!(new_path, ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
+	}
 
 	// Default wallet 2 to listen on that account
 	{
@@ -144,120 +127,85 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, 12);
-			assert_eq!(wallet1_info.total, 5 * reward);
-			assert_eq!(wallet1_info.amount_currently_spendable, (5 - cm) * reward);
-			// check tx log as well
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			assert_eq!(txs.len(), 5);
-			Ok(())
-		},
-	)?;
+	{
+		let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+		assert!(wallet1_refreshed);
+		assert_eq!(wallet1_info.last_confirmed_height, 12);
+		assert_eq!(wallet1_info.total, 5 * reward);
+		assert_eq!(wallet1_info.amount_currently_spendable, (5 - cm) * reward);
+		// check tx log as well
+		let (_, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		assert_eq!(txs.len(), 5);
+	}
 
 	// now check second account
 	{
-		// let mut w_lock = wallet1.lock();
-		// let lc = w_lock.lc_provider()?;
-		// let w = lc.wallet_inst()?;
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("account1")?;
 	}
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let labels: Vec<_> = api.accounts(m)?.into_iter().map(|a| a.label).collect();
-			assert_eq!(labels, ["account1", "default", "account2", "account3"]);
-			// check last confirmed height on this account is different from above (should be 0)
-			let (_, wallet1_info) = api.retrieve_summary_info(m, false, 1)?;
-			assert_eq!(wallet1_info.last_confirmed_height, 0);
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, 12);
-			assert_eq!(wallet1_info.total, 7 * reward);
-			assert_eq!(wallet1_info.amount_currently_spendable, 7 * reward);
-			// check tx log as well
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			assert_eq!(txs.len(), 7);
-			Ok(())
-		},
-	)?;
-
+	{
+		let labels: Vec<_> = api1.accounts(mask1)?.into_iter().map(|a| a.label).collect();
+		assert_eq!(labels, ["account1", "default", "account2", "account3"]);
+		// check last confirmed height on this account is different from above (should be 0)
+		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, false, 1)?;
+		assert_eq!(wallet1_info.last_confirmed_height, 0);
+		let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+		assert!(wallet1_refreshed);
+		assert_eq!(wallet1_info.last_confirmed_height, 12);
+		assert_eq!(wallet1_info.total, 7 * reward);
+		assert_eq!(wallet1_info.amount_currently_spendable, 7 * reward);
+		// check tx log as well
+		let (_, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		assert_eq!(txs.len(), 7);
+	}
 	// should be nothing in default account
 	{
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("default")?;
 	}
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, wallet1_info) = api.retrieve_summary_info(m, false, 1)?;
-			assert_eq!(wallet1_info.last_confirmed_height, 0);
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, 12);
-			assert_eq!(wallet1_info.total, 0,);
-			assert_eq!(wallet1_info.amount_currently_spendable, 0,);
-			// check tx log as well
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			assert_eq!(txs.len(), 0);
-			Ok(())
-		},
-	)?;
+	{
+		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, false, 1)?;
+		assert_eq!(wallet1_info.last_confirmed_height, 0);
+		let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+		assert!(wallet1_refreshed);
+		assert_eq!(wallet1_info.last_confirmed_height, 12);
+		assert_eq!(wallet1_info.total, 0,);
+		assert_eq!(wallet1_info.amount_currently_spendable, 0,);
+		// check tx log as well
+		let (_, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		assert_eq!(txs.len(), 0);
+	}
 
 	// Send a tx to another wallet
 	{
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("account1")?;
 	}
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = InitTxArgs {
-				src_acct_name: None,
-				amount: reward,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			let mut slate = api.init_send_tx(m, args)?;
-			slate = client1.send_tx_slate_direct("wallet2", &slate)?;
-			api.tx_lock_outputs(m, &slate)?;
-			slate = api.finalize_tx(m, &slate)?;
-			api.post_tx(m, &slate, false)?;
-			Ok(())
-		},
-	)?;
+	{
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: reward,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let mut slate = api1.init_send_tx(mask1, args)?;
+		slate = client1.send_tx_slate_direct("wallet2", &slate)?;
+		api1.tx_lock_outputs(mask1, &slate)?;
+		slate = api1.finalize_tx(mask1, &slate)?;
+		api1.post_tx(mask1, &slate, false)?;
+	}
 
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, 13);
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			assert_eq!(txs.len(), 9);
-			Ok(())
-		},
-	)?;
-
+	{
+		let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+		assert!(wallet1_refreshed);
+		assert_eq!(wallet1_info.last_confirmed_height, 13);
+		let (_, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		assert_eq!(txs.len(), 9);
+	}
 	// Use the requested account's stored height
 	{
 		wallet_inst!(wallet1, w);
@@ -272,59 +220,41 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		wallet_inst!(wallet1, w);
 		w.set_parent_key_id_by_name("account2")?;
 	}
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, wallet1_info) = api.retrieve_summary_info(m, false, 1)?;
-			assert_eq!(wallet1_info.last_confirmed_height, 12);
-			let (_, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert_eq!(wallet1_info.last_confirmed_height, 13);
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			println!("{:?}", txs);
-			assert_eq!(txs.len(), 5);
-			Ok(())
-		},
-	)?;
+	{
+		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, false, 1)?;
+		assert_eq!(wallet1_info.last_confirmed_height, 12);
+		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
+		assert_eq!(wallet1_info.last_confirmed_height, 13);
+		let (_, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		println!("{:?}", txs);
+		assert_eq!(txs.len(), 5);
+	}
 
 	// wallet 2 should only have this tx on the listener account
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet2_refreshed);
-			assert_eq!(wallet2_info.last_confirmed_height, 13);
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			assert_eq!(txs.len(), 1);
-			Ok(())
-		},
-	)?;
+	{
+		let (wallet2_refreshed, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+		assert!(wallet2_refreshed);
+		assert_eq!(wallet2_info.last_confirmed_height, 13);
+		let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
+		assert_eq!(txs.len(), 1);
+	}
 	// Default account on wallet 2 should be untouched
 	{
 		wallet_inst!(wallet2, w);
 		w.set_parent_key_id_by_name("default")?;
 	}
-	wallet::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, wallet2_info) = api.retrieve_summary_info(m, false, 1)?;
-			assert_eq!(wallet2_info.last_confirmed_height, 0);
-			let (wallet2_refreshed, wallet2_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet2_refreshed);
-			assert_eq!(wallet2_info.last_confirmed_height, 13);
-			assert_eq!(wallet2_info.total, 0,);
-			assert_eq!(wallet2_info.amount_currently_spendable, 0,);
-			// check tx log as well
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			assert_eq!(txs.len(), 0);
-			Ok(())
-		},
-	)?;
+	{
+		let (_, wallet2_info) = api2.retrieve_summary_info(mask2, false, 1)?;
+		assert_eq!(wallet2_info.last_confirmed_height, 0);
+		let (wallet2_refreshed, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+		assert!(wallet2_refreshed);
+		assert_eq!(wallet2_info.last_confirmed_height, 13);
+		assert_eq!(wallet2_info.total, 0,);
+		assert_eq!(wallet2_info.amount_currently_spendable, 0,);
+		// check tx log as well
+		let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
+		assert_eq!(txs.len(), 0);
+	}
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
