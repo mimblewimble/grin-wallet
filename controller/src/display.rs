@@ -16,11 +16,12 @@ use crate::core::core::FeeFields;
 use crate::core::core::{self, amount_to_hr_string};
 use crate::core::global;
 use crate::libwallet::{
-	AcctPathMapping, Error, OutputCommitMapping, OutputStatus, SlatepackAddress, TxLogEntry,
-	ViewWallet, WalletInfo,
+	address, AcctPathMapping, Error, OutputCommitMapping, OutputStatus, SlatepackAddress,
+	TxLogEntry, ViewWallet, WalletInfo,
 };
 use crate::util::ToHex;
 use prettytable;
+use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use std::io::prelude::Write;
 use term;
 
@@ -537,15 +538,29 @@ pub fn accounts(acct_mappings: Vec<AcctPathMapping>) {
 
 	table.set_titles(row![
 		mMG->"Name",
-		bMG->"Parent BIP-32 Derivation Path",
+		bMG->"Parent Output Key",
+		bMG->"Slatepack Address (Index 0)",
 	]);
 	for m in acct_mappings {
+		let slatepack_path = address::address_derivation_path(&m.path, 0).to_bip_32_string();
 		table.add_row(row![
 			bFC->m.label,
 			bGC->m.path.to_bip_32_string(),
+			bGC->slatepack_path,
 		]);
 	}
-	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+	table.set_format(
+		FormatBuilder::new()
+			.column_separator('|')
+			.separators(
+				&[LinePosition::Top, LinePosition::Title],
+				LineSeparator::new('-', '+', '+', '+'),
+			)
+			.padding(1, 1)
+			.build(),
+	);
+	let width = table.to_string().find('\n').unwrap_or(0);
+	println!("{:^1$}", "BIP-32 Derivation Path", width);
 	table.printstd();
 	println!();
 }
