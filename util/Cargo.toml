@@ -19,6 +19,6 @@ thiserror = "1"
 
 ##### Grin Imports
 
-grin_util = { path = "../grin/util"}
+grin_util = { workspace = true }
 
 ######

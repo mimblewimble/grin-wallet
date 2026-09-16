@@ -20,8 +20,8 @@ lazy_static = "1"
 
 ##### Grin Imports
 
-grin_core = { path = "../grin/core"}
-grin_util = { path = "../grin/util"}
+grin_core = { workspace = true }
+grin_util = { workspace = true }
 
 #####
 
