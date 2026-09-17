@@ -31,6 +31,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 
+use grin_wallet_libwallet::wallet_lock;
 use qr_code::QrCode;
 use serde_json as json;
 use std::fs::File;
@@ -52,7 +53,7 @@ fn show_recovery_phrase(phrase: ZeroingString) {
 /// Arguments common to all wallet commands
 #[derive(Clone)]
 pub struct GlobalArgs {
-	pub account: String,
+	pub account: Option<String>,
 	pub api_secret: Option<String>,
 	pub node_api_secret: Option<String>,
 	pub show_spent: bool,
@@ -263,6 +264,8 @@ where
 /// Arguments for account command
 pub struct AccountArgs {
 	pub create: Option<String>,
+	pub minimum_confirmations: u64,
+	pub active: Option<String>,
 }
 
 pub fn account<L, C, K>(
@@ -275,20 +278,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	if args.create.is_none() {
-		let res = {
-			let acct_mappings = owner_api.accounts(keychain_mask)?;
-			// give logging thread a moment to catch up
-			thread::sleep(Duration::from_millis(200));
-			display::accounts(acct_mappings);
-			Ok(())
-		};
-		if let Err(e) = res {
-			error!("Error listing accounts: {}", e);
-			return Err(Error::LibWallet(e));
-		}
-	} else {
-		let label = args.create.unwrap();
+	if let Some(label) = args.create {
 		let res = {
 			owner_api.create_account_path(keychain_mask, &label)?;
 			thread::sleep(Duration::from_millis(200));
@@ -298,6 +288,31 @@ where
 		if let Err(e) = res {
 			thread::sleep(Duration::from_millis(200));
 			error!("Error creating account '{}': {}", label, e);
+			return Err(Error::LibWallet(e));
+		}
+	} else if let Some(label) = args.active {
+		let res = {
+			owner_api.set_active_account(keychain_mask, &label)?;
+			thread::sleep(Duration::from_millis(200));
+			info!("Account: '{}' set as active!", label);
+			Ok(())
+		};
+		if let Err(e) = res {
+			thread::sleep(Duration::from_millis(200));
+			error!("Error setting account '{}' as active: {}", label, e);
+			return Err(Error::LibWallet(e));
+		}
+	} else {
+		let res = {
+			let acct_mappings =
+				owner_api.accounts_info(keychain_mask, args.minimum_confirmations)?;
+			// give logging thread a moment to catch up
+			thread::sleep(Duration::from_millis(200));
+			display::accounts(acct_mappings);
+			Ok(())
+		};
+		if let Err(e) = res {
+			error!("Error listing accounts: {}", e);
 			return Err(Error::LibWallet(e));
 		}
 	}
@@ -702,7 +717,6 @@ pub struct ReceiveArgs {
 pub fn receive<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 	mut tor_config: TorConfig,
 	test_mode: bool,
@@ -752,7 +766,7 @@ where
 		owner_api.config_path(),
 		km,
 		|api| {
-			slate = api.receive_tx(&slate, Some(&g_args.account), None)?;
+			slate = api.receive_tx(&slate, None, None)?;
 			Ok(())
 		},
 	)?;
@@ -1174,7 +1188,6 @@ pub struct InfoArgs {
 pub fn info<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
 	args: InfoArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
@@ -1186,8 +1199,9 @@ where
 	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	let (validated, wallet_info) =
 		owner_api.retrieve_summary_info(keychain_mask, true, args.minimum_confirmations)?;
+	let account = account_label(owner_api)?;
 	display::info(
-		&g_args.account,
+		&account,
 		&wallet_info,
 		validated || updater_running,
 		dark_scheme,
@@ -1210,8 +1224,9 @@ where
 	let res = owner_api.node_height(keychain_mask)?;
 	let (validated, outputs) =
 		owner_api.retrieve_outputs(keychain_mask, g_args.show_spent, true, None)?;
+	let account = account_label(owner_api)?;
 	display::outputs(
-		&g_args.account,
+		&account,
 		res.height,
 		validated || updater_running,
 		outputs,
@@ -1230,7 +1245,6 @@ pub struct TxsArgs {
 pub fn txs<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
 	args: TxsArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
@@ -1249,8 +1263,9 @@ where
 	let first_tx = args
 		.count
 		.map_or(0, |c| txs.len().saturating_sub(c as usize));
+	let account = account_label(owner_api)?;
 	display::txs(
-		&g_args.account,
+		&account,
 		res.height,
 		validated || updater_running,
 		&txs[first_tx..],
@@ -1276,7 +1291,7 @@ where
 	if id.is_some() {
 		let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, true, false, id)?;
 		display::outputs(
-			&g_args.account,
+			&account,
 			res.height,
 			validated || updater_running,
 			outputs,
@@ -1459,7 +1474,6 @@ where
 /// Payment Proof Address
 pub fn address<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
-	g_args: &GlobalArgs,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), Error>
 where
@@ -1469,12 +1483,24 @@ where
 {
 	// Just address at derivation index 0 for now
 	let address = owner_api.get_slatepack_address(keychain_mask, 0)?;
+	let account = account_label(owner_api)?;
 	println!();
-	println!("Address for account - {}", g_args.account);
+	println!("Address for account - {}", account);
 	println!("-------------------------------------");
 	println!("{}", address);
 	println!();
 	Ok(())
+}
+
+/// Get current account label.
+fn account_label<L, C, K>(owner_api: &mut Owner<L, C, K>) -> Result<String, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	wallet_lock!(owner_api.wallet_inst, w);
+	Ok(w.active_account().label)
 }
 
 /// Proof Export Args
