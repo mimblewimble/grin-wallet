@@ -21,19 +21,15 @@ use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
-use ed25519_dalek::Signature as DalekSignature;
-use ed25519_dalek::VerifyingKey as DalekPublicKey;
-use std::convert::TryFrom;
-use uuid::Uuid;
-
 use crate::slate_versions::v4::{
 	CommitsV4, KernelFeaturesArgsV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4, SlateV4,
 	VersionCompatInfoV4,
 };
-
-// KernelFeatures constants from grin_core
-const HEIGHT_LOCKED_U8: u8 = 2;
-const NO_RECENT_DUPLICATE_U8: u8 = 3;
+use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::KernelFeatures;
+use std::convert::TryFrom;
+use uuid::Uuid;
 
 impl Writeable for SlateStateV4 {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
@@ -447,14 +443,17 @@ impl Writeable for SlateV4Bin {
 			ttl: v4.ttl,
 		}
 		.write(writer)?;
-		(SigsWrapRef(&v4.sigs)).write(writer)?;
+		SigsWrapRef(&v4.sigs).write(writer)?;
 		SlateOptStructsRef {
 			coms: &v4.coms,
 			proof: &v4.proof,
 		}
 		.write(writer)?;
 		// Write the height argument for height locked and NRD kernels
-		if matches!(v4.feat, HEIGHT_LOCKED_U8 | NO_RECENT_DUPLICATE_U8) {
+		if matches!(
+			v4.feat,
+			KernelFeatures::HEIGHT_LOCKED_U8 | KernelFeatures::NO_RECENT_DUPLICATE_U8
+		) {
 			let lock_hgt = match &v4.feat_args {
 				Some(l) => l.lock_hgt,
 				None => 0,
@@ -479,10 +478,13 @@ impl Readable for SlateV4Bin {
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
-		let feat_args = if matches!(opts.feat, HEIGHT_LOCKED_U8 | NO_RECENT_DUPLICATE_U8) {
+		let feat_args = if matches!(
+			opts.feat,
+			KernelFeatures::HEIGHT_LOCKED_U8 | KernelFeatures::NO_RECENT_DUPLICATE_U8
+		) {
 			Some(KernelFeaturesArgsV4 {
 				lock_hgt: reader.read_u64().map_err(|err| {
-					if opts.feat == NO_RECENT_DUPLICATE_U8
+					if opts.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8
 						&& matches!(
 							&err,
 							grin_ser::Error::IOErr(_, std::io::ErrorKind::UnexpectedEof)
