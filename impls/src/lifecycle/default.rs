@@ -291,7 +291,7 @@ where
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let res = wallet_seed
 			.to_mnemonic()
-			.map_err(|_| Error::Lifecycle("Wallet was created without a recovery phrase".into()))?;
+			.map_err(|e| Error::Lifecycle(format!("Error recovering wallet seed: {}", e)))?;
 		Ok(ZeroingString::from(res))
 	}
 
