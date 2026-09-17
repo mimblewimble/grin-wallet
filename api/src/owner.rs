@@ -1727,7 +1727,7 @@ where
 	/// * `mnemonic`: If present, restore the wallet seed from the given mnemonic instead of creating
 	/// a new random seed.
 	/// * `mnemonic_length`: Desired length of mnemonic in bytes (16 or 32, either 12 or 24 words).
-	/// Use 0 if mnemonic isn't being used.
+	/// Use 0 to default to 32 bytes when creating a new random seed.
 	/// * `password`: The password used to encrypt/decrypt the `wallet.seed` file
 	///
 	/// # Returns

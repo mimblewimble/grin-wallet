@@ -43,7 +43,7 @@ impl WalletSeed {
 		let res = mnemonic::to_entropy(&word_list);
 		match res {
 			Ok(s) => Ok(WalletSeed::from_bytes(&s)),
-			Err(_) => Err(Error::Mnemonic.into()),
+			Err(e) => Err(Error::Mnemonic(format!("{}", e))),
 		}
 	}
 
@@ -61,7 +61,7 @@ impl WalletSeed {
 		let result = mnemonic::from_entropy(&self.0);
 		match result {
 			Ok(r) => Ok(r),
-			Err(_) => Err(Error::Mnemonic.into()),
+			Err(e) => Err(Error::Mnemonic(format!("{}", e))),
 		}
 	}
 
