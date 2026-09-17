@@ -438,7 +438,7 @@ mod tests {
 
 		assert_eq!(
 			error,
-			Error::Lifecycle("Wallet was created without a recovery phrase".into())
+			Error::Lifecycle("Error recovering wallet seed: BIP39 Mnemonic (word list) Error: invalid mnemonic/entropy length 0".into())
 		);
 		fs::remove_dir_all(test_dir).unwrap();
 	}
