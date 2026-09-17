@@ -142,6 +142,7 @@ where
 		let default_account = AcctPathMapping {
 			label: "default".to_owned(),
 			path: WalletBackend::<C, K>::default_path(),
+			info: None,
 		};
 
 		{

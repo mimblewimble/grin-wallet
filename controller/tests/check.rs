@@ -89,7 +89,7 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	});
 
 	// few values to keep things shorter
-	let reward = core::consensus::REWARD;
+	let reward = consensus::REWARD;
 	let cm = global::coinbase_maturity() as u64; // assume all testing precedes soft fork height
 
 	// add some accounts
@@ -204,7 +204,7 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			assert!(wallet1_refreshed);
 			assert_eq!(wallet1_info.total, bh * reward);
 			// And check account names haven't been splatted
-			let accounts = api.accounts(m)?;
+			let accounts = api.accounts(m, None)?;
 			assert_eq!(accounts.len(), 4);
 			assert!(api.set_active_account(m, "account_1").is_err());
 			assert!(api.set_active_account(m, "named_account_1").is_ok());

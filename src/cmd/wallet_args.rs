@@ -430,7 +430,15 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 		None => None,
 		Some(s) => Some(s.to_owned()),
 	};
-	Ok(command::AccountArgs { create })
+
+	// minimum_confirmations
+	let min_c = parse_required(account_args, "minimum_confirmations")?;
+	let min_c = parse_u64(min_c, "minimum_confirmations")?;
+
+	Ok(command::AccountArgs {
+		create,
+		minimum_confirmations: min_c,
+	})
 }
 
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {

@@ -84,7 +84,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		mask1,
 		PathBuf::from(test_dir),
 		|api, m| {
-			let accounts = api.accounts(m)?;
+			let accounts = api.accounts(m, Some(2))?;
 			assert_eq!(accounts[0].label, "default");
 			assert_eq!(accounts[0].path, ExtKeychain::derive_key_id(2, 0, 0, 0, 0));
 			Ok(())
@@ -175,7 +175,11 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		mask1,
 		PathBuf::from(test_dir),
 		|api, m| {
-			let labels: Vec<_> = api.accounts(m)?.into_iter().map(|a| a.label).collect();
+			let labels: Vec<_> = api
+				.accounts(m, Some(2))?
+				.into_iter()
+				.map(|a| a.label)
+				.collect();
 			assert_eq!(labels, ["account1", "default", "account2", "account3"]);
 			// check last confirmed height on this account is different from above (should be 0)
 			let (_, wallet1_info) = api.retrieve_summary_info(m, false, 1)?;

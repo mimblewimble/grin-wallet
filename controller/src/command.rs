@@ -263,6 +263,7 @@ where
 /// Arguments for account command
 pub struct AccountArgs {
 	pub create: Option<String>,
+	pub minimum_confirmations: u64,
 }
 
 pub fn account<L, C, K>(
@@ -277,7 +278,8 @@ where
 {
 	if args.create.is_none() {
 		let res = {
-			let acct_mappings = owner_api.accounts(keychain_mask)?;
+			let acct_mappings =
+				owner_api.accounts(keychain_mask, Some(args.minimum_confirmations))?;
 			// give logging thread a moment to catch up
 			thread::sleep(Duration::from_millis(200));
 			display::accounts(acct_mappings);
@@ -1160,6 +1162,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	debug!("minimum_confirmations: {}", args.minimum_confirmations);
 	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	let (validated, wallet_info) =
 		owner_api.retrieve_summary_info(keychain_mask, true, args.minimum_confirmations)?;

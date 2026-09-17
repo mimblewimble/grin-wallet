@@ -540,13 +540,20 @@ pub fn accounts(acct_mappings: Vec<AcctPathMapping>) {
 		mMG->"Name",
 		bMG->"Parent Output Key",
 		bMG->"Slatepack Address (Index 0)",
+		bMG->"Spendable balance",
 	]);
 	for m in acct_mappings {
 		let slatepack_path = address::address_derivation_path(&m.path, 0).to_bip_32_string();
+		let spendable = if let Some(info) = m.info {
+			amount_to_hr_string(info.amount_currently_spendable, true)
+		} else {
+			"-".to_string()
+		};
 		table.add_row(row![
 			bFC->m.label,
 			bGC->m.path.to_bip_32_string(),
 			bGC->slatepack_path,
+			bGC->spendable,
 		]);
 	}
 	table.set_format(

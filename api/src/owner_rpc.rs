@@ -59,7 +59,8 @@ pub trait OwnerRpc {
 		"jsonrpc": "2.0",
 		"method": "accounts",
 		"params": {
-			"token": "d202964900000000d302964900000000d402964900000000d502964900000000"
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"minimum_confirmations": null
 		},
 		"id": 1
 	}
@@ -82,7 +83,11 @@ pub trait OwnerRpc {
 	# , 4, false, false, false, false);
 	```
 	*/
-	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, Error>;
+	fn accounts(
+		&self,
+		token: Token,
+		minimum_confirmations: Option<u64>,
+	) -> Result<Vec<AcctPathMapping>, Error>;
 
 	/**
 	Networked version of [Owner::create_account_path](struct.Owner.html#method.create_account_path).
@@ -2085,8 +2090,12 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
-	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, Error> {
-		Owner::accounts(self, (&token.keychain_mask).as_ref())
+	fn accounts(
+		&self,
+		token: Token,
+		minimum_confirmations: Option<u64>,
+	) -> Result<Vec<AcctPathMapping>, Error> {
+		Owner::accounts(self, (&token.keychain_mask).as_ref(), minimum_confirmations)
 	}
 
 	fn create_account_path(&self, token: Token, label: &String) -> Result<Identifier, Error> {
