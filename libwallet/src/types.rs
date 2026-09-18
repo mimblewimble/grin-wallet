@@ -772,6 +772,9 @@ pub struct AcctPathMapping {
 	pub label: String,
 	/// Corresponding parent BIP32 derivation path
 	pub path: Identifier,
+	/// Wallet information for this account, can be loaded after deserialization.
+	#[serde(skip)]
+	pub info: Option<WalletInfo>,
 }
 
 impl ser::Writeable for AcctPathMapping {

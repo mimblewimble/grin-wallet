@@ -52,12 +52,26 @@ use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// List of accounts
-pub fn accounts<C, K>(w: &mut WalletBackend<C, K>) -> Result<Vec<AcctPathMapping>, Error>
+pub fn accounts<C, K>(
+	w: &mut WalletBackend<C, K>,
+	minimum_confirmations: Option<u64>,
+) -> Result<Vec<AcctPathMapping>, Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	let mut accounts = keys::accounts(w)?;
+	let mut keys_accounts = keys::accounts(w)?;
+	let mut accounts: Vec<AcctPathMapping> = if let Some(mc) = minimum_confirmations {
+		keys_accounts
+			.iter_mut()
+			.map(|a| {
+				a.info = updater::retrieve_info(w, &a.path, mc).ok();
+				a.clone()
+			})
+			.collect()
+	} else {
+		keys_accounts
+	};
 	accounts.sort_by(|a, b| a.path.cmp(&b.path));
 	// Put active account on top.
 	accounts.sort_by_key(|k| k.path != w.parent_key_id());

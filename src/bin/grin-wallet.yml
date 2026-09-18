@@ -48,6 +48,12 @@ subcommands:
             short: c
             long: create
             takes_value: true
+        - minimum_confirmations:
+            help: Minimum number of confirmations required for an output to be spendable
+            short: c
+            long: min_conf
+            default_value: "10"
+            takes_value: true
   - rewind_hash:
       about: Return the hash of the wallet root public key.
   - scan_rewind_hash:

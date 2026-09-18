@@ -93,6 +93,7 @@ where
 	let save_path = AcctPathMapping {
 		label,
 		path: return_id.clone(),
+		info: None,
 	};
 
 	let mut batch = wallet.batch(keychain_mask)?;
@@ -116,6 +117,7 @@ where
 	let save_path = AcctPathMapping {
 		label,
 		path: path.clone(),
+		info: None,
 	};
 
 	let mut batch = wallet.batch(keychain_mask)?;
