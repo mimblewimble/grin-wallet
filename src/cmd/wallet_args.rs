@@ -26,6 +26,7 @@ use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
+use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
@@ -1059,37 +1060,36 @@ where
 	wallet_inst_cb(wallet.clone());
 
 	// don't open wallet for certain lifecycle commands
-	let mut open_wallet = true;
-	match wallet_args.subcommand() {
-		("init", Some(_)) => open_wallet = false,
-		("recover", _) => open_wallet = false,
-		("cli", _) => open_wallet = false,
+	let keychain_mask = match wallet_args.subcommand() {
+		("init", Some(_)) => None,
+		("recover", _) => None,
+		("cli", _) => None,
+		("unpack", Some(args)) => {
+			let args = arg_parse!(parse_unpack_args(args));
+			let slatepack = command::read_slatepack(args)?;
+			let mask = if slatepack.mode == 1 {
+				open_wallet(&wallet, &global_wallet_args, wallet_args)?
+			} else {
+				None
+			};
+			let mut owner_api = Owner::new(wallet.clone(), None, config.config_file_path.clone());
+			command::unpack(&mut owner_api, mask.as_ref(), slatepack)?;
+			return Ok("unpack".to_string());
+		}
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
-			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider()?;
-			open_wallet = wallet_args.is_present("pass") && lc.wallet_exists(None)?;
-		}
-		_ => {}
-	}
-
-	let keychain_mask = match open_wallet {
-		true => {
-			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider()?;
-			let mask = lc.open_wallet(
-				None,
-				prompt_password(&global_wallet_args.password)?,
-				false,
-				false,
-			)?;
-			if let Some(account) = wallet_args.value_of("account") {
-				let wallet_inst = lc.wallet_inst()?;
-				wallet_inst.set_parent_key_id_by_name(account)?;
+			let open = {
+				let mut wallet_lock = wallet.lock();
+				let lc = wallet_lock.lc_provider()?;
+				wallet_args.is_present("pass") && lc.wallet_exists(None)?
+			};
+			if open {
+				open_wallet(&wallet, &global_wallet_args, wallet_args)?
+			} else {
+				None
 			}
-			mask
 		}
-		false => None,
+		_ => open_wallet(&wallet, &global_wallet_args, wallet_args)?,
 	};
 
 	let res = match wallet_args.subcommand() {
@@ -1121,6 +1121,31 @@ where
 	} else {
 		Ok(wallet_args.subcommand().0.to_owned())
 	}
+}
+
+fn open_wallet<L, C, K>(
+	wallet: &Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	global_wallet_args: &GlobalArgs,
+	wallet_args: &ArgMatches,
+) -> Result<Option<SecretKey>, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let mut wallet_lock = wallet.lock();
+	let lc = wallet_lock.lc_provider()?;
+	let mask = lc.open_wallet(
+		None,
+		prompt_password(&global_wallet_args.password)?,
+		false,
+		false,
+	)?;
+	if let Some(account) = wallet_args.value_of("account") {
+		let wallet_inst = lc.wallet_inst()?;
+		wallet_inst.set_parent_key_id_by_name(account)?;
+	}
+	Ok(mask)
 }
 
 pub fn parse_and_execute<L, C, K>(
@@ -1231,7 +1256,8 @@ where
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
-			command::unpack(owner_api, km, a)
+			let slatepack = command::read_slatepack(a)?;
+			command::unpack(owner_api, km, slatepack)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
