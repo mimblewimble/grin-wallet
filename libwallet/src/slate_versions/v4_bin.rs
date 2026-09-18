@@ -467,7 +467,16 @@ impl Writeable for SlateV4Bin {
 					}
 					l.lock_hgt
 				}
-				None => 0,
+				None => {
+					if v4.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8 {
+						return Err(grin_ser::Error::IOErr(
+							"Missing arguments for NRD Slatepack".to_string(),
+							std::io::ErrorKind::InvalidData,
+						));
+					} else {
+						0
+					}
+				}
 			};
 			writer.write_u64(lock_hgt)?;
 		}
@@ -604,6 +613,10 @@ fn slate_v4_serialize_deserialize() {
 
 		v4_bin.0.feat_args.as_mut().unwrap().lock_hgt = 1;
 		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_ok());
+
+		v4_bin.0.feat_args = None;
+		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_err());
+		v4_bin.0.feat_args = v4.clone().feat_args;
 
 		v4_bin.0.feat_args.as_mut().unwrap().lock_hgt = 0;
 		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_err());
