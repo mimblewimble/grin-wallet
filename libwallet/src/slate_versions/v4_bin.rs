@@ -21,15 +21,15 @@ use crate::grin_keychain::BlindingFactor;
 use crate::grin_util::secp::key::PublicKey;
 use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
 use crate::grin_util::secp::Signature;
-use ed25519_dalek::Signature as DalekSignature;
-use ed25519_dalek::VerifyingKey as DalekPublicKey;
-use std::convert::TryFrom;
-use uuid::Uuid;
-
 use crate::slate_versions::v4::{
 	CommitsV4, KernelFeaturesArgsV4, ParticipantDataV4, PaymentInfoV4, SlateStateV4, SlateV4,
 	VersionCompatInfoV4,
 };
+use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::{KernelFeatures, NRDRelativeHeight};
+use std::convert::TryFrom;
+use uuid::Uuid;
 
 impl Writeable for SlateStateV4 {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
@@ -443,17 +443,40 @@ impl Writeable for SlateV4Bin {
 			ttl: v4.ttl,
 		}
 		.write(writer)?;
-		(SigsWrapRef(&v4.sigs)).write(writer)?;
+		SigsWrapRef(&v4.sigs).write(writer)?;
 		SlateOptStructsRef {
 			coms: &v4.coms,
 			proof: &v4.proof,
 		}
 		.write(writer)?;
-		// Write lock height for height locked kernels
-		if v4.feat == 2 {
+		// Write the height argument for height locked and NRD kernels
+		if matches!(
+			v4.feat,
+			KernelFeatures::HEIGHT_LOCKED_U8 | KernelFeatures::NO_RECENT_DUPLICATE_U8
+		) {
 			let lock_hgt = match &v4.feat_args {
-				Some(l) => l.lock_hgt,
-				None => 0,
+				Some(l) => {
+					// Check valid NRD Slatepack relative height.
+					if v4.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8
+						&& NRDRelativeHeight::try_from(l.lock_hgt).is_err()
+					{
+						return Err(grin_ser::Error::IOErr(
+							"Invalid NRD Slatepack relative height".to_string(),
+							std::io::ErrorKind::InvalidData,
+						));
+					}
+					l.lock_hgt
+				}
+				None => {
+					if v4.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8 {
+						return Err(grin_ser::Error::IOErr(
+							"Missing arguments for NRD Slatepack".to_string(),
+							std::io::ErrorKind::InvalidData,
+						));
+					} else {
+						0
+					}
+				}
 			};
 			writer.write_u64(lock_hgt)?;
 		}
@@ -475,10 +498,34 @@ impl Readable for SlateV4Bin {
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
-		let feat_args = if opts.feat == 2 {
-			Some(KernelFeaturesArgsV4 {
-				lock_hgt: reader.read_u64()?,
-			})
+		let feat_args = if matches!(
+			opts.feat,
+			KernelFeatures::HEIGHT_LOCKED_U8 | KernelFeatures::NO_RECENT_DUPLICATE_U8
+		) {
+			let height = reader.read_u64().map_err(|err| {
+				if opts.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8
+					&& matches!(
+						&err,
+						grin_ser::Error::IOErr(_, std::io::ErrorKind::UnexpectedEof)
+					) {
+					grin_ser::Error::IOErr(
+						"NRD Slatepack is missing relative height".into(),
+						std::io::ErrorKind::UnexpectedEof,
+					)
+				} else {
+					err
+				}
+			})?;
+			// Check valid NRD Slatepack relative height.
+			if opts.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8
+				&& NRDRelativeHeight::try_from(height).is_err()
+			{
+				return Err(grin_ser::Error::IOErr(
+					"Invalid NRD Slatepack relative height".to_string(),
+					std::io::ErrorKind::InvalidData,
+				));
+			}
+			Some(KernelFeaturesArgsV4 { lock_hgt: height })
 		} else {
 			None
 		};
@@ -555,9 +602,29 @@ fn slate_v4_serialize_deserialize() {
 
 	v4.coms = Some(coms);
 	v4.amt = 234324899824;
-	v4.feat = 1;
+	v4.feat = KernelFeatures::COINBASE_U8;
 	v4.num_parts = 2;
 	v4.feat_args = Some(KernelFeaturesArgsV4 { lock_hgt: 23092039 });
+
+	// Check NRD lock height errors handling.
+	{
+		let mut v4_bin = SlateV4Bin(v4.clone());
+		v4_bin.0.feat = KernelFeatures::NO_RECENT_DUPLICATE_U8;
+
+		v4_bin.0.feat_args.as_mut().unwrap().lock_hgt = 1;
+		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_ok());
+
+		v4_bin.0.feat_args = None;
+		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_err());
+		v4_bin.0.feat_args = v4.clone().feat_args;
+
+		v4_bin.0.feat_args.as_mut().unwrap().lock_hgt = 0;
+		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_err());
+
+		v4_bin.0.feat_args.as_mut().unwrap().lock_hgt = NRDRelativeHeight::MAX + 1;
+		assert!(grin_ser::serialize_default(&mut Vec::new(), &v4_bin).is_err());
+	}
+
 	let v4_1 = v4.clone();
 	let v4_1_copy = v4.clone();
 
