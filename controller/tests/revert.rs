@@ -236,6 +236,7 @@ fn revert(
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
 		assert!(tx.confirmed);
+		assert_eq!(tx.confirmed_height, Some(bh));
 		assert!(tx.kernel_excess.is_some());
 		assert!(tx.reverted_after.is_none());
 		Ok(())
@@ -272,6 +273,7 @@ fn revert(
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReverted);
 		assert!(!tx.confirmed);
+		assert_eq!(tx.confirmed_height, None);
 		assert!(tx.reverted_after.is_some());
 		Ok(())
 	})?;
@@ -306,6 +308,7 @@ fn revert_reconfirm_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		let tx = &txs[0];
 		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReceived);
 		assert!(tx.confirmed);
+		assert_eq!(tx.confirmed_height, Some(bh));
 		assert!(tx.reverted_after.is_none());
 		Ok(())
 	})?;

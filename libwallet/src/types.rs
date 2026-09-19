@@ -645,6 +645,9 @@ pub struct TxLogEntry {
 	/// confirmed (In all cases either all outputs involved in a tx should be
 	/// confirmed, or none should be; otherwise there's a deeper problem)
 	pub confirmed: bool,
+	/// Block height at which this transaction was confirmed
+	#[serde(default)]
+	pub confirmed_height: Option<u64>,
 	/// number of inputs involved in TX
 	pub num_inputs: usize,
 	/// number of outputs involved in TX
@@ -704,6 +707,7 @@ impl TxLogEntry {
 			creation_ts: Utc::now(),
 			confirmation_ts: None,
 			confirmed: false,
+			confirmed_height: None,
 			amount_credited: 0,
 			amount_debited: 0,
 			num_inputs: 0,
@@ -1002,6 +1006,17 @@ mod tests {
 
 		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
 		assert_eq!(none, none2);
+	}
+
+	#[test]
+	fn legacy_tx_log() {
+		let parent = ExtKeychainPath::new(1, 0, 0, 0, 0).to_identifier();
+		let tx = TxLogEntry::new(parent, TxLogEntryType::TxReceived, 0);
+		let mut value = serde_json::to_value(tx).unwrap();
+		value.as_object_mut().unwrap().remove("confirmed_height");
+
+		let tx: TxLogEntry = serde_json::from_value(value).unwrap();
+		assert_eq!(tx.confirmed_height, None);
 	}
 
 	#[test]
