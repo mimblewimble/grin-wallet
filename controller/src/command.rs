@@ -436,7 +436,6 @@ where
 			target_slate_version: args.target_slate_version,
 			payment_proof_recipient_address,
 			ttl_blocks: args.ttl_blocks,
-			send_args: None,
 			late_lock: Some(args.late_lock),
 			..Default::default()
 		};
@@ -491,14 +490,14 @@ where
 		tor_config.bridge.bridge_line = Some(b);
 	}
 
-	let output_sp = || -> Result<(), Error> {
+	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
 			&slate,
 			dest.clone(),
 			args.outfile,
-			true,
+			lock_outputs,
 			false,
 			args.slatepack_qr,
 		)?)
@@ -506,15 +505,16 @@ where
 
 	let can_send = tor_config.send_tor(args.skip_tor);
 	if test_mode || !can_send || dest.is_none() {
-		return output_sp();
+		return output_sp(owner_api, true);
 	}
+
+	owner_api.tx_lock_outputs(keychain_mask, &slate)?;
 
 	let dest = dest.as_ref().unwrap();
 	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, false);
 
 	match res {
 		Ok(s) => {
-			owner_api.tx_lock_outputs(keychain_mask, &s)?;
 			let ret_slate = owner_api.finalize_tx(keychain_mask, &s)?;
 			let result = owner_api.post_tx(keychain_mask, &ret_slate, args.fluff);
 			match result {
@@ -529,7 +529,7 @@ where
 		}
 		Err(e) => {
 			error!("Error sending slate sync: {}", e);
-			output_sp()?;
+			output_sp(owner_api, false)?;
 		}
 	}
 	Ok(())
@@ -1073,7 +1073,6 @@ where
 			selection_strategy_is_use_all: args.selection_strategy == "all",
 			refresh_outputs_from_node: !info_updated,
 			ttl_blocks: args.ttl_blocks,
-			send_args: None,
 			..Default::default()
 		};
 		let result = owner_api.process_invoice_tx(keychain_mask, &slate, init_args);
