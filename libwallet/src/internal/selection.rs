@@ -73,9 +73,12 @@ where
 		false,
 	)?;
 	if amount_includes_fee {
-		slate.amount = slate.amount.checked_sub(fee).ok_or(Error::GenericError(
-			"Transaction amount is too small to include fee".to_string(),
-		))?;
+		let small_amount_err =
+			Error::GenericError("Transaction amount is too small to include fee".to_string());
+		if slate.amount == fee {
+			return Err(small_amount_err);
+		}
+		slate.amount = slate.amount.checked_sub(fee).ok_or(small_amount_err)?;
 	};
 
 	if fixed_fee.map(|f| fee != f).unwrap_or(false) {
@@ -104,15 +107,9 @@ where
 		context.add_input(&input.key_id, &input.mmr_index, input.value);
 	}
 
-	let mut commits: HashMap<Identifier, Option<String>> = HashMap::new();
-
-	// Store change output(s) and cached commits
+	// Store change output(s)
 	for (change_amount, id, mmr_index) in &change_amounts_derivations {
 		context.add_output(&id, &mmr_index, *change_amount);
-		commits.insert(
-			id.clone(),
-			wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
-		);
 	}
 
 	Ok(context)
