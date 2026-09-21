@@ -372,11 +372,14 @@ where
 			true,
 			args.minimum_confirmations,
 		)?;
-	if args.use_max_amount {
-		amount = wallet_info.amount_currently_spendable;
-	}
 	if !info_updated && !update_skipped {
 		warn!("Wallet info update failed: node connection error");
+	}
+	if args.use_max_amount {
+		amount = wallet_info.amount_currently_spendable;
+		if amount == 0 {
+			return Err(Error::GenericError("No spendable funds".to_string()));
+		}
 	}
 	if args.estimate_selection_strategies {
 		let strategies = estimate_strategies(args.use_max_amount)

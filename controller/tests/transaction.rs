@@ -112,10 +112,41 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		mask1,
 		PathBuf::from(test_dir),
 		|sender_api, m| {
+			// Do not allow to send 0
+			let error = sender_api
+				.init_send_tx(
+					m,
+					InitTxArgs {
+						amount: 0,
+						..Default::default()
+					},
+				)
+				.unwrap_err();
+			assert_eq!(error, libwallet::Error::InvalidAmount);
+
+			// Result amount can not be 0 when amount includes fee
+			let mut init_args = InitTxArgs {
+				amount_includes_fee: Some(true),
+				amount: 23_000_000,
+				estimate_only: Some(true),
+				..Default::default()
+			};
+			let est = sender_api.init_send_tx(m, init_args.clone())?;
+			assert_eq!(init_args.amount, est.fee_fields.fee());
+
+			init_args.estimate_only = None;
+			let error = sender_api.init_send_tx(m, init_args).unwrap_err();
+			assert_eq!(
+				error,
+				libwallet::Error::GenericError(
+					"Transaction amount is too small to include fee".to_string()
+				)
+			);
+
 			// note this will increment the block count as part of the transaction "Posting"
 			let args = InitTxArgs {
 				src_acct_name: None,
-				amount: amount,
+				amount,
 				minimum_confirmations: 2,
 				max_outputs: 500,
 				num_change_outputs: 1,
@@ -126,6 +157,21 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 			assert_eq!(slate_i.state, SlateState::Standard1);
 			assert_eq!(slate_i.version_info.block_header_version, header_version);
+
+			wallet::controller::foreign_single_use(
+				wallet2.clone(),
+				PathBuf::from(test_dir),
+				mask2_i.clone(),
+				|api| {
+					let mut zero_amount_slate = slate_i.clone();
+					zero_amount_slate.amount = 0;
+					assert_eq!(
+						api.receive_tx(&zero_amount_slate, None, None).unwrap_err(),
+						libwallet::Error::InvalidAmount
+					);
+					Ok(())
+				},
+			)?;
 
 			// Check we are creating a tx with the expected lock_height of 0.
 			// We will check this produces a Plain kernel later.
