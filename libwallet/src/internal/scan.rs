@@ -330,6 +330,7 @@ where
 			};
 			let mut t = TxLogEntry::new(parent_key_id.clone(), entry_type, log_id);
 			t.confirmed = true;
+			t.confirmed_height = Some(output.height);
 			t.amount_credited = output.value;
 			t.num_outputs = 1;
 			t.update_confirmation_ts();

@@ -242,6 +242,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			let tx = tx.unwrap();
 			assert!(!tx.confirmed);
 			assert!(tx.confirmation_ts.is_none());
+			assert!(tx.confirmed_height.is_none());
 			assert_eq!(tx.amount_debited - tx.amount_credited, fee + amount);
 			println!("tx: {:?}", tx);
 			assert_eq!(Some(fee.try_into().unwrap()), tx.fee);
@@ -263,6 +264,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			let tx = tx.unwrap();
 			assert!(!tx.confirmed);
 			assert!(tx.confirmation_ts.is_none());
+			assert!(tx.confirmed_height.is_none());
 			assert_eq!(amount, tx.amount_credited);
 			assert_eq!(0, tx.amount_debited);
 			assert_eq!(None, tx.fee);
@@ -280,6 +282,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			Ok(())
 		},
 	)?;
+	let confirmed_height = chain.head().unwrap().height;
 
 	// Check wallet 1 contents are as expected
 	wallet::controller::owner_single_use(
@@ -317,6 +320,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			let tx = tx.unwrap();
 			assert!(tx.confirmed);
 			assert!(tx.confirmation_ts.is_some());
+			assert_eq!(tx.confirmed_height, Some(confirmed_height));
 
 			Ok(())
 		},
@@ -363,6 +367,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			let tx = tx.unwrap();
 			assert!(tx.confirmed);
 			assert!(tx.confirmation_ts.is_some());
+			assert_eq!(tx.confirmed_height, Some(confirmed_height));
 			Ok(())
 		},
 	)?;

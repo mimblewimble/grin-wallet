@@ -1196,6 +1196,11 @@ where
 		.height
 		.saturating_sub(REORG_RESCAN_WINDOW);
 
+	// Keep scan progress unchanged if height checks fail
+	if !update_confirmed_heights(wallet_inst.clone(), keychain_mask, start_height, &tip)? {
+		return Ok(false);
+	}
+
 	debug!(
 		"update_wallet_state: last_scanned_block: {:?}",
 		last_scanned_block
@@ -1240,6 +1245,9 @@ where
 
 	// Step 5: Cancel any transactions with an expired TTL
 	for tx in txs {
+		if tx.confirmed {
+			continue;
+		}
 		if let Some(e) = tx.ttl_cutoff_height {
 			if tip.0 >= e {
 				wallet_lock!(wallet_inst, w);
@@ -1357,6 +1365,77 @@ where
 	}
 }
 
+/// Recheck known heights, preserving status and detection time
+fn update_confirmed_heights<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	start_height: u64,
+	tip: &(u64, String),
+) -> Result<bool, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// Keep account and records stable during queries
+	wallet_lock!(wallet_inst, w);
+	let parent_key_id = w.parent_key_id();
+	if tip.0 < w.last_confirmed_height_for_parent(&parent_key_id)? || start_height > tip.0 {
+		debug!("Skipping confirmation height checks: node tip is behind wallet progress");
+		return Ok(false);
+	}
+	let mut client = w.w2n_client().clone();
+	let txs = updater::retrieve_txs(w, None, None, None, Some(&parent_key_id), false)?;
+	let mut updates = Vec::new();
+	for mut tx in txs.into_iter().filter(|tx| tx.confirmed) {
+		let previous_height = match tx.confirmed_height.or(tx.last_known_kernel_height) {
+			Some(h) if h >= start_height => h,
+			_ => continue,
+		};
+		let excess = match tx.kernel_excess {
+			Some(e) => e,
+			None => continue,
+		};
+		// Check the recorded block first
+		let kernel = match tx.confirmed_height {
+			Some(h) if h <= tip.0 => client.get_kernel(&excess, Some(h), Some(h)),
+			_ => Ok(None),
+		};
+		// Accept repeated window scans without a cache
+		// Reorgs can place missing kernels in previously searched blocks
+		let kernel = match kernel {
+			Ok(None) => client.get_kernel(&excess, Some(start_height), Some(tip.0)),
+			other => other,
+		};
+		let height = match kernel {
+			Ok(kernel) => kernel.map(|k| k.1),
+			Err(_) => return Ok(false),
+		};
+		if height != tx.confirmed_height {
+			tx.confirmed_height = height;
+			tx.last_known_kernel_height = if height.is_none() {
+				Some(previous_height)
+			} else {
+				None
+			};
+			updates.push(tx);
+		}
+	}
+	if !updates.is_empty() {
+		// Check the tip before saving height changes
+		if client.get_chain_tip().ok().as_ref() != Some(tip) {
+			debug!("Discarding confirmation height updates: node tip changed or is unavailable");
+			return Ok(false);
+		}
+		let mut batch = w.batch(keychain_mask)?;
+		for tx in updates {
+			batch.save_tx_log_entry(tx, &parent_key_id)?;
+		}
+		batch.commit()?;
+	}
+	Ok(true)
+}
+
 /// Update transactions that need to be validated via kernel lookup
 fn update_txs_via_kernel<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
@@ -1402,6 +1481,8 @@ where
 				let mut batch = w.batch(keychain_mask)?;
 				tx.confirmed = true;
 				tx.update_confirmation_ts();
+				tx.confirmed_height = Some(k.1);
+				tx.last_known_kernel_height = None;
 				batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
 				batch.commit()?;
 			}

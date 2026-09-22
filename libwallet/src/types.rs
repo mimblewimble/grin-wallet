@@ -645,6 +645,14 @@ pub struct TxLogEntry {
 	/// confirmed (In all cases either all outputs involved in a tx should be
 	/// confirmed, or none should be; otherwise there's a deeper problem)
 	pub confirmed: bool,
+	/// Observed confirmation height
+	/// Older entries may have no height
+	/// Known kernels are rechecked within the reorg window
+	#[serde(default)]
+	pub confirmed_height: Option<u64>,
+	/// Last known kernel height for bounded rechecks
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub last_known_kernel_height: Option<u64>,
 	/// number of inputs involved in TX
 	pub num_inputs: usize,
 	/// number of outputs involved in TX
@@ -704,6 +712,8 @@ impl TxLogEntry {
 			creation_ts: Utc::now(),
 			confirmation_ts: None,
 			confirmed: false,
+			confirmed_height: None,
+			last_known_kernel_height: None,
 			amount_credited: 0,
 			amount_debited: 0,
 			num_inputs: 0,
@@ -1002,6 +1012,23 @@ mod tests {
 
 		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
 		assert_eq!(none, none2);
+	}
+
+	#[test]
+	fn legacy_tx_log() {
+		let parent = ExtKeychainPath::new(1, 0, 0, 0, 0).to_identifier();
+		let tx = TxLogEntry::new(parent, TxLogEntryType::TxReceived, 0);
+		let mut value = serde_json::to_value(tx).unwrap();
+		value.as_object_mut().unwrap().remove("confirmed_height");
+
+		let tx: TxLogEntry = serde_json::from_value(value).unwrap();
+		assert_eq!(tx.confirmed_height, None);
+		assert_eq!(tx.last_known_kernel_height, None);
+		let mut tx = tx;
+		tx.last_known_kernel_height = Some(42);
+		let restored: TxLogEntry =
+			serde_json::from_slice(&serde_json::to_vec(&tx).unwrap()).unwrap();
+		assert_eq!(restored.last_known_kernel_height, Some(42));
 	}
 
 	#[test]
