@@ -81,7 +81,7 @@ where
 		&mut self,
 		name: Option<&str>,
 		mnemonic: Option<ZeroingString>,
-		mnemonic_length: usize,
+		entropy_size: usize,
 		password: ZeroingString,
 		test_mode: bool,
 	) -> Result<(), Error>;
