@@ -298,6 +298,16 @@ where
 		self.parent_key_id.clone()
 	}
 
+	/// Resolve an account name, falling back to the active account if absent or unknown
+	pub fn parent_key_id_for(&mut self, name: Option<&str>) -> Result<Identifier, Error> {
+		Ok(name
+			.map(|name| self.get_acct_path(name.to_owned()))
+			.transpose()?
+			.flatten()
+			.map(|account| account.path)
+			.unwrap_or_else(|| self.parent_key_id()))
+	}
+
 	/// Get output data by id.
 	pub fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error> {
 		let key = match mmr_index {
@@ -332,6 +342,13 @@ where
 			.map_err(|e| e.into())
 	}
 
+	pub(crate) fn tx_by_id(&self, id: u32) -> Result<Option<TxLogEntry>, Error> {
+		let key = to_key_u64(self.parent_key_id.to_bytes(), id as u64);
+		self.db
+			.get_ser(Some(TX_LOG_ENTRY_PREFIX), &key, None)
+			.map_err(From::from)
+	}
+
 	/// Iterate over all tx log data stored by the backend.
 	pub fn tx_log_iter(
 		&self,
@@ -346,6 +363,15 @@ where
 				)
 				.map_err(From::from)
 			})
+			.map_err(From::from)
+	}
+
+	pub(crate) fn has_context(&self, slate_id: &Uuid) -> Result<bool, Error> {
+		self.db
+			.exists(
+				Some(PRIVATE_TX_CONTEXT_PREFIX),
+				&to_key_u64(slate_id.as_bytes(), 0),
+			)
 			.map_err(From::from)
 	}
 
@@ -465,14 +491,21 @@ where
 
 	/// Next child ID when we want to create a new output, based on current parent.
 	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
-		let parent_key_id = self.parent_key_id.clone();
+		self.next_child_for(keychain_mask, &self.parent_key_id.clone())
+	}
+
+	pub(crate) fn next_child_for(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		parent_key_id: &Identifier,
+	) -> Result<Identifier, Error> {
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
 			batch
-				.get_ser(Some(DERIV_PREFIX), &self.parent_key_id.to_bytes(), None)?
+				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
 				.unwrap_or_else(|| 0)
 		};
-		let mut return_path = self.parent_key_id.to_path();
+		let mut return_path = parent_key_id.to_path();
 		return_path.depth += 1;
 		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
 		deriv_idx += 1;

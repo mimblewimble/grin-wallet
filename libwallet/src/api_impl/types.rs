@@ -21,7 +21,9 @@ use crate::grin_util::secp::pedersen;
 use crate::slate_versions::ser as dalek_ser;
 use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
-use crate::{Error, NodeClient, Slate, SlatepackAddress, WalletBackend};
+use crate::{
+	Error, NodeClient, Slate, SlateState, SlatepackAddress, TxLogEntryType, WalletBackend,
+};
 
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
@@ -355,7 +357,7 @@ fn default_refresh_outputs_from_node() -> bool {
 	true
 }
 
-/// Update transaction slate state.
+/// Update the receiving side of a send or the paying side of an invoice
 pub fn update_tx_slate_state<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -366,28 +368,16 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let mut bad_records = 0;
-	let tx = wallet
-		.tx_log_iter()?
-		.filter(|tx| {
-			if tx.is_err() {
-				bad_records += 1;
-			}
-			tx.is_ok()
-		})
-		.map(|tx| tx.unwrap())
-		.find(|tx| tx.parent_key_id == *parent_key_id && tx.tx_slate_id == Some(slate.id));
-	if let Some(mut tx) = tx {
-		let mut batch = wallet.batch(keychain_mask)?;
-		tx.tx_slate_state = Some(slate.state.clone());
-		batch.save_tx_log_entry(tx.clone(), parent_key_id)?;
-		batch.commit()?;
-	} else {
-		return Err(Error::Backend(format!(
-			"Tx log entry with slate id {} not found, there are {} bad tx log records",
-			slate.id, bad_records
-		)));
-	}
+	let kind = match slate.state {
+		SlateState::Standard2 | SlateState::Standard3 => TxLogEntryType::TxReceived,
+		SlateState::Invoice2 | SlateState::Invoice3 => TxLogEntryType::TxSent,
+		_ => return Err(Error::SlateState),
+	};
+	let mut tx = crate::internal::tx::find_tx(wallet, slate.id, Some(parent_key_id), kind)?;
+	tx.tx_slate_state = Some(slate.state.clone());
+	let mut batch = wallet.batch(keychain_mask)?;
+	batch.save_tx_log_entry(tx, parent_key_id)?;
+	batch.commit()?;
 	Ok(())
 }
 

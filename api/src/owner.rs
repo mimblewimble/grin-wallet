@@ -970,16 +970,17 @@ where
 			}
 			_ => None,
 		};
-		let (slate, tor_config) = {
+		let (slate, tor_config, parent_key_id) = {
 			let mut w_lock = self.wallet_inst.lock();
 			let tor_config = send_args
 				.as_ref()
 				.map(|_| crate::tor_config::load(&self.config_path()))
 				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
+			let parent_key_id = w.parent_key_id_for(args.src_acct_name.as_deref())?;
 			let slate =
 				owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
-			(slate, tor_config)
+			(slate, tor_config, parent_key_id)
 		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
@@ -991,6 +992,10 @@ where
 				if self.doctest_mode || !can_send || dest.is_none() {
 					return Ok(slate);
 				}
+				{
+					wallet_lock!(self.wallet_inst, w);
+					owner::tx_lock_outputs(w, keychain_mask, &slate)?;
+				}
 				let dest = dest.unwrap();
 				let res = try_slatepack_sync_workflow(&slate, &dest, Some(tc), None, true);
 				match res {
@@ -999,7 +1004,6 @@ where
 						{
 							let mut w_lock = self.wallet_inst.lock();
 							let w = w_lock.lc_provider()?.wallet_inst()?;
-							let parent_key_id = w.parent_key_id();
 							match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
 								Ok(_) => {}
 								Err(e) => error!("Error on updating slate state: {}", e),

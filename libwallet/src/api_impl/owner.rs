@@ -456,7 +456,7 @@ where
 	} else {
 		false
 	};
-	let txs = retrieve_txs(
+	let mut txs = retrieve_txs(
 		wallet_inst.clone(),
 		keychain_mask,
 		status_send_channel,
@@ -465,6 +465,21 @@ where
 		tx_slate_id,
 		None,
 	)?;
+	if tx_id.is_none()
+		&& txs.1.len() == 2
+		&& txs
+			.1
+			.iter()
+			.filter(|t| t.tx_type == TxLogEntryType::TxSent)
+			.count() == 1
+		&& txs
+			.1
+			.iter()
+			.filter(|t| t.tx_type == TxLogEntryType::TxReceived)
+			.count() == 1
+	{
+		txs.1.retain(|t| t.tx_type == TxLogEntryType::TxSent);
+	}
 	if txs.1.len() != 1 {
 		return Err(Error::PaymentProofRetrieval(
 			"Transaction doesn't exist".to_owned(),
@@ -722,33 +737,27 @@ where
 		return Err(Error::InvalidAmount);
 	}
 
+	if slate.state != SlateState::Invoice1 {
+		return Err(Error::SlateState);
+	}
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
-	let parent_key_id = match args.src_acct_name {
-		Some(d) => {
-			let pm = w.get_acct_path(d)?;
-			match pm {
-				Some(p) => p.path,
-				None => w.parent_key_id(),
-			}
-		}
-		None => w.parent_key_id(),
-	};
+	let parent_key_id = w.parent_key_id_for(args.src_acct_name.as_deref())?;
 	// Don't do this multiple times
-	let tx = updater::retrieve_txs(
-		w,
-		None,
-		Some(ret_slate.id),
-		None,
-		Some(&parent_key_id),
-		use_test_rng,
-	)?;
+	let tx = updater::retrieve_txs(w, None, Some(ret_slate.id), None, None, false)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxSent {
 			return Err(Error::TransactionAlreadyReceived(ret_slate.id.to_string()));
 		}
 		if t.tx_type == TxLogEntryType::TxSentCancelled {
 			return Err(Error::TransactionWasCancelled(ret_slate.id.to_string()));
+		}
+	}
+
+	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
+	if let Ok(context) = &context_res {
+		if !context.input_ids.is_empty() {
+			return Err(Error::TransactionAlreadyReceived(slate.id.to_string()));
 		}
 	}
 
@@ -761,9 +770,6 @@ where
 
 	// if this is compact mode, we need to create the transaction now
 	ret_slate.tx = Some(Slate::empty_transaction());
-
-	// if self sending, make sure to store 'initiator' keys
-	let context_res = w.get_private_context(keychain_mask, slate.id.as_bytes());
 
 	let mut context = tx::add_inputs_to_slate(
 		w,
@@ -803,14 +809,9 @@ where
 	if let Ok(c) = context_res {
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
-		context.fee = c.fee;
 		context.amount = c.amount;
-		for o in c.output_ids.iter() {
-			context.output_ids.push(o.clone());
-		}
-		for i in c.input_ids.iter() {
-			context.input_ids.push(i.clone());
-		}
+		context.output_ids.extend(c.output_ids);
+		context.input_ids.extend(c.input_ids);
 	}
 
 	selection::repopulate_tx(w, keychain_mask, &mut ret_slate, &context, false)?;
@@ -917,11 +918,7 @@ where
 {
 	let mut uuid = None;
 	if let Some(i) = tx_id {
-		let tx = w
-			.tx_log_iter()?
-			.filter(|tx| tx.is_ok())
-			.map(|tx| tx.unwrap())
-			.find(|t| t.id == i);
+		let tx = w.tx_by_id(i)?;
 		if let Some(t) = tx {
 			uuid = t.tx_slate_id;
 		}
@@ -1283,11 +1280,11 @@ where
 	let sender_pubkey = proof.sender_address.pub_key;
 	let msg = tx::payment_proof_message(proof.amount, &proof.excess, sender_pubkey)?;
 
-	let (mut client, parent_key_id, keychain) = {
+	let (mut client, accounts, keychain) = {
 		wallet_lock!(wallet_inst, w);
 		(
 			w.w2n_client().clone(),
-			w.parent_key_id(),
+			w.acct_path_iter()?.collect::<Vec<_>>(),
 			w.keychain(keychain_mask)?,
 		)
 	};
@@ -1322,13 +1319,15 @@ where
 		return Err(Error::PaymentProof("Invalid sender signature".to_owned()));
 	};
 
-	// for now, simple test whether one of the addresses belongs to this wallet
-	let sec_key = address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
-	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
-	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
-
-	let sender_mine = my_address_pubkey == sender_pubkey;
-	let recipient_mine = my_address_pubkey == recipient_pubkey;
+	let mut sender_mine = false;
+	let mut recipient_mine = false;
+	for account in accounts {
+		let sec_key = address::address_from_derivation_path(&keychain, &account.path, 0)?;
+		let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
+		let pubkey: DalekPublicKey = (&d_skey).into();
+		sender_mine |= pubkey == sender_pubkey;
+		recipient_mine |= pubkey == recipient_pubkey;
+	}
 
 	Ok((sender_mine, recipient_mine))
 }
