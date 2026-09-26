@@ -81,6 +81,9 @@ where
 		if t.tx_type == TxLogEntryType::TxReceived {
 			return Err(Error::TransactionAlreadyReceived(ret_slate.id.to_string()));
 		}
+		if t.tx_type == TxLogEntryType::TxReceivedCancelled {
+			return Err(Error::TransactionWasCancelled(ret_slate.id.to_string()));
+		}
 	}
 
 	ret_slate.tx = Some(Slate::empty_transaction());
@@ -135,6 +138,16 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	for entry in w.tx_log_iter()? {
+		let entry = entry?;
+		if entry.tx_slate_id == Some(slate.id)
+			&& matches!(
+				entry.tx_type,
+				TxLogEntryType::TxSentCancelled | TxLogEntryType::TxReceivedCancelled
+			) {
+			return Err(Error::TransactionWasCancelled(slate.id.to_string()));
+		}
+	}
 	let mut sl = slate.clone();
 	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	check_ttl(w, &sl)?;

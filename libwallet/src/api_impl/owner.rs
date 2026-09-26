@@ -1236,12 +1236,19 @@ where
 	}
 
 	// Step 5: Cancel any transactions with an expired TTL
+	let mut cancelled = Vec::new();
 	for tx in txs {
+		if tx.confirmed || tx.tx_slate_id.map_or(false, |id| cancelled.contains(&id)) {
+			continue;
+		}
 		if let Some(e) = tx.ttl_cutoff_height {
 			if tip.0 >= e {
 				wallet_lock!(wallet_inst, w);
 				let parent_key_id = w.parent_key_id();
 				tx::cancel_tx(w, keychain_mask, &parent_key_id, Some(tx.id), None)?;
+				if let Some(id) = tx.tx_slate_id {
+					cancelled.push(id);
+				}
 			}
 		}
 	}

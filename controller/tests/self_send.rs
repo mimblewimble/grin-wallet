@@ -51,6 +51,9 @@ fn rpc(api: &(dyn OwnerRpc + 'static), method: &str, params: Value) -> Value {
 enum Case {
 	Complete,
 	Sync,
+	Cancel,
+	Expire,
+	SyncCancel,
 }
 
 fn with_proxy(
@@ -91,6 +94,7 @@ fn transfer(
 		move || proxy.run(),
 		stopper,
 		|| {
+			let cancel = matches!(case, Case::Cancel | Case::Expire | Case::SyncCancel);
 			for api in [&api1, &api2] {
 				for account in ["a", "b", "mining"] {
 					api.create_account_path(None, account)?;
@@ -102,10 +106,12 @@ fn transfer(
 			receiver.set_active_account(None, dest)?;
 			let address = receiver.get_slatepack_address(None, 0)?;
 			api1.set_active_account(None, "mining")?;
+			let expires = case == Case::Expire;
 			let mut args = InitTxArgs {
 				src_acct_name: Some(source.into()),
 				amount: REWARD * 2,
 				minimum_confirmations: if invoice && source == dest { 0 } else { 1 },
+				ttl_blocks: if expires { Some(1) } else { None },
 				payment_proof_recipient_address: if invoice { None } else { Some(address) },
 				..Default::default()
 			};
@@ -123,7 +129,7 @@ fn transfer(
 			};
 			let pack = api1.create_slatepack_message(None, &slate, None, vec![])?;
 			slate = receiver.slate_from_slatepack_message(None, pack, vec![0])?;
-			let sync_fail = case == Case::Sync;
+			let sync_fail = matches!(case, Case::Sync | Case::SyncCancel);
 			if sync_fail {
 				api1.set_tor_config(Some(grin_wallet_config::TorConfig {
 					use_integrated: Some(false),
@@ -174,6 +180,67 @@ fn transfer(
 			let pack = from.create_slatepack_message(None, &slate, Some(0), vec![address])?;
 			to.set_active_account(None, to_account)?;
 			slate = to.slate_from_slatepack_message(None, pack, vec![0])?;
+			if cancel {
+				assert!(api1.cancel_tx(None, None, None).is_err());
+				if expires {
+					api1.set_active_account(None, "mining")?;
+					test_framework::award_blocks_to_wallet(
+						&chain,
+						wallet1.clone(),
+						None,
+						1,
+						false,
+					)?;
+					api1.set_active_account(None, source)?;
+					api1.retrieve_summary_info(None, true, 1)?;
+				} else {
+					api1.set_active_account(None, source)?;
+					api1.cancel_tx(None, None, Some(slate.id))?;
+				}
+				if separate {
+					receiver.set_active_account(None, dest)?;
+					receiver.cancel_tx(None, None, Some(slate.id))?;
+				}
+				api1.close_wallet(None)?;
+				api1.open_wallet(None, "".into(), false)?;
+				for (api, account) in [(&api1, source), (receiver, dest)] {
+					api.set_active_account(None, account)?;
+					let (_, entries) = api.retrieve_txs(None, false, None, Some(slate.id), None)?;
+					assert_eq!(
+						entries.len(),
+						if !separate && source == dest { 2 } else { 1 }
+					);
+					assert!(entries.iter().all(|t| matches!(
+						t.tx_type,
+						TxLogEntryType::TxSentCancelled | TxLogEntryType::TxReceivedCancelled
+					)));
+					assert!(api.finalize_tx(None, &slate).is_err());
+				}
+				api1.set_active_account(None, source)?;
+				let (_, info) = api1.retrieve_summary_info(None, true, 1)?;
+				assert_eq!(info.total, before.total);
+				assert_eq!(info.amount_locked, 0);
+				if !invoice {
+					wallet::controller::foreign_single_use(
+						receiver_wallet.clone(),
+						PathBuf::from(dir),
+						None,
+						|api| {
+							let error = api.receive_tx(&original, Some(dest), None).unwrap_err();
+							if expires {
+								assert_eq!(error, libwallet::Error::TransactionExpired);
+							} else {
+								assert!(matches!(
+									error,
+									libwallet::Error::TransactionWasCancelled(_)
+								));
+							}
+							Ok(())
+						},
+					)?;
+				}
+				return Ok(());
+			}
 			if invoice && separate {
 				assert!(receiver.tx_lock_outputs(None, &slate).is_err());
 			}
@@ -274,7 +341,7 @@ fn transfer(
 	)
 }
 
-fn cases(dir: &str, invoice: bool, separate: bool) {
+fn cases(dir: &str, invoice: bool, separate: bool, cancel: bool) {
 	setup(dir);
 	for (source, dest) in [
 		("default", "default"),
@@ -285,29 +352,51 @@ fn cases(dir: &str, invoice: bool, separate: bool) {
 		("b", "a"),
 	] {
 		let path = format!("{}/{}_{}", dir, source, dest);
-		transfer(&path, source, dest, invoice, separate, Case::Complete).unwrap();
+		transfer(
+			&path,
+			source,
+			dest,
+			invoice,
+			separate,
+			if cancel { Case::Cancel } else { Case::Complete },
+		)
+		.unwrap();
 	}
 	clean_output_dir(dir);
 }
 
 #[test]
 fn self_send() {
-	cases("test_output/self_send", false, false);
+	cases("test_output/self_send", false, false, false);
 }
 
 #[test]
 fn self_invoice() {
-	cases("test_output/self_invoice", true, false);
+	cases("test_output/self_invoice", true, false, false);
 }
 
 #[test]
 fn send() {
-	cases("test_output/send", false, true);
+	cases("test_output/send", false, true, false);
 }
 
 #[test]
 fn invoice() {
-	cases("test_output/invoice", true, true);
+	cases("test_output/invoice", true, true, false);
+}
+
+#[test]
+fn cancel() {
+	for invoice in [false, true] {
+		for separate in [false, true] {
+			cases(
+				&format!("test_output/cancel_{}_{}", invoice, separate),
+				invoice,
+				separate,
+				true,
+			);
+		}
+	}
 }
 
 #[test]
@@ -315,8 +404,18 @@ fn sync_fail() {
 	let dir = "test_output/self_sync_fail";
 	setup(dir);
 	for separate in [false, true] {
-		let path = format!("{}/{}", dir, separate);
-		transfer(&path, "b", "a", true, separate, Case::Sync).unwrap();
+		for (name, case) in [("send", Case::Sync), ("cancel", Case::SyncCancel)] {
+			let path = format!("{}/{}_{}", dir, separate, name);
+			transfer(&path, "b", "a", true, separate, case).unwrap();
+		}
 	}
+	clean_output_dir(dir);
+}
+
+#[test]
+fn expiry() {
+	let dir = "test_output/self_expiry";
+	setup(dir);
+	transfer(dir, "a", "a", false, false, Case::Expire).unwrap();
 	clean_output_dir(dir);
 }

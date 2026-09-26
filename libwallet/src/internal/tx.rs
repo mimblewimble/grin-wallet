@@ -334,6 +334,9 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if tx_id.is_none() && tx_slate_id.is_none() {
+		return Err(Error::TransactionDoesntExist(String::new()));
+	}
 	let mut tx_id_string = String::new();
 	if let Some(tx_id) = tx_id {
 		tx_id_string = tx_id.to_string();
@@ -348,27 +351,45 @@ where
 		Some(&parent_key_id),
 		false,
 	)?;
-	if tx_vec.len() != 1 {
-		return Err(Error::TransactionDoesntExist(tx_id_string));
+	let first = tx_vec
+		.first()
+		.ok_or_else(|| Error::TransactionDoesntExist(tx_id_string.clone()))?;
+	let entries = if let Some(id) = first.tx_slate_id {
+		let mut entries = Vec::new();
+		for entry in wallet.tx_log_iter()? {
+			let entry = entry?;
+			if entry.tx_slate_id == Some(id) {
+				entries.push(entry);
+			}
+		}
+		entries
+	} else {
+		tx_vec
+	};
+	let mut sent = 0;
+	let mut received = 0;
+	for tx in &entries {
+		match tx.tx_type {
+			TxLogEntryType::TxSent => sent += 1,
+			TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => received += 1,
+			_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
+		}
+		if tx.confirmed || sent > 1 || received > 1 {
+			return Err(Error::TransactionNotCancellable(tx_id_string));
+		}
 	}
-	let tx = tx_vec[0].clone();
-	match tx.tx_type {
-		TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {}
-		_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
+	let outputs: Vec<_> = wallet.iter()?.collect();
+	let mut batch = wallet.batch(keychain_mask)?;
+	for tx in entries {
+		let parent = tx.parent_key_id.clone();
+		let associated = outputs
+			.iter()
+			.filter(|o| o.root_key_id == parent && o.tx_log_entry == Some(tx.id))
+			.cloned()
+			.collect();
+		updater::cancel_tx_batch(&mut batch, tx, associated, &parent)?;
 	}
-	if tx.confirmed {
-		return Err(Error::TransactionNotCancellable(tx_id_string));
-	}
-	// get outputs associated with tx
-	let res = updater::retrieve_outputs(
-		wallet,
-		keychain_mask,
-		false,
-		Some(tx.id),
-		Some(&parent_key_id),
-	)?;
-	let outputs = res.iter().map(|m| m.output.clone()).collect();
-	updater::cancel_tx_and_outputs(wallet, keychain_mask, tx, outputs, parent_key_id)?;
+	batch.commit()?;
 	Ok(())
 }
 
