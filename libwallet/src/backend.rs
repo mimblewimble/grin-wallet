@@ -429,12 +429,24 @@ where
 		let path = Path::new(&self.data_file_dir)
 			.join(TX_SAVE_DIR)
 			.join(filename);
-		let path_buf = Path::new(&path).to_path_buf();
-		let mut stored_tx = File::create(path_buf)?;
-		let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1)).unwrap().to_hex();
-		stored_tx.write_all(&tx_hex.as_bytes())?;
-		stored_tx.sync_all()?;
-		Ok(())
+		let tmp = path.with_extension(format!("{}.tmp", Uuid::new_v4()));
+		let result = (|| -> Result<(), Error> {
+			let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1))
+				.map_err(|e| Error::Backend(e.to_string()))?
+				.to_hex();
+			let mut stored_tx = fs::OpenOptions::new()
+				.write(true)
+				.create_new(true)
+				.open(&tmp)?;
+			stored_tx.write_all(tx_hex.as_bytes())?;
+			stored_tx.sync_all()?;
+			fs::rename(&tmp, &path)?;
+			Ok(())
+		})();
+		if result.is_err() {
+			let _ = fs::remove_file(tmp);
+		}
+		result
 	}
 
 	/// Retrieves a stored transaction.
