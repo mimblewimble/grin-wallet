@@ -22,7 +22,7 @@ use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::api_impl::{foreign, owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -849,6 +849,100 @@ where
 				Ok(slate)
 			}
 		}
+	}
+
+	/// Sends to an existing account in this wallet, including the source account
+	/// Receives and finalizes locally without changing the active account
+	/// This is an on-chain transaction with the usual fees
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask, if used
+	/// * `args` - Send arguments as for [`init_send_tx`](Self::init_send_tx)
+	///   `send_args` must be unset and explicit source accounts must exist
+	///   `estimate_only` returns an estimate without receiving, finalizing or posting
+	/// * `dest_acct_name` - Existing account to receive the funds
+	/// * `payment_proof` - Create a proof using the destination account's address
+	///   This replaces `args.payment_proof_recipient_address`
+	/// * `post_tx` - Post the finalized transaction to the node
+	/// * `fluff` - Skip Dandelion when posting
+	///
+	/// # Returns
+	/// The finalized slate, or an estimate when requested
+	/// On error, completed wallet steps remain available for recovery
+	/// If posting fails, retrieve the stored transaction and retry [`post_tx`](Self::post_tx)
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// let api = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let args = InitTxArgs {
+	///     amount: 1_000_000_000,
+	///     ..Default::default()
+	/// };
+	/// let result = api.send_to_account(None, args, "default", true, false, false);
+	/// if let Ok(slate) = result {
+	///     assert_eq!(slate.state, libwallet::SlateState::Standard3);
+	///     // Post separately when ready
+	///     let result = api.post_tx(None, &slate, false);
+	/// }
+	/// ```
+	pub fn send_to_account(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		mut args: InitTxArgs,
+		dest_acct_name: &str,
+		payment_proof: bool,
+		post_tx: bool,
+		fluff: bool,
+	) -> Result<Slate, Error> {
+		if args.send_args.is_some() {
+			return Err(Error::GenericError(
+				"send_args cannot be used with send_to_account".into(),
+			));
+		}
+		let slate = {
+			wallet_lock!(self.wallet_inst, w);
+			let parent = w
+				.get_acct_path(dest_acct_name.to_owned())?
+				.ok_or_else(|| Error::UnknownAccountLabel(dest_acct_name.to_owned()))?
+				.path;
+			if let Some(source) = args.src_acct_name.as_ref() {
+				if w.get_acct_path(source.clone())?.is_none() {
+					return Err(Error::UnknownAccountLabel(source.clone()));
+				}
+			}
+			args.payment_proof_recipient_address = if payment_proof {
+				let key = libwallet::address::address_from_derivation_path(
+					&w.keychain(keychain_mask)?,
+					&parent,
+					0,
+				)?;
+				Some(SlatepackAddress::try_from(&key)?)
+			} else {
+				None
+			};
+			let estimate = args.estimate_only.unwrap_or(false);
+			let late_lock = args.late_lock.unwrap_or(false);
+			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+			if estimate {
+				return Ok(slate);
+			}
+			if !late_lock {
+				owner::tx_lock_outputs(w, keychain_mask, &slate)?;
+			}
+			let slate = foreign::receive_tx(
+				w,
+				keychain_mask,
+				&slate,
+				Some(dest_acct_name),
+				self.doctest_mode,
+			)?;
+			owner::finalize_tx(w, keychain_mask, &slate)?
+		};
+		if post_tx {
+			self.post_tx(keychain_mask, &slate, fluff)?;
+		}
+		Ok(slate)
 	}
 
 	/// Issues a new invoice transaction slate, essentially a `request for payment`.

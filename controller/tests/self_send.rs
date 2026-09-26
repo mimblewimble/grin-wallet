@@ -445,6 +445,135 @@ fn cancel() {
 }
 
 #[test]
+fn account_send() -> Result<(), libwallet::Error> {
+	let dir = "test_output/account_send";
+	setup(dir);
+	let mut proxy = common::create_wallet_proxy(dir);
+	let chain = proxy.chain.clone();
+	let stopper = proxy.running.clone();
+	create_wallet_and_add!(client, wallet, mask, dir, "wallet", None, &mut proxy, true, api);
+	let result = with_proxy(
+		move || proxy.run(),
+		stopper,
+		|| {
+			let mask = mask.as_ref();
+			for name in ["a", "b", "mining"] {
+				api.create_account_path(mask, name)?;
+			}
+			for name in ["default", "a", "b"] {
+				api.set_active_account(mask, name)?;
+				test_framework::award_blocks_to_wallet(&chain, wallet.clone(), mask, 5, false)?;
+			}
+			api.set_active_account(mask, "mining")?;
+			let args = InitTxArgs {
+				src_acct_name: Some("default".into()),
+				amount: REWARD / 10,
+				minimum_confirmations: 1,
+				..Default::default()
+			};
+			let snapshot = || -> Result<_, libwallet::Error> {
+				wallet_inst!(wallet, w);
+				Ok(json!({
+					"txs": w.tx_log_iter()?.collect::<Result<Vec<_>, _>>()?,
+					"outputs": w.iter()?.collect::<Vec<_>>()
+				}))
+			};
+			api.set_active_account(mask, "default")?;
+			api.retrieve_summary_info(mask, true, 1)?;
+			api.set_active_account(mask, "mining")?;
+			let before = snapshot()?;
+			assert!(api
+				.send_to_account(None, args.clone(), "a", true, true, false)
+				.is_err());
+			for (source, dest) in [("default", "missing"), ("missing", "default")] {
+				let mut args = args.clone();
+				args.src_acct_name = Some(source.into());
+				assert!(matches!(
+					api.send_to_account(mask, args, dest, true, true, false),
+					Err(libwallet::Error::UnknownAccountLabel(_))
+				));
+			}
+			let mut remote = args.clone();
+			remote.send_args = Some(libwallet::InitTxSendArgs {
+				dest: "unused".into(),
+				post_tx: true,
+				fluff: false,
+				skip_tor: None,
+			});
+			assert!(api
+				.send_to_account(mask, remote, "a", true, true, false)
+				.is_err());
+			let mut estimate = args.clone();
+			estimate.estimate_only = Some(true);
+			assert_eq!(
+				api.send_to_account(mask, estimate, "a", true, true, false)?
+					.state,
+				SlateState::Standard1
+			);
+			assert_eq!(snapshot()?, before);
+			for (source, dest, late, proof, post) in [
+				("default", "default", false, false, false),
+				("a", "a", true, true, true),
+				("default", "a", false, true, true),
+				("a", "default", true, false, false),
+				("a", "b", false, false, true),
+				("b", "a", true, true, false),
+			] {
+				let mut args = args.clone();
+				args.src_acct_name = Some(source.into());
+				args.late_lock = Some(late);
+				args.minimum_confirmations = 0;
+				let height = chain.head().unwrap().height;
+				let result = rpc(
+					&api,
+					"send_to_account",
+					json!({
+						"token": grin_wallet_api::Token { keychain_mask: mask.cloned() },
+						"args": args, "dest_acct_name": dest,
+						"payment_proof": proof, "post_tx": post, "fluff": false
+					}),
+				);
+				let slate: libwallet::Slate = serde_json::from_value::<VersionedSlate>(result)
+					.unwrap()
+					.into();
+				assert_eq!(slate.state, SlateState::Standard3);
+				assert_eq!(slate.payment_proof.is_some(), proof);
+				assert_eq!(chain.head().unwrap().height, height + u64::from(post));
+				{
+					wallet_inst!(wallet, w);
+					assert_eq!(
+						w.parent_key_id(),
+						w.get_acct_path("mining".into())?.unwrap().path
+					);
+				}
+				if !post {
+					api.post_tx(mask, &slate, false)?;
+				}
+				for (account, kind) in [
+					(source, TxLogEntryType::TxSent),
+					(dest, TxLogEntryType::TxReceived),
+				] {
+					api.set_active_account(mask, account)?;
+					let (_, entries) = api.retrieve_txs(mask, true, None, Some(slate.id), None)?;
+					assert_eq!(entries.len(), if source == dest { 2 } else { 1 });
+					assert!(entries.iter().all(|tx| tx.confirmed));
+					assert_eq!(entries.iter().filter(|tx| tx.tx_type == kind).count(), 1);
+				}
+				api.set_active_account(mask, source)?;
+				if proof {
+					let proof = api.retrieve_payment_proof(mask, false, None, Some(slate.id))?;
+					assert_eq!(api.verify_payment_proof(mask, &proof)?, (true, true));
+				}
+				api.set_active_account(mask, "mining")?;
+			}
+			Ok(())
+		},
+	);
+	clean_output_dir(dir);
+	result
+}
+
+#[test]
 fn sync_fail() {
 	let dir = "test_output/self_sync_fail";
 	setup(dir);
