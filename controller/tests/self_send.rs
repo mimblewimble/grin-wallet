@@ -54,6 +54,7 @@ enum Case {
 	Cancel,
 	Expire,
 	SyncCancel,
+	Repair,
 }
 
 fn with_proxy(
@@ -322,6 +323,50 @@ fn transfer(
 					assert_eq!(api.verify_payment_proof(None, &proof)?, (true, !separate));
 				}
 			}
+			if case == Case::Repair {
+				api1.set_active_account(None, source)?;
+				let (_, entries) = api1.retrieve_txs(None, false, None, Some(slate.id), None)?;
+				let mut copy = entries[0].clone();
+				copy.confirmed = false;
+				let output = {
+					wallet_inst!(wallet1, w);
+					let parent = w.get_acct_path(dest.into())?.unwrap().path;
+					let output = w.iter()?.find(|o| o.root_key_id == parent).unwrap();
+					let mut linked = output.clone();
+					linked.tx_log_entry = Some(copy.id);
+					let mut batch = w.batch(None)?;
+					batch.save_tx_log_entry(copy, &parent)?;
+					batch.save(linked)?;
+					batch.commit()?;
+					output
+				};
+				api1.scan(None, Some(1), false)?;
+				{
+					wallet_inst!(wallet1, w);
+					let entries = w.tx_log_iter()?.collect::<Result<Vec<_>, _>>()?;
+					assert_eq!(
+						entries
+							.iter()
+							.filter(|t| t.tx_slate_id == Some(slate.id))
+							.count(),
+						3
+					);
+					let mut batch = w.batch(None)?;
+					batch.save(output)?;
+					batch.commit()?;
+				}
+				api1.scan(None, Some(1), false)?;
+				api1.scan(None, Some(1), false)?;
+				wallet_inst!(wallet1, w);
+				let entries = w.tx_log_iter()?.collect::<Result<Vec<_>, _>>()?;
+				assert_eq!(
+					entries
+						.iter()
+						.filter(|t| t.tx_slate_id == Some(slate.id))
+						.count(),
+					2
+				);
+			}
 
 			for instance in [&wallet1, &receiver_wallet] {
 				let mut lock = instance.lock();
@@ -417,5 +462,13 @@ fn expiry() {
 	let dir = "test_output/self_expiry";
 	setup(dir);
 	transfer(dir, "a", "a", false, false, Case::Expire).unwrap();
+	clean_output_dir(dir);
+}
+
+#[test]
+fn repair() {
+	let dir = "test_output/self_repair";
+	setup(dir);
+	transfer(dir, "default", "a", false, false, Case::Repair).unwrap();
 	clean_output_dir(dir);
 }

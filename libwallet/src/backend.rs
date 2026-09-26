@@ -366,6 +366,66 @@ where
 			.map_err(From::from)
 	}
 
+	pub(crate) fn repair_tx_log(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
+		// Validate the mask before repairing misplaced history entries
+		self.keychain(keychain_mask)?;
+		let version = self.db.protocol_version();
+		let entries = self
+			.db
+			.iter(Some(TX_LOG_ENTRY_PREFIX), move |key, mut value| {
+				let tx: TxLogEntry =
+					ser::deserialize(&mut value, version, ser::DeserializationMode::default())?;
+				Ok((key.to_vec(), tx))
+			})?
+			.collect::<Result<Vec<_>, grin_store::Error>>()?;
+		let accounts: Vec<_> = self.acct_path_iter()?.collect();
+		let outputs: Vec<_> = self.iter()?.collect();
+		let mut duplicates = Vec::new();
+		for (key, tx) in &entries {
+			let canonical = to_key_u64(tx.parent_key_id.to_bytes(), tx.id as u64);
+			if *key == canonical {
+				continue;
+			}
+			let original = entries
+				.iter()
+				.find(|(key, _)| *key == canonical)
+				.map(|(_, tx)| tx);
+			let parent = accounts
+				.iter()
+				.find(|a| to_key_u64(a.path.to_bytes(), tx.id as u64) == *key);
+			let copied = original.map_or(false, |original| {
+				tx.tx_slate_id.is_some()
+					&& original.id == tx.id
+					&& original.tx_slate_id == tx.tx_slate_id
+					&& original.tx_type == tx.tx_type
+					&& original.parent_key_id == tx.parent_key_id
+					&& original.amount_debited == tx.amount_debited
+					&& original.amount_credited == tx.amount_credited
+					&& original.num_inputs == tx.num_inputs
+					&& original.num_outputs == tx.num_outputs
+					&& original.fee == tx.fee
+			});
+			let unused = parent.map_or(false, |parent| {
+				!outputs
+					.iter()
+					.any(|o| o.root_key_id == parent.path && o.tx_log_entry == Some(tx.id))
+			});
+			if !copied || !unused {
+				warn!("Transaction history is ambiguous; skipping duplicate cleanup");
+				return Ok(());
+			}
+			duplicates.push(key);
+		}
+		if !duplicates.is_empty() {
+			let mut batch = self.db.batch()?;
+			for key in duplicates {
+				batch.delete(Some(TX_LOG_ENTRY_PREFIX), key)?;
+			}
+			batch.commit()?;
+		}
+		Ok(())
+	}
+
 	pub(crate) fn has_context(&self, slate_id: &Uuid) -> Result<bool, Error> {
 		self.db
 			.exists(

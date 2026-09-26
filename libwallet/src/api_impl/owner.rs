@@ -1022,6 +1022,10 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	{
+		wallet_lock!(wallet_inst, w);
+		w.repair_tx_log(keychain_mask)?;
+	}
 	update_outputs(wallet_inst.clone(), keychain_mask, true)?;
 	let tip = {
 		wallet_lock!(wallet_inst, w);
