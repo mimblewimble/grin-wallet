@@ -614,7 +614,12 @@ pub trait OwnerRpc {
 		payment_proof: bool,
 		post_tx: bool,
 		fluff: bool,
-	) -> Result<VersionedSlate, Error>;
+	) -> Result<VersionedSlate, Error> {
+		let _ = (token, args, dest_acct_name, payment_proof, post_tx, fluff);
+		Err(Error::GenericError(
+			"Local account transfers are not supported".into(),
+		))
+	}
 
 	/**
 	;Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
