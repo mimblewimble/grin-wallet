@@ -278,6 +278,7 @@ impl Slate {
 	}
 
 	/// Create a new slate with the provided kernel features.
+	/// V4 binary Slatepacks do not support NRD kernels
 	pub fn blank_with_kernel_features(
 		num_participants: u8,
 		is_invoice: bool,

@@ -18,9 +18,10 @@ use grin_core::core::FeeFields;
 use grin_wallet_libwallet::{Slate, SlateVersion, Slatepacker, SlatepackerArgs, VersionedSlate};
 
 #[test]
-fn kernel_features_round_trip() {
+fn roundtrip() {
 	let fee = FeeFields::new(0, 42).unwrap();
 	let features = [
+		KernelFeatures::Plain { fee },
 		KernelFeatures::HeightLocked {
 			fee,
 			lock_height: 500_000,
@@ -50,6 +51,10 @@ fn kernel_features_round_trip() {
 			expected_features
 		);
 
+		if matches!(expected_features, KernelFeatures::NoRecentDuplicate { .. }) {
+			assert!(packer.create_slatepack(&slate).is_err());
+			continue;
+		}
 		let slatepack = packer.create_slatepack(&slate).unwrap();
 		let slatepack_slate = packer.get_slate(&slatepack).unwrap();
 		assert_eq!(slatepack_slate.kernel_features_args, expected_args);
@@ -61,10 +66,10 @@ fn kernel_features_round_trip() {
 }
 
 #[test]
-fn nrd_missing_height() {
-	let features = KernelFeatures::NoRecentDuplicate {
-		fee: FeeFields::new(0, 42).unwrap(),
-		relative_height: NRDRelativeHeight::new(10).unwrap(),
+fn binary_features() {
+	let features = KernelFeatures::HeightLocked {
+		fee: FeeFields::zero(),
+		lock_height: 10,
 	};
 	let slate = Slate::blank_with_kernel_features(2, false, features).unwrap();
 	let packer = Slatepacker::new(SlatepackerArgs {
@@ -74,15 +79,15 @@ fn nrd_missing_height() {
 	});
 	let mut slatepack = packer.create_slatepack(&slate).unwrap();
 
-	slatepack.payload.truncate(slatepack.payload.len() - 8);
+	// Feature byte after version, UUID, state, offset and optional field flags
+	assert_eq!(slatepack.payload[54], KernelFeatures::HEIGHT_LOCKED_U8);
+	slatepack.payload[54] = KernelFeatures::NO_RECENT_DUPLICATE_U8;
 	let error = packer.get_slate(&slatepack).unwrap_err();
-	match error {
-		grin_wallet_libwallet::Error::SlatepackDeser(message) => assert!(
-			message.contains("NRD Slatepack is missing relative height"),
-			"unexpected error: {message}"
-		),
-		error => panic!("unexpected error: {error:?}"),
-	}
+	assert!(error.to_string().contains("NRD kernels are not supported"));
+
+	slatepack.payload[..2].copy_from_slice(&5u16.to_be_bytes());
+	let error = packer.get_slate(&slatepack).unwrap_err();
+	assert!(error.to_string().contains("unsupported protocol version"));
 }
 
 #[test]

@@ -422,14 +422,15 @@ where
 		let mut tx_f = File::open(tx_file)?;
 		let mut content = String::new();
 		tx_f.read_to_string(&mut content)?;
-		let tx_bin = grin_util::from_hex(&content).unwrap();
+		let tx_bin = grin_util::from_hex(&content)
+			.map_err(|_| Error::StoredTx("Invalid transaction hex".into()))?;
 		Ok(Some(
 			ser::deserialize(
 				&mut &tx_bin[..],
 				ser::ProtocolVersion(1),
 				ser::DeserializationMode::default(),
 			)
-			.unwrap(),
+			.map_err(|e| Error::StoredTx(e.to_string()))?,
 		))
 	}
 

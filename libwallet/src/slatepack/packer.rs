@@ -97,7 +97,10 @@ impl<'a> Slatepacker<'a> {
 		let out_slate = VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?;
 		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| Error::SlatepackSer)?;
 		let mut slatepack = Slatepack::default();
-		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
+		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|e| {
+			error!("Slatepack serialization error: {}", e);
+			Error::SlatepackSer
+		})?;
 		slatepack.sender = self.0.sender.clone();
 		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		Ok(slatepack)
