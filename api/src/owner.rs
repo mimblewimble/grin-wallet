@@ -1007,6 +1007,10 @@ where
 	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
 	/// sync_send was successful (it should be I3 if the sync sent successfully).
 	///
+	/// A Tor attempt locks the outputs even if sending fails, so do not lock them again
+	/// If sending was not requested or was skipped, call
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) before forwarding manually
+	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///

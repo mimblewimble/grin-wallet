@@ -428,7 +428,7 @@ where
 			init_args,
 			account,
 			payment_proof,
-			true,
+			false,
 			args.fluff,
 		),
 		None => owner_api.init_send_tx(keychain_mask, init_args),
@@ -556,6 +556,13 @@ where
 	}
 
 	if let Some((account, _)) = account {
+		if let Err(e) = owner_api.post_tx(keychain_mask, &slate, args.fluff) {
+			error!(
+				"Tx {} is finalized and stored, but posting failed: {}. Check its status before using repost or cancel",
+				slate.id, e
+			);
+			return Err(e.into());
+		}
 		println!("Tx sent to account {}", account);
 		return Ok(());
 	}

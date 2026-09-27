@@ -452,6 +452,7 @@ where
 			return Err(Error::Backend("Ambiguous transaction log entries".into()));
 		}
 	}
+	// Self-invoices keep the payer's context, which may belong to another account
 	let tx = entries
 		.iter_mut()
 		.find(|t| t.tx_type == kind && (is_invoiced || t.parent_key_id == context.parent_key_id))
