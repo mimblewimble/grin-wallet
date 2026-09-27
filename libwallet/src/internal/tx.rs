@@ -25,7 +25,7 @@ use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
-use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
+use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntry, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error};
 use crate::{InitTxArgs, WalletBackend};
@@ -334,6 +334,9 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if tx_id.is_none() && tx_slate_id.is_none() {
+		return Err(Error::TransactionDoesntExist(String::new()));
+	}
 	let mut tx_id_string = String::new();
 	if let Some(tx_id) = tx_id {
 		tx_id_string = tx_id.to_string();
@@ -348,31 +351,94 @@ where
 		Some(&parent_key_id),
 		false,
 	)?;
-	if tx_vec.len() != 1 {
-		return Err(Error::TransactionDoesntExist(tx_id_string));
+	let first = tx_vec
+		.first()
+		.ok_or_else(|| Error::TransactionDoesntExist(tx_id_string.clone()))?;
+	let entries = if let Some(id) = first.tx_slate_id {
+		let mut entries = Vec::new();
+		for entry in wallet.tx_log_iter()? {
+			let entry = entry?;
+			if entry.tx_slate_id == Some(id) {
+				entries.push(entry);
+			}
+		}
+		entries
+	} else {
+		tx_vec
+	};
+	let mut sent = 0;
+	let mut received = 0;
+	for tx in &entries {
+		match tx.tx_type {
+			TxLogEntryType::TxSent | TxLogEntryType::TxSentCancelled => sent += 1,
+			TxLogEntryType::TxReceived
+			| TxLogEntryType::TxReceivedCancelled
+			| TxLogEntryType::TxReverted => received += 1,
+			_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
+		}
+		if tx.confirmed {
+			return Err(Error::TransactionNotCancellable(tx_id_string));
+		}
+		if sent > 1 || received > 1 {
+			let id = if let Some(id) = tx_slate_id {
+				id.to_string()
+			} else {
+				tx.id.to_string()
+			};
+			let err = format!("There are multiple transactions with the same id: {}, please rescan wallet outputs, then try cancel again.", id);
+			return Err(Error::TransactionCancellationError(err));
+		}
 	}
-	let tx = tx_vec[0].clone();
-	match tx.tx_type {
-		TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {}
-		_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
-	}
-	if tx.confirmed {
+	if !entries.iter().any(|tx| {
+		matches!(
+			tx.tx_type,
+			TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted
+		)
+	}) {
 		return Err(Error::TransactionNotCancellable(tx_id_string));
 	}
-	// get outputs associated with tx
-	let res = updater::retrieve_outputs(
-		wallet,
-		keychain_mask,
-		false,
-		Some(tx.id),
-		Some(&parent_key_id),
-	)?;
-	let outputs = res.iter().map(|m| m.output.clone()).collect();
-	updater::cancel_tx_and_outputs(wallet, keychain_mask, tx, outputs, parent_key_id)?;
+	let outputs: Vec<_> = wallet.iter()?.collect();
+	let mut batch = wallet.batch(keychain_mask)?;
+	for tx in entries {
+		let parent = tx.parent_key_id.clone();
+		let associated = outputs
+			.iter()
+			.filter(|o| o.root_key_id == parent && o.tx_log_entry == Some(tx.id))
+			.cloned()
+			.collect();
+		updater::cancel_tx_batch(&mut batch, tx, associated, &parent)?;
+	}
+	batch.commit()?;
 	Ok(())
 }
 
-/// Update the stored transaction (this update needs to happen when the TX is finalised)
+pub(crate) fn find_tx<C, K>(
+	wallet: &WalletBackend<C, K>,
+	slate_id: Uuid,
+	parent: Option<&Identifier>,
+	kind: TxLogEntryType,
+) -> Result<TxLogEntry, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let mut found = None;
+	for entry in wallet.tx_log_iter()? {
+		let entry = entry?;
+		if entry.tx_slate_id == Some(slate_id)
+			&& entry.tx_type == kind
+			&& parent.map_or(true, |p| entry.parent_key_id == *p)
+		{
+			if found.is_some() {
+				return Err(Error::Backend("Ambiguous transaction log entries".into()));
+			}
+			found = Some(entry);
+		}
+	}
+	found.ok_or_else(|| Error::TransactionDoesntExist(slate_id.to_string()))
+}
+
+/// Store the finalized transaction, update both local roles and remove the private context
 pub fn update_stored_tx<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -384,34 +450,41 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	// finalize command
-	let tx_vec = updater::retrieve_txs(wallet, None, Some(slate.id), None, None, false)?;
-	let mut tx = None;
-	// don't want to assume this is the right tx, in case of self-sending
-	for t in tx_vec {
-		if t.tx_type == TxLogEntryType::TxSent && !is_invoiced {
-			tx = Some(t);
-			break;
-		}
-		if t.tx_type == TxLogEntryType::TxReceived && is_invoiced {
-			tx = Some(t);
-			break;
+	let kind = if is_invoiced {
+		TxLogEntryType::TxReceived
+	} else {
+		TxLogEntryType::TxSent
+	};
+	let mut entries = Vec::new();
+	for entry in wallet.tx_log_iter()? {
+		let entry = entry?;
+		if entry.tx_slate_id == Some(slate.id)
+			&& matches!(
+				entry.tx_type,
+				TxLogEntryType::TxSent | TxLogEntryType::TxReceived
+			) {
+			entries.push(entry);
 		}
 	}
-	let mut tx = match tx {
-		Some(t) => t,
-		None => return Err(Error::TransactionDoesntExist(slate.id.to_string())),
-	};
-	let parent_key = tx.parent_key_id.clone();
+	for kind in [TxLogEntryType::TxSent, TxLogEntryType::TxReceived] {
+		if entries.iter().filter(|t| t.tx_type == kind).count() > 1 {
+			return Err(Error::Backend("Ambiguous transaction log entries".into()));
+		}
+	}
+	// Self-invoices keep the payer's context, which may belong to another account
+	let tx = entries
+		.iter_mut()
+		.find(|t| t.tx_type == kind && (is_invoiced || t.parent_key_id == context.parent_key_id))
+		.ok_or_else(|| Error::TransactionDoesntExist(slate.id.to_string()))?;
 	{
 		let keychain = wallet.keychain(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
 	}
 
-	if let Some(ref p) = slate.clone().payment_proof {
+	if let Some(ref p) = slate.payment_proof {
 		let derivation_index = context.payment_proof_derivation_index.unwrap_or_else(|| 0);
 		let keychain = wallet.keychain(keychain_mask)?;
-		let parent_key_id = wallet.parent_key_id();
+		let parent_key_id = context.parent_key_id.clone();
 		let excess = slate.calc_excess(keychain.secp())?;
 		let sender_key =
 			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
@@ -427,10 +500,22 @@ where
 		})
 	}
 
-	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
-
+	let state = if is_invoiced {
+		crate::SlateState::Invoice3
+	} else {
+		crate::SlateState::Standard3
+	};
+	let kernel_excess = tx.kernel_excess;
+	wallet.store_tx(&slate.id.to_string(), slate.tx_or_err()?)?;
 	let mut batch = wallet.batch(keychain_mask)?;
-	batch.save_tx_log_entry(tx, &parent_key)?;
+	for mut entry in entries {
+		entry.tx_slate_state = Some(state.clone());
+		entry.kernel_excess = kernel_excess;
+		entry.stored_tx = Some(format!("{}.grintx", slate.id));
+		let parent = entry.parent_key_id.clone();
+		batch.save_tx_log_entry(entry, &parent)?;
+	}
+	batch.delete_private_context(slate.id.as_bytes())?;
 	batch.commit()?;
 	Ok(())
 }
@@ -492,21 +577,13 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let tx_vec = updater::retrieve_txs(
+	let tx = find_tx(
 		wallet,
-		None,
-		Some(slate.id),
-		None,
+		slate.id,
 		Some(parent_key_id),
-		false,
+		TxLogEntryType::TxSent,
 	)?;
-	if tx_vec.is_empty() {
-		return Err(Error::PaymentProof(
-			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
-		));
-	}
-
-	let orig_proof_info = tx_vec[0].clone().payment_proof;
+	let orig_proof_info = tx.payment_proof;
 
 	if orig_proof_info.is_some() && slate.payment_proof.is_none() {
 		return Err(Error::PaymentProof(

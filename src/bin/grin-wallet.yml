@@ -136,6 +136,17 @@ subcommands:
             short: d
             long: dest
             takes_value: true
+        - to_account:
+            help: Send directly to an account in this wallet
+            long: to-account
+            takes_value: true
+            conflicts_with:
+              - dest
+              - manual
+              - outfile
+              - slatepack_qr
+              - bridge
+              - stored_tx
         - no_payment_proof:
             help: Don't request a payment proof, even if the Recipient's Slatepack address is provided in the -dest argument
             short: n

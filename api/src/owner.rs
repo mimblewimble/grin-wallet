@@ -22,7 +22,7 @@ use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::api_impl::{foreign, owner, owner_updater};
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -851,6 +851,100 @@ where
 		}
 	}
 
+	/// Sends to an existing account in this wallet, including the source account
+	/// Receives and finalizes locally without changing the active account
+	/// This is an on-chain transaction with the usual fees
+	///
+	/// # Arguments
+	/// * `keychain_mask` - Wallet secret mask, if used
+	/// * `args` - Send arguments as for [`init_send_tx`](Self::init_send_tx)
+	///   `send_args` must be unset and explicit source accounts must exist
+	///   `estimate_only` returns an estimate without receiving, finalizing or posting
+	/// * `dest_acct_name` - Existing account to receive the funds
+	/// * `payment_proof` - Create a proof using the destination account's address
+	///   This replaces `args.payment_proof_recipient_address`
+	/// * `post_tx` - Post the finalized transaction to the node
+	/// * `fluff` - Skip Dandelion when posting
+	///
+	/// # Returns
+	/// The finalized slate, or an estimate when requested
+	/// On error, completed wallet steps remain available for recovery
+	/// If posting fails, retrieve the stored transaction and retry [`post_tx`](Self::post_tx)
+	///
+	/// # Example
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	/// let api = Owner::new(wallet, None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let args = InitTxArgs {
+	///     amount: 1_000_000_000,
+	///     ..Default::default()
+	/// };
+	/// let result = api.send_to_account(None, args, "default", true, false, false);
+	/// if let Ok(slate) = result {
+	///     assert_eq!(slate.state, libwallet::SlateState::Standard3);
+	///     // Post separately when ready
+	///     let result = api.post_tx(None, &slate, false);
+	/// }
+	/// ```
+	pub fn send_to_account(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		mut args: InitTxArgs,
+		dest_acct_name: &str,
+		payment_proof: bool,
+		post_tx: bool,
+		fluff: bool,
+	) -> Result<Slate, Error> {
+		if args.send_args.is_some() {
+			return Err(Error::GenericError(
+				"send_args cannot be used with send_to_account".into(),
+			));
+		}
+		let slate = {
+			wallet_lock!(self.wallet_inst, w);
+			let parent = w
+				.get_acct_path(dest_acct_name.to_owned())?
+				.ok_or_else(|| Error::UnknownAccountLabel(dest_acct_name.to_owned()))?
+				.path;
+			if let Some(source) = args.src_acct_name.as_ref() {
+				if w.get_acct_path(source.clone())?.is_none() {
+					return Err(Error::UnknownAccountLabel(source.clone()));
+				}
+			}
+			args.payment_proof_recipient_address = if payment_proof {
+				let key = libwallet::address::address_from_derivation_path(
+					&w.keychain(keychain_mask)?,
+					&parent,
+					0,
+				)?;
+				Some(SlatepackAddress::try_from(&key)?)
+			} else {
+				None
+			};
+			let estimate = args.estimate_only.unwrap_or(false);
+			let late_lock = args.late_lock.unwrap_or(false);
+			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+			if estimate {
+				return Ok(slate);
+			}
+			if !late_lock {
+				owner::tx_lock_outputs(w, keychain_mask, &slate)?;
+			}
+			let slate = foreign::receive_tx(
+				w,
+				keychain_mask,
+				&slate,
+				Some(dest_acct_name),
+				self.doctest_mode,
+			)?;
+			owner::finalize_tx(w, keychain_mask, &slate)?
+		};
+		if post_tx {
+			self.post_tx(keychain_mask, &slate, fluff)?;
+		}
+		Ok(slate)
+	}
+
 	/// Issues a new invoice transaction slate, essentially a `request for payment`.
 	/// The slate created by this function will contain the amount, an output for the amount,
 	/// as well as round 1 of signature creation complete. The slate should then be sent
@@ -913,6 +1007,10 @@ where
 	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
 	/// sync_send was successful (it should be I3 if the sync sent successfully).
 	///
+	/// A Tor attempt locks the outputs even if sending fails, so do not lock them again
+	/// If sending was not requested or was skipped, call
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) before forwarding manually
+	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
 	///
@@ -970,16 +1068,17 @@ where
 			}
 			_ => None,
 		};
-		let (slate, tor_config) = {
+		let (slate, tor_config, parent_key_id) = {
 			let mut w_lock = self.wallet_inst.lock();
 			let tor_config = send_args
 				.as_ref()
 				.map(|_| crate::tor_config::load(&self.config_path()))
 				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
+			let parent_key_id = w.parent_key_id_for(args.src_acct_name.as_deref())?;
 			let slate =
 				owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
-			(slate, tor_config)
+			(slate, tor_config, parent_key_id)
 		};
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args {
@@ -991,6 +1090,10 @@ where
 				if self.doctest_mode || !can_send || dest.is_none() {
 					return Ok(slate);
 				}
+				{
+					wallet_lock!(self.wallet_inst, w);
+					owner::tx_lock_outputs(w, keychain_mask, &slate)?;
+				}
 				let dest = dest.unwrap();
 				let res = try_slatepack_sync_workflow(&slate, &dest, Some(tc), None, true);
 				match res {
@@ -999,7 +1102,6 @@ where
 						{
 							let mut w_lock = self.wallet_inst.lock();
 							let w = w_lock.lc_provider()?.wallet_inst()?;
-							let parent_key_id = w.parent_key_id();
 							match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
 								Ok(_) => {}
 								Err(e) => error!("Error on updating slate state: {}", e),
