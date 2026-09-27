@@ -370,13 +370,23 @@ where
 	let mut received = 0;
 	for tx in &entries {
 		match tx.tx_type {
-			TxLogEntryType::TxSent => sent += 1,
-			TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => received += 1,
+			TxLogEntryType::TxSent | TxLogEntryType::TxSentCancelled => sent += 1,
+			TxLogEntryType::TxReceived
+			| TxLogEntryType::TxReceivedCancelled
+			| TxLogEntryType::TxReverted => received += 1,
 			_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
 		}
 		if tx.confirmed || sent > 1 || received > 1 {
 			return Err(Error::TransactionNotCancellable(tx_id_string));
 		}
+	}
+	if !entries.iter().any(|tx| {
+		matches!(
+			tx.tx_type,
+			TxLogEntryType::TxSent | TxLogEntryType::TxReceived | TxLogEntryType::TxReverted
+		)
+	}) {
+		return Err(Error::TransactionNotCancellable(tx_id_string));
 	}
 	let outputs: Vec<_> = wallet.iter()?.collect();
 	let mut batch = wallet.batch(keychain_mask)?;
