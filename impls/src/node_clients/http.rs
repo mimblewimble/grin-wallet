@@ -142,19 +142,12 @@ impl NodeClient for HTTPNodeClient {
 			},
 			Err(e) => {
 				// If node isn't available, allow offline functions
-				// unfortunately have to parse string due to error structure
-				let err_string = format!("{}", e);
-				return if err_string.contains("404") {
-					Some(NodeVersionInfo {
-						node_version: "1.0.0".into(),
-						block_header_version: 1,
-						verified: Some(false),
-					})
-				} else {
-					error!("Unable to contact Node to get version info: {}, check your node is running", e);
-					warn!("Warning: a) Node is offline, or b) 'node_api_secret_path' in 'grin-wallet.toml' is set incorrectly");
-					None
-				};
+				error!(
+					"Unable to contact Node to get version info: {}, check your node is running",
+					e
+				);
+				warn!("Warning: a) Node is offline, or b) 'node_api_secret_path' in 'grin-wallet.toml' is set incorrectly");
+				return None;
 			}
 		};
 		self.node_version_info = Some(retval.clone());
