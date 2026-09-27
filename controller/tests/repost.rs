@@ -333,7 +333,7 @@ fn nrd_store() -> Result<(), libwallet::Error> {
 	use core::core::{FeeFields, KernelFeatures, NRDRelativeHeight};
 	use core::global;
 	use grin_keychain::ExtKeychain;
-	use libwallet::WalletBackend;
+	use libwallet::{Slate, WalletBackend};
 
 	let dir = "test_output/nrd_store";
 	setup(dir);
