@@ -897,7 +897,7 @@ where
 		false,
 	)? {
 		return Err(Error::TransactionCancellationError(
-			"Can't contact running Grin node. Not Cancelling.",
+			"Can't contact running Grin node. Not Cancelling.".to_string(),
 		));
 	}
 	wallet_lock!(wallet_inst, w);

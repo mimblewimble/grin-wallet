@@ -376,8 +376,17 @@ where
 			| TxLogEntryType::TxReverted => received += 1,
 			_ => return Err(Error::TransactionNotCancellable(tx_id_string)),
 		}
-		if tx.confirmed || sent > 1 || received > 1 {
+		if tx.confirmed {
 			return Err(Error::TransactionNotCancellable(tx_id_string));
+		}
+		if sent > 1 || received > 1 {
+			let id = if let Some(id) = tx_slate_id {
+				id.to_string()
+			} else {
+				tx.id.to_string()
+			};
+			let err = format!("There are multiple transactions with the same id: {}, please rescan wallet outputs, then try cancel again.", id);
+			return Err(Error::TransactionCancellationError(err));
 		}
 	}
 	if !entries.iter().any(|tx| {
