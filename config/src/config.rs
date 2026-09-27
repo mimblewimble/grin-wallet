@@ -345,6 +345,12 @@ pub fn initial_setup_wallet(
 	config_path.push(WALLET_CONFIG_FILE_NAME);
 	let mut data_dir = wallet_path.clone();
 	data_dir.push(GRIN_WALLET_DIR);
+	if create_path && data_dir.exists() {
+		return Err(ConfigError::SerializationError(format!(
+			"Wallet data already exists at {}. Please back up your wallet data before making changes, or choose another directory for a new wallet",
+			data_dir.display()
+		)));
+	}
 	// Check if a config exists in the working dir, if so load it
 	let (path, config) = match config_path.clone().exists() {
 		// If the config does not exist, load default and updated node and wallet dir
@@ -370,18 +376,8 @@ pub fn initial_setup_wallet(
 
 		// Return config if not run with init
 		true => {
-			// If run with init and seed do not yet exists, continue, else throw error
-			if data_dir.exists() && create_path == true {
-				let msg = format!(
-					"{} already exists in the target directory ({}). Please remove it first",
-					config_path.to_str().unwrap(),
-					data_dir.to_str().unwrap(),
-				);
-				return Err(ConfigError::SerializationError(msg));
-			} else {
-				let config = GlobalWalletConfig::new(config_path)?;
-				(wallet_path, config)
-			}
+			let config = GlobalWalletConfig::new(config_path)?;
+			(wallet_path, config)
 		}
 	};
 
@@ -743,6 +739,33 @@ mod tests {
 	use std::sync::{Arc, Barrier};
 	use std::thread;
 	use tempfile::tempdir;
+
+	#[test]
+	fn init_existing() {
+		let dir = tempdir().unwrap();
+		let data = dir.path().join(GRIN_WALLET_DIR);
+		let config = dir.path().join(WALLET_CONFIG_FILE_NAME);
+		fs::create_dir(&data).unwrap();
+		for exists in [false, true] {
+			if exists {
+				fs::write(&config, "unchanged").unwrap();
+			}
+			let error = initial_setup_wallet(
+				&ChainTypes::AutomatedTesting,
+				Some(dir.path().to_path_buf()),
+				true,
+			)
+			.unwrap_err();
+			assert!(error
+				.to_string()
+				.contains("Please back up your wallet data"));
+			assert_eq!(config.exists(), exists);
+			if exists {
+				assert_eq!(fs::read_to_string(&config).unwrap(), "unchanged");
+			}
+			assert!(data.is_dir());
+		}
+	}
 
 	#[test]
 	fn save_roundtrip() {
