@@ -253,6 +253,10 @@ impl Client {
 			.send()
 			.await
 			.map_err(|e| Error::RequestError(format!("Cannot make request: {}", e)))?;
+		let status = resp.status();
+		if status.is_client_error() || status.is_server_error() {
+			return Err(Error::ResponseError(format!("HTTP {}", status)));
+		}
 		let text = resp
 			.text()
 			.await
@@ -272,6 +276,56 @@ impl Client {
 				.unwrap()
 		} else {
 			RUNTIME.block_on(self.send_request_async(req))
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+	use tokio::net::TcpListener;
+
+	#[tokio::test]
+	async fn http_status() {
+		let client = Client {
+			client: ClientBuilder::new()
+				.no_proxy()
+				.timeout(Duration::from_secs(5))
+				.build()
+				.unwrap(),
+		};
+		for (status, body, expected) in [
+			("200 OK", "{}", Ok(serde_json::json!({}))),
+			(
+				"401 Unauthorized",
+				"<html>Unauthorized</html>",
+				Err(Error::ResponseError("HTTP 401 Unauthorized".into())),
+			),
+		] {
+			let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+			let url = format!("http://{}", listener.local_addr().unwrap());
+			let server = tokio::spawn(async move {
+				let (mut stream, _) = listener.accept().await.unwrap();
+				let mut headers = BufReader::new(&mut stream).lines();
+				while let Some(line) = headers.next_line().await.unwrap() {
+					if line.is_empty() {
+						break;
+					}
+				}
+				let response = format!(
+					"HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+					status,
+					body.len(),
+					body
+				);
+				stream.write_all(response.as_bytes()).await.unwrap();
+			});
+			assert_eq!(
+				client._get_async::<serde_json::Value>(&url, None).await,
+				expected
+			);
+			server.await.unwrap();
 		}
 	}
 }
