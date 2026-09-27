@@ -225,7 +225,7 @@ impl Client {
 		IN: Serialize,
 	{
 		let json = serde_json::to_string(input)
-			.map_err(|_| Error::Internal("Could not serialize data to JSON".to_owned()))?;
+			.map_err(|e| Error::Internal(format!("Could not serialize data to JSON: {}", e)))?;
 		self.build_request(url, Method::POST, api_secret, Some(json))
 	}
 
@@ -235,7 +235,7 @@ impl Client {
 	{
 		let data = self.send_request(req)?;
 		serde_json::from_str(&data)
-			.map_err(|_| Error::ResponseError("Cannot parse response".to_owned()))
+			.map_err(|e| Error::ResponseError(format!("Cannot parse response: {}", e)))
 	}
 
 	async fn handle_request_async<T>(&self, req: RequestBuilder) -> Result<T, Error>
@@ -244,7 +244,7 @@ impl Client {
 	{
 		let data = self.send_request_async(req).await?;
 		let ser = serde_json::from_str(&data)
-			.map_err(|_| Error::ResponseError("Cannot parse response".to_owned()))?;
+			.map_err(|e| Error::ResponseError(format!("Cannot parse response: {}", e)))?;
 		Ok(ser)
 	}
 
@@ -265,7 +265,7 @@ impl Client {
 	}
 
 	pub fn send_request(&self, req: RequestBuilder) -> Result<String, Error> {
-		// This client is currently used both outside and inside of a tokio runtime
+		// This client is currently used both outside and inside the tokio runtime
 		// context. In the latter case we are not allowed to do a blocking call to
 		// our global runtime, which unfortunately means we have to spawn a new thread
 		if Handle::try_current().is_ok() {
