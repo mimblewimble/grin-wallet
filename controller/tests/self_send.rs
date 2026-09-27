@@ -569,6 +569,9 @@ fn account_send() -> Result<(), libwallet::Error> {
 			Ok(())
 		},
 	);
+	drop(api);
+	drop(wallet);
+	drop(chain);
 	clean_output_dir(dir);
 	result
 }
