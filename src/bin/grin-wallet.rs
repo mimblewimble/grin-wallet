@@ -148,6 +148,7 @@ fn real_main() -> i32 {
 	log_build_info();
 
 	global::init_global_chain_type(config.members.wallet.chain_type.as_ref().unwrap().clone());
+	global::init_global_nrd_enabled(global::get_chain_type() != global::ChainTypes::Mainnet);
 
 	global::init_global_accept_fee_base(config.members.wallet.accept_fee_base());
 	let wallet_config = config.clone().members.wallet;
