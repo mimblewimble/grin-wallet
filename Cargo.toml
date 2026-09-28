@@ -36,6 +36,7 @@ linefeed = "0.6"
 semver = "1.0.28"
 rustyline = "9"
 lazy_static = "1"
+uuid = { version = "1.23.4", features = ["v4"] }
 
 grin_wallet_api = { path = "./api", version = "5.5.0" }
 grin_wallet_impls = { path = "./impls", version = "5.5.0" }
@@ -49,7 +50,6 @@ grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
 grin_api = { workspace = true }
-uuid = { version = "1.23.4", features = ["v4"] }
 
 ###### 
 
