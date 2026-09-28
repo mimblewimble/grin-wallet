@@ -80,7 +80,7 @@ fn updater_thread_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let bh = 10u64;
 	let _ =

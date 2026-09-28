@@ -768,10 +768,14 @@ impl ser::Readable for StoredProofInfo {
 /// Map of named accounts to BIP32 paths
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AcctPathMapping {
-	/// label used by user
+	/// Label used by user.
 	pub label: String,
-	/// Corresponding parent BIP32 derivation path
+	/// Corresponding parent BIP32 derivation path.
 	pub path: Identifier,
+	/// Wallet information for this account, can be loaded after deserialization.
+	pub info: Option<WalletInfo>,
+	/// Flag to check if this is current active account.
+	pub current: Option<bool>,
 }
 
 impl ser::Writeable for AcctPathMapping {

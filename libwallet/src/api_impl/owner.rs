@@ -52,19 +52,30 @@ use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// List of accounts
-pub fn accounts<C, K>(w: &mut WalletBackend<C, K>) -> Result<Vec<AcctPathMapping>, Error>
+pub fn accounts<C, K>(
+	w: &mut WalletBackend<C, K>,
+	minimum_confirmations: Option<u64>,
+) -> Result<Vec<AcctPathMapping>, Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	let mut accounts = keys::accounts(w)?;
+	let mut accounts: Vec<AcctPathMapping> = if let Some(mc) = minimum_confirmations {
+		updater::retrieve_accounts_info(w, mc)?
+	} else {
+		keys::accounts(w)?
+	};
+	let active = w.parent_key_id();
+	for account in accounts.iter_mut() {
+		account.current = Some(account.path == active);
+	}
 	accounts.sort_by(|a, b| a.path.cmp(&b.path));
 	// Put active account on top.
-	accounts.sort_by_key(|k| k.path != w.parent_key_id());
+	accounts.sort_by_key(|k| k.path != active);
 	Ok(accounts)
 }
 
-/// new account path
+/// New account path
 pub fn create_account_path<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -77,13 +88,17 @@ where
 	keys::new_acct_path(w, keychain_mask, label)
 }
 
-/// set active account
-pub fn set_active_account<C, K>(w: &mut WalletBackend<C, K>, label: &str) -> Result<(), Error>
+/// Set active account
+pub fn set_active_account<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	label: &str,
+) -> Result<(), Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	w.set_parent_key_id_by_name(label)
+	w.set_active_account(keychain_mask, label)
 }
 
 /// Hash of the wallet root public key

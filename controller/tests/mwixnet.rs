@@ -72,7 +72,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut bh = 10u64;
 	let _ =
@@ -121,7 +121,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Check total in 'listener' account
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("listener")?;
+		w.set_account_by_name("listener")?;
 	}
 	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
 	assert!(wallet1_refreshed);

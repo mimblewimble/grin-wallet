@@ -81,7 +81,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// test default accounts exist
 	{
-		let accounts = api1.accounts(mask1)?;
+		let accounts = api1.accounts_info(mask1, 2)?;
 		assert_eq!(accounts[0].label, "default");
 		assert_eq!(accounts[0].path, ExtKeychain::derive_key_id(2, 0, 0, 0, 0));
 	}
@@ -97,6 +97,53 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		// trying to add same label again should fail
 		let res = api1.create_account_path(mask1, "account1");
 		assert!(res.is_err());
+		// Check missing flags and temporary account changes
+		for saved in [None, Some(true)] {
+			{
+				wallet_inst!(wallet1, w);
+				let mut account = w.get_acct_path("default".to_owned())?.unwrap();
+				account.current = saved;
+				let mut batch = w.batch(mask1)?;
+				batch.save_acct_path(account)?;
+				batch.commit()?;
+			}
+			for active in ["default", "account1"] {
+				{
+					wallet_inst!(wallet1, w);
+					w.set_account_by_name(active)?;
+				}
+				for accounts in [api1.accounts(mask1)?, api1.accounts_info(mask1, 2)?] {
+					assert_eq!(accounts.len(), 4);
+					assert_eq!(accounts[0].label, active);
+					for account in accounts {
+						assert_eq!(account.current, Some(account.label == active));
+					}
+				}
+				// Keep the saved selection unchanged
+				wallet_inst!(wallet1, w);
+				for account in w.acct_path_iter()? {
+					let expected = if account.label == "default" {
+						saved
+					} else {
+						None
+					};
+					assert_eq!(account.current, expected);
+				}
+			}
+		}
+		// Restore the saved account on reopen
+		api1.set_active_account(mask1, "account1")?;
+		{
+			wallet_inst!(wallet1, w);
+			w.set_account_by_name("default")?;
+			assert_eq!(w.active_account().label, "default");
+		}
+		api1.close_wallet(None)?;
+		api1.open_wallet(None, "".into(), false)?;
+		{
+			wallet_inst!(wallet1, w);
+			assert_eq!(w.active_account().label, "account1");
+		}
 	}
 
 	// add account to wallet 2
@@ -108,20 +155,20 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Default wallet 2 to listen on that account
 	{
 		wallet_inst!(wallet2, w);
-		w.set_parent_key_id_by_name("listener_account")?;
+		w.set_account_by_name("listener_account")?;
 	}
 
 	// Mine into two different accounts in the same wallet
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 		assert_eq!(w.parent_key_id(), ExtKeychain::derive_key_id(2, 1, 0, 0, 0));
 	}
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 7, false);
 
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account2")?;
+		w.set_account_by_name("account2")?;
 		assert_eq!(w.parent_key_id(), ExtKeychain::derive_key_id(2, 2, 0, 0, 0));
 	}
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
@@ -141,12 +188,28 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// now check second account
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
 
 	{
-		let labels: Vec<_> = api1.accounts(mask1)?.into_iter().map(|a| a.label).collect();
+		let labels: Vec<_> = api1
+			.accounts_info(mask1, 2)?
+			.into_iter()
+			.map(|a| a.label)
+			.collect();
 		assert_eq!(labels, ["account1", "default", "account2", "account3"]);
+		assert!(api1.accounts(mask1)?.iter().all(|a| a.info.is_none()));
+		for confirmations in [0, 1, 2, 10] {
+			let accounts = api1.accounts_info(mask1, confirmations)?;
+			assert_eq!(accounts[0].info.as_ref().unwrap().last_confirmed_height, 0);
+			assert_eq!(accounts[2].info.as_ref().unwrap().last_confirmed_height, 12);
+			for account in accounts {
+				api1.set_active_account(mask1, &account.label)?;
+				let (_, summary) = api1.retrieve_summary_info(mask1, false, confirmations)?;
+				assert_eq!(account.info.unwrap(), summary);
+			}
+			api1.set_active_account(mask1, "account1")?;
+		}
 		// check last confirmed height on this account is different from above (should be 0)
 		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, false, 1)?;
 		assert_eq!(wallet1_info.last_confirmed_height, 0);
@@ -159,10 +222,11 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let (_, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
 		assert_eq!(txs.len(), 7);
 	}
+
 	// should be nothing in default account
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("default")?;
+		w.set_account_by_name("default")?;
 	}
 	{
 		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, false, 1)?;
@@ -180,7 +244,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Send a tx to another wallet
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
 	{
 		let args = InitTxArgs {
@@ -218,7 +282,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// other account should be untouched
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account2")?;
+		w.set_account_by_name("account2")?;
 	}
 	{
 		let (_, wallet1_info) = api1.retrieve_summary_info(mask1, false, 1)?;
@@ -241,7 +305,7 @@ fn accounts_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Default account on wallet 2 should be untouched
 	{
 		wallet_inst!(wallet2, w);
-		w.set_parent_key_id_by_name("default")?;
+		w.set_account_by_name("default")?;
 	}
 	{
 		let (_, wallet2_info) = api2.retrieve_summary_info(mask2, false, 1)?;

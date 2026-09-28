@@ -137,7 +137,7 @@ fn slatepack_exchange_test_impl(
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut bh = 10u64;
 	let _ =
@@ -213,7 +213,7 @@ fn slatepack_exchange_test_impl(
 	// Get some mining done
 	{
 		wallet_inst!(wallet2, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
 
 	let (mut slatepack, mut slate) =

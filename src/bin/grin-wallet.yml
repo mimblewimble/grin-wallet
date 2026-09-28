@@ -21,7 +21,6 @@ args:
       short: a
       long: account
       takes_value: true
-      default_value: default
   - top_level_dir:
       help: Top directory in which wallet files are stored (location of 'grin-wallet.toml')
       short: t
@@ -41,12 +40,23 @@ subcommands:
   - cli:
       about: Start the wallet in interactive CLI mode (EXPERIMENTAL and UNDER DEVELOPMENT)
   - account:
-      about: List wallet accounts or create a new account
+      about: List accounts, create an account or select the active account
       args:
         - create:
             help: Create a new wallet account with provided name
             short: c
             long: create
+            takes_value: true
+        - minimum_confirmations:
+            help: Minimum number of confirmations required for an output to be spendable
+            short: m
+            long: min_conf
+            default_value: "10"
+            takes_value: true
+        - active:
+            help: Save the active account, used whenever --account is not given
+            short: a
+            long: active
             takes_value: true
   - rewind_hash:
       about: Return the hash of the wallet root public key.

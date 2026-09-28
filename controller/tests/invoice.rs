@@ -80,7 +80,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut _bh = 10u64;
 	let _ =

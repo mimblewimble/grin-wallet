@@ -308,7 +308,11 @@ pub fn parse_global_args(
 	config: &WalletConfig,
 	args: &ArgMatches,
 ) -> Result<command::GlobalArgs, ParseError> {
-	let account = parse_required(args, "account")?;
+	let account = if args.subcommand_matches("account").is_some() {
+		None
+	} else {
+		parse_optional(args, "account")?
+	};
 	let mut show_spent = false;
 	if args.is_present("show_spent") {
 		show_spent = true;
@@ -335,7 +339,7 @@ pub fn parse_global_args(
 	};
 
 	Ok(command::GlobalArgs {
-		account: account.to_owned(),
+		account,
 		show_spent,
 		api_secret,
 		node_api_secret,
@@ -431,7 +435,26 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 		None => None,
 		Some(s) => Some(s.to_owned()),
 	};
-	Ok(command::AccountArgs { create })
+
+	let active = match account_args.value_of("active") {
+		None => None,
+		Some(s) => Some(s.to_owned()),
+	};
+
+	if create.is_some() && active.is_some() {
+		let msg = "create and active cannot both be present".to_string();
+		return Err(ParseError::ArgumentError(msg));
+	}
+
+	// minimum_confirmations
+	let min_c = parse_required(account_args, "minimum_confirmations")?;
+	let min_c = parse_u64(min_c, "minimum_confirmations")?;
+
+	Ok(command::AccountArgs {
+		create,
+		minimum_confirmations: min_c,
+		active,
+	})
 }
 
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
@@ -1143,7 +1166,7 @@ where
 	)?;
 	if let Some(account) = wallet_args.value_of("account") {
 		let wallet_inst = lc.wallet_inst()?;
-		wallet_inst.set_parent_key_id_by_name(account)?;
+		wallet_inst.set_account_by_name(account)?;
 	}
 	Ok(mask)
 }
@@ -1252,7 +1275,7 @@ where
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(owner_api, km, &global_wallet_args, a, tor_config, test_mode)
+			command::receive(owner_api, km, a, tor_config, test_mode)
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
@@ -1288,7 +1311,6 @@ where
 			command::info(
 				owner_api,
 				km,
-				global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -1304,7 +1326,6 @@ where
 			command::txs(
 				owner_api,
 				km,
-				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -1329,7 +1350,7 @@ where
 			let a = arg_parse!(parse_verify_proof_args(&args));
 			command::proof_verify(owner_api, km, a)
 		}
-		("address", Some(_)) => command::address(owner_api, &global_wallet_args, km),
+		("address", Some(_)) => command::address(owner_api, km),
 		("scan", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
 			command::scan(owner_api, km, a)

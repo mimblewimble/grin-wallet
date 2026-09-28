@@ -88,7 +88,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut bh = 10u64;
 	let _ =
@@ -130,7 +130,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	// Get some mining done
 	{
 		wallet_inst!(wallet2, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
 
 	let mut slate = PathToSlate((&send_file).into()).get_tx()?.0;
