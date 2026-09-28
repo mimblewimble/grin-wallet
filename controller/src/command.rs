@@ -682,8 +682,8 @@ where
 				recipients: vec![],
 			});
 			let pts = PathToSlatepack::new(f.into(), packer, true);
-			let sl = pts.get_tx()?.0;
 			let sp = pts.get_slatepack(true)?;
+			let sl = sp.get_slate()?;
 			(sl, sp.sender, sp.sender_index)
 		}
 		None => {
