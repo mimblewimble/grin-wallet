@@ -26,6 +26,7 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
 use crate::slate::Slate;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::*;
 use crate::util::OnionV3Address;
 use crate::{address, WalletBackend};
@@ -198,7 +199,7 @@ where
 			let sender_key = address::address_from_derivation_path(
 				&keychain,
 				&parent_key_id,
-				sender_address_path,
+				SlatepackAddressIndex(sender_address_path),
 			)?;
 			let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 			t.payment_proof = Some(StoredProofInfo {

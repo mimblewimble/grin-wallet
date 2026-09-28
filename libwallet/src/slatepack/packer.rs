@@ -12,48 +12,65 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::convert::TryFrom;
-use std::str;
-
 use super::armor::HEADER;
-use crate::Error;
+use crate::api_impl::owner::get_slatepack_secret_key;
+use crate::mwixnet::onion::crypto::secp::SecretKey;
+use crate::slatepack::types::SlatepackAddressIndex;
 use crate::{
 	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
 	VersionedBinSlate, VersionedSlate,
 };
+use crate::{Error, NodeClient, WalletInst, WalletLCProvider};
 
+use grin_keychain::Keychain;
+use grin_util::Mutex;
 use grin_wallet_util::byte_ser;
 
-use ed25519_dalek::SigningKey as edSecretKey;
+use std::convert::TryFrom;
+use std::str;
+use std::sync::Arc;
 
-#[derive(Clone)]
 /// Arguments, mostly for encrypting decrypting a slatepack
-pub struct SlatepackerArgs<'a> {
+pub struct SlatepackerArgs<'a, L, C, K>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	/// Wallet instance
+	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	/// Keychain mask
+	pub keychain_mask: Option<SecretKey>,
 	/// Optional sender to include in slatepack
 	pub sender: Option<SlatepackAddress>,
+	/// Optional sender derivation path index
+	pub sender_index: Option<SlatepackAddressIndex>,
 	/// Optional list of recipients, for encryption
 	pub recipients: Vec<SlatepackAddress>,
-	/// Optional decryption key
-	pub dec_key: Option<&'a edSecretKey>,
 }
 
 /// Helper struct to pack and unpack slatepacks
-#[derive(Clone)]
-pub struct Slatepacker<'a>(SlatepackerArgs<'a>);
+pub struct Slatepacker<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain>(
+	SlatepackerArgs<'a, L, C, K>,
+);
 
-impl<'a> Slatepacker<'a> {
+impl<'a, L, C, K> Slatepacker<'a, L, C, K>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
 	/// Create with pathbuf and recipients
-	pub fn new(args: SlatepackerArgs<'a>) -> Self {
+	pub fn new(args: SlatepackerArgs<'a, L, C, K>) -> Self {
 		Self(args)
 	}
 
-	/// return slatepack
+	/// Deserialize provided data to slatepack
 	pub fn deser_slatepack(&self, data: &[u8], decrypt: bool) -> Result<Slatepack, Error> {
 		// check if data is armored, if so, remove and continue
 		let data_len = data.len() as u64;
 		if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
-			let msg = format!("Data invalid length");
-			return Err(Error::SlatepackDeser(msg));
+			return Err(Error::SlatepackDeser("Data invalid length".to_string()));
 		}
 
 		let test_header = &data[..HEADER.len()];
@@ -87,7 +104,29 @@ impl<'a> Slatepacker<'a> {
 
 		slatepack.ver_check_warn();
 		if decrypt {
-			slatepack.try_decrypt_payload(self.0.dec_key)?;
+			let mut err = None;
+			for index in [
+				Some(SlatepackAddressIndex(0)),
+				slatepack.sender_index.clone(),
+				self.0.sender_index.clone(),
+			] {
+				if let Some(i) = index {
+					let dec_key = get_slatepack_secret_key(
+						self.0.wallet_inst.clone(),
+						self.0.keychain_mask.as_ref(),
+						i.clone(),
+					)?;
+					match slatepack.try_decrypt_payload(Some(&dec_key)) {
+						Ok(_) => return Ok(slatepack),
+						Err(e) => err = Some(e),
+					}
+				} else {
+					continue;
+				}
+			}
+			if let Some(e) = err {
+				return Err(e);
+			}
 		}
 		Ok(slatepack)
 	}
@@ -99,6 +138,7 @@ impl<'a> Slatepacker<'a> {
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
 		slatepack.sender = self.0.sender.clone();
+		slatepack.sender_index = self.0.sender_index.clone();
 		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		Ok(slatepack)
 	}
@@ -106,16 +146,5 @@ impl<'a> Slatepacker<'a> {
 	/// Armor a slatepack
 	pub fn armor_slatepack(&self, slatepack: &Slatepack) -> Result<String, Error> {
 		SlatepackArmor::encode(&slatepack)
-	}
-
-	/// Return/upgrade slate from slatepack
-	pub fn get_slate(&self, slatepack: &Slatepack) -> Result<Slate, Error> {
-		let slate_bin =
-			byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload).map_err(|e| {
-				error!("Error reading slate from armored slatepack: {}", e);
-				let msg = format!("{}", e);
-				Error::SlatepackDeser(msg)
-			})?;
-		Ok(Slate::upgrade(slate_bin.into())?)
 	}
 }

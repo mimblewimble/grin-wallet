@@ -25,6 +25,7 @@ use crate::grin_util::secp::pedersen;
 use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error};
@@ -413,8 +414,11 @@ where
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
 		let excess = slate.calc_excess(keychain.secp())?;
-		let sender_key =
-			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
+		let sender_key = address::address_from_derivation_path(
+			&keychain,
+			&parent_key_id,
+			SlatepackAddressIndex(derivation_index),
+		)?;
 		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 		let sig =
 			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
@@ -532,8 +536,11 @@ where
 				));
 			}
 		};
-		let orig_sender_sk =
-			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
+		let orig_sender_sk = address::address_from_derivation_path(
+			&keychain,
+			parent_key_id,
+			SlatepackAddressIndex(index),
+		)?;
 		let orig_sender_address = OnionV3Address::from_private(&orig_sender_sk.0)?;
 		if p.sender_address != orig_sender_address.to_ed25519()? {
 			return Err(Error::PaymentProof(

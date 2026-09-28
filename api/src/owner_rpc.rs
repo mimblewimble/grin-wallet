@@ -34,6 +34,7 @@ use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
 use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
+use libwallet::slatepack::SlatepackAddressIndex;
 use rand::thread_rng;
 use std::convert::TryFrom;
 use std::path::PathBuf;
@@ -1724,7 +1725,7 @@ pub trait OwnerRpc {
 	fn get_slatepack_address(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error>;
 
 	/**
@@ -1759,7 +1760,7 @@ pub trait OwnerRpc {
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<Ed25519SecretKey, Error>;
 
 	/**
@@ -1810,7 +1811,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		slate: VersionedSlate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error>;
 
@@ -1865,7 +1866,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<VersionedSlate, Error>;
 
 	/**
@@ -1907,7 +1908,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error>;
 
 	/**
@@ -2463,7 +2464,7 @@ where
 	fn get_slatepack_address(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error> {
 		Owner::get_slatepack_address(self, (&token.keychain_mask).as_ref(), derivation_index)
 	}
@@ -2471,7 +2472,7 @@ where
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<Ed25519SecretKey, Error> {
 		let key = Owner::get_slatepack_secret_key(
 			self,
@@ -2485,7 +2486,7 @@ where
 		&self,
 		token: Token,
 		slate: VersionedSlate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
 		let res = Owner::create_slatepack_message(
@@ -2502,7 +2503,7 @@ where
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<VersionedSlate, Error> {
 		let slate = Owner::slate_from_slatepack_message(
 			self,
@@ -2518,7 +2519,7 @@ where
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error> {
 		Owner::decode_slatepack_message(
 			self,

@@ -20,62 +20,93 @@ extern crate grin_wallet_impls as impls;
 use grin_core as core;
 use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_libwallet as libwallet;
-use std::path::PathBuf;
-
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{PathToSlatepack, SlatePutter as _};
+use impls::{DefaultLCProvider, PathToSlatepack, SlatePutter as _};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 use grin_wallet_libwallet::{
 	InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress,
-	Slatepacker, SlatepackerArgs,
+	Slatepacker, SlatepackerArgs, WalletInst,
 };
 
-use ed25519_dalek::SigningKey as edDalekSecretKey;
 use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
+use grin_keychain::ExtKeychain;
+use grin_util::secp::SecretKey;
+use grin_util::Mutex;
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 fn output_slatepack(
+	wallet_inst: Arc<
+		Mutex<
+			Box<
+				dyn WalletInst<
+					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>,
+		>,
+	>,
+	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	file: &str,
 	armored: bool,
 	use_bin: bool,
 	sender: Option<SlatepackAddress>,
+	sender_index: Option<SlatepackAddressIndex>,
 	recipients: Vec<SlatepackAddress>,
 ) -> Result<(), libwallet::Error> {
 	let packer = Slatepacker::new(SlatepackerArgs {
+		wallet_inst,
+		keychain_mask: keychain_mask.cloned(),
 		sender,
+		sender_index,
 		recipients,
-		dec_key: None,
 	});
 	let mut file = file.into();
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	PathToSlatepack::new(file.into(), &packer, armored).put_tx(&slate, use_bin)
+	PathToSlatepack::new(file.into(), packer, armored).put_tx(&slate, use_bin)
 }
 
 fn slate_from_packed(
+	wallet_inst: Arc<
+		Mutex<
+			Box<
+				dyn WalletInst<
+					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+					LocalWalletClient,
+					ExtKeychain,
+				>,
+			>,
+		>,
+	>,
+	keychain_mask: Option<&SecretKey>,
 	file: &str,
 	armored: bool,
-	dec_key: Option<&edDalekSecretKey>,
 ) -> Result<(Slatepack, Slate), libwallet::Error> {
 	let packer = Slatepacker::new(SlatepackerArgs {
+		wallet_inst,
+		keychain_mask: keychain_mask.cloned(),
 		sender: None,
+		sender_index: None,
 		recipients: vec![],
-		dec_key,
 	});
 	let mut file = file.into();
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	let slatepack = PathToSlatepack::new(file.into(), &packer, armored).get_slatepack(true)?;
-	Ok((slatepack.clone(), packer.get_slate(&slatepack)?))
+	let slatepack = PathToSlatepack::new(file.into(), packer, armored).get_slatepack(true)?;
+	Ok((slatepack.clone(), slatepack.get_slate()?))
 }
 
 /// self send impl
@@ -143,29 +174,39 @@ fn slatepack_exchange_test_impl(
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let (recipients_1, dec_key_1, sender_1) = match use_encryption {
+	let (recipients_1, sender_index_1, sender_1) = match use_encryption {
 		true => {
-			let sec_key = api1.get_slatepack_secret_key(mask1, 0)?;
+			let sec_key = api1.get_slatepack_secret_key(mask1, SlatepackAddressIndex(0))?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let rec_address = SlatepackAddress::new(&pub_key);
+
+			let sen_index = SlatepackAddressIndex::random();
+			let sec_key = api1.get_slatepack_secret_key(mask1, sen_index.clone())?;
+			let pub_key = edDalekPublicKey::from(&sec_key);
+			let sen_address = SlatepackAddress::new(&pub_key);
 			(
 				vec![rec_address.clone()],
-				Some(sec_key),
-				Some(rec_address.clone()),
+				Some(sen_index),
+				Some(sen_address.clone()),
 			)
 		}
 		false => (vec![], None, None),
 	};
 
-	let (recipients_2, dec_key_2, sender_2) = match use_encryption {
+	let (recipients_2, sender_index_2, sender_2) = match use_encryption {
 		true => {
-			let sec_key = api2.get_slatepack_secret_key(mask2, 0)?;
+			let sec_key = api2.get_slatepack_secret_key(mask2, SlatepackAddressIndex(0))?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let rec_address = SlatepackAddress::new(&pub_key);
+
+			let sen_index = SlatepackAddressIndex::random();
+			let sec_key = api2.get_slatepack_secret_key(mask2, sen_index.clone())?;
+			let pub_key = edDalekPublicKey::from(&sec_key);
+			let sen_address = SlatepackAddress::new(&pub_key);
 			(
 				vec![rec_address.clone()],
-				Some(sec_key),
-				Some(rec_address.clone()),
+				Some(sen_index),
+				Some(sen_address.clone()),
 			)
 		}
 		false => (vec![], None, None),
@@ -201,11 +242,14 @@ fn slatepack_exchange_test_impl(
 	let slate = api1.init_send_tx(mask1, args)?;
 	// output tx file
 	output_slatepack(
+		wallet1.clone(),
+		mask1,
 		&slate,
 		&send_file,
 		use_armored,
 		use_bin,
 		sender_1.clone(),
+		sender_index_1.clone(),
 		recipients_2.clone(),
 	)?;
 	api1.tx_lock_outputs(mask1, &slate)?;
@@ -217,7 +261,7 @@ fn slatepack_exchange_test_impl(
 	}
 
 	let (mut slatepack, mut slate) =
-		slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
+		slate_from_packed(wallet2.clone(), mask2, &send_file, use_armored)?;
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(
@@ -227,12 +271,15 @@ fn slatepack_exchange_test_impl(
 		|api| {
 			slate = api.receive_tx(&slate, None, None)?;
 			output_slatepack(
+				wallet2.clone(),
+				mask2,
 				&slate,
 				&receive_file,
 				use_armored,
 				use_bin,
 				// re-encrypt for sender!
 				sender_2.clone(),
+				sender_index_2.clone(),
 				match slatepack.sender.clone() {
 					Some(s) => vec![s.clone()],
 					None => vec![],
@@ -243,10 +290,20 @@ fn slatepack_exchange_test_impl(
 	)?;
 
 	// wallet 1 finalizes and posts
-	let (_, mut slate) = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
+	let (_, mut slate) = slate_from_packed(wallet1.clone(), mask1, &receive_file, use_armored)?;
 	slate = api1.finalize_tx(mask1, &slate)?;
 	// Output final file for reference
-	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
+	output_slatepack(
+		wallet1.clone(),
+		mask1,
+		&slate,
+		&final_file,
+		use_armored,
+		use_bin,
+		None,
+		None,
+		vec![],
+	)?;
 	api1.post_tx(mask1, &slate, false)?;
 	bh += 1;
 
@@ -286,11 +343,14 @@ fn slatepack_exchange_test_impl(
 	};
 	let mut slate = api2.issue_invoice_tx(mask2, args)?;
 	output_slatepack(
+		wallet2.clone(),
+		mask2,
 		&slate,
 		&send_file,
 		use_armored,
 		use_bin,
 		sender_2.clone(),
+		sender_index_2.clone(),
 		recipients_1.clone(),
 	)?;
 
@@ -303,17 +363,20 @@ fn slatepack_exchange_test_impl(
 		selection_strategy_is_use_all: true,
 		..Default::default()
 	};
-	let res = slate_from_packed(&send_file, use_armored, (&dec_key_1).as_ref())?;
+	let res = slate_from_packed(wallet1.clone(), mask1, &send_file, use_armored)?;
 	slatepack = res.0;
 	slate = res.1;
 	slate = api1.process_invoice_tx(mask1, &slate, args)?;
 	api1.tx_lock_outputs(mask1, &slate)?;
 	output_slatepack(
+		wallet1.clone(),
+		mask1,
 		&slate,
 		&receive_file,
 		use_armored,
 		use_bin,
 		sender_1.clone(),
+		sender_index_1.clone(),
 		match slatepack.sender.clone() {
 			Some(s) => vec![s.clone()],
 			None => vec![],
@@ -325,10 +388,21 @@ fn slatepack_exchange_test_impl(
 		mask2_i.clone(),
 		|api| {
 			// Wallet 2 receives the invoice transaction
-			let res = slate_from_packed(&receive_file, use_armored, (&dec_key_2).as_ref())?;
+			let res =
+				slate_from_packed(wallet2.clone(), mask2.clone(), &receive_file, use_armored)?;
 			slate = res.1;
 			slate = api.finalize_tx(&slate, false)?;
-			output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
+			output_slatepack(
+				wallet2.clone(),
+				mask2,
+				&slate,
+				&final_file,
+				use_armored,
+				use_bin,
+				None,
+				None,
+				vec![],
+			)?;
 			Ok(())
 		},
 	)?;
@@ -349,7 +423,7 @@ fn slatepack_exchange_test_impl(
 		),
 	};
 
-	let address = Some(api2.get_slatepack_address(mask2, 0)?);
+	let address = Some(api2.get_slatepack_address(mask2, SlatepackAddressIndex(0))?);
 
 	// send to send
 	let args = InitTxArgs {
@@ -364,11 +438,14 @@ fn slatepack_exchange_test_impl(
 	};
 	let mut slate = api1.init_send_tx(mask1, args)?;
 	output_slatepack(
+		wallet1.clone(),
+		mask1,
 		&slate,
 		&send_file,
 		use_armored,
 		use_bin,
 		sender_1,
+		sender_index_1,
 		recipients_2.clone(),
 	)?;
 	api1.tx_lock_outputs(mask1, &slate)?;
@@ -378,16 +455,19 @@ fn slatepack_exchange_test_impl(
 		PathBuf::from(test_dir),
 		mask2_i.clone(),
 		|api| {
-			let res = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
+			let res = slate_from_packed(wallet2.clone(), mask2, &send_file, use_armored)?;
 			let slatepack = res.0;
 			slate = res.1;
 			slate = api.receive_tx(&slate, None, None)?;
 			output_slatepack(
+				wallet2.clone(),
+				mask2,
 				&slate,
 				&receive_file,
 				use_armored,
 				use_bin,
 				sender_2,
+				sender_index_2,
 				match slatepack.sender {
 					Some(s) => vec![s.clone()],
 					None => vec![],
@@ -398,11 +478,21 @@ fn slatepack_exchange_test_impl(
 	)?;
 
 	// wallet 1 finalizes and posts
-	let res = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
+	let res = slate_from_packed(wallet1.clone(), mask1, &receive_file, use_armored)?;
 	slate = res.1;
 	slate = api1.finalize_tx(mask1, &slate)?;
 	// Output final file for reference
-	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
+	output_slatepack(
+		wallet1.clone(),
+		mask1,
+		&slate,
+		&final_file,
+		use_armored,
+		use_bin,
+		None,
+		None,
+		vec![],
+	)?;
 	api1.post_tx(mask1, &slate, false)?;
 
 	// let logging finish
@@ -460,12 +550,15 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	};
 	let slate = api1.init_send_tx(mask1, args)?;
 	// create an encrypted slatepack (just encrypted for self)
-	let enc_addr = api1.get_slatepack_address(mask1, 0)?;
-	let slatepack = api1.create_slatepack_message(mask1, &slate, Some(0), vec![enc_addr])?;
+	let address_index = SlatepackAddressIndex(0);
+	let enc_addr = api1.get_slatepack_address(mask1, address_index.clone())?;
+	let slatepack =
+		api1.create_slatepack_message(mask1, &slate, Some(address_index.clone()), vec![enc_addr])?;
 	println!("{}", slatepack);
-	let slatepack_raw = api1.decode_slatepack_message(mask1, slatepack.clone(), vec![0])?;
+	let slatepack_raw =
+		api1.decode_slatepack_message(mask1, slatepack.clone(), vec![address_index.clone()])?;
 	println!("{}", slatepack_raw);
-	let decoded_slate = api1.slate_from_slatepack_message(mask1, slatepack, vec![0])?;
+	let decoded_slate = api1.slate_from_slatepack_message(mask1, slatepack, vec![address_index])?;
 	println!("{}", decoded_slate);
 
 	// let logging finish

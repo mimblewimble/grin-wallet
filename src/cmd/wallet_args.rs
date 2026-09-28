@@ -20,7 +20,6 @@ use crate::util::file::get_first_line;
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 
-use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
@@ -29,8 +28,11 @@ use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
+
+use clap::ArgMatches;
 use linefeed::terminal::Signal;
 use linefeed::{Interface, ReadResult};
 use rpassword;
@@ -38,6 +40,7 @@ use std::convert::TryFrom;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use uuid::Uuid;
 
 // define what to do on argument error
 macro_rules! arg_parse {
@@ -173,7 +176,7 @@ fn prompt_slatepack() -> Result<String, ParseError> {
 					println!();
 					println!("Input is not a valid slatepack.");
 					println!();
-					interface.set_buffer(&line)?;
+					interface.set_buffer("")?;
 				}
 			}
 		}
@@ -549,6 +552,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 
 	let slatepack_qr = args.is_present("slatepack_qr");
 
+	let address_index = parse_address_index_arg(args)?;
+
 	Ok(command::SendArgs {
 		amount,
 		amount_includes_fee,
@@ -568,23 +573,31 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		skip_tor,
 		bridge,
 		slatepack_qr,
+		address_index,
 	})
 }
 
-pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
-	// input file
-	let input_file = match args.is_present("input") {
-		true => {
-			let file = args.value_of("input").unwrap().to_owned();
-			// validate input
-			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
+fn parse_address_index_arg(args: &ArgMatches) -> Result<Option<SlatepackAddressIndex>, ParseError> {
+	let address = if let Some(i) = parse_optional(args, "address_index")? {
+		let val = i.parse::<u32>();
+		match val {
+			Ok(v) => Some(SlatepackAddressIndex(v)),
+			Err(e) => {
+				let msg = format!(
+					"Could not parse {} as a whole number. e={}",
+					"address_index", e
+				);
 				return Err(ParseError::ArgumentError(msg));
 			}
-			Some(file)
 		}
-		false => None,
+	} else {
+		None
 	};
+	Ok(address)
+}
+
+pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
+	let input_file = parse_input_file_arg(args)?;
 
 	let mut input_slatepack_message = None;
 	if input_file.is_none() {
@@ -613,8 +626,7 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 	})
 }
 
-pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
-	// input file
+fn parse_input_file_arg(args: &ArgMatches) -> Result<Option<String>, ParseError> {
 	let input_file = match args.is_present("input") {
 		true => {
 			let file = args.value_of("input").unwrap().to_owned();
@@ -627,6 +639,11 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 		}
 		false => None,
 	};
+	Ok(input_file)
+}
+
+pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
+	let input_file = parse_input_file_arg(args)?;
 
 	let mut input_slatepack_message = None;
 	if input_file.is_none() {
@@ -659,18 +676,7 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 	let fluff = args.is_present("fluff");
 	let nopost = args.is_present("nopost");
 
-	let input_file = match args.is_present("input") {
-		true => {
-			let file = args.value_of("input").unwrap().to_owned();
-			// validate input
-			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
-				return Err(ParseError::ArgumentError(msg));
-			}
-			Some(file)
-		}
-		false => None,
-	};
+	let input_file = parse_input_file_arg(args)?;
 
 	let mut input_slatepack_message = None;
 	if input_file.is_none() {
@@ -745,7 +751,14 @@ fn get_slate<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: &ArgMatches,
-) -> Result<(Slate, Option<SlatepackAddress>), Error>
+) -> Result<
+	(
+		Slate,
+		Option<SlatepackAddress>,
+		Option<SlatepackAddressIndex>,
+	),
+	Error,
+>
 where
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
@@ -829,6 +842,8 @@ pub fn parse_process_invoice_args(
 		None
 	};
 
+	let address_index = parse_address_index_arg(args)?;
+
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
@@ -841,6 +856,7 @@ pub fn parse_process_invoice_args(
 		outfile,
 		bridge,
 		slatepack_qr,
+		address_index,
 	})
 }
 
@@ -873,16 +889,7 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 		None => None,
 		Some(tx) => Some(parse_u64(tx, "id")? as u32),
 	};
-	let tx_slate_id = match args.value_of("txid") {
-		None => None,
-		Some(tx) => match tx.parse() {
-			Ok(t) => Some(t),
-			Err(e) => {
-				let msg = format!("Could not parse txid parameter. e={}", e);
-				return Err(ParseError::ArgumentError(msg));
-			}
-		},
-	};
+	let tx_slate_id = parse_tx_slate_id_arg(args)?;
 	if tx_id.is_some() && tx_slate_id.is_some() {
 		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
@@ -898,22 +905,24 @@ pub fn parse_txs_args(args: &ArgMatches) -> Result<command::TxsArgs, ParseError>
 	})
 }
 
+fn parse_tx_slate_id_arg(args: &ArgMatches) -> Result<Option<Uuid>, ParseError> {
+	let tx_slate_id = match args.value_of("txid") {
+		None => None,
+		Some(tx) => match tx.parse() {
+			Ok(t) => Some(t),
+			Err(e) => {
+				let msg = format!("Could not parse txid parameter. e={}", e);
+				return Err(ParseError::ArgumentError(msg));
+			}
+		},
+	};
+	Ok(tx_slate_id)
+}
+
 pub fn parse_post_args(args: &ArgMatches) -> Result<command::PostArgs, ParseError> {
 	let fluff = args.is_present("fluff");
 
-	// input file
-	let input_file = match args.is_present("input") {
-		true => {
-			let file = args.value_of("input").unwrap().to_owned();
-			// validate input
-			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
-				return Err(ParseError::ArgumentError(msg));
-			}
-			Some(file)
-		}
-		false => None,
-	};
+	let input_file = parse_input_file_arg(args)?;
 
 	let mut input_slatepack_message = None;
 	if input_file.is_none() {
@@ -982,16 +991,7 @@ pub fn parse_export_proof_args(args: &ArgMatches) -> Result<command::ProofExport
 		None => None,
 		Some(tx) => Some(parse_u64(tx, "id")? as u32),
 	};
-	let tx_slate_id = match args.value_of("txid") {
-		None => None,
-		Some(tx) => match tx.parse() {
-			Ok(t) => Some(t),
-			Err(e) => {
-				let msg = format!("Could not parse txid parameter. e={}", e);
-				return Err(ParseError::ArgumentError(msg));
-			}
-		},
-	};
+	let tx_slate_id = parse_tx_slate_id_arg(args)?;
 	if tx_id.is_some() && tx_slate_id.is_some() {
 		let msg = "At most one of 'id' (-i) or 'txid' (-t) may be provided.".to_string();
 		return Err(ParseError::ArgumentError(msg));
@@ -1089,7 +1089,7 @@ where
 		("cli", _) => None,
 		("unpack", Some(args)) => {
 			let args = arg_parse!(parse_unpack_args(args));
-			let slatepack = command::read_slatepack(args)?;
+			let slatepack = command::read_slatepack(wallet.clone(), args)?;
 			let mask = if slatepack.mode == 1 {
 				open_wallet(&wallet, &global_wallet_args, wallet_args)?
 			} else {
@@ -1279,7 +1279,7 @@ where
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
-			let slatepack = command::read_slatepack(a)?;
+			let slatepack = command::read_slatepack(owner_api.wallet_inst.clone(), a)?;
 			command::unpack(owner_api, km, slatepack)
 		}
 		("finalize", Some(args)) => {
@@ -1292,7 +1292,7 @@ where
 		}
 		("pay", Some(args)) => {
 			// get slate first
-			let (slate, address) = get_slate(owner_api, km, args)?;
+			let (slate, address, _) = get_slate(owner_api, km, args)?;
 
 			let a = arg_parse!(parse_process_invoice_args(
 				&args, !test_mode, slate, address

@@ -19,13 +19,14 @@ use ed25519_dalek::SigningKey as edSecretKey;
 use sha2::{Digest, Sha512};
 use x25519_dalek::StaticSecret;
 
-use crate::dalek_ser;
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use crate::Error;
+use crate::{dalek_ser, Slate, VersionedBinSlate};
 use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
 
+use rand::{thread_rng, Rng};
 use std::fmt;
 use std::io::{Cursor, Read, Write};
 
@@ -47,6 +48,11 @@ pub struct Slatepack {
 	#[serde(default = "default_sender_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub sender: Option<SlatepackAddress>,
+
+	/// Optional Sender address derivation path index.
+	#[serde(default = "default_address_index")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub sender_index: Option<SlatepackAddressIndex>,
 
 	// Encrypted metadata, to be serialized into payload only
 	// shouldn't be accessed directly
@@ -70,6 +76,10 @@ pub struct Slatepack {
 }
 
 fn default_sender_none() -> Option<SlatepackAddress> {
+	None
+}
+
+fn default_address_index() -> Option<SlatepackAddressIndex> {
 	None
 }
 
@@ -103,6 +113,7 @@ impl Default for Slatepack {
 			},
 			mode: 0,
 			sender: None,
+			sender_index: None,
 			encrypted_meta: default_enc_metadata(),
 			payload: vec![],
 			future_test_mode: false,
@@ -116,6 +127,9 @@ impl Slatepack {
 		let mut retval = 0;
 		if let Some(s) = self.sender.as_ref() {
 			retval += s.encoded_len().unwrap();
+		}
+		if let Some(_) = self.sender_index {
+			retval += 4;
 		}
 		Ok(retval)
 	}
@@ -263,6 +277,41 @@ impl Slatepack {
 			);
 		}
 	}
+
+	/// Return/upgrade slate from slatepack.
+	pub fn get_slate(&self) -> Result<Slate, Error> {
+		let slate_bin = byte_ser::from_bytes::<VersionedBinSlate>(&self.payload).map_err(|e| {
+			error!("Error reading slate from armored slatepack: {}", e);
+			let msg = format!("{}", e);
+			Error::SlatepackDeser(msg)
+		})?;
+		Ok(Slate::upgrade(slate_bin.into())?)
+	}
+}
+
+/// Slatepack address derivation path index
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub struct SlatepackAddressIndex(pub u32);
+
+impl SlatepackAddressIndex {
+	/// The max BIP32 index.
+	pub const MAX: u32 = 2_147_483_647;
+
+	/// Index value.
+	pub fn value(self) -> u32 {
+		self.0
+	}
+
+	/// Index size.
+	pub fn len(self) -> usize {
+		4
+	}
+
+	/// Generate random index.
+	pub fn random() -> SlatepackAddressIndex {
+		let index = thread_rng().gen_range(0, Self::MAX);
+		SlatepackAddressIndex(index)
+	}
 }
 
 /// Wrapper for outputting slate as binary
@@ -327,6 +376,9 @@ impl Writeable for SlatepackBin {
 		if sp.sender.is_some() {
 			opt_flags |= 0x01;
 		}
+		if sp.sender_index.is_some() {
+			opt_flags |= 0x02;
+		}
 		writer.write_u16(opt_flags)?;
 
 		// Bytes to skip from here (Start of optional fields) to get to payload
@@ -336,9 +388,12 @@ impl Writeable for SlatepackBin {
 		if let Some(s) = sp.sender {
 			s.write(writer)?;
 		};
+		if let Some(i) = sp.sender_index {
+			i.0.write(writer)?;
+		};
 
 		// encrypted metadata is only included in the payload
-		// on encryption, and is not serialised here
+		// on encryption, and is not serialized here
 
 		// Now write payload (length prefixed)
 		writer.write_bytes(sp.payload.clone())
@@ -378,6 +433,15 @@ impl Readable for SlatepackBin {
 			None
 		};
 
+		let sender_index = if opt_flags & 0x02 > 0 {
+			let value = reader.read_u32()?;
+			let index = SlatepackAddressIndex(value);
+			bytes_to_payload -= index.clone().len() as u32;
+			Some(index)
+		} else {
+			None
+		};
+
 		// skip over any unknown future fields until header
 		while bytes_to_payload > 0 {
 			let _ = reader.read_u8()?;
@@ -390,6 +454,7 @@ impl Readable for SlatepackBin {
 			slatepack,
 			mode,
 			sender,
+			sender_index,
 			encrypted_meta: default_enc_metadata(),
 			payload,
 			future_test_mode: false,

@@ -35,6 +35,7 @@ use grin_wallet_config::config::{
 	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
 };
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
 
@@ -989,8 +990,13 @@ where
 				.map(|_| crate::tor_config::load(&self.config_path()))
 				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			let slate =
-				owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
+			let slate = owner::process_invoice_tx(
+				w,
+				keychain_mask,
+				slate,
+				args.clone(),
+				self.doctest_mode,
+			)?;
 			(slate, tor_config)
 		};
 		// Helper functionality. If send arguments exist, attempt to send
@@ -1018,7 +1024,13 @@ where
 							}
 						}
 						// Output slatepack message to file.
-						match output_slatepack_file(&self, keychain_mask, &s, Some(dest)) {
+						match output_slatepack_file(
+							&self,
+							keychain_mask,
+							&s,
+							Some(dest),
+							args.address_index,
+						) {
 							Ok(_) => {}
 							Err(e) => error!("Error on saving output slatepack message: {}", e),
 						}
@@ -2259,7 +2271,7 @@ where
 	pub fn get_slatepack_address(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error> {
 		owner::get_slatepack_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
@@ -2298,7 +2310,7 @@ where
 	pub fn get_slatepack_secret_key(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<DalekSecretKey, Error> {
 		owner::get_slatepack_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
@@ -2359,7 +2371,7 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
 		owner::create_slatepack_message(
@@ -2410,7 +2422,7 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slatepack: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slate, Error> {
 		owner::slate_from_slatepack_message(
 			self.wallet_inst.clone(),
@@ -2461,7 +2473,7 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slatepack: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error> {
 		owner::decode_slatepack_message(
 			self.wallet_inst.clone(),
@@ -2807,6 +2819,7 @@ fn output_slatepack_file<L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest: Option<SlatepackAddress>,
+	sender_index: Option<SlatepackAddressIndex>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -2818,7 +2831,9 @@ where
 		Some(a) => vec![a],
 		None => vec![],
 	};
-	let message = api.create_slatepack_message(keychain_mask, &slate, Some(0), recipients)?;
+	let sender_index = sender_index.unwrap_or_else(|| SlatepackAddressIndex::random());
+	let message =
+		api.create_slatepack_message(keychain_mask, &slate, Some(sender_index), recipients)?;
 	let tld = api.get_top_level_directory()?;
 
 	// Create a directory to which files will be output.
