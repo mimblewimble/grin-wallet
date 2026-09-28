@@ -2254,13 +2254,14 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
-	/// let res = api_owner.get_slatepack_address(None, 0);
+	/// let res = api_owner.get_slatepack_address(None, SlatepackAddressIndex(0));
 	///
 	/// if let Ok(_) = res {
 	///   // ...
@@ -2294,13 +2295,14 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
-	/// let res = api_owner.get_slatepack_secret_key(None, 0);
+	/// let res = api_owner.get_slatepack_secret_key(None, SlatepackAddressIndex(0));
 	///
 	/// if let Ok(_) = res {
 	///   // ...
@@ -2335,6 +2337,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
@@ -2360,7 +2363,7 @@ where
 	///     let slatepack = api_owner.create_slatepack_message(
 	///        None,
 	///        &slate,
-	///        Some(0),
+	///        Some(SlatepackAddressIndex(0)),
 	///        vec![],
 	///     );
 	/// }
@@ -2404,6 +2407,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
@@ -2414,7 +2418,7 @@ where
 	///   let res = api_owner.slate_from_slatepack_message(
 	///    None,
 	///    slatepack_string,
-	///    vec![0, 1, 2],
+	///    vec![SlatepackAddressIndex(0), SlatepackAddressIndex(1), SlatepackAddressIndex(2)],
 	///   );
 	/// ```
 
@@ -2454,6 +2458,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
@@ -2464,7 +2469,7 @@ where
 	/// let res = api_owner.decode_slatepack_message(
 	///    None,
 	///    slatepack_string,
-	///    vec![0, 1, 2],
+	///    vec![SlatepackAddressIndex(0), SlatepackAddressIndex(1), SlatepackAddressIndex(2)],
 	/// );
 	///
 	/// ```
