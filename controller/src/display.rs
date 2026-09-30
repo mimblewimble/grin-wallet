@@ -151,18 +151,31 @@ pub fn txs(
 
 	let mut table = table!();
 
-	table.set_titles(row![
-		bMG->"Id",
-		bMG->"Type (State)",
-		bMG->"Shared Transaction Id \nKernel",
-		bMG->"Creation Time \nConfirmation Time",
-		bMG->"Payment Proof \nTTL Cutoff Height",
-		bMG->"Inputs \nOutputs",
-		bMG->"Credited \nDebited",
-		bMG->"Fee \nDifference",
-	]);
+	table.set_titles(if dark_background_color_scheme {
+		row![
+			bMG->"Id",
+			bMG->"Type (State)",
+			bMG->"Shared Transaction Id \nKernel",
+			bMG->"Creation Time \nConfirmation Time",
+			bMG->"Payment Proof \nTTL Cutoff Height",
+			bMG->"Inputs \nOutputs",
+			bMG->"Credited \nDebited",
+			bMG->"Fee \nDifference",
+		]
+	} else {
+		row![
+			bFD	->"Id",
+			bFD->"Type (State)",
+			bFD->"Shared Transaction Id \nKernel",
+			bFD->"Creation Time \nConfirmation Time",
+			bFD->"Payment Proof \nTTL Cutoff Height",
+			bFD->"Inputs \nOutputs",
+			bFD->"Credited \nDebited",
+			bFD->"Fee \nDifference",
+		]
+	});
 
-	for t in txs {
+	for (i, t) in txs.iter().enumerate() {
 		let id = format!("{}", t.id);
 		let slate_id = match t.tx_slate_id {
 			Some(m) => format!("{}", m),
@@ -252,17 +265,16 @@ pub fn txs(
 				bFR->amount_debited_str,
 				bFY->net_diff,
 			]);
-			table.add_empty_row();
 		} else {
 			table.add_row(row![
 				bFD->id,
 				bFb->entry_type_state,
 				bFD->slate_id,
 				bFB->creation_ts,
-				bfG->payment_proof,
+				bFD->payment_proof,
 				bFD->num_inputs,
 				bFG->amount_credited_str,
-				bFD->fee,
+				bFR->fee,
 			]);
 			table.add_row(row![
 				bFD->"",
@@ -271,9 +283,12 @@ pub fn txs(
 				bFB->confirmation_ts,
 				bFB->ttl_cutoff_height,
 				bFD->num_outputs,
-				bFD->amount_debited_str,
+				bFR->amount_debited_str,
 				bFG->net_diff,
 			]);
+		}
+		if i != txs.len() - 1 {
+			table.add_empty_row();
 		}
 	}
 
