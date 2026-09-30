@@ -14,14 +14,14 @@
 
 //! Types specific to the wallet api, mostly argument serialization
 
-use crate::grin_core::core::Output;
-use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::{BlindingFactor, Identifier};
-use crate::grin_util::secp::pedersen;
 use crate::slate_versions::ser as dalek_ser;
 use crate::slate_versions::SlateVersion;
 use crate::types::OutputData;
 use crate::{Error, NodeClient, Slate, SlatepackAddress, WalletBackend};
+use grin_core::core::Output;
+use grin_core::libtx::secp_ser;
+use grin_keychain::{BlindingFactor, Identifier};
+use grin_util::secp::pedersen;
 
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
@@ -132,7 +132,7 @@ impl Default for InitTxArgs {
 }
 
 /// V2 Issue Invoice Tx Args
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct IssueInvoiceTxArgs {
 	/// The human readable account name to which the received funds should be added
 	/// overriding whatever the active account is as set via the
@@ -145,16 +145,6 @@ pub struct IssueInvoiceTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
-}
-
-impl Default for IssueInvoiceTxArgs {
-	fn default() -> IssueInvoiceTxArgs {
-		IssueInvoiceTxArgs {
-			dest_acct_name: None,
-			amount: 0,
-			target_slate_version: None,
-		}
-	}
 }
 
 /// Sort tx retrieval order

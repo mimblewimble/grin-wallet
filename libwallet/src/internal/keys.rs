@@ -14,10 +14,10 @@
 
 //! Wallet key management functions
 use crate::error::Error;
-use crate::grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
 use crate::types::{AcctPathMapping, NodeClient};
 use crate::WalletBackend;
+use grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
+use grin_util::secp::key::SecretKey;
 
 /// Get next available key in the wallet for a given parent
 pub fn next_available_key<C, K>(

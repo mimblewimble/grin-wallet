@@ -20,7 +20,7 @@ use std::str;
 use url::Host;
 
 /// Tor Proxy
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorProxy {
 	/// proxy type used for the proxy, eg "socks4", "socks5", "http", "https"
 	pub transport: Option<String>,
@@ -32,18 +32,6 @@ pub struct TorProxy {
 	pub password: Option<String>,
 	/// computer goes through a firewall that only allows connections to certain ports
 	pub allowed_port: Option<Vec<u16>>,
-}
-
-impl Default for TorProxy {
-	fn default() -> TorProxy {
-		TorProxy {
-			transport: None,
-			address: None,
-			username: None,
-			password: None,
-			allowed_port: None,
-		}
-	}
 }
 
 impl TorProxy {
@@ -70,7 +58,7 @@ impl TorProxy {
 	}
 
 	pub fn parse_address(addr: &str) -> Result<(String, Option<u16>), Error> {
-		let (host, str_port) = TorProxy::parse_host_port(&addr)?;
+		let (host, str_port) = TorProxy::parse_host_port(addr)?;
 		let host = Host::parse(&host)
 			.map_err(|_e| Error::TorProxy(format!("Invalid host address: {}", host)))?;
 		let port = if let Some(p) = str_port {
@@ -92,13 +80,10 @@ impl TorProxy {
 			for port in ports.clone() {
 				allowed_ports.push_str(format!("*:{}", port).as_str());
 				if port != last_port {
-					allowed_ports.push_str(",");
+					allowed_ports.push(',');
 				}
 			}
-			hm.insert(
-				"ReachableAddresses".to_string(),
-				format!("{}", allowed_ports.clone()),
-			);
+			hm.insert("ReachableAddresses".to_string(), allowed_ports);
 		}
 
 		let transport = match self.transport {
@@ -156,7 +141,7 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 							address_addr = host
 						}
 						Ok(TorProxy {
-							transport: Some(transport.into()),
+							transport: Some(transport),
 							address: Some(address_addr),
 							username: tb.username,
 							password: tb.password,
@@ -167,7 +152,7 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 							"Missing proxy address: {} - must be <IP:PORT> or <Hostname>",
 							transport
 						);
-						return Err(Error::TorProxy(msg).into());
+						Err(Error::TorProxy(msg))
 					}
 				}
 				// Missing transport type
@@ -176,7 +161,7 @@ impl TryFrom<TorProxyConfig> for TorProxy {
 						"Invalid proxy transport: {} - must be socks4/socks5/http(s)",
 						transport
 					);
-					Err(Error::TorProxy(msg).into())
+					Err(Error::TorProxy(msg))
 				}
 			}
 		} else {
