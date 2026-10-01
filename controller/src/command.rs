@@ -868,27 +868,35 @@ where
 	println!("------------------");
 
 	if slatepack.mode == 1 {
-		let dec_key = owner_api.get_slatepack_secret_key(
-			keychain_mask,
-			slatepack
-				.sender_index
-				.clone()
-				.unwrap_or_else(|| SlatepackAddressIndex(0)),
-		)?;
-		match slatepack.try_decrypt_payload(Some(&dec_key)) {
-			Ok(_) => {
+		let mut slate = None;
+		for index in [
+			slatepack.sender_index.clone(),
+			Some(SlatepackAddressIndex(0)),
+		] {
+			let dec_key = owner_api.get_slatepack_secret_key(
+				keychain_mask,
+				index.unwrap_or_else(|| SlatepackAddressIndex(0)),
+			)?;
+			match slatepack.try_decrypt_payload(Some(&dec_key)) {
+				Ok(_) => {
+					slate = Some(slatepack.get_slate()?);
+				}
+				Err(_) => continue,
+			}
+		}
+		match slate {
+			Some(s) => {
 				println!("Slatepack is encrypted for this wallet");
 				println!();
 				println!("DECRYPTED SLATEPACK");
 				println!("-------------------");
 				println!("{}", slatepack);
-				let slate = slatepack.get_slate()?;
 				println!();
 				println!("DECRYPTED SLATE");
 				println!("---------------");
-				println!("{}", slate);
+				println!("{}", s);
 			}
-			Err(_) => {
+			None => {
 				println!("Slatepack payload cannot be decrypted by this wallet");
 			}
 		}
