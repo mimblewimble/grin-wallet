@@ -176,7 +176,7 @@ fn prompt_slatepack() -> Result<String, ParseError> {
 					println!();
 					println!("Input is not a valid slatepack.");
 					println!();
-					interface.set_buffer("")?;
+					interface.set_buffer(&line)?;
 				}
 			}
 		}
