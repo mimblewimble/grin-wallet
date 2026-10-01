@@ -296,15 +296,12 @@ pub struct SlatepackAddressIndex(pub u32);
 impl SlatepackAddressIndex {
 	/// The max BIP32 index.
 	pub const MAX: u32 = 2_147_483_647;
+	/// Index size.
+	pub const LEN: u32 = 4;
 
 	/// Index value.
 	pub fn value(self) -> u32 {
 		self.0
-	}
-
-	/// Index size.
-	pub fn len(self) -> usize {
-		4
 	}
 
 	/// Generate random index.
@@ -433,10 +430,11 @@ impl Readable for SlatepackBin {
 			None
 		};
 
-		let sender_index = if opt_flags & 0x02 > 0 {
+		let sender_index = if bytes_to_payload >= SlatepackAddressIndex::LEN && opt_flags & 0x02 > 0
+		{
 			let value = reader.read_u32()?;
 			let index = SlatepackAddressIndex(value);
-			bytes_to_payload -= index.clone().len() as u32;
+			bytes_to_payload -= SlatepackAddressIndex::LEN;
 			Some(index)
 		} else {
 			None
