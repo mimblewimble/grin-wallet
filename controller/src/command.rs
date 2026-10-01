@@ -1044,7 +1044,7 @@ where
 		false,
 		false,
 		args.slatepack_qr,
-		None,
+		Some(SlatepackAddressIndex(0)),
 	)?;
 	Ok(())
 }
