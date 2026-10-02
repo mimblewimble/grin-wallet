@@ -674,14 +674,12 @@ where
 		Some(f) => {
 			// otherwise, get slate from slatepack
 			let packer = Slatepacker::new(SlatepackerArgs {
-				wallet_inst: owner_api.wallet_inst.clone(),
-				keychain_mask: keychain_mask.cloned(),
 				sender: None,
 				sender_index: None,
 				recipients: vec![],
 			});
 			let pts = PathToSlatepack::new(f.into(), packer, true);
-			let sp = pts.get_slatepack(true)?;
+			let sp = pts.get_slatepack(owner_api.wallet_inst.clone(), keychain_mask, true)?;
 			let sl = sp.get_slate()?;
 			(sl, sp.sender, sp.sender_index)
 		}
@@ -833,16 +831,18 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let packer = Slatepacker::new(SlatepackerArgs {
-		wallet_inst,
-		keychain_mask: None,
 		sender: None,
 		sender_index: None,
 		recipients: vec![],
 	});
 	let slatepack = match args.input_file {
-		Some(f) => PathToSlatepack::new(f.into(), packer, true).get_slatepack(false)?,
+		Some(f) => {
+			PathToSlatepack::new(f.into(), packer, true).get_slatepack(wallet_inst, None, false)?
+		}
 		None => match args.input_slatepack_message {
-			Some(message) => packer.deser_slatepack(message.as_bytes(), false)?,
+			Some(message) => {
+				packer.deser_slatepack(message.as_bytes(), wallet_inst, None, false)?
+			}
 			None => {
 				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
 			}
@@ -1045,6 +1045,9 @@ where
 
 	let slate = owner_api.issue_invoice_tx(keychain_mask, issue_args)?;
 
+	let sender_index = args
+		.address_index
+		.unwrap_or_else(|| SlatepackAddressIndex(0));
 	output_slatepack(
 		owner_api,
 		keychain_mask,
@@ -1054,7 +1057,7 @@ where
 		false,
 		false,
 		args.slatepack_qr,
-		Some(SlatepackAddressIndex(0)),
+		Some(sender_index),
 	)?;
 	Ok(())
 }
