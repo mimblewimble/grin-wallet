@@ -299,8 +299,11 @@ where
 {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
+	// Avoid conflicts with local wallets
+	let wallet_dir = PathBuf::from(test_dir).join(format!("{}_bootstrap", wallet_name));
 	let mut config =
-		config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
+		config::initial_setup_wallet(&ChainTypes::AutomatedTesting, Some(wallet_dir), true)
+			.unwrap();
 	let mut wallet_config = config.clone().members.wallet;
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;
