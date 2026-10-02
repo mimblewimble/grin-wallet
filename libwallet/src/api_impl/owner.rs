@@ -634,19 +634,15 @@ where
 		)?
 	};
 
-	// Payment Proof, add addresses to slate and save address
-	// TODO: Note we only use single derivation path for now,
-	// probably want to allow sender to specify which one
-	let deriv_path = 0u32;
+	let address_index = args
+		.address_index
+		.unwrap_or_else(|| SlatepackAddressIndex(0));
 
 	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
-		let sec_addr_key = address::address_from_derivation_path(
-			&k,
-			&parent_key_id,
-			SlatepackAddressIndex(deriv_path),
-		)?;
+		let sec_addr_key =
+			address::address_from_derivation_path(&k, &parent_key_id, address_index.clone())?;
 		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
@@ -655,7 +651,7 @@ where
 			receiver_signature: None,
 		});
 
-		context.payment_proof_derivation_index = Some(deriv_path);
+		context.payment_proof_derivation_index = Some(address_index.0);
 	}
 
 	// Save the aggsig context in our DB for when we

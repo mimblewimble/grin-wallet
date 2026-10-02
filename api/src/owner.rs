@@ -816,7 +816,8 @@ where
 				let slate = {
 					wallet_lock!(self.wallet_inst, w);
 					let late_lock = args.late_lock.unwrap_or(false);
-					let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+					let slate =
+						owner::init_send_tx(w, keychain_mask, args.clone(), self.doctest_mode)?;
 					let tc = tor_config.as_ref().ok_or_else(|| {
 						Error::TorConfig("Tor config was not loaded with send arguments".into())
 					})?;
@@ -829,10 +830,26 @@ where
 					}
 					slate
 				};
-				let res =
-					try_slatepack_sync_workflow(&slate, &dest.unwrap(), tor_config, None, false);
+				let res = try_slatepack_sync_workflow(
+					&slate,
+					dest.as_ref().unwrap(),
+					tor_config,
+					None,
+					false,
+				);
 				match res {
 					Ok(s) => {
+						// Output slatepack message to file.
+						match output_slatepack_file(
+							&self,
+							keychain_mask,
+							&s,
+							dest,
+							args.address_index,
+						) {
+							Ok(_) => {}
+							Err(e) => error!("Error on saving output slatepack message: {}", e),
+						}
 						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
@@ -950,7 +967,7 @@ where
 	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// // . . .
-	/// // The slate has been recieved from the invoicer, somehow
+	/// // The slate has been received from the invoicer, somehow
 	/// # let slate = Slate::blank(2, true);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
@@ -983,12 +1000,8 @@ where
 			}
 			_ => None,
 		};
-		let (slate, tor_config) = {
+		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
-			let tor_config = send_args
-				.as_ref()
-				.map(|_| crate::tor_config::load(&self.config_path()))
-				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			let slate = owner::process_invoice_tx(
 				w,
@@ -997,11 +1010,15 @@ where
 				args.clone(),
 				self.doctest_mode,
 			)?;
-			(slate, tor_config)
+			slate
 		};
 		// Helper functionality. If send arguments exist, attempt to send
-		match send_args {
+		match send_args.as_ref() {
 			Some(sa) => {
+				let tor_config = send_args
+					.as_ref()
+					.map(|_| crate::tor_config::load(&self.config_path()))
+					.transpose()?;
 				let tc = tor_config.ok_or_else(|| {
 					Error::TorConfig("Tor config was not loaded with send arguments".into())
 				})?;
@@ -2839,9 +2856,7 @@ where
 		Some(a) => vec![a],
 		None => vec![],
 	};
-	let sender_index = sender_index.unwrap_or_else(|| SlatepackAddressIndex::random());
-	let message =
-		api.create_slatepack_message(keychain_mask, &slate, Some(sender_index), recipients)?;
+	let message = api.create_slatepack_message(keychain_mask, &slate, sender_index, recipients)?;
 	let tld = api.get_top_level_directory()?;
 
 	// Create a directory to which files will be output.

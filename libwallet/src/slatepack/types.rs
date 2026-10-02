@@ -303,12 +303,6 @@ impl SlatepackAddressIndex {
 	pub fn value(self) -> u32 {
 		self.0
 	}
-
-	/// Generate random index.
-	pub fn random() -> SlatepackAddressIndex {
-		let index = thread_rng().gen_range(0, Self::MAX);
-		SlatepackAddressIndex(index)
-	}
 }
 
 /// Wrapper for outputting slate as binary

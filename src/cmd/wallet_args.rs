@@ -751,6 +751,7 @@ pub fn parse_issue_invoice_args(
 		},
 		outfile,
 		slatepack_qr,
+		address_index: None,
 	})
 }
 
@@ -823,9 +824,13 @@ pub fn parse_process_invoice_args(
 	let max_outputs = 500;
 
 	if prompt {
-		let dest = match ret_address.clone() {
-			Some(a) => String::try_from(&a).unwrap(),
-			None => String::from(""),
+		let dest = parse_optional(args, "dest")?;
+		let dest = match dest {
+			Some(dest) => dest,
+			None => match ret_address.clone() {
+				Some(a) => String::try_from(&a).unwrap(),
+				None => String::from(""),
+			},
 		};
 		// Now we need to prompt the user whether they want to do this,
 		prompt_pay_invoice(&slate, &dest)?;
@@ -849,8 +854,6 @@ pub fn parse_process_invoice_args(
 		None
 	};
 
-	let address_index = parse_address_index_arg(args)?;
-
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
@@ -863,7 +866,6 @@ pub fn parse_process_invoice_args(
 		outfile,
 		bridge,
 		slatepack_qr,
-		address_index,
 	})
 }
 
@@ -1299,7 +1301,7 @@ where
 		}
 		("pay", Some(args)) => {
 			// get slate first
-			let (slate, address, _) = get_slate(owner_api, km, args)?;
+			let (slate, address, address_index) = get_slate(owner_api, km, args)?;
 
 			let a = arg_parse!(parse_process_invoice_args(
 				&args, !test_mode, slate, address
@@ -1311,6 +1313,7 @@ where
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
+				address_index,
 			)
 		}
 		("info", Some(args)) => {

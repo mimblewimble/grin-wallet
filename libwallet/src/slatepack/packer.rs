@@ -14,7 +14,6 @@
 
 use super::armor::HEADER;
 use crate::api_impl::owner::get_slatepack_secret_key;
-use crate::mwixnet::onion::crypto::secp::SecretKey;
 use crate::slatepack::types::SlatepackAddressIndex;
 use crate::{
 	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
@@ -23,6 +22,7 @@ use crate::{
 use crate::{Error, NodeClient, WalletInst, WalletLCProvider};
 
 use grin_keychain::Keychain;
+use grin_util::secp::SecretKey;
 use grin_util::Mutex;
 use grin_wallet_util::byte_ser;
 

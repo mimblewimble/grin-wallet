@@ -512,7 +512,7 @@ where
 	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
 		let sender_index = args
 			.address_index
-			.unwrap_or_else(|| SlatepackAddressIndex::random());
+			.unwrap_or_else(|| SlatepackAddressIndex(0));
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
@@ -730,7 +730,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (mut slate, sender_address, sender_index) = parse_slatepack(
+	let (mut slate, ret_address, ret_address_index) = parse_slatepack(
 		owner_api,
 		keychain_mask,
 		args.input_file,
@@ -780,21 +780,21 @@ where
 			owner_api,
 			keychain_mask,
 			&slate,
-			sender_address.clone(),
+			ret_address.clone(),
 			args.outfile,
 			false,
 			false,
 			args.slatepack_qr,
-			sender_index,
+			ret_address_index,
 		)?)
 	};
 
 	let can_send = tor_config.send_tor(args.skip_tor);
-	if test_mode || !can_send || sender_address.is_none() {
+	if test_mode || !can_send || ret_address.is_none() {
 		return output_sp();
 	}
 
-	let dest = sender_address.as_ref().unwrap();
+	let dest = ret_address.as_ref().unwrap();
 	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, true);
 
 	match res {
@@ -932,7 +932,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (mut slate, _, _) = parse_slatepack(
+	let (mut slate, _, address_index) = parse_slatepack(
 		owner_api,
 		keychain_mask,
 		args.input_file.clone(),
@@ -1006,7 +1006,7 @@ where
 		false,
 		true,
 		args.slatepack_qr,
-		None,
+		address_index,
 	)?;
 
 	Ok(())
@@ -1016,12 +1016,14 @@ where
 pub struct IssueInvoiceArgs {
 	/// Slatepack address
 	pub dest: Option<String>,
-	/// issue invoice tx args
+	/// Issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
-	/// output file override
+	/// Output file override
 	pub outfile: Option<String>,
-	/// show slatepack as QR code
+	/// Show slatepack as QR code
 	pub slatepack_qr: bool,
+	/// Issuer's slatepack address derivation path index
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -1070,7 +1072,6 @@ pub struct ProcessInvoiceArgs {
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
-	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 /// Process invoice
@@ -1081,6 +1082,7 @@ pub fn process_invoice<L, C, K>(
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 	test_mode: bool,
+	ret_address_index: Option<SlatepackAddressIndex>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -1167,7 +1169,7 @@ where
 			true,
 			false,
 			args.slatepack_qr,
-			args.address_index,
+			ret_address_index,
 		)?)
 	};
 

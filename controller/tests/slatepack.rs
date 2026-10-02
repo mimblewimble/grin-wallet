@@ -170,7 +170,7 @@ fn slatepack_exchange_test_impl(
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let rec_address = SlatepackAddress::new(&pub_key);
 
-			let sen_index = SlatepackAddressIndex::random();
+			let sen_index = SlatepackAddressIndex(0);
 			let sec_key = api1.get_slatepack_secret_key(mask1, sen_index.clone())?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let sen_address = SlatepackAddress::new(&pub_key);
@@ -189,7 +189,7 @@ fn slatepack_exchange_test_impl(
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let rec_address = SlatepackAddress::new(&pub_key);
 
-			let sen_index = SlatepackAddressIndex::random();
+			let sen_index = SlatepackAddressIndex(0);
 			let sec_key = api2.get_slatepack_secret_key(mask2, sen_index.clone())?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let sen_address = SlatepackAddress::new(&pub_key);
