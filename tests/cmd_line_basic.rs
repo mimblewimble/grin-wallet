@@ -181,7 +181,10 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let output = String::from_utf8(output.stdout).unwrap();
 	let accounts: Vec<_> = output
 		.lines()
-		.filter_map(|line| line.strip_prefix("Address for account - "))
+		.filter_map(|line| {
+			line.split_once("Address for account - ")
+				.map(|(_, name)| name)
+		})
 		.collect();
 	assert_eq!(accounts, ["account_1", "default", "account_1"]);
 
