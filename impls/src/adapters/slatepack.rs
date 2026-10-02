@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use crate::libwallet::{slatepack, Error, Slate, Slatepack, SlatepackBin, Slatepacker};
-use crate::{SlateGetter, SlatePutter};
+use crate::SlatePutter;
+
 use grin_keychain::Keychain;
 use grin_util::secp::SecretKey;
 use grin_util::Mutex;
