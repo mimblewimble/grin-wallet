@@ -90,6 +90,12 @@ pub struct TorProcess {
 	sys: System,
 }
 
+impl Default for TorProcess {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl TorProcess {
 	pub fn new() -> Self {
 		TorProcess {
@@ -153,7 +159,7 @@ impl TorProcess {
 		let mut tor = Command::new(&self.tor_cmd);
 
 		if let Some(ref d) = self.working_dir {
-			tor.current_dir(&d);
+			tor.current_dir(d);
 			let pid_file_name = format!("{}{}pid", d, MAIN_SEPARATOR);
 			// kill off PID if its already running
 			if Path::new(&pid_file_name).exists() {
@@ -167,7 +173,7 @@ impl TorProcess {
 			}
 		}
 		if let Some(ref torrc_path) = self.torrc_path {
-			tor.args(&vec!["-f", torrc_path]);
+			tor.args(vec!["-f", torrc_path]);
 		}
 		let mut tor_process = tor
 			.args(&self.args)

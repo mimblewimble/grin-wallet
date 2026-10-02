@@ -33,12 +33,11 @@ use rustyline::validate::Validator;
 use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper, OutputStreamType};
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::sync::mpsc::{channel, Receiver};
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-const COLORED_PROMPT: &'static str = "\x1b[36mgrin-wallet>\x1b[0m ";
-const PROMPT: &'static str = "grin-wallet> ";
+const COLORED_PROMPT: &str = "\x1b[36mgrin-wallet>\x1b[0m ";
+const PROMPT: &str = "grin-wallet> ";
 //const HISTORY_PATH: &str = ".history";
 
 // static for keeping track of current stdin buffer contents
@@ -109,7 +108,7 @@ pub fn start_updater_thread(rx: Receiver<StatusMessage>) -> Result<(), Error> {
 
 pub fn command_loop<L, C, K>(
 	config: GlobalWalletConfig,
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet_inst: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	global_wallet_args: &GlobalArgs,
 	test_mode: bool,
@@ -155,7 +154,7 @@ where
 	start_updater_thread(rx)?;
 
 	// start the automatic updater
-	owner_api.start_updater((&keychain_mask).as_ref(), Duration::from_secs(30))?;
+	owner_api.start_updater(keychain_mask.as_ref(), Duration::from_secs(30))?;
 	let mut wallet_opened = false;
 	loop {
 		match reader.readline(PROMPT) {
@@ -178,8 +177,7 @@ where
 				// Just add 'grin-wallet' to each command behind the scenes
 				// so we don't need to maintain a separate definition file
 				let augmented_command = format!("grin-wallet {}", command);
-				let args =
-					app.get_matches_from_safe_borrow(augmented_command.trim().split_whitespace());
+				let args = app.get_matches_from_safe_borrow(augmented_command.split_whitespace());
 				let done = match args {
 					Ok(args) => {
 						// handle opening /closing separately
@@ -230,7 +228,7 @@ where
 							keychain_mask.clone(),
 							&wallet_config,
 							tor_config,
-							&global_wallet_args,
+							global_wallet_args,
 							&args,
 							test_mode,
 							true,

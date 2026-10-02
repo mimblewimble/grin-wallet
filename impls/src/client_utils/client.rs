@@ -19,7 +19,6 @@ use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,6 +31,7 @@ lazy_static! {
 }
 
 #[derive(Clone, Eq, thiserror::Error, PartialEq, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
 	#[error("Internal error: {0}")]
 	Internal(String),
@@ -76,7 +76,7 @@ impl Client {
 
 		if let Some(p) = proxy {
 			let (addr, scheme) = p;
-			let proxy = Proxy::all(&format!("{}{}:{}", scheme, addr.ip(), addr.port()))
+			let proxy = Proxy::all(format!("{}{}:{}", scheme, addr.ip(), addr.port()))
 				.map_err(|e| Error::Internal(format!("Unable to create proxy: {}", e)))?;
 			builder = builder.proxy(proxy);
 		}
@@ -91,7 +91,7 @@ impl Client {
 	/// Helper function to easily issue a HTTP GET request against a given URL that
 	/// returns a JSON object. Handles request building, JSON deserialization and
 	/// response code checking.
-	pub fn _get<'a, T>(&self, url: &'a str, api_secret: Option<String>) -> Result<T, Error>
+	pub fn _get<T>(&self, url: &str, api_secret: Option<String>) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de>,
 	{
@@ -101,11 +101,7 @@ impl Client {
 	/// Helper function to easily issue an async HTTP GET request against a given
 	/// URL that returns a future. Handles request building, JSON deserialization
 	/// and response code checking.
-	pub async fn _get_async<'a, T>(
-		&self,
-		url: &'a str,
-		api_secret: Option<String>,
-	) -> Result<T, Error>
+	pub async fn _get_async<T>(&self, url: &str, api_secret: Option<String>) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de> + Send + 'static,
 	{

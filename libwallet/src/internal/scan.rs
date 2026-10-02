@@ -14,44 +14,34 @@
 //! Functions to restore a wallet's outputs from just the master seed
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
-use crate::grin_core::core::HeaderVersion;
-use crate::grin_core::global;
-use crate::grin_core::libtx::proof;
-use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::pedersen;
-use crate::grin_util::secp::{ContextFlag, Secp256k1};
-use crate::grin_util::Mutex;
-use crate::grin_util::{from_hex, ToHex};
 use crate::internal::{keys, updater};
 use crate::types::*;
 use crate::{wallet_lock, Error, OutputCommitMapping};
 use blake2_rfc::blake2b::blake2b;
+use grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
+use grin_core::core::HeaderVersion;
+use grin_core::global;
+use grin_core::libtx::proof;
+use grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
+use grin_util::secp::key::SecretKey;
+use grin_util::secp::pedersen;
+use grin_util::secp::{ContextFlag, Secp256k1};
+use grin_util::{from_hex, ToHex};
 use rayon::prelude::*;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
 
 /// Utility struct for return values from below
 #[derive(Debug, Clone)]
 struct OutputResult {
-	///
 	pub commit: pedersen::Commitment,
-	///
 	pub key_id: Identifier,
-	///
 	pub n_child: u32,
-	///
 	pub mmr_index: u64,
-	///
 	pub value: u64,
-	///
 	pub height: u64,
-	///
 	pub lock_height: u64,
-	///
 	pub is_coinbase: bool,
 }
 
@@ -293,7 +283,7 @@ where
 const MISSING_OUTPUTS_BATCH_SIZE: usize = 1000;
 
 fn restore_missing_outputs<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	outputs: Vec<OutputResult>,
 	found_parents: &mut HashMap<Identifier, u32>,
@@ -359,9 +349,8 @@ where
 	Ok(())
 }
 
-///
 fn cancel_tx_log_entry<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	output: &OutputData,
 ) -> Result<(), Error>
@@ -406,7 +395,7 @@ where
 /// Scan outputs with a given rewind hash view wallet.
 /// Retrieve all outputs information that belongs to it.
 pub fn scan_rewind_hash<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	rewind_hash: String,
 	start_height: u64,
 	end_height: u64,
@@ -463,8 +452,9 @@ where
 /// The returned `ScannedBlockInfo` is the progress marker to persist after the
 /// batch. The returned PMMR range can be passed into the next batch to avoid
 /// looking up the full range again.
+#[allow(clippy::too_many_arguments)]
 pub fn scan<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	delete_unconfirmed: bool,
 	batch_start_height: u64,
@@ -642,7 +632,7 @@ where
 			keys::set_acct_path(w, keychain_mask, &label, path)?;
 			acct_index += 1;
 		}
-		let current_child_index = w.current_child_index(&path)?;
+		let current_child_index = w.current_child_index(path)?;
 		if *max_child_index >= current_child_index {
 			let mut batch = w.batch(keychain_mask)?;
 			debug!("Next child for account {} is {}", path, max_child_index + 1);

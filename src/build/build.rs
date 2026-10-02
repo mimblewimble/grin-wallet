@@ -14,7 +14,6 @@
 
 //! Build hooks to spit out version+build time info
 
-use built;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -28,12 +27,12 @@ fn main() {
 
 	if cfg!(target_os = "windows") {
 		Command::new("cmd")
-			.args(&["/C", &git_hooks])
+			.args(["/C", &git_hooks])
 			.output()
 			.expect("failed to execute git config for hooks");
 	} else {
 		Command::new("sh")
-			.args(&["-c", &git_hooks])
+			.args(["-c", &git_hooks])
 			.output()
 			.expect("failed to execute git config for hooks");
 	}

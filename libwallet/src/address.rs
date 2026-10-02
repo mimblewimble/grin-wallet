@@ -15,9 +15,9 @@
 //! Functions defining wallet 'addresses', i.e. ed2559 keys based on
 //! a derivation path
 
-use crate::grin_util::secp::key::SecretKey;
 use crate::Error;
 use grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
+use grin_util::secp::key::SecretKey;
 
 use crate::blake2::blake2b::blake2b;
 
@@ -50,10 +50,7 @@ where
 	let key_id = address_derivation_path(parent_key_id, index);
 	let sec_key = keychain.derive_key(0, &key_id, SwitchCommitmentType::None)?;
 	let hashed = blake2b(32, &[], &sec_key.0[..]);
-	Ok(SecretKey::from_slice(
-		&keychain.secp(),
-		&hashed.as_bytes()[..],
-	)?)
+	Ok(SecretKey::from_slice(keychain.secp(), hashed.as_bytes())?)
 }
 
 #[cfg(test)]
