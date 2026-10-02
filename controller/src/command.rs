@@ -20,9 +20,9 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
 use crate::impls::PathToSlatepack;
-use crate::impls::SlateGetter as _;
 use crate::keychain;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
+use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
@@ -31,7 +31,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 
-use grin_wallet_libwallet::wallet_lock;
+use grin_wallet_libwallet::{wallet_lock, WalletInst};
 use qr_code::QrCode;
 use serde_json as json;
 use std::fs::File;
@@ -340,6 +340,7 @@ pub struct SendArgs {
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 fn max_retry_args(mut init_args: InitTxArgs, amount: u64, max_inputs: u32) -> InitTxArgs {
@@ -509,6 +510,9 @@ where
 	}
 
 	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
+		let sender_index = args
+			.address_index
+			.unwrap_or_else(|| SlatepackAddressIndex(0));
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
@@ -518,6 +522,7 @@ where
 			lock_outputs,
 			false,
 			args.slatepack_qr,
+			Some(sender_index),
 		)?)
 	};
 
@@ -561,7 +566,7 @@ where
 	Ok(())
 }
 
-pub fn output_slatepack<L, C, K>(
+fn output_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
@@ -570,6 +575,7 @@ pub fn output_slatepack<L, C, K>(
 	lock: bool,
 	finalizing: bool,
 	show_qr: bool,
+	sender_index: Option<SlatepackAddressIndex>,
 ) -> Result<(), libwallet::Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -582,7 +588,8 @@ where
 		Some(a) => vec![a],
 		None => vec![],
 	};
-	let message = owner_api.create_slatepack_message(keychain_mask, &slate, Some(0), recipients)?;
+	let message =
+		owner_api.create_slatepack_message(keychain_mask, &slate, sender_index, recipients)?;
 	let tld = owner_api.get_top_level_directory()?;
 
 	// create a directory to which files will be output
@@ -650,48 +657,43 @@ pub fn parse_slatepack<L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	filename: Option<String>,
 	message: Option<String>,
-) -> Result<(Slate, Option<SlatepackAddress>), Error>
+) -> Result<
+	(
+		Slate,
+		Option<SlatepackAddress>,
+		Option<SlatepackAddressIndex>,
+	),
+	Error,
+>
 where
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut ret_address = None;
-	let slate = match filename {
+	let (slate, sender_address, sender_index) = match filename {
 		Some(f) => {
 			// otherwise, get slate from slatepack
-			let dec_key = owner_api.get_slatepack_secret_key(keychain_mask, 0)?;
 			let packer = Slatepacker::new(SlatepackerArgs {
 				sender: None,
+				sender_index: None,
 				recipients: vec![],
-				dec_key: Some(&dec_key),
 			});
-			let pts = PathToSlatepack::new(f.into(), &packer, true);
-			let sl = Some(pts.get_tx()?.0);
-			ret_address = pts.get_slatepack(true)?.sender;
-			sl
+			let pts = PathToSlatepack::new(f.into(), packer, true);
+			let sp = pts.get_slatepack(owner_api.wallet_inst.clone(), keychain_mask, true)?;
+			let sl = sp.get_slate()?;
+			(sl, sp.sender, sp.initial_sender_index)
 		}
-		None => None,
-	};
-
-	let slate = match slate {
-		Some(s) => s,
 		None => {
 			// try and parse directly from input_slatepack_message
 			match message {
 				Some(message) => {
-					let slate = owner_api.slate_from_slatepack_message(
+					let sp = owner_api.decode_slatepack_message(
 						keychain_mask,
 						message.clone(),
-						vec![0],
+						vec![SlatepackAddressIndex(0)],
 					)?;
-					let slatepack = owner_api.decode_slatepack_message(
-						keychain_mask,
-						message.clone(),
-						vec![0],
-					)?;
-					ret_address = slatepack.sender;
-					slate
+					let sl = sp.get_slate()?;
+					(sl, sp.sender, sp.initial_sender_index)
 				}
 				None => {
 					let msg = "No slate provided via file or direct input";
@@ -700,7 +702,7 @@ where
 			}
 		}
 	};
-	Ok((slate, ret_address))
+	Ok((slate, sender_address, sender_index))
 }
 
 /// Receive command argument
@@ -726,7 +728,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (mut slate, ret_address) = parse_slatepack(
+	let (mut slate, ret_address, ret_address_index) = parse_slatepack(
 		owner_api,
 		keychain_mask,
 		args.input_file,
@@ -781,6 +783,7 @@ where
 			false,
 			false,
 			args.slatepack_qr,
+			ret_address_index,
 		)?)
 	};
 
@@ -796,8 +799,7 @@ where
 		Ok(s) => {
 			// Update slate state.
 			{
-				let mut w_lock = owner_api.wallet_inst.lock();
-				let w = w_lock.lc_provider()?.wallet_inst()?;
+				wallet_lock!(owner_api.wallet_inst, w);
 				let parent_key_id = w.parent_key_id();
 				match update_tx_slate_state(w, keychain_mask, &parent_key_id, &s) {
 					Ok(_) => {}
@@ -819,16 +821,28 @@ where
 	Ok(())
 }
 
-pub fn read_slatepack(args: ReceiveArgs) -> Result<Slatepack, Error> {
+pub fn read_slatepack<L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	args: ReceiveArgs,
+) -> Result<Slatepack, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
+		sender_index: None,
 		recipients: vec![],
-		dec_key: None,
 	});
 	let slatepack = match args.input_file {
-		Some(f) => PathToSlatepack::new(f.into(), &packer, true).get_slatepack(false)?,
+		Some(f) => {
+			PathToSlatepack::new(f.into(), packer, true).get_slatepack(wallet_inst, None, false)?
+		}
 		None => match args.input_slatepack_message {
-			Some(message) => packer.deser_slatepack(message.as_bytes(), false)?,
+			Some(message) => {
+				packer.deser_slatepack(message.as_bytes(), wallet_inst, None, false)?
+			}
 			None => {
 				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
 			}
@@ -853,33 +867,41 @@ where
 	println!("{}", slatepack);
 	println!("------------------");
 
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		recipients: vec![],
-		dec_key: None,
-	});
-
 	if slatepack.mode == 1 {
-		let dec_key = owner_api.get_slatepack_secret_key(keychain_mask, 0)?;
-		match slatepack.try_decrypt_payload(Some(&dec_key)) {
-			Ok(_) => {
+		let mut slate = None;
+		for index in [
+			slatepack.initial_sender_index.clone(),
+			Some(SlatepackAddressIndex(0)),
+		] {
+			let dec_key = owner_api.get_slatepack_secret_key(
+				keychain_mask,
+				index.unwrap_or_else(|| SlatepackAddressIndex(0)),
+			)?;
+			match slatepack.try_decrypt_payload(Some(&dec_key)) {
+				Ok(_) => {
+					slate = Some(slatepack.get_slate()?);
+				}
+				Err(_) => continue,
+			}
+		}
+		match slate {
+			Some(s) => {
 				println!("Slatepack is encrypted for this wallet");
 				println!();
 				println!("DECRYPTED SLATEPACK");
 				println!("-------------------");
 				println!("{}", slatepack);
-				let slate = packer.get_slate(&slatepack)?;
 				println!();
 				println!("DECRYPTED SLATE");
 				println!("---------------");
-				println!("{}", slate);
+				println!("{}", s);
 			}
-			Err(_) => {
+			None => {
 				println!("Slatepack payload cannot be decrypted by this wallet");
 			}
 		}
 	} else {
-		let slate = packer.get_slate(&slatepack)?;
+		let slate = slatepack.get_slate()?;
 		println!("Slatepack is not encrypted");
 		println!();
 		println!("SLATE");
@@ -910,7 +932,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (mut slate, _ret_address) = parse_slatepack(
+	let (mut slate, _, address_index) = parse_slatepack(
 		owner_api,
 		keychain_mask,
 		args.input_file.clone(),
@@ -984,6 +1006,7 @@ where
 		false,
 		true,
 		args.slatepack_qr,
+		address_index,
 	)?;
 
 	Ok(())
@@ -993,12 +1016,14 @@ where
 pub struct IssueInvoiceArgs {
 	/// Slatepack address
 	pub dest: Option<String>,
-	/// issue invoice tx args
+	/// Issue invoice tx args
 	pub issue_args: IssueInvoiceTxArgs,
-	/// output file override
+	/// Output file override
 	pub outfile: Option<String>,
-	/// show slatepack as QR code
+	/// Show slatepack as QR code
 	pub slatepack_qr: bool,
+	/// Issuer's slatepack address derivation path index
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 pub fn issue_invoice_tx<L, C, K>(
@@ -1020,6 +1045,9 @@ where
 
 	let slate = owner_api.issue_invoice_tx(keychain_mask, issue_args)?;
 
+	let sender_index = args
+		.address_index
+		.unwrap_or_else(|| SlatepackAddressIndex(0));
 	output_slatepack(
 		owner_api,
 		keychain_mask,
@@ -1029,6 +1057,7 @@ where
 		false,
 		false,
 		args.slatepack_qr,
+		Some(sender_index),
 	)?;
 	Ok(())
 }
@@ -1056,6 +1085,7 @@ pub fn process_invoice<L, C, K>(
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 	test_mode: bool,
+	ret_address_index: Option<SlatepackAddressIndex>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -1142,6 +1172,7 @@ where
 			true,
 			false,
 			args.slatepack_qr,
+			ret_address_index,
 		)?)
 	};
 
@@ -1323,7 +1354,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let (slate, _ret_address) = parse_slatepack(
+	let (slate, _, _) = parse_slatepack(
 		owner_api,
 		keychain_mask,
 		args.input_file,
@@ -1471,7 +1502,7 @@ where
 	}
 }
 
-/// Payment Proof Address
+/// Show wallet's slatepack address.
 pub fn address<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -1481,8 +1512,10 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	// Just address at derivation index 0 for now
-	let address = owner_api.get_slatepack_address(keychain_mask, 0)?;
+	// Just address at derivation index 0 for now,
+	// cause sender encrypts message for address,
+	// and we don't know its derivation path index.
+	let address = owner_api.get_slatepack_address(keychain_mask, SlatepackAddressIndex(0))?;
 	let account = account_label(owner_api)?;
 	println!();
 	println!("Address for account - {}", account);

@@ -47,6 +47,7 @@ use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
 
+use crate::slatepack::SlatepackAddressIndex;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -123,7 +124,7 @@ where
 pub fn get_slatepack_address<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
-	index: u32,
+	index: SlatepackAddressIndex,
 ) -> Result<SlatepackAddress, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -142,7 +143,7 @@ where
 pub fn get_slatepack_secret_key<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
-	index: u32,
+	index: SlatepackAddressIndex,
 ) -> Result<DalekSecretKey, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -162,7 +163,7 @@ pub fn create_slatepack_message<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	sender_index: Option<u32>,
+	sender_index: Option<SlatepackAddressIndex>,
 	recipients: Vec<SlatepackAddress>,
 ) -> Result<String, Error>
 where
@@ -170,14 +171,18 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let sender = match sender_index {
-		Some(i) => Some(get_slatepack_address(wallet_inst, keychain_mask, i)?),
+	let sender = match sender_index.as_ref() {
+		Some(i) => Some(get_slatepack_address(
+			wallet_inst.clone(),
+			keychain_mask.clone(),
+			i.clone(),
+		)?),
 		None => None,
 	};
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender,
+		sender_index,
 		recipients,
-		dec_key: None,
 	});
 	let slatepack = packer.create_slatepack(slate)?;
 	packer.armor_slatepack(&slatepack)
@@ -189,7 +194,7 @@ pub fn slate_from_slatepack_message<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
-	secret_indices: Vec<u32>,
+	secret_indices: Vec<SlatepackAddressIndex>,
 ) -> Result<Slate, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -199,31 +204,33 @@ where
 	if secret_indices.is_empty() {
 		let packer = Slatepacker::new(SlatepackerArgs {
 			sender: None,
+			sender_index: None,
 			recipients: vec![],
-			dec_key: None,
 		});
-		let slatepack = packer.deser_slatepack(slatepack.as_bytes(), true)?;
-		packer.get_slate(&slatepack)
+		let slatepack =
+			packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false)?;
+		slatepack.get_slate()
 	} else {
 		for index in secret_indices {
-			let dec_key = Some(get_slatepack_secret_key(
-				wallet_inst.clone(),
-				keychain_mask,
-				index,
-			)?);
 			let packer = Slatepacker::new(SlatepackerArgs {
 				sender: None,
+				sender_index: Some(index),
 				recipients: vec![],
-				dec_key: (&dec_key).as_ref(),
 			});
-			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
+			let res = packer.deser_slatepack(
+				slatepack.as_bytes(),
+				wallet_inst.clone(),
+				keychain_mask,
+				true,
+			);
 			let slatepack = match res {
 				Ok(sp) => sp,
-				Err(_) => {
+				Err(e) => {
+					error!("deser_slatepack: {}", e);
 					continue;
 				}
 			};
-			return packer.get_slate(&slatepack);
+			return slatepack.get_slate();
 		}
 		Err(Error::SlatepackDecryption(
 			"Could not decrypt slatepack with any provided index on the address derivation path"
@@ -240,43 +247,39 @@ pub fn decode_slatepack_message<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
-	secret_indices: Vec<u32>,
+	secret_indices: Vec<SlatepackAddressIndex>,
 ) -> Result<Slatepack, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	for index in secret_indices {
+		let packer = Slatepacker::new(SlatepackerArgs {
+			sender: None,
+			sender_index: Some(index),
+			recipients: vec![],
+		});
+		let res = packer.deser_slatepack(
+			slatepack.as_bytes(),
+			wallet_inst.clone(),
+			keychain_mask,
+			true,
+		);
+		let slatepack = match res {
+			Ok(sp) => sp,
+			Err(_) => {
+				continue;
+			}
+		};
+		return Ok(slatepack);
+	}
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
+		sender_index: None,
 		recipients: vec![],
-		dec_key: None,
 	});
-	if secret_indices.is_empty() {
-		packer.deser_slatepack(slatepack.as_bytes(), false)
-	} else {
-		for index in secret_indices {
-			let dec_key = Some(get_slatepack_secret_key(
-				wallet_inst.clone(),
-				keychain_mask,
-				index,
-			)?);
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				recipients: vec![],
-				dec_key: (&dec_key).as_ref(),
-			});
-			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
-			let slatepack = match res {
-				Ok(sp) => sp,
-				Err(_) => {
-					continue;
-				}
-			};
-			return Ok(slatepack);
-		}
-		packer.deser_slatepack(slatepack.as_bytes(), false)
-	}
+	packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false)
 }
 
 /// retrieve outputs
@@ -632,15 +635,15 @@ where
 		)?
 	};
 
-	// Payment Proof, add addresses to slate and save address
-	// TODO: Note we only use single derivation path for now,
-	// probably want to allow sender to specify which one
-	let deriv_path = 0u32;
+	let address_index = args
+		.address_index
+		.unwrap_or_else(|| SlatepackAddressIndex(0));
 
 	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
-		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
+		let sec_addr_key =
+			address::address_from_derivation_path(&k, &parent_key_id, address_index.clone())?;
 		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
@@ -649,7 +652,7 @@ where
 			receiver_signature: None,
 		});
 
-		context.payment_proof_derivation_index = Some(deriv_path);
+		context.payment_proof_derivation_index = Some(address_index.0);
 	}
 
 	// Save the aggsig context in our DB for when we
@@ -1338,7 +1341,8 @@ where
 	};
 
 	// for now, simple test whether one of the addresses belongs to this wallet
-	let sec_key = address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
+	let sec_key =
+		address::address_from_derivation_path(&keychain, &parent_key_id, SlatepackAddressIndex(0))?;
 	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
 	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
 

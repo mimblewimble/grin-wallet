@@ -12,25 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::libwallet::{slatepack, Error, Slate, Slatepack, SlatepackBin, Slatepacker};
+use crate::SlatePutter;
+
+use grin_keychain::Keychain;
+use grin_util::secp::SecretKey;
+use grin_util::Mutex;
+use grin_wallet_libwallet::{NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_util::byte_ser;
 /// Slatepack Output 'plugin' implementation
 use std::fs::{metadata, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-
-use crate::libwallet::{slatepack, Error, Slate, Slatepack, SlatepackBin, Slatepacker};
-use crate::{SlateGetter, SlatePutter};
-use grin_wallet_util::byte_ser;
+use std::sync::Arc;
 
 // And Slate putter impls to output to files
-pub struct PathToSlatepack<'a> {
+pub struct PathToSlatepack {
 	pub pathbuf: PathBuf,
-	pub packer: &'a Slatepacker<'a>,
+	pub packer: Slatepacker,
 	pub armor_output: bool,
 }
 
-impl<'a> PathToSlatepack<'a> {
+impl PathToSlatepack {
 	/// Create with pathbuf and recipients
-	pub fn new(pathbuf: PathBuf, packer: &'a Slatepacker<'a>, armor_output: bool) -> Self {
+	pub fn new(pathbuf: PathBuf, packer: Slatepacker, armor_output: bool) -> Self {
 		Self {
 			pathbuf,
 			packer,
@@ -39,30 +44,28 @@ impl<'a> PathToSlatepack<'a> {
 	}
 
 	pub fn get_slatepack_file_contents(&self) -> Result<Vec<u8>, Error> {
-		let metadata = metadata(&self.pathbuf)?;
-		let len = metadata.len();
-		let min_len = slatepack::min_size();
-		let max_len = slatepack::max_size();
-		if len < min_len || len > max_len {
-			let msg = format!(
-				"Data is invalid length: {} | min: {}, max: {} |",
-				len, min_len, max_len
-			);
-			return Err(Error::SlatepackDeser(msg));
-		}
-		let mut pub_tx_f = File::open(&self.pathbuf)?;
-		let mut data = Vec::new();
-		pub_tx_f.read_to_end(&mut data)?;
+		let data = slatepack_file_contents(&self.pathbuf)?;
 		Ok(data)
 	}
 
-	pub fn get_slatepack(&self, decrypt: bool) -> Result<Slatepack, Error> {
+	pub fn get_slatepack<'a, L, C, K>(
+		&self,
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<&SecretKey>,
+		decrypt: bool,
+	) -> Result<Slatepack, Error>
+	where
+		L: WalletLCProvider<'a, C, K>,
+		C: NodeClient + 'a,
+		K: Keychain + 'a,
+	{
 		let data = self.get_slatepack_file_contents()?;
-		self.packer.deser_slatepack(&data, decrypt)
+		self.packer
+			.deser_slatepack(&data, wallet_inst, keychain_mask, decrypt)
 	}
 }
 
-impl<'a> SlatePutter for PathToSlatepack<'a> {
+impl SlatePutter for PathToSlatepack {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let slatepack = self.packer.create_slatepack(slate)?;
 		let mut pub_tx = File::create(&self.pathbuf)?;
@@ -88,12 +91,22 @@ impl<'a> SlatePutter for PathToSlatepack<'a> {
 	}
 }
 
-impl<'a> SlateGetter for PathToSlatepack<'a> {
-	fn get_tx(&self) -> Result<(Slate, bool), Error> {
-		let data = self.get_slatepack_file_contents()?;
-		let slatepack = self.packer.deser_slatepack(&data, true)?;
-		Ok((self.packer.get_slate(&slatepack)?, true))
+pub fn slatepack_file_contents(path: &PathBuf) -> Result<Vec<u8>, Error> {
+	let metadata = metadata(path)?;
+	let len = metadata.len();
+	let min_len = slatepack::min_size();
+	let max_len = slatepack::max_size();
+	if len < min_len || len > max_len {
+		let msg = format!(
+			"Data is invalid length: {} | min: {}, max: {} |",
+			len, min_len, max_len
+		);
+		return Err(Error::SlatepackDeser(msg));
 	}
+	let mut pub_tx_f = File::open(path)?;
+	let mut data = Vec::new();
+	pub_tx_f.read_to_end(&mut data)?;
+	Ok(data)
 }
 
 #[cfg(test)]
@@ -127,53 +140,31 @@ mod tests {
 			f.set_len(slatepack::min_size()).unwrap();
 		}
 
-		let args = slatepack::SlatepackerArgs {
-			sender: None,
-			recipients: vec![],
-			dec_key: None,
-		};
-		let packer = Slatepacker::new(args);
-
-		let mut pack_path = PathToSlatepack::new(sp_path.clone(), &packer, true);
-		assert!(pack_path.get_slatepack_file_contents().is_ok());
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, false);
-		assert!(pack_path.get_slatepack_file_contents().is_ok());
+		let mut pack_path = slatepack_file_contents(&sp_path);
+		assert!(pack_path.is_ok());
 
 		// set Slatepack file to maximum allowable size
 		{
 			let f = File::create(sp_path.clone()).unwrap();
 			f.set_len(slatepack::max_size()).unwrap();
 		}
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, true);
-		assert!(pack_path.get_slatepack_file_contents().is_ok());
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, false);
-		assert!(pack_path.get_slatepack_file_contents().is_ok());
+		pack_path = slatepack_file_contents(&sp_path);
+		assert!(pack_path.is_ok());
 
 		// set Slatepack file below minimum allowable size
 		{
 			let f = File::create(sp_path.clone()).unwrap();
 			f.set_len(slatepack::min_size() - 1).unwrap();
 		}
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, true);
-		assert!(pack_path.get_slatepack_file_contents().is_err());
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, false);
-		assert!(pack_path.get_slatepack_file_contents().is_err());
+		pack_path = slatepack_file_contents(&sp_path);
+		assert!(pack_path.is_err());
 
 		// set Slatepack file above maximum allowable size
 		{
 			let f = File::create(sp_path.clone()).unwrap();
 			f.set_len(slatepack::max_size() + 1).unwrap();
 		}
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, true);
-		assert!(pack_path.get_slatepack_file_contents().is_err());
-
-		pack_path = PathToSlatepack::new(sp_path.clone(), &packer, false);
-		assert!(pack_path.get_slatepack_file_contents().is_err());
+		pack_path = slatepack_file_contents(&sp_path);
+		assert!(pack_path.is_err());
 	}
 }

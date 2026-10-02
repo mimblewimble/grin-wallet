@@ -15,11 +15,12 @@
 //! Functions defining wallet 'addresses', i.e. ed2559 keys based on
 //! a derivation path
 
-use crate::grin_util::secp::key::SecretKey;
-use crate::Error;
-use grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
-
 use crate::blake2::blake2b::blake2b;
+use crate::grin_util::secp::key::SecretKey;
+use crate::slatepack::SlatepackAddressIndex;
+use crate::Error;
+
+use grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
 
 /// Derive a Slatepack address path from an output parent path and index.
 ///
@@ -30,11 +31,14 @@ use crate::blake2::blake2b::blake2b;
 /// Slatepack address paths:
 /// - account m/0: m/0/1/0, m/0/1/1
 /// - account m/1: m/1/1/0, m/1/1/1
-pub fn address_derivation_path(parent_key_id: &Identifier, index: u32) -> Identifier {
+pub fn address_derivation_path(
+	parent_key_id: &Identifier,
+	index: SlatepackAddressIndex,
+) -> Identifier {
 	let mut key_path = parent_key_id.to_path();
 	key_path.path[1] = ChildNumber::from(1);
 	key_path.depth += 1;
-	key_path.path[key_path.depth as usize - 1] = ChildNumber::from(index);
+	key_path.path[key_path.depth as usize - 1] = ChildNumber::from(index.value());
 	Identifier::from_path(&key_path)
 }
 
@@ -42,7 +46,7 @@ pub fn address_derivation_path(parent_key_id: &Identifier, index: u32) -> Identi
 pub fn address_from_derivation_path<K>(
 	keychain: &K,
 	parent_key_id: &Identifier,
-	index: u32,
+	index: SlatepackAddressIndex,
 ) -> Result<SecretKey, Error>
 where
 	K: Keychain,
@@ -65,6 +69,9 @@ mod tests {
 	fn slatepack_address_path() {
 		let parent = ExtKeychain::derive_key_id(2, 2, 0, 0, 0);
 		let expected = ExtKeychain::derive_key_id(3, 2, 1, 3, 0);
-		assert_eq!(address_derivation_path(&parent, 3), expected);
+		assert_eq!(
+			address_derivation_path(&parent, SlatepackAddressIndex(3)),
+			expected
+		);
 	}
 }

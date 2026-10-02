@@ -34,6 +34,7 @@ use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
 use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
+use libwallet::slatepack::SlatepackAddressIndex;
 use rand::thread_rng;
 use std::convert::TryFrom;
 use std::path::PathBuf;
@@ -1724,7 +1725,7 @@ pub trait OwnerRpc {
 	fn get_slatepack_address(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error>;
 
 	/**
@@ -1759,7 +1760,7 @@ pub trait OwnerRpc {
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<Ed25519SecretKey, Error>;
 
 	/**
@@ -1798,7 +1799,7 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": "BEGINSLATEPACK. xyfzdULuUuM5r3R kS68aywyCuYssPs Jf1JbvnBcK6NDDo ajiGAgh2SPx4t49 xtKuJE3BZCcSEue ksecMmbSoV2DQbX gGcmJniP9UadcmR N1KSc5FBhwAaUjy LXeYDP7EV7Cmsj4 pLaJdZTJTQbccUH 2zG8QTgoEiEWP5V T6rKst1TibmDAFm RRVHYDtskdYJb5G krqfpgN7RjvPfpm Z5ZFyz6ipAt5q9T 2HCjrTxkHdVi9js 22tr2Lx6iXT5vm8 JL6HhjwyFrSaEmN AjsBE8jgiaAABA6 GGZKwcXeXToMfRt nL9DeX1. ENDSLATEPACK."
+			"Ok": "BEGINSLATEPACK. DXmRmGKu76gjHKx 3HskAK7Gb9SDKhy Si3JFmxyTRLqKWg Y1mm4vq7UKGuwzK hjKYu7KaxgNiJ4p yvRpqon9r2NTttC S1RQQZ8KHZB8Zyb xrRzvRb5Ke3fewE Q8yFZUEVsGPBRbd doUfj5KHoKkY7eR ddeWbzipjbkqshP 4gRmvkHANDNYbFJ RM9rqBXZXdEcHwm v1hoaYGcUL9NxB2 bexDZZUUoRK7qjy o7NNDTP9yKps8Zy ZcwyzSKyuZFFT6i 2its6DrthVgLoVT yVZTyVE2TrY51EJ L93Hf58rNatqCYF qZzG781WDqo8K. ENDSLATEPACK."
 		}
 	}
 	# "#
@@ -1810,7 +1811,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		slate: VersionedSlate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error>;
 
@@ -1865,7 +1866,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<VersionedSlate, Error>;
 
 	/**
@@ -1907,7 +1908,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error>;
 
 	/**
@@ -2463,7 +2464,7 @@ where
 	fn get_slatepack_address(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error> {
 		Owner::get_slatepack_address(self, (&token.keychain_mask).as_ref(), derivation_index)
 	}
@@ -2471,7 +2472,7 @@ where
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<Ed25519SecretKey, Error> {
 		let key = Owner::get_slatepack_secret_key(
 			self,
@@ -2485,7 +2486,7 @@ where
 		&self,
 		token: Token,
 		slate: VersionedSlate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
 		let res = Owner::create_slatepack_message(
@@ -2502,7 +2503,7 @@ where
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<VersionedSlate, Error> {
 		let slate = Owner::slate_from_slatepack_message(
 			self,
@@ -2518,7 +2519,7 @@ where
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error> {
 		Owner::decode_slatepack_message(
 			self,
