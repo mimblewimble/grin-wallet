@@ -213,7 +213,7 @@ impl NodeClient for HTTPNodeClient {
 		// build vec of commits for inclusion in query
 		let query_params: Vec<String> = wallet_outputs
 			.iter()
-			.map(|commit| format!("{}", commit.as_ref().to_hex()))
+			.map(|commit| commit.as_ref().to_hex())
 			.collect();
 
 		// going to leave this here even though we're moving
@@ -276,10 +276,9 @@ impl NodeClient for HTTPNodeClient {
 		};
 
 		let rt = RUNTIME.clone();
-		let res: Result<Vec<_>, _> =
-			std::thread::spawn(move || rt.block_on(async move { task.await }))
-				.join()
-				.unwrap();
+		let res: Result<Vec<_>, _> = std::thread::spawn(move || rt.block_on(task))
+			.join()
+			.unwrap();
 
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
@@ -338,7 +337,7 @@ impl NodeClient for HTTPNodeClient {
 		let params = json!([start_index, end_index, max_outputs, Some(true)]);
 		let res = self.send_json_request::<OutputListing>("get_unspent_outputs", &params)?;
 		// We asked for unspent outputs via the api but defensively filter out spent outputs just in case.
-		for out in res.outputs.into_iter().filter(|out| out.spent == false) {
+		for out in res.outputs.into_iter().filter(|out| !out.spent) {
 			let is_coinbase = match out.output_type {
 				api::OutputType::Coinbase => true,
 				api::OutputType::Transaction => false,

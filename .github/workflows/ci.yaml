@@ -9,12 +9,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - run: cargo clippy
+      - run: rustup toolchain install 1.99.0 --profile minimal --component clippy
+      - run: cargo +1.99.0 clippy --workspace --all-targets -- -D warnings
 
+  # Run tests alongside Clippy, even if lint fails
   linux-tests:
     name: Linux Tests
     runs-on: ubuntu-latest
-    needs: clippy
     strategy:
       matrix:
         job_args: [api, config, controller, impls, libwallet, .]
@@ -29,7 +30,6 @@ jobs:
   macos-tests:
     name: macOS Tests
     runs-on: macos-latest
-    needs: clippy
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -41,7 +41,6 @@ jobs:
   windows-tests:
     name: Windows Tests
     runs-on: windows-latest
-    needs: clippy
     steps:
       - name: Checkout
         uses: actions/checkout@v6
