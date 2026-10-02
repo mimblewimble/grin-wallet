@@ -681,7 +681,7 @@ where
 			let pts = PathToSlatepack::new(f.into(), packer, true);
 			let sp = pts.get_slatepack(owner_api.wallet_inst.clone(), keychain_mask, true)?;
 			let sl = sp.get_slate()?;
-			(sl, sp.sender, sp.sender_index)
+			(sl, sp.sender, sp.initial_sender_index)
 		}
 		None => {
 			// try and parse directly from input_slatepack_message
@@ -693,7 +693,7 @@ where
 						vec![SlatepackAddressIndex(0)],
 					)?;
 					let sl = sp.get_slate()?;
-					(sl, sp.sender, sp.sender_index)
+					(sl, sp.sender, sp.initial_sender_index)
 				}
 				None => {
 					let msg = "No slate provided via file or direct input";
@@ -870,7 +870,7 @@ where
 	if slatepack.mode == 1 {
 		let mut slate = None;
 		for index in [
-			slatepack.sender_index.clone(),
+			slatepack.initial_sender_index.clone(),
 			Some(SlatepackAddressIndex(0)),
 		] {
 			let dec_key = owner_api.get_slatepack_secret_key(

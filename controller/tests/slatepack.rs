@@ -188,7 +188,7 @@ fn slatepack_exchange_test_impl(
 		false => (vec![], None, None),
 	};
 
-	let (recipients_2, _, _) = match use_encryption {
+	let (recipients_2, sender_index_2, sender_2) = match use_encryption {
 		true => {
 			let sec_key = api2.get_slatepack_secret_key(mask2, SlatepackAddressIndex(0))?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
@@ -261,8 +261,8 @@ fn slatepack_exchange_test_impl(
 				&receive_file,
 				use_armored,
 				use_bin,
-				slatepack.sender.clone(),
-				slatepack.sender_index.clone(),
+				sender_2.clone(),
+				slatepack.initial_sender_index.clone(),
 				// re-encrypt for sender!
 				match slatepack.sender.clone() {
 					Some(s) => vec![s.clone()],
@@ -283,8 +283,8 @@ fn slatepack_exchange_test_impl(
 		&final_file,
 		use_armored,
 		use_bin,
-		slatepack.sender.clone(),
-		slatepack.sender_index.clone(),
+		sender_1.clone(),
+		slatepack.initial_sender_index.clone(),
 		match slatepack.sender {
 			Some(s) => vec![s.clone()],
 			None => vec![],
@@ -333,8 +333,8 @@ fn slatepack_exchange_test_impl(
 		&send_file,
 		use_armored,
 		use_bin,
-		None,
-		None,
+		sender_2.clone(),
+		sender_index_2.clone(),
 		recipients_1.clone(),
 	)?;
 
@@ -356,9 +356,12 @@ fn slatepack_exchange_test_impl(
 		&receive_file,
 		use_armored,
 		use_bin,
-		slatepack.sender.clone(),
-		slatepack.sender_index.clone(),
-		recipients_2.clone(),
+		sender_1.clone(),
+		slatepack.initial_sender_index.clone(),
+		match slatepack.sender {
+			Some(s) => vec![s.clone()],
+			None => vec![],
+		},
 	)?;
 	// Wallet 2 receives the invoice transaction
 	let (_, mut slate) =
@@ -370,7 +373,7 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		None,
-		None,
+		slatepack.initial_sender_index.clone(),
 		vec![],
 	)?;
 	api2.post_tx(mask2, &slate, false)?;
@@ -426,8 +429,8 @@ fn slatepack_exchange_test_impl(
 				&receive_file,
 				use_armored,
 				use_bin,
-				slatepack.sender.clone(),
-				slatepack.sender_index.clone(),
+				sender_2.clone(),
+				slatepack.initial_sender_index.clone(),
 				match slatepack.sender {
 					Some(s) => vec![s.clone()],
 					None => vec![],

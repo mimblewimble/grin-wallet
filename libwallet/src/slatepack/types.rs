@@ -48,10 +48,10 @@ pub struct Slatepack {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub sender: Option<SlatepackAddress>,
 
-	/// Optional Sender address derivation path index.
+	/// Optional initial sender address derivation path index.
 	#[serde(default = "default_address_index")]
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub sender_index: Option<SlatepackAddressIndex>,
+	pub initial_sender_index: Option<SlatepackAddressIndex>,
 
 	// Encrypted metadata, to be serialized into payload only
 	// shouldn't be accessed directly
@@ -112,7 +112,7 @@ impl Default for Slatepack {
 			},
 			mode: 0,
 			sender: None,
-			sender_index: None,
+			initial_sender_index: None,
 			encrypted_meta: default_enc_metadata(),
 			payload: vec![],
 			future_test_mode: false,
@@ -127,7 +127,7 @@ impl Slatepack {
 		if let Some(s) = self.sender.as_ref() {
 			retval += s.encoded_len().unwrap();
 		}
-		if let Some(_) = self.sender_index {
+		if let Some(_) = self.initial_sender_index {
 			retval += 4;
 		}
 		Ok(retval)
@@ -366,7 +366,7 @@ impl Writeable for SlatepackBin {
 		if sp.sender.is_some() {
 			opt_flags |= 0x01;
 		}
-		if sp.sender_index.is_some() {
+		if sp.initial_sender_index.is_some() {
 			opt_flags |= 0x02;
 		}
 		writer.write_u16(opt_flags)?;
@@ -378,7 +378,7 @@ impl Writeable for SlatepackBin {
 		if let Some(s) = sp.sender {
 			s.write(writer)?;
 		};
-		if let Some(i) = sp.sender_index {
+		if let Some(i) = sp.initial_sender_index {
 			i.0.write(writer)?;
 		};
 
@@ -448,7 +448,7 @@ impl Readable for SlatepackBin {
 			slatepack,
 			mode,
 			sender,
-			sender_index,
+			initial_sender_index: sender_index,
 			encrypted_meta: default_enc_metadata(),
 			payload,
 			future_test_mode: false,

@@ -1301,7 +1301,7 @@ where
 		}
 		("pay", Some(args)) => {
 			// get slate first
-			let (slate, address, address_index) = get_slate(owner_api, km, args)?;
+			let (slate, address, initial_address_index) = get_slate(owner_api, km, args)?;
 
 			let a = arg_parse!(parse_process_invoice_args(
 				&args, !test_mode, slate, address
@@ -1313,7 +1313,7 @@ where
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
-				address_index,
+				initial_address_index,
 			)
 		}
 		("info", Some(args)) => {

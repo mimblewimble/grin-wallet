@@ -102,7 +102,7 @@ impl Slatepacker {
 			let mut err = None;
 			for index in [
 				Some(SlatepackAddressIndex(0)),
-				slatepack.sender_index.clone(),
+				slatepack.initial_sender_index.clone(),
 				self.0.sender_index.clone(),
 			] {
 				if let Some(i) = index {
@@ -130,7 +130,7 @@ impl Slatepacker {
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
 		slatepack.sender = self.0.sender.clone();
-		slatepack.sender_index = self.0.sender_index.clone();
+		slatepack.initial_sender_index = self.0.sender_index.clone();
 		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		Ok(slatepack)
 	}
