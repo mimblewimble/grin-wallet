@@ -188,7 +188,7 @@ fn slatepack_exchange_test_impl(
 		false => (vec![], None, None),
 	};
 
-	let (recipients_2, _, sender_2) = match use_encryption {
+	let (recipients_2, _, _) = match use_encryption {
 		true => {
 			let sec_key = api2.get_slatepack_secret_key(mask2, SlatepackAddressIndex(0))?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
@@ -261,7 +261,7 @@ fn slatepack_exchange_test_impl(
 				&receive_file,
 				use_armored,
 				use_bin,
-				sender_2,
+				slatepack.sender.clone(),
 				slatepack.sender_index.clone(),
 				// re-encrypt for sender!
 				match slatepack.sender.clone() {
