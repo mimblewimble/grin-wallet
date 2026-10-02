@@ -180,8 +180,6 @@ where
 		None => None,
 	};
 	let packer = Slatepacker::new(SlatepackerArgs {
-		wallet_inst: wallet_inst.clone(),
-		keychain_mask: keychain_mask.cloned(),
 		sender,
 		sender_index,
 		recipients,
@@ -205,24 +203,26 @@ where
 {
 	if secret_indices.is_empty() {
 		let packer = Slatepacker::new(SlatepackerArgs {
-			wallet_inst,
-			keychain_mask: keychain_mask.cloned(),
 			sender: None,
 			sender_index: None,
 			recipients: vec![],
 		});
-		let slatepack = packer.deser_slatepack(slatepack.as_bytes(), false)?;
+		let slatepack =
+			packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false)?;
 		slatepack.get_slate()
 	} else {
 		for index in secret_indices {
 			let packer = Slatepacker::new(SlatepackerArgs {
-				wallet_inst: wallet_inst.clone(),
-				keychain_mask: keychain_mask.cloned(),
 				sender: None,
 				sender_index: Some(index),
 				recipients: vec![],
 			});
-			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
+			let res = packer.deser_slatepack(
+				slatepack.as_bytes(),
+				wallet_inst.clone(),
+				keychain_mask,
+				true,
+			);
 			let slatepack = match res {
 				Ok(sp) => sp,
 				Err(e) => {
@@ -256,13 +256,16 @@ where
 {
 	for index in secret_indices {
 		let packer = Slatepacker::new(SlatepackerArgs {
-			wallet_inst: wallet_inst.clone(),
-			keychain_mask: keychain_mask.cloned(),
 			sender: None,
 			sender_index: Some(index),
 			recipients: vec![],
 		});
-		let res = packer.deser_slatepack(slatepack.as_bytes(), true);
+		let res = packer.deser_slatepack(
+			slatepack.as_bytes(),
+			wallet_inst.clone(),
+			keychain_mask,
+			true,
+		);
 		let slatepack = match res {
 			Ok(sp) => sp,
 			Err(_) => {
@@ -272,13 +275,11 @@ where
 		return Ok(slatepack);
 	}
 	let packer = Slatepacker::new(SlatepackerArgs {
-		wallet_inst,
-		keychain_mask: keychain_mask.cloned(),
 		sender: None,
 		sender_index: None,
 		recipients: vec![],
 	});
-	packer.deser_slatepack(slatepack.as_bytes(), false)
+	packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false)
 }
 
 /// retrieve outputs

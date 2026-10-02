@@ -31,16 +31,7 @@ use std::str;
 use std::sync::Arc;
 
 /// Arguments, mostly for encrypting decrypting a slatepack
-pub struct SlatepackerArgs<'a, L, C, K>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
-	/// Wallet instance
-	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-	/// Keychain mask
-	pub keychain_mask: Option<SecretKey>,
+pub struct SlatepackerArgs {
 	/// Optional sender to include in slatepack
 	pub sender: Option<SlatepackAddress>,
 	/// Optional sender derivation path index
@@ -50,23 +41,27 @@ where
 }
 
 /// Helper struct to pack and unpack slatepacks
-pub struct Slatepacker<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain>(
-	SlatepackerArgs<'a, L, C, K>,
-);
+pub struct Slatepacker(SlatepackerArgs);
 
-impl<'a, L, C, K> Slatepacker<'a, L, C, K>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
+impl Slatepacker {
 	/// Create with pathbuf and recipients
-	pub fn new(args: SlatepackerArgs<'a, L, C, K>) -> Self {
+	pub fn new(args: SlatepackerArgs) -> Self {
 		Self(args)
 	}
 
 	/// Deserialize provided data to slatepack
-	pub fn deser_slatepack(&self, data: &[u8], decrypt: bool) -> Result<Slatepack, Error> {
+	pub fn deser_slatepack<'a, L, C, K>(
+		&self,
+		data: &[u8],
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<&SecretKey>,
+		decrypt: bool,
+	) -> Result<Slatepack, Error>
+	where
+		L: WalletLCProvider<'a, C, K>,
+		C: NodeClient + 'a,
+		K: Keychain + 'a,
+	{
 		// check if data is armored, if so, remove and continue
 		let data_len = data.len() as u64;
 		if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
@@ -111,11 +106,8 @@ where
 				self.0.sender_index.clone(),
 			] {
 				if let Some(i) = index {
-					let dec_key = get_slatepack_secret_key(
-						self.0.wallet_inst.clone(),
-						self.0.keychain_mask.as_ref(),
-						i.clone(),
-					)?;
+					let dec_key =
+						get_slatepack_secret_key(wallet_inst.clone(), keychain_mask, i.clone())?;
 					match slatepack.try_decrypt_payload(Some(&dec_key)) {
 						Ok(_) => return Ok(slatepack),
 						Err(e) => err = Some(e),

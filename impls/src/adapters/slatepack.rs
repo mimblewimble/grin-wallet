@@ -15,28 +15,26 @@
 use crate::libwallet::{slatepack, Error, Slate, Slatepack, SlatepackBin, Slatepacker};
 use crate::{SlateGetter, SlatePutter};
 use grin_keychain::Keychain;
-use grin_wallet_libwallet::{NodeClient, WalletLCProvider};
+use grin_util::secp::SecretKey;
+use grin_util::Mutex;
+use grin_wallet_libwallet::{NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::byte_ser;
 /// Slatepack Output 'plugin' implementation
 use std::fs::{metadata, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 // And Slate putter impls to output to files
-pub struct PathToSlatepack<'a, L, C, K>
-where
-	L: WalletLCProvider<'a, C, K>,
-	C: NodeClient + 'a,
-	K: Keychain + 'a,
-{
+pub struct PathToSlatepack {
 	pub pathbuf: PathBuf,
-	pub packer: Slatepacker<'a, L, C, K>,
+	pub packer: Slatepacker,
 	pub armor_output: bool,
 }
 
-impl<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain> PathToSlatepack<'a, L, C, K> {
+impl PathToSlatepack {
 	/// Create with pathbuf and recipients
-	pub fn new(pathbuf: PathBuf, packer: Slatepacker<'a, L, C, K>, armor_output: bool) -> Self {
+	pub fn new(pathbuf: PathBuf, packer: Slatepacker, armor_output: bool) -> Self {
 		Self {
 			pathbuf,
 			packer,
@@ -49,15 +47,24 @@ impl<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain> PathToSlatep
 		Ok(data)
 	}
 
-	pub fn get_slatepack(&self, decrypt: bool) -> Result<Slatepack, Error> {
+	pub fn get_slatepack<'a, L, C, K>(
+		&self,
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<&SecretKey>,
+		decrypt: bool,
+	) -> Result<Slatepack, Error>
+	where
+		L: WalletLCProvider<'a, C, K>,
+		C: NodeClient + 'a,
+		K: Keychain + 'a,
+	{
 		let data = self.get_slatepack_file_contents()?;
-		self.packer.deser_slatepack(&data, decrypt)
+		self.packer
+			.deser_slatepack(&data, wallet_inst, keychain_mask, decrypt)
 	}
 }
 
-impl<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain> SlatePutter
-	for PathToSlatepack<'a, L, C, K>
-{
+impl SlatePutter for PathToSlatepack {
 	fn put_tx(&self, slate: &Slate, as_bin: bool) -> Result<(), Error> {
 		let slatepack = self.packer.create_slatepack(slate)?;
 		let mut pub_tx = File::create(&self.pathbuf)?;
@@ -80,16 +87,6 @@ impl<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain> SlatePutter
 		}
 		pub_tx.sync_all()?;
 		Ok(())
-	}
-}
-
-impl<'a, L: WalletLCProvider<'a, C, K>, C: NodeClient, K: Keychain> SlateGetter
-	for PathToSlatepack<'a, L, C, K>
-{
-	fn get_tx(&self) -> Result<(Slate, bool), Error> {
-		let data = self.get_slatepack_file_contents()?;
-		let slatepack = self.packer.deser_slatepack(&data, true)?;
-		Ok((slatepack.get_slate()?, true))
 	}
 }
 

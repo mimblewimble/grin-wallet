@@ -26,7 +26,6 @@ use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
 
-use rand::{thread_rng, Rng};
 use std::fmt;
 use std::io::{Cursor, Read, Write};
 
