@@ -424,12 +424,15 @@ impl Readable for SlatepackBin {
 			None
 		};
 
-		let sender_index = if bytes_to_payload >= SlatepackAddressIndex::LEN && opt_flags & 0x02 > 0
-		{
-			let value = reader.read_u32()?;
-			let index = SlatepackAddressIndex(value);
-			bytes_to_payload -= SlatepackAddressIndex::LEN;
-			Some(index)
+		let sender_index = if opt_flags & 0x02 > 0 {
+			if bytes_to_payload >= SlatepackAddressIndex::LEN {
+				let value = reader.read_u32()?;
+				let index = SlatepackAddressIndex(value);
+				bytes_to_payload -= SlatepackAddressIndex::LEN;
+				Some(index)
+			} else {
+				return Err(ser::Error::CorruptedData);
+			}
 		} else {
 			None
 		};
