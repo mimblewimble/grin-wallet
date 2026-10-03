@@ -156,6 +156,18 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// get last output
 	let last_output = outputs.1[outputs.1.len() - 1].clone();
 
+	// Store the output with an MMR index, like a restored output
+	let mmr_index = Some(chain.get_output_pos(&last_output.commit).unwrap());
+	{
+		wallet_inst!(wallet1, w);
+		let mut batch = w.batch(mask1)?;
+		let mut output = last_output.output.clone();
+		batch.delete(&output.key_id, &output.mmr_index)?;
+		output.mmr_index = mmr_index;
+		batch.save(output)?;
+		batch.commit()?;
+	}
+
 	let empty_params = MixnetReqCreationParams {
 		server_keys: vec![],
 		fee_per_hop: params.fee_per_hop,
@@ -201,6 +213,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		.find(|o| o.commit == last_output.commit)
 		.unwrap();
 	assert_eq!(input.output.status, OutputStatus::Locked);
+	assert_eq!(input.output.mmr_index, mmr_index);
 	let expected_amount =
 		last_output.output.value - params.fee_per_hop * params.server_keys.len() as u64;
 	let expected_output = outputs

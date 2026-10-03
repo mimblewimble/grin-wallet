@@ -1580,7 +1580,7 @@ where
 		tx.fee = Some(total_fee_fields);
 		tx.kernel_lookup_min_height = Some(current_height);
 
-		let mut update_output = batch.get(&output.key_id, &None)?;
+		let mut update_output = batch.get(&output.key_id, &output.mmr_index)?;
 		update_output.tx_log_entry = Some(log_id);
 		batch.lock_output(&mut update_output)?;
 		batch.save(OutputData {
