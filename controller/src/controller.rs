@@ -66,22 +66,18 @@ lazy_static! {
 
 fn check_middleware(
 	name: ForeignCheckMiddlewareFn,
-	node_version_info: Option<NodeVersionInfo>,
+	_node_version_info: Option<NodeVersionInfo>,
 	slate: Option<&Slate>,
 ) -> Result<(), Error> {
 	match name {
 		// allow coinbases to be built regardless
 		ForeignCheckMiddlewareFn::BuildCoinbase => Ok(()),
 		_ => {
-			let mut bhv = 3;
-			if let Some(n) = node_version_info {
-				bhv = n.block_header_version;
-			}
 			if let Some(s) = slate {
-				if bhv > 4 && s.version_info.block_header_version < GRIN_BLOCK_HEADER_VERSION {
+				if s.version_info.block_header_version > GRIN_BLOCK_HEADER_VERSION {
 					Err(Error::Compatibility(
 						"Incoming Slate is not compatible with this wallet. \
-						 Please upgrade the node or use a different one."
+						 Please upgrade the wallet."
 							.into(),
 					))?;
 				}
@@ -138,23 +134,6 @@ fn init_tor_listener(
 		.launch()
 		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 	Ok(process)
-}
-
-/// Instantiate wallet Owner API for a single-use (command line) call
-/// Return a function containing a loaded API context to call
-pub fn owner_single_use<L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
-	keychain_mask: Option<&SecretKey>,
-	config_path: PathBuf,
-	f: F,
-) -> Result<(), Error>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	F: FnOnce(&mut Owner<L, C, K>, Option<&SecretKey>) -> Result<(), Error>,
-	C: NodeClient + 'static,
-	K: Keychain + 'static,
-{
-	f(&mut Owner::new(wallet, None, config_path), keychain_mask)
 }
 
 /// Instantiate wallet Foreign API for a single-use (command line) call

@@ -27,6 +27,7 @@ use grin_keychain as keychain;
 use grin_util::secp::pedersen::Commitment;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
+use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey};
@@ -309,7 +310,11 @@ pub fn parse_global_args(
 	config: &WalletConfig,
 	args: &ArgMatches,
 ) -> Result<command::GlobalArgs, ParseError> {
-	let account = parse_required(args, "account")?;
+	let account = if args.subcommand_matches("account").is_some() {
+		None
+	} else {
+		parse_optional(args, "account")?
+	};
 	let mut show_spent = false;
 	if args.is_present("show_spent") {
 		show_spent = true;
@@ -336,7 +341,7 @@ pub fn parse_global_args(
 	};
 
 	Ok(command::GlobalArgs {
-		account: account.to_owned(),
+		account,
 		show_spent,
 		api_secret,
 		node_api_secret,
@@ -432,7 +437,26 @@ pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountA
 		None => None,
 		Some(s) => Some(s.to_owned()),
 	};
-	Ok(command::AccountArgs { create })
+
+	let active = match account_args.value_of("active") {
+		None => None,
+		Some(s) => Some(s.to_owned()),
+	};
+
+	if create.is_some() && active.is_some() {
+		let msg = "create and active cannot both be present".to_string();
+		return Err(ParseError::ArgumentError(msg));
+	}
+
+	// minimum_confirmations
+	let min_c = parse_required(account_args, "minimum_confirmations")?;
+	let min_c = parse_u64(min_c, "minimum_confirmations")?;
+
+	Ok(command::AccountArgs {
+		create,
+		minimum_confirmations: min_c,
+		active,
+	})
 }
 
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
@@ -1136,37 +1160,36 @@ where
 	wallet_inst_cb(wallet.clone());
 
 	// don't open wallet for certain lifecycle commands
-	let mut open_wallet = true;
-	match wallet_args.subcommand() {
-		("init", Some(_)) => open_wallet = false,
-		("recover", _) => open_wallet = false,
-		("cli", _) => open_wallet = false,
+	let keychain_mask = match wallet_args.subcommand() {
+		("init", Some(_)) => None,
+		("recover", _) => None,
+		("cli", _) => None,
+		("unpack", Some(args)) => {
+			let args = arg_parse!(parse_unpack_args(args));
+			let slatepack = command::read_slatepack(args)?;
+			let mask = if slatepack.mode == 1 {
+				open_wallet(&wallet, &global_wallet_args, wallet_args)?
+			} else {
+				None
+			};
+			let mut owner_api = Owner::new(wallet.clone(), None, config.config_file_path.clone());
+			command::unpack(&mut owner_api, mask.as_ref(), slatepack)?;
+			return Ok("unpack".to_string());
+		}
 		("owner_api", _) => {
 			// If wallet exists and password is present then open it. Otherwise, that's fine too.
-			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider()?;
-			open_wallet = wallet_args.is_present("pass") && lc.wallet_exists(None)?;
-		}
-		_ => {}
-	}
-
-	let keychain_mask = match open_wallet {
-		true => {
-			let mut wallet_lock = wallet.lock();
-			let lc = wallet_lock.lc_provider()?;
-			let mask = lc.open_wallet(
-				None,
-				prompt_password(&global_wallet_args.password)?,
-				false,
-				false,
-			)?;
-			if let Some(account) = wallet_args.value_of("account") {
-				let wallet_inst = lc.wallet_inst()?;
-				wallet_inst.set_parent_key_id_by_name(account)?;
+			let open = {
+				let mut wallet_lock = wallet.lock();
+				let lc = wallet_lock.lc_provider()?;
+				wallet_args.is_present("pass") && lc.wallet_exists(None)?
+			};
+			if open {
+				open_wallet(&wallet, &global_wallet_args, wallet_args)?
+			} else {
+				None
 			}
-			mask
 		}
-		false => None,
+		_ => open_wallet(&wallet, &global_wallet_args, wallet_args)?,
 	};
 
 	let res = match wallet_args.subcommand() {
@@ -1198,6 +1221,31 @@ where
 	} else {
 		Ok(wallet_args.subcommand().0.to_owned())
 	}
+}
+
+fn open_wallet<L, C, K>(
+	wallet: &Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	global_wallet_args: &GlobalArgs,
+	wallet_args: &ArgMatches,
+) -> Result<Option<SecretKey>, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let mut wallet_lock = wallet.lock();
+	let lc = wallet_lock.lc_provider()?;
+	let mask = lc.open_wallet(
+		None,
+		prompt_password(&global_wallet_args.password)?,
+		false,
+		false,
+	)?;
+	if let Some(account) = wallet_args.value_of("account") {
+		let wallet_inst = lc.wallet_inst()?;
+		wallet_inst.set_account_by_name(account)?;
+	}
+	Ok(mask)
 }
 
 pub fn parse_and_execute<L, C, K>(
@@ -1308,11 +1356,12 @@ where
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(owner_api, km, &global_wallet_args, a, tor_config, test_mode)
+			command::receive(owner_api, km, a, tor_config, test_mode)
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(&args));
-			command::unpack(owner_api, km, a)
+			let slatepack = command::read_slatepack(a)?;
+			command::unpack(owner_api, km, slatepack)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(&args));
@@ -1343,7 +1392,6 @@ where
 			command::info(
 				owner_api,
 				km,
-				global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -1359,7 +1407,6 @@ where
 			command::txs(
 				owner_api,
 				km,
-				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -1384,7 +1431,7 @@ where
 			let a = arg_parse!(parse_verify_proof_args(&args));
 			command::proof_verify(owner_api, km, a)
 		}
-		("address", Some(_)) => command::address(owner_api, &global_wallet_args, km),
+		("address", Some(_)) => command::address(owner_api, km),
 		("scan", Some(args)) => {
 			let a = arg_parse!(parse_check_args(&args));
 			command::scan(owner_api, km, a)

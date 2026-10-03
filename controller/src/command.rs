@@ -27,7 +27,7 @@ use crate::keychain;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::mwixnet::{parse_mwixnet_response, MixnetReqCreationParams, MwixnetResponse};
 use crate::libwallet::{
-	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState,
+	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
 };
 use crate::util::secp::key::SecretKey;
@@ -35,6 +35,7 @@ use crate::util::secp::pedersen::Commitment;
 use crate::util::{Mutex, ToHex, ZeroingString};
 use crate::{controller, display};
 
+use grin_wallet_libwallet::wallet_lock;
 use grin_wallet_util::OnionV3Address;
 use qr_code::QrCode;
 use serde_json as json;
@@ -57,7 +58,7 @@ fn show_recovery_phrase(phrase: ZeroingString) {
 /// Arguments common to all wallet commands
 #[derive(Clone)]
 pub struct GlobalArgs {
-	pub account: String,
+	pub account: Option<String>,
 	pub api_secret: Option<String>,
 	pub node_api_secret: Option<String>,
 	pub show_spent: bool,
@@ -268,6 +269,8 @@ where
 /// Arguments for account command
 pub struct AccountArgs {
 	pub create: Option<String>,
+	pub minimum_confirmations: u64,
+	pub active: Option<String>,
 }
 
 pub fn account<L, C, K>(
@@ -280,20 +283,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	if args.create.is_none() {
-		let res = {
-			let acct_mappings = owner_api.accounts(keychain_mask)?;
-			// give logging thread a moment to catch up
-			thread::sleep(Duration::from_millis(200));
-			display::accounts(acct_mappings);
-			Ok(())
-		};
-		if let Err(e) = res {
-			error!("Error listing accounts: {}", e);
-			return Err(Error::LibWallet(e));
-		}
-	} else {
-		let label = args.create.unwrap();
+	if let Some(label) = args.create {
 		let res = {
 			owner_api.create_account_path(keychain_mask, &label)?;
 			thread::sleep(Duration::from_millis(200));
@@ -303,6 +293,31 @@ where
 		if let Err(e) = res {
 			thread::sleep(Duration::from_millis(200));
 			error!("Error creating account '{}': {}", label, e);
+			return Err(Error::LibWallet(e));
+		}
+	} else if let Some(label) = args.active {
+		let res = {
+			owner_api.set_active_account(keychain_mask, &label)?;
+			thread::sleep(Duration::from_millis(200));
+			info!("Account: '{}' set as active!", label);
+			Ok(())
+		};
+		if let Err(e) = res {
+			thread::sleep(Duration::from_millis(200));
+			error!("Error setting account '{}' as active: {}", label, e);
+			return Err(Error::LibWallet(e));
+		}
+	} else {
+		let res = {
+			let acct_mappings =
+				owner_api.accounts_info(keychain_mask, args.minimum_confirmations)?;
+			// give logging thread a moment to catch up
+			thread::sleep(Duration::from_millis(200));
+			display::accounts(acct_mappings);
+			Ok(())
+		};
+		if let Err(e) = res {
+			error!("Error listing accounts: {}", e);
 			return Err(Error::LibWallet(e));
 		}
 	}
@@ -484,11 +499,14 @@ where
 			true,
 			args.minimum_confirmations,
 		)?;
-	if args.use_max_amount {
-		amount = wallet_info.amount_currently_spendable;
-	}
 	if !info_updated && !update_skipped {
 		warn!("Wallet info update failed: node connection error");
+	}
+	if args.use_max_amount {
+		amount = wallet_info.amount_currently_spendable;
+		if amount == 0 {
+			return Err(Error::GenericError("No spendable funds".to_string()));
+		}
 	}
 	if args.estimate_selection_strategies {
 		let strategies = estimate_strategies(args.use_max_amount)
@@ -548,7 +566,6 @@ where
 			target_slate_version: args.target_slate_version,
 			payment_proof_recipient_address,
 			ttl_blocks: args.ttl_blocks,
-			send_args: None,
 			late_lock: Some(args.late_lock),
 			..Default::default()
 		};
@@ -603,14 +620,14 @@ where
 		tor_config.bridge.bridge_line = Some(b);
 	}
 
-	let output_sp = || -> Result<(), Error> {
+	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
 			&slate,
 			dest.clone(),
 			args.outfile,
-			true,
+			lock_outputs,
 			false,
 			args.slatepack_qr,
 		)?)
@@ -618,7 +635,11 @@ where
 
 	let can_send = tor_config.send_tor(args.skip_tor);
 	if test_mode || !can_send || dest.is_none() {
-		return output_sp();
+		return output_sp(owner_api, !args.late_lock);
+	}
+
+	if !args.late_lock {
+		owner_api.tx_lock_outputs(keychain_mask, &slate)?;
 	}
 
 	let dest = dest.as_ref().unwrap();
@@ -626,7 +647,6 @@ where
 
 	match res {
 		Ok(s) => {
-			owner_api.tx_lock_outputs(keychain_mask, &s)?;
 			let ret_slate = owner_api.finalize_tx(keychain_mask, &s)?;
 			let result = owner_api.post_tx(keychain_mask, &ret_slate, args.fluff);
 			match result {
@@ -641,7 +661,13 @@ where
 		}
 		Err(e) => {
 			error!("Error sending slate sync: {}", e);
-			output_sp()?;
+			output_sp(owner_api, false)?;
+			if !args.late_lock {
+				println!(
+					"Outputs are locked. To unlock them, cancel with `cancel -t {}`.",
+					slate.id
+				);
+			}
 		}
 	}
 	Ok(())
@@ -690,7 +716,18 @@ where
 
 	println!();
 	if !finalizing {
-		println!("Slatepack data follows. Please provide this output to the other party");
+		let cancel_hint = if lock {
+			format!(
+				" or cancel it manually with `cancel -t {}` command",
+				slate.id
+			)
+		} else {
+			"".to_string()
+		};
+		println!(
+			"Slatepack data follows. Please provide this output to the other party{}.",
+			cancel_hint
+		);
 	} else {
 		println!("Slatepack data follows.");
 	}
@@ -792,7 +829,6 @@ pub struct ReceiveArgs {
 pub fn receive<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
 	args: ReceiveArgs,
 	mut tor_config: TorConfig,
 	test_mode: bool,
@@ -808,6 +844,25 @@ where
 		args.input_file,
 		args.input_slatepack_message,
 	)?;
+	match slate.state {
+		SlateState::Invoice1 => {
+			return Err(Error::GenericError(
+				"Use the 'pay' command to process this invoice transaction".to_string(),
+			))
+		}
+		SlateState::Standard2 | SlateState::Invoice2 => {
+			return Err(Error::GenericError(
+				"Use the 'finalize' command to complete this transaction".to_string(),
+			))
+		}
+		SlateState::Standard3 | SlateState::Invoice3 => {
+			return Err(Error::GenericError(
+				"Use the 'post' command to post this finalized transaction to the chain"
+					.to_string(),
+			))
+		}
+		_ => {}
+	}
 
 	let km = match keychain_mask.as_ref() {
 		None => None,
@@ -823,7 +878,7 @@ where
 		owner_api.config_path(),
 		km,
 		|api| {
-			slate = api.receive_tx(&slate, Some(&g_args.account), None)?;
+			slate = api.receive_tx(&slate, None, None)?;
 			Ok(())
 		},
 	)?;
@@ -876,32 +931,34 @@ where
 	Ok(())
 }
 
+pub fn read_slatepack(args: ReceiveArgs) -> Result<Slatepack, Error> {
+	let packer = Slatepacker::new(SlatepackerArgs {
+		sender: None,
+		recipients: vec![],
+		dec_key: None,
+	});
+	let slatepack = match args.input_file {
+		Some(f) => PathToSlatepack::new(f.into(), &packer, true).get_slatepack(false)?,
+		None => match args.input_slatepack_message {
+			Some(message) => packer.deser_slatepack(message.as_bytes(), false)?,
+			None => {
+				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
+			}
+		},
+	};
+	Ok(slatepack)
+}
+
 pub fn unpack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	args: ReceiveArgs,
+	mut slatepack: Slatepack,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let mut slatepack = match args.input_file {
-		Some(f) => {
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				recipients: vec![],
-				dec_key: None,
-			});
-			PathToSlatepack::new(f.into(), &packer, true).get_slatepack(false)?
-		}
-		None => match args.input_slatepack_message {
-			Some(mes) => owner_api.decode_slatepack_message(keychain_mask, mes, vec![])?,
-			None => {
-				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
-			}
-		},
-	};
 	println!();
 	println!("SLATEPACK CONTENTS");
 	println!("------------------");
@@ -971,6 +1028,25 @@ where
 		args.input_file.clone(),
 		args.input_slatepack_message.clone(),
 	)?;
+	match slate.state {
+		SlateState::Standard1 => {
+			return Err(Error::GenericError(
+				"Use the 'receive' command on the recipient's wallet first".to_string(),
+			))
+		}
+		SlateState::Invoice1 => {
+			return Err(Error::GenericError(
+				"Use the 'pay' command on the payer's wallet first".to_string(),
+			))
+		}
+		SlateState::Standard3 | SlateState::Invoice3 => {
+			return Err(Error::GenericError(
+				"Use the 'post' command to post this finalized transaction to the chain"
+					.to_string(),
+			))
+		}
+		_ => {}
+	}
 
 	// Rather than duplicating the entire command, we'll just
 	// try to determine what kind of finalization this is
@@ -1145,7 +1221,6 @@ where
 			selection_strategy_is_use_all: args.selection_strategy == "all",
 			refresh_outputs_from_node: !info_updated,
 			ttl_blocks: args.ttl_blocks,
-			send_args: None,
 			..Default::default()
 		};
 		let result = owner_api.process_invoice_tx(keychain_mask, &slate, init_args);
@@ -1225,7 +1300,6 @@ pub struct InfoArgs {
 pub fn info<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
 	args: InfoArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
@@ -1237,8 +1311,9 @@ where
 	let updater_running = owner_api.updater_running.load(Ordering::Relaxed);
 	let (validated, wallet_info) =
 		owner_api.retrieve_summary_info(keychain_mask, true, args.minimum_confirmations)?;
+	let account = account_label(owner_api)?;
 	display::info(
-		&g_args.account,
+		&account,
 		&wallet_info,
 		validated || updater_running,
 		dark_scheme,
@@ -1261,8 +1336,9 @@ where
 	let res = owner_api.node_height(keychain_mask)?;
 	let (validated, outputs) =
 		owner_api.retrieve_outputs(keychain_mask, g_args.show_spent, true, None)?;
+	let account = account_label(owner_api)?;
 	display::outputs(
-		&g_args.account,
+		&account,
 		res.height,
 		validated || updater_running,
 		outputs,
@@ -1281,7 +1357,6 @@ pub struct TxsArgs {
 pub fn txs<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	g_args: &GlobalArgs,
 	args: TxsArgs,
 	dark_scheme: bool,
 ) -> Result<(), Error>
@@ -1300,8 +1375,9 @@ where
 	let first_tx = args
 		.count
 		.map_or(0, |c| txs.len().saturating_sub(c as usize));
+	let account = account_label(owner_api)?;
 	display::txs(
-		&g_args.account,
+		&account,
 		res.height,
 		validated || updater_running,
 		&txs[first_tx..],
@@ -1327,7 +1403,7 @@ where
 	if id.is_some() {
 		let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, true, false, id)?;
 		display::outputs(
-			&g_args.account,
+			&account,
 			res.height,
 			validated || updater_running,
 			outputs,
@@ -1510,7 +1586,6 @@ where
 /// Payment Proof Address
 pub fn address<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
-	g_args: &GlobalArgs,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), Error>
 where
@@ -1520,12 +1595,24 @@ where
 {
 	// Just address at derivation index 0 for now
 	let address = owner_api.get_slatepack_address(keychain_mask, 0)?;
+	let account = account_label(owner_api)?;
 	println!();
-	println!("Address for account - {}", g_args.account);
+	println!("Address for account - {}", account);
 	println!("-------------------------------------");
 	println!("{}", address);
 	println!();
 	Ok(())
+}
+
+/// Get current account label.
+fn account_label<L, C, K>(owner_api: &mut Owner<L, C, K>) -> Result<String, Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	wallet_lock!(owner_api.wallet_inst, w);
+	Ok(w.active_account().label)
 }
 
 /// Proof Export Args

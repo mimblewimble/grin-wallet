@@ -40,6 +40,7 @@ use grin_wallet_util::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
+use libwallet::wallet_lock;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
@@ -261,7 +262,7 @@ where
 	}
 
 	/// Returns a list of accounts stored in the wallet (i.e. mappings between
-	/// user-specified labels and BIP32 derivation paths.
+	/// user-specified labels and BIP32 derivation paths).
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
@@ -295,11 +296,22 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 	) -> Result<Vec<AcctPathMapping>, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(self.wallet_inst, w);
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::accounts(w)
+		owner::accounts(w, None)
+	}
+
+	/// Returns accounts with balances from local wallet data, without refreshing from the node.
+	/// `minimum_confirmations` is the minimum confirmations required for spendable outputs.
+	pub fn accounts_info(
+		&self,
+		keychain_mask: Option<&SecretKey>,
+		minimum_confirmations: u64,
+	) -> Result<Vec<AcctPathMapping>, Error> {
+		wallet_lock!(self.wallet_inst, w);
+		let _ = w.keychain(keychain_mask)?;
+		owner::accounts(w, Some(minimum_confirmations))
 	}
 
 	/// Creates a new 'account', which is a mapping of a user-specified
@@ -309,7 +321,7 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
-	/// * `label` - A human readable label to which to map the new BIP32 Path
+	/// * `label` - A human-readable label to which to map the new BIP32 Path
 	///
 	/// # Returns
 	/// * Result Containing:
@@ -318,10 +330,10 @@ where
 	///
 	/// # Remarks
 	///
-	/// * Wallets should be initialised with the 'default' path mapped to `m/0/0`
+	/// * Wallets should be initialized with the 'default' path mapped to `m/0/0`
 	/// * Each call to this function will increment the first element of the path
 	/// so the first call will create an account at `m/1/0` and the second at
-	/// `m/2/0` etc. . .
+	/// `m/2/0` etc.
 	/// * The account path is used throughout as the parent key for most key-derivation
 	/// operations. See [`set_active_account`](struct.Owner.html#method.set_active_account) for
 	/// further details.
@@ -353,12 +365,13 @@ where
 	}
 
 	/// Sets the wallet's currently active account. This sets the
-	/// BIP32 parent path used for most key-derivation operations.
+	/// BIP32 parent path used for most key-derivation operations
+	/// persistently between wallet restarts.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// being used.
-	/// * `label` - The human readable label for the account. Accounts can be retrieved via
+	/// * `label` - The human-readable label for the account. Accounts can be retrieved via
 	/// the [`account`](struct.Owner.html#method.accounts) method
 	///
 	/// # Returns
@@ -369,7 +382,7 @@ where
 	/// # Remarks
 	///
 	/// * Wallet parent paths are 2 path elements long, e.g. `m/0/0` is the path
-	/// labelled 'default'. Keys derived from this parent path are 3 elements long,
+	/// labeled 'default'. Keys derived from this parent path are 3 elements long,
 	/// e.g. the secret keys derived from the `m/0/0` path will be  at paths `m/0/0/0`,
 	/// `m/0/0/1` etc...
 	///
@@ -399,7 +412,7 @@ where
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		// Test keychain mask, to keep API consistent
 		let _ = w.keychain(keychain_mask)?;
-		owner::set_active_account(w, label)
+		owner::set_active_account(w, keychain_mask, label)
 	}
 
 	/// Returns a list of outputs from the active account in the wallet.
@@ -709,9 +722,9 @@ where
 	/// is confirmed. This method also returns a function that will perform that locking, and it is
 	/// up to the caller to decide the best time to call the lock function
 	/// (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) method).
-	/// If the exchange method is intended to be synchronous (such as via a direct http call,)
+	/// If the exchange method is intended to be synchronous (such as via a direct http call),
 	/// then the lock call can wait until the response is confirmed. If it is asynchronous, (such
-	/// as via file transfer,) the lock call should happen immediately (before the file is sent
+	/// as via file transfer), the lock call should happen immediately (before the file is sent
 	/// to the recipient).
 	///
 	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
@@ -719,7 +732,7 @@ where
 	/// function will attempt to send the slate back to the sender using the slatepack sync
 	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
 	/// sync_send was successful (it should be S2 if the sync sent successfully). It will also post
-	/// the transction if the `post_tx` field is set.
+	/// the transaction if the `post_tx` field is set.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
@@ -730,11 +743,15 @@ where
 	/// # Returns
 	/// * a result containing:
 	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html),
-	/// which can be forwarded to the recieving party by any means. Once the caller is relatively
-	/// certain that the transaction has been sent to the recipient, the associated wallet
-	/// transaction outputs should be locked via a call to
-	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs). This must be called before calling
-	/// [`finalize_tx`](struct.Owner.html#method.finalize_tx).
+	/// which can be forwarded to the receiving party by any means. With normal locking, an
+	/// attempted Tor send already locks the outputs, even if sending fails. Do not call
+	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) again when forwarding manually.
+	/// If sending was not requested or was skipped, lock the outputs before forwarding the slate.
+	/// With late locking, outputs are locked during finalization instead.
+	/// If `skip_tor` is omitted, `skip_send_attempt` in the Tor config decides whether to send.
+	/// With normal locking, a returned S1 slate alone does not tell you whether outputs are locked.
+	/// Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
+	/// for the slate ID before locking manually.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
@@ -768,7 +785,7 @@ where
 	/// if let Ok(slate) = result {
 	///     // Send slate somehow
 	///     // ...
-	///     // Lock our outputs if we're happy the slate was (or is being) sent
+	///     // Lock outputs for manual sending without late locking
 	///     api_owner.tx_lock_outputs(None, &slate);
 	/// }
 	/// ```
@@ -785,32 +802,36 @@ where
 			}
 			_ => None,
 		};
-		let (slate, tor_config) = {
-			let mut w_lock = self.wallet_inst.lock();
-			let tor_config = send_args
-				.as_ref()
-				.map(|_| crate::tor_config::load(&self.config_path()))
-				.transpose()?;
-			let w = w_lock.lc_provider()?.wallet_inst()?;
-			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
-			(slate, tor_config)
-		};
+
+		let tor_config = send_args
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path()))
+			.transpose()?;
+
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
 		match send_args {
 			Some(sa) => {
-				let tc = tor_config.ok_or_else(|| {
-					Error::TorConfig("Tor config was not loaded with send arguments".into())
-				})?;
-				let can_send = tc.send_tor(sa.skip_tor);
-				if self.doctest_mode || !can_send || dest.is_none() {
-					return Ok(slate);
-				}
+				let slate = {
+					wallet_lock!(self.wallet_inst, w);
+					let late_lock = args.late_lock.unwrap_or(false);
+					let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+					let tc = tor_config.as_ref().ok_or_else(|| {
+						Error::TorConfig("Tor config was not loaded with send arguments".into())
+					})?;
+					let can_send = tc.send_tor(sa.skip_tor);
+					if self.doctest_mode || !can_send || dest.is_none() {
+						return Ok(slate);
+					}
+					if !late_lock {
+						owner::tx_lock_outputs(w, keychain_mask, &slate)?;
+					}
+					slate
+				};
 				let res =
-					try_slatepack_sync_workflow(&slate, &dest.unwrap(), Some(tc), None, false);
+					try_slatepack_sync_workflow(&slate, &dest.unwrap(), tor_config, None, false);
 				match res {
 					Ok(s) => {
-						self.tx_lock_outputs(keychain_mask, &s)?;
 						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
@@ -834,7 +855,11 @@ where
 					}
 				}
 			}
-			None => Ok(slate),
+			None => {
+				wallet_lock!(self.wallet_inst, w);
+				let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+				Ok(slate)
+			}
 		}
 	}
 
@@ -1208,10 +1233,10 @@ where
 	/// Cancels a transaction. This entails:
 	/// * Setting the transaction status to either `TxSentCancelled` or `TxReceivedCancelled`
 	/// * Deleting all change outputs or recipient outputs associated with the transaction
-	/// * Setting the status of all assocatied inputs from `Locked` to `Spent` so they can be
+	/// * Setting the status of all associated inputs from `Locked` to `Spent` so they can be
 	/// used in new transactions.
 	///
-	/// Transactions can be cancelled by transaction log id or slate id (call with either set to
+	/// Transactions can be canceled by transaction log id or slate id (call with either set to
 	/// Some, not both)
 	///
 	/// # Arguments
@@ -1293,7 +1318,7 @@ where
 	///
 	/// # Returns
 	/// * Ok(Some([Slate](../grin_wallet_libwallet/slate/struct.Slate.html)) containing the stored
-	/// transaction, if successful. Note that this Slate will not contain all of the fields used by
+	/// transaction, if successful. Note that this Slate will not contain all the fields used by
 	/// the original Slate that resulted in the transaction.
 	/// * Ok(None) if the stored Transaction isn't found.
 	/// * [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
@@ -1331,7 +1356,7 @@ where
 	}
 
 	/// Return the rewind hash of the wallet.
-	/// The rewind hash when shared, help third-party to retrieve informations (outputs, balance, ...) that belongs to this wallet.
+	/// The rewind hash when shared, help third-party to retrieve information (outputs, balance, ...) that belongs to this wallet.
 	///
 	/// # Arguments
 	///
@@ -1366,7 +1391,7 @@ where
 
 	/// Scans the entire UTXO set from the node, identify which outputs belong to the given rewind hash view wallet.
 	///
-	/// This function can be used to retrieve outputs informations (outputs, balance, ...) from a rewind hash view wallet.
+	/// This function can be used to retrieve outputs information (outputs, balance, ...) from a rewind hash view wallet.
 	///
 	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
 	/// that no other processes should be trying to use the wallet at the same time this function is
@@ -1416,7 +1441,7 @@ where
 	/// update the wallet state to be consistent with what's currently in the UTXO set.
 	///
 	/// This function can be used to repair wallet state, particularly by restoring outputs that may
-	/// be missing if the wallet owner has cancelled transactions locally that were then successfully
+	/// be missing if the wallet owner has canceled transactions locally that were then successfully
 	/// posted to the chain.
 	///
 	/// This operation scans the entire chain, and is expected to be time intensive. It is imperative
@@ -1558,7 +1583,7 @@ where
 	/// * None
 	///
 	/// # Returns
-	/// * Ok with a String value representing the full path to the top level wallet dierctory
+	/// * Ok with a String value representing the full path to the top level wallet directory
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -1592,7 +1617,7 @@ where
 	/// description of the top level directory and default paths.
 	///
 	/// The wallet must be closed and the updater stopped before changing this directory.
-	/// Open the wallet again afterwards to load its database from the new location.
+	/// Open the wallet again afterward to load its database from the new location.
 	///
 	/// # Arguments
 	///
@@ -1726,8 +1751,10 @@ where
 	/// * `name`: Reserved for future use, use `None` for the time being.
 	/// * `mnemonic`: If present, restore the wallet seed from the given mnemonic instead of creating
 	/// a new random seed.
-	/// * `mnemonic_length`: Desired length of mnemonic in bytes (16 or 32, either 12 or 24 words).
-	/// Use 0 if mnemonic isn't being used.
+	/// * `mnemonic_length`: Entropy length in bytes: 16, 20, 24, 28 or 32
+	/// (12, 15, 18, 21 or 24 words). Ignored when `mnemonic` is provided.
+	/// For a new random seed, 0 is also accepted and defaults to 32 bytes.
+	/// All other values return an error.
 	/// * `password`: The password used to encrypt/decrypt the `wallet.seed` file
 	///
 	/// # Returns
@@ -1788,7 +1815,7 @@ where
 	/// `Opens` a wallet, populating the internal keychain with the encrypted seed, and optionally
 	/// returning a `keychain_mask` token to the caller to provide in all future calls.
 	/// If using a mask, the seed will be stored in-memory XORed against the `keychain_mask`, and
-	/// will not be useable if the mask is not provided.
+	/// will not be usable if the mask is not provided.
 	///
 	/// # Arguments
 	///
@@ -1825,7 +1852,7 @@ where
 	/// // Create configuration
 	/// let result = api_owner.create_config(&ChainTypes::Mainnet, None, None, None);
 	///
-	/// // create new wallet wirh random seed
+	/// // create new wallet with random seed
 	/// let pw = ZeroingString::from("my_password");
 	/// let _ = api_owner.create_wallet(None, None, 0, pw.clone());
 	///
@@ -1901,7 +1928,7 @@ where
 	/// * `password`: The password used to encrypt the seed file.
 	///
 	/// # Returns
-	/// * Ok(BIP-39 mneminc) if successful
+	/// * Ok(BIP-39 mnemonic) if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -2351,7 +2378,7 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `slatepack` - A string representing an armored slatepack
-	/// * `secret_indices` - Indices along this wallet's deriviation path with which to attempt
+	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
 	/// decryption. This function will attempt to use secret keys at each index along this path
 	/// to attempt to decrypt the payload, returning an error if none of the keys match.
 	///
@@ -2394,14 +2421,14 @@ where
 	}
 
 	/// Decode an armored slatepack, returning a Slatepack object that can be
-	/// viewed, manipulated, output as json, etc. The resulting slatepack will be
+	/// viewed, manipulated, output as JSON, etc. The resulting slatepack will be
 	/// decrypted by this wallet if possible
 	///
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
 	/// * `slatepack` - A string representing an armored slatepack
-	/// * `secret_indices` - Indices along this wallet's deriviation path with which to attempt
+	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
 	/// decryption. If this wallet can't decrypt this slatepack, the payload of the returned
 	/// Slatepack will remain encrypted.
 	///
@@ -2586,7 +2613,7 @@ where
 
 	// MWIXNET
 
-	/// Creates an mwixnet request [SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)
+	/// Creates a mwixnet request [SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)
 	/// from a given output commitment under this wallet's control.
 	///
 	/// # Arguments

@@ -65,7 +65,14 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if slate.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+
 	let mut ret_slate = slate.clone();
+	if ret_slate.state != SlateState::Standard1 {
+		return Err(Error::SlateState);
+	}
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match dest_acct_name {
 		Some(d) => {

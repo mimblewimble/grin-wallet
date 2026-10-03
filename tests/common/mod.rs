@@ -241,7 +241,7 @@ pub fn instantiate_wallet(
 	grin_wallet_controller::Error,
 > {
 	wallet_config.chain_type = None;
-	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(node_client).unwrap())
+	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(node_client)?)
 		as Box<
 			dyn WalletInst<
 				DefaultLCProvider<LocalWalletClient, ExtKeychain>,
@@ -249,7 +249,7 @@ pub fn instantiate_wallet(
 				ExtKeychain,
 			>,
 		>;
-	let lc = wallet.lc_provider().unwrap();
+	let lc = wallet.lc_provider()?;
 	// legacy hack to avoid the need for changes in existing grin-wallet.toml files
 	// remove `wallet_data` from end of path as
 	// new lifecycle provider assumes grin_wallet.toml is in root of data directory
@@ -259,11 +259,9 @@ pub fn instantiate_wallet(
 		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
 	}
 	let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
-	let keychain_mask = lc
-		.open_wallet(None, ZeroingString::from(passphrase), true, false)
-		.unwrap();
+	let keychain_mask = lc.open_wallet(None, ZeroingString::from(passphrase), true, false)?;
 	let wallet_inst = lc.wallet_inst()?;
-	wallet_inst.set_parent_key_id_by_name(account)?;
+	wallet_inst.set_account_by_name(account)?;
 	Ok((Arc::new(Mutex::new(wallet)), keychain_mask))
 }
 

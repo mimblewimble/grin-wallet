@@ -186,7 +186,7 @@ where
 						keychain_mask = match args.subcommand() {
 							("open", Some(_)) => {
 								let mut wallet_lock = owner_api.wallet_inst.lock();
-								let lc = wallet_lock.lc_provider().unwrap();
+								let lc = wallet_lock.lc_provider()?;
 								let mask = match lc.open_wallet(
 									None,
 									wallet_args::prompt_password(&global_wallet_args.password)?,
@@ -202,17 +202,20 @@ where
 										None
 									}
 								};
-								if let Some(account) = args.value_of("account") {
+								if let Some(account) = args
+									.value_of("account")
+									.or(global_wallet_args.account.as_deref())
+								{
 									if wallet_opened {
 										let wallet_inst = lc.wallet_inst()?;
-										wallet_inst.set_parent_key_id_by_name(account)?;
+										wallet_inst.set_account_by_name(account)?;
 									}
 								}
 								mask
 							}
 							("close", Some(_)) => {
 								let mut wallet_lock = owner_api.wallet_inst.lock();
-								let lc = wallet_lock.lc_provider().unwrap();
+								let lc = wallet_lock.lc_provider()?;
 								lc.close_wallet(None)?;
 								None
 							}

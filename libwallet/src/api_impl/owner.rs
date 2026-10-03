@@ -55,15 +55,30 @@ use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 /// List of accounts
-pub fn accounts<C, K>(w: &mut WalletBackend<C, K>) -> Result<Vec<AcctPathMapping>, Error>
+pub fn accounts<C, K>(
+	w: &mut WalletBackend<C, K>,
+	minimum_confirmations: Option<u64>,
+) -> Result<Vec<AcctPathMapping>, Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	keys::accounts(w)
+	let mut accounts: Vec<AcctPathMapping> = if let Some(mc) = minimum_confirmations {
+		updater::retrieve_accounts_info(w, mc)?
+	} else {
+		keys::accounts(w)?
+	};
+	let active = w.parent_key_id();
+	for account in accounts.iter_mut() {
+		account.current = Some(account.path == active);
+	}
+	accounts.sort_by(|a, b| a.path.cmp(&b.path));
+	// Put active account on top.
+	accounts.sort_by_key(|k| k.path != active);
+	Ok(accounts)
 }
 
-/// new account path
+/// New account path
 pub fn create_account_path<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -76,13 +91,17 @@ where
 	keys::new_acct_path(w, keychain_mask, label)
 }
 
-/// set active account
-pub fn set_active_account<C, K>(w: &mut WalletBackend<C, K>, label: &str) -> Result<(), Error>
+/// Set active account
+pub fn set_active_account<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	label: &str,
+) -> Result<(), Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
-	w.set_parent_key_id_by_name(label)
+	w.set_active_account(keychain_mask, label)
 }
 
 /// Hash of the wallet root public key
@@ -533,6 +552,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if args.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+
 	let payment_proof_address = if let Some(a) = &args.payment_proof_recipient_address {
 		if a.valid_network() {
 			Some(a)
@@ -656,6 +679,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if args.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+
 	let parent_key_id = match args.dest_acct_name {
 		Some(d) => {
 			let pm = w.get_acct_path(d)?;
@@ -709,6 +736,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if slate.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+
 	let mut ret_slate = slate.clone();
 	check_ttl(w, &ret_slate)?;
 	let parent_key_id = match args.src_acct_name {
@@ -829,6 +860,9 @@ where
 	K: Keychain,
 {
 	let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+	if slate.state == SlateState::Invoice2 && context.input_ids.is_empty() {
+		return Err(Error::SlateState);
+	}
 	let mut excess_override = None;
 
 	let mut sl = slate.clone();

@@ -49,7 +49,7 @@ use std::time::Duration;
 #[easy_jsonrpc_mw::rpc]
 pub trait OwnerRpc {
 	/**
-	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).
+	Networked version of [Owner::accounts](struct.Owner.html#method.accounts). Returns account mappings without balances.
 
 	# Json rpc example
 
@@ -73,7 +73,9 @@ pub trait OwnerRpc {
 			"Ok": [
 				{
 					"label": "default",
-					"path": "0200000000000000000000000000000000"
+					"path": "0200000000000000000000000000000000",
+					"info": null,
+					"current": true
 				}
 			]
 		},
@@ -84,6 +86,60 @@ pub trait OwnerRpc {
 	```
 	*/
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, Error>;
+
+	/**
+	Networked version of [Owner::accounts_info](struct.Owner.html#method.accounts_info). Returns balances from locally stored state without refreshing from the node.
+
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "accounts_info",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"minimum_confirmations": 1
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": [
+				{
+					"label": "default",
+					"path": "0200000000000000000000000000000000",
+					"info": {
+						 "amount_awaiting_confirmation": "0",
+						 "amount_awaiting_finalization": "0",
+						 "amount_currently_spendable": "60000000000",
+						 "amount_immature": "180000000000",
+						 "amount_locked": "0",
+						 "amount_reverted": "0",
+						 "last_confirmed_height": "4",
+						 "minimum_confirmations": "1",
+						 "total": "240000000000"
+					},
+					"current": true
+				}
+			]
+		},
+		"id": 1
+	}
+	# "#
+	# , 4, false, false, false, false);
+	```
+	*/
+	fn accounts_info(
+		&self,
+		token: Token,
+		minimum_confirmations: u64,
+	) -> Result<Vec<AcctPathMapping>, Error>;
 
 	/**
 	Networked version of [Owner::create_account_path](struct.Owner.html#method.create_account_path).
@@ -120,6 +176,7 @@ pub trait OwnerRpc {
 
 	/**
 	Networked version of [Owner::set_active_account](struct.Owner.html#method.set_active_account).
+	The account selection is saved across wallet restarts
 
 	# Json rpc example
 
@@ -974,7 +1031,7 @@ pub trait OwnerRpc {
 				"id": "0436430c-2b02-624c-2032-570501212b00",
 				"sigs": [],
 				"sta": "S3",
-				"ver": "4:3"
+				"ver": "4:5"
 			}
 		}
 	}
@@ -2089,6 +2146,14 @@ where
 {
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, Error> {
 		Owner::accounts(self, (&token.keychain_mask).as_ref())
+	}
+
+	fn accounts_info(
+		&self,
+		token: Token,
+		minimum_confirmations: u64,
+	) -> Result<Vec<AcctPathMapping>, Error> {
+		Owner::accounts_info(self, (&token.keychain_mask).as_ref(), minimum_confirmations)
 	}
 
 	fn create_account_path(&self, token: Token, label: &String) -> Result<Identifier, Error> {
