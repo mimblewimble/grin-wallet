@@ -779,6 +779,7 @@ where
 
 	// if self-sending, merge contexts
 	if let Ok(c) = context_res {
+		context.payment_proof_derivation_index = c.payment_proof_derivation_index;
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
 		context.fee = c.fee;
