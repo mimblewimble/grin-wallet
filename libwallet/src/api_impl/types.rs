@@ -342,6 +342,8 @@ pub struct PaymentProof {
 	/// Sender Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,
+	/// Sender Slatepack address derivation path index
+	pub sender_address_path: SlatepackAddressIndex,
 }
 
 /// Build output result

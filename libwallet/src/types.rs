@@ -678,6 +678,9 @@ pub struct TxLogEntry {
 	/// Track the time it took for a transaction to get reverted
 	#[serde(with = "option_duration_as_secs", default)]
 	pub reverted_after: Option<Duration>,
+	/// Slatepack address derivation path index
+	#[serde(default)]
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 impl ser::Writeable for TxLogEntry {
@@ -716,6 +719,7 @@ impl TxLogEntry {
 			kernel_lookup_min_height: None,
 			payment_proof: None,
 			reverted_after: None,
+			address_index: None,
 		}
 	}
 

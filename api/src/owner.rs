@@ -20,9 +20,11 @@ use crate::core::global;
 use crate::impls::SlateSender as _;
 use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
+use crate::libwallet::api_impl::owner::next_address_derivation_path_index;
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::wallet_lock;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -41,7 +43,6 @@ use grin_wallet_util::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
-use libwallet::wallet_lock;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
@@ -794,7 +795,7 @@ where
 	pub fn init_send_tx(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		args: InitTxArgs,
+		mut args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let dest = match send_args.as_ref() {
@@ -808,6 +809,11 @@ where
 			.as_ref()
 			.map(|_| crate::tor_config::load(&self.config_path()))
 			.transpose()?;
+
+		if args.address_index.is_none() {
+			wallet_lock!(self.wallet_inst, w);
+			args.address_index = Some(next_address_derivation_path_index(w));
+		}
 
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
@@ -828,6 +834,7 @@ where
 					if !late_lock {
 						owner::tx_lock_outputs(w, keychain_mask, &slate)?;
 					}
+
 					slate
 				};
 				let res = try_slatepack_sync_workflow(

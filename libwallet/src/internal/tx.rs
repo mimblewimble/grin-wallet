@@ -373,7 +373,7 @@ where
 	Ok(())
 }
 
-/// Update the stored transaction (this update needs to happen when the TX is finalised)
+/// Update the stored transaction (this update needs to happen when the TX is finalized)
 pub fn update_stored_tx<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,

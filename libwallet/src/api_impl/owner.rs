@@ -493,6 +493,7 @@ where
 		recipient_sig: r_sig,
 		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
+		sender_address_path: proof.sender_address_path,
 	})
 }
 
@@ -593,9 +594,6 @@ where
 	let address_index = args
 		.address_index
 		.unwrap_or_else(|| SlatepackAddressIndex(0));
-
-	context.payment_proof_derivation_index = Some(address_index);
-
 	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
@@ -614,6 +612,7 @@ where
 	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
+		context.payment_proof_derivation_index = Some(address_index);
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
@@ -627,7 +626,7 @@ where
 pub fn issue_invoice_tx<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
-	args: IssueInvoiceTxArgs,
+	mut args: IssueInvoiceTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -661,19 +660,28 @@ where
 		use_test_rng,
 	)?;
 
-	let address_index = args
-		.address_index
-		.unwrap_or_else(|| SlatepackAddressIndex(0));
-	context.payment_proof_derivation_index = Some(address_index);
-
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.version = v;
 	};
+
+	if args.address_index.is_none() {
+		args.address_index = Some(next_address_derivation_path_index(w));
+	}
+
+	// Update transaction log address index
+	let mut tx = w.get_tx_log_entry(&slate.id, &parent_key_id)?;
+	if let Some(tx) = tx.as_mut() {
+		tx.address_index = args.address_index;
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+		batch.commit()?;
+	}
 
 	// Save the aggsig context in our DB for when we
 	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
+		context.payment_proof_derivation_index = args.address_index;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
@@ -681,6 +689,24 @@ where
 	slate.compact()?;
 
 	Ok(slate)
+}
+
+/// Retrieve next transaction slatepack address derivation path index.
+pub fn next_address_derivation_path_index<C, K>(
+	w: &mut WalletBackend<C, K>,
+) -> SlatepackAddressIndex
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let index = w
+		.highest_payment_proof_derivation_index()
+		.unwrap_or_else(|_| SlatepackAddressIndex(0));
+	if index.0 == SlatepackAddressIndex::MAX {
+		SlatepackAddressIndex(0)
+	} else {
+		SlatepackAddressIndex(index.0 + 1)
+	}
 }
 
 /// Receive an invoice tx, essentially adding inputs to whatever
@@ -1305,10 +1331,18 @@ where
 	let sec_key =
 		address::address_from_derivation_path(&keychain, &parent_key_id, SlatepackAddressIndex(0))?;
 	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
-	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
+	let possible_receiver_key: DalekPublicKey = (&d_skey).into();
 
-	let sender_mine = my_address_pubkey == sender_pubkey;
-	let recipient_mine = my_address_pubkey == recipient_pubkey;
+	let sec_key = address::address_from_derivation_path(
+		&keychain,
+		&parent_key_id,
+		proof.sender_address_path,
+	)?;
+	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
+	let possible_sender_key: DalekPublicKey = (&d_skey).into();
+
+	let sender_mine = possible_sender_key == sender_pubkey;
+	let recipient_mine = possible_receiver_key == recipient_pubkey;
 
 	Ok((sender_mine, recipient_mine))
 }

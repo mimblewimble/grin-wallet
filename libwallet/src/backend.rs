@@ -21,6 +21,7 @@ use uuid::Uuid;
 
 use crate::blake2::blake2b::{Blake2b, Blake2bResult};
 
+use crate::slatepack::SlatepackAddressIndex;
 use crate::{
 	AcctPathMapping, Context, Error, NodeClient, OutputData, ScannedBlockInfo, TxLogEntry,
 	WalletInitStatus,
@@ -372,10 +373,17 @@ where
 	}
 
 	/// Get an (Optional) tx log entry by uuid.
-	pub fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
-		self.db
-			.get_ser(Some(TX_LOG_ENTRY_PREFIX), u.as_bytes(), None)
-			.map_err(|e| e.into())
+	pub fn get_tx_log_entry(
+		&self,
+		id: &Uuid,
+		parent_id: &Identifier,
+	) -> Result<Option<TxLogEntry>, Error> {
+		let tx = self
+			.tx_log_iter()?
+			.filter(|tx| tx.is_ok())
+			.map(|tx| tx.unwrap())
+			.find(|tx| tx.parent_key_id == *parent_id && tx.tx_slate_id == Some(*id));
+		Ok(tx)
 	}
 
 	/// Iterate over all tx log data stored by the backend.
@@ -385,6 +393,23 @@ where
 		let protocol_version = self.db.protocol_version();
 		self.db
 			.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
+				ser::deserialize(
+					&mut v,
+					protocol_version,
+					ser::DeserializationMode::default(),
+				)
+				.map_err(From::from)
+			})
+			.map_err(From::from)
+	}
+
+	/// Iterator over private tx contexts.
+	pub fn private_context_iter(
+		&self,
+	) -> Result<impl Iterator<Item = Result<Context, grin_store::Error>>, Error> {
+		let protocol_version = self.db.protocol_version();
+		self.db
+			.iter(Some(PRIVATE_TX_CONTEXT_PREFIX), move |_, mut v| {
 				ser::deserialize(
 					&mut v,
 					protocol_version,
@@ -417,6 +442,18 @@ where
 		}
 
 		Ok(ctx)
+	}
+
+	/// Retrieve the highest address derivation path index from tx context list.
+	/// TODO: use heed comparator to not select all tx context data https://docs.rs/heed/latest/heed/cookbook/index.html#use-custom-dupsort-comparator
+	pub fn highest_payment_proof_derivation_index(&self) -> Result<SlatepackAddressIndex, Error> {
+		let mut txs: Vec<TxLogEntry> = self.tx_log_iter()?.collect::<Result<Vec<_>, _>>()?;
+		txs.sort_by_key(|c| c.address_index);
+		txs.reverse();
+		if let Some(tx) = txs.last() {
+			return Ok(tx.address_index.unwrap_or_else(|| SlatepackAddressIndex(0)));
+		}
+		Ok(SlatepackAddressIndex(0))
 	}
 
 	/// Iterate over all stored account paths.

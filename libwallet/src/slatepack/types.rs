@@ -20,14 +20,13 @@ use sha2::{Digest, Sha512};
 use x25519_dalek::StaticSecret;
 
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::{dalek_ser, Slate, VersionedBinSlate};
-use crate::{wallet_lock, Error, NodeClient, RetrieveTxQueryArgs, WalletInst, WalletLCProvider};
+use crate::{dalek_ser, Slate, TxLogEntryType, VersionedBinSlate};
+use crate::{wallet_lock, Error, NodeClient, WalletInst, WalletLCProvider};
 use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
 
 use crate::api_impl::owner::get_slatepack_secret_key;
-use crate::internal::updater;
 use crate::mwixnet::onion::crypto::secp::SecretKey;
 use grin_keychain::Keychain;
 use grin_util::Mutex;
@@ -244,7 +243,7 @@ impl Slatepack {
 	/// Try decrypt payload for wallet guessing indexes.
 	pub fn try_decrypt_payload_for_indices<'a, L, C, K>(
 		&mut self,
-		secret_indices: Vec<SlatepackAddressIndex>,
+		mut secret_indices: Vec<SlatepackAddressIndex>,
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 		keychain_mask: Option<&SecretKey>,
 	) -> Result<(), Error>
@@ -254,50 +253,78 @@ impl Slatepack {
 		K: Keychain + 'a,
 	{
 		// Collect indexes for transactions.
-		let collect_indexes = |outstanding: bool| -> Result<Vec<SlatepackAddressIndex>, Error> {
-			let mut indexes = vec![];
+		let collect_indexes = |outstanding: bool,
+		                       secret_indices: &Vec<SlatepackAddressIndex>|
+		 -> Result<Vec<SlatepackAddressIndex>, Error> {
 			wallet_lock!(wallet_inst, w);
-			let args = if outstanding {
-				Some(RetrieveTxQueryArgs {
-					exclude_cancelled: Some(true),
-					include_confirmed_only: Some(true),
-					..Default::default()
+			let indices: Vec<SlatepackAddressIndex> = w
+				.tx_log_iter()?
+				.filter(|tx| tx.is_ok())
+				.map(|tx| tx.unwrap())
+				.filter(|tx| {
+					let tx_type = if outstanding {
+						!tx.confirmed
+							&& (tx.tx_type == TxLogEntryType::TxReceived
+								|| tx.tx_type == TxLogEntryType::TxSent
+								|| tx.tx_type == TxLogEntryType::TxReverted)
+					} else {
+						tx.confirmed
+							&& tx.tx_type != TxLogEntryType::TxReceivedCancelled
+							&& tx.tx_type != TxLogEntryType::TxSentCancelled
+					};
+					tx_type && tx.parent_key_id == w.parent_key_id()
 				})
-			} else {
-				None
-			};
-			for i in updater::retrieve_txs(w, None, None, args, None, outstanding)?
-				.iter()
-				.map(|t| match t.tx_slate_id {
+				.map(|t| match t.address_index {
 					None => None,
-					Some(id) => {
-						let context = w.get_private_context(keychain_mask, id.as_bytes());
-						match context {
-							Ok(c) => c.payment_proof_derivation_index,
-							Err(_) => None,
-						}
-					}
+					Some(i) => Some(i),
 				})
-				.collect::<Vec<_>>()
-			{
-				if let Some(i) = i {
-					if !indexes.contains(&i) {
-						indexes.push(i);
-					}
-				}
-			}
-			Ok(indexes)
+				.filter(|i| i.is_some())
+				.map(|i| i.unwrap())
+				.filter(|i| !secret_indices.contains(&i))
+				.collect();
+			Ok(indices)
 		};
 
-		match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, secret_indices) {
-			Ok(s) => Ok(s),
+		match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, &secret_indices) {
+			Ok(_) => Ok(()),
 			Err(_) => {
-				let indexes = collect_indexes(true)?;
-				match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, indexes) {
-					Ok(s) => Ok(s),
+				let indexes = collect_indexes(true, &secret_indices)?;
+				match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, &indexes) {
+					Ok(_) => Ok(()),
 					Err(_) => {
-						let indexes = collect_indexes(false)?;
-						self.try_decrypt_with(wallet_inst, keychain_mask, indexes)
+						for i in indexes {
+							if !secret_indices.contains(&i) {
+								secret_indices.push(i);
+							}
+						}
+						let indexes = collect_indexes(false, &secret_indices)?;
+						match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, &indexes) {
+							Ok(()) => Ok(()),
+							Err(_) => {
+								for i in indexes {
+									if !secret_indices.contains(&i) {
+										secret_indices.push(i);
+									}
+								}
+								wallet_lock!(wallet_inst, w);
+								let indexes: Vec<SlatepackAddressIndex> = w
+									.private_context_iter()?
+									.filter(|c| c.is_ok())
+									.map(|c| c.unwrap())
+									.filter(|c| {
+										let index =
+											if let Some(i) = c.payment_proof_derivation_index {
+												!secret_indices.contains(&i)
+											} else {
+												false
+											};
+										c.parent_key_id == w.parent_key_id() && index
+									})
+									.map(|c| c.payment_proof_derivation_index.unwrap())
+									.collect();
+								self.try_decrypt_with(wallet_inst.clone(), keychain_mask, &indexes)
+							}
+						}
 					}
 				}
 			}
@@ -309,7 +336,7 @@ impl Slatepack {
 		&mut self,
 		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 		keychain_mask: Option<&SecretKey>,
-		indexes: Vec<SlatepackAddressIndex>,
+		indexes: &Vec<SlatepackAddressIndex>,
 	) -> Result<(), Error>
 	where
 		L: WalletLCProvider<'a, C, K>,
@@ -317,7 +344,7 @@ impl Slatepack {
 		K: Keychain + 'a,
 	{
 		for i in indexes {
-			let dec_key = get_slatepack_secret_key(wallet_inst.clone(), keychain_mask, i)?;
+			let dec_key = get_slatepack_secret_key(wallet_inst.clone(), keychain_mask, *i)?;
 			match self.try_decrypt_payload(Some(&dec_key)) {
 				Ok(_) => return Ok(()),
 				Err(e) => {
@@ -375,7 +402,7 @@ impl Slatepack {
 }
 
 /// Slatepack address derivation path index
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SlatepackAddressIndex(pub u32);
 
 impl SlatepackAddressIndex {
