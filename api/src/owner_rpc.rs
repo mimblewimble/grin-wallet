@@ -1799,7 +1799,7 @@ pub trait OwnerRpc {
 		"id": 1,
 		"jsonrpc": "2.0",
 		"result": {
-			"Ok": "BEGINSLATEPACK. DXmRmGKu76gjHKx 3HskAK7Gb9SDKhy Si3JFmxyTRLqKWg Y1mm4vq7UKGuwzK hjKYu7KaxgNiJ4p yvRpqon9r2NTttC S1RQQZ8KHZB8Zyb xrRzvRb5Ke3fewE Q8yFZUEVsGPBRbd doUfj5KHoKkY7eR ddeWbzipjbkqshP 4gRmvkHANDNYbFJ RM9rqBXZXdEcHwm v1hoaYGcUL9NxB2 bexDZZUUoRK7qjy o7NNDTP9yKps8Zy ZcwyzSKyuZFFT6i 2its6DrthVgLoVT yVZTyVE2TrY51EJ L93Hf58rNatqCYF qZzG781WDqo8K. ENDSLATEPACK."
+			"Ok": "BEGINSLATEPACK. xyfzdULuUuM5r3R kS68aywyCuYssPs Jf1JbvnBcK6NDDo ajiGAgh2SPx4t49 xtKuJE3BZCcSEue ksecMmbSoV2DQbX gGcmJniP9UadcmR N1KSc5FBhwAaUjy LXeYDP7EV7Cmsj4 pLaJdZTJTQbccUH 2zG8QTgoEiEWP5V T6rKst1TibmDAFm RRVHYDtskdYJb5G krqfpgN7RjvPfpm Z5ZFyz6ipAt5q9T 2HCjrTxkHdVi9js 22tr2Lx6iXT5vm8 JL6HhjwyFrSaEmN AjsBE8jgiaAABA6 GGZKwcXeXToMfRt nL9DeX1. ENDSLATEPACK."
 		}
 	}
 	# "#

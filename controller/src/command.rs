@@ -412,6 +412,7 @@ where
 					selection_strategy_is_use_all: strategy == "all",
 					refresh_outputs_from_node: !info_updated,
 					estimate_only: Some(true),
+					address_index: args.address_index,
 					..Default::default()
 				};
 				let result = owner_api.init_send_tx(keychain_mask, init_args.clone());
@@ -456,6 +457,7 @@ where
 			payment_proof_recipient_address,
 			ttl_blocks: args.ttl_blocks,
 			late_lock: Some(args.late_lock),
+			address_index: args.address_index,
 			..Default::default()
 		};
 		let init_send_tx = |init_args: InitTxArgs| -> Result<Slate, libwallet::Error> {
