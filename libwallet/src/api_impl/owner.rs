@@ -594,6 +594,8 @@ where
 		.address_index
 		.unwrap_or_else(|| SlatepackAddressIndex(0));
 
+	context.payment_proof_derivation_index = Some(address_index);
+
 	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
@@ -606,8 +608,6 @@ where
 			receiver_address: a.pub_key,
 			receiver_signature: None,
 		});
-
-		context.payment_proof_derivation_index = Some(address_index);
 	}
 
 	// Save the aggsig context in our DB for when we
