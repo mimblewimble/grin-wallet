@@ -28,6 +28,7 @@ use crate::grin_util::secp::key::{PublicKey, SecretKey};
 use crate::grin_util::secp::{pedersen, Secp256k1};
 use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
@@ -388,7 +389,7 @@ pub struct Context {
 	/// store the calculated fee
 	pub fee: Option<FeeFields>,
 	/// Payment proof sender address derivation path, if needed
-	pub payment_proof_derivation_index: Option<u32>,
+	pub payment_proof_derivation_index: Option<SlatepackAddressIndex>,
 	/// If late-locking, store my tranasction creation prefs
 	/// for later
 	pub late_lock_args: Option<InitTxArgs>,
@@ -743,7 +744,7 @@ pub struct StoredProofInfo {
 	/// receiver signature
 	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
-	pub sender_address_path: u32,
+	pub sender_address_path: SlatepackAddressIndex,
 	/// sender address
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,

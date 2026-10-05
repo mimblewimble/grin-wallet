@@ -20,14 +20,20 @@ use sha2::{Digest, Sha512};
 use x25519_dalek::StaticSecret;
 
 use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::Error;
 use crate::{dalek_ser, Slate, VersionedBinSlate};
+use crate::{wallet_lock, Error, NodeClient, RetrieveTxQueryArgs, WalletInst, WalletLCProvider};
 use grin_wallet_util::byte_ser;
 
 use super::SlatepackAddress;
 
+use crate::api_impl::owner::get_slatepack_secret_key;
+use crate::internal::updater;
+use crate::mwixnet::onion::crypto::secp::SecretKey;
+use grin_keychain::Keychain;
+use grin_util::Mutex;
 use std::fmt;
 use std::io::{Cursor, Read, Write};
+use std::sync::Arc;
 
 pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
 pub const SLATEPACK_MINOR_VERSION: u8 = 0;
@@ -47,11 +53,6 @@ pub struct Slatepack {
 	#[serde(default = "default_sender_none")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub sender: Option<SlatepackAddress>,
-
-	/// Optional initial sender address derivation path index.
-	#[serde(default = "default_address_index")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub initial_sender_index: Option<SlatepackAddressIndex>,
 
 	// Encrypted metadata, to be serialized into payload only
 	// shouldn't be accessed directly
@@ -75,10 +76,6 @@ pub struct Slatepack {
 }
 
 fn default_sender_none() -> Option<SlatepackAddress> {
-	None
-}
-
-fn default_address_index() -> Option<SlatepackAddressIndex> {
 	None
 }
 
@@ -112,7 +109,6 @@ impl Default for Slatepack {
 			},
 			mode: 0,
 			sender: None,
-			initial_sender_index: None,
 			encrypted_meta: default_enc_metadata(),
 			payload: vec![],
 			future_test_mode: false,
@@ -126,9 +122,6 @@ impl Slatepack {
 		let mut retval = 0;
 		if let Some(s) = self.sender.as_ref() {
 			retval += s.encoded_len().unwrap();
-		}
-		if let Some(_) = self.initial_sender_index {
-			retval += 4;
 		}
 		Ok(retval)
 	}
@@ -248,6 +241,99 @@ impl Slatepack {
 		Ok(())
 	}
 
+	/// Try decrypt payload for wallet guessing indexes.
+	pub fn try_decrypt_payload_for_indices<'a, L, C, K>(
+		&mut self,
+		secret_indices: Vec<SlatepackAddressIndex>,
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<(), Error>
+	where
+		L: WalletLCProvider<'a, C, K>,
+		C: NodeClient + 'a,
+		K: Keychain + 'a,
+	{
+		// Collect indexes for transactions.
+		let collect_indexes = |outstanding: bool| -> Result<Vec<SlatepackAddressIndex>, Error> {
+			let mut indexes = vec![];
+			wallet_lock!(wallet_inst, w);
+			let args = if outstanding {
+				Some(RetrieveTxQueryArgs {
+					exclude_cancelled: Some(true),
+					include_confirmed_only: Some(true),
+					..Default::default()
+				})
+			} else {
+				None
+			};
+			for i in updater::retrieve_txs(w, None, None, args, None, outstanding)?
+				.iter()
+				.map(|t| match t.tx_slate_id {
+					None => None,
+					Some(id) => {
+						let context = w.get_private_context(keychain_mask, id.as_bytes());
+						match context {
+							Ok(c) => c.payment_proof_derivation_index,
+							Err(_) => None,
+						}
+					}
+				})
+				.collect::<Vec<_>>()
+			{
+				if let Some(i) = i {
+					if !indexes.contains(&i) {
+						indexes.push(i);
+					}
+				}
+			}
+			Ok(indexes)
+		};
+
+		match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, secret_indices) {
+			Ok(s) => Ok(s),
+			Err(_) => {
+				let indexes = collect_indexes(true)?;
+				match self.try_decrypt_with(wallet_inst.clone(), keychain_mask, indexes) {
+					Ok(s) => Ok(s),
+					Err(_) => {
+						let indexes = collect_indexes(false)?;
+						self.try_decrypt_with(wallet_inst, keychain_mask, indexes)
+					}
+				}
+			}
+		}
+	}
+
+	/// Try decrypt slatepack for provided indexes.
+	fn try_decrypt_with<'a, L, C, K>(
+		&mut self,
+		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		keychain_mask: Option<&SecretKey>,
+		indexes: Vec<SlatepackAddressIndex>,
+	) -> Result<(), Error>
+	where
+		L: WalletLCProvider<'a, C, K>,
+		C: NodeClient + 'a,
+		K: Keychain + 'a,
+	{
+		for i in indexes {
+			let dec_key = get_slatepack_secret_key(wallet_inst.clone(), keychain_mask, i)?;
+			match self.try_decrypt_payload(Some(&dec_key)) {
+				Ok(_) => return Ok(()),
+				Err(e) => {
+					if matches!(e, Error::Age(_)) {
+						continue;
+					} else {
+						return Err(e);
+					}
+				}
+			}
+		}
+		Err(Error::SlatepackDecryption(
+			"Can not decrypt slatepack with provided indexes".to_string(),
+		))
+	}
+
 	/// add a recipient to encrypted metadata
 	pub fn add_recipient(&mut self, address: SlatepackAddress) {
 		self.encrypted_meta.recipients.push(address)
@@ -289,7 +375,7 @@ impl Slatepack {
 }
 
 /// Slatepack address derivation path index
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
 pub struct SlatepackAddressIndex(pub u32);
 
 impl SlatepackAddressIndex {
@@ -366,9 +452,6 @@ impl Writeable for SlatepackBin {
 		if sp.sender.is_some() {
 			opt_flags |= 0x01;
 		}
-		if sp.initial_sender_index.is_some() {
-			opt_flags |= 0x02;
-		}
 		writer.write_u16(opt_flags)?;
 
 		// Bytes to skip from here (Start of optional fields) to get to payload
@@ -377,9 +460,6 @@ impl Writeable for SlatepackBin {
 		// write optional fields
 		if let Some(s) = sp.sender {
 			s.write(writer)?;
-		};
-		if let Some(i) = sp.initial_sender_index {
-			i.0.write(writer)?;
 		};
 
 		// encrypted metadata is only included in the payload
@@ -423,19 +503,6 @@ impl Readable for SlatepackBin {
 			None
 		};
 
-		let sender_index = if opt_flags & 0x02 > 0 {
-			if bytes_to_payload >= SlatepackAddressIndex::LEN {
-				let value = reader.read_u32()?;
-				let index = SlatepackAddressIndex(value);
-				bytes_to_payload -= SlatepackAddressIndex::LEN;
-				Some(index)
-			} else {
-				return Err(ser::Error::CorruptedData);
-			}
-		} else {
-			None
-		};
-
 		// skip over any unknown future fields until header
 		while bytes_to_payload > 0 {
 			let _ = reader.read_u8()?;
@@ -448,7 +515,6 @@ impl Readable for SlatepackBin {
 			slatepack,
 			mode,
 			sender,
-			initial_sender_index: sender_index,
 			encrypted_meta: default_enc_metadata(),
 			payload,
 			future_test_mode: false,
@@ -746,7 +812,7 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 
 // ensure that a slatepack with unknown data in the optional fields can be read
 #[test]
-fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
+fn slatepack_bin_future() -> Result<(), byte_ser::Error> {
 	use crate::grin_core::global;
 	use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 	use grin_wallet_util::byte_ser;

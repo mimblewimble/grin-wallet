@@ -742,16 +742,18 @@ pub fn parse_issue_invoice_args(
 
 	let slatepack_qr = args.is_present("slatepack_qr");
 
+	let address_index = parse_address_index_arg(args)?;
+
 	Ok(command::IssueInvoiceArgs {
 		dest,
 		issue_args: IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount,
 			target_slate_version,
+			address_index,
 		},
 		outfile,
 		slatepack_qr,
-		address_index: None,
 	})
 }
 
@@ -759,14 +761,7 @@ fn get_slate<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: &ArgMatches,
-) -> Result<
-	(
-		Slate,
-		Option<SlatepackAddress>,
-		Option<SlatepackAddressIndex>,
-	),
-	Error,
->
+) -> Result<(Slate, Option<SlatepackAddress>), Error>
 where
 	L: WalletLCProvider<'static, C, K>,
 	C: NodeClient + 'static,
@@ -1301,7 +1296,7 @@ where
 		}
 		("pay", Some(args)) => {
 			// get slate first
-			let (slate, address, initial_address_index) = get_slate(owner_api, km, args)?;
+			let (slate, address) = get_slate(owner_api, km, args)?;
 
 			let a = arg_parse!(parse_process_invoice_args(
 				&args, !test_mode, slate, address
@@ -1313,7 +1308,6 @@ where
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 				test_mode,
-				initial_address_index,
 			)
 		}
 		("info", Some(args)) => {

@@ -410,22 +410,21 @@ where
 	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
-		let derivation_index = context.payment_proof_derivation_index.unwrap_or_else(|| 0);
+		let sender_address_path = context
+			.payment_proof_derivation_index
+			.unwrap_or_else(|| SlatepackAddressIndex(0));
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
 		let excess = slate.calc_excess(keychain.secp())?;
-		let sender_key = address::address_from_derivation_path(
-			&keychain,
-			&parent_key_id,
-			SlatepackAddressIndex(derivation_index),
-		)?;
+		let sender_key =
+			address::address_from_derivation_path(&keychain, &parent_key_id, sender_address_path)?;
 		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 		let sig =
 			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
 		tx.payment_proof = Some(StoredProofInfo {
 			receiver_address: p.receiver_address,
 			receiver_signature: p.receiver_signature,
-			sender_address_path: derivation_index,
+			sender_address_path,
 			sender_address: sender_address.to_ed25519()?,
 			sender_signature: Some(sig),
 		})
@@ -536,11 +535,8 @@ where
 				));
 			}
 		};
-		let orig_sender_sk = address::address_from_derivation_path(
-			&keychain,
-			parent_key_id,
-			SlatepackAddressIndex(index),
-		)?;
+		let orig_sender_sk =
+			address::address_from_derivation_path(&keychain, parent_key_id, index)?;
 		let orig_sender_address = OnionV3Address::from_private(&orig_sender_sk.0)?;
 		if p.sender_address != orig_sender_address.to_ed25519()? {
 			return Err(Error::PaymentProof(

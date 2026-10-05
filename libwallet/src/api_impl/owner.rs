@@ -181,7 +181,7 @@ where
 	};
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender,
-		sender_index,
+		secret_indices: vec![],
 		recipients,
 	});
 	let slatepack = packer.create_slatepack(slate)?;
@@ -201,43 +201,9 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if secret_indices.is_empty() {
-		let packer = Slatepacker::new(SlatepackerArgs {
-			sender: None,
-			sender_index: None,
-			recipients: vec![],
-		});
-		let slatepack =
-			packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false)?;
-		slatepack.get_slate()
-	} else {
-		for index in secret_indices {
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				sender_index: Some(index),
-				recipients: vec![],
-			});
-			let res = packer.deser_slatepack(
-				slatepack.as_bytes(),
-				wallet_inst.clone(),
-				keychain_mask,
-				true,
-			);
-			let slatepack = match res {
-				Ok(sp) => sp,
-				Err(e) => {
-					error!("deser_slatepack: {}", e);
-					continue;
-				}
-			};
-			return slatepack.get_slate();
-		}
-		Err(Error::SlatepackDecryption(
-			"Could not decrypt slatepack with any provided index on the address derivation path"
-				.to_owned(),
-		)
-		.into())
-	}
+	let sp = decode_slatepack_message(wallet_inst, keychain_mask, slatepack, secret_indices)
+		.map_err(|e| Error::SlatepackDecryption(format!("Could not decrypt slatepack: {}", e)))?;
+	sp.get_slate()
 }
 
 /// Decode a slatepack message, to allow viewing
@@ -254,32 +220,21 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	for index in secret_indices {
-		let packer = Slatepacker::new(SlatepackerArgs {
-			sender: None,
-			sender_index: Some(index),
-			recipients: vec![],
-		});
-		let res = packer.deser_slatepack(
-			slatepack.as_bytes(),
-			wallet_inst.clone(),
-			keychain_mask,
-			true,
-		);
-		let slatepack = match res {
-			Ok(sp) => sp,
-			Err(_) => {
-				continue;
-			}
-		};
-		return Ok(slatepack);
-	}
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
-		sender_index: None,
+		secret_indices,
 		recipients: vec![],
 	});
-	packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false)
+	let res = packer.deser_slatepack(
+		slatepack.as_bytes(),
+		wallet_inst.clone(),
+		keychain_mask,
+		true,
+	);
+	match res {
+		Ok(sp) => Ok(sp),
+		Err(_) => packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false),
+	}
 }
 
 /// retrieve outputs
@@ -643,7 +598,7 @@ where
 		let k = w.keychain(keychain_mask)?;
 
 		let sec_addr_key =
-			address::address_from_derivation_path(&k, &parent_key_id, address_index.clone())?;
+			address::address_from_derivation_path(&k, &parent_key_id, address_index)?;
 		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
@@ -652,11 +607,11 @@ where
 			receiver_signature: None,
 		});
 
-		context.payment_proof_derivation_index = Some(address_index.0);
+		context.payment_proof_derivation_index = Some(address_index);
 	}
 
 	// Save the aggsig context in our DB for when we
-	// recieve the transaction back
+	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
@@ -696,7 +651,7 @@ where
 
 	let mut slate = tx::new_tx_slate(w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
-	let context = tx::add_output_to_slate(
+	let mut context = tx::add_output_to_slate(
 		w,
 		keychain_mask,
 		&mut slate,
@@ -706,12 +661,17 @@ where
 		use_test_rng,
 	)?;
 
+	let address_index = args
+		.address_index
+		.unwrap_or_else(|| SlatepackAddressIndex(0));
+	context.payment_proof_derivation_index = Some(address_index);
+
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.version = v;
 	};
 
 	// Save the aggsig context in our DB for when we
-	// recieve the transaction back
+	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
@@ -834,7 +794,7 @@ where
 	selection::repopulate_tx(w, keychain_mask, &mut ret_slate, &context, false)?;
 
 	// Save the aggsig context in our DB for when we
-	// recieve the transaction back
+	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;

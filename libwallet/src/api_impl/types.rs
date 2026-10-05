@@ -139,7 +139,7 @@ impl Default for InitTxArgs {
 /// V2 Issue Invoice Tx Args
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IssueInvoiceTxArgs {
-	/// The human readable account name to which the received funds should be added
+	/// The human-readable account name to which the received funds should be added
 	/// overriding whatever the active account is as set via the
 	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
 	pub dest_acct_name: Option<String>,
@@ -150,6 +150,8 @@ pub struct IssueInvoiceTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
+	/// Issuer slatepack address derivation path index.
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 impl Default for IssueInvoiceTxArgs {
@@ -158,6 +160,7 @@ impl Default for IssueInvoiceTxArgs {
 			dest_acct_name: None,
 			amount: 0,
 			target_slate_version: None,
+			address_index: None,
 		}
 	}
 }

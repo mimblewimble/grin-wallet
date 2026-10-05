@@ -122,7 +122,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		slate_i.payment_proof.as_ref().unwrap().receiver_address
 	);
 	assert!(pp.receiver_signature.is_some());
-	assert_eq!(pp.sender_address_path, 0);
+	assert_eq!(pp.sender_address_path, SlatepackAddressIndex(0));
 	assert_eq!(pp.sender_signature, None);
 
 	// check we should get an error at this point since proof is not complete

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use super::armor::HEADER;
-use crate::api_impl::owner::get_slatepack_secret_key;
 use crate::slatepack::types::SlatepackAddressIndex;
 use crate::{
 	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
@@ -34,8 +33,8 @@ use std::sync::Arc;
 pub struct SlatepackerArgs {
 	/// Optional sender to include in slatepack
 	pub sender: Option<SlatepackAddress>,
-	/// Optional sender derivation path index
-	pub sender_index: Option<SlatepackAddressIndex>,
+	/// Derivation path indices to decrypt slatepack
+	pub secret_indices: Vec<SlatepackAddressIndex>,
 	/// Optional list of recipients, for encryption
 	pub recipients: Vec<SlatepackAddress>,
 }
@@ -99,26 +98,11 @@ impl Slatepacker {
 
 		slatepack.ver_check_warn();
 		if decrypt {
-			let mut err = None;
-			for index in [
-				Some(SlatepackAddressIndex(0)),
-				slatepack.initial_sender_index.clone(),
-				self.0.sender_index.clone(),
-			] {
-				if let Some(i) = index {
-					let dec_key =
-						get_slatepack_secret_key(wallet_inst.clone(), keychain_mask, i.clone())?;
-					match slatepack.try_decrypt_payload(Some(&dec_key)) {
-						Ok(_) => return Ok(slatepack),
-						Err(e) => err = Some(e),
-					}
-				} else {
-					continue;
-				}
-			}
-			if let Some(e) = err {
-				return Err(e);
-			}
+			slatepack.try_decrypt_payload_for_indices(
+				self.0.secret_indices.clone(),
+				wallet_inst,
+				keychain_mask,
+			)?;
 		}
 		Ok(slatepack)
 	}
@@ -130,7 +114,6 @@ impl Slatepacker {
 		let mut slatepack = Slatepack::default();
 		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
 		slatepack.sender = self.0.sender.clone();
-		slatepack.initial_sender_index = self.0.sender_index.clone();
 		slatepack.try_encrypt_payload(self.0.recipients.clone())?;
 		Ok(slatepack)
 	}
