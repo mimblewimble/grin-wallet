@@ -61,7 +61,7 @@ pub fn add_excess(
 	let secp = Secp256k1::with_caps(ContextFlag::Commit);
 	let excess_commit: Commitment = secp.commit(0, excess.clone())?;
 
-	let commits = vec![commitment.clone(), excess_commit.clone()];
+	let commits = vec![*commitment, excess_commit];
 	let sum = secp.commit_sum(commits, Vec::new())?;
 	Ok(sum)
 }
@@ -70,7 +70,7 @@ pub fn add_excess(
 pub fn sub_value(commitment: &Commitment, value: u64) -> Result<Commitment, secp256k1zkp::Error> {
 	let secp = Secp256k1::with_caps(ContextFlag::Commit);
 	let neg_commit: Commitment = secp.commit(value, ZERO_KEY)?;
-	let sum = secp.commit_sum(vec![commitment.clone()], vec![neg_commit.clone()])?;
+	let sum = secp.commit_sum(vec![*commitment], vec![neg_commit])?;
 	Ok(sum)
 }
 
@@ -81,11 +81,11 @@ pub fn sign(
 	msg: &grin_util::secp::Message,
 ) -> Result<grin_util::secp::Signature, secp256k1zkp::Error> {
 	let secp = Secp256k1::with_caps(ContextFlag::Full);
-	let pubkey = grin_util::secp::PublicKey::from_secret_key(&secp, &sk)?;
+	let pubkey = grin_util::secp::PublicKey::from_secret_key(&secp, sk)?;
 	let sig = grin_util::secp::aggsig::sign_single(
 		&secp,
-		&msg,
-		&sk,
+		msg,
+		sk,
 		None,
 		None,
 		None,

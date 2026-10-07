@@ -52,7 +52,7 @@ impl<'a> Slatepacker<'a> {
 		// check if data is armored, if so, remove and continue
 		let data_len = data.len() as u64;
 		if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
-			let msg = format!("Data invalid length");
+			let msg = "Data invalid length".to_string();
 			return Err(Error::SlatepackDeser(msg));
 		}
 
@@ -105,7 +105,7 @@ impl<'a> Slatepacker<'a> {
 
 	/// Armor a slatepack
 	pub fn armor_slatepack(&self, slatepack: &Slatepack) -> Result<String, Error> {
-		SlatepackArmor::encode(&slatepack)
+		SlatepackArmor::encode(slatepack)
 	}
 
 	/// Return/upgrade slate from slatepack
@@ -116,6 +116,6 @@ impl<'a> Slatepacker<'a> {
 				let msg = format!("{}", e);
 				Error::SlatepackDeser(msg)
 			})?;
-		Ok(Slate::upgrade(slate_bin.into())?)
+		Slate::upgrade(slate_bin.into())
 	}
 }

@@ -26,7 +26,7 @@ use crate::keychain::Keychain;
 use crate::libwallet;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::slate_versions::v4::SlateV4;
-use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, WalletInst, WalletLCProvider};
+use crate::libwallet::{NodeClient, NodeVersionInfo, Slate, WalletLCProvider};
 use crate::util;
 use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
@@ -66,11 +66,12 @@ where
 	/// handle to chain itself
 	pub chain: Arc<Chain>,
 	/// list of interested wallets
+	#[allow(clippy::type_complexity)]
 	pub wallets: HashMap<
 		String,
 		(
 			Sender<WalletProxyMessage>,
-			Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+			grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 			Option<SecretKey>,
 		),
 	>,
@@ -119,7 +120,7 @@ where
 		&mut self,
 		addr: &str,
 		tx: Sender<WalletProxyMessage>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 		keychain_mask: Option<SecretKey>,
 	) {
 		self.wallets
@@ -185,12 +186,7 @@ where
 			libwallet::Error::ClientCallback("Error parsing Transaction".to_owned())
 		})?;
 
-		super::award_block_to_wallet(
-			&self.chain,
-			&[tx],
-			dest_wallet,
-			(&dest_wallet_mask).as_ref(),
-		)?;
+		super::award_block_to_wallet(&self.chain, &[tx], dest_wallet, dest_wallet_mask.as_ref())?;
 
 		Ok(WalletProxyMessage {
 			sender_id: "node".to_owned(),
@@ -219,7 +215,7 @@ where
 			let w = w_lock.lc_provider()?.wallet_inst()?;
 			let mask = wallet.2.clone();
 			// receive tx
-			match foreign::receive_tx(w, (&mask).as_ref(), &Slate::from(slate), None, false) {
+			match foreign::receive_tx(w, mask.as_ref(), &Slate::from(slate), None, false) {
 				Err(e) => {
 					return Ok(WalletProxyMessage {
 						sender_id: m.dest,

@@ -14,6 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+cargo +1.99.0 clippy --workspace --all-targets -- -D warnings
+if [ $? != 0 ]; then
+  printf "clippy check failed; check with:\n"
+  printf "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings\n"
+  printf "if clippy is missing: rustup toolchain install 1.99.0 --profile minimal --component clippy\n"
+  exit 1
+fi
+
 rustfmt --version &>/dev/null
 if [ $? != 0 ]; then
 	printf "[pre_commit] \033[0;31merror\033[0m: \"rustfmt\" not available. \n"

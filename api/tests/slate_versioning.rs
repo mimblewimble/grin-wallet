@@ -15,7 +15,6 @@
 //use grin_wallet_api::foreign_rpc_client;
 use grin_wallet_api::run_doctest_foreign;
 //use grin_wallet_libwallet::VersionedSlate;
-use serde_json;
 use serde_json::Value;
 use tempfile::tempdir;
 //use grin_wallet_libwallet::slate_versions::v1::SlateV1;
