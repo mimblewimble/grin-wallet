@@ -133,7 +133,7 @@ impl fmt::Display for Error {
 				write!(f, "duplicate RPC batch response ID: {}", v)
 			}
 			Error::_WrongBatchResponseId(ref v) => write!(f, "wrong RPC batch response ID: {}", v),
-			ref e => f.write_str(&format!("{}", e)),
+			ref e => write!(f, "{:?}", e),
 		}
 	}
 }

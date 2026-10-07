@@ -570,7 +570,7 @@ impl Writeable for SlatepackEncMetadataBin {
 		if !inner.recipients.is_empty() {
 			let len = inner.recipients.len();
 			// write number of recipients
-			if len as u16 > u16::MAX {
+			if len > u16::MAX as usize {
 				error!("Too many recipients: {}", len);
 				return Err(ser::Error::CorruptedData);
 			}
