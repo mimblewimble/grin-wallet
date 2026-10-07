@@ -185,7 +185,7 @@ pub fn txs(
 		let entry_type = format!(
 			"{}",
 			match t.tx_type {
-				TxLogEntryType::ConfirmedCoinbase => "Confirmed",
+				TxLogEntryType::ConfirmedCoinbase => "Coinbase",
 				TxLogEntryType::TxReceived => "Received Tx",
 				TxLogEntryType::TxSent => "Sent Tx",
 				TxLogEntryType::TxReceivedCancelled => "Received Tx",
@@ -200,7 +200,7 @@ pub fn txs(
 		let entry_type_desc = format!(
 			"{}",
 			match t.tx_type {
-				TxLogEntryType::ConfirmedCoinbase => "Coinbase",
+				TxLogEntryType::ConfirmedCoinbase => "Confirmed",
 				TxLogEntryType::TxReceived => "",
 				TxLogEntryType::TxSent => "",
 				TxLogEntryType::TxReceivedCancelled => "Cancelled",
