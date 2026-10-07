@@ -76,7 +76,7 @@ pub mod option_dalek_pubkey_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the Ed25519 public key as hex, or null
 	pub fn serialize<S>(pk: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -87,7 +87,7 @@ pub mod option_dalek_pubkey_serde {
 		}
 	}
 
-	///
+	/// Read an optional Ed25519 public key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekPublicKey>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -95,7 +95,7 @@ pub mod option_dalek_pubkey_serde {
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
 			Some(string) => DalekPublicKey::from_hex(&string)
 				.map_err(|e| Error::custom(e.to_string()))
-				.and_then(|pk: DalekPublicKey| Ok(Some(pk))),
+				.map(|pk: DalekPublicKey| Some(pk)),
 			None => Ok(None),
 		})
 	}
@@ -130,8 +130,7 @@ impl DalekSignature {
 			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
 		let b = <[u8; 64]>::try_from(bytes.as_slice())
 			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
-		let sig = ed25519_dalek::Signature::try_from(b)
-			.map_err(|_| DalekError::HexError(format!("failed to decode {}", hex)))?;
+		let sig = ed25519_dalek::Signature::from(b);
 		Ok(DalekSignature(sig))
 	}
 
@@ -139,7 +138,7 @@ impl DalekSignature {
 	#[allow(dead_code)]
 	pub fn verify(&self, pk: &DalekPublicKey, msg: &[u8]) -> Result<(), DalekError> {
 		pk.as_ref()
-			.verify(&msg, &self.0)
+			.verify(msg, &self.0)
 			.map_err(|_| DalekError::SigVerifyFailed)
 	}
 }
@@ -157,7 +156,7 @@ pub mod dalek_sig_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the Ed25519 signature as hex
 	pub fn serialize<S>(sig: &DalekSignature, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -165,7 +164,7 @@ pub mod dalek_sig_serde {
 		serializer.serialize_str(&sig.0.to_bytes().to_hex())
 	}
 
-	///
+	/// Read an Ed25519 signature from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekSignature, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -180,7 +179,7 @@ pub mod dalek_sig_serde {
 pub fn sign(sk: &SecretKey, message: &[u8]) -> Result<DalekSignature, DalekError> {
 	use ed25519_dalek::{Signer, SigningKey};
 	let secret = SigningKey::from_bytes(&sk.0);
-	let sig = secret.sign(&message);
+	let sig = secret.sign(message);
 	Ok(DalekSignature(sig))
 }
 

@@ -109,6 +109,7 @@ pub fn create_wallet_proxy(
 	WalletProxy::new(test_dir)
 }
 
+#[allow(clippy::type_complexity)]
 pub fn create_local_wallet(
 	test_dir: &str,
 	name: &str,
@@ -116,17 +117,11 @@ pub fn create_local_wallet(
 	client: LocalWalletClient,
 	create_mask: bool,
 ) -> (
-	Arc<
-		Mutex<
-			Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-					LocalWalletClient,
-					ExtKeychain,
-				>,
-			>,
-		>,
+	grin_wallet_libwallet::WalletHandle<
+		'static,
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
 	>,
 	Option<SecretKey>,
 	Owner<DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>,
@@ -178,17 +173,11 @@ pub fn open_local_wallet(
 	client: LocalWalletClient,
 	create_mask: bool,
 ) -> (
-	Arc<
-		Mutex<
-			Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-					LocalWalletClient,
-					ExtKeychain,
-				>,
-			>,
-		>,
+	grin_wallet_libwallet::WalletHandle<
+		'static,
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
 	>,
 	Option<SecretKey>,
 ) {

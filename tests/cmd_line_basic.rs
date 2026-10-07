@@ -181,7 +181,10 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let output = String::from_utf8(output.stdout).unwrap();
 	let accounts: Vec<_> = output
 		.lines()
-		.filter_map(|line| line.strip_prefix("Address for account - "))
+		.filter_map(|line| {
+			line.split_once("Address for account - ")
+				.map(|(_, name)| name)
+		})
 		.collect();
 	assert_eq!(accounts, ["account_1", "default", "account_1"]);
 
@@ -203,7 +206,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) =
 		instantiate_wallet(wallet_config1, client1.clone(), "password1", "default")?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	api1.set_active_account(mask1, "mining")?;
@@ -303,7 +306,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password1",
 		"default",
 	)?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	// Check our transaction log, should have 10 entries
@@ -333,7 +336,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password2",
 		"default",
 	)?;
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 	let api2 = Owner::new(wallet2.clone(), None, config2.config_file_path.clone());
 
 	api2.set_active_account(mask2, "account_1")?;
@@ -471,7 +474,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password1",
 		"default",
 	)?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	api1.set_active_account(mask1, "mining")?;
@@ -537,7 +540,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password1",
 		"default",
 	)?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	api1.set_active_account(mask1, "mining")?;
@@ -678,7 +681,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// get tx output via -tx parameter
 	api2.set_active_account(mask2, "default")?;
 	let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
-	let some_tx_id = txs[0].tx_slate_id.clone();
+	let some_tx_id = txs[0].tx_slate_id;
 	assert!(some_tx_id.is_some());
 	let tx_id = some_tx_id.unwrap().to_string().clone();
 	let arg_vec = vec!["grin-wallet", "-p", "password2", "txs", "-t", &tx_id[..]];

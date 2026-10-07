@@ -53,7 +53,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -65,7 +65,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {

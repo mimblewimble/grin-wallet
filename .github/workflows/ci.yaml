@@ -2,6 +2,17 @@ name: Continuous Integration
 on: [push, pull_request]
 
 jobs:
+  clippy:
+    name: Cargo clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - run: rustup toolchain install 1.99.0 --profile minimal --component clippy
+      - run: cargo +1.99.0 clippy --workspace --all-targets -- -D warnings
+
+  # Run tests alongside Clippy, even if lint fails
   linux-tests:
     name: Linux Tests
     runs-on: ubuntu-latest

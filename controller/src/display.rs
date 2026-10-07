@@ -63,7 +63,7 @@ pub fn outputs(
 	]);
 
 	for m in outputs {
-		let commit = format!("{}", m.commit.as_ref().to_hex());
+		let commit = m.commit.as_ref().to_hex();
 		let index = match m.output.mmr_index {
 			None => "None".to_owned(),
 			Some(t) => t.to_string(),
@@ -79,7 +79,7 @@ pub fn outputs(
 		};
 
 		let num_confirmations = format!("{}", m.output.num_confirmations(cur_height));
-		let value = format!("{}", amount_to_hr_string(m.output.value, false));
+		let value = amount_to_hr_string(m.output.value, false);
 		let tx = match m.output.tx_log_entry {
 			None => "".to_owned(),
 			Some(t) => t.to_string(),
@@ -222,7 +222,7 @@ pub fn txs(
 		let amount_debited_str = amount_to_hr_string(t.amount_debited, true);
 		let amount_credited_str = amount_to_hr_string(t.amount_credited, true);
 		let fee = match t.fee {
-			Some(f) => format!("{}", amount_to_hr_string(f.fee(), true)),
+			Some(f) => amount_to_hr_string(f.fee(), true),
 			None => "None".to_owned(),
 		};
 		let net_diff = if t.amount_credited >= t.amount_debited {
@@ -306,24 +306,17 @@ pub fn txs(
 	Ok(())
 }
 
-pub fn view_wallet_balance(w: ViewWallet, cur_height: u64, dark_background_color_scheme: bool) {
+pub fn view_wallet_balance(w: ViewWallet, cur_height: u64, _dark_background_color_scheme: bool) {
 	println!(
 		"\n____ View Wallet Summary Info - Block Height: {} ____\n Rewind Hash - {}\n",
 		cur_height, w.rewind_hash
 	);
 	let mut table = table!();
 
-	if dark_background_color_scheme {
-		table.add_row(row![
-			bFG->"Total Balance",
-			FG->amount_to_hr_string(w.total_balance, false)
-		]);
-	} else {
-		table.add_row(row![
-			bFG->"Total Balance",
-			FG->amount_to_hr_string(w.total_balance, false)
-		]);
-	};
+	table.add_row(row![
+		bFG->"Total Balance",
+		FG->amount_to_hr_string(w.total_balance, false)
+	]);
 	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
 	table.printstd();
 	println!();
@@ -360,13 +353,13 @@ pub fn view_wallet_output(
 	]);
 
 	for m in view_wallet.output_result {
-		let commit = format!("{}", m.commit);
+		let commit = m.commit.as_str();
 		let index = m.mmr_index;
 		let height = format!("{}", m.height);
 		let lock_height = format!("{}", m.lock_height);
 		let is_coinbase = format!("{}", m.is_coinbase);
 		let num_confirmations = format!("{}", m.num_confirmations(cur_height));
-		let value = format!("{}", amount_to_hr_string(m.value, false));
+		let value = amount_to_hr_string(m.value, false);
 
 		if dark_background_color_scheme {
 			table.add_row(row![
@@ -621,10 +614,7 @@ pub fn payment_proof(tx: &TxLogEntry) -> Result<(), Error> {
 	let amount = if tx.amount_credited >= tx.amount_debited {
 		amount_to_hr_string(tx.amount_credited - tx.amount_debited, true)
 	} else {
-		format!(
-			"{}",
-			amount_to_hr_string(tx.amount_debited - tx.amount_credited - fee, true)
-		)
+		amount_to_hr_string(tx.amount_debited - tx.amount_credited - fee, true)
 	};
 
 	let sender_signature = match pp.sender_signature {
