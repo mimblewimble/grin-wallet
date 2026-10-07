@@ -19,22 +19,23 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::grin_core::consensus::reward;
-use crate::grin_core::core::{Output, TxKernel};
-use crate::grin_core::global;
-use crate::grin_core::libtx::proof::ProofBuilder;
-use crate::grin_core::libtx::reward;
-use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util as util;
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::pedersen;
-use crate::grin_util::static_secp_instance;
 use crate::internal::keys;
 use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletInfo};
+use crate::AcctPathMapping;
 use crate::{
 	BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs, RetrieveTxQuerySortField,
 	RetrieveTxQuerySortOrder, WalletBackend,
 };
+use grin_core::consensus::reward;
+use grin_core::core::{Output, TxKernel};
+use grin_core::global;
+use grin_core::libtx::proof::ProofBuilder;
+use grin_core::libtx::reward;
+use grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
+use grin_util as util;
+use grin_util::secp::key::SecretKey;
+use grin_util::secp::pedersen;
+use grin_util::static_secp_instance;
 
 use num_bigint::BigInt;
 
@@ -319,11 +320,8 @@ where
 		return_txs.sort_by_key(|tx| tx.id);
 	}
 
-	if let Some(ref s) = query_args.sort_order {
-		match s {
-			RetrieveTxQuerySortOrder::Desc => return_txs.reverse(),
-			_ => {}
-		}
+	if let Some(RetrieveTxQuerySortOrder::Desc) = query_args.sort_order {
+		return_txs.reverse();
 	}
 
 	// Apply limit if requested
@@ -351,8 +349,8 @@ where
 	let mut txs;
 	// Adding in new transaction list query logic. If `tx_id` or `tx_slate_id`
 	// is provided, then `query_args` is ignored and old logic is followed.
-	if query_args.is_some() && tx_id.is_none() && tx_slate_id.is_none() {
-		txs = apply_advanced_tx_list_filtering(wallet, parent_key_id, &query_args.unwrap())?
+	if let Some(query_args) = query_args.filter(|_| tx_id.is_none() && tx_slate_id.is_none()) {
+		txs = apply_advanced_tx_list_filtering(wallet, parent_key_id, &query_args)?
 	} else {
 		let mut bad_records = 0;
 		txs = wallet
@@ -424,6 +422,7 @@ where
 /// transactions for the account and outputs without a transaction log entry.
 /// Returns mapping of output commit to tuple of derived key for output,
 /// PMMR index, tx entry log identifier and check if output is unspent
+#[allow(clippy::type_complexity)]
 pub fn map_wallet_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -441,7 +440,7 @@ where
 		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
 		.collect();
 
-	let tx_entries = retrieve_txs(wallet, None, None, None, Some(&parent_key_id), true)?;
+	let tx_entries = retrieve_txs(wallet, None, None, None, Some(parent_key_id), true)?;
 
 	// Only select outputs that are actually involved in an outstanding transaction
 	let unspents = match update_all {
@@ -502,6 +501,7 @@ pub(crate) fn cancel_tx_batch<K: Keychain>(
 }
 
 /// Apply refreshed API output data to the wallet
+#[allow(clippy::type_complexity)]
 fn apply_api_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -533,7 +533,7 @@ where
 		let mut batch = wallet.batch(keychain_mask)?;
 		for (commit, (id, mmr_index, _, _)) in wallet_outputs.iter() {
 			if let Ok(mut output) = batch.get(id, mmr_index) {
-				match api_outputs.get(&commit) {
+				match api_outputs.get(commit) {
 					Some(o) => {
 						// if this is a coinbase tx being confirmed, it's recordable in tx log
 						if output.is_coinbase && output.status == OutputStatus::Unconfirmed {
@@ -558,7 +558,7 @@ where
 							}
 							t.update_confirmation_ts();
 							output.tx_log_entry = Some(log_id);
-							batch.save_tx_log_entry(t, &parent_key_id)?;
+							batch.save_tx_log_entry(t, parent_key_id)?;
 						}
 						// also mark the transaction in which this output is involved as confirmed
 						// note that one involved input/output confirmation SHOULD be enough
@@ -567,14 +567,10 @@ where
 							&& (output.status == OutputStatus::Unconfirmed
 								|| output.status == OutputStatus::Reverted)
 						{
-							let tx = batch
-								.tx_log_iter()?
-								.filter(|t| t.is_ok())
-								.map(|t| t.unwrap())
-								.find(|t| {
-									Some(t.id) == output.tx_log_entry
-										&& t.parent_key_id == *parent_key_id
-								});
+							let tx = batch.tx_log_iter()?.flatten().find(|t| {
+								Some(t.id) == output.tx_log_entry
+									&& t.parent_key_id == *parent_key_id
+							});
 							if let Some(mut t) = tx {
 								if t.tx_type == TxLogEntryType::TxReverted {
 									t.tx_type = TxLogEntryType::TxReceived;
@@ -582,7 +578,7 @@ where
 								}
 								t.update_confirmation_ts();
 								t.confirmed = true;
-								batch.save_tx_log_entry(t, &parent_key_id)?;
+								batch.save_tx_log_entry(t, parent_key_id)?;
 							} else {
 								if let Some(tx_id) = output.tx_log_entry {
 									error!("apply_api_outputs: tx with id {:?} not found", tx_id);
@@ -623,7 +619,7 @@ where
 		{
 			if reverted_kernels.contains(&tx.id) && tx.parent_key_id == *parent_key_id {
 				tx.tx_type = TxLogEntryType::TxReverted;
-				tx.reverted_after = tx.confirmation_ts.clone().and_then(|t| {
+				tx.reverted_after = tx.confirmation_ts.and_then(|t| {
 					let now = chrono::Utc::now();
 					(now - t).to_std().ok()
 				});
@@ -640,7 +636,7 @@ where
 		}
 
 		for tx in txs_to_save {
-			batch.save_tx_log_entry(tx, &parent_key_id)?;
+			batch.save_tx_log_entry(tx, parent_key_id)?;
 		}
 
 		{
@@ -694,6 +690,7 @@ where
 	Ok(())
 }
 
+#[allow(clippy::type_complexity)]
 fn find_reverted_kernels<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
@@ -785,22 +782,12 @@ where
 	Ok(())
 }
 
-/// Retrieve summary info about the wallet
-/// caller should refresh first if desired
-pub fn retrieve_info<C, K>(
-	wallet: &mut WalletBackend<C, K>,
-	parent_key_id: &Identifier,
+/// Return summary info about the wallet account from provided outputs.
+fn account_outputs_info<T: std::borrow::Borrow<OutputData>>(
+	outputs: impl IntoIterator<Item = T>,
+	current_height: u64,
 	minimum_confirmations: u64,
-) -> Result<WalletInfo, Error>
-where
-	C: NodeClient,
-	K: Keychain,
-{
-	let current_height = wallet.last_confirmed_height_for_parent(parent_key_id)?;
-	let outputs = wallet
-		.iter()?
-		.filter(|out| out.root_key_id == *parent_key_id);
-
+) -> Result<WalletInfo, Error> {
 	let mut unspent_total = 0;
 	let mut immature_total = 0;
 	let mut awaiting_finalization_total = 0;
@@ -809,6 +796,7 @@ where
 	let mut reverted_total = 0;
 
 	for out in outputs {
+		let out = out.borrow();
 		match out.status {
 			OutputStatus::Unspent => {
 				if out.is_coinbase && out.lock_height > current_height {
@@ -849,6 +837,46 @@ where
 		amount_currently_spendable: unspent_total,
 		amount_reverted: reverted_total,
 	})
+}
+
+/// Retrieve summary info about the wallet accounts
+/// caller should refresh first if desired
+pub fn retrieve_accounts_info<C, K>(
+	wallet: &mut WalletBackend<C, K>,
+	minimum_confirmations: u64,
+) -> Result<Vec<AcctPathMapping>, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let outputs: Vec<OutputData> = wallet.iter()?.collect();
+	let mut accounts = keys::accounts(wallet)?;
+	for a in accounts.iter_mut() {
+		let os = outputs.iter().filter(|out| out.root_key_id == a.path);
+		let current_height = wallet.last_confirmed_height_for_parent(&a.path)?;
+		let info = account_outputs_info(os, current_height, minimum_confirmations)?;
+		a.info = Some(info);
+	}
+	Ok(accounts)
+}
+
+/// Retrieve summary info about the wallet
+/// caller should refresh first if desired
+pub fn retrieve_info<C, K>(
+	wallet: &mut WalletBackend<C, K>,
+	parent_key_id: &Identifier,
+	minimum_confirmations: u64,
+) -> Result<WalletInfo, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	let outputs = wallet
+		.iter()?
+		.filter(|out| out.root_key_id == *parent_key_id);
+	let current_height = wallet.last_confirmed_height_for_parent(parent_key_id)?;
+	let info = account_outputs_info(outputs, current_height, minimum_confirmations)?;
+	Ok(info)
 }
 
 /// Build a coinbase output and insert into wallet

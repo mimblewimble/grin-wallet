@@ -49,7 +49,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		true,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -61,7 +61,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		true,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -80,7 +80,7 @@ fn invoice_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut _bh = 10u64;
 	let _ =

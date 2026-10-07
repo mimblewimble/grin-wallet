@@ -56,7 +56,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		true,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	println!("Mask1: {:?}", mask1);
 	create_wallet_and_add!(
 		client2,
@@ -69,7 +69,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 	println!("Mask2: {:?}", mask2);
 
 	// Set the wallet proxy listener running
@@ -530,7 +530,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -542,7 +542,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -592,10 +592,10 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			api1.retrieve_outputs(mask1, true, false, Some(tx.unwrap().id))?;
 		for m in output_mappings.clone() {
 			if m.output.status == OutputStatus::Locked {
-				locked_count = locked_count + 1;
+				locked_count += 1;
 			}
 			if m.output.status == OutputStatus::Unconfirmed {
-				unconfirmed_count = unconfirmed_count + 1;
+				unconfirmed_count += 1;
 			}
 		}
 		assert_eq!(output_mappings.len(), 3);
@@ -614,7 +614,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		let (_, outputs) = api2.retrieve_outputs(mask2, true, false, Some(tx.unwrap().id))?;
 		for m in outputs.clone() {
 			if m.output.status == OutputStatus::Unconfirmed {
-				unconfirmed_count = unconfirmed_count + 1;
+				unconfirmed_count += 1;
 			}
 		}
 		assert_eq!(outputs.len(), 1);
@@ -697,7 +697,7 @@ fn big_amount_error(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		true,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	println!("Mask1: {:?}", mask1);
 
 	// Set the wallet proxy listener running
@@ -762,16 +762,15 @@ fn big_amount_error(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	match result {
 		Ok(_) => {}
-		Err(e) => match e {
-			libwallet::Error::BigAmountError(a, fee, num_inputs) => {
+		Err(e) => {
+			if let libwallet::Error::BigAmountError(a, fee, num_inputs) = e {
 				let (_, e_a, e_fee, e_num_inputs) =
 					api1.estimate_max_sendable(mask1, true, min_confirmations)?;
 				assert_eq!(e_a, a - fee);
 				assert_eq!(e_fee, fee);
 				assert_eq!(e_num_inputs, num_inputs);
 			}
-			_ => {}
-		},
+		}
 	}
 
 	// let logging finish

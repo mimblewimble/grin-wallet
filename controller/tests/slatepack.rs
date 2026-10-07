@@ -57,7 +57,7 @@ fn output_slatepack(
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	PathToSlatepack::new(file.into(), &packer, armored).put_tx(&slate, use_bin)
+	PathToSlatepack::new(file.into(), &packer, armored).put_tx(slate, use_bin)
 }
 
 fn slate_from_packed(
@@ -103,7 +103,7 @@ fn slatepack_exchange_test_impl(
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -115,7 +115,7 @@ fn slatepack_exchange_test_impl(
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -137,7 +137,7 @@ fn slatepack_exchange_test_impl(
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut bh = 10u64;
 	let _ =
@@ -213,11 +213,11 @@ fn slatepack_exchange_test_impl(
 	// Get some mining done
 	{
 		wallet_inst!(wallet2, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
 
 	let (mut slatepack, mut slate) =
-		slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
+		slate_from_packed(&send_file, use_armored, dec_key_2.as_ref())?;
 
 	// wallet 2 receives file, completes, sends file back
 	wallet::controller::foreign_single_use(
@@ -243,7 +243,7 @@ fn slatepack_exchange_test_impl(
 	)?;
 
 	// wallet 1 finalizes and posts
-	let (_, mut slate) = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
+	let (_, mut slate) = slate_from_packed(&receive_file, use_armored, dec_key_1.as_ref())?;
 	slate = api1.finalize_tx(mask1, &slate)?;
 	// Output final file for reference
 	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
@@ -303,7 +303,7 @@ fn slatepack_exchange_test_impl(
 		selection_strategy_is_use_all: true,
 		..Default::default()
 	};
-	let res = slate_from_packed(&send_file, use_armored, (&dec_key_1).as_ref())?;
+	let res = slate_from_packed(&send_file, use_armored, dec_key_1.as_ref())?;
 	slatepack = res.0;
 	slate = res.1;
 	slate = api1.process_invoice_tx(mask1, &slate, args)?;
@@ -325,7 +325,7 @@ fn slatepack_exchange_test_impl(
 		mask2_i.clone(),
 		|api| {
 			// Wallet 2 receives the invoice transaction
-			let res = slate_from_packed(&receive_file, use_armored, (&dec_key_2).as_ref())?;
+			let res = slate_from_packed(&receive_file, use_armored, dec_key_2.as_ref())?;
 			slate = res.1;
 			slate = api.finalize_tx(&slate, false)?;
 			output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
@@ -378,7 +378,7 @@ fn slatepack_exchange_test_impl(
 		PathBuf::from(test_dir),
 		mask2_i.clone(),
 		|api| {
-			let res = slate_from_packed(&send_file, use_armored, (&dec_key_2).as_ref())?;
+			let res = slate_from_packed(&send_file, use_armored, dec_key_2.as_ref())?;
 			let slatepack = res.0;
 			slate = res.1;
 			slate = api.receive_tx(&slate, None, None)?;
@@ -398,7 +398,7 @@ fn slatepack_exchange_test_impl(
 	)?;
 
 	// wallet 1 finalizes and posts
-	let res = slate_from_packed(&receive_file, use_armored, (&dec_key_1).as_ref())?;
+	let res = slate_from_packed(&receive_file, use_armored, dec_key_1.as_ref())?;
 	slate = res.1;
 	slate = api1.finalize_tx(mask1, &slate)?;
 	// Output final file for reference
@@ -432,7 +432,7 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -494,7 +494,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	create_wallet_and_add!(
 		client2,
@@ -507,7 +507,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	let proxy_thread = thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {

@@ -18,15 +18,11 @@ use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
-	WalletLCProvider,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletLCProvider,
 };
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
-use crate::util::Mutex;
 use libwallet::SlatepackAddress;
-
-use std::sync::Arc;
 
 /// ForeignAPI Middleware Check callback
 pub type ForeignCheckMiddleware =
@@ -51,15 +47,14 @@ pub enum ForeignCheckMiddlewareFn {
 /// called the ['Owner'](struct.Owner.html) and ['Foreign'](struct.Foreign.html) APIs
 ///
 /// * The 'Foreign' API contains methods that other wallets will
-/// use to interact with the owner's wallet. This API can be exposed
-/// to the outside world, with the consideration as to how that can
-/// be done securely up to the implementor.
+///   use to interact with the owner's wallet. This API can be exposed
+///   to the outside world, with the consideration as to how that can
+///   be done securely up to the implementor.
 ///
 /// Methods in both APIs are intended to be 'single use', that is to say each
 /// method will 'open' the wallet (load the keychain with its master seed), perform
 /// its operation, then 'close' the wallet (unloading references to the keychain and master
 /// seed).
-
 pub struct Foreign<'a, L, C, K>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -67,7 +62,7 @@ where
 	K: Keychain + 'a,
 {
 	/// Wallet instance
-	pub wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	pub wallet_inst: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	/// Wallet configuration path
 	config_path: crate::ConfigPath,
 	/// Flag to normalize some output during testing. Can mostly be ignored.
@@ -94,13 +89,13 @@ where
 	///
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
-	/// [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	///   [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
 	/// * `config_path` - Path to the wallet configuration file
 	/// * `keychain_mask` - Mask value stored internally to use when calling a wallet
-	/// whose seed has been XORed with a token value (such as when running the foreign
-	/// and owner listeners in the same instance)
+	///   whose seed has been XORed with a token value (such as when running the foreign
+	///   and owner listeners in the same instance)
 	/// * middleware - Option middleware which containts the NodeVersionInfo and can call
-	/// a predefined function with the slate to check if the operation should continue
+	///   a predefined function with the slate to check if the operation should continue
 	///
 	/// # Returns
 	/// * An instance of the ForeignApi holding a reference to the provided wallet
@@ -170,9 +165,8 @@ where
 	/// // .. perform wallet operations
 	///
 	/// ```
-
 	pub fn new<P>(
-		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		wallet_inst: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 		config_path: P,
 		keychain_mask: Option<SecretKey>,
 		middleware: Option<ForeignCheckMiddleware>,
@@ -205,7 +199,6 @@ where
 	/// let version_info = api_foreign.check_version();
 	/// // check and proceed accordingly
 	/// ```
-
 	pub fn check_version(&self) -> Result<VersionInfo, Error> {
 		if let Some(m) = self.middleware.as_ref() {
 			let mut w_lock = self.wallet_inst.lock();
@@ -231,7 +224,7 @@ where
 	/// # Arguments
 	///
 	/// * `block_fees` - A [`BlockFees`](../grin_wallet_libwallet/api_impl/types/struct.BlockFees.html)
-	/// struct, set up as follows:
+	///   struct, set up as follows:
 	///
 	/// `fees` - should contain the sum of all transaction fees included in the potential
 	/// block
@@ -244,7 +237,7 @@ where
 	///
 	/// # Returns
 	/// * `Ok`([`cb_data`](../grin_wallet_libwallet/api_impl/types/struct.CbData.html)`)` if successful. This
-	/// will contain the corresponding output, kernel and keyID used to create the coinbase output.
+	///   will contain the corresponding output, kernel and keyID used to create the coinbase output.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -268,7 +261,6 @@ where
 	///     // ...
 	/// }
 	/// ```
-
 	pub fn build_coinbase(&self, block_fees: &BlockFees) -> Result<CbData, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -281,7 +273,7 @@ where
 		}
 		foreign::build_coinbase(
 			w,
-			(&self.keychain_mask).as_ref(),
+			self.keychain_mask.as_ref(),
 			block_fees,
 			self.doctest_mode,
 		)
@@ -304,18 +296,18 @@ where
 	///
 	/// # Arguments
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
-	/// The slate should contain the results of the sender's round 1 (e.g, public nonce and public
-	/// excess value).
+	///   The slate should contain the results of the sender's round 1 (e.g, public nonce and public
+	///   excess value).
 	/// * `dest_acct_name` - The name of the account into which the slate should be received. If
-	/// `None`, the default account is used.
+	///   `None`, the default account is used.
 	/// * `r_addr` - If included, attempt to send the slate back to the sender using the slatepack sync
-	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
-	/// sync_send was successful (it should be S3 if the synced send sent successfully).
+	///   send (TOR). If providing this argument, check the `state` field of the slate to see if the
+	///   sync_send was successful (it should be S3 if the synced send sent successfully).
 	///
 	/// # Returns
 	/// * a result containing:
 	/// * `Ok`([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html)`)` if successful,
-	/// containing the new slate updated with the recipient's output and public signing information.
+	///   containing the new slate updated with the recipient's output and public signing information.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
@@ -339,7 +331,6 @@ where
 	///     // ...
 	/// }
 	/// ```
-
 	pub fn receive_tx(
 		&self,
 		slate: &Slate,
@@ -362,7 +353,7 @@ where
 		let parent_key_id = w.parent_key_id_for(dest_acct_name)?;
 		let ret_slate = foreign::receive_tx(
 			w,
-			(&self.keychain_mask).as_ref(),
+			self.keychain_mask.as_ref(),
 			slate,
 			dest_acct_name,
 			self.doctest_mode,
@@ -384,7 +375,7 @@ where
 						let w = w_lock.lc_provider()?.wallet_inst()?;
 						match update_tx_slate_state(
 							w,
-							(&self.keychain_mask).as_ref(),
+							self.keychain_mask.as_ref(),
 							&parent_key_id,
 							&s,
 						) {
@@ -419,11 +410,11 @@ where
 	/// # Arguments
 	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
 	/// * `post_automatically` - If true, post the finalized transaction to the configured listening
-	/// node
+	///   node
 	///
 	/// # Returns
 	/// * Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html)) if successful,
-	/// containing the new finalized slate.
+	///   containing the new finalized slate.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Example
@@ -450,7 +441,6 @@ where
 	/// let slate = api_foreign.finalize_tx(&slate, true);
 	/// // if okay, then post via the owner API
 	/// ```
-
 	pub fn finalize_tx(&self, slate: &Slate, post_automatically: bool) -> Result<Slate, Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -458,7 +448,7 @@ where
 			true => false,
 			false => post_automatically,
 		};
-		foreign::finalize_tx(w, (&self.keychain_mask).as_ref(), slate, post_automatically)
+		foreign::finalize_tx(w, self.keychain_mask.as_ref(), slate, post_automatically)
 	}
 }
 

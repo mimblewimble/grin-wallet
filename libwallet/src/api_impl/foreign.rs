@@ -20,14 +20,14 @@ use super::owner::tx_lock_outputs;
 use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::api_impl::types::update_tx_slate_state;
 use crate::backend::WalletBackend;
-use crate::grin_core::core::FeeFields;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
 };
+use grin_core::core::FeeFields;
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -161,7 +161,7 @@ where
 		selection::repopulate_tx(w, keychain_mask, &mut sl, &temp_ctx, false)?;
 
 		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
-		tx::update_stored_tx(w, keychain_mask, &context, &mut sl, true)?;
+		tx::update_stored_tx(w, keychain_mask, &context, &sl, true)?;
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
 	} else if sl.state == SlateState::Standard2 {

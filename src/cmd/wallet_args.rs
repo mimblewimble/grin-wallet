@@ -106,7 +106,7 @@ fn prompt_password_confirm() -> Result<ZeroingString, Error> {
 }
 
 fn prompt_recovery_phrase<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 ) -> Result<ZeroingString, ParseError>
 where
 	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
@@ -198,7 +198,7 @@ fn prompt_pay_invoice(slate: &Slate, dest: &str) -> Result<bool, ParseError> {
 		"* {} of your wallet funds will be added to the transaction to pay this invoice.",
 		amount
 	);
-	if dest.len() > 0 {
+	if !dest.is_empty() {
 		println!("* The wallet will IMMEDIATELY attempt to send the resulting transaction to the wallet listening at: '{}'.", dest);
 		println!("* If other wallet is not listening, the resulting transaction will output as a slatepack which you can manually send back to the invoice creator.");
 	} else {
@@ -239,7 +239,7 @@ fn prompt_pay_invoice(slate: &Slate, dest: &str) -> Result<bool, ParseError> {
 pub fn inst_wallet<L, C, K>(
 	config: WalletConfig,
 	node_client: C,
-) -> Result<Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>, ParseError>
+) -> Result<grin_wallet_libwallet::WalletHandle<'static, L, C, K>, ParseError>
 where
 	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
 	L: WalletLCProvider<'static, C, K>,
@@ -294,31 +294,25 @@ fn parse_u64(arg: &str, name: &str) -> Result<u64, ParseError> {
 
 // As above, but optional
 fn parse_u64_or_none(arg: Option<&str>) -> Option<u64> {
-	let val = match arg {
-		Some(a) => a.parse::<u64>(),
-		None => return None,
-	};
-	match val {
-		Ok(v) => Some(v),
-		Err(_) => None,
-	}
+	arg?.parse().ok()
 }
 
 pub fn parse_global_args(
 	config: &WalletConfig,
 	args: &ArgMatches,
 ) -> Result<command::GlobalArgs, ParseError> {
-	let account = parse_required(args, "account")?;
+	let account = if args.subcommand_matches("account").is_some() {
+		None
+	} else {
+		parse_optional(args, "account")?
+	};
 	let mut show_spent = false;
 	if args.is_present("show_spent") {
 		show_spent = true;
 	}
 	let api_secret = get_first_line(config.api_secret_path.clone());
 	let node_api_secret = get_first_line(config.node_api_secret_path.clone());
-	let password = match args.value_of("pass") {
-		None => None,
-		Some(p) => Some(ZeroingString::from(p)),
-	};
+	let password = args.value_of("pass").map(ZeroingString::from);
 
 	let tls_conf = match config.tls_certificate_file.clone() {
 		None => None,
@@ -335,7 +329,7 @@ pub fn parse_global_args(
 	};
 
 	Ok(command::GlobalArgs {
-		account: account.to_owned(),
+		account,
 		show_spent,
 		api_secret,
 		node_api_secret,
@@ -345,7 +339,7 @@ pub fn parse_global_args(
 }
 
 pub fn parse_init_args<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 	config: &WalletConfig,
 	g_args: &command::GlobalArgs,
 	args: &ArgMatches,
@@ -427,11 +421,24 @@ pub fn parse_scan_rewind_hash_args(
 }
 
 pub fn parse_account_args(account_args: &ArgMatches) -> Result<command::AccountArgs, ParseError> {
-	let create = match account_args.value_of("create") {
-		None => None,
-		Some(s) => Some(s.to_owned()),
-	};
-	Ok(command::AccountArgs { create })
+	let create = account_args.value_of("create").map(|s| s.to_owned());
+
+	let active = account_args.value_of("active").map(|s| s.to_owned());
+
+	if create.is_some() && active.is_some() {
+		let msg = "create and active cannot both be present".to_string();
+		return Err(ParseError::ArgumentError(msg));
+	}
+
+	// minimum_confirmations
+	let min_c = parse_required(account_args, "minimum_confirmations")?;
+	let min_c = parse_u64(min_c, "minimum_confirmations")?;
+
+	Ok(command::AccountArgs {
+		create,
+		minimum_confirmations: min_c,
+		active,
+	})
 }
 
 pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseError> {
@@ -467,11 +474,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	let late_lock = args.is_present("late_lock");
 
 	// dest
-	let dest = if let Some(dest) = args.value_of("dest") {
-		Some(dest.to_owned())
-	} else {
-		None
-	};
+	let dest = args.value_of("dest").map(|dest| dest.to_owned());
 
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
@@ -519,10 +522,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		None
 	};
 
-	let bridge = match args.value_of("bridge") {
-		Some(b) => Some(b.to_string()),
-		None => None,
-	};
+	let bridge = args.value_of("bridge").map(|b| b.to_string());
 
 	let slatepack_qr = args.is_present("slatepack_qr");
 
@@ -555,7 +555,7 @@ pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Par
 			let file = args.value_of("input").unwrap().to_owned();
 			// validate input
 			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
+				let msg = format!("File {} not found.", file);
 				return Err(ParseError::ArgumentError(msg));
 			}
 			Some(file)
@@ -597,7 +597,7 @@ pub fn parse_unpack_args(args: &ArgMatches) -> Result<command::ReceiveArgs, Pars
 			let file = args.value_of("input").unwrap().to_owned();
 			// validate input
 			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
+				let msg = format!("File {} not found.", file);
 				return Err(ParseError::ArgumentError(msg));
 			}
 			Some(file)
@@ -641,7 +641,7 @@ pub fn parse_finalize_args(args: &ArgMatches) -> Result<command::FinalizeArgs, P
 			let file = args.value_of("input").unwrap().to_owned();
 			// validate input
 			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
+				let msg = format!("File {} not found.", file);
 				return Err(ParseError::ArgumentError(msg));
 			}
 			Some(file)
@@ -696,11 +696,7 @@ pub fn parse_issue_invoice_args(
 	};
 
 	// dest, for encryption
-	let dest = if let Some(dest) = args.value_of("dest") {
-		Some(dest.to_owned())
-	} else {
-		None
-	};
+	let dest = args.value_of("dest").map(|dest| dest.to_owned());
 
 	let outfile = parse_optional(args, "outfile")?;
 
@@ -733,7 +729,7 @@ where
 			let file = args.value_of("input").unwrap().to_owned();
 			// validate input
 			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
+				let msg = format!("File {} not found.", file);
 				return Err(Error::GenericError(msg));
 			}
 			Some(file)
@@ -800,11 +796,7 @@ pub fn parse_process_invoice_args(
 
 	let slatepack_qr = args.is_present("slatepack_qr");
 
-	let ret_address = if let Some(a) = ret_address {
-		Some(a.to_string())
-	} else {
-		None
-	};
+	let ret_address = ret_address.map(|a| a.to_string());
 
 	Ok(command::ProcessInvoiceArgs {
 		minimum_confirmations: min_c,
@@ -884,7 +876,7 @@ pub fn parse_post_args(args: &ArgMatches) -> Result<command::PostArgs, ParseErro
 			let file = args.value_of("input").unwrap().to_owned();
 			// validate input
 			if !Path::new(&file).is_file() {
-				let msg = format!("File {} not found.", &file);
+				let msg = format!("File {} not found.", file);
 				return Err(ParseError::ArgumentError(msg));
 			}
 			Some(file)
@@ -911,10 +903,7 @@ pub fn parse_repost_args(args: &ArgMatches) -> Result<command::RepostArgs, Parse
 	};
 
 	let fluff = args.is_present("fluff");
-	let dump_file = match args.value_of("dumpfile") {
-		None => None,
-		Some(d) => Some(d.to_owned()),
-	};
+	let dump_file = args.value_of("dumpfile").map(|d| d.to_owned());
 
 	Ok(command::RepostArgs {
 		id: tx_id.unwrap(),
@@ -1001,17 +990,11 @@ pub fn wallet_command<C, F>(
 where
 	C: NodeClient + 'static + Clone,
 	F: FnOnce(
-		Arc<
-			Mutex<
-				Box<
-					dyn WalletInst<
-						'static,
-						DefaultLCProvider<C, keychain::ExtKeychain>,
-						C,
-						keychain::ExtKeychain,
-					>,
-				>,
-			>,
+		grin_wallet_libwallet::WalletHandle<
+			'static,
+			DefaultLCProvider<C, keychain::ExtKeychain>,
+			C,
+			keychain::ExtKeychain,
 		>,
 	),
 {
@@ -1024,7 +1007,7 @@ where
 		wallet_config.check_node_api_http_addr = sa.to_string().clone();
 	}
 
-	let global_wallet_args = arg_parse!(parse_global_args(&wallet_config, &wallet_args));
+	let global_wallet_args = arg_parse!(parse_global_args(&wallet_config, wallet_args));
 
 	node_client.set_node_url(&wallet_config.check_node_api_http_addr);
 	node_client.set_node_api_secret(global_wallet_args.node_api_secret.clone());
@@ -1109,7 +1092,7 @@ where
 				&wallet_config,
 				tor_config,
 				&global_wallet_args,
-				&wallet_args,
+				wallet_args,
 				test_mode,
 				false,
 			)
@@ -1124,7 +1107,7 @@ where
 }
 
 fn open_wallet<L, C, K>(
-	wallet: &Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet: &grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 	global_wallet_args: &GlobalArgs,
 	wallet_args: &ArgMatches,
 ) -> Result<Option<SecretKey>, Error>
@@ -1143,11 +1126,12 @@ where
 	)?;
 	if let Some(account) = wallet_args.value_of("account") {
 		let wallet_inst = lc.wallet_inst()?;
-		wallet_inst.set_parent_key_id_by_name(account)?;
+		wallet_inst.set_account_by_name(account)?;
 	}
 	Ok(mask)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn parse_and_execute<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
@@ -1164,7 +1148,7 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let km = (&keychain_mask).as_ref();
+	let km = keychain_mask.as_ref();
 
 	if test_mode {
 		owner_api.doctest_mode = true;
@@ -1177,13 +1161,13 @@ where
 				owner_api.wallet_inst.clone(),
 				wallet_config,
 				global_wallet_args,
-				&args,
+				args,
 				test_mode,
 			));
-			command::init(owner_api, &global_wallet_args, a, test_mode)
+			command::init(owner_api, global_wallet_args, a, test_mode)
 		}
 		("recover", Some(_)) => {
-			let a = arg_parse!(parse_recover_args(&global_wallet_args,));
+			let a = arg_parse!(parse_recover_args(global_wallet_args,));
 			command::recover(owner_api, a)
 		}
 		("listen", Some(args)) => {
@@ -1191,11 +1175,7 @@ where
 			if let Some(port) = args.value_of("port") {
 				c.api_listen_port = port.parse().unwrap();
 			}
-			let bridge = if let Some(bridge) = args.value_of("bridge") {
-				Some(bridge.into())
-			} else {
-				None
-			};
+			let bridge = args.value_of("bridge").map(|bridge| bridge.into());
 			let use_tor = if args.is_present("no_tor") {
 				Some(false)
 			} else {
@@ -1216,7 +1196,7 @@ where
 			let mut c = wallet_config.clone();
 			let mut g = global_wallet_args.clone();
 			g.tls_conf = None;
-			arg_parse!(parse_owner_api_args(&mut c, &args));
+			arg_parse!(parse_owner_api_args(&mut c, args));
 			command::owner_api(owner_api, keychain_mask, &c, &g, test_mode)
 		}
 		("web", Some(_)) => command::owner_api(
@@ -1228,7 +1208,7 @@ where
 		),
 		("rewind_hash", Some(_)) => command::rewind_hash(owner_api, km),
 		("scan_rewind_hash", Some(args)) => {
-			let a = arg_parse!(parse_scan_rewind_hash_args(&args));
+			let a = arg_parse!(parse_scan_rewind_hash_args(args));
 			command::scan_rewind_hash(
 				owner_api,
 				a,
@@ -1236,11 +1216,11 @@ where
 			)
 		}
 		("account", Some(args)) => {
-			let a = arg_parse!(parse_account_args(&args));
+			let a = arg_parse!(parse_account_args(args));
 			command::account(owner_api, km, a)
 		}
 		("send", Some(args)) => {
-			let a = arg_parse!(parse_send_args(&args));
+			let a = arg_parse!(parse_send_args(args));
 			if let Some(account) = args.value_of("to_account") {
 				return command::send_to_account(
 					owner_api,
@@ -1262,29 +1242,27 @@ where
 			)
 		}
 		("receive", Some(args)) => {
-			let a = arg_parse!(parse_receive_args(&args));
-			command::receive(owner_api, km, &global_wallet_args, a, tor_config, test_mode)
+			let a = arg_parse!(parse_receive_args(args));
+			command::receive(owner_api, km, a, tor_config, test_mode)
 		}
 		("unpack", Some(args)) => {
-			let a = arg_parse!(parse_unpack_args(&args));
+			let a = arg_parse!(parse_unpack_args(args));
 			let slatepack = command::read_slatepack(a)?;
 			command::unpack(owner_api, km, slatepack)
 		}
 		("finalize", Some(args)) => {
-			let a = arg_parse!(parse_finalize_args(&args));
+			let a = arg_parse!(parse_finalize_args(args));
 			command::finalize(owner_api, km, a)
 		}
 		("invoice", Some(args)) => {
-			let a = arg_parse!(parse_issue_invoice_args(&args));
+			let a = arg_parse!(parse_issue_invoice_args(args));
 			command::issue_invoice_tx(owner_api, km, a)
 		}
 		("pay", Some(args)) => {
 			// get slate first
 			let (slate, address) = get_slate(owner_api, km, args)?;
 
-			let a = arg_parse!(parse_process_invoice_args(
-				&args, !test_mode, slate, address
-			));
+			let a = arg_parse!(parse_process_invoice_args(args, !test_mode, slate, address));
 			command::process_invoice(
 				owner_api,
 				km,
@@ -1295,11 +1273,10 @@ where
 			)
 		}
 		("info", Some(args)) => {
-			let a = arg_parse!(parse_info_args(&args));
+			let a = arg_parse!(parse_info_args(args));
 			command::info(
 				owner_api,
 				km,
-				global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
@@ -1307,42 +1284,41 @@ where
 		("outputs", Some(_)) => command::outputs(
 			owner_api,
 			km,
-			&global_wallet_args,
+			global_wallet_args,
 			wallet_config.dark_background_color_scheme.unwrap_or(true),
 		),
 		("txs", Some(args)) => {
-			let a = arg_parse!(parse_txs_args(&args));
+			let a = arg_parse!(parse_txs_args(args));
 			command::txs(
 				owner_api,
 				km,
-				&global_wallet_args,
 				a,
 				wallet_config.dark_background_color_scheme.unwrap_or(true),
 			)
 		}
 		("post", Some(args)) => {
-			let a = arg_parse!(parse_post_args(&args));
+			let a = arg_parse!(parse_post_args(args));
 			command::post(owner_api, km, a)
 		}
 		("repost", Some(args)) => {
-			let a = arg_parse!(parse_repost_args(&args));
+			let a = arg_parse!(parse_repost_args(args));
 			command::repost(owner_api, km, a)
 		}
 		("cancel", Some(args)) => {
-			let a = arg_parse!(parse_cancel_args(&args));
+			let a = arg_parse!(parse_cancel_args(args));
 			command::cancel(owner_api, km, a)
 		}
 		("export_proof", Some(args)) => {
-			let a = arg_parse!(parse_export_proof_args(&args));
+			let a = arg_parse!(parse_export_proof_args(args));
 			command::proof_export(owner_api, km, a)
 		}
 		("verify_proof", Some(args)) => {
-			let a = arg_parse!(parse_verify_proof_args(&args));
+			let a = arg_parse!(parse_verify_proof_args(args));
 			command::proof_verify(owner_api, km, a)
 		}
-		("address", Some(_)) => command::address(owner_api, &global_wallet_args, km),
+		("address", Some(_)) => command::address(owner_api, km),
 		("scan", Some(args)) => {
-			let a = arg_parse!(parse_check_args(&args));
+			let a = arg_parse!(parse_check_args(args));
 			command::scan(owner_api, km, a)
 		}
 		("open", Some(_)) => {

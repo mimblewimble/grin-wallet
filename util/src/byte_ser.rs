@@ -63,7 +63,7 @@ where
 	Ok(serializer.output)
 }
 
-impl<'a> ser::Serializer for &'a mut ByteSerializer {
+impl ser::Serializer for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 	type SerializeSeq = Self;
@@ -226,7 +226,7 @@ impl<'a> ser::Serializer for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeSeq for &'a mut ByteSerializer {
+impl ser::SerializeSeq for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -242,7 +242,7 @@ impl<'a> ser::SerializeSeq for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeTuple for &'a mut ByteSerializer {
+impl ser::SerializeTuple for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -258,7 +258,7 @@ impl<'a> ser::SerializeTuple for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeTupleStruct for &'a mut ByteSerializer {
+impl ser::SerializeTupleStruct for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -274,7 +274,7 @@ impl<'a> ser::SerializeTupleStruct for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeTupleVariant for &'a mut ByteSerializer {
+impl ser::SerializeTupleVariant for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -290,7 +290,7 @@ impl<'a> ser::SerializeTupleVariant for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeMap for &'a mut ByteSerializer {
+impl ser::SerializeMap for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -313,7 +313,7 @@ impl<'a> ser::SerializeMap for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeStruct for &'a mut ByteSerializer {
+impl ser::SerializeStruct for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -329,7 +329,7 @@ impl<'a> ser::SerializeStruct for &'a mut ByteSerializer {
 	}
 }
 
-impl<'a> ser::SerializeStructVariant for &'a mut ByteSerializer {
+impl ser::SerializeStructVariant for &mut ByteSerializer {
 	type Ok = ();
 	type Error = Error;
 
@@ -366,7 +366,7 @@ where
 	Ok(t)
 }
 
-impl<'de, 'a> de::Deserializer<'de> for &'a mut ByteDeserializer<'de> {
+impl<'de> de::Deserializer<'de> for &mut ByteDeserializer<'de> {
 	type Error = Error;
 
 	fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>

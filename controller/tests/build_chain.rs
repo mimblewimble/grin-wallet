@@ -50,7 +50,7 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 		true,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	debug!("Mask1: {:?}", mask1);
 	create_wallet_and_add!(
 		client2,
@@ -63,7 +63,7 @@ fn build_chain(test_dir: &'static str, block_height: usize) -> Result<(), libwal
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 	debug!("Mask2: {:?}", mask2);
 
 	// Set the wallet proxy listener running

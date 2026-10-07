@@ -50,11 +50,9 @@ pub fn min_size() -> u64 {
 }
 
 lazy_static! {
-	static ref HEADER_REGEX: Regex =
-		Regex::new(concat!(r"^[>\n\r\t ]*BEGINSLATEPACK[>\n\r\t ]*$")).unwrap();
-	static ref FOOTER_REGEX: Regex =
-		Regex::new(concat!(r"^[>\n\r\t ]*ENDSLATEPACK[>\n\r\t ]*$")).unwrap();
-	static ref WHITESPACE_LIST: [u8; 5] = [b'>', b'\n', b'\r', b'\t', b' '];
+	static ref HEADER_REGEX: Regex = Regex::new(r"^[>\n\r\t ]*BEGINSLATEPACK[>\n\r\t ]*$").unwrap();
+	static ref FOOTER_REGEX: Regex = Regex::new(r"^[>\n\r\t ]*ENDSLATEPACK[>\n\r\t ]*$").unwrap();
+	static ref WHITESPACE_LIST: [u8; 5] = *b">\n\r\t ";
 }
 
 /// Wrapper for associated functions
