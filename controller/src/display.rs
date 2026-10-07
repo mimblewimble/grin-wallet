@@ -182,35 +182,31 @@ pub fn txs(
 			None => "None".to_owned(),
 		};
 
-		let entry_type = format!(
-			"{}",
-			match t.tx_type {
-				TxLogEntryType::ConfirmedCoinbase => "Coinbase",
-				TxLogEntryType::TxReceived => "Received Tx",
-				TxLogEntryType::TxSent => "Sent Tx",
-				TxLogEntryType::TxReceivedCancelled => "Received Tx",
-				TxLogEntryType::TxSentCancelled => "Sent Tx",
-				TxLogEntryType::TxReverted => "Received Tx",
-			}
-		);
+		let entry_type = (match t.tx_type {
+			TxLogEntryType::ConfirmedCoinbase => "Coinbase",
+			TxLogEntryType::TxReceived => "Received Tx",
+			TxLogEntryType::TxSent => "Sent Tx",
+			TxLogEntryType::TxReceivedCancelled => "Received Tx",
+			TxLogEntryType::TxSentCancelled => "Sent Tx",
+			TxLogEntryType::TxReverted => "Received Tx",
+		})
+		.to_string();
 		let entry_type_state = match t.tx_slate_state.as_ref() {
-			None => format!("{}", entry_type),
+			None => entry_type.to_string(),
 			Some(s) => format!("{} ({})", entry_type, s),
 		};
-		let entry_type_desc = format!(
-			"{}",
-			match t.tx_type {
-				TxLogEntryType::ConfirmedCoinbase => "Confirmed",
-				TxLogEntryType::TxReceived => "",
-				TxLogEntryType::TxSent => "",
-				TxLogEntryType::TxReceivedCancelled => "Cancelled",
-				TxLogEntryType::TxSentCancelled => "Cancelled",
-				TxLogEntryType::TxReverted => "Reverted",
-			}
-		);
+		let entry_type_desc = (match t.tx_type {
+			TxLogEntryType::ConfirmedCoinbase => "Confirmed",
+			TxLogEntryType::TxReceived => "",
+			TxLogEntryType::TxSent => "",
+			TxLogEntryType::TxReceivedCancelled => "Cancelled",
+			TxLogEntryType::TxSentCancelled => "Cancelled",
+			TxLogEntryType::TxReverted => "Reverted",
+		})
+		.to_string();
 		let creation_ts = format!("{}", t.creation_ts.format("%Y-%m-%d %H:%M:%S"));
 		let ttl_cutoff_height = match t.ttl_cutoff_height {
-			Some(b) => format!("{}", b),
+			Some(b) => b.to_string(),
 			None => "None".to_owned(),
 		};
 		let confirmation_ts = match t.confirmation_ts {
