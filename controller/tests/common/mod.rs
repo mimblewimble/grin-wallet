@@ -167,7 +167,6 @@ pub fn create_local_wallet(
 }
 
 #[allow(dead_code)]
-#[allow(clippy::type_complexity)]
 pub fn open_local_wallet(
 	test_dir: &str,
 	name: &str,

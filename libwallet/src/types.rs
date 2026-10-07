@@ -74,7 +74,7 @@ where
 		tor_config: Option<TorConfig>,
 	) -> Result<(), Error>;
 
-	/// Create a seed from a mnemonic or fresh entropy
+	/// Create the seed file and wallet database from a mnemonic or fresh entropy
 	fn create_wallet(
 		&mut self,
 		name: Option<&str>,
