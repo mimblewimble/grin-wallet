@@ -32,7 +32,6 @@ use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
-use easy_jsonrpc_mw;
 use grin_wallet_util::OnionV3Address;
 use rand::thread_rng;
 use std::convert::TryFrom;
@@ -48,7 +47,7 @@ use std::time::Duration;
 #[easy_jsonrpc_mw::rpc]
 pub trait OwnerRpc {
 	/**
-	Networked version of [Owner::accounts](struct.Owner.html#method.accounts).
+	Networked version of [Owner::accounts](struct.Owner.html#method.accounts). Returns account mappings without balances.
 
 	# Json rpc example
 
@@ -72,7 +71,9 @@ pub trait OwnerRpc {
 			"Ok": [
 				{
 					"label": "default",
-					"path": "0200000000000000000000000000000000"
+					"path": "0200000000000000000000000000000000",
+					"info": null,
+					"current": true
 				}
 			]
 		},
@@ -83,6 +84,60 @@ pub trait OwnerRpc {
 	```
 	*/
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, Error>;
+
+	/**
+	Networked version of [Owner::accounts_info](struct.Owner.html#method.accounts_info). Returns balances from locally stored state without refreshing from the node.
+
+	# Json rpc example
+
+	```
+	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"method": "accounts_info",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"minimum_confirmations": 1
+		},
+		"id": 1
+	}
+	# "#
+	# ,
+	# r#"
+	{
+		"jsonrpc": "2.0",
+		"result": {
+			"Ok": [
+				{
+					"label": "default",
+					"path": "0200000000000000000000000000000000",
+					"info": {
+						 "amount_awaiting_confirmation": "0",
+						 "amount_awaiting_finalization": "0",
+						 "amount_currently_spendable": "60000000000",
+						 "amount_immature": "180000000000",
+						 "amount_locked": "0",
+						 "amount_reverted": "0",
+						 "last_confirmed_height": "4",
+						 "minimum_confirmations": "1",
+						 "total": "240000000000"
+					},
+					"current": true
+				}
+			]
+		},
+		"id": 1
+	}
+	# "#
+	# , 4, false, false, false, false);
+	```
+	*/
+	fn accounts_info(
+		&self,
+		token: Token,
+		minimum_confirmations: u64,
+	) -> Result<Vec<AcctPathMapping>, Error>;
 
 	/**
 	Networked version of [Owner::create_account_path](struct.Owner.html#method.create_account_path).
@@ -115,10 +170,12 @@ pub trait OwnerRpc {
 	# , 4, false, false, false, false);
 	```
 	 */
+	#[allow(clippy::ptr_arg)]
 	fn create_account_path(&self, token: Token, label: &String) -> Result<Identifier, Error>;
 
 	/**
 	Networked version of [Owner::set_active_account](struct.Owner.html#method.set_active_account).
+	The account selection is saved across wallet restarts
 
 	# Json rpc example
 
@@ -148,6 +205,7 @@ pub trait OwnerRpc {
 	# , 4, false, false, false, false);
 	```
 	 */
+	#[allow(clippy::ptr_arg)]
 	fn set_active_account(&self, token: Token, label: &String) -> Result<(), Error>;
 
 	/**
@@ -219,7 +277,6 @@ pub trait OwnerRpc {
 	# , 2, false, false, false, false);
 	```
 	*/
-
 	fn retrieve_outputs(
 		&self,
 		token: Token,
@@ -265,7 +322,6 @@ pub trait OwnerRpc {
 	# , 4, false, false, false, false);
 	```
 	 */
-
 	fn estimate_max_sendable(
 		&self,
 		token: Token,
@@ -352,7 +408,6 @@ pub trait OwnerRpc {
 	# , 2, false, false, false, false);
 	```
 	*/
-
 	fn retrieve_txs(
 		&self,
 		token: Token,
@@ -446,7 +501,6 @@ pub trait OwnerRpc {
 	```
 
 	*/
-
 	fn query_txs(
 		&self,
 		token: Token,
@@ -497,7 +551,6 @@ pub trait OwnerRpc {
 	# , 4, false, false, false, false);
 	```
 	 */
-
 	fn retrieve_summary_info(
 		&self,
 		token: Token,
@@ -562,7 +615,6 @@ pub trait OwnerRpc {
 		# , 4, false, false, false, false);
 	```
 	*/
-
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
 
 	/**
@@ -609,7 +661,6 @@ pub trait OwnerRpc {
 		# , 4, false, false, false, false);
 	```
 	*/
-
 	fn issue_invoice_tx(
 		&self,
 		token: Token,
@@ -693,7 +744,6 @@ pub trait OwnerRpc {
 	# , 4, false, false, false, false);
 	```
 	*/
-
 	fn process_invoice_tx(
 		&self,
 		token: Token,
@@ -898,7 +948,6 @@ pub trait OwnerRpc {
 	# , 5, true, true, true, false);
 	```
 	 */
-
 	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), Error>;
 
 	/**
@@ -1220,7 +1269,6 @@ pub trait OwnerRpc {
 	```
 
 	*/
-
 	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, Error>;
 
 	/**
@@ -1250,7 +1298,6 @@ pub trait OwnerRpc {
 	# , 5, false, false, false, false);
 	```
 	*/
-
 	fn get_top_level_directory(&self) -> Result<String, Error>;
 
 	/**
@@ -1283,7 +1330,6 @@ pub trait OwnerRpc {
 	# , 5, false, false, false, false);
 	```
 	*/
-
 	fn set_top_level_directory(&self, dir: String) -> Result<(), Error>;
 
 	/**
@@ -1386,7 +1432,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn create_wallet(
 		&self,
 		name: Option<String>,
@@ -1423,7 +1468,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, Error>;
 
 	/**
@@ -1453,7 +1497,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn close_wallet(&self, name: Option<String>) -> Result<(), Error>;
 
 	/**
@@ -1484,7 +1527,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn get_mnemonic(&self, name: Option<String>, password: String) -> Result<String, Error>;
 
 	/**
@@ -1575,7 +1617,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), Error>;
 
 	/**
@@ -1632,7 +1673,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn get_updater_messages(&self, count: u32) -> Result<Vec<StatusMessage>, Error>;
 
 	/**
@@ -1663,7 +1703,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn get_slatepack_address(
 		&self,
 		token: Token,
@@ -1698,7 +1737,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
@@ -1748,7 +1786,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn create_slatepack_message(
 		&self,
 		token: Token,
@@ -1803,7 +1840,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn slate_from_slatepack_message(
 		&self,
 		token: Token,
@@ -1845,7 +1881,6 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-
 	fn decode_slatepack_message(
 		&self,
 		token: Token,
@@ -1890,7 +1925,6 @@ pub trait OwnerRpc {
 	# , 5, true, true, true, true);
 	```
 	*/
-
 	fn retrieve_payment_proof(
 		&self,
 		token: Token,
@@ -1937,7 +1971,6 @@ pub trait OwnerRpc {
 	# , 5, true, true, true, true);
 	```
 	*/
-
 	fn verify_payment_proof(
 		&self,
 		token: Token,
@@ -2068,7 +2101,6 @@ pub trait OwnerRpc {
 	```
 	 *
 	 */
-
 	fn create_mwixnet_req(
 		&self,
 		token: Token,
@@ -2086,15 +2118,23 @@ where
 	K: Keychain + 'static,
 {
 	fn accounts(&self, token: Token) -> Result<Vec<AcctPathMapping>, Error> {
-		Owner::accounts(self, (&token.keychain_mask).as_ref())
+		Owner::accounts(self, token.keychain_mask.as_ref())
+	}
+
+	fn accounts_info(
+		&self,
+		token: Token,
+		minimum_confirmations: u64,
+	) -> Result<Vec<AcctPathMapping>, Error> {
+		Owner::accounts_info(self, token.keychain_mask.as_ref(), minimum_confirmations)
 	}
 
 	fn create_account_path(&self, token: Token, label: &String) -> Result<Identifier, Error> {
-		Owner::create_account_path(self, (&token.keychain_mask).as_ref(), label)
+		Owner::create_account_path(self, token.keychain_mask.as_ref(), label)
 	}
 
 	fn set_active_account(&self, token: Token, label: &String) -> Result<(), Error> {
-		Owner::set_active_account(self, (&token.keychain_mask).as_ref(), label)
+		Owner::set_active_account(self, token.keychain_mask.as_ref(), label)
 	}
 
 	fn retrieve_outputs(
@@ -2106,7 +2146,7 @@ where
 	) -> Result<(bool, Vec<OutputCommitMapping>), Error> {
 		Owner::retrieve_outputs(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			include_spent,
 			refresh_from_node,
 			tx_id,
@@ -2121,7 +2161,7 @@ where
 	) -> Result<(bool, u64, u64, u32), Error> {
 		Owner::estimate_max_sendable(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			refresh_from_node,
 			minimum_confirmations,
 		)
@@ -2136,7 +2176,7 @@ where
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		Owner::retrieve_txs(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
@@ -2152,7 +2192,7 @@ where
 	) -> Result<(bool, Vec<TxLogEntry>), Error> {
 		Owner::retrieve_txs(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			refresh_from_node,
 			None,
 			None,
@@ -2168,14 +2208,14 @@ where
 	) -> Result<(bool, WalletInfo), Error> {
 		Owner::retrieve_summary_info(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			refresh_from_node,
 			minimum_confirmations,
 		)
 	}
 
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error> {
-		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)?;
+		let slate = Owner::init_send_tx(self, token.keychain_mask.as_ref(), args)?;
 		let version = SlateVersion::V4;
 		VersionedSlate::into_version(slate, version)
 	}
@@ -2185,7 +2225,7 @@ where
 		token: Token,
 		args: IssueInvoiceTxArgs,
 	) -> Result<VersionedSlate, Error> {
-		let slate = Owner::issue_invoice_tx(self, (&token.keychain_mask).as_ref(), args)?;
+		let slate = Owner::issue_invoice_tx(self, token.keychain_mask.as_ref(), args)?;
 		let version = SlateVersion::V4;
 		VersionedSlate::into_version(slate, version)
 	}
@@ -2198,7 +2238,7 @@ where
 	) -> Result<VersionedSlate, Error> {
 		let out_slate = Owner::process_invoice_tx(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			&Slate::from(in_slate),
 			args,
 		)?;
@@ -2207,19 +2247,12 @@ where
 	}
 
 	fn tx_lock_outputs(&self, token: Token, in_slate: VersionedSlate) -> Result<(), Error> {
-		Owner::tx_lock_outputs(
-			self,
-			(&token.keychain_mask).as_ref(),
-			&Slate::from(in_slate),
-		)
+		Owner::tx_lock_outputs(self, token.keychain_mask.as_ref(), &Slate::from(in_slate))
 	}
 
 	fn finalize_tx(&self, token: Token, in_slate: VersionedSlate) -> Result<VersionedSlate, Error> {
-		let out_slate = Owner::finalize_tx(
-			self,
-			(&token.keychain_mask).as_ref(),
-			&Slate::from(in_slate),
-		)?;
+		let out_slate =
+			Owner::finalize_tx(self, token.keychain_mask.as_ref(), &Slate::from(in_slate))?;
 		let version = SlateVersion::V4;
 		VersionedSlate::into_version(out_slate, version)
 	}
@@ -2227,7 +2260,7 @@ where
 	fn post_tx(&self, token: Token, slate: VersionedSlate, fluff: bool) -> Result<(), Error> {
 		Owner::post_tx(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			&Slate::from(slate),
 			fluff,
 		)
@@ -2239,7 +2272,7 @@ where
 		tx_id: Option<u32>,
 		tx_slate_id: Option<Uuid>,
 	) -> Result<(), Error> {
-		Owner::cancel_tx(self, (&token.keychain_mask).as_ref(), tx_id, tx_slate_id)
+		Owner::cancel_tx(self, token.keychain_mask.as_ref(), tx_id, tx_slate_id)
 	}
 
 	fn get_stored_tx(
@@ -2248,12 +2281,8 @@ where
 		id: Option<u32>,
 		slate_id: Option<Uuid>,
 	) -> Result<Option<VersionedSlate>, Error> {
-		let out_slate = Owner::get_stored_tx(
-			self,
-			(&token.keychain_mask).as_ref(),
-			id,
-			(&slate_id).as_ref(),
-		)?;
+		let out_slate =
+			Owner::get_stored_tx(self, token.keychain_mask.as_ref(), id, slate_id.as_ref())?;
 		match out_slate {
 			Some(s) => {
 				let version = SlateVersion::V4;
@@ -2264,7 +2293,7 @@ where
 	}
 
 	fn get_rewind_hash(&self, token: Token) -> Result<String, Error> {
-		Owner::get_rewind_hash(self, (&token.keychain_mask).as_ref())
+		Owner::get_rewind_hash(self, token.keychain_mask.as_ref())
 	}
 
 	fn scan_rewind_hash(
@@ -2283,14 +2312,14 @@ where
 	) -> Result<(), Error> {
 		Owner::scan(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			start_height,
 			delete_unconfirmed,
 		)
 	}
 
 	fn node_height(&self, token: Token) -> Result<NodeHeightResult, Error> {
-		Owner::node_height(self, (&token.keychain_mask).as_ref())
+		Owner::node_height(self, token.keychain_mask.as_ref())
 	}
 
 	fn init_secure_api(&self, ecdh_pubkey: ECDHPubkey) -> Result<ECDHPubkey, Error> {
@@ -2342,16 +2371,13 @@ where
 		mnemonic_length: u32,
 		password: String,
 	) -> Result<(), Error> {
-		let n = name.as_ref().map(|s| s.as_str());
-		let m = match mnemonic {
-			Some(s) => Some(ZeroingString::from(s)),
-			None => None,
-		};
+		let n = name.as_deref();
+		let m = mnemonic.map(ZeroingString::from);
 		Owner::create_wallet(self, n, m, mnemonic_length, ZeroingString::from(password))
 	}
 
 	fn open_wallet(&self, name: Option<String>, password: String) -> Result<Token, Error> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		let sec_key = Owner::open_wallet(self, n, ZeroingString::from(password), true)?;
 		Ok(Token {
 			keychain_mask: sec_key,
@@ -2359,30 +2385,30 @@ where
 	}
 
 	fn close_wallet(&self, name: Option<String>) -> Result<(), Error> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		Owner::close_wallet(self, n)
 	}
 
 	fn get_mnemonic(&self, name: Option<String>, password: String) -> Result<String, Error> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		let res = Owner::get_mnemonic(self, n, ZeroingString::from(password))?;
-		Ok((&*res).to_string())
+		Ok((*res).to_string())
 	}
 
 	fn change_password(&self, name: Option<String>, old: String, new: String) -> Result<(), Error> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		Owner::change_password(self, n, ZeroingString::from(old), ZeroingString::from(new))
 	}
 
 	fn delete_wallet(&self, name: Option<String>) -> Result<(), Error> {
-		let n = name.as_ref().map(|s| s.as_str());
+		let n = name.as_deref();
 		Owner::delete_wallet(self, n)
 	}
 
 	fn start_updater(&self, token: Token, frequency: u32) -> Result<(), Error> {
 		Owner::start_updater(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			Duration::from_millis(frequency as u64),
 		)
 	}
@@ -2400,7 +2426,7 @@ where
 		token: Token,
 		derivation_index: u32,
 	) -> Result<SlatepackAddress, Error> {
-		Owner::get_slatepack_address(self, (&token.keychain_mask).as_ref(), derivation_index)
+		Owner::get_slatepack_address(self, token.keychain_mask.as_ref(), derivation_index)
 	}
 
 	fn get_slatepack_secret_key(
@@ -2408,11 +2434,8 @@ where
 		token: Token,
 		derivation_index: u32,
 	) -> Result<Ed25519SecretKey, Error> {
-		let key = Owner::get_slatepack_secret_key(
-			self,
-			(&token.keychain_mask).as_ref(),
-			derivation_index,
-		)?;
+		let key =
+			Owner::get_slatepack_secret_key(self, token.keychain_mask.as_ref(), derivation_index)?;
 		Ok(Ed25519SecretKey { key })
 	}
 
@@ -2425,7 +2448,7 @@ where
 	) -> Result<String, Error> {
 		let res = Owner::create_slatepack_message(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			&Slate::from(slate),
 			sender_index,
 			recipients,
@@ -2441,7 +2464,7 @@ where
 	) -> Result<VersionedSlate, Error> {
 		let slate = Owner::slate_from_slatepack_message(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			message,
 			secret_indices,
 		)?;
@@ -2455,12 +2478,7 @@ where
 		message: String,
 		secret_indices: Vec<u32>,
 	) -> Result<Slatepack, Error> {
-		Owner::decode_slatepack_message(
-			self,
-			(&token.keychain_mask).as_ref(),
-			message,
-			secret_indices,
-		)
+		Owner::decode_slatepack_message(self, token.keychain_mask.as_ref(), message, secret_indices)
 	}
 
 	fn retrieve_payment_proof(
@@ -2472,7 +2490,7 @@ where
 	) -> Result<PaymentProof, Error> {
 		Owner::retrieve_payment_proof(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			refresh_from_node,
 			tx_id,
 			tx_slate_id,
@@ -2484,7 +2502,7 @@ where
 		token: Token,
 		proof: PaymentProof,
 	) -> Result<(bool, bool), Error> {
-		Owner::verify_payment_proof(self, (&token.keychain_mask).as_ref(), &proof)
+		Owner::verify_payment_proof(self, token.keychain_mask.as_ref(), &proof)
 	}
 
 	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
@@ -2498,7 +2516,7 @@ where
 		features: OutputFeatures,
 		amount: Amount,
 	) -> Result<BuiltOutput, Error> {
-		Owner::build_output(self, (&token.keychain_mask).as_ref(), features, amount.0)
+		Owner::build_output(self, token.keychain_mask.as_ref(), features, amount.0)
 	}
 
 	fn create_mwixnet_req(
@@ -2509,8 +2527,7 @@ where
 		lock_output: bool,
 		server_keys: Vec<String>,
 	) -> Result<SwapReq, Error> {
-		let commit =
-			Commitment::from_vec(from_hex(&commitment).map_err(|e| Error::CommitDeser(e))?);
+		let commit = Commitment::from_vec(from_hex(&commitment).map_err(Error::CommitDeser)?);
 
 		let secp_inst = static_secp_instance();
 		let secp = secp_inst.lock();
@@ -2519,7 +2536,7 @@ where
 		for key in server_keys {
 			keys.push(SecretKey::from_slice(
 				&secp,
-				&grin_util::from_hex(&key).map_err(|e| Error::ServerKeyDeser(e))?,
+				&grin_util::from_hex(&key).map_err(Error::ServerKeyDeser)?,
 			)?)
 		}
 
@@ -2532,7 +2549,7 @@ where
 
 		Owner::create_mwixnet_req(
 			self,
-			(&token.keychain_mask).as_ref(),
+			token.keychain_mask.as_ref(),
 			&req_params,
 			&commit,
 			lock_output,
@@ -2665,19 +2682,14 @@ pub fn run_doctest_owner(
 		let _ = test_framework::award_blocks_to_wallet(
 			&chain,
 			wallet1.clone(),
-			(&mask1).as_ref(),
-			1 as usize,
+			mask1.as_ref(),
+			1_usize,
 			false,
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
-		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(
-			wallet1.clone(),
-			(&mask1).as_ref(),
-			&None,
-			true,
-			1,
-		)
-		.unwrap();
+		let (wallet_refreshed, _) =
+			api_impl::owner::retrieve_summary_info(wallet1.clone(), mask1.as_ref(), &None, true, 1)
+				.unwrap();
 		assert!(wallet_refreshed);
 	}
 
@@ -2704,25 +2716,24 @@ pub fn run_doctest_owner(
 			payment_proof_recipient_address: proof_address,
 			..Default::default()
 		};
-		let mut slate = api_impl::owner::init_send_tx(w, (&mask1).as_ref(), args, true).unwrap();
+		let mut slate = api_impl::owner::init_send_tx(w, mask1.as_ref(), args, true).unwrap();
 		println!("INITIAL SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		{
 			let mut w_lock = wallet2.lock();
 			let w2 = w_lock.lc_provider().unwrap().wallet_inst().unwrap();
-			slate =
-				api_impl::foreign::receive_tx(w2, (&mask2).as_ref(), &slate, None, true).unwrap();
+			slate = api_impl::foreign::receive_tx(w2, mask2.as_ref(), &slate, None, true).unwrap();
 			w2.close().unwrap();
 		}
 		// Spit out slate for input to finalize_tx
 		if lock_tx {
 			println!("LOCKING TX");
-			api_impl::owner::tx_lock_outputs(w, (&mask1).as_ref(), &slate).unwrap();
+			api_impl::owner::tx_lock_outputs(w, mask1.as_ref(), &slate).unwrap();
 		}
 		println!("RECEIPIENT SLATE");
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		if finalize_tx {
-			slate = api_impl::owner::finalize_tx(w, (&mask1).as_ref(), &slate).unwrap();
+			slate = api_impl::owner::finalize_tx(w, mask1.as_ref(), &slate).unwrap();
 			error!("FINALIZED TX SLATE");
 			println!("{}", serde_json::to_string_pretty(&slate).unwrap());
 		}
@@ -2738,8 +2749,8 @@ pub fn run_doctest_owner(
 		let _ = test_framework::award_blocks_to_wallet(
 			&chain,
 			wallet1.clone(),
-			(&mask1).as_ref(),
-			3 as usize,
+			mask1.as_ref(),
+			3_usize,
 			false,
 		);
 	}

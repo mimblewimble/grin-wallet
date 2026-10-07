@@ -77,7 +77,7 @@ where
 	// h(root_key|slate_id|"blind")
 	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 	hasher.update(&root_key.0[..]);
-	hasher.update(&slate_id[..]);
+	hasher.update(slate_id);
 	hasher.update(&b"blind"[..]);
 	let blind_xor_key = hasher.finalize();
 	let mut ret_blind = [0; SECRET_KEY_SIZE];
@@ -86,7 +86,7 @@ where
 	// h(root_key|slate_id|"nonce")
 	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 	hasher.update(&root_key.0[..]);
-	hasher.update(&slate_id[..]);
+	hasher.update(slate_id);
 	hasher.update(&b"nonce"[..]);
 	let nonce_xor_key = hasher.finalize();
 	let mut ret_nonce = [0; SECRET_KEY_SIZE];
@@ -108,8 +108,8 @@ where
 	pub keychain: Option<K>,
 	/// Check value for XORed keychain seed
 	pub master_checksum: Box<Option<Blake2bResult>>,
-	/// Parent path to use by default for output operations
-	parent_key_id: Identifier,
+	/// BIP32 account path to use by default for output operations
+	active_account: AcctPathMapping,
 	/// wallet to node client
 	w2n_client: C,
 }
@@ -138,30 +138,45 @@ where
 
 		// Make sure default wallet derivation path always exists
 		// as well as path (so it can be retrieved by batches to know where to store
-		// completed transactions, for reference
+		// completed transactions, for reference)
 		let default_account = AcctPathMapping {
-			label: "default".to_owned(),
+			label: "default".to_string(),
 			path: WalletBackend::<C, K>::default_path(),
+			info: None,
+			current: Some(true),
 		};
-
 		{
 			let mut batch = store.batch()?;
-			batch.put_ser(
+			let saved_default = batch.get_ser::<AcctPathMapping>(
 				Some(ACCOUNT_PATH_MAPPING_PREFIX),
 				default_account.label.as_bytes(),
-				&default_account,
+				None,
 			)?;
-			batch.commit()?;
+			if saved_default.is_none() {
+				batch.put_ser(
+					Some(ACCOUNT_PATH_MAPPING_PREFIX),
+					default_account.label.as_bytes(),
+					&default_account,
+				)?;
+				batch.commit()?;
+			}
 		}
 
-		let res = WalletBackend {
+		let mut res = WalletBackend {
 			db: store,
 			data_file_dir: data_file_dir.to_owned(),
 			keychain: None,
 			master_checksum: Box::new(None),
-			parent_key_id: WalletBackend::<C, K>::default_path(),
+			active_account: default_account,
 			w2n_client: n_client,
 		};
+
+		// Set current active account
+		let active = res.acct_path_iter()?.find(|a| a.current.unwrap_or(false));
+		if let Some(a) = active {
+			res.active_account = a;
+		}
+
 		Ok(res)
 	}
 
@@ -192,7 +207,7 @@ where
 		let root_key = k.derive_key(0, &K::root_key_id(), SwitchCommitmentType::Regular)?;
 		let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 		hasher.update(&root_key.0[..]);
-		self.master_checksum = Box::new(Some(hasher.finalize()));
+		*self.master_checksum = Some(hasher.finalize());
 
 		let mask_value = {
 			match mask {
@@ -202,9 +217,9 @@ where
 					let mask_value = match use_test_rng {
 						true => {
 							let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
-							SecretKey::new(&k.secp(), &mut test_rng)
+							SecretKey::new(k.secp(), &mut test_rng)
 						}
-						false => SecretKey::new(&k.secp(), &mut thread_rng()),
+						false => SecretKey::new(k.secp(), &mut thread_rng()),
 					};
 					k.mask_master_key(&mask_value)?;
 					Some(mask_value)
@@ -267,7 +282,7 @@ where
 		} else {*/
 		Ok(Some(
 			self.keychain(keychain_mask)?
-				.commit(amount, &id, SwitchCommitmentType::Regular)?
+				.commit(amount, id, SwitchCommitmentType::Regular)?
 				.0
 				.to_vec()
 				.to_hex(), // TODO: proper support for different switch commitment schemes
@@ -275,27 +290,55 @@ where
 		/*}*/
 	}
 
-	/// Set parent key id by stored account name.
-	pub fn set_parent_key_id_by_name(&mut self, label: &str) -> Result<(), Error> {
+	/// Set current active account by stored account name.
+	pub fn set_active_account(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		label: &str,
+	) -> Result<(), Error> {
+		let res = self.acct_path_iter()?.find(|l| l.label == label);
+		match res {
+			None => Err(Error::UnknownAccountLabel(label.to_string())),
+			Some(mut a) => {
+				let mut batch = self.batch(keychain_mask)?;
+				let current = batch
+					.acct_path_iter()?
+					.filter(|a| a.current.unwrap_or(false))
+					.collect::<Vec<AcctPathMapping>>();
+				for mut a in current {
+					a.current = None;
+					batch.save_acct_path(a.clone())?;
+				}
+				a.current = Some(true);
+				batch.save_acct_path(a.clone())?;
+				batch.commit()?;
+
+				self.active_account = a;
+				Ok(())
+			}
+		}
+	}
+
+	/// Set account by stored account name.
+	pub fn set_account_by_name(&mut self, label: &str) -> Result<(), Error> {
 		let label = label.to_owned();
 		let res = self.acct_path_iter()?.find(|l| l.label == label);
 		if let Some(a) = res {
-			self.set_parent_key_id(a.path);
+			self.active_account = a;
 			Ok(())
 		} else {
 			Err(Error::UnknownAccountLabel(label))
 		}
 	}
 
-	/// The BIP32 path of the parent path to use for all output-related
-	/// functions, essentially 'accounts' within a wallet.
-	pub fn set_parent_key_id(&mut self, id: Identifier) {
-		self.parent_key_id = id;
+	/// Get active account.
+	pub fn active_account(&self) -> AcctPathMapping {
+		self.active_account.clone()
 	}
 
 	/// Get the parent path.
 	pub fn parent_key_id(&mut self) -> Identifier {
-		self.parent_key_id.clone()
+		self.active_account.path.clone()
 	}
 
 	/// Get output data by id.
@@ -406,7 +449,7 @@ where
 		let path_buf = Path::new(&path).to_path_buf();
 		let mut stored_tx = File::create(path_buf)?;
 		let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1)).unwrap().to_hex();
-		stored_tx.write_all(&tx_hex.as_bytes())?;
+		stored_tx.write_all(tx_hex.as_bytes())?;
 		stored_tx.sync_all()?;
 		Ok(())
 	}
@@ -458,21 +501,21 @@ where
 			let batch = self.db.batch()?;
 			batch
 				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
+				.unwrap_or(0)
 		};
 		Ok(index)
 	}
 
 	/// Next child ID when we want to create a new output, based on current parent.
 	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
-		let parent_key_id = self.parent_key_id.clone();
+		let parent_key_id = self.active_account.path.clone();
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
 			batch
-				.get_ser(Some(DERIV_PREFIX), &self.parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
+				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
+				.unwrap_or(0)
 		};
-		let mut return_path = self.parent_key_id.to_path();
+		let mut return_path = parent_key_id.to_path();
 		return_path.depth += 1;
 		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
 		deriv_idx += 1;
@@ -484,8 +527,8 @@ where
 
 	/// Last verified height of outputs directly descending from the current parent key.
 	pub fn last_confirmed_height(&mut self) -> Result<u64, Error> {
-		let parent_key_id = self.parent_key_id.clone();
-		self.last_confirmed_height_for_parent(&parent_key_id)
+		let parent_key_id = self.active_account.clone();
+		self.last_confirmed_height_for_parent(&parent_key_id.path)
 	}
 
 	/// Last verified height of outputs directly descending from the given parent key.
@@ -500,7 +543,7 @@ where
 				&parent_key_id.to_bytes(),
 				None,
 			)?
-			.unwrap_or_else(|| 0);
+			.unwrap_or(0);
 		Ok(last_confirmed_height)
 	}
 
@@ -527,7 +570,7 @@ where
 				WALLET_INIT_STATUS_KEY.as_bytes(),
 				None,
 			)?
-			.unwrap_or_else(|| WalletInitStatus::InitComplete);
+			.unwrap_or(WalletInitStatus::InitComplete);
 		Ok(status)
 	}
 }
@@ -647,7 +690,7 @@ where
 		let last_tx_log_id = self
 			.db
 			.get_ser(Some(TX_LOG_ID_PREFIX), &parent_key_id.to_bytes(), None)?
-			.unwrap_or_else(|| 0);
+			.unwrap_or(0);
 		self.db.put_ser(
 			Some(TX_LOG_ID_PREFIX),
 			&parent_key_id.to_bytes(),
@@ -693,7 +736,8 @@ where
 	}
 
 	/// Save an account label -> path mapping.
-	pub fn save_acct_path(&mut self, mapping: AcctPathMapping) -> Result<(), Error> {
+	pub fn save_acct_path(&mut self, mut mapping: AcctPathMapping) -> Result<(), Error> {
+		mapping.info = None;
 		self.db.put_ser(
 			Some(ACCOUNT_PATH_MAPPING_PREFIX),
 			mapping.label.as_bytes(),

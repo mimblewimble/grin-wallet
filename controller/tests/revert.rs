@@ -23,32 +23,25 @@ use grin_core::core::Transaction;
 use grin_core::global;
 use grin_keychain::ExtKeychain;
 use grin_util::secp::key::SecretKey;
-use grin_util::Mutex;
 use grin_wallet_api::Owner;
 use grin_wallet_impls::test_framework::*;
 use grin_wallet_impls::{DefaultLCProvider, PathToSlate, SlatePutter};
 use grin_wallet_libwallet as libwallet;
 use grin_wallet_libwallet::api_impl::types::InitTxArgs;
-use grin_wallet_libwallet::WalletInst;
 use log::error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-type Wallet = Arc<
-	Mutex<
-		Box<
-			dyn WalletInst<
-				'static,
-				DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-				LocalWalletClient,
-				ExtKeychain,
-			>,
-		>,
-	>,
+type Wallet = grin_wallet_libwallet::WalletHandle<
+	'static,
+	DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+	LocalWalletClient,
+	ExtKeychain,
 >;
 
+#[allow(clippy::type_complexity)]
 fn revert(
 	test_dir: &'static str,
 ) -> Result<
@@ -189,8 +182,13 @@ fn revert(
 
 	// Build 2 blocks at same height: 1 with the tx, 1 without
 	let head = chain.head_header().unwrap();
-	let block_with =
-		create_block_for_wallet(&chain, head.clone(), &[tx.clone()], wallet1.clone(), mask1)?;
+	let block_with = create_block_for_wallet(
+		&chain,
+		head.clone(),
+		std::slice::from_ref(&tx),
+		wallet1.clone(),
+		mask1,
+	)?;
 	let block_without = create_block_for_wallet(&chain, head, &[], wallet1.clone(), mask1)?;
 
 	// Add block with tx to the chain

@@ -21,6 +21,8 @@ extern crate log;
 extern crate grin_wallet;
 
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 use clap::App;
 use std::sync::mpsc;
@@ -153,6 +155,39 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	];
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
+	// Check account selection through the CLI loop
+	let mut cli = Command::new(env!("CARGO_BIN_EXE_grin-wallet"))
+		.args([
+			"-t",
+			&format!("{}/wallet2", test_dir),
+			"-p",
+			"password2",
+			"-a",
+			"account_1",
+			"-r",
+			"http://127.0.0.1:1",
+			"cli",
+		])
+		.stdin(Stdio::piped())
+		.stdout(Stdio::piped())
+		.stderr(Stdio::piped())
+		.spawn()
+		.unwrap();
+	cli.stdin.take().unwrap().write_all(
+		b"open\naddress\nclose\n-a default open\naddress\naccount -a account_1\naddress\nexit\n",
+	).unwrap();
+	let output = cli.wait_with_output().unwrap();
+	assert!(output.status.success());
+	let output = String::from_utf8(output.stdout).unwrap();
+	let accounts: Vec<_> = output
+		.lines()
+		.filter_map(|line| {
+			line.split_once("Address for account - ")
+				.map(|(_, name)| name)
+		})
+		.collect();
+	assert_eq!(accounts, ["account_1", "default", "account_1"]);
+
 	// let's see those accounts
 	let arg_vec = vec!["grin-wallet", "-p", "password1", "account"];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
@@ -171,7 +206,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let wallet_config1 = config1.clone().members.wallet;
 	let (wallet1, mask1_i) =
 		instantiate_wallet(wallet_config1, client1.clone(), "password1", "default")?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	api1.set_active_account(mask1, "mining")?;
@@ -213,7 +248,35 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"-i",
 		&file_name,
 	];
-	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
+	// Reuse startup args as in interactive mode
+	{
+		let start = app
+			.clone()
+			.get_matches_from(vec!["grin-wallet", "-a", "default", "cli"]);
+		let global_args =
+			grin_wallet::cmd::wallet_args::parse_global_args(&wallet_config2, &start).unwrap();
+		let mut api = Owner::new(wallet2.clone(), None, config2.config_file_path.clone());
+		for command in [
+			vec!["grin-wallet", "account", "-a", "account_1"],
+			vec!["grin-wallet", "address"],
+			vec!["grin-wallet", "receive", "-i", &file_name],
+		] {
+			let args = app.clone().get_matches_from(command);
+			grin_wallet::cmd::wallet_args::parse_and_execute(
+				&mut api,
+				mask2_i.clone(),
+				&wallet_config2,
+				config2.tor_config(),
+				&global_args,
+				&args,
+				true,
+				true,
+			)?;
+		}
+		let (_, txs) = api.retrieve_txs(mask2_i.as_ref(), false, None, None, None)?;
+		assert_eq!(txs.len(), 1);
+		api.set_active_account(mask2_i.as_ref(), "default")?;
+	}
 
 	// shouldn't be allowed to receive twice
 	assert!(execute_command(&app, test_dir, "wallet2", &client2, arg_vec).is_err());
@@ -243,7 +306,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password1",
 		"default",
 	)?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	// Check our transaction log, should have 10 entries
@@ -273,7 +336,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password2",
 		"default",
 	)?;
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 	let api2 = Owner::new(wallet2.clone(), None, config2.config_file_path.clone());
 
 	api2.set_active_account(mask2, "account_1")?;
@@ -411,7 +474,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password1",
 		"default",
 	)?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	api1.set_active_account(mask1, "mining")?;
@@ -477,7 +540,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"password1",
 		"default",
 	)?;
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	let api1 = Owner::new(wallet1.clone(), None, config1.config_file_path.clone());
 
 	api1.set_active_account(mask1, "mining")?;
@@ -526,6 +589,10 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"36",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	// set default account for wallet2
+	let arg_vec = vec!["grin-wallet", "-p", "password2", "account", "-a", "default"];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
 
 	// issue an invoice tx, wallet 2
 	let arg_vec = vec!["grin-wallet", "-p", "password2", "invoice", "65"];
@@ -614,7 +681,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	// get tx output via -tx parameter
 	api2.set_active_account(mask2, "default")?;
 	let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
-	let some_tx_id = txs[0].tx_slate_id.clone();
+	let some_tx_id = txs[0].tx_slate_id;
 	assert!(some_tx_id.is_some());
 	let tx_id = some_tx_id.unwrap().to_string().clone();
 	let arg_vec = vec!["grin-wallet", "-p", "password2", "txs", "-t", &tx_id[..]];

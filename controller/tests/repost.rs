@@ -52,7 +52,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -64,7 +64,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -86,7 +86,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// Get some mining done
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	let mut bh = 10u64;
 	let _ =
@@ -120,7 +120,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// wallet 1 receives file to different account, completes
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("listener")?;
+		w.set_account_by_name("listener")?;
 	}
 
 	wallet::controller::foreign_single_use(
@@ -138,7 +138,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// wallet 1 receives file to different account, completes
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 
 	// wallet 1 finalize
@@ -164,7 +164,7 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("listener")?;
+		w.set_account_by_name("listener")?;
 	}
 
 	let (wallet1_refreshed, wallet1_info) = api1.retrieve_summary_info(mask1, true, 1)?;
@@ -175,11 +175,11 @@ fn file_repost_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 	// as above, but synchronously
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("mining")?;
+		w.set_account_by_name("mining")?;
 	}
 	{
 		wallet_inst!(wallet2, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
 
 	let amount = 60_000_000_000;

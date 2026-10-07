@@ -59,12 +59,14 @@ struct TorService {
 	state_lock: PathBuf,
 }
 
+type ArtiClientConfig = (Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig);
+
 lazy_static! {
 	/// Arti Tokio runtime.
 	static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
 		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
 	/// Arti client and config.
-	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
+	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<ArtiClientConfig>>> =
 		LazyLock::new(|| Mutex::new(None));
 	/// Running services, where key is onion address.
 	static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, TorService>>> =
@@ -138,7 +140,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 		info!("Proxy configuration will be ignored.");
 	}
 
-	let (state_path, cache_path) = state_cache_paths(&config);
+	let (state_path, cache_path) = state_cache_paths(config);
 	let (client, config) = init_client(&state_path, &cache_path, config)?;
 
 	// Add service key to keystore.
@@ -151,7 +153,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 	let state_lock = state_path
 		.join("hss")
 		.join(format!("{}.lock", onion_address));
-	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
+	add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
 
 	// Launch Onion service.
 	let service_config = OnionServiceConfigBuilder::default()
@@ -233,7 +235,7 @@ where
 	}
 	.to_string();
 	let timeout = tor_config.request_timeout();
-	let (state_path, cache_path) = state_cache_paths(&tor_config);
+	let (state_path, cache_path) = state_cache_paths(tor_config);
 	let (client, _) = init_client(&state_path, &cache_path, tor_config)?;
 	let res: Result<String, Error> = thread::spawn(move || {
 		let c = client.clone();
@@ -286,7 +288,7 @@ where
 		})
 	})
 	.join()
-	.unwrap_or_else(|e| return Err(Error::TorProcess(format!("{:?}", e))))?;
+	.unwrap_or_else(|e| Err(Error::TorProcess(format!("{:?}", e))))?;
 	res
 }
 
@@ -296,7 +298,7 @@ fn init_client(
 	cache_path: &PathBuf,
 	tor_config: &TorConfig,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
-	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
+	let mut builder = TorClientConfigBuilder::from_directories(state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
 
 	// Configure bridge.
@@ -345,7 +347,7 @@ fn init_client(
 			*cached_client_config = None;
 		}
 	}
-	let res = launch_client(config.clone(), &tor_config);
+	let res = launch_client(config.clone(), tor_config);
 	match res {
 		Ok(client) => {
 			cached_client_config.replace((client.clone(), config.clone()));
@@ -458,7 +460,7 @@ fn add_service_key(
 		Some(expanded_kp) => {
 			key_manager
 				.insert(
-					HsIdKey::from(expanded_kp.public().clone()),
+					HsIdKey::from(*expanded_kp.public()),
 					&HsIdPublicKeySpecifier::new(hs_nickname.clone()),
 					KeystoreSelector::Primary,
 					true,

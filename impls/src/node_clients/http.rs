@@ -142,19 +142,12 @@ impl NodeClient for HTTPNodeClient {
 			},
 			Err(e) => {
 				// If node isn't available, allow offline functions
-				// unfortunately have to parse string due to error structure
-				let err_string = format!("{}", e);
-				return if err_string.contains("404") {
-					Some(NodeVersionInfo {
-						node_version: "1.0.0".into(),
-						block_header_version: 1,
-						verified: Some(false),
-					})
-				} else {
-					error!("Unable to contact Node to get version info: {}, check your node is running", e);
-					warn!("Warning: a) Node is offline, or b) 'node_api_secret_path' in 'grin-wallet.toml' is set incorrectly");
-					None
-				};
+				error!(
+					"Unable to contact Node to get version info: {}, check your node is running",
+					e
+				);
+				warn!("Warning: a) Node is offline, or b) 'node_api_secret_path' in 'grin-wallet.toml' is set incorrectly");
+				return None;
 			}
 		};
 		self.node_version_info = Some(retval.clone());
@@ -220,7 +213,7 @@ impl NodeClient for HTTPNodeClient {
 		// build vec of commits for inclusion in query
 		let query_params: Vec<String> = wallet_outputs
 			.iter()
-			.map(|commit| format!("{}", commit.as_ref().to_hex()))
+			.map(|commit| commit.as_ref().to_hex())
 			.collect();
 
 		// going to leave this here even though we're moving
@@ -283,10 +276,9 @@ impl NodeClient for HTTPNodeClient {
 		};
 
 		let rt = RUNTIME.clone();
-		let res: Result<Vec<_>, _> =
-			std::thread::spawn(move || rt.block_on(async move { task.await }))
-				.join()
-				.unwrap();
+		let res: Result<Vec<_>, _> = std::thread::spawn(move || rt.block_on(task))
+			.join()
+			.unwrap();
 
 		let results: Vec<OutputPrintable> = match res {
 			Ok(resps) => {
@@ -345,7 +337,7 @@ impl NodeClient for HTTPNodeClient {
 		let params = json!([start_index, end_index, max_outputs, Some(true)]);
 		let res = self.send_json_request::<OutputListing>("get_unspent_outputs", &params)?;
 		// We asked for unspent outputs via the api but defensively filter out spent outputs just in case.
-		for out in res.outputs.into_iter().filter(|out| out.spent == false) {
+		for out in res.outputs.into_iter().filter(|out| !out.spent) {
 			let is_coinbase = match out.output_type {
 				api::OutputType::Coinbase => true,
 				api::OutputType::Transaction => false,
