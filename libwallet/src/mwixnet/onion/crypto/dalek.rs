@@ -38,9 +38,9 @@ pub enum DalekError {
 
 /// Encapsulates an ed25519_dalek::PublicKey and provides (de-)serialization
 #[derive(Clone, Debug, PartialEq)]
-pub struct DalekPublicKey(VerifyingKey);
+pub struct MwixnetServerIdentityKey(VerifyingKey);
 
-impl DalekPublicKey {
+impl MwixnetServerIdentityKey {
 	/// Convert DalekPublicKey to hex string
 	pub fn to_hex(&self) -> String {
 		self.0.to_hex()
@@ -52,18 +52,18 @@ impl DalekPublicKey {
 		let bytes = grin_util::from_hex(hex).map_err(|_| err.clone())?;
 		let b = <&[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| err.clone())?;
 		let pk = VerifyingKey::from_bytes(b).map_err(|_| err)?;
-		Ok(DalekPublicKey(pk))
+		Ok(MwixnetServerIdentityKey(pk))
 	}
 
 	/// Compute DalekPublicKey from a SecretKey
 	pub fn from_secret(key: &SecretKey) -> Self {
 		let secret = ed25519_dalek::SigningKey::from_bytes(&key.0);
 		let pk: VerifyingKey = (&secret).into();
-		DalekPublicKey(pk)
+		MwixnetServerIdentityKey(pk)
 	}
 }
 
-impl AsRef<VerifyingKey> for DalekPublicKey {
+impl AsRef<VerifyingKey> for MwixnetServerIdentityKey {
 	fn as_ref(&self) -> &VerifyingKey {
 		&self.0
 	}
@@ -71,13 +71,16 @@ impl AsRef<VerifyingKey> for DalekPublicKey {
 
 /// Serializes an Option<DalekPublicKey> to and from hex
 pub mod option_dalek_pubkey_serde {
-	use super::DalekPublicKey;
+	use super::MwixnetServerIdentityKey;
 	use grin_util::ToHex;
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
 	/// Write the Ed25519 public key as hex, or null
-	pub fn serialize<S>(pk: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+	pub fn serialize<S>(
+		pk: &Option<MwixnetServerIdentityKey>,
+		serializer: S,
+	) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
 	{
@@ -88,29 +91,31 @@ pub mod option_dalek_pubkey_serde {
 	}
 
 	/// Read an optional Ed25519 public key from hex
-	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekPublicKey>, D::Error>
+	pub fn deserialize<'de, D>(
+		deserializer: D,
+	) -> Result<Option<MwixnetServerIdentityKey>, D::Error>
 	where
 		D: Deserializer<'de>,
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
-			Some(string) => DalekPublicKey::from_hex(&string)
+			Some(string) => MwixnetServerIdentityKey::from_hex(&string)
 				.map_err(|e| Error::custom(e.to_string()))
-				.map(|pk: DalekPublicKey| Some(pk)),
+				.map(|pk: MwixnetServerIdentityKey| Some(pk)),
 			None => Ok(None),
 		})
 	}
 }
 
-impl Readable for DalekPublicKey {
+impl Readable for MwixnetServerIdentityKey {
 	fn read<R: Reader>(reader: &mut R) -> Result<Self, ser::Error> {
 		let bytes = reader.read_fixed_bytes(32)?;
 		let b = <&[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| ser::Error::CorruptedData)?;
 		let pk = VerifyingKey::from_bytes(b).map_err(|_| ser::Error::CorruptedData)?;
-		Ok(DalekPublicKey(pk))
+		Ok(MwixnetServerIdentityKey(pk))
 	}
 }
 
-impl Writeable for DalekPublicKey {
+impl Writeable for MwixnetServerIdentityKey {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
 		writer.write_fixed_bytes(self.0.to_bytes())?;
 		Ok(())
@@ -136,7 +141,7 @@ impl DalekSignature {
 
 	/// Verifies DalekSignature
 	#[allow(dead_code)]
-	pub fn verify(&self, pk: &DalekPublicKey, msg: &[u8]) -> Result<(), DalekError> {
+	pub fn verify(&self, pk: &MwixnetServerIdentityKey, msg: &[u8]) -> Result<(), DalekError> {
 		pk.as_ref()
 			.verify(msg, &self.0)
 			.map_err(|_| DalekError::SigVerifyFailed)
@@ -196,20 +201,21 @@ mod tests {
 	#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 	struct TestPubKeySerde {
 		#[serde(with = "option_dalek_pubkey_serde", default)]
-		pk: Option<DalekPublicKey>,
+		pk: Option<MwixnetServerIdentityKey>,
 	}
 
 	#[test]
 	fn pubkey_test() -> Result<(), Box<dyn std::error::Error>> {
 		// Test from_hex
 		let rand_pk = rand_keypair().1;
-		let pk_from_hex = DalekPublicKey::from_hex(rand_pk.0.to_hex().as_str()).unwrap();
+		let pk_from_hex = MwixnetServerIdentityKey::from_hex(rand_pk.0.to_hex().as_str()).unwrap();
 		assert_eq!(rand_pk.0, pk_from_hex.0);
 
 		// Test ser (de-)serialization
 		let bytes = ser::ser_vec(&rand_pk, ProtocolVersion::local()).unwrap();
 		assert_eq!(bytes.len(), 32);
-		let pk_from_deser: DalekPublicKey = ser::deserialize_default(&mut &bytes[..]).unwrap();
+		let pk_from_deser: MwixnetServerIdentityKey =
+			ser::deserialize_default(&mut &bytes[..]).unwrap();
 		assert_eq!(rand_pk.0, pk_from_deser.0);
 
 		// Test serde with Some(rand_pk)
@@ -260,7 +266,7 @@ mod tests {
 		// Sign a message
 		let s = Secp256k1::new();
 		let sk = SecretKey::from_slice(&s, &[1; 32]).unwrap();
-		let pk = DalekPublicKey::from_secret(&sk);
+		let pk = MwixnetServerIdentityKey::from_secret(&sk);
 
 		let msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 		let sig = sign(&sk, &msg).unwrap();
@@ -274,7 +280,7 @@ mod tests {
 
 		// Wrong pubkey
 		let wrong_sk = SecretKey::from_slice(&s, &[2; 32]).unwrap();
-		let wrong_pk = DalekPublicKey::from_secret(&wrong_sk);
+		let wrong_pk = MwixnetServerIdentityKey::from_secret(&wrong_sk);
 		assert!(sig.verify(&wrong_pk, &msg).is_err());
 
 		// Test from_hex

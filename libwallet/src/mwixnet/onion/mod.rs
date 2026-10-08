@@ -19,9 +19,7 @@ pub mod crypto;
 pub mod onion;
 pub mod util;
 
-pub use crypto::{
-	comsig_serde, dalek::DalekPublicKey as MwixnetPublicKey, ComSigError, ComSignature,
-};
+pub use crypto::{comsig_serde, ComSigError, ComSignature};
 
 use chacha20::cipher::StreamCipher;
 use grin_core::core::FeeFields;
@@ -135,7 +133,7 @@ pub fn create_onion(
 #[cfg(any(test, feature = "mwixnet-test"))]
 pub mod test_util {
 	use super::*;
-	use crypto::dalek::DalekPublicKey;
+	use crypto::dalek::MwixnetServerIdentityKey;
 	use crypto::secp;
 
 	use grin_core::core::hash::Hash;
@@ -212,9 +210,9 @@ pub mod test_util {
 		(secp::commit(out_value, &blind).unwrap(), rp)
 	}
 
-	pub fn rand_keypair() -> (SecretKey, DalekPublicKey) {
+	pub fn rand_keypair() -> (SecretKey, MwixnetServerIdentityKey) {
 		let sk = random_secret(false);
-		let pk = DalekPublicKey::from_secret(&sk);
+		let pk = MwixnetServerIdentityKey::from_secret(&sk);
 		(sk, pk)
 	}
 }
@@ -281,7 +279,8 @@ mod tests {
 			public_key.to_hex(),
 			"96ced236bdf1aca722ef68b818445755e6ed4bacf23e19d7b71c43efc5f0077b"
 		);
-		let identity_key = crypto::dalek::DalekPublicKey::from_secret(&server_key).to_hex();
+		let identity_key =
+			crypto::dalek::MwixnetServerIdentityKey::from_secret(&server_key).to_hex();
 		assert_ne!(identity_key, public_key.to_hex());
 
 		let commitment = crypto::secp::commit(1_000, &server_key).unwrap();
