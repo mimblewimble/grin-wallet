@@ -397,14 +397,16 @@ pub mod tests {
 			final_commit = secp::add_excess(&final_commit, &excess).unwrap();
 			let proof = if i == 4 {
 				let n1 = random_secret(false);
-				let rp = secp.bullet_proof(
-					out_value,
-					final_blind.clone(),
-					n1.clone(),
-					n1.clone(),
-					None,
-					None,
-				);
+				let rp = secp
+					.bullet_proof(
+						out_value,
+						final_blind.clone(),
+						n1.clone(),
+						n1.clone(),
+						None,
+						None,
+					)
+					.expect("failed to generate test bulletproof");
 				assert!(secp.verify_bullet_proof(final_commit, rp, None).is_ok());
 				Some(rp)
 			} else {

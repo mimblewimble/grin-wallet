@@ -170,6 +170,7 @@ pub mod test_util {
 			None,
 			None,
 		)
+		.expect("failed to generate test bulletproof")
 	}
 
 	pub fn proof(
@@ -187,14 +188,16 @@ pub mod test_util {
 
 		let out_value = value - (fee as u64);
 
-		let rp = secp.bullet_proof(
-			out_value,
-			blind.clone(),
-			secp::random_secret(false),
-			secp::random_secret(false),
-			None,
-			None,
-		);
+		let rp = secp
+			.bullet_proof(
+				out_value,
+				blind.clone(),
+				secp::random_secret(false),
+				secp::random_secret(false),
+				None,
+				None,
+			)
+			.expect("failed to generate test bulletproof");
 
 		(secp::commit(out_value, &blind).unwrap(), rp)
 	}
