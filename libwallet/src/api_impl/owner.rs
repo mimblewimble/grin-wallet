@@ -50,6 +50,7 @@ use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use x25519_dalek::PublicKey as xPublicKey;
 
+use crate::mwixnet::MwixnetServerPublicKey;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -1512,7 +1513,7 @@ where
 	let server_pubkeys = params
 		.server_keys
 		.iter()
-		.map(|key| xPublicKey::from(key.to_bytes()))
+		.map(|key| MwixnetServerPublicKey(key.to_bytes()))
 		.collect::<Vec<_>>();
 	let fee = FeeFields::try_from(params.fee_per_hop).map_err(|e| Error::Fee(e.to_string()))?;
 	let total_fee = params

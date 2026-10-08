@@ -47,7 +47,7 @@ pub struct MwixnetReqCreationResult {
 
 /// Public X25519 key of an mwixnet server.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MwixnetServerPublicKey([u8; 32]);
+pub struct MwixnetServerPublicKey(pub(crate) [u8; 32]);
 
 impl MwixnetServerPublicKey {
 	/// Derive the public key published by an mwixnet server.

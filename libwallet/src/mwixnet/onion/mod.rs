@@ -31,6 +31,7 @@ use grin_util::secp::{
 use x25519_dalek::PublicKey as xPublicKey;
 use x25519_dalek::{SharedSecret, StaticSecret};
 
+use crate::mwixnet::MwixnetServerPublicKey;
 use crypto::secp::random_secret;
 use onion::{new_stream_cipher, Onion, OnionError, Payload, RawBytes};
 
@@ -41,7 +42,7 @@ pub const MAX_MWIXNET_HOPS: usize = 8;
 #[derive(Clone)]
 pub struct Hop {
 	/// Comsig server public key
-	pub server_pubkey: xPublicKey,
+	pub server_pubkey: MwixnetServerPublicKey,
 	/// Kernel excess
 	pub excess: SecretKey,
 	/// Fee
@@ -59,9 +60,9 @@ pub fn new_hop(
 	proof: Option<RangeProof>,
 ) -> Hop {
 	Hop {
-		server_pubkey: xPublicKey::from(&StaticSecret::from(server_key.0.clone())),
+		server_pubkey: MwixnetServerPublicKey::from_secret(server_key),
 		excess: hop_excess.clone(),
-		fee: FeeFields::from(fee as u32),
+		fee: FeeFields::from(fee),
 		rangeproof: proof,
 	}
 }
@@ -91,7 +92,7 @@ pub fn create_onion(
 	let onion_ephemeral_pk = xPublicKey::from(&ephemeral_sk);
 	for i in 0..hops.len() {
 		let hop = &hops[i];
-		let shared_secret = ephemeral_sk.diffie_hellman(&hop.server_pubkey);
+		let shared_secret = ephemeral_sk.diffie_hellman(&xPublicKey::from(hop.server_pubkey.0));
 		if !shared_secret.was_contributory() {
 			return Err(OnionError::NonContributorySharedSecret);
 		}
@@ -226,7 +227,7 @@ mod tests {
 	fn rejects_zero_key() {
 		let commitment = test_util::rand_commit();
 		let hop = Hop {
-			server_pubkey: xPublicKey::from([0u8; 32]),
+			server_pubkey: MwixnetServerPublicKey([0u8; 32]),
 			excess: random_secret(false),
 			fee: FeeFields::from(1u32),
 			rangeproof: None,
@@ -245,7 +246,7 @@ mod tests {
 			.map(|_| {
 				let server_key = random_secret(false);
 				Hop {
-					server_pubkey: xPublicKey::from(&StaticSecret::from(server_key.0)),
+					server_pubkey: MwixnetServerPublicKey::from_secret(&server_key),
 					excess: random_secret(false),
 					fee: FeeFields::from(1u32),
 					rangeproof: None,
@@ -285,7 +286,7 @@ mod tests {
 		let commitment = crypto::secp::commit(1_000, &server_key).unwrap();
 		let excess = server_key.clone();
 		let hop = Hop {
-			server_pubkey: xPublicKey::from(public_key.to_bytes()),
+			server_pubkey: public_key,
 			excess: excess.clone(),
 			fee: FeeFields::from(1u32),
 			rangeproof: None,
@@ -298,7 +299,7 @@ mod tests {
 
 		let identity_key = MwixnetServerPublicKey::from_hex(&identity_key).unwrap();
 		let wrong_hop = Hop {
-			server_pubkey: xPublicKey::from(identity_key.to_bytes()),
+			server_pubkey: identity_key,
 			excess: server_key.clone(),
 			fee: FeeFields::from(1u32),
 			rangeproof: None,
