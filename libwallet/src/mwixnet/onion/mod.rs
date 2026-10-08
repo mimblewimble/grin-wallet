@@ -235,7 +235,7 @@ mod tests {
 		};
 
 		assert_eq!(
-			create_onion(&commitment, &vec![hop], false),
+			create_onion(&commitment, &[hop], false),
 			Err(OnionError::NonContributorySharedSecret)
 		);
 	}
@@ -292,7 +292,7 @@ mod tests {
 			fee: FeeFields::from(1u32),
 			rangeproof: None,
 		};
-		let onion = create_onion(&commitment, &vec![hop], true).unwrap();
+		let onion = create_onion(&commitment, &[hop], true).unwrap();
 		let peeled = onion.peel_layer(&server_key).unwrap();
 
 		assert_eq!(peeled.payload.excess, excess);
@@ -305,7 +305,7 @@ mod tests {
 			fee: FeeFields::from(1u32),
 			rangeproof: None,
 		};
-		let wrong_onion = create_onion(&commitment, &vec![wrong_hop], true).unwrap();
+		let wrong_onion = create_onion(&commitment, &[wrong_hop], true).unwrap();
 		assert!(wrong_onion.peel_layer(&server_key).is_err());
 	}
 }

@@ -421,7 +421,7 @@ where
 			.max_by_key(|output| output.output.value),
 	}
 	.ok_or_else(|| Error::GenericError("No eligible MWixnet output was found".to_string()))?;
-	let commitment = output.commit.clone();
+	let commitment = output.commit;
 	println!(
 		"Selected MWixnet output {} with value {}",
 		commitment.to_hex(),

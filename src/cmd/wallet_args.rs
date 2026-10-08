@@ -604,27 +604,6 @@ pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, Par
 	})
 }
 
-#[cfg(test)]
-mod mwixnet_tests {
-	use super::*;
-
-	#[test]
-	fn parses_mwixnet_output_selection() {
-		assert!(matches!(
-			parse_mwixnet_output("max").unwrap(),
-			command::MwixnetOutput::Max
-		));
-		assert!(matches!(
-			parse_mwixnet_output("10").unwrap(),
-			command::MwixnetOutput::MinimumAmount(10_000_000_000)
-		));
-		assert!(matches!(
-			parse_mwixnet_output(&format!("08{}", "00".repeat(32))).unwrap(),
-			command::MwixnetOutput::Commitment(_)
-		));
-	}
-}
-
 pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
 	// input file
 	let input_file = match args.is_present("input") {
@@ -1308,7 +1287,7 @@ where
 			)
 		}
 		("mwixnet", Some(args)) => {
-			let a = arg_parse!(parse_mwixnet_args(&args));
+			let a = arg_parse!(parse_mwixnet_args(args));
 			command::mwixnet(owner_api, km, a, tor_config)
 		}
 		("receive", Some(args)) => {
@@ -1403,5 +1382,26 @@ where
 			let msg = "Unknown wallet command, use 'grin-wallet help' for details".to_string();
 			Err(Error::ArgumentError(msg))
 		}
+	}
+}
+
+#[cfg(test)]
+mod mwixnet_tests {
+	use super::*;
+
+	#[test]
+	fn parses_mwixnet_output_selection() {
+		assert!(matches!(
+			parse_mwixnet_output("max").unwrap(),
+			command::MwixnetOutput::Max
+		));
+		assert!(matches!(
+			parse_mwixnet_output("10").unwrap(),
+			command::MwixnetOutput::MinimumAmount(10_000_000_000)
+		));
+		assert!(matches!(
+			parse_mwixnet_output(&format!("08{}", "00".repeat(32))).unwrap(),
+			command::MwixnetOutput::Commitment(_)
+		));
 	}
 }

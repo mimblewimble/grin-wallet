@@ -47,7 +47,6 @@ use grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
-use x25519_dalek::PublicKey as xPublicKey;
 
 use crate::mwixnet::MwixnetServerPublicKey;
 use std::convert::{TryFrom, TryInto};
@@ -1270,7 +1269,6 @@ where
 	if slate.ttl_cutoff_height != 0 && last_confirmed_height >= slate.ttl_cutoff_height {
 		return Err(Error::TransactionExpired);
 	}
-		}
 	Ok(())
 }
 
@@ -1528,17 +1526,17 @@ where
 					server_pubkey: p,
 					excess: blind_sum.secret_key(secp)?,
 					fee,
-					rangeproof: Some(new_output.output.proof.clone()),
+					rangeproof: Some(new_output.output.proof),
 				})
 			} else {
 				let hop_excess = if use_test_rng {
 					BlindingFactor::zero()
 				} else {
-					BlindingFactor::rand(secp);
+					BlindingFactor::rand(secp)
 				};
 				blind_sum = blind_sum.split(&hop_excess, secp)?;
 				Ok(Hop {
-					server_pubkey: p.clone(),
+					server_pubkey: p,
 					excess: hop_excess.secret_key(secp)?,
 					fee,
 					rangeproof: None,
