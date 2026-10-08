@@ -74,28 +74,15 @@ where
 		return Err(Error::SlateState);
 	}
 	check_ttl(w, &ret_slate)?;
-	let parent_key_id = match dest_acct_name {
-		Some(d) => {
-			let pm = w.get_acct_path(d.to_owned())?;
-			match pm {
-				Some(p) => p.path,
-				None => w.parent_key_id(),
-			}
-		}
-		None => w.parent_key_id(),
-	};
+	let parent_key_id = w.parent_key_id_for(dest_acct_name)?;
 	// Don't do this multiple times
-	let tx = updater::retrieve_txs(
-		w,
-		None,
-		Some(ret_slate.id),
-		None,
-		Some(&parent_key_id),
-		use_test_rng,
-	)?;
+	let tx = updater::retrieve_txs(w, None, Some(ret_slate.id), None, None, false)?;
 	for t in &tx {
 		if t.tx_type == TxLogEntryType::TxReceived {
 			return Err(Error::TransactionAlreadyReceived(ret_slate.id.to_string()));
+		}
+		if t.tx_type == TxLogEntryType::TxReceivedCancelled {
+			return Err(Error::TransactionWasCancelled(ret_slate.id.to_string()));
 		}
 	}
 
@@ -151,6 +138,16 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	for entry in w.tx_log_iter()? {
+		let entry = entry?;
+		if entry.tx_slate_id == Some(slate.id)
+			&& matches!(
+				entry.tx_type,
+				TxLogEntryType::TxSentCancelled | TxLogEntryType::TxReceivedCancelled
+			) {
+			return Err(Error::TransactionWasCancelled(slate.id.to_string()));
+		}
+	}
 	let mut sl = slate.clone();
 	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	check_ttl(w, &sl)?;
@@ -165,19 +162,11 @@ where
 
 		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
 		tx::update_stored_tx(w, keychain_mask, &context, &sl, true)?;
-		{
-			let mut batch = w.batch(keychain_mask)?;
-			batch.delete_private_context(sl.id.as_bytes())?;
-			batch.commit()?;
-		}
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
-
-		let parent_key_id = w.parent_key_id();
-		update_tx_slate_state(w, keychain_mask, &parent_key_id, &sl)?;
 	} else if sl.state == SlateState::Standard2 {
 		let keychain = w.keychain(keychain_mask)?;
-		let parent_key_id = w.parent_key_id();
+		let parent_key_id = context.parent_key_id.clone();
 
 		if let Some(args) = context.late_lock_args.take() {
 			// Transaction was late locked, select inputs+change now
@@ -226,15 +215,8 @@ where
 		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
 		tx::verify_slate_payment_proof(w, keychain_mask, &parent_key_id, &context, &sl)?;
 		tx::update_stored_tx(w, keychain_mask, &context, &sl, false)?;
-		{
-			let mut batch = w.batch(keychain_mask)?;
-			batch.delete_private_context(sl.id.as_bytes())?;
-			batch.commit()?;
-		}
 		sl.state = SlateState::Standard3;
 		sl.amount = 0;
-
-		update_tx_slate_state(w, keychain_mask, &parent_key_id, &sl)?;
 	} else {
 		return Err(Error::SlateState);
 	}

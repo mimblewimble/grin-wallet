@@ -341,6 +341,16 @@ where
 		self.active_account.path.clone()
 	}
 
+	/// Resolve an account name, falling back to the active account if absent or unknown
+	pub fn parent_key_id_for(&mut self, name: Option<&str>) -> Result<Identifier, Error> {
+		Ok(name
+			.map(|name| self.get_acct_path(name.to_owned()))
+			.transpose()?
+			.flatten()
+			.map(|account| account.path)
+			.unwrap_or_else(|| self.parent_key_id()))
+	}
+
 	/// Get output data by id.
 	pub fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error> {
 		let key = match mmr_index {
@@ -375,6 +385,13 @@ where
 			.map_err(|e| e.into())
 	}
 
+	pub(crate) fn tx_by_id(&self, id: u32) -> Result<Option<TxLogEntry>, Error> {
+		let key = to_key_u64(self.active_account.path.to_bytes(), id as u64);
+		self.db
+			.get_ser(Some(TX_LOG_ENTRY_PREFIX), &key, None)
+			.map_err(From::from)
+	}
+
 	/// Iterate over all tx log data stored by the backend.
 	pub fn tx_log_iter(
 		&self,
@@ -389,6 +406,75 @@ where
 				)
 				.map_err(From::from)
 			})
+			.map_err(From::from)
+	}
+
+	pub(crate) fn repair_tx_log(&mut self, keychain_mask: Option<&SecretKey>) -> Result<(), Error> {
+		// Validate the mask before repairing misplaced history entries
+		self.keychain(keychain_mask)?;
+		let version = self.db.protocol_version();
+		let entries = self
+			.db
+			.iter(Some(TX_LOG_ENTRY_PREFIX), move |key, mut value| {
+				let tx: TxLogEntry =
+					ser::deserialize(&mut value, version, ser::DeserializationMode::default())?;
+				Ok((key.to_vec(), tx))
+			})?
+			.collect::<Result<Vec<_>, grin_store::Error>>()?;
+		let accounts: Vec<_> = self.acct_path_iter()?.collect();
+		let outputs: Vec<_> = self.iter()?.collect();
+		let mut duplicates = Vec::new();
+		for (key, tx) in &entries {
+			let canonical = to_key_u64(tx.parent_key_id.to_bytes(), tx.id as u64);
+			if *key == canonical {
+				continue;
+			}
+			let original = entries
+				.iter()
+				.find(|(key, _)| *key == canonical)
+				.map(|(_, tx)| tx);
+			let parent = accounts
+				.iter()
+				.find(|a| to_key_u64(a.path.to_bytes(), tx.id as u64) == *key);
+			let copied = original.is_some_and(|original| {
+				tx.tx_slate_id.is_some()
+					&& original.id == tx.id
+					&& original.tx_slate_id == tx.tx_slate_id
+					&& original.tx_type == tx.tx_type
+					&& original.parent_key_id == tx.parent_key_id
+					&& original.amount_debited == tx.amount_debited
+					&& original.amount_credited == tx.amount_credited
+					&& original.num_inputs == tx.num_inputs
+					&& original.num_outputs == tx.num_outputs
+					&& original.fee == tx.fee
+			});
+			let unused = parent.is_some_and(|parent| {
+				!outputs
+					.iter()
+					.any(|o| o.root_key_id == parent.path && o.tx_log_entry == Some(tx.id))
+			});
+			if !copied || !unused {
+				warn!("Transaction history is ambiguous; skipping duplicate cleanup");
+				return Ok(());
+			}
+			duplicates.push(key);
+		}
+		if !duplicates.is_empty() {
+			let mut batch = self.db.batch()?;
+			for key in duplicates {
+				batch.delete(Some(TX_LOG_ENTRY_PREFIX), key)?;
+			}
+			batch.commit()?;
+		}
+		Ok(())
+	}
+
+	pub(crate) fn has_context(&self, slate_id: &Uuid) -> Result<bool, Error> {
+		self.db
+			.exists(
+				Some(PRIVATE_TX_CONTEXT_PREFIX),
+				&to_key_u64(slate_id.as_bytes(), 0),
+			)
 			.map_err(From::from)
 	}
 
@@ -446,12 +532,24 @@ where
 		let path = Path::new(&self.data_file_dir)
 			.join(TX_SAVE_DIR)
 			.join(filename);
-		let path_buf = Path::new(&path).to_path_buf();
-		let mut stored_tx = File::create(path_buf)?;
-		let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1)).unwrap().to_hex();
-		stored_tx.write_all(tx_hex.as_bytes())?;
-		stored_tx.sync_all()?;
-		Ok(())
+		let tmp = path.with_extension(format!("{}.tmp", Uuid::new_v4()));
+		let result = (|| -> Result<(), Error> {
+			let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1))
+				.map_err(|e| Error::Backend(e.to_string()))?
+				.to_hex();
+			let mut stored_tx = fs::OpenOptions::new()
+				.write(true)
+				.create_new(true)
+				.open(&tmp)?;
+			stored_tx.write_all(tx_hex.as_bytes())?;
+			stored_tx.sync_all()?;
+			fs::rename(&tmp, &path)?;
+			Ok(())
+		})();
+		if result.is_err() {
+			let _ = fs::remove_file(tmp);
+		}
+		result
 	}
 
 	/// Retrieves a stored transaction.
@@ -508,7 +606,14 @@ where
 
 	/// Next child ID when we want to create a new output, based on current parent.
 	pub fn next_child(&mut self, keychain_mask: Option<&SecretKey>) -> Result<Identifier, Error> {
-		let parent_key_id = self.active_account.path.clone();
+		self.next_child_for(keychain_mask, &self.active_account.path.clone())
+	}
+
+	pub(crate) fn next_child_for(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+		parent_key_id: &Identifier,
+	) -> Result<Identifier, Error> {
 		let mut deriv_idx = {
 			let batch = self.db.batch()?;
 			batch
@@ -520,7 +625,7 @@ where
 		return_path.path[return_path.depth as usize - 1] = ChildNumber::from(deriv_idx);
 		deriv_idx += 1;
 		let mut batch = self.batch(keychain_mask)?;
-		batch.save_child_index(&parent_key_id, deriv_idx)?;
+		batch.save_child_index(parent_key_id, deriv_idx)?;
 		batch.commit()?;
 		Ok(Identifier::from_path(&return_path))
 	}

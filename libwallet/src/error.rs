@@ -149,7 +149,7 @@ pub enum Error {
 
 	/// Cancellation error
 	#[error("Cancellation Error: {0}")]
-	TransactionCancellationError(&'static str),
+	TransactionCancellationError(String),
 
 	/// Cancellation error
 	#[error("Tx dump Error: {0}")]

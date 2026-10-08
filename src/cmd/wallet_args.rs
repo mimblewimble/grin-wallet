@@ -507,7 +507,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 				true => None,
 			}
 		} else {
-			if !estimate_selection_strategies {
+			if !estimate_selection_strategies && !args.is_present("to_account") {
 				println!("No recipient Slatepack address or provided address invalid. No payment proof will be requested.");
 			}
 			None
@@ -1221,6 +1221,17 @@ where
 		}
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(args));
+			if let Some(account) = args.value_of("to_account") {
+				return command::send_to_account(
+					owner_api,
+					km,
+					a,
+					tor_config,
+					wallet_config.dark_background_color_scheme.unwrap_or(true),
+					account,
+					!args.is_present("no_payment_proof"),
+				);
+			}
 			command::send(
 				owner_api,
 				km,

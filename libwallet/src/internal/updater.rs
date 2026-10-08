@@ -473,19 +473,12 @@ where
 }
 
 /// Cancel transaction and associated outputs
-pub fn cancel_tx_and_outputs<C, K>(
-	wallet: &mut WalletBackend<C, K>,
-	keychain_mask: Option<&SecretKey>,
+pub(crate) fn cancel_tx_batch<K: Keychain>(
+	batch: &mut crate::backend::WalletBatch<'_, K>,
 	mut tx: TxLogEntry,
 	outputs: Vec<OutputData>,
 	parent_key_id: &Identifier,
-) -> Result<(), Error>
-where
-	C: NodeClient,
-	K: Keychain,
-{
-	let mut batch = wallet.batch(keychain_mask)?;
-
+) -> Result<(), Error> {
 	for mut o in outputs {
 		// unlock locked outputs
 		if o.status == OutputStatus::Unconfirmed || o.status == OutputStatus::Reverted {
@@ -504,7 +497,6 @@ where
 		_ => {}
 	}
 	batch.save_tx_log_entry(tx, parent_key_id)?;
-	batch.commit()?;
 	Ok(())
 }
 

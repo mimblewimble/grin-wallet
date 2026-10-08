@@ -15,7 +15,6 @@
 //! Selection of inputs for building transactions
 
 use crate::error::Error;
-use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
@@ -31,7 +30,6 @@ use grin_core::libtx::{
 use grin_keychain::{Identifier, Keychain};
 use grin_util::secp::key::SecretKey;
 use grin_util::secp::pedersen;
-use std::collections::HashMap;
 use std::convert::TryInto;
 
 /// Initialize a transaction on the sender side, returns a corresponding
@@ -129,20 +127,47 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let mut output_commits: HashMap<Identifier, (Option<String>, u64)> = HashMap::new();
-	// Store cached commits before locking wallet
-	let mut total_change = 0;
-	for (id, _, change_amount) in &context.get_outputs() {
-		output_commits.insert(
-			id.clone(),
-			(
-				wallet.calc_commit_for_cache(keychain_mask, *change_amount, id)?,
-				*change_amount,
-			),
-		);
-		total_change += change_amount;
+	let mut received = Vec::new();
+	for entry in wallet.tx_log_iter()? {
+		let entry = entry?;
+		if entry.tx_slate_id != Some(slate.id) {
+			continue;
+		}
+		if entry.parent_key_id == context.parent_key_id {
+			match entry.tx_type {
+				TxLogEntryType::TxSent => {
+					return Err(Error::TransactionAlreadyReceived(slate.id.to_string()))
+				}
+				TxLogEntryType::TxSentCancelled => {
+					return Err(Error::TransactionWasCancelled(slate.id.to_string()))
+				}
+				_ => {}
+			}
+		}
+		if entry.tx_type == TxLogEntryType::TxReceived {
+			received.push(entry);
+		}
 	}
-
+	let received_outputs: Vec<_> = wallet
+		.iter()?
+		.filter(|output| {
+			received
+				.iter()
+				.any(|t| output.root_key_id == t.parent_key_id && output.tx_log_entry == Some(t.id))
+		})
+		.map(|output| output.key_id)
+		.collect();
+	let mut change_outputs = Vec::new();
+	// Prepare change before opening the batch
+	let mut total_change = 0;
+	for (id, _, amount) in context.get_outputs() {
+		if received_outputs.contains(&id) {
+			continue;
+		}
+		let commit = wallet.calc_commit_for_cache(keychain_mask, amount, &id)?;
+		change_outputs.push((id, commit, amount));
+		total_change += amount;
+	}
 	debug!("Change amount is: {}", total_change);
 
 	let keychain = wallet.keychain(keychain_mask)?;
@@ -210,9 +235,8 @@ where
 		};
 
 		// write the output representing our change
-		for (id, _, _) in &context.get_outputs() {
+		for (id, commit, change_amount) in change_outputs {
 			t.num_outputs += 1;
-			let (commit, change_amount) = output_commits.get(id).unwrap().clone();
 			t.amount_credited += change_amount;
 			batch.save(OutputData {
 				root_key_id: parent_key_id.clone(),
@@ -256,7 +280,7 @@ where
 	K: Keychain,
 {
 	// Create a potential output for this transaction
-	let key_id = keys::next_available_key(wallet, keychain_mask).unwrap();
+	let key_id = wallet.next_child_for(keychain_mask, &parent_key_id)?;
 	let keychain = wallet.keychain(keychain_mask)?;
 	let key_id_inner = key_id.clone();
 	let amount = slate.amount;
@@ -362,6 +386,7 @@ where
 		fee,
 		change_outputs,
 		include_inputs_in_sum,
+		parent_key_id,
 	)?;
 
 	Ok((parts, coins, change_amounts_derivations, fee))
@@ -560,17 +585,38 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	// Skip outputs from unfinished local transactions
+	let mut pending = Vec::new();
+	if minimum_confirmations == 0 {
+		for entry in wallet.tx_log_iter()? {
+			let entry = entry?;
+			if entry.parent_key_id != *parent_key_id
+				|| matches!(
+					entry.tx_slate_state,
+					Some(crate::SlateState::Standard3 | crate::SlateState::Invoice3)
+				) {
+				continue;
+			}
+			if let Some(id) = entry.tx_slate_id {
+				if wallet.has_context(&id)? {
+					pending.push(entry.id);
+				}
+			}
+		}
+	}
 	Ok(wallet
 		.iter()?
 		.filter(|output| {
 			output.root_key_id == *parent_key_id
 				&& output.eligible_to_spend(current_height, minimum_confirmations)
+				&& !(output.status == OutputStatus::Unconfirmed
+					&& output.tx_log_entry.is_some_and(|id| pending.contains(&id)))
 		})
 		.collect())
 }
 
 /// Selects inputs and change for a transaction
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn inputs_and_change<C, K, B>(
 	coins: &[OutputData],
 	wallet: &mut WalletBackend<C, K>,
@@ -579,6 +625,7 @@ pub fn inputs_and_change<C, K, B>(
 	fee: u64,
 	num_change_outputs: usize,
 	include_inputs_in_sum: bool,
+	parent_key_id: &Identifier,
 ) -> Result<
 	(
 		Vec<Box<build::Append<K, B>>>,
@@ -633,7 +680,7 @@ where
 				part_change
 			};
 
-			let change_key = wallet.next_child(keychain_mask)?;
+			let change_key = wallet.next_child_for(keychain_mask, parent_key_id)?;
 
 			change_amounts_derivations.push((change_amount, change_key.clone(), None));
 			parts.push(build::output(change_amount, change_key));

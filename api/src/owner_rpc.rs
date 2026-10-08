@@ -618,6 +618,57 @@ pub trait OwnerRpc {
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, Error>;
 
 	/**
+	Networked version of [Owner::send_to_account](struct.Owner.html#method.send_to_account)
+
+	Receives and finalizes within this wallet, optionally posting to the node
+	The destination may be the source account and the active account stays unchanged
+
+	# Json rpc example
+
+	```
+	# if cfg!(windows) { return; }
+	# let dir = tempfile::tempdir().unwrap();
+	let request = serde_json::json!({
+		"jsonrpc": "2.0",
+		"method": "send_to_account",
+		"params": {
+			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
+			"args": {
+				"src_acct_name": "default",
+				"amount": "1000000000",
+				"minimum_confirmations": 1,
+				"max_outputs": 500,
+				"num_change_outputs": 1,
+				"selection_strategy_is_use_all": false
+			},
+			"dest_acct_name": "default",
+			"payment_proof": true,
+			"post_tx": true,
+			"fluff": false
+		},
+		"id": 1
+	});
+	# let response = grin_wallet_api::run_doctest_owner(
+	#     request, dir.path().to_str().unwrap(), 4, false, false, false, false,
+	# ).unwrap().unwrap();
+	# assert!(response["error"].is_null(), "{}", response);
+	# let slate = &response["result"]["Ok"];
+	# assert_eq!(slate["sta"], "S3", "{}", response);
+	# assert_eq!(slate["proof"]["saddr"], slate["proof"]["raddr"]);
+	# assert!(slate["proof"]["rsig"].is_string());
+	```
+	*/
+	fn send_to_account(
+		&self,
+		token: Token,
+		args: InitTxArgs,
+		dest_acct_name: String,
+		payment_proof: bool,
+		post_tx: bool,
+		fluff: bool,
+	) -> Result<VersionedSlate, Error>;
+
+	/**
 	;Networked version of [Owner::issue_invoice_tx](struct.Owner.html#method.issue_invoice_tx).
 
 	```
@@ -2218,6 +2269,27 @@ where
 		let slate = Owner::init_send_tx(self, token.keychain_mask.as_ref(), args)?;
 		let version = SlateVersion::V4;
 		VersionedSlate::into_version(slate, version)
+	}
+
+	fn send_to_account(
+		&self,
+		token: Token,
+		args: InitTxArgs,
+		dest_acct_name: String,
+		payment_proof: bool,
+		post_tx: bool,
+		fluff: bool,
+	) -> Result<VersionedSlate, Error> {
+		let slate = Owner::send_to_account(
+			self,
+			token.keychain_mask.as_ref(),
+			args,
+			&dest_acct_name,
+			payment_proof,
+			post_tx,
+			fluff,
+		)?;
+		VersionedSlate::into_version(slate, SlateVersion::V4)
 	}
 
 	fn issue_invoice_tx(

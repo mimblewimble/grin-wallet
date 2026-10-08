@@ -362,9 +362,67 @@ pub fn send<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: SendArgs,
+	tor_config: TorConfig,
+	dark_scheme: bool,
+	test_mode: bool,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	send_impl(
+		owner_api,
+		keychain_mask,
+		args,
+		tor_config,
+		dark_scheme,
+		test_mode,
+		None,
+	)
+}
+
+pub fn send_to_account<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: SendArgs,
+	tor_config: TorConfig,
+	dark_scheme: bool,
+	account: &str,
+	payment_proof: bool,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	if !owner_api
+		.accounts(keychain_mask)?
+		.iter()
+		.any(|a| a.label == account)
+	{
+		return Err(libwallet::Error::UnknownAccountLabel(account.to_owned()).into());
+	}
+
+	send_impl(
+		owner_api,
+		keychain_mask,
+		args,
+		tor_config,
+		dark_scheme,
+		false,
+		Some((account, payment_proof)),
+	)
+}
+
+fn send_impl<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: SendArgs,
 	mut tor_config: TorConfig,
 	dark_scheme: bool,
 	test_mode: bool,
+	account: Option<(&str, bool)>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -378,6 +436,18 @@ where
 			.as_deref()
 			.map(SlatepackAddress::try_from)
 			.transpose()?
+	};
+
+	let transfer = |init_args: InitTxArgs| match account {
+		Some((account, payment_proof)) => owner_api.send_to_account(
+			keychain_mask,
+			init_args,
+			account,
+			payment_proof,
+			false,
+			args.fluff,
+		),
+		None => owner_api.init_send_tx(keychain_mask, init_args),
 	};
 
 	let mut slate = Slate::blank(2, false);
@@ -414,7 +484,7 @@ where
 					estimate_only: Some(true),
 					..Default::default()
 				};
-				let result = owner_api.init_send_tx(keychain_mask, init_args.clone());
+				let result = transfer(init_args.clone());
 				let slate = match result {
 					Ok(s) => s,
 					Err(e) => match e {
@@ -423,7 +493,7 @@ where
 							if args.use_max_amount {
 								amount = a;
 								init_args = max_retry_args(init_args, amount, max_inputs);
-								owner_api.init_send_tx(keychain_mask, init_args)?
+								transfer(init_args)?
 							} else {
 								return Err(e);
 							}
@@ -458,20 +528,21 @@ where
 			late_lock: Some(args.late_lock),
 			..Default::default()
 		};
-		let init_send_tx = |init_args: InitTxArgs| -> Result<Slate, libwallet::Error> {
-			let result = owner_api.init_send_tx(keychain_mask, init_args.clone());
-			let slate = result?;
+		let send = |init_args: InitTxArgs| -> Result<Slate, libwallet::Error> {
+			let amount = init_args.amount;
+			let slate = transfer(init_args)?;
 			info!(
 				"Tx created: {} grin to {} (strategy '{}')",
-				core::amount_to_hr_string(init_args.amount, false),
-				dest.as_ref()
-					.map(ToString::to_string)
+				core::amount_to_hr_string(amount, false),
+				account
+					.map(|(name, _)| name.to_owned())
+					.or_else(|| dest.as_ref().map(ToString::to_string))
 					.unwrap_or_else(|| "no destination".to_string()),
 				args.selection_strategy,
 			);
 			Ok(slate)
 		};
-		slate = match init_send_tx(init_args.clone()) {
+		slate = match send(init_args.clone()) {
 			Ok(s) => s,
 			Err(e) => match e {
 				libwallet::Error::BigAmountError(a, _fee, max_inputs) => {
@@ -479,7 +550,7 @@ where
 					if args.use_max_amount {
 						amount = a;
 						init_args = max_retry_args(init_args, amount, max_inputs);
-						init_send_tx(init_args).map_err(|e| {
+						send(init_args).map_err(|e| {
 							info!("Tx not created: {}", e);
 							Error::from(e)
 						})?
@@ -497,6 +568,18 @@ where
 	}
 
 	if args.estimate_selection_strategies {
+		return Ok(());
+	}
+
+	if let Some((account, _)) = account {
+		if let Err(e) = owner_api.post_tx(keychain_mask, &slate, args.fluff) {
+			error!(
+				"Tx {} is finalized and stored, but posting failed: {}. Check its status before using repost or cancel",
+				slate.id, e
+			);
+			return Err(e.into());
+		}
+		println!("Tx sent to account {}", account);
 		return Ok(());
 	}
 
