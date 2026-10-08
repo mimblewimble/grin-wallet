@@ -72,12 +72,14 @@ pub enum TorPostError {
 	PossiblySent(Error),
 }
 
+type ArtiClientConfig = (Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig);
+
 lazy_static! {
 	/// Arti Tokio runtime.
 	static ref ARTI_RUNTIME: LazyLock<Mutex<Option<ArtiRuntimeWrapper>>> =
 		LazyLock::new(|| Mutex::new(ArtiRuntimeWrapper::create().ok()));
 	/// Arti client and config.
-	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig)>>> =
+	static ref ARTI_CLIENT_CONFIG: LazyLock<Mutex<Option<ArtiClientConfig>>> =
 		LazyLock::new(|| Mutex::new(None));
 	/// Running services, where key is onion address.
 	static ref ARTI_PROXY_SERVICES: LazyLock<Mutex<HashMap<String, TorService>>> =
@@ -151,7 +153,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 		info!("Proxy configuration will be ignored.");
 	}
 
-	let (state_path, cache_path) = state_cache_paths(&config);
+	let (state_path, cache_path) = state_cache_paths(config);
 	let (client, config) = init_client(&state_path, &cache_path, config)?;
 
 	// Add service key to keystore.
@@ -164,7 +166,7 @@ pub fn start_tor_service(key: SecretKey, addr: &str, config: &TorConfig) -> Resu
 	let state_lock = state_path
 		.join("hss")
 		.join(format!("{}.lock", onion_address));
-	let _ = add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
+	add_service_key(config.fs_mistrust(), &key, &hs, keystore_path)?;
 
 	// Launch Onion service.
 	let service_config = OnionServiceConfigBuilder::default()
@@ -276,7 +278,7 @@ where
 	let port = url.port_u16().unwrap_or(80);
 	let request = build_post_request(json, &url).map_err(TorPostError::NotSent)?;
 	let timeout = tor_config.request_timeout();
-	let (state_path, cache_path) = state_cache_paths(&tor_config);
+	let (state_path, cache_path) = state_cache_paths(tor_config);
 	let (client, _) =
 		init_client(&state_path, &cache_path, tor_config).map_err(TorPostError::NotSent)?;
 	let res: Result<String, TorPostError> = thread::spawn(move || {
@@ -345,31 +347,13 @@ where
 	res
 }
 
-#[cfg(test)]
-mod tests {
-	use super::build_post_request;
-	use hyper::{Method, Uri};
-
-	#[test]
-	fn builds_origin_form_json_request() {
-		let url: Uri = "http://example.onion:8080/v1?test=1".parse().unwrap();
-		let request = build_post_request("{}".to_string(), &url).unwrap();
-
-		assert_eq!(request.method(), Method::POST);
-		assert_eq!(request.uri(), "/v1?test=1");
-		assert_eq!(request.headers()["host"], "example.onion:8080");
-		assert_eq!(request.headers()["accept"], "application/json");
-		assert_eq!(request.headers()["content-type"], "application/json");
-	}
-}
-
 /// Create Tor client.
 fn init_client(
 	state_path: &PathBuf,
 	cache_path: &PathBuf,
 	tor_config: &TorConfig,
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
-	let mut builder = TorClientConfigBuilder::from_directories(&state_path, cache_path);
+	let mut builder = TorClientConfigBuilder::from_directories(state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
 
 	// Configure bridge.
@@ -418,7 +402,7 @@ fn init_client(
 			*cached_client_config = None;
 		}
 	}
-	let res = launch_client(config.clone(), &tor_config);
+	let res = launch_client(config.clone(), tor_config);
 	match res {
 		Ok(client) => {
 			cached_client_config.replace((client.clone(), config.clone()));
@@ -531,7 +515,7 @@ fn add_service_key(
 		Some(expanded_kp) => {
 			key_manager
 				.insert(
-					HsIdKey::from(expanded_kp.public().clone()),
+					HsIdKey::from(*expanded_kp.public()),
 					&HsIdPublicKeySpecifier::new(hs_nickname.clone()),
 					KeystoreSelector::Primary,
 					true,
@@ -548,4 +532,22 @@ fn add_service_key(
 		}
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::build_post_request;
+	use hyper::{Method, Uri};
+
+	#[test]
+	fn builds_origin_form_json_request() {
+		let url: Uri = "http://example.onion:8080/v1?test=1".parse().unwrap();
+		let request = build_post_request("{}".to_string(), &url).unwrap();
+
+		assert_eq!(request.method(), Method::POST);
+		assert_eq!(request.uri(), "/v1?test=1");
+		assert_eq!(request.headers()["host"], "example.onion:8080");
+		assert_eq!(request.headers()["accept"], "application/json");
+		assert_eq!(request.headers()["content-type"], "application/json");
+	}
 }

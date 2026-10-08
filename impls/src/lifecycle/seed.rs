@@ -15,7 +15,6 @@
 use crate::blake2;
 use core::num::NonZeroU32;
 use rand::{thread_rng, Rng};
-use serde_json;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -55,8 +54,8 @@ impl WalletSeed {
 	}
 
 	pub fn _from_hex(hex: &str) -> Result<WalletSeed, Error> {
-		let bytes = util::from_hex(&hex.to_string())
-			.map_err(|_| Error::GenericError("Invalid hex".to_owned()))?;
+		let bytes =
+			util::from_hex(hex).map_err(|_| Error::GenericError("Invalid hex".to_owned()))?;
 		Ok(WalletSeed::from_bytes(&bytes))
 	}
 
@@ -136,7 +135,9 @@ impl WalletSeed {
 		}
 		path.push(backup_seed_file_name.clone());
 		if fs::rename(seed_file_name, backup_seed_file_name.as_str()).is_err() {
-			return Err(Error::GenericError("Can't rename wallet seed file".to_owned()).into());
+			return Err(Error::GenericError(
+				"Can't rename wallet seed file".to_owned(),
+			));
 		}
 		warn!("{} backed up as {}", seed_file_name, backup_seed_file_name);
 		Ok(backup_seed_file_name)
@@ -163,14 +164,13 @@ impl WalletSeed {
 				data_file_dir.to_owned(),
 				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
 					.to_owned(),
-			)
-			.into());
+			));
 		}
 		let seed = WalletSeed::from_mnemonic(word_list)?;
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).map_err(|_| Error::Format)?;
 		let mut file = File::create(seed_file_path).map_err(|_| Error::IO)?;
-		file.write_all(&enc_seed_json.as_bytes())
+		file.write_all(enc_seed_json.as_bytes())
 			.map_err(|_| Error::IO)?;
 		warn!("Seed created from word list");
 		Ok(())
@@ -209,7 +209,7 @@ impl WalletSeed {
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).map_err(|_| Error::Format)?;
 		let mut file = File::create(seed_file_path).map_err(|_| Error::IO)?;
-		file.write_all(&enc_seed_json.as_bytes())
+		file.write_all(enc_seed_json.as_bytes())
 			.map_err(|_| Error::IO)?;
 		Ok(seed)
 	}
@@ -307,7 +307,7 @@ impl EncryptedWalletSeed {
 			aad,
 			&mut enc_bytes,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(Error::Encryption);
 		}
 
@@ -352,7 +352,7 @@ impl EncryptedWalletSeed {
 			aad,
 			&mut encrypted_seed,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(Error::Encryption);
 		}
 		for _ in 0..aead::AES_256_GCM.tag_len() {

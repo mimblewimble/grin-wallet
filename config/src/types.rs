@@ -112,7 +112,7 @@ impl WalletConfig {
 	/// Accept fee base
 	pub fn accept_fee_base(&self) -> u64 {
 		self.accept_fee_base
-			.unwrap_or_else(|| WalletConfig::default_accept_fee_base())
+			.unwrap_or_else(WalletConfig::default_accept_fee_base)
 	}
 
 	/// Node API requests timeout.
@@ -249,7 +249,7 @@ impl TorConfig {
 }
 
 /// Tor Bridge Config
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorBridgeConfig {
 	/// Path to bridge binary to use with integrated Tor library
 	pub bridge_bin_path: Option<String>,
@@ -259,16 +259,6 @@ pub struct TorBridgeConfig {
 	pub client_option: Option<String>,
 }
 
-impl Default for TorBridgeConfig {
-	fn default() -> TorBridgeConfig {
-		TorBridgeConfig {
-			bridge_bin_path: None,
-			bridge_line: None,
-			client_option: None,
-		}
-	}
-}
-
 impl fmt::Display for TorBridgeConfig {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{:?}", self)
@@ -276,7 +266,7 @@ impl fmt::Display for TorBridgeConfig {
 }
 
 /// Tor Proxy configuration (useful for protocols such as shadowsocks)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorProxyConfig {
 	/// socks4 |socks5 | http(s)
 	pub transport: Option<String>,
@@ -288,18 +278,6 @@ pub struct TorProxyConfig {
 	pub password: Option<String>,
 	/// allowed port - proxy
 	pub allowed_port: Option<Vec<u16>>,
-}
-
-impl Default for TorProxyConfig {
-	fn default() -> TorProxyConfig {
-		TorProxyConfig {
-			transport: None,
-			address: None,
-			username: None,
-			password: None,
-			allowed_port: None,
-		}
-	}
 }
 
 impl fmt::Display for TorProxyConfig {

@@ -160,7 +160,7 @@ pub fn config_command_wallet(
 	let mut config_file_name = current_dir.clone();
 	config_file_name.push("grin-wallet.toml");
 	if config_file_name.exists() {
-		return Err(grin_wallet_controller::Error::ArgumentError(
+		Err(grin_wallet_controller::Error::ArgumentError(
 			"grin-wallet.toml already exists in the target directory. Please remove it first"
 				.to_owned(),
 		))?;
@@ -217,6 +217,7 @@ fn get_wallet_subcommand<'a>(
 
 /// Helper to create an instance of the LMDB wallet
 #[allow(dead_code)]
+#[allow(clippy::type_complexity)]
 pub fn instantiate_wallet(
 	mut wallet_config: WalletConfig,
 	node_client: LocalWalletClient,
@@ -224,17 +225,11 @@ pub fn instantiate_wallet(
 	account: &str,
 ) -> Result<
 	(
-		Arc<
-			Mutex<
-				Box<
-					dyn WalletInst<
-						'static,
-						DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-						LocalWalletClient,
-						ExtKeychain,
-					>,
-				>,
-			>,
+		grin_wallet_libwallet::WalletHandle<
+			'static,
+			DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+			LocalWalletClient,
+			ExtKeychain,
 		>,
 		Option<SecretKey>,
 	),
@@ -292,13 +287,21 @@ pub fn execute_command_no_setup<C, F>(
 where
 	C: NodeClient + 'static + Clone,
 	F: FnOnce(
-		Arc<Mutex<Box<dyn WalletInst<'static, DefaultLCProvider<C, ExtKeychain>, C, ExtKeychain>>>>,
+		grin_wallet_libwallet::WalletHandle<
+			'static,
+			DefaultLCProvider<C, ExtKeychain>,
+			C,
+			ExtKeychain,
+		>,
 	),
 {
 	let args = app.clone().get_matches_from(arg_vec);
 	let _ = get_wallet_subcommand(test_dir, wallet_name, args.clone());
+	// Avoid conflicts with local wallets
+	let wallet_dir = PathBuf::from(test_dir).join(format!("{}_bootstrap", wallet_name));
 	let mut config =
-		config::initial_setup_wallet(&ChainTypes::AutomatedTesting, None, true).unwrap();
+		config::initial_setup_wallet(&ChainTypes::AutomatedTesting, Some(wallet_dir), true)
+			.unwrap();
 	let mut wallet_config = config.clone().members.wallet;
 	wallet_config.chain_type = None;
 	wallet_config.api_secret_path = None;
@@ -372,7 +375,7 @@ where
 {
 	let url = Url::parse(dest).unwrap();
 	let req_val: Value = serde_json::from_str(req).unwrap();
-	let req = EncryptedRequest::from_json(sec_req_id, &req_val, &shared_key).unwrap();
+	let req = EncryptedRequest::from_json(sec_req_id, &req_val, shared_key).unwrap();
 	let res = post(&url, None, &req).map_err(|e| {
 		let err_string = format!("{}", e);
 		println!("{}", err_string);
@@ -444,7 +447,7 @@ pub fn derive_ecdh_key(sec_key_str: &str, other_pubkey: &PublicKey) -> SecretKey
 	let secp_inst = static_secp_instance();
 	let secp = secp_inst.lock();
 
-	let mut shared_pubkey = other_pubkey.clone();
+	let mut shared_pubkey = *other_pubkey;
 	shared_pubkey.mul_assign(&secp, &sec_key).unwrap();
 
 	let x_coord = shared_pubkey.serialize_vec(&secp, true);
@@ -460,7 +463,7 @@ pub struct WalletAPIReturnError {
 
 impl std::fmt::Display for WalletAPIReturnError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{} - {}", self.code, &self.message)
+		write!(f, "{} - {}", self.code, self.message)
 	}
 }
 

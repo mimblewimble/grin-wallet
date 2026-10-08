@@ -55,7 +55,7 @@ fn build_output_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error
 		api1
 	);
 
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {

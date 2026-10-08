@@ -15,6 +15,7 @@
 //! Onion module definition
 
 pub mod crypto;
+#[allow(clippy::module_inception)]
 pub mod onion;
 pub mod util;
 
@@ -70,7 +71,7 @@ pub fn new_hop(
 /// Create an Onion for the Commitment, encrypting the payload for each hop
 pub fn create_onion(
 	commitment: &Commitment,
-	hops: &Vec<Hop>,
+	hops: &[Hop],
 	use_test_rng: bool,
 ) -> Result<Onion, OnionError> {
 	if hops.len() > MAX_MWIXNET_HOPS {
@@ -81,7 +82,7 @@ pub fn create_onion(
 	if hops.is_empty() {
 		return Ok(Onion {
 			ephemeral_pubkey: xPublicKey::from([0u8; 32]),
-			commit: commitment.clone(),
+			commit: *commitment,
 			enc_payloads: vec![],
 		});
 	}
@@ -108,22 +109,22 @@ pub fn create_onion(
 		let payload = Payload {
 			next_ephemeral_pk,
 			excess: hop.excess.clone(),
-			fee: hop.fee.clone(),
-			rangeproof: hop.rangeproof.clone(),
+			fee: hop.fee,
+			rangeproof: hop.rangeproof,
 		};
 		enc_payloads.push(payload.serialize()?);
 	}
 
 	for i in (0..shared_secrets.len()).rev() {
 		let mut cipher = new_stream_cipher(&shared_secrets[i])?;
-		for j in i..shared_secrets.len() {
-			cipher.apply_keystream(&mut enc_payloads[j]);
+		for payload in enc_payloads.iter_mut().skip(i) {
+			cipher.apply_keystream(payload);
 		}
 	}
 
 	let onion = Onion {
 		ephemeral_pubkey: onion_ephemeral_pk,
-		commit: commitment.clone(),
+		commit: *commitment,
 		enc_payloads,
 	};
 	Ok(onion)
@@ -194,7 +195,7 @@ pub mod test_util {
 
 		let mut blind = input_blind.clone();
 		for hop_excess in hop_excesses {
-			blind.add_assign(&secp, &hop_excess).unwrap();
+			blind.add_assign(&secp, hop_excess).unwrap();
 		}
 
 		let out_value = value - (fee as u64);

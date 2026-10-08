@@ -94,7 +94,7 @@ pub struct Payload {
 
 impl Payload {
 	/// Deserialize
-	pub fn deserialize(bytes: &Vec<u8>) -> Result<Payload, ser::Error> {
+	pub fn deserialize(bytes: &[u8]) -> Result<Payload, ser::Error> {
 		let payload: Payload = ser::deserialize_default(&mut &bytes[..])?;
 		Ok(payload)
 	}
@@ -131,7 +131,7 @@ impl Readable for Payload {
 impl Writeable for Payload {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
 		writer.write_u8(CURRENT_ONION_VERSION)?;
-		writer.write_fixed_bytes(&self.next_ephemeral_pk.as_bytes())?;
+		writer.write_fixed_bytes(self.next_ephemeral_pk.as_bytes())?;
 		writer.write_fixed_bytes(&self.excess)?;
 		writer.write_u64(self.fee.into())?;
 		write_optional(writer, &self.rangeproof)?;
@@ -163,8 +163,8 @@ impl Onion {
 
 		let mut decrypted_bytes = self.enc_payloads[0].clone();
 		cipher.apply_keystream(&mut decrypted_bytes);
-		let decrypted_payload = Payload::deserialize(&decrypted_bytes)
-			.map_err(|e| OnionError::DeserializationError(e))?;
+		let decrypted_payload =
+			Payload::deserialize(&decrypted_bytes).map_err(OnionError::DeserializationError)?;
 
 		let enc_payloads: Vec<RawBytes> = self
 			.enc_payloads
@@ -178,15 +178,15 @@ impl Onion {
 			})
 			.collect();
 
-		let mut commitment = self.commit.clone();
+		let mut commitment = self.commit;
 		commitment = secp::add_excess(&commitment, &decrypted_payload.excess)
-			.map_err(|e| OnionError::CalcCommitError(e))?;
+			.map_err(OnionError::CalcCommitError)?;
 		commitment = secp::sub_value(&commitment, decrypted_payload.fee.into())
-			.map_err(|e| OnionError::CalcCommitError(e))?;
+			.map_err(OnionError::CalcCommitError)?;
 
 		let peeled_onion = Onion {
 			ephemeral_pubkey: decrypted_payload.next_ephemeral_pk,
-			commit: commitment.clone(),
+			commit: commitment,
 			enc_payloads,
 		};
 		Ok(PeeledOnion {
@@ -205,13 +205,13 @@ pub fn new_stream_cipher(shared_secret: &SharedSecret) -> Result<ChaCha20, Onion
 	let key = Key::from_slice(&mukey[0..32]);
 	let nonce = Nonce::from_slice(b"NONCE1234567");
 
-	Ok(ChaCha20::new(&key, &nonce))
+	Ok(ChaCha20::new(key, nonce))
 }
 
 impl Writeable for Onion {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
 		writer.write_fixed_bytes(self.ephemeral_pubkey.as_bytes())?;
-		writer.write_fixed_bytes(&self.commit)?;
+		writer.write_fixed_bytes(self.commit)?;
 		writer.write_u64(self.enc_payloads.len() as u64)?;
 		for p in &self.enc_payloads {
 			writer.write_u64(p.len() as u64)?;
@@ -326,7 +326,7 @@ impl<'de> serde::de::Deserialize<'de> for Onion {
 		}
 
 		const FIELDS: &[&str] = &["pubkey", "commit", "data"];
-		deserializer.deserialize_struct("Onion", &FIELDS, OnionVisitor)
+		deserializer.deserialize_struct("Onion", FIELDS, OnionVisitor)
 	}
 }
 
@@ -428,13 +428,13 @@ mod tests {
 			crate::mwixnet::onion::create_onion(&commitment, &hops, false).unwrap();
 
 		let mut payload = Payload {
-			next_ephemeral_pk: onion_packet.ephemeral_pubkey.clone(),
+			next_ephemeral_pk: onion_packet.ephemeral_pubkey,
 			excess: random_secret(false),
 			fee: FeeFields::from(fee_per_hop),
 			rangeproof: None,
 		};
-		for i in 0..5 {
-			let peeled = onion_packet.peel_layer(&keys[i]).unwrap();
+		for key in &keys {
+			let peeled = onion_packet.peel_layer(key).unwrap();
 			payload = peeled.payload;
 			onion_packet = peeled.onion;
 		}
