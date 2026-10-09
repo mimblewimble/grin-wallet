@@ -65,11 +65,6 @@ impl MwixnetServerPublicKey {
 		Ok(Self(bytes))
 	}
 
-	/// Return the public key bytes.
-	pub fn to_bytes(self) -> [u8; 32] {
-		self.0
-	}
-
 	/// Return the hexadecimal representation.
 	pub fn to_hex(self) -> String {
 		self.0.to_hex()

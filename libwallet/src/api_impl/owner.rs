@@ -48,7 +48,6 @@ use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 
-use crate::mwixnet::MwixnetServerPublicKey;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 
@@ -1495,11 +1494,7 @@ where
 	let amount = output.value;
 	let input_blind = keychain.derive_key(amount, &output.key_id, SwitchCommitmentType::Regular)?;
 
-	let server_pubkeys = params
-		.server_keys
-		.iter()
-		.map(|key| MwixnetServerPublicKey(key.to_bytes()))
-		.collect::<Vec<_>>();
+	let server_pubkeys = &params.server_keys;
 	let fee = FeeFields::try_from(params.fee_per_hop).map_err(|e| Error::Fee(e.to_string()))?;
 	let total_fee = params
 		.fee_per_hop
