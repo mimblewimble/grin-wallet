@@ -401,7 +401,7 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let height = owner_api.node_height(keychain_mask)?.height;
-	let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, true, true, None)?;
+	let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, false, true, None)?;
 	let eligible = |output: &&OutputCommitMapping| {
 		output
 			.output
