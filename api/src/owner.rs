@@ -2578,10 +2578,12 @@ where
 	///   being used.
 	/// * `params` - A [MixnetReqCreationParams](../grin_wallet_libwallet/api_impl/types/struct.MixnetReqCreationParams.html)
 	///   struct containing the parameters for the request, which include:
-	///   `server_keys` - The public keys of the servers participating in the mixnet
+	///   `server_keys` - Published X25519 onion keys in route order
 	///   `fee_per_hop` - The fee to be paid to each server for each hop in the mixnet
 	/// * `commitment` - The commitment of the output to be mixed
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
+	///
+	/// Use X25519 onion keys, not Ed25519 identity keys or private keys
 	///
 	/// # Returns
 	/// * Ok([MwixnetReqCreationResult](../grin_wallet_libwallet/mwixnet/struct.MwixnetReqCreationResult.html)) if successful

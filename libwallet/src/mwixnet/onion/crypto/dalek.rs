@@ -36,17 +36,17 @@ pub enum DalekError {
 	SigVerifyFailed,
 }
 
-/// Encapsulates an ed25519_dalek::PublicKey and provides (de-)serialization
+/// Ed25519 server identity key
 #[derive(Clone, Debug, PartialEq)]
 pub struct MwixnetServerIdentityKey(VerifyingKey);
 
 impl MwixnetServerIdentityKey {
-	/// Convert DalekPublicKey to hex string
+	/// Convert the identity key to hex
 	pub fn to_hex(&self) -> String {
 		self.0.to_hex()
 	}
 
-	/// Convert hex string to DalekPublicKey.
+	/// Parse an identity key from hex
 	pub fn from_hex(hex: &str) -> Result<Self, DalekError> {
 		let err = DalekError::HexError(format!("failed to decode {}", hex));
 		let bytes = grin_util::from_hex(hex).map_err(|_| err.clone())?;
@@ -55,7 +55,7 @@ impl MwixnetServerIdentityKey {
 		Ok(MwixnetServerIdentityKey(pk))
 	}
 
-	/// Compute DalekPublicKey from a SecretKey
+	/// Derive the identity key from a secret key
 	pub fn from_secret(key: &SecretKey) -> Self {
 		let secret = ed25519_dalek::SigningKey::from_bytes(&key.0);
 		let pk: VerifyingKey = (&secret).into();
@@ -69,7 +69,7 @@ impl AsRef<VerifyingKey> for MwixnetServerIdentityKey {
 	}
 }
 
-/// Serializes an Option<DalekPublicKey> to and from hex
+/// Serialize an optional identity key as hex
 pub mod option_dalek_pubkey_serde {
 	use super::MwixnetServerIdentityKey;
 	use grin_util::ToHex;

@@ -231,7 +231,7 @@ pub fn start_tor_client(config: TorConfig) -> Result<(), Error> {
 	Ok(())
 }
 
-/// Make POST request.
+/// Build an origin-form JSON POST request
 fn build_post_request(json: String, url: &Uri) -> Result<Request<Full<Bytes>>, Error> {
 	let authority = url
 		.authority()

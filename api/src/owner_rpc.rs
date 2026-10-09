@@ -2057,6 +2057,9 @@ pub trait OwnerRpc {
 
 	/**
 	Networked version of [Owner::create_mwixnet_req](struct.Owner.html#method.create_mwixnet_req).
+
+	server_keys accepts public X25519 onion keys as hex, in route order, replacing secret keys
+
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
