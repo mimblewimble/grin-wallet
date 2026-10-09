@@ -362,15 +362,8 @@ pub enum MwixnetOutput {
 	Max,
 }
 
-fn confirm_mwixnet_response(response: Result<String, Error>, tx_id: u32) -> Result<(), Error> {
-	let response = response.map_err(|e| {
-		Error::GenericError(format!(
-			"Could not determine whether mwixnet accepted the request: {}. \
-			 Output remains locked as transaction {}",
-			e, tx_id
-		))
-	})?;
-	let response = parse_mwixnet_response(&response).map_err(|e| {
+fn confirm_mwixnet_response(response: &str, tx_id: u32) -> Result<(), Error> {
+	let response = parse_mwixnet_response(response).map_err(|e| {
 		Error::GenericError(format!(
 			"Could not confirm the mwixnet response: {}. Output remains locked as transaction {}",
 			e, tx_id
@@ -438,8 +431,15 @@ where
 	let rpc_params = json::json!([creation.request]);
 	let rpc_request = json_rpc::build_request("swap", &rpc_params);
 	let response = match tor_post(&tor_config, &rpc_request, &url) {
-		Ok(response) => Ok(response),
-		Err(TorPostError::PossiblySent(error)) => Err(Error::from(error)),
+		Ok(response) => response,
+		Err(TorPostError::PossiblySent(error)) => {
+			return Err(Error::GenericError(format!(
+				"Could not determine whether mwixnet accepted the request: {}. \
+				 Output remains locked as transaction {}",
+				Error::from(error),
+				tx_id
+			)));
+		}
 		Err(TorPostError::NotSent(error)) => {
 			return match owner_api.cancel_tx(keychain_mask, Some(tx_id), None) {
 				Ok(()) => Err(Error::GenericError(format!(
@@ -453,7 +453,7 @@ where
 			};
 		}
 	};
-	confirm_mwixnet_response(response, tx_id)
+	confirm_mwixnet_response(&response, tx_id)
 }
 
 fn max_retry_args(mut init_args: InitTxArgs, amount: u64, max_inputs: u32) -> InitTxArgs {
@@ -1712,22 +1712,16 @@ where
 #[cfg(test)]
 mod tests {
 	use super::confirm_mwixnet_response;
-	use crate::Error;
 
 	#[test]
 	fn mwixnet_response_reports_uncertain_transactions_as_locked() {
-		assert!(confirm_mwixnet_response(
-			Ok(r#"{"jsonrpc":"2.0","result":"success","id":1}"#.to_string()),
-			3,
-		)
-		.is_ok());
+		assert!(
+			confirm_mwixnet_response(r#"{"jsonrpc":"2.0","result":"success","id":1}"#, 3).is_ok()
+		);
 
 		for response in [
-			Ok(
-				r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"invalid swap"},"id":1}"#
-					.to_string(),
-			),
-			Err(Error::GenericError("request timed out".to_string())),
+			r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"invalid swap"},"id":1}"#,
+			"invalid response",
 		] {
 			let error = confirm_mwixnet_response(response, 3).unwrap_err();
 			assert!(error
