@@ -1244,7 +1244,7 @@ where
 			command::receive(owner_api, km, a, tor_config, test_mode)
 		}
 		("unpack", Some(args)) => {
-			let a = arg_parse!(parse_unpack_args(&args));
+			let a = arg_parse!(parse_unpack_args(args));
 			let slatepack = command::read_slatepack(owner_api.wallet_inst.clone(), a)?;
 			command::unpack(owner_api, km, slatepack)
 		}

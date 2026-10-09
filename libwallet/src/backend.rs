@@ -377,8 +377,7 @@ where
 	) -> Result<Option<TxLogEntry>, Error> {
 		let tx = self
 			.tx_log_iter()?
-			.filter(|tx| tx.is_ok())
-			.map(|tx| tx.unwrap())
+			.flatten()
 			.find(|tx| tx.parent_key_id == *parent_id && tx.tx_slate_id == Some(*id));
 		Ok(tx)
 	}
@@ -448,7 +447,7 @@ where
 		txs.sort_by_key(|c| c.address_index);
 		txs.reverse();
 		if let Some(tx) = txs.last() {
-			return Ok(tx.address_index.unwrap_or_else(|| SlatepackAddressIndex(0)));
+			return Ok(tx.address_index.unwrap_or(SlatepackAddressIndex(0)));
 		}
 		Ok(SlatepackAddressIndex(0))
 	}

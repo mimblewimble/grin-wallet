@@ -408,7 +408,7 @@ where
 	if let Some(ref p) = slate.clone().payment_proof {
 		let sender_address_path = context
 			.payment_proof_derivation_index
-			.unwrap_or_else(|| SlatepackAddressIndex(0));
+			.unwrap_or(SlatepackAddressIndex(0));
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
 		let excess = slate.calc_excess(keychain.secp())?;

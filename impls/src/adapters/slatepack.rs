@@ -17,14 +17,12 @@ use crate::SlatePutter;
 
 use grin_keychain::Keychain;
 use grin_util::secp::SecretKey;
-use grin_util::Mutex;
-use grin_wallet_libwallet::{NodeClient, WalletInst, WalletLCProvider};
+use grin_wallet_libwallet::{NodeClient, WalletHandle, WalletLCProvider};
 use grin_wallet_util::byte_ser;
 /// Slatepack Output 'plugin' implementation
 use std::fs::{metadata, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 // And Slate putter impls to output to files
 pub struct PathToSlatepack {
@@ -50,7 +48,7 @@ impl PathToSlatepack {
 
 	pub fn get_slatepack<'a, L, C, K>(
 		&self,
-		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		wallet_inst: WalletHandle<'a, L, C, K>,
 		keychain_mask: Option<&SecretKey>,
 		decrypt: bool,
 	) -> Result<Slatepack, Error>
