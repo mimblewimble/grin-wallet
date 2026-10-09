@@ -1546,10 +1546,8 @@ where
 	let comsig = ComSignature::sign(amount, &input_blind, &onion_bytes, use_test_rng)
 		.map_err(|e| Error::Signature(e.to_string()))?;
 
-	let mut tx_id = None;
-
 	// Lock output if requested
-	if lock_output {
+	let tx_id = if lock_output {
 		let mut batch = w.batch(keychain_mask)?;
 		let log_id = batch.next_tx_log_id(&parent_key_id)?;
 		let mut tx = TxLogEntry::new(parent_key_id.clone(), TxLogEntryType::TxSent, log_id);
@@ -1578,8 +1576,10 @@ where
 		})?;
 		batch.save_tx_log_entry(tx, &parent_key_id)?;
 		batch.commit()?;
-		tx_id = Some(log_id);
-	}
+		Some(log_id)
+	} else {
+		None
+	};
 
 	Ok(MwixnetReqCreationResult {
 		request: SwapReq { comsig, onion },

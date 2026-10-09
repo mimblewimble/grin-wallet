@@ -26,6 +26,7 @@ use crate::impls::SlateGetter as _;
 use crate::keychain;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::mwixnet::{parse_mwixnet_response, MixnetReqCreationParams, MwixnetResponse};
+use crate::libwallet::OutputCommitMapping;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
@@ -401,7 +402,7 @@ where
 {
 	let height = owner_api.node_height(keychain_mask)?.height;
 	let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, true, true, None)?;
-	let eligible = |output: &&crate::libwallet::OutputCommitMapping| {
+	let eligible = |output: &&OutputCommitMapping| {
 		output
 			.output
 			.eligible_to_spend(height, args.minimum_confirmations)

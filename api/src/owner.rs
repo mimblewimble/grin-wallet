@@ -2570,20 +2570,19 @@ where
 
 	// MWIXNET
 
-	/// Creates a mwixnet request [SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)
+	/// Creates a mwixnet request [SwapReq](grin_wallet_libwallet::mwixnet::SwapReq)
 	/// from a given output commitment under this wallet's control.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `params` - A [MixnetReqCreationParams](../grin_wallet_libwallet/api_impl/types/struct.MixnetReqCreationParams.html)
+	/// * `params` - A [MixnetReqCreationParams]
 	///   struct containing the parameters for the request, which include:
-	///   `server_keys` - Published X25519 onion keys in route order
+	///   `server_keys` - Published X25519 onion keys in route order, not Ed25519 identity keys
+	///   or private keys
 	///   `fee_per_hop` - The fee to be paid to each server for each hop in the mixnet
 	/// * `commitment` - The commitment of the output to be mixed
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
-	///
-	/// Use X25519 onion keys, not Ed25519 identity keys or private keys
 	///
 	/// # Returns
 	/// * Ok([MwixnetReqCreationResult](../grin_wallet_libwallet/mwixnet/struct.MwixnetReqCreationResult.html)) if successful

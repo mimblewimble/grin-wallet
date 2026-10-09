@@ -24,6 +24,7 @@ use clap::ArgMatches;
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
+use grin_util::secp::constants::PEDERSEN_COMMITMENT_SIZE;
 use grin_util::secp::pedersen::Commitment;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
@@ -553,7 +554,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 fn parse_mwixnet_output(output: &str) -> Result<command::MwixnetOutput, ParseError> {
 	if output.eq_ignore_ascii_case("max") {
 		Ok(command::MwixnetOutput::Max)
-	} else if output.len() == 66 {
+	} else if output.len() == PEDERSEN_COMMITMENT_SIZE * 2 {
 		let commitment = grin_util::from_hex(output)
 			.map_err(|e| ParseError::ArgumentError(format!("Invalid output commitment: {}", e)))?;
 		Ok(command::MwixnetOutput::Commitment(Commitment::from_vec(
