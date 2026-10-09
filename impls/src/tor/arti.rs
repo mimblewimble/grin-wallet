@@ -289,7 +289,7 @@ where
 			let runtime = c.runtime().clone();
 			let res = runtime
 				.timeout(timeout, async move {
-					let stream = c.connect((host.clone(), port)).await.map_err(|e| {
+					let stream = c.connect((host, port)).await.map_err(|e| {
 						TorPostError::NotSent(Error::TorProcess(format!("{:?}", e)))
 					})?;
 					let (mut request_sender, connection) =
