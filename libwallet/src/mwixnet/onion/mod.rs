@@ -242,19 +242,10 @@ mod tests {
 	fn rejects_too_many_hops() {
 		let commitment = test_util::rand_commit();
 		let hops: Vec<Hop> = (0..=MAX_MWIXNET_HOPS)
-			.map(|_| {
-				let server_key = random_secret(false);
-				Hop {
-					server_pubkey: MwixnetServerPublicKey::from_secret(&server_key),
-					excess: random_secret(false),
-					fee: FeeFields::from(1u32),
-					rangeproof: None,
-				}
-			})
+			.map(|_| new_hop(&random_secret(false), &random_secret(false), 1, None))
 			.collect();
-		let max_hops = hops[..MAX_MWIXNET_HOPS].to_vec();
 
-		assert!(create_onion(&commitment, &max_hops, false).is_ok());
+		assert!(create_onion(&commitment, &hops[..MAX_MWIXNET_HOPS], false).is_ok());
 
 		assert_eq!(
 			create_onion(&commitment, &hops, false),

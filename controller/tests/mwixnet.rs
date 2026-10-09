@@ -214,8 +214,8 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		.unwrap();
 	assert_eq!(input.output.status, OutputStatus::Locked);
 	assert_eq!(input.output.mmr_index, mmr_index);
-	let expected_amount =
-		last_output.output.value - params.fee_per_hop * params.server_keys.len() as u64;
+	let total_fee = params.fee_per_hop * params.server_keys.len() as u64;
+	let expected_amount = last_output.output.value - total_fee;
 	let expected_output = outputs
 		.1
 		.iter()
@@ -234,12 +234,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	assert_eq!(tx.amount_credited, expected_amount);
 	assert_eq!(tx.num_inputs, 1);
 	assert_eq!(tx.num_outputs, 1);
-	assert_eq!(
-		tx.fee,
-		Some(FeeFields::try_from(
-			params.fee_per_hop * params.server_keys.len() as u64
-		)?)
-	);
+	assert_eq!(tx.fee, Some(FeeFields::try_from(total_fee)?));
 
 	assert!(api1
 		.create_mwixnet_req(mask1, &params, &last_output.commit, false)
