@@ -186,7 +186,7 @@ subcommands:
             help: Transaction amount includes transaction fee. Recipient will receive (amount - fee).
             long: amount_includes_fee
   - mwixnet:
-      about: EXPERIMENTAL - Swap a wallet output through an mwixnet route
+      about: EXPERIMENTAL - Swap a wallet output through an mwixnet route using Arti only
       args:
         - output:
             help: Commitment or minimum amount of the wallet output to swap, or 'max' for the largest eligible output
