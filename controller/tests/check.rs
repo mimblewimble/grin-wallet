@@ -68,7 +68,7 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -80,7 +80,7 @@ fn scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -223,7 +223,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		_m_api
 	);
-	let miner_mask = (&miner_mask_i).as_ref();
+	let miner_mask = miner_mask_i.as_ref();
 
 	// non-mining recipient wallets
 	create_wallet_and_add!(
@@ -237,7 +237,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -249,7 +249,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		_api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 	// we'll restore into here
 	create_wallet_and_add!(
 		client3,
@@ -262,7 +262,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api3
 	);
-	let mask3 = (&mask3_i).as_ref();
+	let mask3 = mask3_i.as_ref();
 	// also restore into here
 	create_wallet_and_add!(
 		client4,
@@ -275,7 +275,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api4
 	);
-	let mask4 = (&mask4_i).as_ref();
+	let mask4 = mask4_i.as_ref();
 	// Simulate a recover from seed without restore into here
 	create_wallet_and_add!(
 		client5,
@@ -289,7 +289,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		api5
 	);
 	//simulate a recover from seed without restore into here
-	let mask5 = (&mask5_i).as_ref();
+	let mask5 = mask5_i.as_ref();
 	create_wallet_and_add!(
 		client6,
 		wallet6,
@@ -301,7 +301,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api6
 	);
-	let mask6 = (&mask6_i).as_ref();
+	let mask6 = mask6_i.as_ref();
 
 	create_wallet_and_add!(
 		client7,
@@ -314,7 +314,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api7
 	);
-	let mask7 = (&mask7_i).as_ref();
+	let mask7 = mask7_i.as_ref();
 	create_wallet_and_add!(
 		client8,
 		wallet8,
@@ -326,7 +326,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api8
 	);
-	let mask8 = (&mask8_i).as_ref();
+	let mask8 = mask8_i.as_ref();
 	create_wallet_and_add!(
 		client9,
 		wallet9,
@@ -338,7 +338,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api9
 	);
-	let mask9 = (&mask9_i).as_ref();
+	let mask9 = mask9_i.as_ref();
 	create_wallet_and_add!(
 		client10,
 		wallet10,
@@ -350,7 +350,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		false,
 		api10
 	);
-	let mask10 = (&mask10_i).as_ref();
+	let mask10 = mask10_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -380,7 +380,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		miner_mask,
 		m_client.clone(),
 		"wallet1",
-		base_amount * 1
+		base_amount
 	)?;
 	send_to_dest!(
 		miner.clone(),
@@ -579,7 +579,7 @@ fn two_wallets_one_seed_impl(test_dir: &'static str) -> Result<(), libwallet::Er
 		miner_mask,
 		m_client.clone(),
 		"wallet7",
-		base_amount * 1
+		base_amount
 	)?;
 	send_to_dest!(
 		miner.clone(),
@@ -710,7 +710,7 @@ fn output_scanning_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		false,
 		_api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {
 			error!("Wallet Proxy error: {}", e);
@@ -795,7 +795,7 @@ fn multi_batch_scan_impl(test_dir: &'static str) -> Result<(), libwallet::Error>
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {
@@ -886,7 +886,7 @@ fn restore_corrupted_outputs_across_batches_impl(
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {

@@ -21,8 +21,8 @@ use crate::impls::tor::process as tor_process;
 use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
-	WalletLCProvider, GRIN_BLOCK_HEADER_VERSION,
+	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletLCProvider,
+	GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
@@ -103,29 +103,23 @@ fn init_tor_listener(
 	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
 	if tor_config.bridge.bridge_line.is_some() {
 		let bridge_config = tor_bridge::TorBridge::try_from(tor_config.bridge)
-			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		hm_tor_bridge = bridge_config
 			.to_hashmap()
-			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
 	}
 
 	let mut hm_tor_poxy: HashMap<String, String> = HashMap::new();
 	if tor_config.proxy.transport.is_some() || tor_config.proxy.allowed_port.is_some() {
 		let proxy_config = tor_proxy::TorProxy::try_from(tor_config.proxy)
-			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
 		hm_tor_poxy = proxy_config
 			.to_hashmap()
-			.map_err(|e| Error::TorConfig(format!("{}", e).into()))?;
+			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
 	}
 
-	tor_config::output_tor_listener_config(
-		&tor_dir,
-		addr,
-		&vec![sec_key],
-		hm_tor_bridge,
-		hm_tor_poxy,
-	)
-	.map_err(|e| Error::TorConfig(format!("{:?}", e).into()))?;
+	tor_config::output_tor_listener_config(&tor_dir, addr, &[sec_key], hm_tor_bridge, hm_tor_poxy)
+		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 	// Start TOR process
 	process
 		.torrc_path(&format!("{}/torrc", tor_dir))
@@ -140,7 +134,7 @@ fn init_tor_listener(
 /// Instantiate wallet Foreign API for a single-use (command line) call
 /// Return a function containing a loaded API context to call
 pub fn foreign_single_use<'a, L, F, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	config_path: PathBuf,
 	keychain_mask: Option<SecretKey>,
 	f: F,
@@ -180,9 +174,9 @@ where
 	K: Keychain + 'static,
 {
 	let mut router = Router::new();
-	if api_secret.is_some() {
+	if let Some(api_secret) = api_secret {
 		let api_basic_auth =
-			"Basic ".to_string() + &to_base64(&("grin:".to_string() + &api_secret.unwrap()));
+			"Basic ".to_string() + &to_base64(&("grin:".to_string() + &api_secret));
 		let basic_auth_middleware = Arc::new(BasicAuthMiddleware::new(
 			api_basic_auth,
 			&GRIN_OWNER_BASIC_REALM,
@@ -232,8 +226,9 @@ where
 
 /// Listener version, providing same API but listening for requests on a
 /// port and wrapping the calls
+#[allow(clippy::too_many_arguments)]
 pub fn foreign_listener<L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 	config_path: PathBuf,
 	bridge: Option<String>,
 	use_tor: Option<bool>,
@@ -259,7 +254,7 @@ where
 			let mut w_lock = wallet.lock();
 			let lc = w_lock.lc_provider()?;
 			let w_inst = lc.wallet_inst()?;
-			let k = w_inst.keychain((&mask).as_ref())?;
+			let k = w_inst.keychain(mask.as_ref())?;
 			let parent_key_id = w_inst.parent_key_id();
 			let sec_key =
 				address::address_from_derivation_path(&k, &parent_key_id, SlatepackAddressIndex(0))
@@ -402,7 +397,7 @@ where
 	K: Keychain + 'static,
 {
 	/// Wallet instance
-	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	pub wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 
 	/// Handle to Owner API
 	owner_api: Arc<Owner<L, C, K>>,
@@ -464,7 +459,7 @@ impl OwnerV3Helpers {
 		val: &serde_json::Value,
 		new_key: Option<SecretKey>,
 	) {
-		if let Some(_) = val["result"]["Ok"].as_str() {
+		if val["result"]["Ok"].as_str().is_some() {
 			let mut share_key_ref = key.lock();
 			*share_key_ref = new_key;
 		}
@@ -505,7 +500,7 @@ impl OwnerV3Helpers {
 			.as_json_value()
 		})?;
 		let id = enc_req.id.clone();
-		let res = enc_req.decrypt(&shared_key).map_err(|e| {
+		let res = enc_req.decrypt(shared_key).map_err(|e| {
 			EncryptionErrorResponse::new(1, -32002, &format!("Decryption error: {}", e))
 				.as_json_value()
 		})?;
@@ -520,7 +515,7 @@ impl OwnerV3Helpers {
 	) -> Result<serde_json::Value, serde_json::Value> {
 		let share_key_ref = key.lock();
 		let shared_key = share_key_ref.as_ref().unwrap();
-		let enc_res = EncryptedResponse::from_json(id, res, &shared_key).map_err(|e| {
+		let enc_res = EncryptedResponse::from_json(id, res, shared_key).map_err(|e| {
 			EncryptionErrorResponse::new(1, -32003, &format!("EncryptionError: {}", e))
 				.as_json_value()
 		})?;
@@ -578,10 +573,7 @@ impl OwnerV3Helpers {
 			retval
 		} else if val["result"]["Err"].is_string() {
 			let parsed = serde_json::from_value::<String>(val["result"]["Err"].clone());
-			match parsed {
-				Ok(p) => Some(p),
-				Err(_) => None,
-			}
+			parsed.ok()
 		} else {
 			None
 		};
@@ -739,7 +731,7 @@ where
 	K: Keychain + 'static,
 {
 	/// Wallet instance.
-	pub wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+	pub wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 	/// Wallet configuration path.
 	pub config_path: ConfigPath,
 	/// Keychain mask
@@ -756,7 +748,7 @@ where
 {
 	/// Create a new foreign API handler for GET methods
 	pub fn new(
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 		config_path: ConfigPath,
 		keychain_mask: Arc<Mutex<Option<SecretKey>>>,
 		test_mode: bool,
@@ -787,7 +779,7 @@ where
 	async fn handle_post_request(
 		req: Request<Incoming>,
 		mask: Option<SecretKey>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
+		wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
 		config_path: ConfigPath,
 		test_mode: bool,
 	) -> Result<Response<ApiBody>, Error> {

@@ -17,26 +17,24 @@
 
 use crate::config::{TorConfig, WalletConfig};
 use crate::error::Error;
-use crate::grin_core::core::hash::Hash;
-use crate::grin_core::core::FeeFields;
-use crate::grin_core::core::{Output, Transaction, TxKernel};
-use crate::grin_core::libtx::{aggsig, secp_ser};
-use crate::grin_core::{global, ser};
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::logger::LoggingConfig;
-use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::{pedersen, Secp256k1};
-use crate::grin_util::{ToHex, ZeroingString};
 use crate::slate_versions::ser as dalek_ser;
 use crate::slatepack::SlatepackAddressIndex;
 use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::hash::Hash;
+use grin_core::core::FeeFields;
+use grin_core::core::{Output, Transaction, TxKernel};
+use grin_core::libtx::{aggsig, secp_ser};
+use grin_core::{global, ser};
+use grin_keychain::{Identifier, Keychain};
+use grin_util::logger::LoggingConfig;
+use grin_util::secp::key::{PublicKey, SecretKey};
+use grin_util::secp::{pedersen, Secp256k1};
+use grin_util::{ToHex, ZeroingString};
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
-use serde;
-use serde_json;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::{cmp, fmt};
@@ -77,7 +75,7 @@ where
 		tor_config: Option<TorConfig>,
 	) -> Result<(), Error>;
 
-	///
+	/// Create the seed file and wallet database from a mnemonic or fresh entropy
 	fn create_wallet(
 		&mut self,
 		name: Option<&str>,
@@ -87,7 +85,7 @@ where
 		test_mode: bool,
 	) -> Result<(), Error>;
 
-	///
+	/// Unlock the wallet and optionally mask its keychain
 	fn open_wallet(
 		&mut self,
 		name: Option<&str>,
@@ -96,7 +94,7 @@ where
 		use_test_rng: bool,
 	) -> Result<Option<SecretKey>, Error>;
 
-	///
+	/// Close the wallet and drop its stored keychain
 	fn close_wallet(&mut self, name: Option<&str>) -> Result<(), Error>;
 
 	/// whether a wallet exists at the given directory
@@ -181,6 +179,7 @@ pub trait NodeClient: Send + Sync + Clone {
 	/// Returns
 	/// (last available output index, last insertion index retrieved,
 	/// outputs(commit, proof, is_coinbase, height, mmr_index))
+	#[allow(clippy::type_complexity)]
 	fn get_outputs_by_pmmr_index(
 		&self,
 		start_height: u64,
@@ -323,9 +322,8 @@ impl OutputData {
 
 	/// Mark an output as reverted
 	pub fn mark_reverted(&mut self) {
-		match self.status {
-			OutputStatus::Unspent => self.status = OutputStatus::Reverted,
-			_ => (),
+		if self.status == OutputStatus::Unspent {
+			self.status = OutputStatus::Reverted
 		}
 	}
 }
@@ -611,12 +609,12 @@ pub enum TxLogEntryType {
 impl fmt::Display for TxLogEntryType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match *self {
-			TxLogEntryType::ConfirmedCoinbase => write!(f, "Confirmed \nCoinbase"),
+			TxLogEntryType::ConfirmedCoinbase => write!(f, "Confirmed Coinbase"),
 			TxLogEntryType::TxReceived => write!(f, "Received Tx"),
 			TxLogEntryType::TxSent => write!(f, "Sent Tx"),
-			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx\n- Cancelled"),
-			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx\n- Cancelled"),
-			TxLogEntryType::TxReverted => write!(f, "Received Tx\n- Reverted"),
+			TxLogEntryType::TxReceivedCancelled => write!(f, "Received Tx - Cancelled"),
+			TxLogEntryType::TxSentCancelled => write!(f, "Sent Tx - Cancelled"),
+			TxLogEntryType::TxReverted => write!(f, "Received Tx - Reverted"),
 		}
 	}
 }
@@ -881,17 +879,17 @@ pub struct ViewWallet {
 /// Utility struct for return values from below
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewWalletOutputResult {
-	///
+	/// Output commitment as hex
 	pub commit: String,
-	///
+	/// Value in nanogrins
 	pub value: u64,
-	///
+	/// Block height of the output
 	pub height: u64,
-	///
+	/// Output position in the PMMR
 	pub mmr_index: u64,
-	///
+	/// Whether this is a mining reward
 	pub is_coinbase: bool,
-	///
+	/// Earliest spendable height
 	pub lock_height: u64,
 }
 
@@ -938,7 +936,7 @@ pub mod option_duration_as_secs {
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::time::Duration;
 
-	///
+	/// Write whole seconds as a string, or null
 	pub fn serialize<S>(dur: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -949,7 +947,7 @@ pub mod option_duration_as_secs {
 		}
 	}
 
-	///
+	/// Read an optional duration from a seconds string
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 	where
 		D: Deserializer<'de>,

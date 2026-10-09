@@ -16,11 +16,11 @@
 //! a derivation path
 
 use crate::blake2::blake2b::blake2b;
-use crate::grin_util::secp::key::SecretKey;
 use crate::slatepack::SlatepackAddressIndex;
 use crate::Error;
 
 use grin_keychain::{ChildNumber, Identifier, Keychain, SwitchCommitmentType};
+use grin_util::secp::key::SecretKey;
 
 /// Derive a Slatepack address path from an output parent path and index.
 ///
@@ -54,10 +54,7 @@ where
 	let key_id = address_derivation_path(parent_key_id, index);
 	let sec_key = keychain.derive_key(0, &key_id, SwitchCommitmentType::None)?;
 	let hashed = blake2b(32, &[], &sec_key.0[..]);
-	Ok(SecretKey::from_slice(
-		&keychain.secp(),
-		&hashed.as_bytes()[..],
-	)?)
+	Ok(SecretKey::from_slice(keychain.secp(), hashed.as_bytes())?)
 }
 
 #[cfg(test)]

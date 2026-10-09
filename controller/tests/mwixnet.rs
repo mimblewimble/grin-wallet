@@ -53,7 +53,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		true,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -135,11 +135,11 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let server_pubkey_str_2 = "0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e";
 	let server_pubkey_str_3 = "b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5";
 	let server_key_1 =
-		SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_1).unwrap())?;
+		SecretKey::from_slice(&secp, &grin_util::from_hex(server_pubkey_str_1).unwrap())?;
 	let server_key_2 =
-		SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_2).unwrap())?;
+		SecretKey::from_slice(&secp, &grin_util::from_hex(server_pubkey_str_2).unwrap())?;
 	let server_key_3 =
-		SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())?;
+		SecretKey::from_slice(&secp, &grin_util::from_hex(server_pubkey_str_3).unwrap())?;
 	let params = MixnetReqCreationParams {
 		server_keys: vec![server_key_1, server_key_2, server_key_3],
 		fee_per_hop: 50_000_000,

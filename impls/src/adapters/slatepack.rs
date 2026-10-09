@@ -124,7 +124,7 @@ mod tests {
 		clean_output_dir(test_dir);
 	}
 
-	const SLATEPACK_DIR: &'static str = "target/test_output/slatepack";
+	const SLATEPACK_DIR: &str = "target/test_output/slatepack";
 
 	#[test]
 	fn pathbuf_get_file_contents() {

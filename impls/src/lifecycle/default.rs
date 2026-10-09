@@ -32,9 +32,7 @@ use std::path::MAIN_SEPARATOR;
 /// Helper function to format paths according to OS, avoids bugs on Linux
 pub fn fmt_path(path: String) -> String {
 	let sep = &MAIN_SEPARATOR.to_string();
-	let path = path.replace("/", &sep);
-	let path = path.replace("\\", &sep);
-	path
+	path.replace("/", sep).replace("\\", sep)
 }
 
 pub struct DefaultLCProvider<C, K>
@@ -77,8 +75,8 @@ where
 		let data_dir = self
 			.data_dir
 			.to_owned()
-			.replace("/", &sep)
-			.replace("\\", &sep);
+			.replace("/", sep)
+			.replace("\\", sep);
 		Ok(data_dir)
 	}
 
@@ -108,7 +106,7 @@ where
 			return Ok(());
 		}
 
-		let mut default_config = GlobalWalletConfig::for_chain(&chain_type, &config_file_name);
+		let mut default_config = GlobalWalletConfig::for_chain(chain_type, &config_file_name);
 		let config_file_version = default_config.members.config_file_version;
 		let logging = match logging_config.clone() {
 			Some(l) => Some(l),
@@ -140,7 +138,7 @@ where
 		absolute_path_wallet.push(self.data_dir.clone());
 
 		// if no config provided, update defaults
-		if update == true {
+		if update {
 			// create top level dir if it doesn't exist
 			let dd = PathBuf::from(self.data_dir.clone());
 			if !dd.exists() {
@@ -209,9 +207,9 @@ where
 		let mut wallet: WalletBackend<C, K> =
 			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
-					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
+					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, data_dir_name);
 					error!("{}", msg);
-					return Err(Error::Lifecycle(msg).into());
+					return Err(Error::Lifecycle(msg));
 				}
 				Ok(d) => d,
 			};
@@ -239,7 +237,7 @@ where
 		let mut wallet: WalletBackend<C, K> =
 			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
-					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, &data_dir_name);
+					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, data_dir_name);
 					return Err(Error::Lifecycle(msg));
 				}
 				Ok(d) => d,
@@ -271,7 +269,7 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let res = WalletSeed::seed_file_exists(&data_dir_name)
+		let res = WalletSeed::seed_file_exists(data_dir_name)
 			.map_err(|_| Error::CallbackImpl("Error checking for wallet existence"))?;
 		Ok(res)
 	}
@@ -322,7 +320,7 @@ where
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		// Get seed for later check
-		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old)
+		let orig_wallet_seed = WalletSeed::from_file(data_dir_name, old)
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let orig_mnemonic = orig_wallet_seed
 			.to_mnemonic()
@@ -348,7 +346,7 @@ where
 		);
 		info!("Wallet seed file created");
 
-		let new_wallet_seed = WalletSeed::from_file(&data_dir_name, new)
+		let new_wallet_seed = WalletSeed::from_file(data_dir_name, new)
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 
 		if orig_wallet_seed != new_wallet_seed {
@@ -461,7 +459,7 @@ mod tests {
 		.unwrap();
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).unwrap();
 		let mut file = File::create(seed_file_path).unwrap();
-		file.write_all(&enc_seed_json.as_bytes()).unwrap();
+		file.write_all(enc_seed_json.as_bytes()).unwrap();
 
 		let error = match provider.get_mnemonic(None, password.clone()) {
 			Ok(_) => panic!("expected missing recovery phrase error"),

@@ -78,7 +78,7 @@ where
 	// h(root_key|slate_id|"blind")
 	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 	hasher.update(&root_key.0[..]);
-	hasher.update(&slate_id[..]);
+	hasher.update(slate_id);
 	hasher.update(&b"blind"[..]);
 	let blind_xor_key = hasher.finalize();
 	let mut ret_blind = [0; SECRET_KEY_SIZE];
@@ -87,7 +87,7 @@ where
 	// h(root_key|slate_id|"nonce")
 	let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 	hasher.update(&root_key.0[..]);
-	hasher.update(&slate_id[..]);
+	hasher.update(slate_id);
 	hasher.update(&b"nonce"[..]);
 	let nonce_xor_key = hasher.finalize();
 	let mut ret_nonce = [0; SECRET_KEY_SIZE];
@@ -173,12 +173,9 @@ where
 		};
 
 		// Set current active account
-		let active = res
-			.acct_path_iter()?
-			.filter(|a| a.current.unwrap_or(false))
-			.collect::<Vec<AcctPathMapping>>();
-		if let Some(a) = active.get(0) {
-			res.active_account = a.clone();
+		let active = res.acct_path_iter()?.find(|a| a.current.unwrap_or(false));
+		if let Some(a) = active {
+			res.active_account = a;
 		}
 
 		Ok(res)
@@ -211,7 +208,7 @@ where
 		let root_key = k.derive_key(0, &K::root_key_id(), SwitchCommitmentType::Regular)?;
 		let mut hasher = Blake2b::new(SECRET_KEY_SIZE);
 		hasher.update(&root_key.0[..]);
-		self.master_checksum = Box::new(Some(hasher.finalize()));
+		*self.master_checksum = Some(hasher.finalize());
 
 		let mask_value = {
 			match mask {
@@ -221,9 +218,9 @@ where
 					let mask_value = match use_test_rng {
 						true => {
 							let mut test_rng = StepRng::new(1_234_567_890_u64, 1);
-							SecretKey::new(&k.secp(), &mut test_rng)
+							SecretKey::new(k.secp(), &mut test_rng)
 						}
-						false => SecretKey::new(&k.secp(), &mut thread_rng()),
+						false => SecretKey::new(k.secp(), &mut thread_rng()),
 					};
 					k.mask_master_key(&mask_value)?;
 					Some(mask_value)
@@ -286,7 +283,7 @@ where
 		} else {*/
 		Ok(Some(
 			self.keychain(keychain_mask)?
-				.commit(amount, &id, SwitchCommitmentType::Regular)?
+				.commit(amount, id, SwitchCommitmentType::Regular)?
 				.0
 				.to_vec()
 				.to_hex(), // TODO: proper support for different switch commitment schemes
@@ -489,7 +486,7 @@ where
 		let path_buf = Path::new(&path).to_path_buf();
 		let mut stored_tx = File::create(path_buf)?;
 		let tx_hex = ser::ser_vec(tx, ser::ProtocolVersion(1)).unwrap().to_hex();
-		stored_tx.write_all(&tx_hex.as_bytes())?;
+		stored_tx.write_all(tx_hex.as_bytes())?;
 		stored_tx.sync_all()?;
 		Ok(())
 	}
@@ -541,7 +538,7 @@ where
 			let batch = self.db.batch()?;
 			batch
 				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
+				.unwrap_or(0)
 		};
 		Ok(index)
 	}
@@ -553,7 +550,7 @@ where
 			let batch = self.db.batch()?;
 			batch
 				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
+				.unwrap_or(0)
 		};
 		let mut return_path = parent_key_id.to_path();
 		return_path.depth += 1;
@@ -583,7 +580,7 @@ where
 				&parent_key_id.to_bytes(),
 				None,
 			)?
-			.unwrap_or_else(|| 0);
+			.unwrap_or(0);
 		Ok(last_confirmed_height)
 	}
 
@@ -610,7 +607,7 @@ where
 				WALLET_INIT_STATUS_KEY.as_bytes(),
 				None,
 			)?
-			.unwrap_or_else(|| WalletInitStatus::InitComplete);
+			.unwrap_or(WalletInitStatus::InitComplete);
 		Ok(status)
 	}
 }
@@ -730,7 +727,7 @@ where
 		let last_tx_log_id = self
 			.db
 			.get_ser(Some(TX_LOG_ID_PREFIX), &parent_key_id.to_bytes(), None)?
-			.unwrap_or_else(|| 0);
+			.unwrap_or(0);
 		self.db.put_ser(
 			Some(TX_LOG_ID_PREFIX),
 			&parent_key_id.to_bytes(),

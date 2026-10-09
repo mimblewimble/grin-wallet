@@ -18,18 +18,16 @@ use std::cmp;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
-use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_core::core::hash::Hashed;
-use crate::grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
-use crate::grin_core::libtx::proof;
-use crate::grin_keychain::ViewKey;
-use crate::grin_util::secp::{key::SecretKey, pedersen::Commitment};
-use crate::grin_util::Mutex;
-use crate::grin_util::ToHex;
 use crate::util::OnionV3Address;
+use grin_core::core::amount_to_hr_string;
+use grin_core::core::hash::Hashed;
+use grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
+use grin_core::libtx::proof;
+use grin_keychain::ViewKey;
+use grin_util::secp::{key::SecretKey, pedersen::Commitment};
+use grin_util::ToHex;
 
 use crate::api_impl::owner_updater::StatusMessage;
-use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
 use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletInfo};
@@ -39,8 +37,9 @@ use crate::{
 	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
 	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
-	WalletInitStatus, WalletInst, WalletLCProvider,
+	WalletInitStatus, WalletLCProvider,
 };
+use grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
@@ -50,7 +49,6 @@ use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
 use crate::slatepack::SlatepackAddressIndex;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
 
 /// List of accounts
 pub fn accounts<C, K>(
@@ -104,7 +102,7 @@ where
 
 /// Hash of the wallet root public key
 pub fn get_rewind_hash<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<String, Error>
 where
@@ -122,7 +120,7 @@ where
 /// Retrieve the slatepack address for the current parent key at
 /// the given index
 pub fn get_slatepack_address<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	index: SlatepackAddressIndex,
 ) -> Result<SlatepackAddress, Error>
@@ -141,7 +139,7 @@ where
 /// Retrieve the decryption key for the current parent key
 /// the given index
 pub fn get_slatepack_secret_key<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	index: SlatepackAddressIndex,
 ) -> Result<DalekSecretKey, Error>
@@ -160,7 +158,7 @@ where
 
 /// Create a slatepack message from the given slate
 pub fn create_slatepack_message<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	sender_index: Option<SlatepackAddressIndex>,
@@ -174,8 +172,8 @@ where
 	let sender = match sender_index.as_ref() {
 		Some(i) => Some(get_slatepack_address(
 			wallet_inst.clone(),
-			keychain_mask.clone(),
-			i.clone(),
+			keychain_mask,
+			*i,
 		)?),
 		None => None,
 	};
@@ -191,7 +189,7 @@ where
 /// Unpack a slate from the given slatepack message,
 /// optionally decrypting
 pub fn slate_from_slatepack_message<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
 	secret_indices: Vec<SlatepackAddressIndex>,
@@ -210,7 +208,7 @@ where
 /// Will decrypt if possible, otherwise will return
 /// undecrypted slatepack
 pub fn decode_slatepack_message<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
 	secret_indices: Vec<SlatepackAddressIndex>,
@@ -239,7 +237,7 @@ where
 
 /// retrieve outputs
 pub fn retrieve_outputs<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	include_spent: bool,
@@ -273,7 +271,7 @@ where
 
 /// Calculate max amount to send.
 pub fn estimate_max_sendable<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
@@ -332,7 +330,7 @@ where
 
 /// Retrieve txs
 pub fn retrieve_txs<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
@@ -372,7 +370,7 @@ where
 
 /// Retrieve summary info
 pub fn retrieve_summary_info<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
@@ -402,7 +400,7 @@ where
 
 /// Retrieve payment proof
 pub fn retrieve_payment_proof<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	refresh_from_node: bool,
@@ -591,9 +589,7 @@ where
 		)?
 	};
 
-	let address_index = args
-		.address_index
-		.unwrap_or_else(|| SlatepackAddressIndex(0));
+	let address_index = args.address_index.unwrap_or(SlatepackAddressIndex(0));
 	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
@@ -701,7 +697,7 @@ where
 {
 	let index = w
 		.highest_payment_proof_derivation_index()
-		.unwrap_or_else(|_| SlatepackAddressIndex(0));
+		.unwrap_or(SlatepackAddressIndex(0));
 	if index.0 == SlatepackAddressIndex::MAX {
 		SlatepackAddressIndex(0)
 	} else {
@@ -854,7 +850,7 @@ where
 
 	let mut sl = slate.clone();
 
-	if sl.tx == None {
+	if sl.tx.is_none() {
 		sl.tx = Some(Slate::empty_transaction());
 		selection::repopulate_tx(w, keychain_mask, &mut sl, &context, true)?;
 	}
@@ -883,7 +879,7 @@ where
 
 /// cancel tx
 pub fn cancel_tx<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	tx_id: Option<u32>,
@@ -922,11 +918,7 @@ where
 {
 	let mut uuid = None;
 	if let Some(i) = tx_id {
-		let tx = w
-			.tx_log_iter()?
-			.filter(|tx| tx.is_ok())
-			.map(|tx| tx.unwrap())
-			.find(|t| t.id == i);
+		let tx = w.tx_log_iter()?.flatten().find(|t| t.id == i);
 		if let Some(t) = tx {
 			uuid = t.tx_slate_id;
 		}
@@ -982,7 +974,7 @@ where
 /// Scan outputs with the rewind hash of a third-party wallet.
 /// Help to retrieve outputs information that belongs it
 pub fn scan_rewind_hash<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	rewind_hash: String,
 	start_height: Option<u64>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
@@ -1003,7 +995,7 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
-	let start_height = start_height.unwrap_or_else(|| 1);
+	let start_height = start_height.unwrap_or(1);
 
 	let info = scan::scan_rewind_hash(
 		wallet_inst,
@@ -1019,7 +1011,7 @@ where
 /// Accepts a wallet inst instead of a raw wallet so it can
 /// lock as little as possible
 pub fn scan<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	start_height: Option<u64>,
 	delete_unconfirmed: bool,
@@ -1036,7 +1028,7 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
-	let start_height = start_height.unwrap_or_else(|| 1);
+	let start_height = start_height.unwrap_or(1);
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
@@ -1071,7 +1063,7 @@ where
 
 /// node height
 pub fn node_height<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<NodeHeightResult, Error>
 where
@@ -1091,12 +1083,7 @@ where
 		}),
 		Err(_) => {
 			let outputs = retrieve_outputs(wallet_inst, keychain_mask, &None, true, false, None)?;
-			let height = outputs
-				.1
-				.iter()
-				.map(|m| m.output.height)
-				.max()
-				.unwrap_or_else(|| 0);
+			let height = outputs.1.iter().map(|m| m.output.height).max().unwrap_or(0);
 			Ok(NodeHeightResult {
 				height,
 				header_hash: "".to_owned(),
@@ -1111,7 +1098,7 @@ pub const REORG_RESCAN_WINDOW: u64 = 24 * 60 * 2;
 
 /// Experimental, wrap the entire definition of how a wallet's state is updated
 pub fn update_wallet_state<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	update_all: bool,
@@ -1265,10 +1252,8 @@ where
 {
 	// Refuse if TTL is expired
 	let last_confirmed_height = w.last_confirmed_height()?;
-	if slate.ttl_cutoff_height != 0 {
-		if last_confirmed_height >= slate.ttl_cutoff_height {
-			return Err(Error::TransactionExpired);
-		}
+	if slate.ttl_cutoff_height != 0 && last_confirmed_height >= slate.ttl_cutoff_height {
+		return Err(Error::TransactionExpired);
 	}
 	Ok(())
 }
@@ -1276,7 +1261,7 @@ where
 /// Verify/validate arbitrary payment proof
 /// Returns (whether this wallet is the sender, whether this wallet is the recipient)
 pub fn verify_payment_proof<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	proof: &PaymentProof,
 ) -> Result<(bool, bool), Error>
@@ -1349,7 +1334,7 @@ where
 
 /// Attempt to update outputs in wallet, return whether it was successful
 fn update_outputs<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
 ) -> Result<bool, Error>
@@ -1373,9 +1358,9 @@ where
 
 /// Update transactions that need to be validated via kernel lookup
 fn update_txs_via_kernel<'a, L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	txs: &mut Vec<TxLogEntry>,
+	txs: &mut [TxLogEntry],
 ) -> Result<bool, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -1514,30 +1499,29 @@ where
 
 	let mut blind_sum = new_output
 		.blind
-		.split(&BlindingFactor::from_secret_key(input_blind.clone()), &secp)?;
+		.split(&BlindingFactor::from_secret_key(input_blind.clone()), secp)?;
 
-	let hops = server_pubkeys
+	let hops: Vec<Hop> = server_pubkeys
 		.iter()
 		.enumerate()
 		.map(|(i, &p)| {
 			if (i + 1) == server_pubkeys.len() {
 				Hop {
-					server_pubkey: p.clone(),
-					excess: blind_sum.secret_key(&secp).unwrap(),
+					server_pubkey: p,
+					excess: blind_sum.secret_key(secp).unwrap(),
 					fee: FeeFields::from(fee as u32),
-					rangeproof: Some(new_output.output.proof.clone()),
+					rangeproof: Some(new_output.output.proof),
 				}
 			} else {
-				let hop_excess;
-				if use_test_rng {
-					hop_excess = BlindingFactor::zero();
+				let hop_excess = if use_test_rng {
+					BlindingFactor::zero()
 				} else {
-					hop_excess = BlindingFactor::rand(&secp);
-				}
-				blind_sum = blind_sum.split(&hop_excess, &secp).unwrap();
+					BlindingFactor::rand(secp)
+				};
+				blind_sum = blind_sum.split(&hop_excess, secp).unwrap();
 				Hop {
-					server_pubkey: p.clone(),
-					excess: hop_excess.secret_key(&secp).unwrap(),
+					server_pubkey: p,
+					excess: hop_excess.secret_key(secp).unwrap(),
 					fee: FeeFields::from(fee as u32),
 					rangeproof: None,
 				}
@@ -1545,7 +1529,7 @@ where
 		})
 		.collect();
 
-	let onion = create_onion(&commitment, &hops, use_test_rng).unwrap();
+	let onion = create_onion(commitment, &hops, use_test_rng).unwrap();
 	let comsig = ComSignature::sign(
 		amount,
 		&input_blind,

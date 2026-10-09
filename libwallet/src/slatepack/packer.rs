@@ -16,18 +16,16 @@ use super::armor::HEADER;
 use crate::slatepack::types::SlatepackAddressIndex;
 use crate::{
 	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
-	VersionedBinSlate, VersionedSlate,
+	VersionedBinSlate, VersionedSlate, WalletHandle,
 };
-use crate::{Error, NodeClient, WalletInst, WalletLCProvider};
+use crate::{Error, NodeClient, WalletLCProvider};
 
 use grin_keychain::Keychain;
 use grin_util::secp::SecretKey;
-use grin_util::Mutex;
 use grin_wallet_util::byte_ser;
 
 use std::convert::TryFrom;
 use std::str;
-use std::sync::Arc;
 
 /// Arguments, mostly for encrypting decrypting a slatepack
 pub struct SlatepackerArgs {
@@ -52,7 +50,7 @@ impl Slatepacker {
 	pub fn deser_slatepack<'a, L, C, K>(
 		&self,
 		data: &[u8],
-		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+		wallet_inst: WalletHandle<'a, L, C, K>,
 		keychain_mask: Option<&SecretKey>,
 		decrypt: bool,
 	) -> Result<Slatepack, Error>
@@ -120,6 +118,6 @@ impl Slatepacker {
 
 	/// Armor a slatepack
 	pub fn armor_slatepack(&self, slatepack: &Slatepack) -> Result<String, Error> {
-		SlatepackArmor::encode(&slatepack)
+		SlatepackArmor::encode(slatepack)
 	}
 }

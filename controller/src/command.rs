@@ -31,7 +31,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 
-use grin_wallet_libwallet::{wallet_lock, WalletInst};
+use grin_wallet_libwallet::{wallet_lock, WalletHandle};
 use qr_code::QrCode;
 use serde_json as json;
 use std::fs::File;
@@ -120,7 +120,7 @@ where
 	Ok(())
 }
 
-pub fn rewind_hash<'a, L, C, K>(
+pub fn rewind_hash<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), Error>
@@ -159,7 +159,7 @@ where
 	let tip_height = owner_api.node_height(None)?.height;
 	let start_height = match args.backwards_from_tip {
 		Some(b) => tip_height.saturating_sub(b),
-		None => args.start_height.unwrap_or_else(|| 1),
+		None => args.start_height.unwrap_or(1),
 	};
 	warn!(
 		"Starting view wallet output scan from height {} ...",
@@ -184,6 +184,7 @@ where
 	}
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn listen<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Arc<Mutex<Option<SecretKey>>>,
@@ -222,7 +223,7 @@ where
 	if let Ok(t) = api_thread {
 		if !cli_mode {
 			let r = t.join();
-			if let Err(_) = r {
+			if r.is_err() {
 				error!("Error starting listener");
 				return Err(Error::ListenerError);
 			}
@@ -426,11 +427,11 @@ where
 								init_args = max_retry_args(init_args, amount, max_inputs);
 								owner_api.init_send_tx(keychain_mask, init_args)?
 							} else {
-								return Err(grin_wallet_libwallet::Error::from(e));
+								return Err(e);
 							}
 						}
 						_ => {
-							return Err(grin_wallet_libwallet::Error::from(e));
+							return Err(e);
 						}
 					},
 				};
@@ -462,20 +463,15 @@ where
 		};
 		let init_send_tx = |init_args: InitTxArgs| -> Result<Slate, libwallet::Error> {
 			let result = owner_api.init_send_tx(keychain_mask, init_args.clone());
-			let slate = match result {
-				Ok(s) => {
-					info!(
-						"Tx created: {} grin to {} (strategy '{}')",
-						core::amount_to_hr_string(init_args.amount, false),
-						dest.as_ref()
-							.map(ToString::to_string)
-							.unwrap_or_else(|| "no destination".to_string()),
-						args.selection_strategy,
-					);
-					s
-				}
-				Err(e) => return Err(e),
-			};
+			let slate = result?;
+			info!(
+				"Tx created: {} grin to {} (strategy '{}')",
+				core::amount_to_hr_string(init_args.amount, false),
+				dest.as_ref()
+					.map(ToString::to_string)
+					.unwrap_or_else(|| "no destination".to_string()),
+				args.selection_strategy,
+			);
 			Ok(slate)
 		};
 		slate = match init_send_tx(init_args.clone()) {
@@ -512,9 +508,7 @@ where
 	}
 
 	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
-		let sender_index = args
-			.address_index
-			.unwrap_or_else(|| SlatepackAddressIndex(0));
+		let sender_index = args.address_index.unwrap_or(SlatepackAddressIndex(0));
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
@@ -568,7 +562,8 @@ where
 	Ok(())
 }
 
-fn output_slatepack<L, C, K>(
+#[allow(clippy::too_many_arguments)]
+pub fn output_slatepack<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
@@ -591,7 +586,7 @@ where
 		None => vec![],
 	};
 	let message =
-		owner_api.create_slatepack_message(keychain_mask, &slate, sender_index, recipients)?;
+		owner_api.create_slatepack_message(keychain_mask, slate, sender_index, recipients)?;
 	let tld = owner_api.get_top_level_directory()?;
 
 	// create a directory to which files will be output
@@ -603,12 +598,12 @@ where
 	};
 
 	if lock {
-		owner_api.tx_lock_outputs(keychain_mask, &slate)?;
+		owner_api.tx_lock_outputs(keychain_mask, slate)?;
 	}
 
 	println!("{}", out_file_name);
 	let mut output = File::create(out_file_name.clone())?;
-	output.write_all(&message.as_bytes())?;
+	output.write_all(message.as_bytes())?;
 	output.sync_all()?;
 
 	println!();
@@ -692,7 +687,7 @@ where
 				}
 				None => {
 					let msg = "No slate provided via file or direct input";
-					return Err(Error::GenericError(msg.into()).into());
+					return Err(Error::GenericError(msg.into()));
 				}
 			}
 		}
@@ -749,10 +744,7 @@ where
 		_ => {}
 	}
 
-	let km = match keychain_mask.as_ref() {
-		None => None,
-		Some(&m) => Some(m.to_owned()),
-	};
+	let km = keychain_mask.as_ref().map(|&m| m.to_owned());
 
 	if let Some(b) = args.bridge {
 		tor_config.bridge.bridge_line = Some(b);
@@ -817,7 +809,7 @@ where
 }
 
 pub fn read_slatepack<L, C, K>(
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K>>>>,
+	wallet_inst: WalletHandle<'static, L, C, K>,
 	args: ReceiveArgs,
 ) -> Result<Slatepack, Error>
 where
@@ -839,7 +831,7 @@ where
 				packer.deser_slatepack(message.as_bytes(), wallet_inst, None, false)?
 			}
 			None => {
-				return Err(Error::ArgumentError("Invalid Slatepack Input".into()).into());
+				return Err(Error::ArgumentError("Invalid Slatepack Input".into()));
 			}
 		},
 	};
@@ -864,13 +856,15 @@ where
 
 	if slatepack.mode == 1 {
 		let mut slate = None;
-		match slatepack.try_decrypt_payload_for_indices(
-			vec![SlatepackAddressIndex(0)],
-			owner_api.wallet_inst.clone(),
-			keychain_mask,
-		) {
-			Ok(_) => slate = slatepack.get_slate().ok(),
-			Err(_) => {}
+		if slatepack
+			.try_decrypt_payload_for_indices(
+				vec![SlatepackAddressIndex(0)],
+				owner_api.wallet_inst.clone(),
+				keychain_mask,
+			)
+			.is_ok()
+		{
+			slate = slatepack.get_slate().ok()
 		}
 		match slate {
 			Some(s) => {
@@ -952,10 +946,7 @@ where
 	let is_invoice = slate.state == SlateState::Invoice2;
 
 	if is_invoice {
-		let km = match keychain_mask.as_ref() {
-			None => None,
-			Some(&m) => Some(m.to_owned()),
-		};
+		let km = keychain_mask.as_ref().map(|&m| m.to_owned());
 		controller::foreign_single_use(
 			owner_api.wallet_inst.clone(),
 			owner_api.config_path(),
@@ -1031,9 +1022,7 @@ where
 
 	let slate = owner_api.issue_invoice_tx(keychain_mask, issue_args.clone())?;
 
-	let sender_index = issue_args
-		.address_index
-		.unwrap_or_else(|| SlatepackAddressIndex(0));
+	let sender_index = issue_args.address_index.unwrap_or(SlatepackAddressIndex(0));
 	output_slatepack(
 		owner_api,
 		keychain_mask,
@@ -1274,7 +1263,7 @@ where
 	// Note advanced query args not currently supported by command line client
 	let (validated, txs) =
 		owner_api.retrieve_txs(keychain_mask, true, args.id, args.tx_slate_id, None)?;
-	let include_status = !args.id.is_some() && !args.tx_slate_id.is_some();
+	let include_status = args.id.is_none() && args.tx_slate_id.is_none();
 	// If view count is specified, restrict the TX list to `txs.len() - count`
 	let first_tx = args
 		.count
@@ -1471,7 +1460,7 @@ where
 	let tip_height = owner_api.node_height(keychain_mask)?.height;
 	let start_height = match args.backwards_from_tip {
 		Some(b) => tip_height.saturating_sub(b),
-		None => args.start_height.unwrap_or_else(|| 1),
+		None => args.start_height.unwrap_or(1),
 	};
 	warn!("Starting output scan from height {} ...", start_height);
 	let result = owner_api.scan(keychain_mask, Some(start_height), args.delete_unconfirmed);

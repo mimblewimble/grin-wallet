@@ -15,22 +15,22 @@
 //! Selection of inputs for building transactions
 
 use crate::error::Error;
-use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_core::libtx::{
-	build,
-	proof::{ProofBuild, ProofBuilder},
-	tx_fee,
-};
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::pedersen;
 use crate::internal::keys;
 use crate::slate::Slate;
 use crate::types::*;
 use crate::util::OnionV3Address;
 use crate::{address, WalletBackend};
+use grin_core::core::amount_to_hr_string;
 use grin_core::core::Transaction;
 use grin_core::global;
+use grin_core::libtx::{
+	build,
+	proof::{ProofBuild, ProofBuilder},
+	tx_fee,
+};
+use grin_keychain::{Identifier, Keychain};
+use grin_util::secp::key::SecretKey;
+use grin_util::secp::pedersen;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -38,7 +38,7 @@ use std::convert::TryInto;
 /// libwallet transaction slate with the appropriate inputs selected,
 /// and saves the private wallet identifiers of our selected outputs
 /// into our transaction context
-
+#[allow(clippy::too_many_arguments)]
 pub fn build_send_tx<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain: &K,
@@ -109,7 +109,7 @@ where
 
 	// Store change output(s)
 	for (change_amount, id, mmr_index) in &change_amounts_derivations {
-		context.add_output(&id, &mmr_index, *change_amount);
+		context.add_output(id, mmr_index, *change_amount);
 	}
 
 	Ok(context)
@@ -136,7 +136,7 @@ where
 		output_commits.insert(
 			id.clone(),
 			(
-				wallet.calc_commit_for_cache(keychain_mask, *change_amount, &id)?,
+				wallet.calc_commit_for_cache(keychain_mask, *change_amount, id)?,
 				*change_amount,
 			),
 		);
@@ -191,8 +191,7 @@ where
 				None => {
 					return Err(Error::PaymentProof(
 						"Payment proof derivation index required".to_owned(),
-					)
-					.into());
+					));
 				}
 			};
 			let sender_key = address::address_from_derivation_path(
@@ -214,7 +213,7 @@ where
 		// write the output representing our change
 		for (id, _, _) in &context.get_outputs() {
 			t.num_outputs += 1;
-			let (commit, change_amount) = output_commits.get(&id).unwrap().clone();
+			let (commit, change_amount) = output_commits.get(id).unwrap().clone();
 			t.amount_credited += change_amount;
 			batch.save(OutputData {
 				root_key_id: parent_key_id.clone(),
@@ -316,6 +315,7 @@ where
 /// Builds a transaction to send to someone from the HD seed associated with the
 /// wallet and the amount to send. Handles reading through the wallet data file,
 /// selecting outputs to spend and building the change.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub fn select_send_tx<C, K, B>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -351,7 +351,7 @@ where
 		max_outputs,
 		change_outputs,
 		selection_strategy_is_use_all,
-		&parent_key_id,
+		parent_key_id,
 	)?;
 
 	// build transaction skeleton with inputs and change
@@ -369,6 +369,7 @@ where
 }
 
 /// Select outputs and calculating fee.
+#[allow(clippy::too_many_arguments)]
 pub fn select_coins_and_fee<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	amount: u64,
@@ -570,6 +571,7 @@ where
 }
 
 /// Selects inputs and change for a transaction
+#[allow(clippy::type_complexity)]
 pub fn inputs_and_change<C, K, B>(
 	coins: &[OutputData],
 	wallet: &mut WalletBackend<C, K>,
@@ -759,7 +761,7 @@ where
 	let keychain = wallet.keychain(keychain_mask)?;
 
 	// restore my signature data
-	slate.add_participant_info(&keychain, &context, None)?;
+	slate.add_participant_info(&keychain, context, None)?;
 
 	let mut parts = vec![];
 	for (id, mmr_index, value) in &context.get_inputs() {

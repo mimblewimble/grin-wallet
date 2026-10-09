@@ -24,13 +24,12 @@ use impls::test_framework::{self, LocalWalletClient};
 use impls::{DefaultLCProvider, PathToSlatepack, SlatePutter as _};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 use grin_wallet_libwallet::{
 	InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress,
-	Slatepacker, SlatepackerArgs, WalletInst,
+	Slatepacker, SlatepackerArgs, WalletHandle,
 };
 
 use ed25519_dalek::VerifyingKey as edDalekPublicKey;
@@ -40,7 +39,6 @@ mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
 use grin_keychain::ExtKeychain;
 use grin_util::secp::SecretKey;
-use grin_util::Mutex;
 use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 fn output_slatepack(
@@ -66,21 +64,14 @@ fn output_slatepack(
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	PathToSlatepack::new(file.into(), packer, armored).put_tx(&slate, use_bin)?;
-	Ok(())
+	PathToSlatepack::new(file.into(), packer, armored).put_tx(slate, use_bin)
 }
 
 fn slate_from_packed(
-	wallet_inst: Arc<
-		Mutex<
-			Box<
-				dyn WalletInst<
-					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-					LocalWalletClient,
-					ExtKeychain,
-				>,
-			>,
-		>,
+	wallet_inst: WalletHandle<
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
 	>,
 	keychain_mask: Option<&SecretKey>,
 	file: &str,
@@ -128,7 +119,7 @@ fn slatepack_exchange_test_impl(
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 	create_wallet_and_add!(
 		client2,
 		wallet2,
@@ -140,7 +131,7 @@ fn slatepack_exchange_test_impl(
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -246,7 +237,7 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_1.clone(),
-		sender_index_1.clone(),
+		sender_index_1,
 		recipients_2.clone(),
 	)?;
 	api1.tx_lock_outputs(mask1, &slate)?;
@@ -267,7 +258,7 @@ fn slatepack_exchange_test_impl(
 				use_armored,
 				use_bin,
 				sender_2.clone(),
-				sender_index_2.clone(),
+				sender_index_2,
 				// re-encrypt for sender!
 				match slatepack.sender.clone() {
 					Some(s) => vec![s.clone()],
@@ -339,7 +330,7 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_2.clone(),
-		sender_index_2.clone(),
+		sender_index_2,
 		recipients_1.clone(),
 	)?;
 
@@ -362,15 +353,14 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_1.clone(),
-		sender_index_1.clone(),
+		sender_index_1,
 		match slatepack.sender {
 			Some(s) => vec![s.clone()],
 			None => vec![],
 		},
 	)?;
 	// Wallet 2 receives the invoice transaction
-	let (_, mut slate) =
-		slate_from_packed(wallet2.clone(), mask2.clone(), &receive_file, use_armored)?;
+	let (_, mut slate) = slate_from_packed(wallet2.clone(), mask2, &receive_file, use_armored)?;
 	slate = api2.finalize_tx(mask2, &slate)?;
 	output_slatepack(
 		&slate,
@@ -405,7 +395,7 @@ fn slatepack_exchange_test_impl(
 		max_outputs: 500,
 		num_change_outputs: 1,
 		selection_strategy_is_use_all: true,
-		payment_proof_recipient_address: recipients_2.get(0).cloned(),
+		payment_proof_recipient_address: recipients_2.first().cloned(),
 		..Default::default()
 	};
 	let mut slate = api1.init_send_tx(mask1, args)?;
@@ -488,7 +478,7 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -552,7 +542,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		false,
 		api1
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	create_wallet_and_add!(
 		client2,
@@ -565,7 +555,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		false,
 		api2
 	);
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 
 	let proxy_thread = thread::spawn(move || {
 		if let Err(e) = wallet_proxy.run() {
