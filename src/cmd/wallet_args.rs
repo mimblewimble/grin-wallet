@@ -800,7 +800,7 @@ pub fn parse_process_invoice_args(
 	args: &ArgMatches,
 	prompt: bool,
 	slate: Slate,
-	ret_address: Option<SlatepackAddress>,
+	mut ret_address: Option<SlatepackAddress>,
 ) -> Result<command::ProcessInvoiceArgs, ParseError> {
 	// minimum_confirmations
 	let min_c = parse_required(args, "minimum_confirmations")?;
@@ -821,7 +821,12 @@ pub fn parse_process_invoice_args(
 	if prompt {
 		let dest = parse_optional(args, "dest")?;
 		let dest = match dest {
-			Some(dest) => dest,
+			Some(dest) => {
+				ret_address = Some(SlatepackAddress::try_from(dest.as_str()).map_err(|e| {
+					ParseError::ArgumentError(format!("Can not parse destination address {}", e))
+				})?);
+				dest
+			}
 			None => match ret_address.clone() {
 				Some(a) => String::try_from(&a).unwrap(),
 				None => String::from(""),
