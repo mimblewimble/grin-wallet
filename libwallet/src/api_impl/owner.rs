@@ -492,7 +492,7 @@ where
 		recipient_sig: r_sig,
 		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
-		sender_address_path: proof.sender_address_path,
+		sender_address_path: Some(proof.sender_address_path),
 	})
 }
 
@@ -1322,7 +1322,9 @@ where
 	let sec_key = address::address_from_derivation_path(
 		&keychain,
 		&parent_key_id,
-		proof.sender_address_path,
+		proof
+			.sender_address_path
+			.unwrap_or(SlatepackAddressIndex(0)),
 	)?;
 	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
 	let possible_sender_key: DalekPublicKey = (&d_skey).into();
