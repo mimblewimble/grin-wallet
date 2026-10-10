@@ -45,19 +45,21 @@ const CONFIRMED_HEIGHT_PREFIX: u8 = b'c';
 const PRIVATE_TX_CONTEXT_PREFIX: u8 = b'p';
 const TX_LOG_ENTRY_PREFIX: u8 = b't';
 const TX_LOG_ID_PREFIX: u8 = b'i';
+const TX_ADDRESS_INDEX_PREFIX: u8 = b's';
 const ACCOUNT_PATH_MAPPING_PREFIX: u8 = b'a';
 const LAST_SCANNED_BLOCK: u8 = b'l';
 const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
 const WALLET_INIT_STATUS: u8 = b'w';
 const WALLET_INIT_STATUS_KEY: &str = "WALLET_INIT_STATUS";
 
-const DB_PREFIXES: [u8; 9] = [
+const DB_PREFIXES: [u8; 10] = [
 	OUTPUT_PREFIX,
 	DERIV_PREFIX,
 	CONFIRMED_HEIGHT_PREFIX,
 	PRIVATE_TX_CONTEXT_PREFIX,
 	TX_LOG_ENTRY_PREFIX,
 	TX_LOG_ID_PREFIX,
+	TX_ADDRESS_INDEX_PREFIX,
 	ACCOUNT_PATH_MAPPING_PREFIX,
 	LAST_SCANNED_BLOCK,
 	WALLET_INIT_STATUS,
@@ -397,6 +399,33 @@ where
 				.map_err(From::from)
 			})
 			.map_err(From::from)
+	}
+
+	/// Next transaction slatepack address derivation path index.
+	pub fn next_tx_slatepack_address_index(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<SlatepackAddressIndex, Error> {
+		let parent_key_id = self.active_account.path.clone();
+		let mut index = {
+			let batch = self.db.batch()?;
+			batch
+				.get_ser(
+					Some(TX_ADDRESS_INDEX_PREFIX),
+					&parent_key_id.to_bytes(),
+					None,
+				)?
+				.unwrap_or(0)
+		};
+		index = if index == SlatepackAddressIndex::MAX {
+			0
+		} else {
+			index + 1
+		};
+		let mut batch = self.batch(keychain_mask)?;
+		batch.save_child_index(&parent_key_id, index)?;
+		batch.commit()?;
+		Ok(SlatepackAddressIndex(index))
 	}
 
 	/// Iterator over private tx contexts.

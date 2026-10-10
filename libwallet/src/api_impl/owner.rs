@@ -685,7 +685,7 @@ where
 	};
 
 	if args.address_index.is_none() {
-		args.address_index = Some(next_address_derivation_path_index(w));
+		args.address_index = Some(w.next_tx_slatepack_address_index(keychain_mask)?);
 	}
 
 	// Update transaction log address index
@@ -709,24 +709,6 @@ where
 	slate.compact()?;
 
 	Ok(slate)
-}
-
-/// Retrieve next transaction slatepack address derivation path index.
-pub fn next_address_derivation_path_index<C, K>(
-	w: &mut WalletBackend<C, K>,
-) -> SlatepackAddressIndex
-where
-	C: NodeClient,
-	K: Keychain,
-{
-	let index = w
-		.highest_payment_proof_derivation_index()
-		.unwrap_or(SlatepackAddressIndex(0));
-	if index.0 == SlatepackAddressIndex::MAX {
-		SlatepackAddressIndex(0)
-	} else {
-		SlatepackAddressIndex(index.0 + 1)
-	}
 }
 
 /// Receive an invoice tx, essentially adding inputs to whatever

@@ -20,7 +20,6 @@ use crate::core::global;
 use crate::impls::SlateSender as _;
 use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
-use crate::libwallet::api_impl::owner::next_address_derivation_path_index;
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
@@ -801,7 +800,7 @@ where
 
 		if args.address_index.is_none() {
 			wallet_lock!(self.wallet_inst, w);
-			args.address_index = Some(next_address_derivation_path_index(w));
+			args.address_index = Some(w.next_tx_slatepack_address_index(keychain_mask)?);
 		}
 
 		// Helper functionality. If send arguments exist, attempt to send sync and
