@@ -141,3 +141,61 @@ fn wallet_self_send() {
 	}
 	clean_output_dir(test_dir);
 }
+
+#[test]
+fn late_lock_self_send_proof() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/late_lock_self_send_proof";
+	setup(test_dir);
+	let mut wallet_proxy = create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false,
+		api1
+	);
+	let mask1 = mask1_i.as_ref();
+	let worker = thread::spawn(move || wallet_proxy.run());
+
+	let result = (|| {
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false)?;
+		let mut slate = api1.init_send_tx(
+			mask1,
+			InitTxArgs {
+				amount: core::consensus::REWARD,
+				minimum_confirmations: 2,
+				late_lock: Some(true),
+				payment_proof_recipient_address: Some(api1.get_slatepack_address(mask1, 0)?),
+				..Default::default()
+			},
+		)?;
+		wallet::controller::foreign_single_use(
+			wallet1.clone(),
+			PathBuf::from(test_dir),
+			mask1_i.clone(),
+			|api| {
+				slate = api.receive_tx(&slate, None, None)?;
+				Ok(())
+			},
+		)?;
+		let (_, txs) = api1.retrieve_txs(mask1, false, None, Some(slate.id), None)?;
+		assert_eq!(txs.len(), 1);
+		assert_eq!(txs[0].tx_type, libwallet::TxLogEntryType::TxReceived);
+
+		api1.finalize_tx(mask1, &slate).map(|_| ())
+	})();
+
+	stopper.store(false, Ordering::Relaxed);
+	worker.join().unwrap()?;
+	drop(api1);
+	drop(wallet1);
+	drop(chain);
+	clean_output_dir(test_dir);
+	result
+}
