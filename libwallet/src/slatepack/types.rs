@@ -294,21 +294,22 @@ impl Slatepack {
 										secret_indices.push(i);
 									}
 								}
-								wallet_lock!(wallet_inst, w);
-								let indexes: Vec<SlatepackAddressIndex> = w
-									.private_context_iter()?
-									.flatten()
-									.filter(|c| {
-										let index =
-											if let Some(i) = c.payment_proof_derivation_index {
-												!secret_indices.contains(&i)
-											} else {
-												false
-											};
-										c.parent_key_id == w.parent_key_id() && index
-									})
-									.map(|c| c.payment_proof_derivation_index.unwrap())
-									.collect();
+								let indexes: Vec<SlatepackAddressIndex> = {
+									wallet_lock!(wallet_inst, w);
+									w.private_context_iter()?
+										.flatten()
+										.filter(|c| {
+											let index =
+												if let Some(i) = c.payment_proof_derivation_index {
+													!secret_indices.contains(&i)
+												} else {
+													false
+												};
+											c.parent_key_id == w.parent_key_id() && index
+										})
+										.map(|c| c.payment_proof_derivation_index.unwrap())
+										.collect()
+								};
 								self.try_decrypt_with(wallet_inst.clone(), keychain_mask, &indexes)
 							}
 						}
