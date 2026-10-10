@@ -496,13 +496,15 @@ where
 		Some(parent_key_id),
 		false,
 	)?;
-	if tx_vec.is_empty() {
-		return Err(Error::PaymentProof(
-			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
-		));
-	}
-
-	let orig_proof_info = tx_vec[0].clone().payment_proof;
+	let orig_proof_info = tx_vec
+		.into_iter()
+		.find(|tx| tx.tx_type == TxLogEntryType::TxSent)
+		.ok_or_else(|| {
+			Error::PaymentProof(
+				"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
+			)
+		})?
+		.payment_proof;
 
 	if orig_proof_info.is_some() && slate.payment_proof.is_none() {
 		return Err(Error::PaymentProof(
