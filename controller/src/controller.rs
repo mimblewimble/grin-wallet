@@ -55,6 +55,7 @@ use grin_wallet_config::config::{
 };
 use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
 use grin_wallet_impls::tor::process::TorProcess;
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use tokio::sync::mpsc;
@@ -255,8 +256,9 @@ where
 			let w_inst = lc.wallet_inst()?;
 			let k = w_inst.keychain(mask.as_ref())?;
 			let parent_key_id = w_inst.parent_key_id();
-			let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
-				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
+			let sec_key =
+				address::address_from_derivation_path(&k, &parent_key_id, SlatepackAddressIndex(0))
+					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 			let onion_address = OnionV3Address::from_private(&sec_key.0)
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;

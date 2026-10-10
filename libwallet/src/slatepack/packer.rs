@@ -12,48 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::armor::HEADER;
+use crate::slatepack::types::SlatepackAddressIndex;
+use crate::{
+	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
+	VersionedBinSlate, VersionedSlate, WalletHandle,
+};
+use crate::{Error, NodeClient, WalletLCProvider};
+
+use grin_keychain::Keychain;
+use grin_util::secp::SecretKey;
+use grin_wallet_util::byte_ser;
+
 use std::convert::TryFrom;
 use std::str;
 
-use super::armor::HEADER;
-use crate::Error;
-use crate::{
-	slatepack, Slate, SlateVersion, Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin,
-	VersionedBinSlate, VersionedSlate,
-};
-
-use grin_wallet_util::byte_ser;
-
-use ed25519_dalek::SigningKey as edSecretKey;
-
-#[derive(Clone)]
 /// Arguments, mostly for encrypting decrypting a slatepack
-pub struct SlatepackerArgs<'a> {
+pub struct SlatepackerArgs {
 	/// Optional sender to include in slatepack
 	pub sender: Option<SlatepackAddress>,
+	/// Derivation path indices to decrypt slatepack
+	pub secret_indices: Vec<SlatepackAddressIndex>,
 	/// Optional list of recipients, for encryption
 	pub recipients: Vec<SlatepackAddress>,
-	/// Optional decryption key
-	pub dec_key: Option<&'a edSecretKey>,
 }
 
 /// Helper struct to pack and unpack slatepacks
-#[derive(Clone)]
-pub struct Slatepacker<'a>(SlatepackerArgs<'a>);
+pub struct Slatepacker(SlatepackerArgs);
 
-impl<'a> Slatepacker<'a> {
+impl Slatepacker {
 	/// Create with pathbuf and recipients
-	pub fn new(args: SlatepackerArgs<'a>) -> Self {
+	pub fn new(args: SlatepackerArgs) -> Self {
 		Self(args)
 	}
 
-	/// return slatepack
-	pub fn deser_slatepack(&self, data: &[u8], decrypt: bool) -> Result<Slatepack, Error> {
+	/// Deserialize provided data to slatepack
+	pub fn deser_slatepack<'a, L, C, K>(
+		&self,
+		data: &[u8],
+		wallet_inst: WalletHandle<'a, L, C, K>,
+		keychain_mask: Option<&SecretKey>,
+		decrypt: bool,
+	) -> Result<Slatepack, Error>
+	where
+		L: WalletLCProvider<'a, C, K>,
+		C: NodeClient + 'a,
+		K: Keychain + 'a,
+	{
 		// check if data is armored, if so, remove and continue
 		let data_len = data.len() as u64;
 		if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
-			let msg = "Data invalid length".to_string();
-			return Err(Error::SlatepackDeser(msg));
+			return Err(Error::SlatepackDeser("Data invalid length".to_string()));
 		}
 
 		let test_header = &data[..HEADER.len()];
@@ -87,7 +96,11 @@ impl<'a> Slatepacker<'a> {
 
 		slatepack.ver_check_warn();
 		if decrypt {
-			slatepack.try_decrypt_payload(self.0.dec_key)?;
+			slatepack.try_decrypt_payload_for_indices(
+				self.0.secret_indices.clone(),
+				wallet_inst,
+				keychain_mask,
+			)?;
 		}
 		Ok(slatepack)
 	}
@@ -106,16 +119,5 @@ impl<'a> Slatepacker<'a> {
 	/// Armor a slatepack
 	pub fn armor_slatepack(&self, slatepack: &Slatepack) -> Result<String, Error> {
 		SlatepackArmor::encode(slatepack)
-	}
-
-	/// Return/upgrade slate from slatepack
-	pub fn get_slate(&self, slatepack: &Slatepack) -> Result<Slate, Error> {
-		let slate_bin =
-			byte_ser::from_bytes::<VersionedBinSlate>(&slatepack.payload).map_err(|e| {
-				error!("Error reading slate from armored slatepack: {}", e);
-				let msg = format!("{}", e);
-				Error::SlatepackDeser(msg)
-			})?;
-		Slate::upgrade(slate_bin.into())
 	}
 }

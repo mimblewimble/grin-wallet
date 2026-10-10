@@ -28,6 +28,7 @@ use std::time::Duration;
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 /// Various tests on accounts within the same wallet
 fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
@@ -78,7 +79,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let address = Some(api2.get_slatepack_address(mask2, 0)?);
+	let address = Some(api2.get_slatepack_address(mask2, SlatepackAddressIndex(0))?);
 
 	println!("Public address is: {:?}", address);
 	let amount = 60_000_000_000;
@@ -121,7 +122,7 @@ fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Err
 		slate_i.payment_proof.as_ref().unwrap().receiver_address
 	);
 	assert!(pp.receiver_signature.is_some());
-	assert_eq!(pp.sender_address_path, 0);
+	assert_eq!(pp.sender_address_path, SlatepackAddressIndex(1));
 	assert_eq!(pp.sender_signature, None);
 
 	// check we should get an error at this point since proof is not complete

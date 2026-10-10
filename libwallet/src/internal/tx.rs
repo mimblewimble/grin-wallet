@@ -20,6 +20,7 @@ use uuid::Uuid;
 
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error};
@@ -368,7 +369,7 @@ where
 	Ok(())
 }
 
-/// Update the stored transaction (this update needs to happen when the TX is finalised)
+/// Update the stored transaction (this update needs to happen when the TX is finalized)
 pub fn update_stored_tx<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -405,19 +406,21 @@ where
 	}
 
 	if let Some(ref p) = slate.clone().payment_proof {
-		let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
+		let sender_address_path = context
+			.payment_proof_derivation_index
+			.unwrap_or(SlatepackAddressIndex(0));
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = wallet.parent_key_id();
 		let excess = slate.calc_excess(keychain.secp())?;
 		let sender_key =
-			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
+			address::address_from_derivation_path(&keychain, &parent_key_id, sender_address_path)?;
 		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 		let sig =
 			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
 		tx.payment_proof = Some(StoredProofInfo {
 			receiver_address: p.receiver_address,
 			receiver_signature: p.receiver_signature,
-			sender_address_path: derivation_index,
+			sender_address_path,
 			sender_address: sender_address.to_ed25519()?,
 			sender_signature: Some(sig),
 		})

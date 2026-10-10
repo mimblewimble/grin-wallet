@@ -23,6 +23,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::wallet_lock;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -35,12 +36,12 @@ use grin_wallet_config::config::{
 	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
 };
 use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
-use libwallet::wallet_lock;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
@@ -782,7 +783,7 @@ where
 	pub fn init_send_tx(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		args: InitTxArgs,
+		mut args: InitTxArgs,
 	) -> Result<Slate, Error> {
 		let send_args = args.send_args.clone();
 		let dest = match send_args.as_ref() {
@@ -797,6 +798,11 @@ where
 			.map(|_| crate::tor_config::load(&self.config_path()))
 			.transpose()?;
 
+		if args.address_index.is_none() {
+			wallet_lock!(self.wallet_inst, w);
+			args.address_index = Some(w.next_tx_slatepack_address_index(keychain_mask)?);
+		}
+
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
 		match send_args {
@@ -804,7 +810,8 @@ where
 				let slate = {
 					wallet_lock!(self.wallet_inst, w);
 					let late_lock = args.late_lock.unwrap_or(false);
-					let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+					let slate =
+						owner::init_send_tx(w, keychain_mask, args.clone(), self.doctest_mode)?;
 					let tc = tor_config.as_ref().ok_or_else(|| {
 						Error::TorConfig("Tor config was not loaded with send arguments".into())
 					})?;
@@ -815,12 +822,29 @@ where
 					if !late_lock {
 						owner::tx_lock_outputs(w, keychain_mask, &slate)?;
 					}
+
 					slate
 				};
-				let res =
-					try_slatepack_sync_workflow(&slate, &dest.unwrap(), tor_config, None, false);
+				let res = try_slatepack_sync_workflow(
+					&slate,
+					dest.as_ref().unwrap(),
+					tor_config,
+					None,
+					false,
+				);
 				match res {
 					Ok(s) => {
+						// Output slatepack message to file.
+						match output_slatepack_file(
+							self,
+							keychain_mask,
+							&s,
+							dest,
+							args.address_index,
+						) {
+							Ok(_) => {}
+							Err(e) => error!("Error on saving output slatepack message: {}", e),
+						}
 						let ret_slate = self.finalize_tx(keychain_mask, &s)?;
 						if sa.post_tx {
 							let result = self.post_tx(keychain_mask, &ret_slate, sa.fluff);
@@ -938,7 +962,7 @@ where
 	/// let mut api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
 	/// // . . .
-	/// // The slate has been recieved from the invoicer, somehow
+	/// // The slate has been received from the invoicer, somehow
 	/// # let slate = Slate::blank(2, true);
 	/// let args = InitTxArgs {
 	///     src_acct_name: None,
@@ -970,20 +994,18 @@ where
 			}
 			_ => None,
 		};
-		let (slate, tor_config) = {
+		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
-			let tor_config = send_args
-				.as_ref()
-				.map(|_| crate::tor_config::load(&self.config_path()))
-				.transpose()?;
 			let w = w_lock.lc_provider()?.wallet_inst()?;
-			let slate =
-				owner::process_invoice_tx(w, keychain_mask, slate, args, self.doctest_mode)?;
-			(slate, tor_config)
+			owner::process_invoice_tx(w, keychain_mask, slate, args.clone(), self.doctest_mode)?
 		};
 		// Helper functionality. If send arguments exist, attempt to send
-		match send_args {
+		match send_args.as_ref() {
 			Some(sa) => {
+				let tor_config = send_args
+					.as_ref()
+					.map(|_| crate::tor_config::load(&self.config_path()))
+					.transpose()?;
 				let tc = tor_config.ok_or_else(|| {
 					Error::TorConfig("Tor config was not loaded with send arguments".into())
 				})?;
@@ -1006,7 +1028,13 @@ where
 							}
 						}
 						// Output slatepack message to file.
-						match output_slatepack_file(self, keychain_mask, &s, Some(dest)) {
+						match output_slatepack_file(
+							self,
+							keychain_mask,
+							&s,
+							Some(dest),
+							args.address_index,
+						) {
 							Ok(_) => {}
 							Err(e) => error!("Error on saving output slatepack message: {}", e),
 						}
@@ -2193,7 +2221,7 @@ where
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// * `derivation_index` - The index along the derivation path to retrieve an address for
+	/// * `derivation_index` - The index along the derivation path to retrieve an address for, should be not higher than 2^31
 	///
 	/// # Returns
 	/// * Ok with a SlatepackAddress representing the address
@@ -2205,13 +2233,14 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
-	/// let res = api_owner.get_slatepack_address(None, 0);
+	/// let res = api_owner.get_slatepack_address(None, SlatepackAddressIndex(0));
 	///
 	/// if let Ok(_) = res {
 	///   // ...
@@ -2221,7 +2250,7 @@ where
 	pub fn get_slatepack_address(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error> {
 		owner::get_slatepack_address(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
@@ -2231,9 +2260,8 @@ where
 	///
 	/// # Arguments
 	///
-	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key
-	///
+	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
+	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key, should be not higher than 2^31
 	/// # Returns
 	/// * Ok with an ed25519_dalek::SecretKey if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
@@ -2244,13 +2272,14 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
 	/// // Set up as above
 	/// # let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	///
-	/// let res = api_owner.get_slatepack_secret_key(None, 0);
+	/// let res = api_owner.get_slatepack_secret_key(None, SlatepackAddressIndex(0));
 	///
 	/// if let Ok(_) = res {
 	///   // ...
@@ -2260,7 +2289,7 @@ where
 	pub fn get_slatepack_secret_key(
 		&self,
 		keychain_mask: Option<&SecretKey>,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<DalekSecretKey, Error> {
 		owner::get_slatepack_secret_key(self.wallet_inst.clone(), keychain_mask, derivation_index)
 	}
@@ -2271,7 +2300,7 @@ where
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender
+	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender, should be not higher than 2^31
 	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
 	///   slate). If an empty vec, the payload will remain unencrypted
 	///
@@ -2285,6 +2314,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
@@ -2310,7 +2340,7 @@ where
 	///     let slatepack = api_owner.create_slatepack_message(
 	///        None,
 	///        &slate,
-	///        Some(0),
+	///        Some(SlatepackAddressIndex(0)),
 	///        vec![],
 	///     );
 	/// }
@@ -2320,7 +2350,7 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slate: &Slate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
 		owner::create_slatepack_message(
@@ -2340,8 +2370,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `slatepack` - A string representing an armored slatepack
 	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
-	///   decryption. This function will attempt to use secret keys at each index along this path
-	///   to attempt to decrypt the payload, returning an error if none of the keys match.
+	///   decryption. This function will attempt to use secret keys at each index along this path to attempt to decrypt the payload, returning an error if none of the keys match. Should be not higher than 2^31 each.
 	///
 	/// # Returns
 	/// * Ok with a [Slate](../grin_wallet_libwallet/slate/struct.Slate.html) if successful
@@ -2353,6 +2382,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
@@ -2363,14 +2393,14 @@ where
 	///   let res = api_owner.slate_from_slatepack_message(
 	///    None,
 	///    slatepack_string,
-	///    vec![0, 1, 2],
+	///    vec![SlatepackAddressIndex(0), SlatepackAddressIndex(1), SlatepackAddressIndex(2)],
 	///   );
 	/// ```
 	pub fn slate_from_slatepack_message(
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slatepack: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slate, Error> {
 		owner::slate_from_slatepack_message(
 			self.wallet_inst.clone(),
@@ -2389,8 +2419,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
 	/// * `slatepack` - A string representing an armored slatepack
 	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
-	///   decryption. If this wallet can't decrypt this slatepack, the payload of the returned
-	///   Slatepack will remain encrypted.
+	///   decryption. If this wallet can't decrypt this slatepack, the payload of the returned Slatepack will remain encrypted. Should be not higher than 2^31 each.
 	///
 	/// # Returns
 	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful
@@ -2402,6 +2431,7 @@ where
 	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
 	///
 	/// use grin_core::global::ChainTypes;
+	/// use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 	///
 	/// use std::time::Duration;
 	///
@@ -2412,7 +2442,7 @@ where
 	/// let res = api_owner.decode_slatepack_message(
 	///    None,
 	///    slatepack_string,
-	///    vec![0, 1, 2],
+	///    vec![SlatepackAddressIndex(0), SlatepackAddressIndex(1), SlatepackAddressIndex(2)],
 	/// );
 	///
 	/// ```
@@ -2420,7 +2450,7 @@ where
 		&self,
 		keychain_mask: Option<&SecretKey>,
 		slatepack: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error> {
 		owner::decode_slatepack_message(
 			self.wallet_inst.clone(),
@@ -2758,6 +2788,7 @@ fn output_slatepack_file<L, C, K>(
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
 	dest: Option<SlatepackAddress>,
+	sender_index: Option<SlatepackAddressIndex>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -2769,7 +2800,7 @@ where
 		Some(a) => vec![a],
 		None => vec![],
 	};
-	let message = api.create_slatepack_message(keychain_mask, slate, Some(0), recipients)?;
+	let message = api.create_slatepack_message(keychain_mask, slate, sender_index, recipients)?;
 	let tld = api.get_top_level_directory()?;
 
 	// Create a directory to which files will be output.

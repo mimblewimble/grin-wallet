@@ -20,7 +20,7 @@ use crate::libwallet::{
 	TxLogEntry, TxLogEntryType, ViewWallet, WalletInfo,
 };
 use crate::util::ToHex;
-
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 use prettytable;
 use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use std::io::prelude::Write;
@@ -541,7 +541,8 @@ pub fn accounts(acct_mappings: Vec<AcctPathMapping>) {
 		bMG->"Spendable balance",
 	]);
 	for m in acct_mappings {
-		let slatepack_path = address::address_derivation_path(&m.path, 0).to_bip_32_string();
+		let slatepack_path =
+			address::address_derivation_path(&m.path, SlatepackAddressIndex(0)).to_bip_32_string();
 		let spendable = if let Some(info) = m.info {
 			amount_to_hr_string(info.amount_currently_spendable, true)
 		} else {

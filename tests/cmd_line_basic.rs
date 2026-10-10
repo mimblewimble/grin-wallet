@@ -810,6 +810,108 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let (_, wallet_info) = api2.retrieve_summary_info(mask2, true, 1)?;
 	assert!(wallet_info.amount_currently_spendable < old_balance);
 
+	// Issue encrypted invoice using custom address index, wallet2.
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"default",
+		"-p",
+		"password2",
+		"invoice",
+		"--address_index",
+		"3",
+		"-d",
+		"tgrin1fu5z9y4p8atxr83l6nfj0j2m067r9gjfkd6mzeuuz0v6sqftua2quv0ll3",
+		"1",
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+	let file_name = format!(
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b08.I1.slatepack",
+		test_dir
+	);
+
+	// Pay the invoice tx, wallet 1
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"default",
+		"-p",
+		"password1",
+		"pay",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	let file_name = format!(
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b08.I2.slatepack",
+		test_dir
+	);
+
+	// Finalize the invoice, wallet 2
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"default",
+		"-p",
+		"password2",
+		"finalize",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+	// Send encrypted to wallet 2 using custom address index
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password1",
+		"-a",
+		"mining",
+		"send",
+		"-d",
+		"tgrin1ak8aaxpjg6ct5uje4lgzvjp65l0nrmgxndp5xjy74sumzp7wasysje3kmf",
+		"--address_index",
+		"5",
+		"1",
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	// Receive, wallet 2
+	let file_name = format!(
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b09.S1.slatepack",
+		test_dir
+	);
+	let arg_vec = vec![
+		"grin-wallet",
+		"-p",
+		"password2",
+		"-a",
+		"account_1",
+		"receive",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
+
+	let file_name = format!(
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b09.S2.slatepack",
+		test_dir
+	);
+
+	// Finalize the send, wallet 1
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"mining",
+		"-p",
+		"password1",
+		"finalize",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
 	// let logging finish
 	thread::sleep(Duration::from_millis(200));
 	clean_output_dir(test_dir);

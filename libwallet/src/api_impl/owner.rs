@@ -46,6 +46,7 @@ use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
 
+use crate::slatepack::SlatepackAddressIndex;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 
@@ -121,13 +122,20 @@ where
 pub fn get_slatepack_address<'a, L, C, K>(
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	index: u32,
+	index: SlatepackAddressIndex,
 ) -> Result<SlatepackAddress, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	if index.0 > SlatepackAddressIndex::MAX {
+		return Err(Error::SlatepackAddress(format!(
+			"Slatepack index {} is out of bound, maximum value is {}",
+			index.0,
+			SlatepackAddressIndex::MAX
+		)));
+	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
@@ -140,13 +148,20 @@ where
 pub fn get_slatepack_secret_key<'a, L, C, K>(
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	index: u32,
+	index: SlatepackAddressIndex,
 ) -> Result<DalekSecretKey, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	if index.0 > SlatepackAddressIndex::MAX {
+		return Err(Error::SlatepackAddress(format!(
+			"Slatepack index {} is out of bound, maximum value is {}",
+			index.0,
+			SlatepackAddressIndex::MAX
+		)));
+	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
@@ -160,7 +175,7 @@ pub fn create_slatepack_message<'a, L, C, K>(
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slate: &Slate,
-	sender_index: Option<u32>,
+	sender_index: Option<SlatepackAddressIndex>,
 	recipients: Vec<SlatepackAddress>,
 ) -> Result<String, Error>
 where
@@ -168,14 +183,18 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let sender = match sender_index {
-		Some(i) => Some(get_slatepack_address(wallet_inst, keychain_mask, i)?),
+	let sender = match sender_index.as_ref() {
+		Some(i) => Some(get_slatepack_address(
+			wallet_inst.clone(),
+			keychain_mask,
+			*i,
+		)?),
 		None => None,
 	};
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender,
+		secret_indices: vec![],
 		recipients,
-		dec_key: None,
 	});
 	let slatepack = packer.create_slatepack(slate)?;
 	packer.armor_slatepack(&slatepack)
@@ -187,47 +206,16 @@ pub fn slate_from_slatepack_message<'a, L, C, K>(
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
-	secret_indices: Vec<u32>,
+	secret_indices: Vec<SlatepackAddressIndex>,
 ) -> Result<Slate, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if secret_indices.is_empty() {
-		let packer = Slatepacker::new(SlatepackerArgs {
-			sender: None,
-			recipients: vec![],
-			dec_key: None,
-		});
-		let slatepack = packer.deser_slatepack(slatepack.as_bytes(), true)?;
-		packer.get_slate(&slatepack)
-	} else {
-		for index in secret_indices {
-			let dec_key = Some(get_slatepack_secret_key(
-				wallet_inst.clone(),
-				keychain_mask,
-				index,
-			)?);
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				recipients: vec![],
-				dec_key: dec_key.as_ref(),
-			});
-			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
-			let slatepack = match res {
-				Ok(sp) => sp,
-				Err(_) => {
-					continue;
-				}
-			};
-			return packer.get_slate(&slatepack);
-		}
-		Err(Error::SlatepackDecryption(
-			"Could not decrypt slatepack with any provided index on the address derivation path"
-				.to_owned(),
-		))
-	}
+	let sp = decode_slatepack_message(wallet_inst, keychain_mask, slatepack, secret_indices)
+		.map_err(|e| Error::SlatepackDecryption(format!("Could not decrypt slatepack: {}", e)))?;
+	sp.get_slate()
 }
 
 /// Decode a slatepack message, to allow viewing
@@ -237,42 +225,37 @@ pub fn decode_slatepack_message<'a, L, C, K>(
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	slatepack: String,
-	secret_indices: Vec<u32>,
+	secret_indices: Vec<SlatepackAddressIndex>,
 ) -> Result<Slatepack, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	for i in &secret_indices {
+		if i.0 > SlatepackAddressIndex::MAX {
+			return Err(Error::SlatepackDecryption(format!(
+				"Slatepack index {} is out of bound, maximum value is {}",
+				i.0,
+				SlatepackAddressIndex::MAX
+			)));
+		}
+	}
+	let empty_indices = secret_indices.is_empty();
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
+		secret_indices,
 		recipients: vec![],
-		dec_key: None,
 	});
-	if secret_indices.is_empty() {
-		packer.deser_slatepack(slatepack.as_bytes(), false)
-	} else {
-		for index in secret_indices {
-			let dec_key = Some(get_slatepack_secret_key(
-				wallet_inst.clone(),
-				keychain_mask,
-				index,
-			)?);
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				recipients: vec![],
-				dec_key: dec_key.as_ref(),
-			});
-			let res = packer.deser_slatepack(slatepack.as_bytes(), true);
-			let slatepack = match res {
-				Ok(sp) => sp,
-				Err(_) => {
-					continue;
-				}
-			};
-			return Ok(slatepack);
-		}
-		packer.deser_slatepack(slatepack.as_bytes(), false)
+	let res = packer.deser_slatepack(
+		slatepack.as_bytes(),
+		wallet_inst.clone(),
+		keychain_mask,
+		!empty_indices,
+	);
+	match res {
+		Ok(sp) => Ok(sp),
+		Err(_) => packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false),
 	}
 }
 
@@ -532,6 +515,7 @@ where
 		recipient_sig: r_sig,
 		sender_address: SlatepackAddress::new(&proof.sender_address),
 		sender_sig: s_sig,
+		sender_address_path: Some(proof.sender_address_path),
 	})
 }
 
@@ -629,15 +613,12 @@ where
 		)?
 	};
 
-	// Payment Proof, add addresses to slate and save address
-	// TODO: Note we only use single derivation path for now,
-	// probably want to allow sender to specify which one
-	let deriv_path = 0u32;
-
+	let address_index = args.address_index.unwrap_or(SlatepackAddressIndex(0));
 	if let Some(a) = payment_proof_address {
 		let k = w.keychain(keychain_mask)?;
 
-		let sec_addr_key = address::address_from_derivation_path(&k, &parent_key_id, deriv_path)?;
+		let sec_addr_key =
+			address::address_from_derivation_path(&k, &parent_key_id, address_index)?;
 		let sender_address = OnionV3Address::from_private(&sec_addr_key.0)?;
 
 		slate.payment_proof = Some(PaymentInfo {
@@ -645,14 +626,13 @@ where
 			receiver_address: a.pub_key,
 			receiver_signature: None,
 		});
-
-		context.payment_proof_derivation_index = Some(deriv_path);
 	}
 
 	// Save the aggsig context in our DB for when we
-	// recieve the transaction back
+	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
+		context.payment_proof_derivation_index = Some(address_index);
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
@@ -666,7 +646,7 @@ where
 pub fn issue_invoice_tx<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
-	args: IssueInvoiceTxArgs,
+	mut args: IssueInvoiceTxArgs,
 	use_test_rng: bool,
 ) -> Result<Slate, Error>
 where
@@ -690,7 +670,7 @@ where
 
 	let mut slate = tx::new_tx_slate(w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
-	let context = tx::add_output_to_slate(
+	let mut context = tx::add_output_to_slate(
 		w,
 		keychain_mask,
 		&mut slate,
@@ -704,10 +684,24 @@ where
 		slate.version_info.version = v;
 	};
 
+	if args.address_index.is_none() {
+		args.address_index = Some(w.next_tx_slatepack_address_index(keychain_mask)?);
+	}
+
+	// Update transaction log address index
+	let mut tx = w.get_tx_log_entry(&slate.id, &parent_key_id)?;
+	if let Some(tx) = tx.as_mut() {
+		tx.address_index = args.address_index;
+		let mut batch = w.batch(keychain_mask)?;
+		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+		batch.commit()?;
+	}
+
 	// Save the aggsig context in our DB for when we
-	// recieve the transaction back
+	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
+		context.payment_proof_derivation_index = args.address_index;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
 		batch.commit()?;
 	}
@@ -813,6 +807,7 @@ where
 
 	// if self-sending, merge contexts
 	if let Ok(c) = context_res {
+		context.payment_proof_derivation_index = c.payment_proof_derivation_index;
 		context.initial_sec_key = c.initial_sec_key;
 		context.initial_sec_nonce = c.initial_sec_nonce;
 		context.fee = c.fee;
@@ -828,7 +823,7 @@ where
 	selection::repopulate_tx(w, keychain_mask, &mut ret_slate, &context, false)?;
 
 	// Save the aggsig context in our DB for when we
-	// recieve the transaction back
+	// receive the transaction back
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.save_private_context(slate.id.as_bytes(), &context)?;
@@ -1324,12 +1319,23 @@ where
 	};
 
 	// for now, simple test whether one of the addresses belongs to this wallet
-	let sec_key = address::address_from_derivation_path(&keychain, &parent_key_id, 0)?;
+	let sec_key =
+		address::address_from_derivation_path(&keychain, &parent_key_id, SlatepackAddressIndex(0))?;
 	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
-	let my_address_pubkey: DalekPublicKey = (&d_skey).into();
+	let possible_receiver_key: DalekPublicKey = (&d_skey).into();
 
-	let sender_mine = my_address_pubkey == sender_pubkey;
-	let recipient_mine = my_address_pubkey == recipient_pubkey;
+	let sec_key = address::address_from_derivation_path(
+		&keychain,
+		&parent_key_id,
+		proof
+			.sender_address_path
+			.unwrap_or(SlatepackAddressIndex(0)),
+	)?;
+	let d_skey = DalekSecretKey::from_bytes(&sec_key.0);
+	let possible_sender_key: DalekPublicKey = (&d_skey).into();
+
+	let sender_mine = possible_sender_key == sender_pubkey;
+	let recipient_mine = possible_receiver_key == recipient_pubkey;
 
 	Ok((sender_mine, recipient_mine))
 }
