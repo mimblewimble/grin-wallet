@@ -395,7 +395,9 @@ fn slatepack_exchange_test_impl(
 		max_outputs: 500,
 		num_change_outputs: 1,
 		selection_strategy_is_use_all: true,
-		payment_proof_recipient_address: recipients_2.first().cloned(),
+		payment_proof_recipient_address: Some(
+			api2.get_slatepack_address(mask2, SlatepackAddressIndex(0))?,
+		),
 		..Default::default()
 	};
 	let mut slate = api1.init_send_tx(mask1, args)?;
