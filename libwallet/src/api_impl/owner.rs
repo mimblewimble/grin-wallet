@@ -129,6 +129,13 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	if index.0 > SlatepackAddressIndex::MAX {
+		return Err(Error::SlatepackAddress(format!(
+			"Slatepack index {} is out of bound, maximum value is {}",
+			index.0,
+			SlatepackAddressIndex::MAX
+		)));
+	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
@@ -148,6 +155,13 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	if index.0 > SlatepackAddressIndex::MAX {
+		return Err(Error::SlatepackAddress(format!(
+			"Slatepack index {} is out of bound, maximum value is {}",
+			index.0,
+			SlatepackAddressIndex::MAX
+		)));
+	}
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
@@ -218,6 +232,15 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	for i in &secret_indices {
+		if i.0 > SlatepackAddressIndex::MAX {
+			return Err(Error::SlatepackDecryption(format!(
+				"Slatepack index {} is out of bound, maximum value is {}",
+				i.0,
+				SlatepackAddressIndex::MAX
+			)));
+		}
+	}
 	let empty_indices = secret_indices.is_empty();
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
