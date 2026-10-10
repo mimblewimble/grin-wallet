@@ -30,6 +30,7 @@ use std::time::Duration;
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 /// self send impl
 fn self_send_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
@@ -171,7 +172,9 @@ fn late_lock_self_send_proof() -> Result<(), libwallet::Error> {
 				amount: core::consensus::REWARD,
 				minimum_confirmations: 2,
 				late_lock: Some(true),
-				payment_proof_recipient_address: Some(api1.get_slatepack_address(mask1, 0)?),
+				payment_proof_recipient_address: Some(
+					api1.get_slatepack_address(mask1, SlatepackAddressIndex(0))?,
+				),
 				..Default::default()
 			},
 		)?;
