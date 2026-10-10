@@ -445,7 +445,6 @@ where
 	pub fn highest_payment_proof_derivation_index(&self) -> Result<SlatepackAddressIndex, Error> {
 		let mut txs: Vec<TxLogEntry> = self.tx_log_iter()?.collect::<Result<Vec<_>, _>>()?;
 		txs.sort_by_key(|c| c.address_index);
-		txs.reverse();
 		if let Some(tx) = txs.last() {
 			return Ok(tx.address_index.unwrap_or(SlatepackAddressIndex(0)));
 		}
