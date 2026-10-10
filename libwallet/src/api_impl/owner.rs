@@ -418,8 +418,8 @@ where
 			"Transaction ID or Slate UUID must be specified".to_owned(),
 		));
 	}
-	if refresh_from_node {
-		update_wallet_state(
+	let refresh_txs_from_node = if refresh_from_node {
+		!update_wallet_state(
 			wallet_inst.clone(),
 			keychain_mask,
 			status_send_channel,
@@ -432,7 +432,7 @@ where
 		wallet_inst.clone(),
 		keychain_mask,
 		status_send_channel,
-		refresh_from_node,
+		refresh_txs_from_node,
 		tx_id,
 		tx_slate_id,
 		None,
