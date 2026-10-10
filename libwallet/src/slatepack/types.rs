@@ -251,7 +251,7 @@ impl Slatepack {
 		                       secret_indices: &Vec<SlatepackAddressIndex>|
 		 -> Result<Vec<SlatepackAddressIndex>, Error> {
 			wallet_lock!(wallet_inst, w);
-			let indices: Vec<SlatepackAddressIndex> = w
+			let mut indices: Vec<SlatepackAddressIndex> = w
 				.tx_log_iter()?
 				.flatten()
 				.filter(|tx| {
@@ -270,6 +270,8 @@ impl Slatepack {
 				.filter_map(|t| t.address_index)
 				.filter(|i| !secret_indices.contains(i))
 				.collect();
+			indices.sort_unstable();
+			indices.dedup();
 			Ok(indices)
 		};
 
