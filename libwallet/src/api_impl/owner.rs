@@ -218,6 +218,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let empty_indices = secret_indices.is_empty();
 	let packer = Slatepacker::new(SlatepackerArgs {
 		sender: None,
 		secret_indices,
@@ -227,7 +228,7 @@ where
 		slatepack.as_bytes(),
 		wallet_inst.clone(),
 		keychain_mask,
-		true,
+		!empty_indices,
 	);
 	match res {
 		Ok(sp) => Ok(sp),
