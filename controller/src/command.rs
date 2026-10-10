@@ -508,7 +508,11 @@ where
 	}
 
 	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
-		let sender_index = args.address_index.unwrap_or(SlatepackAddressIndex(0));
+		let sender_index = {
+			wallet_lock!(owner_api.wallet_inst, w);
+			let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+			context.payment_proof_derivation_index
+		};
 		Ok(output_slatepack(
 			owner_api,
 			keychain_mask,
@@ -518,7 +522,7 @@ where
 			lock_outputs,
 			false,
 			args.slatepack_qr,
-			Some(sender_index),
+			sender_index,
 		)?)
 	};
 
@@ -1022,7 +1026,11 @@ where
 
 	let slate = owner_api.issue_invoice_tx(keychain_mask, issue_args.clone())?;
 
-	let sender_index = issue_args.address_index.unwrap_or(SlatepackAddressIndex(0));
+	let sender_index = {
+		wallet_lock!(owner_api.wallet_inst, w);
+		let context = w.get_private_context(keychain_mask, slate.id.as_bytes())?;
+		context.payment_proof_derivation_index
+	};
 	output_slatepack(
 		owner_api,
 		keychain_mask,
@@ -1032,7 +1040,7 @@ where
 		false,
 		false,
 		args.slatepack_qr,
-		Some(sender_index),
+		sender_index,
 	)?;
 	Ok(())
 }
