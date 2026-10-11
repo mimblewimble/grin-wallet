@@ -34,9 +34,9 @@ use crate::types::{AcctPathMapping, NodeClient, TxLogEntry, WalletInfo};
 use crate::{
 	address,
 	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
-	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
+	slatepack, wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
 	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
+	SlatepackAddress, SlatepackArmor, SlatepackBin, TxLogEntryType, ViewWallet, WalletBackend,
 	WalletInitStatus, WalletLCProvider,
 };
 use grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
@@ -47,6 +47,7 @@ use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use x25519_dalek::{PublicKey as xPublicKey, StaticSecret};
 
 use crate::slatepack::SlatepackAddressIndex;
+use grin_wallet_util::byte_ser;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
 
@@ -191,13 +192,8 @@ where
 		)?),
 		None => None,
 	};
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender,
-		secret_indices: vec![],
-		recipients,
-	});
-	let slatepack = packer.create_slatepack(slate)?;
-	packer.armor_slatepack(&slatepack)
+	let slatepack = slate.create_slatepack(sender, recipients)?;
+	slatepack.armor()
 }
 
 /// Unpack a slate from the given slatepack message,
@@ -241,22 +237,161 @@ where
 			)));
 		}
 	}
-	let empty_indices = secret_indices.is_empty();
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		secret_indices,
-		recipients: vec![],
-	});
-	let res = packer.deser_slatepack(
+	deserialize_slatepack(
 		slatepack.as_bytes(),
 		wallet_inst.clone(),
 		keychain_mask,
-		!empty_indices,
-	);
-	match res {
-		Ok(sp) => Ok(sp),
-		Err(_) => packer.deser_slatepack(slatepack.as_bytes(), wallet_inst, keychain_mask, false),
+		secret_indices,
+	)
+}
+
+/// Deserialize provided data to slatepack
+pub fn deserialize_slatepack<'a, L, C, K>(
+	data: &[u8],
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	mut secret_indices: Vec<SlatepackAddressIndex>,
+) -> Result<Slatepack, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	// check if data is armored, if so, remove and continue
+	let data_len = data.len() as u64;
+	if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
+		return Err(Error::SlatepackDeser("Data invalid length".to_string()));
 	}
+
+	let test_header = &data[..slatepack::HEADER.len()];
+
+	let data = match str::from_utf8(test_header) {
+		Ok(s) => {
+			if s == slatepack::HEADER {
+				SlatepackArmor::decode(data)?
+			} else {
+				data.to_vec()
+			}
+		}
+		Err(_) => data.to_vec(),
+	};
+
+	// try as bin first, then as json
+	let mut slatepack = match byte_ser::from_bytes::<SlatepackBin>(&data) {
+		Ok(s) => s.0,
+		Err(e) => {
+			debug!("Not a valid binary slatepack: {} - Will try JSON", e);
+			let content = String::from_utf8(data).map_err(|e| {
+				let msg = format!("{}", e);
+				Error::SlatepackDeser(msg)
+			})?;
+			serde_json::from_str(&content).map_err(|e| {
+				let msg = format!("Error reading JSON slatepack: {}", e);
+				Error::SlatepackDeser(msg)
+			})?
+		}
+	};
+
+	slatepack.ver_check_warn();
+	if slatepack.mode == 1 {
+		// Try decrypt with selected indices.
+		let mut try_decrypt_with = |indices: &Vec<SlatepackAddressIndex>| -> Result<(), Error> {
+			for i in indices {
+				let dec_key = get_slatepack_secret_key(wallet_inst.clone(), keychain_mask, *i)?;
+				match slatepack.try_decrypt_payload(Some(&dec_key)) {
+					Ok(_) => return Ok(()),
+					Err(e) => {
+						if matches!(e, Error::Age(_)) {
+							continue;
+						} else {
+							return Err(e);
+						}
+					}
+				}
+			}
+			Err(Error::SlatepackDecryption(
+				"Can not decrypt slatepack with provided indexes".to_string(),
+			))
+		};
+
+		// Try decrypt with initial indices.
+		return match try_decrypt_with(&secret_indices) {
+			Ok(_) => Ok(slatepack),
+			Err(_) => {
+				// Collect indexes for transactions.
+				let collect_indexes = |outstanding: bool,
+				                       secret_indices: &Vec<SlatepackAddressIndex>|
+				 -> Result<Vec<SlatepackAddressIndex>, Error> {
+					wallet_lock!(wallet_inst, w);
+					let mut indices: Vec<SlatepackAddressIndex> = w
+						.tx_log_iter()?
+						.flatten()
+						.filter(|tx| {
+							let tx_type = if outstanding {
+								!tx.confirmed
+									&& (tx.tx_type == TxLogEntryType::TxReceived
+										|| tx.tx_type == TxLogEntryType::TxSent
+										|| tx.tx_type == TxLogEntryType::TxReverted)
+							} else {
+								tx.confirmed
+									&& tx.tx_type != TxLogEntryType::TxReceivedCancelled
+									&& tx.tx_type != TxLogEntryType::TxSentCancelled
+							};
+							tx_type && tx.parent_key_id == w.parent_key_id()
+						})
+						.filter_map(|t| t.address_index)
+						.filter(|i| !secret_indices.contains(i))
+						.collect();
+					indices.sort_unstable();
+					indices.dedup();
+					Ok(indices)
+				};
+				let mut indexes = collect_indexes(true, &secret_indices)?;
+				match try_decrypt_with(&mut indexes) {
+					Ok(_) => Ok(slatepack),
+					Err(_) => {
+						for i in indexes {
+							if !secret_indices.contains(&i) {
+								secret_indices.push(i);
+							}
+						}
+						let indexes = collect_indexes(false, &secret_indices)?;
+						match try_decrypt_with(&indexes) {
+							Ok(()) => Ok(slatepack),
+							Err(_) => {
+								for i in indexes {
+									if !secret_indices.contains(&i) {
+										secret_indices.push(i);
+									}
+								}
+								let indexes: Vec<SlatepackAddressIndex> = {
+									wallet_lock!(wallet_inst, w);
+									w.private_context_iter()?
+										.flatten()
+										.filter(|c| {
+											let index =
+												if let Some(i) = c.payment_proof_derivation_index {
+													!secret_indices.contains(&i)
+												} else {
+													false
+												};
+											c.parent_key_id == w.parent_key_id() && index
+										})
+										.map(|c| c.payment_proof_derivation_index.unwrap())
+										.collect()
+								};
+								match try_decrypt_with(&indexes) {
+									Ok(_) => Ok(slatepack),
+									Err(e) => Err(e),
+								}
+							}
+						}
+					}
+				}
+			}
+		};
+	}
+	Ok(slatepack)
 }
 
 /// retrieve outputs

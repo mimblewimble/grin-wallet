@@ -21,15 +21,17 @@ use grin_core as core;
 use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
-use impls::{DefaultLCProvider, PathToSlatepack, SlatePutter as _};
+use impls::DefaultLCProvider;
+use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use std::thread;
 use std::time::Duration;
+use std::{fs, thread};
 
 use grin_wallet_libwallet::{
-	InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack, SlatepackAddress,
-	Slatepacker, SlatepackerArgs, WalletHandle,
+	slatepack, Error, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack,
+	SlatepackAddress, SlatepackBin, WalletHandle,
 };
 
 use ed25519_dalek::VerifyingKey as edDalekPublicKey;
@@ -39,7 +41,9 @@ mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
 use grin_keychain::ExtKeychain;
 use grin_util::secp::SecretKey;
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
+use grin_wallet_libwallet::api_impl::owner::deserialize_slatepack;
+use grin_wallet_libwallet::slatepack::{get_slatepack_file_contents, SlatepackAddressIndex};
+use grin_wallet_util::byte_ser;
 
 fn output_slatepack(
 	slate: &Slate,
@@ -47,24 +51,32 @@ fn output_slatepack(
 	armored: bool,
 	use_bin: bool,
 	sender: Option<SlatepackAddress>,
-	sender_index: Option<SlatepackAddressIndex>,
 	recipients: Vec<SlatepackAddress>,
-) -> Result<(), libwallet::Error> {
-	let secret_indices = if let Some(i) = sender_index {
-		vec![i]
-	} else {
-		vec![]
-	};
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: sender.clone(),
-		secret_indices,
-		recipients,
-	});
+) -> Result<(), Error> {
 	let mut file = file.into();
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	PathToSlatepack::new(file.into(), packer, armored).put_tx(slate, use_bin)
+	let slatepack = slate.create_slatepack(sender, recipients)?;
+	let mut pub_tx = File::create(&file)?;
+	if use_bin {
+		if armored {
+			let armored = slatepack.armor()?;
+			pub_tx.write_all(armored.as_bytes())?;
+		} else {
+			pub_tx.write_all(
+				&byte_ser::to_bytes(&SlatepackBin(slatepack)).map_err(|_| Error::SlatepackSer)?,
+			)?;
+		}
+	} else {
+		pub_tx.write_all(
+			serde_json::to_string_pretty(&slatepack)
+				.map_err(|_| Error::SlateSer)?
+				.as_bytes(),
+		)?;
+	}
+	pub_tx.sync_all()?;
+	Ok(())
 }
 
 fn slate_from_packed(
@@ -76,20 +88,17 @@ fn slate_from_packed(
 	keychain_mask: Option<&SecretKey>,
 	file: &str,
 	armored: bool,
-) -> Result<(Slatepack, Slate), libwallet::Error> {
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		secret_indices: vec![SlatepackAddressIndex(0)],
-		recipients: vec![],
-	});
+) -> Result<(Slatepack, Slate), Error> {
 	let mut file = file.into();
 	if armored {
 		file = format!("{}.armored", file);
 	}
-	let slatepack = PathToSlatepack::new(file.into(), packer, armored).get_slatepack(
+	let data = get_slatepack_file_contents(&file.into())?;
+	let slatepack = deserialize_slatepack(
+		&data,
 		wallet_inst,
 		keychain_mask,
-		true,
+		vec![SlatepackAddressIndex(0)],
 	)?;
 	Ok((slatepack.clone(), slatepack.get_slate()?))
 }
@@ -100,7 +109,7 @@ fn slatepack_exchange_test_impl(
 	use_bin: bool,
 	use_armored: bool,
 	use_encryption: bool,
-) -> Result<(), libwallet::Error> {
+) -> Result<(), Error> {
 	// Create a new proxy to simulate server and wallet responses
 	let mut wallet_proxy = create_wallet_proxy(test_dir);
 	let chain = wallet_proxy.chain.clone();
@@ -165,7 +174,7 @@ fn slatepack_exchange_test_impl(
 	let _ =
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
-	let (recipients_1, sender_index_1, sender_1) = match use_encryption {
+	let (recipients_1, sender_1) = match use_encryption {
 		true => {
 			let sec_key = api1.get_slatepack_secret_key(mask1, SlatepackAddressIndex(0))?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
@@ -175,16 +184,12 @@ fn slatepack_exchange_test_impl(
 			let sec_key = api1.get_slatepack_secret_key(mask1, sen_index)?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let sen_address = SlatepackAddress::new(&pub_key);
-			(
-				vec![rec_address.clone()],
-				Some(sen_index),
-				Some(sen_address.clone()),
-			)
+			(vec![rec_address.clone()], Some(sen_address.clone()))
 		}
-		false => (vec![], None, None),
+		false => (vec![], None),
 	};
 
-	let (recipients_2, sender_index_2, sender_2) = match use_encryption {
+	let (recipients_2, sender_2) = match use_encryption {
 		true => {
 			let sec_key = api2.get_slatepack_secret_key(mask2, SlatepackAddressIndex(0))?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
@@ -194,13 +199,9 @@ fn slatepack_exchange_test_impl(
 			let sec_key = api2.get_slatepack_secret_key(mask2, sen_index)?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let sen_address = SlatepackAddress::new(&pub_key);
-			(
-				vec![rec_address.clone()],
-				Some(sen_index),
-				Some(sen_address.clone()),
-			)
+			(vec![rec_address.clone()], Some(sen_address.clone()))
 		}
-		false => (vec![], None, None),
+		false => (vec![], None),
 	};
 
 	let (send_file, receive_file, final_file) = match use_bin {
@@ -237,7 +238,6 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_1.clone(),
-		sender_index_1,
 		recipients_2.clone(),
 	)?;
 	api1.tx_lock_outputs(mask1, &slate)?;
@@ -258,7 +258,6 @@ fn slatepack_exchange_test_impl(
 				use_armored,
 				use_bin,
 				sender_2.clone(),
-				sender_index_2,
 				// re-encrypt for sender!
 				match slatepack.sender.clone() {
 					Some(s) => vec![s.clone()],
@@ -280,7 +279,6 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_1.clone(),
-		None,
 		match slatepack.sender {
 			Some(s) => vec![s.clone()],
 			None => vec![],
@@ -330,7 +328,6 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_2.clone(),
-		sender_index_2,
 		recipients_1.clone(),
 	)?;
 
@@ -353,7 +350,6 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_1.clone(),
-		sender_index_1,
 		match slatepack.sender {
 			Some(s) => vec![s.clone()],
 			None => vec![],
@@ -362,15 +358,7 @@ fn slatepack_exchange_test_impl(
 	// Wallet 2 receives the invoice transaction
 	let (_, mut slate) = slate_from_packed(wallet2.clone(), mask2, &receive_file, use_armored)?;
 	slate = api2.finalize_tx(mask2, &slate)?;
-	output_slatepack(
-		&slate,
-		&final_file,
-		use_armored,
-		use_bin,
-		None,
-		None,
-		vec![],
-	)?;
+	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 	api2.post_tx(mask2, &slate, false)?;
 
 	// Standard, with payment proof
@@ -407,7 +395,6 @@ fn slatepack_exchange_test_impl(
 		use_armored,
 		use_bin,
 		sender_1,
-		sender_index_1,
 		recipients_2.clone(),
 	)?;
 	api1.tx_lock_outputs(mask1, &slate)?;
@@ -427,7 +414,6 @@ fn slatepack_exchange_test_impl(
 				use_armored,
 				use_bin,
 				sender_2.clone(),
-				sender_index_2,
 				match slatepack.sender {
 					Some(s) => vec![s.clone()],
 					None => vec![],
@@ -442,15 +428,7 @@ fn slatepack_exchange_test_impl(
 	slate = res.1;
 	slate = api1.finalize_tx(mask1, &slate)?;
 	// Output final file for reference
-	output_slatepack(
-		&slate,
-		&final_file,
-		use_armored,
-		use_bin,
-		None,
-		None,
-		vec![],
-	)?;
+	output_slatepack(&slate, &final_file, use_armored, use_bin, None, vec![])?;
 	api1.post_tx(mask1, &slate, false)?;
 
 	// let logging finish
@@ -707,5 +685,48 @@ fn slatepack_address() {
 	if let Err(e) = slatepack_address_validation(test_dir) {
 		panic!("Libwallet Error: {}", e);
 	}
+	clean_output_dir(test_dir);
+}
+
+#[test]
+fn slatepack_file_contents() {
+	let test_dir = "test_output/slatepack_file_contents";
+	setup(test_dir);
+
+	fs::create_dir_all(test_dir).unwrap();
+	let sp_path = PathBuf::from(test_dir).join("pack_file");
+
+	// set Slatepack file to minimum allowable size
+	{
+		let f = File::create(sp_path.clone()).unwrap();
+		f.set_len(slatepack::min_size()).unwrap();
+	}
+
+	let mut pack_path = get_slatepack_file_contents(&sp_path);
+	assert!(pack_path.is_ok());
+
+	// set Slatepack file to maximum allowable size
+	{
+		let f = File::create(sp_path.clone()).unwrap();
+		f.set_len(slatepack::max_size()).unwrap();
+	}
+	pack_path = get_slatepack_file_contents(&sp_path);
+	assert!(pack_path.is_ok());
+
+	// set Slatepack file below minimum allowable size
+	{
+		let f = File::create(sp_path.clone()).unwrap();
+		f.set_len(slatepack::min_size() - 1).unwrap();
+	}
+	pack_path = get_slatepack_file_contents(&sp_path);
+	assert!(pack_path.is_err());
+
+	// set Slatepack file above maximum allowable size
+	{
+		let f = File::create(sp_path.clone()).unwrap();
+		f.set_len(slatepack::max_size() + 1).unwrap();
+	}
+	pack_path = get_slatepack_file_contents(&sp_path);
+	assert!(pack_path.is_err());
 	clean_output_dir(test_dir);
 }

@@ -19,19 +19,20 @@ use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
-use crate::impls::PathToSlatepack;
 use crate::keychain;
+use crate::libwallet::api_impl::owner::deserialize_slatepack;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
+use crate::libwallet::slatepack::get_slatepack_file_contents;
 use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::{
 	self, InitTxArgs, IssueInvoiceTxArgs, NodeClient, PaymentProof, Slate, SlateState, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, WalletLCProvider,
+	SlatepackAddress, WalletLCProvider,
 };
+use crate::libwallet::{wallet_lock, WalletHandle};
 use crate::util::secp::key::SecretKey;
 use crate::util::{Mutex, ZeroingString};
 use crate::{controller, display};
 
-use grin_wallet_libwallet::{wallet_lock, WalletHandle};
 use qr_code::QrCode;
 use serde_json as json;
 use std::fs::File;
@@ -667,13 +668,13 @@ where
 	let (slate, sender_address) = match filename {
 		Some(f) => {
 			// otherwise, get slate from slatepack
-			let packer = Slatepacker::new(SlatepackerArgs {
-				sender: None,
-				secret_indices: vec![SlatepackAddressIndex(0)],
-				recipients: vec![],
-			});
-			let pts = PathToSlatepack::new(f.into(), packer, true);
-			let sp = pts.get_slatepack(owner_api.wallet_inst.clone(), keychain_mask, true)?;
+			let data = get_slatepack_file_contents(&f.into())?;
+			let sp = deserialize_slatepack(
+				&data,
+				owner_api.wallet_inst.clone(),
+				keychain_mask,
+				vec![SlatepackAddressIndex(0)],
+			)?;
 			let sl = sp.get_slate()?;
 			(sl, sp.sender)
 		}
@@ -821,19 +822,18 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		secret_indices: vec![SlatepackAddressIndex(0)],
-		recipients: vec![],
-	});
 	let slatepack = match args.input_file {
 		Some(f) => {
-			PathToSlatepack::new(f.into(), packer, true).get_slatepack(wallet_inst, None, false)?
+			let data = get_slatepack_file_contents(&f.into())?;
+			deserialize_slatepack(&data, wallet_inst, None, vec![SlatepackAddressIndex(0)])?
 		}
 		None => match args.input_slatepack_message {
-			Some(message) => {
-				packer.deser_slatepack(message.as_bytes(), wallet_inst, None, false)?
-			}
+			Some(message) => deserialize_slatepack(
+				message.as_bytes(),
+				wallet_inst,
+				None,
+				vec![SlatepackAddressIndex(0)],
+			)?,
 			None => {
 				return Err(Error::ArgumentError("Invalid Slatepack Input".into()));
 			}
@@ -842,16 +842,7 @@ where
 	Ok(slatepack)
 }
 
-pub fn unpack<L, C, K>(
-	owner_api: &mut Owner<L, C, K>,
-	keychain_mask: Option<&SecretKey>,
-	mut slatepack: Slatepack,
-) -> Result<(), Error>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: keychain::Keychain + 'static,
-{
+pub fn unpack(slatepack: Slatepack) -> Result<(), Error> {
 	println!();
 	println!("SLATEPACK CONTENTS");
 	println!("------------------");
@@ -859,19 +850,8 @@ where
 	println!("------------------");
 
 	if slatepack.mode == 1 {
-		let mut slate = None;
-		if slatepack
-			.try_decrypt_payload_for_indices(
-				vec![SlatepackAddressIndex(0)],
-				owner_api.wallet_inst.clone(),
-				keychain_mask,
-			)
-			.is_ok()
-		{
-			slate = slatepack.get_slate().ok()
-		}
-		match slate {
-			Some(s) => {
+		match slatepack.get_slate() {
+			Ok(s) => {
 				println!("Slatepack is encrypted for this wallet");
 				println!();
 				println!("DECRYPTED SLATEPACK");
@@ -882,7 +862,7 @@ where
 				println!("---------------");
 				println!("{}", s);
 			}
-			None => {
+			Err(_) => {
 				println!("Slatepack payload cannot be decrypted by this wallet");
 			}
 		}
