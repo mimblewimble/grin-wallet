@@ -402,10 +402,7 @@ where
 	}
 
 	/// Next transaction slatepack address derivation path index.
-	pub fn next_tx_slatepack_address_index(
-		&mut self,
-		keychain_mask: Option<&SecretKey>,
-	) -> Result<SlatepackAddressIndex, Error> {
+	pub fn next_tx_slatepack_address_index(&mut self) -> Result<SlatepackAddressIndex, Error> {
 		let parent_key_id = self.active_account.path.clone();
 		let mut index = {
 			let batch = self.db.batch()?;
@@ -422,8 +419,12 @@ where
 		} else {
 			index + 1
 		};
-		let mut batch = self.batch(keychain_mask)?;
-		batch.save_child_index(&parent_key_id, index)?;
+		let mut batch = self.db.batch()?;
+		batch.put_ser(
+			Some(TX_ADDRESS_INDEX_PREFIX),
+			&parent_key_id.to_bytes(),
+			&index,
+		)?;
 		batch.commit()?;
 		Ok(SlatepackAddressIndex(index))
 	}

@@ -685,7 +685,7 @@ where
 	};
 
 	if args.address_index.is_none() {
-		args.address_index = Some(w.next_tx_slatepack_address_index(keychain_mask)?);
+		args.address_index = Some(w.next_tx_slatepack_address_index()?);
 	}
 
 	// Update transaction log address index

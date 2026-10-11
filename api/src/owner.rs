@@ -800,7 +800,7 @@ where
 
 		if args.address_index.is_none() {
 			wallet_lock!(self.wallet_inst, w);
-			args.address_index = Some(w.next_tx_slatepack_address_index(keychain_mask)?);
+			args.address_index = Some(w.next_tx_slatepack_address_index()?);
 		}
 
 		// Helper functionality. If send arguments exist, attempt to send sync and
