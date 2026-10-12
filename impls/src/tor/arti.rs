@@ -355,6 +355,9 @@ fn init_client(
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	let mut builder = TorClientConfigBuilder::from_directories(state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
+	builder
+		.override_net_params()
+		.insert("cbtmintimeout".into(), 60_000);
 
 	// Configure bridge.
 	if let Some(bridge_line) = tor_config.bridge.bridge_line.as_ref() {
