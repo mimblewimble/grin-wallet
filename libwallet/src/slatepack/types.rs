@@ -281,8 +281,6 @@ pub struct SlatepackAddressIndex(pub u32);
 impl SlatepackAddressIndex {
 	/// The max BIP32 index.
 	pub const MAX: u32 = 2_147_483_647;
-	/// Index size.
-	pub const LEN: u32 = 4;
 
 	/// Index value.
 	pub fn value(self) -> u32 {

@@ -693,6 +693,16 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if let Some(index) = args.address_index {
+		if index.0 > SlatepackAddressIndex::MAX {
+			return Err(Error::SlatepackDecryption(format!(
+				"Slatepack index {} is out of bound, maximum value is {}",
+				index.0,
+				SlatepackAddressIndex::MAX
+			)));
+		}
+	}
+
 	if args.amount == 0 {
 		return Err(Error::InvalidAmount);
 	}
@@ -816,6 +826,16 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if let Some(index) = args.address_index {
+		if index.0 > SlatepackAddressIndex::MAX {
+			return Err(Error::SlatepackDecryption(format!(
+				"Slatepack index {} is out of bound, maximum value is {}",
+				index.0,
+				SlatepackAddressIndex::MAX
+			)));
+		}
+	}
+
 	if args.amount == 0 {
 		return Err(Error::InvalidAmount);
 	}
@@ -848,7 +868,7 @@ where
 	};
 
 	if args.address_index.is_none() {
-		args.address_index = Some(w.next_tx_slatepack_address_index()?);
+		args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
 	}
 
 	// Update transaction log address index

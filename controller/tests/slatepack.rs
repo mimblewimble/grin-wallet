@@ -483,6 +483,36 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		selection_strategy_is_use_all: true,
 		..Default::default()
 	};
+	for index in [SlatepackAddressIndex::MAX + 1, u32::MAX] {
+		assert!(matches!(
+			api1.init_send_tx(
+				mask1,
+				InitTxArgs {
+					address_index: Some(SlatepackAddressIndex(index)),
+					..args.clone()
+				}
+			),
+			Err(Error::SlatepackDecryption(_))
+		));
+		assert!(matches!(
+			api1.issue_invoice_tx(
+				mask1,
+				IssueInvoiceTxArgs {
+					amount: reward,
+					address_index: Some(SlatepackAddressIndex(index)),
+					..Default::default()
+				}
+			),
+			Err(Error::SlatepackDecryption(_))
+		));
+	}
+	api1.init_send_tx(
+		mask1,
+		InitTxArgs {
+			estimate_only: Some(true),
+			..args.clone()
+		},
+	)?;
 	let slate = api1.init_send_tx(mask1, args)?;
 	// create an encrypted slatepack (just encrypted for self)
 	let address_index = SlatepackAddressIndex(0);
@@ -515,12 +545,67 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			.payment_proof_derivation_index
 			.unwrap()
 	};
-	assert_ne!(index, address_index);
+	assert_eq!(index, SlatepackAddressIndex(1));
 	let address = api1.get_slatepack_address(mask1, index)?;
 	let message = api1.create_slatepack_message(mask1, &slate, None, vec![address])?;
 	let decoded = api1.decode_slatepack_message(mask1, message.clone(), vec![address_index])?;
 	assert_eq!(decoded.mode, 0);
 	assert_eq!(decoded.get_slate()?.id, slate.id);
+
+	api1.create_account_path(mask1, "other")?;
+	api1.set_active_account(mask1, "other")?;
+	test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 6, false)?;
+	api1.set_active_account(mask1, "default")?;
+	let invoice = api1.issue_invoice_tx(
+		mask1,
+		IssueInvoiceTxArgs {
+			amount: reward,
+			dest_acct_name: Some("other".into()),
+			..Default::default()
+		},
+	)?;
+	let send = api1.init_send_tx(
+		mask1,
+		InitTxArgs {
+			amount: reward,
+			src_acct_name: Some("other".into()),
+			minimum_confirmations: 2,
+			..Default::default()
+		},
+	)?;
+	api1.set_active_account(mask1, "other")?;
+	let next = api1.issue_invoice_tx(
+		mask1,
+		IssueInvoiceTxArgs {
+			amount: reward,
+			..Default::default()
+		},
+	)?;
+	for (slate, expected) in [(&invoice, 1), (&send, 2), (&next, 3)] {
+		wallet_inst!(wallet1, w);
+		let context = w.get_private_context(mask1, slate.id.as_bytes())?;
+		assert_eq!(context.parent_key_id, w.parent_key_id());
+		assert_eq!(
+			context.payment_proof_derivation_index,
+			Some(SlatepackAddressIndex(expected))
+		);
+	}
+	api1.set_active_account(mask1, "default")?;
+	let invoice = api1.issue_invoice_tx(
+		mask1,
+		IssueInvoiceTxArgs {
+			amount: reward,
+			..Default::default()
+		},
+	)?;
+	{
+		wallet_inst!(wallet1, w);
+		assert_eq!(
+			w.get_private_context(mask1, invoice.id.as_bytes())?
+				.payment_proof_derivation_index,
+			Some(SlatepackAddressIndex(2))
+		);
+	}
 
 	api1.close_wallet(None)?;
 	let encrypted = api1.decode_slatepack_message(None, message, vec![])?;

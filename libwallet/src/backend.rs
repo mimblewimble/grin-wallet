@@ -402,8 +402,10 @@ where
 	}
 
 	/// Next transaction slatepack address derivation path index.
-	pub fn next_tx_slatepack_address_index(&mut self) -> Result<SlatepackAddressIndex, Error> {
-		let parent_key_id = self.active_account.path.clone();
+	pub fn next_tx_slatepack_address_index(
+		&mut self,
+		parent_key_id: &Identifier,
+	) -> Result<SlatepackAddressIndex, Error> {
 		let mut index = {
 			let batch = self.db.batch()?;
 			batch
@@ -468,17 +470,6 @@ where
 		}
 
 		Ok(ctx)
-	}
-
-	/// Retrieve the highest address derivation path index from tx context list.
-	/// TODO: use heed comparator to not select all tx context data https://docs.rs/heed/latest/heed/cookbook/index.html#use-custom-dupsort-comparator
-	pub fn highest_payment_proof_derivation_index(&self) -> Result<SlatepackAddressIndex, Error> {
-		let mut txs: Vec<TxLogEntry> = self.tx_log_iter()?.collect::<Result<Vec<_>, _>>()?;
-		txs.sort_by_key(|c| c.address_index);
-		if let Some(tx) = txs.last() {
-			return Ok(tx.address_index.unwrap_or(SlatepackAddressIndex(0)));
-		}
-		Ok(SlatepackAddressIndex(0))
 	}
 
 	/// Iterate over all stored account paths.

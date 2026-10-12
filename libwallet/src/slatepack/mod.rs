@@ -19,7 +19,7 @@ mod armor;
 mod types;
 
 pub use self::address::SlatepackAddress;
-pub use self::armor::{max_size, min_size, SlatepackArmor, FOOTER, HEADER};
+pub use self::armor::{max_size, min_size, SlatepackArmor, HEADER};
 pub use self::types::{Slatepack, SlatepackAddressIndex, SlatepackBin};
 
 use std::fs::{metadata, File};

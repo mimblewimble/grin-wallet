@@ -798,9 +798,14 @@ where
 			.map(|_| crate::tor_config::load(&self.config_path()))
 			.transpose()?;
 
-		if args.address_index.is_none() {
+		if args.address_index.is_none() && args.estimate_only != Some(true) {
 			wallet_lock!(self.wallet_inst, w);
-			args.address_index = Some(w.next_tx_slatepack_address_index()?);
+			let parent_key_id = match &args.src_acct_name {
+				Some(name) => w.get_acct_path(name.clone())?.map(|account| account.path),
+				None => None,
+			}
+			.unwrap_or_else(|| w.parent_key_id());
+			args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
 		}
 
 		// Helper functionality. If send arguments exist, attempt to send sync and
