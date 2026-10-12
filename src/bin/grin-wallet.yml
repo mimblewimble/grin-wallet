@@ -204,10 +204,10 @@ subcommands:
             multiple: true
             required: true
         - fee_per_hop:
-            help: Fee per mwixnet server in nanogrin
+            help: Fee per mwixnet server in nanogrin with the swap minimum as default
             long: fee_per_hop
             takes_value: true
-            required: true
+            required: false
         - minimum_confirmations:
             help: Minimum confirmations required for the selected output
             short: c

@@ -21,7 +21,8 @@ use crate::api_impl::foreign::finalize_tx as foreign_finalize;
 use crate::util::OnionV3Address;
 use grin_core::core::amount_to_hr_string;
 use grin_core::core::hash::Hashed;
-use grin_core::core::{FeeFields, Output, OutputFeatures, Transaction};
+use grin_core::core::{FeeFields, Output, OutputFeatures, Transaction, TransactionBody};
+use grin_core::global::DEFAULT_ACCEPT_FEE_BASE;
 use grin_core::libtx::proof;
 use grin_keychain::ViewKey;
 use grin_util::secp::{key::SecretKey, pedersen::Commitment};
@@ -1495,9 +1496,15 @@ where
 	let input_blind = keychain.derive_key(amount, &output.key_id, SwitchCommitmentType::Regular)?;
 
 	let server_pubkeys = &params.server_keys;
-	let fee = FeeFields::try_from(params.fee_per_hop).map_err(|e| Error::Fee(e.to_string()))?;
-	let total_fee = params
-		.fee_per_hop
+	let minimum_fee = TransactionBody::weight_by_iok(1, 1, 1) * DEFAULT_ACCEPT_FEE_BASE;
+	let fee_per_hop = params.fee_per_hop.unwrap_or(minimum_fee);
+	if fee_per_hop < minimum_fee {
+		return Err(Error::Fee(
+			"mwixnet fee is below the swap minimum".to_string(),
+		));
+	}
+	let fee = FeeFields::try_from(fee_per_hop).map_err(|e| Error::Fee(e.to_string()))?;
+	let total_fee = fee_per_hop
 		.checked_mul(server_pubkeys.len() as u64)
 		.ok_or_else(|| Error::Fee("mwixnet fee overflow".to_string()))?;
 	let total_fee_fields = FeeFields::try_from(total_fee)

@@ -2059,6 +2059,7 @@ pub trait OwnerRpc {
 	Networked version of [Owner::create_mwixnet_req](struct.Owner.html#method.create_mwixnet_req).
 
 	server_keys accepts public X25519 onion keys as hex, in route order, replacing secret keys
+	fee_per_hop accepts a nanogrin string or null for the swap minimum
 
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
@@ -2069,7 +2070,7 @@ pub trait OwnerRpc {
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
-			"fee_per_hop": "12500000",
+			"fee_per_hop": null,
 			"lock_output": true,
 			"server_keys": [
 				"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
@@ -2110,7 +2111,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		commitment: String,
-		fee_per_hop: String,
+		fee_per_hop: Option<String>,
 		lock_output: bool,
 		server_keys: Vec<String>,
 	) -> Result<MwixnetReqCreationResult, Error>;
@@ -2528,7 +2529,7 @@ where
 		&self,
 		token: Token,
 		commitment: String,
-		fee_per_hop: String,
+		fee_per_hop: Option<String>,
 		lock_output: bool,
 		server_keys: Vec<String>,
 	) -> Result<MwixnetReqCreationResult, Error> {
@@ -2542,8 +2543,8 @@ where
 		let req_params = MixnetReqCreationParams {
 			server_keys: keys,
 			fee_per_hop: fee_per_hop
-				.parse::<u64>()
-				.map_err(|_| Error::U64Deser(fee_per_hop))?,
+				.map(|fee| fee.parse::<u64>().map_err(|_| Error::U64Deser(fee)))
+				.transpose()?,
 		};
 
 		Owner::create_mwixnet_req(

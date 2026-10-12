@@ -150,7 +150,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			MwixnetServerPublicKey::from_secret(&server_key_2),
 			MwixnetServerPublicKey::from_secret(&server_key_3),
 		],
-		fee_per_hop: 10_000_000,
+		fee_per_hop: None,
 	};
 	let outputs = api1.retrieve_outputs(mask1, false, false, None)?;
 	// get last output
@@ -186,7 +186,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	let oversized_fee_params = MixnetReqCreationParams {
 		server_keys: params.server_keys[..2].to_vec(),
-		fee_per_hop: 1 << 39,
+		fee_per_hop: Some(1 << 39),
 	};
 	assert_eq!(
 		api1.create_mwixnet_req(mask1, &oversized_fee_params, &last_output.commit, true)
@@ -194,14 +194,40 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		libwallet::Error::Fee("mwixnet total fee exceeds FeeFields limit".to_string())
 	);
 
+	for fee in [0, 12_499_999] {
+		let invalid_params = MixnetReqCreationParams {
+			server_keys: params.server_keys.clone(),
+			fee_per_hop: Some(fee),
+		};
+		assert_eq!(
+			api1.create_mwixnet_req(mask1, &invalid_params, &last_output.commit, true)
+				.unwrap_err(),
+			libwallet::Error::Fee("mwixnet fee is below the swap minimum".to_string())
+		);
+	}
+	let custom_params = MixnetReqCreationParams {
+		server_keys: params.server_keys.clone(),
+		fee_per_hop: Some(25_000_000),
+	};
+	let custom = api1.create_mwixnet_req(mask1, &custom_params, &last_output.commit, false)?;
+	let mut onion = custom.request.onion;
+	for server_key in [&server_key_1, &server_key_2, &server_key_3] {
+		let peeled = onion.peel_layer(server_key).unwrap();
+		assert_eq!(peeled.payload.fee, FeeFields::try_from(25_000_000u64)?);
+		onion = peeled.onion;
+	}
+
 	let creation = api1.create_mwixnet_req(mask1, &params, &last_output.commit, true)?;
 	let creation_tx_id = creation.tx_id.unwrap();
-	let peeled = creation
-		.request
-		.onion
-		.peel_layer(&server_key_1)
-		.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
-	assert_eq!(peeled.payload.fee, FeeFields::try_from(params.fee_per_hop)?);
+	let fee_per_hop = 12_500_000;
+	let mut onion = creation.request.onion.clone();
+	for server_key in [&server_key_1, &server_key_2, &server_key_3] {
+		let peeled = onion
+			.peel_layer(server_key)
+			.map_err(|e| libwallet::Error::GenericError(e.to_string()))?;
+		assert_eq!(peeled.payload.fee, FeeFields::try_from(fee_per_hop)?);
+		onion = peeled.onion;
+	}
 
 	println!("MWIXNET REQ: {:?}", creation.request);
 
@@ -214,7 +240,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		.unwrap();
 	assert_eq!(input.output.status, OutputStatus::Locked);
 	assert_eq!(input.output.mmr_index, mmr_index);
-	let total_fee = params.fee_per_hop * params.server_keys.len() as u64;
+	let total_fee = fee_per_hop * params.server_keys.len() as u64;
 	let expected_amount = last_output.output.value - total_fee;
 	let expected_output = outputs
 		.1

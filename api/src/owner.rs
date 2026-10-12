@@ -2580,7 +2580,7 @@ where
 	///   struct containing the parameters for the request, which include:
 	///   `server_keys` - Published X25519 onion keys in route order, not Ed25519 identity keys
 	///   or private keys
-	///   `fee_per_hop` - The fee to be paid to each server for each hop in the mixnet
+	///   `fee_per_hop` - Optional fee per hop with the swap minimum as default
 	/// * `commitment` - The commitment of the output to be mixed
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
 	///
@@ -2599,7 +2599,7 @@ where
 	///    server_keys: vec![libwallet::mwixnet::MwixnetServerPublicKey::from_hex(
 	///        "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
 	///    ).unwrap()],
-	///    fee_per_hop: 100,
+	///    fee_per_hop: None,
 	/// };
 	///
 	/// let commitment = Commitment::from_vec(vec![0; 32]);

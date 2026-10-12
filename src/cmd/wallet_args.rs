@@ -588,7 +588,10 @@ pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, Par
 			})
 		})
 		.collect::<Result<Vec<_>, _>>()?;
-	let fee_per_hop = parse_u64(parse_required(args, "fee_per_hop")?, "fee_per_hop")?;
+	let fee_per_hop = args
+		.value_of("fee_per_hop")
+		.map(|fee| parse_u64(fee, "fee_per_hop"))
+		.transpose()?;
 	let minimum_confirmations = parse_u64(
 		parse_required(args, "minimum_confirmations")?,
 		"minimum_confirmations",
@@ -1389,6 +1392,33 @@ where
 #[cfg(test)]
 mod mwixnet_tests {
 	use super::*;
+
+	#[test]
+	fn parses_mwixnet_optional_fee() {
+		let yaml = load_yaml!("../bin/grin-wallet.yml");
+		let args = vec![
+			"grin-wallet",
+			"mwixnet",
+			"max",
+			"--server",
+			"mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion",
+			"--key",
+			"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+		];
+		let matches = clap::App::from_yaml(yaml)
+			.get_matches_from_safe(args.clone())
+			.unwrap();
+		let parsed = parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
+		assert_eq!(parsed.params.fee_per_hop, None);
+
+		let mut custom_args = args;
+		custom_args.extend(["--fee_per_hop", "25000000"]);
+		let matches = clap::App::from_yaml(yaml)
+			.get_matches_from_safe(custom_args)
+			.unwrap();
+		let parsed = parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
+		assert_eq!(parsed.params.fee_per_hop, Some(25_000_000));
+	}
 
 	#[test]
 	fn parses_mwixnet_output_selection() {

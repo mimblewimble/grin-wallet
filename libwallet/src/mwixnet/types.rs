@@ -16,7 +16,7 @@
 //! Should rexport all needed types here
 
 use super::onion::comsig_serde;
-use grin_core::libtx::secp_ser::string_or_u64;
+use grin_core::libtx::secp_ser::opt_string_or_u64;
 use grin_util::secp::key::SecretKey;
 use grin_util::ToHex;
 use serde::de::Error as SerdeError;
@@ -95,7 +95,7 @@ impl<'de> Deserialize<'de> for MwixnetServerPublicKey {
 pub struct MixnetReqCreationParams {
 	/// Ordered public keys of 1 to [`super::MAX_MWIXNET_HOPS`] participating servers
 	pub server_keys: Vec<MwixnetServerPublicKey>,
-	/// Fees per hop
-	#[serde(with = "string_or_u64")]
-	pub fee_per_hop: u64,
+	/// Optional fee per hop with the swap minimum as default
+	#[serde(default, with = "opt_string_or_u64")]
+	pub fee_per_hop: Option<u64>,
 }
