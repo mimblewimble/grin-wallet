@@ -260,6 +260,11 @@ impl Slatepack {
 
 	/// Return/upgrade slate from slatepack.
 	pub fn get_slate(&self) -> Result<Slate, Error> {
+		if self.mode == 1 {
+			return Err(Error::SlatepackDecryption(
+				"Slatepack payload is encrypted".into(),
+			));
+		}
 		let slate_bin = byte_ser::from_bytes::<VersionedBinSlate>(&self.payload).map_err(|e| {
 			error!("Error reading slate from armored slatepack: {}", e);
 			let msg = format!("{}", e);

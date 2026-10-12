@@ -41,7 +41,7 @@ mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
 use grin_keychain::ExtKeychain;
 use grin_util::secp::SecretKey;
-use grin_wallet_libwallet::api_impl::owner::deserialize_slatepack;
+use grin_wallet_libwallet::api_impl::owner::{decrypt_slatepack, deserialize_slatepack};
 use grin_wallet_libwallet::slatepack::{get_slatepack_file_contents, SlatepackAddressIndex};
 use grin_wallet_util::byte_ser;
 
@@ -522,8 +522,10 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let enc_addr = api1.get_slatepack_address(mask1, address_index)?;
 	let slatepack =
 		api1.create_slatepack_message(mask1, &slate, Some(address_index), vec![enc_addr])?;
-	let encrypted = api1.decode_slatepack_message(mask1, slatepack.clone(), vec![])?;
+	let mut encrypted = api1.decode_slatepack_message(mask1, slatepack.clone(), vec![])?;
 	assert_eq!(encrypted.mode, 1);
+	decrypt_slatepack(&mut encrypted, wallet1.clone(), mask1, vec![address_index])?;
+	assert_eq!(encrypted.get_slate()?.id, slate.id);
 	let slatepack_raw =
 		api1.decode_slatepack_message(mask1, slatepack.clone(), vec![address_index])?;
 	assert_eq!(slatepack_raw.mode, 0);
@@ -538,9 +540,15 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let decoded = api1.decode_slatepack_message(mask1, message.clone(), vec![address_index])?;
 	assert_eq!(decoded.mode, 1);
 	assert_eq!(decoded.payload, encrypted.payload);
-	assert!(api1
-		.slate_from_slatepack_message(mask1, message, vec![address_index])
-		.is_err());
+	assert!(matches!(
+		api1.slate_from_slatepack_message(mask1, message.clone(), vec![address_index]),
+		Err(Error::SlatepackDecryption(_))
+	));
+	let mut api1 = api1;
+	assert!(matches!(
+		wallet::command::parse_slatepack(&mut api1, mask1, None, Some(message)),
+		Err(wallet::Error::LibWallet(Error::SlatepackDecryption(_)))
+	));
 
 	let index = {
 		wallet_inst!(wallet1, w);
