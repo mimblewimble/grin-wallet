@@ -180,7 +180,7 @@ fn slatepack_exchange_test_impl(
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let rec_address = SlatepackAddress::new(&pub_key);
 
-			let sen_index = SlatepackAddressIndex(0);
+			let sen_index = SlatepackAddressIndex(7);
 			let sec_key = api1.get_slatepack_secret_key(mask1, sen_index)?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let sen_address = SlatepackAddress::new(&pub_key);
@@ -195,7 +195,7 @@ fn slatepack_exchange_test_impl(
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let rec_address = SlatepackAddress::new(&pub_key);
 
-			let sen_index = SlatepackAddressIndex(0);
+			let sen_index = SlatepackAddressIndex(11);
 			let sec_key = api2.get_slatepack_secret_key(mask2, sen_index)?;
 			let pub_key = edDalekPublicKey::from(&sec_key);
 			let sen_address = SlatepackAddress::new(&pub_key);
@@ -223,6 +223,7 @@ fn slatepack_exchange_test_impl(
 	assert_eq!(wallet1_info.total, bh * reward);
 	// send to send
 	let args = InitTxArgs {
+		address_index: Some(SlatepackAddressIndex(7)),
 		amount: reward * 2,
 		minimum_confirmations: 2,
 		max_outputs: 500,
@@ -318,6 +319,7 @@ fn slatepack_exchange_test_impl(
 	};
 
 	let args = IssueInvoiceTxArgs {
+		address_index: Some(SlatepackAddressIndex(11)),
 		amount: 1000000000,
 		..Default::default()
 	};
@@ -378,6 +380,7 @@ fn slatepack_exchange_test_impl(
 
 	// send from 1st wallet
 	let args = InitTxArgs {
+		address_index: Some(SlatepackAddressIndex(7)),
 		amount: reward,
 		minimum_confirmations: 2,
 		max_outputs: 500,
