@@ -590,8 +590,9 @@ pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, Par
 		.collect::<Result<Vec<_>, _>>()?;
 	let fee_per_hop = args
 		.value_of("fee_per_hop")
-		.map(|fee| parse_u64(fee, "fee_per_hop"))
-		.transpose()?;
+		.map(core::core::amount_from_hr_string)
+		.transpose()
+		.map_err(|e| ParseError::ArgumentError(format!("Invalid fee_per_hop: {}", e)))?;
 	let minimum_confirmations = parse_u64(
 		parse_required(args, "minimum_confirmations")?,
 		"minimum_confirmations",

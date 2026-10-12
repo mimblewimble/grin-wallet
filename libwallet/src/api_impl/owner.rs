@@ -1499,9 +1499,10 @@ where
 	let minimum_fee = TransactionBody::weight_by_iok(1, 1, 1) * DEFAULT_ACCEPT_FEE_BASE;
 	let fee_per_hop = params.fee_per_hop.unwrap_or(minimum_fee);
 	if fee_per_hop < minimum_fee {
-		return Err(Error::Fee(
-			"mwixnet fee is below the swap minimum".to_string(),
-		));
+		return Err(Error::Fee(format!(
+			"mwixnet fee is below the swap minimum {}",
+			amount_to_hr_string(minimum_fee, true)
+		)));
 	}
 	let fee = FeeFields::try_from(fee_per_hop).map_err(|e| Error::Fee(e.to_string()))?;
 	let total_fee = fee_per_hop
