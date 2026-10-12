@@ -708,6 +708,15 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		fluff: false,
 		skip_tor: Some(true),
 	});
+	let missing_config = PathBuf::from(test_dir).join("missing.toml");
+	let api = grin_wallet_api::Owner::new(wallet1.clone(), None, missing_config);
+	assert!(api
+		.process_invoice_tx(mask1, &slate, valid_args.clone())
+		.is_err());
+	{
+		wallet_inst!(wallet1, w);
+		assert!(w.get_private_context(mask1, slate.id.as_bytes()).is_err());
+	}
 	api1.process_invoice_tx(mask1, &slate, valid_args.clone())?;
 	api1.init_send_tx(mask1, valid_args)?;
 

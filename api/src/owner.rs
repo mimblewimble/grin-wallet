@@ -999,6 +999,10 @@ where
 			}
 			_ => None,
 		};
+		let tor_config = send_args
+			.as_ref()
+			.map(|_| crate::tor_config::load(&self.config_path()))
+			.transpose()?;
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
 			let w = w_lock.lc_provider()?.wallet_inst()?;
@@ -1007,10 +1011,6 @@ where
 		// Helper functionality. If send arguments exist, attempt to send
 		match send_args.as_ref() {
 			Some(sa) => {
-				let tor_config = send_args
-					.as_ref()
-					.map(|_| crate::tor_config::load(&self.config_path()))
-					.transpose()?;
 				let tc = tor_config.ok_or_else(|| {
 					Error::TorConfig("Tor config was not loaded with send arguments".into())
 				})?;
