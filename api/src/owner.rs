@@ -27,7 +27,7 @@ use crate::libwallet::wallet_lock;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
-	TxLogEntry, ViewWallet, WalletInfo, WalletLCProvider,
+	TxLogEntry, ViewWallet, WalletBackend, WalletInfo, WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
@@ -798,15 +798,17 @@ where
 			.map(|_| crate::tor_config::load(&self.config_path()))
 			.transpose()?;
 
-		if args.address_index.is_none() && args.estimate_only != Some(true) {
-			wallet_lock!(self.wallet_inst, w);
-			let parent_key_id = match &args.src_acct_name {
-				Some(name) => w.get_acct_path(name.clone())?.map(|account| account.path),
-				None => None,
+		let init_send_tx = |w: &mut WalletBackend<C, K>, args: &mut InitTxArgs| {
+			if args.address_index.is_none() && args.estimate_only != Some(true) {
+				let parent_key_id = match &args.src_acct_name {
+					Some(name) => w.get_acct_path(name.clone())?.map(|account| account.path),
+					None => None,
+				}
+				.unwrap_or_else(|| w.parent_key_id());
+				args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
 			}
-			.unwrap_or_else(|| w.parent_key_id());
-			args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
-		}
+			owner::init_send_tx(w, keychain_mask, args.clone(), self.doctest_mode)
+		};
 
 		// Helper functionality. If send arguments exist, attempt to send sync and
 		// finalize
@@ -815,8 +817,7 @@ where
 				let slate = {
 					wallet_lock!(self.wallet_inst, w);
 					let late_lock = args.late_lock.unwrap_or(false);
-					let slate =
-						owner::init_send_tx(w, keychain_mask, args.clone(), self.doctest_mode)?;
+					let slate = init_send_tx(w, &mut args)?;
 					let tc = tor_config.as_ref().ok_or_else(|| {
 						Error::TorConfig("Tor config was not loaded with send arguments".into())
 					})?;
@@ -875,7 +876,7 @@ where
 			}
 			None => {
 				wallet_lock!(self.wallet_inst, w);
-				let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+				let slate = init_send_tx(w, &mut args)?;
 				Ok(slate)
 			}
 		}
