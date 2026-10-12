@@ -398,7 +398,7 @@ where
 	let eligible = |output: &&OutputCommitMapping| {
 		output
 			.output
-			.eligible_to_spend(height, args.minimum_confirmations)
+			.eligible_to_spend(height, args.minimum_confirmations.max(1))
 	};
 	let output = match &args.output {
 		MwixnetOutput::Commitment(commitment) => outputs
