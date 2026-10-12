@@ -202,7 +202,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		assert_eq!(
 			api1.create_mwixnet_req(mask1, &invalid_params, &last_output.commit, true)
 				.unwrap_err(),
-			libwallet::Error::Fee("mwixnet fee is below the swap minimum".to_string())
+			libwallet::Error::Fee("mwixnet fee is below the swap minimum 0.0125".to_string())
 		);
 	}
 	let custom_params = MixnetReqCreationParams {
