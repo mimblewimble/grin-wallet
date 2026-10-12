@@ -237,12 +237,14 @@ where
 			)));
 		}
 	}
-	deserialize_slatepack(
-		slatepack.as_bytes(),
-		wallet_inst.clone(),
-		keychain_mask,
-		secret_indices,
-	)
+	let slatepack = parse_slatepack(slatepack.as_bytes())?;
+	if slatepack.mode == 1 && !secret_indices.is_empty() {
+		let mut decrypted = slatepack.clone();
+		if decrypt_slatepack(&mut decrypted, wallet_inst, keychain_mask, secret_indices).is_ok() {
+			return Ok(decrypted);
+		}
+	}
+	Ok(slatepack)
 }
 
 /// Deserialize provided data to slatepack
@@ -250,13 +252,20 @@ pub fn deserialize_slatepack<'a, L, C, K>(
 	data: &[u8],
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	mut secret_indices: Vec<SlatepackAddressIndex>,
+	secret_indices: Vec<SlatepackAddressIndex>,
 ) -> Result<Slatepack, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let mut slatepack = parse_slatepack(data)?;
+	decrypt_slatepack(&mut slatepack, wallet_inst, keychain_mask, secret_indices)?;
+	Ok(slatepack)
+}
+
+/// Parse a slatepack without accessing wallet keys
+pub fn parse_slatepack(data: &[u8]) -> Result<Slatepack, Error> {
 	// check if data is armored, if so, remove and continue
 	let data_len = data.len() as u64;
 	if data_len < slatepack::min_size() || data_len > slatepack::max_size() {
@@ -277,7 +286,7 @@ where
 	};
 
 	// try as bin first, then as json
-	let mut slatepack = match byte_ser::from_bytes::<SlatepackBin>(&data) {
+	let slatepack = match byte_ser::from_bytes::<SlatepackBin>(&data) {
 		Ok(s) => s.0,
 		Err(e) => {
 			debug!("Not a valid binary slatepack: {} - Will try JSON", e);
@@ -293,6 +302,23 @@ where
 	};
 
 	slatepack.ver_check_warn();
+	Ok(slatepack)
+}
+
+/// Decrypt a parsed slatepack using wallet indices
+pub fn decrypt_slatepack<'a, L, C, K>(
+	slatepack: &mut Slatepack,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	mut secret_indices: Vec<SlatepackAddressIndex>,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	secret_indices.sort_unstable();
+	secret_indices.dedup();
 	if slatepack.mode == 1 {
 		// Try decrypt with selected indices.
 		let mut try_decrypt_with = |indices: &Vec<SlatepackAddressIndex>| -> Result<(), Error> {
@@ -316,7 +342,7 @@ where
 
 		// Try decrypt with initial indices.
 		return match try_decrypt_with(&secret_indices) {
-			Ok(_) => Ok(slatepack),
+			Ok(_) => Ok(()),
 			Err(_) => {
 				// Collect indexes for transactions.
 				let collect_indexes = |outstanding: bool,
@@ -348,7 +374,7 @@ where
 				};
 				let mut indexes = collect_indexes(true, &secret_indices)?;
 				match try_decrypt_with(&mut indexes) {
-					Ok(_) => Ok(slatepack),
+					Ok(_) => Ok(()),
 					Err(_) => {
 						for i in indexes {
 							if !secret_indices.contains(&i) {
@@ -357,14 +383,14 @@ where
 						}
 						let indexes = collect_indexes(false, &secret_indices)?;
 						match try_decrypt_with(&indexes) {
-							Ok(()) => Ok(slatepack),
+							Ok(()) => Ok(()),
 							Err(_) => {
 								for i in indexes {
 									if !secret_indices.contains(&i) {
 										secret_indices.push(i);
 									}
 								}
-								let indexes: Vec<SlatepackAddressIndex> = {
+								let mut indexes: Vec<SlatepackAddressIndex> = {
 									wallet_lock!(wallet_inst, w);
 									w.private_context_iter()?
 										.flatten()
@@ -380,8 +406,10 @@ where
 										.map(|c| c.payment_proof_derivation_index.unwrap())
 										.collect()
 								};
+								indexes.sort_unstable();
+								indexes.dedup();
 								match try_decrypt_with(&indexes) {
-									Ok(_) => Ok(slatepack),
+									Ok(_) => Ok(()),
 									Err(e) => Err(e),
 								}
 							}
@@ -391,7 +419,7 @@ where
 			}
 		};
 	}
-	Ok(slatepack)
+	Ok(())
 }
 
 /// retrieve outputs

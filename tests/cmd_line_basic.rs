@@ -235,6 +235,12 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"10",
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+	let args = vec!["grin-wallet", "-p", "unused", "unpack", "-i", &file_name];
+	assert_eq!(
+		execute_command(&app, test_dir, "wallet1", &client1, args)?,
+		"unpack"
+	);
+
 	let arg_vec = vec!["grin-wallet", "-a", "mining", "-p", "password1", "txs"];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
@@ -882,6 +888,25 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b09.S1.slatepack",
 		test_dir
 	);
+	for (wallet, password, account, client) in [
+		("wallet1", "password1", "mining", &client1),
+		("wallet2", "password2", "account_1", &client2),
+	] {
+		let args = vec![
+			"grin-wallet",
+			"-p",
+			password,
+			"-a",
+			account,
+			"unpack",
+			"-i",
+			&file_name,
+		];
+		assert_eq!(
+			execute_command(&app, test_dir, wallet, client, args)?,
+			"unpack"
+		);
+	}
 	let arg_vec = vec![
 		"grin-wallet",
 		"-p",

@@ -1058,11 +1058,13 @@ where
 		("cli", _) => None,
 		("unpack", Some(args)) => {
 			let args = arg_parse!(parse_unpack_args(args));
-			let slatepack = command::read_slatepack(wallet.clone(), args)?;
-			if slatepack.mode == 1 {
-				open_wallet(&wallet, &global_wallet_args, wallet_args)?;
-			}
-			command::unpack(slatepack)?;
+			let slatepack = command::read_slatepack(args)?;
+			let mask = if slatepack.mode == 1 {
+				open_wallet(&wallet, &global_wallet_args, wallet_args)?
+			} else {
+				None
+			};
+			command::unpack(wallet.clone(), mask.as_ref(), slatepack)?;
 			return Ok("unpack".to_string());
 		}
 		("owner_api", _) => {
@@ -1242,8 +1244,8 @@ where
 		}
 		("unpack", Some(args)) => {
 			let a = arg_parse!(parse_unpack_args(args));
-			let slatepack = command::read_slatepack(owner_api.wallet_inst.clone(), a)?;
-			command::unpack(slatepack)
+			let slatepack = command::read_slatepack(a)?;
+			command::unpack(owner_api.wallet_inst.clone(), km, slatepack)
 		}
 		("finalize", Some(args)) => {
 			let a = arg_parse!(parse_finalize_args(args));

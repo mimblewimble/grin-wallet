@@ -20,7 +20,7 @@ use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
 use crate::keychain;
-use crate::libwallet::api_impl::owner::deserialize_slatepack;
+use crate::libwallet::api_impl::owner::{self, decrypt_slatepack, deserialize_slatepack};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::slatepack::get_slatepack_file_contents;
 use crate::libwallet::slatepack::SlatepackAddressIndex;
@@ -813,36 +813,27 @@ where
 	Ok(())
 }
 
-pub fn read_slatepack<L, C, K>(
+pub fn read_slatepack(args: ReceiveArgs) -> Result<Slatepack, Error> {
+	let data = match args.input_file {
+		Some(f) => get_slatepack_file_contents(&f.into())?,
+		None => match args.input_slatepack_message {
+			Some(message) => message.into_bytes(),
+			None => return Err(Error::ArgumentError("Invalid Slatepack Input".into())),
+		},
+	};
+	Ok(owner::parse_slatepack(&data)?)
+}
+
+pub fn unpack<L, C, K>(
 	wallet_inst: WalletHandle<'static, L, C, K>,
-	args: ReceiveArgs,
-) -> Result<Slatepack, Error>
+	keychain_mask: Option<&SecretKey>,
+	mut slatepack: Slatepack,
+) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
-	let slatepack = match args.input_file {
-		Some(f) => {
-			let data = get_slatepack_file_contents(&f.into())?;
-			deserialize_slatepack(&data, wallet_inst, None, vec![SlatepackAddressIndex(0)])?
-		}
-		None => match args.input_slatepack_message {
-			Some(message) => deserialize_slatepack(
-				message.as_bytes(),
-				wallet_inst,
-				None,
-				vec![SlatepackAddressIndex(0)],
-			)?,
-			None => {
-				return Err(Error::ArgumentError("Invalid Slatepack Input".into()));
-			}
-		},
-	};
-	Ok(slatepack)
-}
-
-pub fn unpack(slatepack: Slatepack) -> Result<(), Error> {
 	println!();
 	println!("SLATEPACK CONTENTS");
 	println!("------------------");
@@ -850,7 +841,14 @@ pub fn unpack(slatepack: Slatepack) -> Result<(), Error> {
 	println!("------------------");
 
 	if slatepack.mode == 1 {
-		match slatepack.get_slate() {
+		match decrypt_slatepack(
+			&mut slatepack,
+			wallet_inst,
+			keychain_mask,
+			vec![SlatepackAddressIndex(0)],
+		)
+		.and_then(|_| slatepack.get_slate())
+		{
 			Ok(s) => {
 				println!("Slatepack is encrypted for this wallet");
 				println!();

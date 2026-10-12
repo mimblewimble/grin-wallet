@@ -489,12 +489,42 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let enc_addr = api1.get_slatepack_address(mask1, address_index)?;
 	let slatepack =
 		api1.create_slatepack_message(mask1, &slate, Some(address_index), vec![enc_addr])?;
-	println!("{}", slatepack);
+	let encrypted = api1.decode_slatepack_message(mask1, slatepack.clone(), vec![])?;
+	assert_eq!(encrypted.mode, 1);
 	let slatepack_raw =
 		api1.decode_slatepack_message(mask1, slatepack.clone(), vec![address_index])?;
-	println!("{}", slatepack_raw);
+	assert_eq!(slatepack_raw.mode, 0);
+	assert_eq!(slatepack_raw.get_slate()?.id, slate.id);
 	let decoded_slate = api1.slate_from_slatepack_message(mask1, slatepack, vec![address_index])?;
-	println!("{}", decoded_slate);
+	assert_eq!(decoded_slate.id, slate.id);
+
+	let unknown_index = SlatepackAddressIndex(77);
+	let unknown_address = api1.get_slatepack_address(mask1, unknown_index)?;
+	let message = api1.create_slatepack_message(mask1, &slate, None, vec![unknown_address])?;
+	let encrypted = api1.decode_slatepack_message(mask1, message.clone(), vec![])?;
+	let decoded = api1.decode_slatepack_message(mask1, message.clone(), vec![address_index])?;
+	assert_eq!(decoded.mode, 1);
+	assert_eq!(decoded.payload, encrypted.payload);
+	assert!(api1
+		.slate_from_slatepack_message(mask1, message, vec![address_index])
+		.is_err());
+
+	let index = {
+		wallet_inst!(wallet1, w);
+		w.get_private_context(mask1, slate.id.as_bytes())?
+			.payment_proof_derivation_index
+			.unwrap()
+	};
+	assert_ne!(index, address_index);
+	let address = api1.get_slatepack_address(mask1, index)?;
+	let message = api1.create_slatepack_message(mask1, &slate, None, vec![address])?;
+	let decoded = api1.decode_slatepack_message(mask1, message.clone(), vec![address_index])?;
+	assert_eq!(decoded.mode, 0);
+	assert_eq!(decoded.get_slate()?.id, slate.id);
+
+	api1.close_wallet(None)?;
+	let encrypted = api1.decode_slatepack_message(None, message, vec![])?;
+	assert_eq!(encrypted.mode, 1);
 
 	// let logging finish
 	stopper.store(false, Ordering::Relaxed);
