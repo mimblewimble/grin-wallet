@@ -65,16 +65,3 @@ mod tests {
 		assert_eq!(address_derivation_path(&parent, 3), expected);
 	}
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use grin_keychain::ExtKeychain;
-
-	#[test]
-	fn slatepack_address_path() {
-		let parent = ExtKeychain::derive_key_id(2, 2, 0, 0, 0);
-		let expected = ExtKeychain::derive_key_id(3, 2, 1, 3, 0);
-		assert_eq!(address_derivation_path(&parent, 3), expected);
-	}
-}
