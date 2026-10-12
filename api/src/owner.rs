@@ -2227,7 +2227,7 @@ where
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// * `derivation_index` - The index along the derivation path to retrieve an address for, should be not higher than 2^31
+	/// * `derivation_index` - The index along the derivation path to retrieve an address for, should be not higher than 2^31 - 1
 	///
 	/// # Returns
 	/// * Ok with a SlatepackAddress representing the address
@@ -2267,7 +2267,7 @@ where
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
-	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key, should be not higher than 2^31
+	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key, should be not higher than 2^31 - 1
 	/// # Returns
 	/// * Ok with an ed25519_dalek::SecretKey if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
@@ -2306,7 +2306,7 @@ where
 	/// # Arguments
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
-	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender, should be not higher than 2^31
+	/// * `sender_index` - If Some(n), the index along the derivation path to include as the sender, should be not higher than 2^31 - 1
 	/// * `recipients` - Optional recipients for which to encrypt the slatepack's payload (i.e. the
 	///   slate). If an empty vec, the payload will remain unencrypted
 	///
@@ -2376,7 +2376,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	/// * `slatepack` - A string representing an armored slatepack
 	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
-	///   decryption. This function will attempt to use secret keys at each index along this path to attempt to decrypt the payload, returning an error if none of the keys match. Should be not higher than 2^31 each.
+	///   decryption. This function will attempt to use secret keys at each index along this path to attempt to decrypt the payload, returning an error if none of the keys match. Should be not higher than 2^31 - 1 each.
 	///
 	/// # Returns
 	/// * Ok with a [Slate](../grin_wallet_libwallet/slate/struct.Slate.html) if successful
@@ -2425,7 +2425,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using
 	/// * `slatepack` - A string representing an armored slatepack
 	/// * `secret_indices` - Indices along this wallet's derivation path with which to attempt
-	///   decryption. If this wallet can't decrypt this slatepack, the payload of the returned Slatepack will remain encrypted. Should be not higher than 2^31 each.
+	///   decryption. If this wallet can't decrypt this slatepack, the payload of the returned Slatepack will remain encrypted. Should be not higher than 2^31 - 1 each.
 	///
 	/// # Returns
 	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful

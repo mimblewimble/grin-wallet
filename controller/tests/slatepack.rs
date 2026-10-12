@@ -495,7 +495,7 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 					..args.clone()
 				}
 			),
-			Err(Error::SlatepackDecryption(_))
+			Err(Error::SlatepackAddress(_))
 		));
 		assert!(matches!(
 			api1.issue_invoice_tx(
@@ -506,7 +506,7 @@ fn slatepack_api_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 					..Default::default()
 				}
 			),
-			Err(Error::SlatepackDecryption(_))
+			Err(Error::SlatepackAddress(_))
 		));
 	}
 	api1.init_send_tx(

@@ -287,6 +287,18 @@ impl SlatepackAddressIndex {
 	/// The max BIP32 index.
 	pub const MAX: u32 = 2_147_483_647;
 
+	/// Check the index range
+	pub fn check(self) -> Result<Self, Error> {
+		if self.0 > Self::MAX {
+			return Err(Error::SlatepackAddress(format!(
+				"Slatepack index {} is out of bound, maximum value is {}",
+				self.0,
+				Self::MAX
+			)));
+		}
+		Ok(self)
+	}
+
 	/// Index value.
 	pub fn value(self) -> u32 {
 		self.0
@@ -938,4 +950,17 @@ fn slatepack_decrypt_rejects_malformed_plaintexts() -> Result<(), Error> {
 	}
 
 	Ok(())
+}
+
+#[test]
+fn index_bounds() {
+	for index in [0, SlatepackAddressIndex::MAX] {
+		assert_eq!(SlatepackAddressIndex(index).check().unwrap().value(), index);
+	}
+	for index in [SlatepackAddressIndex::MAX + 1, u32::MAX] {
+		assert!(matches!(
+			SlatepackAddressIndex(index).check(),
+			Err(Error::SlatepackAddress(_))
+		));
+	}
 }

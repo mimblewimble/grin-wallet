@@ -130,13 +130,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if index.0 > SlatepackAddressIndex::MAX {
-		return Err(Error::SlatepackAddress(format!(
-			"Slatepack index {} is out of bound, maximum value is {}",
-			index.0,
-			SlatepackAddressIndex::MAX
-		)));
-	}
+	index.check()?;
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
@@ -156,13 +150,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if index.0 > SlatepackAddressIndex::MAX {
-		return Err(Error::SlatepackAddress(format!(
-			"Slatepack index {} is out of bound, maximum value is {}",
-			index.0,
-			SlatepackAddressIndex::MAX
-		)));
-	}
+	index.check()?;
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	let k = w.keychain(keychain_mask)?;
@@ -229,13 +217,7 @@ where
 	K: Keychain + 'a,
 {
 	for i in &secret_indices {
-		if i.0 > SlatepackAddressIndex::MAX {
-			return Err(Error::SlatepackDecryption(format!(
-				"Slatepack index {} is out of bound, maximum value is {}",
-				i.0,
-				SlatepackAddressIndex::MAX
-			)));
-		}
+		i.check()?;
 	}
 	let slatepack = parse_slatepack(slatepack.as_bytes())?;
 	if slatepack.mode == 1 && !secret_indices.is_empty() {
@@ -694,13 +676,7 @@ where
 	K: Keychain,
 {
 	if let Some(index) = args.address_index {
-		if index.0 > SlatepackAddressIndex::MAX {
-			return Err(Error::SlatepackDecryption(format!(
-				"Slatepack index {} is out of bound, maximum value is {}",
-				index.0,
-				SlatepackAddressIndex::MAX
-			)));
-		}
+		index.check()?;
 	}
 
 	if args.amount == 0 {
@@ -827,13 +803,7 @@ where
 	K: Keychain,
 {
 	if let Some(index) = args.address_index {
-		if index.0 > SlatepackAddressIndex::MAX {
-			return Err(Error::SlatepackDecryption(format!(
-				"Slatepack index {} is out of bound, maximum value is {}",
-				index.0,
-				SlatepackAddressIndex::MAX
-			)));
-		}
+		index.check()?;
 	}
 
 	if args.amount == 0 {
@@ -851,6 +821,10 @@ where
 		None => w.parent_key_id(),
 	};
 
+	if args.address_index.is_none() {
+		args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
+	}
+
 	let mut slate = tx::new_tx_slate(w, args.amount, true, 2, use_test_rng, None)?;
 	let height = w.w2n_client().get_chain_tip()?.0;
 	let mut context = tx::add_output_to_slate(
@@ -866,10 +840,6 @@ where
 	if let Some(v) = args.target_slate_version {
 		slate.version_info.version = v;
 	};
-
-	if args.address_index.is_none() {
-		args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
-	}
 
 	// Update transaction log address index
 	let mut tx = w.get_tx_log_entry(&slate.id, &parent_key_id)?;

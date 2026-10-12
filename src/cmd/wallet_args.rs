@@ -558,17 +558,11 @@ fn parse_address_index_arg(args: &ArgMatches) -> Result<Option<SlatepackAddressI
 	let address = if let Some(i) = parse_optional(args, "address_index")? {
 		let val = i.parse::<u32>();
 		match val {
-			Ok(v) => {
-				if v > SlatepackAddressIndex::MAX {
-					let msg = format!(
-						"Provided address_index {} should be not higher than {}",
-						v,
-						SlatepackAddressIndex::MAX
-					);
-					return Err(ParseError::ArgumentError(msg));
-				}
-				Some(SlatepackAddressIndex(v))
-			}
+			Ok(v) => Some(
+				SlatepackAddressIndex(v)
+					.check()
+					.map_err(|e| ParseError::ArgumentError(e.to_string()))?,
+			),
 			Err(e) => {
 				let msg = format!("Could not parse address_index as a whole number. e={}", e);
 				return Err(ParseError::ArgumentError(msg));

@@ -416,11 +416,12 @@ where
 				)?
 				.unwrap_or(0)
 		};
-		index = if index == SlatepackAddressIndex::MAX {
-			0
-		} else {
-			index + 1
-		};
+		if index >= SlatepackAddressIndex::MAX {
+			return Err(Error::SlatepackAddress(
+				"Slatepack address indices exhausted".into(),
+			));
+		}
+		index += 1;
 		let mut batch = self.db.batch()?;
 		batch.put_ser(
 			Some(TX_ADDRESS_INDEX_PREFIX),
