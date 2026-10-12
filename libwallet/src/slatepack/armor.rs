@@ -32,7 +32,7 @@ use super::types::{Slatepack, SlatepackBin};
 /// Slatepack file header.
 pub static HEADER: &str = "BEGINSLATEPACK.";
 /// Slatepack file footer.
-static FOOTER: &str = ". ENDSLATEPACK.";
+pub static FOOTER: &str = ". ENDSLATEPACK.";
 
 const WORD_LENGTH: usize = 15;
 const WORDS_PER_LINE: usize = 200;
