@@ -1413,12 +1413,12 @@ mod mwixnet_tests {
 		assert_eq!(parsed.params.fee_per_hop, None);
 
 		let mut custom_args = args;
-		custom_args.extend(["--fee_per_hop", "25000000"]);
+		custom_args.extend(["--fee_per_hop", "0.0125"]);
 		let matches = clap::App::from_yaml(yaml)
 			.get_matches_from_safe(custom_args)
 			.unwrap();
 		let parsed = parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
-		assert_eq!(parsed.params.fee_per_hop, Some(25_000_000));
+		assert_eq!(parsed.params.fee_per_hop, Some(12_500_000));
 	}
 
 	#[test]
