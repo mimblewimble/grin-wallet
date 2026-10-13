@@ -208,6 +208,7 @@ where
 				sender_signature: None,
 			});
 		};
+		t.address_index = context.payment_proof_derivation_index;
 
 		// write the output representing our change
 		for (id, _, _) in &context.get_outputs() {

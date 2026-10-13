@@ -16,10 +16,31 @@
 
 mod address;
 mod armor;
-mod packer;
 mod types;
 
 pub use self::address::SlatepackAddress;
-pub use self::armor::{max_size, min_size, SlatepackArmor};
-pub use self::packer::{Slatepacker, SlatepackerArgs};
-pub use self::types::{Slatepack, SlatepackBin};
+pub use self::armor::{max_size, min_size, SlatepackArmor, FOOTER, HEADER};
+pub use self::types::{Slatepack, SlatepackAddressIndex, SlatepackBin};
+
+use std::fs::{metadata, File};
+use std::io::Read;
+use std::path::PathBuf;
+
+/// Get slatepack file contents.
+pub fn get_slatepack_file_contents(path: &PathBuf) -> Result<Vec<u8>, crate::Error> {
+	let metadata = metadata(path)?;
+	let len = metadata.len();
+	let min_len = min_size();
+	let max_len = max_size();
+	if len < min_len || len > max_len {
+		let msg = format!(
+			"Data is invalid length: {} | min: {}, max: {} |",
+			len, min_len, max_len
+		);
+		return Err(crate::Error::SlatepackDeser(msg));
+	}
+	let mut pub_tx_f = File::open(path)?;
+	let mut data = Vec::new();
+	pub_tx_f.read_to_end(&mut data)?;
+	Ok(data)
+}
