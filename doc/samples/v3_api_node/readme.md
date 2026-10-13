@@ -20,7 +20,7 @@ The sample sends it as the password for the `grin` user. If `api_secret_path` is
 
 Ensure the client connection settings in `src/index.js` match the Owner API address.
 
-Then (assuming node.js and npm are installed on the system):
+Then (assuming Node.js >=20 and npm are installed on the system):
 
 ```.sh
 npm install

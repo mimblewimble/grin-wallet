@@ -10,8 +10,5 @@
   "license": "ISC",
   "dependencies": {
     "jayson": "^5.0.0"
-  },
-  "overrides": {
-    "uuid": "^11.1.1"
   }
 }
