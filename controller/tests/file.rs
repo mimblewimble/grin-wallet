@@ -32,6 +32,7 @@ use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs};
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 /// self send impl
 fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), libwallet::Error> {
@@ -235,7 +236,7 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 			format!("{}/standard_pp_S3.txbin", test_dir),
 		),
 	};
-	let address = Some(api2.get_slatepack_address(mask2, 0)?);
+	let address = Some(api2.get_slatepack_address(mask2, SlatepackAddressIndex(0))?);
 
 	// send to send
 	let args = InitTxArgs {
