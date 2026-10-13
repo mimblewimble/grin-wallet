@@ -16,8 +16,14 @@
 //! around during an interactive wallet exchange
 
 use crate::error::Error;
-use ed25519_dalek::Signature as DalekSignature;
-use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use crate::slate_versions::v4::{
+	CommitsV4, KernelFeaturesArgsV4, OutputFeaturesV4, ParticipantDataV4, PaymentInfoV4,
+	SlateStateV4, SlateV4, VersionCompatInfoV4,
+};
+use crate::slate_versions::VersionedSlate;
+use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
+use crate::{Context, SlateVersion, Slatepack, SlatepackAddress, VersionedBinSlate};
+
 use grin_core::core::amount_to_hr_string;
 use grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
@@ -30,17 +36,13 @@ use grin_util::secp::key::{PublicKey, SecretKey};
 use grin_util::secp::pedersen::Commitment;
 use grin_util::secp::Signature;
 use grin_util::{secp, static_secp_instance};
+use grin_wallet_util::byte_ser;
+
+use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use serde::ser::{Serialize, Serializer};
 use std::fmt;
 use uuid::Uuid;
-
-use crate::slate_versions::v4::{
-	CommitsV4, KernelFeaturesArgsV4, OutputFeaturesV4, ParticipantDataV4, PaymentInfoV4,
-	SlateStateV4, SlateV4, VersionCompatInfoV4,
-};
-use crate::slate_versions::VersionedSlate;
-use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
-use crate::Context;
 
 #[derive(Debug, Clone)]
 pub struct PaymentInfo {
@@ -669,6 +671,21 @@ impl Slate {
 
 			Ok(())
 		}
+	}
+
+	/// Create slatepack from this slate.
+	pub fn create_slatepack(
+		&self,
+		sender: Option<SlatepackAddress>,
+		recipients: Vec<SlatepackAddress>,
+	) -> Result<Slatepack, Error> {
+		let out_slate = VersionedSlate::into_version(self.clone(), SlateVersion::V4)?;
+		let bin_slate = VersionedBinSlate::try_from(out_slate).map_err(|_| Error::SlatepackSer)?;
+		let mut slatepack = Slatepack::default();
+		slatepack.payload = byte_ser::to_bytes(&bin_slate).map_err(|_| Error::SlatepackSer)?;
+		slatepack.sender = sender;
+		slatepack.try_encrypt_payload(recipients)?;
+		Ok(slatepack)
 	}
 }
 

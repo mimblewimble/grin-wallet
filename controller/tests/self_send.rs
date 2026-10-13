@@ -21,6 +21,7 @@ use grin_wallet_api::OwnerRpc;
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
 use libwallet::slate_versions::{SlateVersion, VersionedSlate};
+use libwallet::slatepack::SlatepackAddressIndex;
 use libwallet::{InitTxArgs, IssueInvoiceTxArgs, SlateState, TxLogEntryType};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -105,7 +106,7 @@ fn transfer(
 			test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), None, 10, false)?;
 			let (_, before) = api1.retrieve_summary_info(None, true, 1)?;
 			receiver.set_active_account(None, dest)?;
-			let address = receiver.get_slatepack_address(None, 0)?;
+			let address = receiver.get_slatepack_address(None, SlatepackAddressIndex(0))?;
 			api1.set_active_account(None, "mining")?;
 			let expires = case == Case::Expire;
 			let mut args = InitTxArgs {
@@ -129,7 +130,11 @@ fn transfer(
 				api1.init_send_tx(None, args.clone())?
 			};
 			let pack = api1.create_slatepack_message(None, &slate, None, vec![])?;
-			slate = receiver.slate_from_slatepack_message(None, pack, vec![0])?;
+			slate = receiver.slate_from_slatepack_message(
+				None,
+				pack,
+				vec![SlatepackAddressIndex(0)],
+			)?;
 			let sync_fail = matches!(case, Case::Sync | Case::SyncCancel);
 			if sync_fail {
 				api1.set_tor_config(Some(grin_wallet_config::TorConfig {
@@ -138,7 +143,9 @@ fn transfer(
 					..Default::default()
 				}))?;
 				args.send_args = Some(libwallet::InitTxSendArgs {
-					dest: receiver.get_slatepack_address(None, 0)?.to_string(),
+					dest: receiver
+						.get_slatepack_address(None, SlatepackAddressIndex(0))?
+						.to_string(),
 					post_tx: false,
 					fluff: false,
 					skip_tor: None,
@@ -176,11 +183,16 @@ fn transfer(
 				(receiver, dest, &api1, source)
 			};
 			to.set_active_account(None, to_account)?;
-			let address = to.get_slatepack_address(None, 0)?;
+			let address = to.get_slatepack_address(None, SlatepackAddressIndex(0))?;
 			from.set_active_account(None, from_account)?;
-			let pack = from.create_slatepack_message(None, &slate, Some(0), vec![address])?;
+			let pack = from.create_slatepack_message(
+				None,
+				&slate,
+				Some(SlatepackAddressIndex(0)),
+				vec![address],
+			)?;
 			to.set_active_account(None, to_account)?;
-			slate = to.slate_from_slatepack_message(None, pack, vec![0])?;
+			slate = to.slate_from_slatepack_message(None, pack, vec![SlatepackAddressIndex(0)])?;
 			if cancel {
 				assert!(api1.cancel_tx(None, None, None).is_err());
 				if expires {
@@ -603,4 +615,64 @@ fn repair() {
 	setup(dir);
 	transfer(dir, "default", "a", false, false, Case::Repair).unwrap();
 	clean_output_dir(dir);
+}
+
+#[test]
+fn late_lock_self_send_proof() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/late_lock_self_send_proof";
+	setup(test_dir);
+	let mut wallet_proxy = common::create_wallet_proxy(test_dir);
+	let chain = wallet_proxy.chain.clone();
+	let stopper = wallet_proxy.running.clone();
+	create_wallet_and_add!(
+		client1,
+		wallet1,
+		mask1_i,
+		test_dir,
+		"wallet1",
+		None,
+		&mut wallet_proxy,
+		false,
+		api1
+	);
+	let mask1 = mask1_i.as_ref();
+	let worker = thread::spawn(move || wallet_proxy.run());
+
+	let result = (|| {
+		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 10, false)?;
+		let mut slate = api1.init_send_tx(
+			mask1,
+			InitTxArgs {
+				amount: REWARD,
+				minimum_confirmations: 2,
+				late_lock: Some(true),
+				payment_proof_recipient_address: Some(
+					api1.get_slatepack_address(mask1, SlatepackAddressIndex(0))?,
+				),
+				..Default::default()
+			},
+		)?;
+		wallet::controller::foreign_single_use(
+			wallet1.clone(),
+			PathBuf::from(test_dir),
+			mask1_i.clone(),
+			|api| {
+				slate = api.receive_tx(&slate, None, None)?;
+				Ok(())
+			},
+		)?;
+		let (_, txs) = api1.retrieve_txs(mask1, false, None, Some(slate.id), None)?;
+		assert_eq!(txs.len(), 1);
+		assert_eq!(txs[0].tx_type, TxLogEntryType::TxReceived);
+
+		api1.finalize_tx(mask1, &slate).map(|_| ())
+	})();
+
+	stopper.store(false, Ordering::Relaxed);
+	worker.join().unwrap()?;
+	drop(api1);
+	drop(wallet1);
+	drop(chain);
+	clean_output_dir(test_dir);
+	result
 }

@@ -14,8 +14,10 @@
 
 //! Types specific to the wallet api, mostly argument serialization
 
+pub use crate::mwixnet::{Hop, MixnetReqCreationParams, SwapReq};
 use crate::slate_versions::ser as dalek_ser;
 use crate::slate_versions::SlateVersion;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::OutputData;
 use crate::{
 	Error, NodeClient, Slate, SlateState, SlatepackAddress, TxLogEntryType, WalletBackend,
@@ -23,15 +25,13 @@ use crate::{
 
 use grin_core::core::Output;
 use grin_core::libtx::secp_ser;
+use grin_keychain::Keychain;
 use grin_keychain::{BlindingFactor, Identifier};
 use grin_util::secp::pedersen;
+use grin_util::secp::SecretKey;
 
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
-use grin_keychain::Keychain;
-use grin_util::secp::SecretKey;
-
-pub use crate::mwixnet::{Hop, MixnetReqCreationParams, SwapReq};
 
 /// Type for storing amounts (in nanogrins).
 /// Serializes as a string but can deserialize from a string or u64.
@@ -41,7 +41,7 @@ pub struct Amount(#[serde(with = "secp_ser::string_or_u64")] pub u64);
 /// V2 Init / Send TX API Args
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InitTxArgs {
-	/// The human readable account name from which to draw outputs
+	/// The human-readable account name from which to draw outputs
 	/// for the transaction, overriding whatever the active account is as set via the
 	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
 	pub src_acct_name: Option<String>,
@@ -94,6 +94,9 @@ pub struct InitTxArgs {
 	/// inputs until just before finalization
 	#[serde(default)]
 	pub late_lock: Option<bool>,
+	/// Slatepack address index
+	#[serde(default)]
+	pub address_index: Option<SlatepackAddressIndex>,
 	/// Sender arguments. If present, the underlying function will also attempt to send the
 	/// transaction to a destination and optionally finalize the result
 	pub send_args: Option<InitTxSendArgs>,
@@ -129,6 +132,7 @@ impl Default for InitTxArgs {
 			estimate_only: Some(false),
 			payment_proof_recipient_address: None,
 			late_lock: Some(false),
+			address_index: None,
 			send_args: None,
 		}
 	}
@@ -137,7 +141,7 @@ impl Default for InitTxArgs {
 /// V2 Issue Invoice Tx Args
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct IssueInvoiceTxArgs {
-	/// The human readable account name to which the received funds should be added
+	/// The human-readable account name to which the received funds should be added
 	/// overriding whatever the active account is as set via the
 	/// [`set_active_account`](../grin_wallet_api/owner/struct.Owner.html#method.set_active_account) method.
 	pub dest_acct_name: Option<String>,
@@ -148,6 +152,8 @@ pub struct IssueInvoiceTxArgs {
 	/// down to the minimum slate version compatible with the current. If `None` the slate
 	/// is generated with the latest version.
 	pub target_slate_version: Option<u16>,
+	/// Issuer slatepack address derivation path index.
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 /// Sort tx retrieval order
@@ -182,7 +188,7 @@ pub struct RetrieveTxQueryArgs {
 	/// Retrieve transactions with an id higher than or equal to the given
 	/// If None, consider items from the first transaction and later
 	pub min_id: Option<u32>,
-	/// Retrieve tranactions with an id less than or equal to the given
+	/// Retrieve transactions with an id less than or equal to the given
 	/// If None, consider items from the last transaction and earlier
 	pub max_id: Option<u32>,
 	/// The maximum number of transactions to return
@@ -219,7 +225,7 @@ pub struct RetrieveTxQueryArgs {
 	pub min_confirmed_timestamp: Option<DateTime<Utc>>,
 	/// higher bound on the confirmation timestamp, inclusive
 	pub max_confirmed_timestamp: Option<DateTime<Utc>>,
-	/// Field within the tranasction list on which to sort
+	/// Field within the transaction list on which to sort
 	/// defaults to ID if not present
 	pub sort_field: Option<RetrieveTxQuerySortField>,
 	/// Sort order, defaults to ASC if not present (earliest is first)
@@ -271,7 +277,7 @@ impl BlockFees {
 	}
 }
 
-/// Map Outputdata to commits
+/// Map [OutputData] to commits
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OutputCommitMapping {
 	/// Output Data
@@ -327,6 +333,9 @@ pub struct PaymentProof {
 	/// Sender Signature
 	#[serde(with = "dalek_ser::dalek_sig_serde")]
 	pub sender_sig: DalekSignature,
+	/// Sender Slatepack address derivation path index
+	#[serde(default)]
+	pub sender_address_path: Option<SlatepackAddressIndex>,
 }
 
 /// Build output result

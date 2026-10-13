@@ -14,26 +14,28 @@
 
 //! Transaction building functions
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use std::io::Cursor;
-use uuid::Uuid;
-
 use crate::internal::{selection, updater};
 use crate::slate::Slate;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntry, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error};
 use crate::{InitTxArgs, WalletBackend};
-use ed25519_dalek::Signature as DalekSignature;
-use ed25519_dalek::SigningKey as DalekSecretKey;
-use ed25519_dalek::VerifyingKey as DalekPublicKey;
-use ed25519_dalek::{Signer, Verifier};
+
 use grin_core::consensus::header_version;
 use grin_core::core::FeeFields;
 use grin_keychain::{Identifier, Keychain};
 use grin_util::secp::key::SecretKey;
 use grin_util::secp::pedersen;
 use grin_util::Mutex;
+
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::SigningKey as DalekSecretKey;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use ed25519_dalek::{Signer, Verifier};
+use std::io::Cursor;
+use uuid::Uuid;
 
 // static for incrementing test UUIDs
 lazy_static! {
@@ -478,19 +480,21 @@ where
 	}
 
 	if let Some(ref p) = slate.payment_proof {
-		let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
+		let sender_address_path = context
+			.payment_proof_derivation_index
+			.unwrap_or(SlatepackAddressIndex(0));
 		let keychain = wallet.keychain(keychain_mask)?;
 		let parent_key_id = context.parent_key_id.clone();
 		let excess = slate.calc_excess(keychain.secp())?;
 		let sender_key =
-			address::address_from_derivation_path(&keychain, &parent_key_id, derivation_index)?;
+			address::address_from_derivation_path(&keychain, &parent_key_id, sender_address_path)?;
 		let sender_address = OnionV3Address::from_private(&sender_key.0)?;
 		let sig =
 			create_payment_proof_signature(slate.amount, &excess, p.sender_address, sender_key)?;
 		tx.payment_proof = Some(StoredProofInfo {
 			receiver_address: p.receiver_address,
 			receiver_signature: p.receiver_signature,
-			sender_address_path: derivation_index,
+			sender_address_path,
 			sender_address: sender_address.to_ed25519()?,
 			sender_signature: Some(sig),
 		})

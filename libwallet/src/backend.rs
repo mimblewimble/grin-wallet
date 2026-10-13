@@ -21,6 +21,7 @@ use uuid::Uuid;
 
 use crate::blake2::blake2b::{Blake2b, Blake2bResult};
 
+use crate::slatepack::SlatepackAddressIndex;
 use crate::{
 	AcctPathMapping, Context, Error, NodeClient, OutputData, ScannedBlockInfo, TxLogEntry,
 	WalletInitStatus,
@@ -44,19 +45,21 @@ const CONFIRMED_HEIGHT_PREFIX: u8 = b'c';
 const PRIVATE_TX_CONTEXT_PREFIX: u8 = b'p';
 const TX_LOG_ENTRY_PREFIX: u8 = b't';
 const TX_LOG_ID_PREFIX: u8 = b'i';
+const TX_ADDRESS_INDEX_PREFIX: u8 = b's';
 const ACCOUNT_PATH_MAPPING_PREFIX: u8 = b'a';
 const LAST_SCANNED_BLOCK: u8 = b'l';
 const LAST_SCANNED_KEY: &str = "LAST_SCANNED_KEY";
 const WALLET_INIT_STATUS: u8 = b'w';
 const WALLET_INIT_STATUS_KEY: &str = "WALLET_INIT_STATUS";
 
-const DB_PREFIXES: [u8; 9] = [
+const DB_PREFIXES: [u8; 10] = [
 	OUTPUT_PREFIX,
 	DERIV_PREFIX,
 	CONFIRMED_HEIGHT_PREFIX,
 	PRIVATE_TX_CONTEXT_PREFIX,
 	TX_LOG_ENTRY_PREFIX,
 	TX_LOG_ID_PREFIX,
+	TX_ADDRESS_INDEX_PREFIX,
 	ACCOUNT_PATH_MAPPING_PREFIX,
 	LAST_SCANNED_BLOCK,
 	WALLET_INIT_STATUS,
@@ -379,10 +382,16 @@ where
 	}
 
 	/// Get an (Optional) tx log entry by uuid.
-	pub fn get_tx_log_entry(&self, u: &Uuid) -> Result<Option<TxLogEntry>, Error> {
-		self.db
-			.get_ser(Some(TX_LOG_ENTRY_PREFIX), u.as_bytes(), None)
-			.map_err(|e| e.into())
+	pub fn get_tx_log_entry(
+		&self,
+		id: &Uuid,
+		parent_id: &Identifier,
+	) -> Result<Option<TxLogEntry>, Error> {
+		let tx = self
+			.tx_log_iter()?
+			.flatten()
+			.find(|tx| tx.parent_key_id == *parent_id && tx.tx_slate_id == Some(*id));
+		Ok(tx)
 	}
 
 	pub(crate) fn tx_by_id(&self, id: u32) -> Result<Option<TxLogEntry>, Error> {
@@ -399,6 +408,54 @@ where
 		let protocol_version = self.db.protocol_version();
 		self.db
 			.iter(Some(TX_LOG_ENTRY_PREFIX), move |_, mut v| {
+				ser::deserialize(
+					&mut v,
+					protocol_version,
+					ser::DeserializationMode::default(),
+				)
+				.map_err(From::from)
+			})
+			.map_err(From::from)
+	}
+
+	/// Next transaction slatepack address derivation path index.
+	pub fn next_tx_slatepack_address_index(
+		&mut self,
+		parent_key_id: &Identifier,
+	) -> Result<SlatepackAddressIndex, Error> {
+		let mut index = {
+			let batch = self.db.batch()?;
+			batch
+				.get_ser(
+					Some(TX_ADDRESS_INDEX_PREFIX),
+					&parent_key_id.to_bytes(),
+					None,
+				)?
+				.unwrap_or(0)
+		};
+		if index >= SlatepackAddressIndex::MAX {
+			return Err(Error::SlatepackAddress(
+				"Slatepack address indices exhausted".into(),
+			));
+		}
+		index += 1;
+		let mut batch = self.db.batch()?;
+		batch.put_ser(
+			Some(TX_ADDRESS_INDEX_PREFIX),
+			&parent_key_id.to_bytes(),
+			&index,
+		)?;
+		batch.commit()?;
+		Ok(SlatepackAddressIndex(index))
+	}
+
+	/// Iterator over private tx contexts.
+	pub fn private_context_iter(
+		&self,
+	) -> Result<impl Iterator<Item = Result<Context, grin_store::Error>>, Error> {
+		let protocol_version = self.db.protocol_version();
+		self.db
+			.iter(Some(PRIVATE_TX_CONTEXT_PREFIX), move |_, mut v| {
 				ser::deserialize(
 					&mut v,
 					protocol_version,
