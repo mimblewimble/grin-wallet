@@ -876,7 +876,7 @@ where
 			}
 			None => {
 				wallet_lock!(self.wallet_inst, w);
-				let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;
+				let slate = init_send_tx(w, &mut args)?;
 				Ok(slate)
 			}
 		}

@@ -154,7 +154,6 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	PathToSlate((&final_file).into()).put_tx(&slate, use_bin)?;
 	api1.post_tx(mask1, &slate, false)?;
 	bh += 1;
-	bh += 1;
 
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 3, false);
 	bh += 3;
@@ -164,13 +163,11 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	assert!(wallet1_refreshed);
 	assert_eq!(wallet1_info.last_confirmed_height, bh);
 	assert_eq!(wallet1_info.total, bh * reward - reward * 2);
-	assert_eq!(wallet1_info.total, bh * reward - reward * 2);
 
 	// Check total in 'wallet 2' account
 	let (wallet2_refreshed, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
 	assert!(wallet2_refreshed);
 	assert_eq!(wallet2_info.last_confirmed_height, bh);
-	assert_eq!(wallet2_info.total, 2 * reward);
 	assert_eq!(wallet2_info.total, 2 * reward);
 
 	// Now other types of exchange, for reference
