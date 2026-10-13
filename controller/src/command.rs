@@ -377,6 +377,7 @@ fn confirm_mwixnet_response(response: &str, tx_id: u32) -> Result<(), Error> {
 			println!("MWixnet request accepted (transaction {})", tx_id);
 			Ok(())
 		}
+		// The server may already have accepted this swap
 		MwixnetResponse::Rejected(message) => Err(Error::GenericError(format!(
 			"MWixnet rejected the request: {}. Output remains locked as transaction {}",
 			message, tx_id
@@ -396,7 +397,12 @@ where
 	K: keychain::Keychain + 'static,
 {
 	let height = owner_api.node_height(keychain_mask)?.height;
-	let (_, outputs) = owner_api.retrieve_outputs(keychain_mask, false, true, None)?;
+	let (refreshed, outputs) = owner_api.retrieve_outputs(keychain_mask, false, true, None)?;
+	if !refreshed {
+		return Err(Error::GenericError(
+			"Could not refresh wallet outputs. MWixnet request was not created".to_string(),
+		));
+	}
 	let eligible = |output: &&OutputCommitMapping| {
 		output
 			.output

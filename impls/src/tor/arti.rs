@@ -355,6 +355,7 @@ fn init_client(
 ) -> Result<(Arc<TorClient<TokioNativeTlsRuntime>>, TorClientConfig), Error> {
 	let mut builder = TorClientConfigBuilder::from_directories(state_path, cache_path);
 	builder.address_filter().allow_onion_addrs(true);
+	// Circuit timeout minimum applies to listeners and sends too
 	builder
 		.override_net_params()
 		.insert("cbtmintimeout".into(), 60_000);

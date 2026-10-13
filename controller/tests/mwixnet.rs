@@ -217,6 +217,50 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		onion = peeled.onion;
 	}
 
+	drop(secp);
+
+	// Failed refresh must not create or lock a swap
+	let tx_count = api1.retrieve_txs(mask1, false, None, None, None)?.1.len();
+	let (disconnected, receiver) = std::sync::mpsc::channel();
+	drop(receiver);
+	let original_proxy = std::mem::replace(&mut *client1.proxy_tx.lock(), disconnected);
+	let mut api1 = api1;
+	let result = wallet::command::mwixnet(
+		&mut api1,
+		mask1,
+		wallet::command::MwixnetArgs {
+			server: "mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion"
+				.try_into()
+				.unwrap(),
+			output: wallet::command::MwixnetOutput::Commitment(last_output.commit),
+			minimum_confirmations: 1,
+			params: MixnetReqCreationParams {
+				server_keys: params.server_keys.clone(),
+				fee_per_hop: None,
+			},
+		},
+		grin_wallet_config::TorConfig::default(),
+	);
+	*client1.proxy_tx.lock() = original_proxy;
+	assert!(result
+		.unwrap_err()
+		.to_string()
+		.contains("Could not refresh wallet outputs"));
+	assert_eq!(
+		api1.retrieve_txs(mask1, false, None, None, None)?.1.len(),
+		tx_count
+	);
+	let outputs = api1.retrieve_outputs(mask1, false, false, None)?.1;
+	assert_eq!(
+		outputs
+			.iter()
+			.find(|o| o.commit == last_output.commit)
+			.unwrap()
+			.output
+			.status,
+		OutputStatus::Unspent
+	);
+
 	let creation = api1.create_mwixnet_req(mask1, &params, &last_output.commit, true)?;
 	let creation_tx_id = creation.tx_id.unwrap();
 	let fee_per_hop = 12_500_000;

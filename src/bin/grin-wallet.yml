@@ -209,7 +209,7 @@ subcommands:
             multiple: true
             required: true
         - fee_per_hop:
-            help: Fee per mwixnet server in nanogrin with the swap minimum as default
+            help: Fee per mwixnet server in Grin, e.g. 0.0125, with the swap minimum as default
             long: fee_per_hop
             takes_value: true
             required: false
