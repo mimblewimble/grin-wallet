@@ -164,23 +164,24 @@ pub mod test_util {
 	}
 
 	pub fn rand_commit() -> Commitment {
-		secp::commit(rand::thread_rng().next_u64(), &secp::random_secret(false)).unwrap()
+		secp::commit(thread_rng().next_u64(), &random_secret(false)).unwrap()
 	}
 
 	pub fn rand_hash() -> Hash {
-		Hash::from_hex(secp::random_secret(false).to_hex().as_str()).unwrap()
+		Hash::from_hex(random_secret(false).to_hex().as_str()).unwrap()
 	}
 
 	pub fn rand_proof() -> RangeProof {
 		let secp = Secp256k1::new();
 		secp.bullet_proof(
-			rand::thread_rng().next_u64(),
-			secp::random_secret(false),
-			secp::random_secret(false),
-			secp::random_secret(false),
+			thread_rng().next_u64(),
+			random_secret(false),
+			random_secret(false),
+			random_secret(false),
 			None,
 			None,
 		)
+		.expect("failed to generate test bulletproof")
 	}
 
 	pub fn proof(
@@ -198,14 +199,16 @@ pub mod test_util {
 
 		let out_value = value - (fee as u64);
 
-		let rp = secp.bullet_proof(
-			out_value,
-			blind.clone(),
-			secp::random_secret(false),
-			secp::random_secret(false),
-			None,
-			None,
-		);
+		let rp = secp
+			.bullet_proof(
+				out_value,
+				blind.clone(),
+				random_secret(false),
+				random_secret(false),
+				None,
+				None,
+			)
+			.expect("failed to generate test bulletproof");
 
 		(secp::commit(out_value, &blind).unwrap(), rp)
 	}
