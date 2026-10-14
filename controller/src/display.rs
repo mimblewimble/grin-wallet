@@ -15,12 +15,13 @@
 use crate::core::core::amount_to_hr_string;
 use crate::core::core::FeeFields;
 use crate::core::global;
+use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::{
 	address, AcctPathMapping, Error, OutputCommitMapping, OutputStatus, SlatepackAddress,
 	TxLogEntry, TxLogEntryType, ViewWallet, WalletInfo,
 };
 use crate::util::ToHex;
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
+
 use prettytable;
 use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use std::io::prelude::Write;

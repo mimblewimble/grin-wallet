@@ -487,6 +487,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let (refreshed, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
 	assert!(refreshed);
 	assert_eq!(txs.len(), bh as usize);
+	assert_eq!(txs.len(), bh as usize);
 
 	// Send to self
 	let arg_vec = vec![
@@ -552,6 +553,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	api1.set_active_account(mask1, "mining")?;
 	let (refreshed, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
 	assert!(refreshed);
+	assert_eq!(txs.len(), bh as usize + 1);
 	assert_eq!(txs.len(), bh as usize + 1);
 
 	// Another file exchange, don't send, but unlock with repair command
@@ -816,57 +818,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let (_, wallet_info) = api2.retrieve_summary_info(mask2, true, 1)?;
 	assert!(wallet_info.amount_currently_spendable < old_balance);
 
-	// Issue encrypted invoice using custom address index, wallet2.
-	let arg_vec = vec![
-		"grin-wallet",
-		"-a",
-		"default",
-		"-p",
-		"password2",
-		"invoice",
-		"--address_index",
-		"3",
-		"-d",
-		"tgrin1fu5z9y4p8atxr83l6nfj0j2m067r9gjfkd6mzeuuz0v6sqftua2quv0ll3",
-		"1",
-	];
-	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
-	let file_name = format!(
-		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b08.I1.slatepack",
-		test_dir
-	);
-
-	// Pay the invoice tx, wallet 1
-	let arg_vec = vec![
-		"grin-wallet",
-		"-a",
-		"default",
-		"-p",
-		"password1",
-		"pay",
-		"-i",
-		&file_name,
-	];
-	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
-
-	let file_name = format!(
-		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b08.I2.slatepack",
-		test_dir
-	);
-
-	// Finalize the invoice, wallet 2
-	let arg_vec = vec![
-		"grin-wallet",
-		"-a",
-		"default",
-		"-p",
-		"password2",
-		"finalize",
-		"-i",
-		&file_name,
-	];
-	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
-
 	// Send encrypted to wallet 2 using custom address index
 	let arg_vec = vec![
 		"grin-wallet",
@@ -885,7 +836,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 
 	// Receive, wallet 2
 	let file_name = format!(
-		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b09.S1.slatepack",
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b08.S1.slatepack",
 		test_dir
 	);
 	for (wallet, password, account, client) in [
@@ -920,7 +871,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	execute_command(&app, test_dir, "wallet2", &client2, arg_vec.clone())?;
 
 	let file_name = format!(
-		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b09.S2.slatepack",
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b08.S2.slatepack",
 		test_dir
 	);
 
@@ -936,6 +887,134 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 		&file_name,
 	];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	// Issue encrypted invoice using custom address index, wallet2.
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"default",
+		"-p",
+		"password2",
+		"invoice",
+		"--address_index",
+		"3",
+		"-d",
+		"tgrin1fu5z9y4p8atxr83l6nfj0j2m067r9gjfkd6mzeuuz0v6sqftua2quv0ll3",
+		"1",
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+	let file_name = format!(
+		"{}/wallet2/slatepack/0436430c-2b02-624c-2032-570501212b09.I1.slatepack",
+		test_dir
+	);
+
+	// Pay the invoice tx, wallet 1
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"default",
+		"-p",
+		"password1",
+		"pay",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
+
+	let file_name = format!(
+		"{}/wallet1/slatepack/0436430c-2b02-624c-2032-570501212b09.I2.slatepack",
+		test_dir
+	);
+
+	// Finalize the invoice, wallet 2
+	let arg_vec = vec![
+		"grin-wallet",
+		"-a",
+		"default",
+		"-p",
+		"password2",
+		"finalize",
+		"-i",
+		&file_name,
+	];
+	execute_command(&app, test_dir, "wallet2", &client2, arg_vec)?;
+
+	// Direct account transfers
+	api1.create_account_path(mask1, "test account")?;
+	for (source, dest, amount, late) in [
+		("mining", "default", "1", false),
+		("default", "default", "0.1", true),
+		("default", "default", "max", false),
+		("mining", "test account", "1", true),
+		("test account", "mining", "0.1", false),
+	] {
+		let mut args = vec![
+			"grin-wallet",
+			"-p",
+			"password1",
+			"-a",
+			source,
+			"send",
+			amount,
+			"--to-account",
+			dest,
+			"-c",
+			if late { "0" } else { "1" },
+		];
+		if late {
+			args.push("--late-lock");
+		}
+		api1.set_active_account(mask1, source)?;
+		let (_, before) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		execute_command(&app, test_dir, "wallet1", &client1, args)?;
+		let (_, after) = api1.retrieve_txs(mask1, true, None, None, None)?;
+		let sent = after
+			.iter()
+			.find(|t| t.tx_type == TxLogEntryType::TxSent && !before.iter().any(|b| b.id == t.id))
+			.unwrap();
+		assert!(sent.confirmed);
+		let proof = api1.retrieve_payment_proof(mask1, false, Some(sent.id), None)?;
+		assert_eq!(api1.verify_payment_proof(mask1, &proof)?, (true, true));
+		api1.set_active_account(mask1, dest)?;
+		let (_, received) = api1.retrieve_txs(mask1, true, None, sent.tx_slate_id, None)?;
+		assert_eq!(received.len(), if source == dest { 2 } else { 1 });
+		assert!(received.iter().all(|t| t.confirmed));
+	}
+	api1.set_active_account(mask1, "default")?;
+	let (_, before) = api1.retrieve_txs(mask1, false, None, None, None)?;
+	let args = vec![
+		"grin-wallet",
+		"-p",
+		"password1",
+		"send",
+		"1",
+		"--to-account",
+		"missing",
+	];
+	assert!(execute_command(&app, test_dir, "wallet1", &client1, args).is_err());
+	let (_, after) = api1.retrieve_txs(mask1, false, None, None, None)?;
+	assert_eq!(before.len(), after.len());
+	for (option, value) in [
+		("--dest", Some("x")),
+		("--manual", None),
+		("--outfile", Some("x")),
+		("--slatepack_qr", None),
+		("--bridge", Some("x")),
+	] {
+		let mut args = vec![
+			"grin-wallet",
+			"send",
+			"1",
+			"--to-account",
+			"default",
+			option,
+		];
+		if let Some(value) = value {
+			args.push(value);
+		}
+		let error = app.clone().get_matches_from_safe(args).unwrap_err();
+		assert_eq!(error.kind, clap::ErrorKind::ArgumentConflict);
+	}
 
 	// let logging finish
 	thread::sleep(Duration::from_millis(200));
