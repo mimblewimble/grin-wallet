@@ -1295,7 +1295,7 @@ where
 		}
 		("mwixnet", Some(args)) => {
 			let a = arg_parse!(parse_mwixnet_args(args));
-			command::mwixnet(owner_api, km, a, tor_config)
+			command::mwixnet(owner_api, km, a)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(args));

@@ -14,6 +14,7 @@
 
 //! Owner API External Definition
 
+use crate::config::config::{reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME};
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
@@ -23,7 +24,11 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::mwixnet::{parse_mwixnet_response, MwixnetResponse, SwapReq};
+use crate::libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
+use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::wallet_lock;
+use crate::libwallet::RetrieveTxQueryArgs;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -32,13 +37,9 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_config::config::{
-	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
-};
-use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
-use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
+use impls::json_rpc;
+use impls::tor::arti::tor_post;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -2660,8 +2661,7 @@ where
 		commitment: &Commitment,
 		lock_output: bool, // use_test_rng: bool,
 	) -> Result<MwixnetReqCreationResult, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+		wallet_lock!(self.wallet_inst, w);
 		owner::create_mwixnet_req(
 			w,
 			keychain_mask,
@@ -2670,6 +2670,82 @@ where
 			lock_output,
 			self.doctest_mode,
 		)
+	}
+
+	/// Sends a mwixnet request [SwapReq](grin_wallet_libwallet::mwixnet::SwapReq)
+	/// to provided onion server.
+	///
+	/// # Arguments
+	/// * `req` - A [SwapReq]
+	///   struct containing the parameters for the request, which include:
+	///   `comsig` - [ComSignature](grin_wallet_libwallet::mwixnet::ComSignature) signature with a pedersen commitment value & blinding factors as the keys
+	///   `onion` - [Onion](grin_wallet_libwallet::mwixnet::Onion) Optional fee per hop with the swap minimum as default
+	/// * `server` - Onion server address
+	///
+	/// # Returns
+	/// * None if successful
+	/// * or Ok([String]) if an error is encountered
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let keychain_mask = None;
+	/// let params = MixnetReqCreationParams {
+	///    server_keys: vec![libwallet::mwixnet::MwixnetServerPublicKey::from_hex(
+	///        "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+	///    ).unwrap()],
+	///    fee_per_hop: None,
+	/// };
+	///
+	/// let commitment = Commitment::from_vec(vec![0; 32]);
+	/// let lock_output = true;
+	///
+	/// let result = api_owner.create_mwixnet_req(
+	///    keychain_mask,
+	///    &params,
+	///    &commitment,
+	///    lock_output,
+	/// );
+	///
+	/// if let Ok(result) = result {
+	///    let server = "mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion".try_into().unwrap();
+	///    let result = api_owner.send_mwixnet_req(&result.request, server);
+	///    if let Ok(result) = result {
+	///       //..
+	///    }
+	/// }
+	/// ```
+	pub fn send_mwixnet_req(
+		&self,
+		req: &SwapReq,
+		server: OnionV3Address,
+	) -> Result<Option<String>, Error> {
+		let url = format!("{}/v1", server.to_http_str());
+		let rpc_params = serde_json::json!([req]);
+		let rpc_request = json_rpc::build_request("swap", &rpc_params);
+		let tor_config = crate::tor_config::load(&self.config_path())?;
+		let response = match tor_post(&tor_config, &rpc_request, &url) {
+			Ok(response) => response,
+			Err(e) => {
+				return Err(Error::GenericError(format!(
+					"Could not determine whether mwixnet accepted the request: {}. \
+				 Output remains locked",
+					e,
+				)));
+			}
+		};
+		match parse_mwixnet_response(&response).map_err(|e| {
+			Error::GenericError(format!(
+				"Could not confirm the mwixnet response: {}. Output remains locked",
+				e
+			))
+		})? {
+			MwixnetResponse::Accepted => Ok(None),
+			MwixnetResponse::Rejected(message) => Ok(Some(message)),
+		}
 	}
 }
 

@@ -14,9 +14,6 @@
 
 //! Generic implementation of owner API functions
 
-use std::cmp;
-use uuid::Uuid;
-
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
 use crate::api_impl::owner_updater::StatusMessage;
 use crate::internal::{keys, scan, selection, tx, updater};
@@ -49,8 +46,10 @@ use grin_wallet_util::byte_ser;
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use std::cmp;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;
+use uuid::Uuid;
 
 /// List of accounts
 pub fn accounts<C, K>(
@@ -1613,7 +1612,7 @@ where
 	})
 }
 
-/// Create MXMixnet request
+/// Create mwixnet request
 pub fn create_mwixnet_req<C, K>(
 	w: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,

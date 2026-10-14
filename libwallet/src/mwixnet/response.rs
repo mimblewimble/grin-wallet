@@ -12,21 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! MWixnet response parsing.
+//! Mwixnet response parsing.
 
 use serde::Deserialize;
 use serde_json::{self, Value};
 
-/// Result returned by an mwixnet server after submitting a swap request.
+/// Result returned by a mwixnet server after submitting a swap request.
 #[derive(Debug, Eq, PartialEq)]
 pub enum MwixnetResponse {
 	/// The swap request was accepted.
 	Accepted,
 	/// The swap request was rejected with a message.
+	//TODO: extend it with actual errors from mwixnet
 	Rejected(String),
 }
 
-/// Error parsing or validating an mwixnet response.
+/// Error parsing or validating a mwixnet response.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
 pub struct MwixnetResponseError(String);
@@ -46,7 +47,7 @@ struct JsonRpcError {
 	message: String,
 }
 
-/// Parse and validate the JSON-RPC response returned by an mwixnet server.
+/// Parse and validate the JSON-RPC response returned by a mwixnet server.
 pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, MwixnetResponseError> {
 	let response: JsonRpcResponse = serde_json::from_str(response)
 		.map_err(|e| MwixnetResponseError(format!("Invalid mwixnet response: {}", e)))?;
@@ -63,7 +64,7 @@ pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, Mwixnet
 	}
 	if response.result.is_some() && response.error.is_some() {
 		return Err(MwixnetResponseError(
-			"MWixnet response contains both result and error".to_string(),
+			"Mwixnet response contains both result and error".to_string(),
 		));
 	}
 	if let Some(error) = response.error {

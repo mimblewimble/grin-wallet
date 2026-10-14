@@ -229,9 +229,7 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 		&mut api1,
 		mask1,
 		wallet::command::MwixnetArgs {
-			server: "mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion"
-				.try_into()
-				.unwrap(),
+			server: "mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion".try_into()?,
 			output: wallet::command::MwixnetOutput::Commitment(last_output.commit),
 			minimum_confirmations: 1,
 			params: MixnetReqCreationParams {
@@ -239,7 +237,6 @@ fn mwixnet_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 				fee_per_hop: None,
 			},
 		},
-		grin_wallet_config::TorConfig::default(),
 	);
 	*client1.proxy_tx.lock() = original_proxy;
 	assert!(result

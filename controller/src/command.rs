@@ -19,12 +19,10 @@ use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
 use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
-use crate::impls::json_rpc;
-use crate::impls::tor::arti::{tor_post, TorPostError};
 use crate::keychain;
 use crate::libwallet::api_impl::owner::{self, decrypt_slatepack, deserialize_slatepack};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
-use crate::libwallet::mwixnet::{parse_mwixnet_response, MixnetReqCreationParams, MwixnetResponse};
+use crate::libwallet::mwixnet::MixnetReqCreationParams;
 use crate::libwallet::slatepack::get_slatepack_file_contents;
 use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::OutputCommitMapping;
@@ -349,126 +347,6 @@ pub struct SendArgs {
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
 	pub address_index: Option<SlatepackAddressIndex>,
-}
-
-pub struct MwixnetArgs {
-	pub server: OnionV3Address,
-	pub output: MwixnetOutput,
-	pub minimum_confirmations: u64,
-	pub params: MixnetReqCreationParams,
-}
-
-pub enum MwixnetOutput {
-	Commitment(Commitment),
-	MinimumAmount(u64),
-	Max,
-}
-
-fn confirm_mwixnet_response(response: &str, tx_id: u32) -> Result<(), Error> {
-	let response = parse_mwixnet_response(response).map_err(|e| {
-		Error::GenericError(format!(
-			"Could not confirm the mwixnet response: {}. Output remains locked as transaction {}",
-			e, tx_id
-		))
-	})?;
-
-	match response {
-		MwixnetResponse::Accepted => {
-			println!("MWixnet request accepted (transaction {})", tx_id);
-			Ok(())
-		}
-		// The server may already have accepted this swap
-		MwixnetResponse::Rejected(message) => Err(Error::GenericError(format!(
-			"MWixnet rejected the request: {}. Output remains locked as transaction {}",
-			message, tx_id
-		))),
-	}
-}
-
-pub fn mwixnet<L, C, K>(
-	owner_api: &mut Owner<L, C, K>,
-	keychain_mask: Option<&SecretKey>,
-	args: MwixnetArgs,
-	tor_config: TorConfig,
-) -> Result<(), Error>
-where
-	L: WalletLCProvider<'static, C, K> + 'static,
-	C: NodeClient + 'static,
-	K: keychain::Keychain + 'static,
-{
-	let height = owner_api.node_height(keychain_mask)?.height;
-	let (refreshed, outputs) = owner_api.retrieve_outputs(keychain_mask, false, true, None)?;
-	if !refreshed {
-		return Err(Error::GenericError(
-			"Could not refresh wallet outputs. MWixnet request was not created".to_string(),
-		));
-	}
-	let eligible = |output: &&OutputCommitMapping| {
-		output
-			.output
-			.eligible_to_spend(height, args.minimum_confirmations.max(1))
-	};
-	let output = match &args.output {
-		MwixnetOutput::Commitment(commitment) => outputs
-			.iter()
-			.find(|output| output.commit == *commitment && eligible(output)),
-		MwixnetOutput::MinimumAmount(amount) => outputs
-			.iter()
-			.filter(eligible)
-			.filter(|output| output.output.value >= *amount)
-			.min_by_key(|output| output.output.value),
-		MwixnetOutput::Max => outputs
-			.iter()
-			.filter(eligible)
-			.max_by_key(|output| output.output.value),
-	}
-	.ok_or_else(|| Error::GenericError("No eligible MWixnet output was found".to_string()))?;
-	let commitment = output.commit;
-	println!(
-		"Selected MWixnet output {} with value {}",
-		commitment.to_hex(),
-		core::amount_to_hr_string(output.output.value, false)
-	);
-
-	let creation = owner_api.create_mwixnet_req(keychain_mask, &args.params, &commitment, true)?;
-	let tx_id = creation.tx_id.ok_or_else(|| {
-		Error::GenericError("MWixnet request was created without locking its output".to_string())
-	})?;
-
-	let url = format!("{}/v1", args.server.to_http_str());
-	let rpc_params = json::json!([creation.request]);
-	let rpc_request = json_rpc::build_request("swap", &rpc_params);
-	let response = match tor_post(&tor_config, &rpc_request, &url) {
-		Ok(response) => response,
-		Err(TorPostError::PossiblySent(error)) => {
-			return Err(Error::GenericError(format!(
-				"Could not determine whether mwixnet accepted the request: {}. \
-				 Output remains locked as transaction {}",
-				Error::from(error),
-				tx_id
-			)));
-		}
-		Err(TorPostError::NotSent(error)) => {
-			return match owner::cancel_tx(
-				owner_api.wallet_inst.clone(),
-				keychain_mask,
-				&None,
-				Some(tx_id),
-				None,
-				false,
-			) {
-				Ok(()) => Err(Error::GenericError(format!(
-					"MWixnet request was not sent: {}. Transaction {} was cancelled and its output unlocked",
-					error, tx_id
-				))),
-				Err(cancel_error) => Err(Error::GenericError(format!(
-					"MWixnet request was not sent: {}. Could not cancel transaction {}: {}; output remains locked",
-					error, tx_id, cancel_error
-				))),
-			};
-		}
-	};
-	confirm_mwixnet_response(&response, tx_id)
 }
 
 fn max_retry_args(mut init_args: InitTxArgs, amount: u64, max_inputs: u32) -> InitTxArgs {
@@ -1724,25 +1602,100 @@ where
 	}
 }
 
+pub struct MwixnetArgs {
+	pub server: OnionV3Address,
+	pub output: MwixnetOutput,
+	pub minimum_confirmations: u64,
+	pub params: MixnetReqCreationParams,
+}
+
+pub enum MwixnetOutput {
+	Commitment(Commitment),
+	MinimumAmount(u64),
+	Max,
+}
+
+fn confirm_mwixnet_response(response: Option<String>, tx_id: u32) -> Result<(), Error> {
+	match response {
+		None => {
+			println!("MWixnet request accepted (transaction {})", tx_id);
+			Ok(())
+		}
+		// The server may already have accepted this swap
+		Some(message) => Err(Error::GenericError(format!(
+			"MWixnet rejected the request: {}. Output remains locked as transaction {}",
+			message, tx_id
+		))),
+	}
+}
+
+pub fn mwixnet<L, C, K>(
+	owner_api: &mut Owner<L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	args: MwixnetArgs,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: keychain::Keychain + 'static,
+{
+	let height = owner_api.node_height(keychain_mask)?.height;
+	let (refreshed, outputs) = owner_api.retrieve_outputs(keychain_mask, false, true, None)?;
+	if !refreshed {
+		return Err(Error::GenericError(
+			"Could not refresh wallet outputs. MWixnet request was not created".to_string(),
+		));
+	}
+	let eligible = |output: &&OutputCommitMapping| {
+		output
+			.output
+			.eligible_to_spend(height, args.minimum_confirmations.max(1))
+	};
+	let output = match &args.output {
+		MwixnetOutput::Commitment(commitment) => outputs
+			.iter()
+			.find(|output| output.commit == *commitment && eligible(output)),
+		MwixnetOutput::MinimumAmount(amount) => outputs
+			.iter()
+			.filter(eligible)
+			.filter(|output| output.output.value >= *amount)
+			.min_by_key(|output| output.output.value),
+		MwixnetOutput::Max => outputs
+			.iter()
+			.filter(eligible)
+			.max_by_key(|output| output.output.value),
+	}
+	.ok_or_else(|| Error::GenericError("No eligible MWixnet output was found".to_string()))?;
+	let commitment = output.commit;
+	println!(
+		"Selected MWixnet output {} with value {}",
+		commitment.to_hex(),
+		core::amount_to_hr_string(output.output.value, false)
+	);
+
+	let creation = owner_api.create_mwixnet_req(keychain_mask, &args.params, &commitment, true)?;
+	match creation.tx_id {
+		None => Err(Error::GenericError(
+			"MWixnet request was created without locking its output".to_string(),
+		)),
+		Some(tx_id) => {
+			let res = owner_api.send_mwixnet_req(&creation.request, args.server)?;
+			confirm_mwixnet_response(res, tx_id)
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::confirm_mwixnet_response;
 
 	#[test]
 	fn mwixnet_response_reports_uncertain_transactions_as_locked() {
-		assert!(
-			confirm_mwixnet_response(r#"{"jsonrpc":"2.0","result":"success","id":1}"#, 3).is_ok()
-		);
-
-		for response in [
-			r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"invalid swap"},"id":1}"#,
-			"invalid response",
-		] {
-			let error = confirm_mwixnet_response(response, 3).unwrap_err();
-			assert!(error
-				.to_string()
-				.contains("remains locked as transaction 3"));
-		}
+		assert!(confirm_mwixnet_response(None, 3).is_ok());
+		let error = confirm_mwixnet_response(Some("invalid response".to_string()), 3).unwrap_err();
+		assert!(error
+			.to_string()
+			.contains("remains locked as transaction 3"));
 	}
 }
 

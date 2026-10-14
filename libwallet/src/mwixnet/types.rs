@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! Types related to mwixnet requests required by rest of lib crate apis
-//! Should rexport all needed types here
+//! Should export all needed types here
 
 use super::onion::comsig_serde;
 use grin_core::libtx::secp_ser::opt_string_or_u64;
@@ -35,7 +35,7 @@ pub struct SwapReq {
 	pub onion: Onion,
 }
 
-/// Result of creating an mwixnet request.
+/// Result of creating a mwixnet request.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MwixnetReqCreationResult {
 	/// Request to submit to the first mwixnet server.
@@ -50,7 +50,7 @@ pub struct MwixnetReqCreationResult {
 pub struct MwixnetServerPublicKey(pub(crate) [u8; 32]);
 
 impl MwixnetServerPublicKey {
-	/// Derive the public key published by an mwixnet server.
+	/// Derive the public key published by a mwixnet server.
 	pub fn from_secret(key: &SecretKey) -> Self {
 		let key = PublicKey::from(&StaticSecret::from(key.0));
 		Self(key.to_bytes())
@@ -90,7 +90,7 @@ impl<'de> Deserialize<'de> for MwixnetServerPublicKey {
 	}
 }
 
-/// mwixnetRequest Creation Params
+/// Mwixnet request creation params
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MixnetReqCreationParams {
 	/// Ordered public keys of 1 to [`super::MAX_MWIXNET_HOPS`] participating servers
