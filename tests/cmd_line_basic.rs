@@ -349,7 +349,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let (_, wallet1_info) = api2.retrieve_summary_info(mask2, true, 1)?;
 	assert_eq!(wallet1_info.last_confirmed_height, bh);
 	assert_eq!(wallet1_info.amount_currently_spendable, 10_000_000_000);
-	assert_eq!(wallet1_info.amount_currently_spendable, 10_000_000_000);
 
 	// Send to wallet 2 with --amount_includes_fee
 	api1.set_active_account(mask1, "mining")?;

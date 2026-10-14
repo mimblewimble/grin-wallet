@@ -167,11 +167,7 @@ where
 
 		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
 		tx::update_stored_tx(w, keychain_mask, &context, &sl, true)?;
-		{
-			let mut batch = w.batch(keychain_mask)?;
-			batch.delete_private_context(sl.id.as_bytes())?;
-			batch.commit()?;
-		}
+
 		sl.state = SlateState::Invoice3;
 		sl.amount = 0;
 	} else if sl.state == SlateState::Standard2 {

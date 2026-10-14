@@ -191,7 +191,6 @@ fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), 
 	};
 	let mut slate = api2.issue_invoice_tx(mask2, args)?;
 	PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
-	PathToSlate((&send_file).into()).put_tx(&slate, use_bin)?;
 
 	let args = InitTxArgs {
 		src_acct_name: None,
