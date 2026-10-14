@@ -14,15 +14,15 @@
 
 //! Wraps a V4 Slate into a V4 Binary slate
 
-use crate::grin_core::core::transaction::{FeeFields, OutputFeatures};
-use crate::grin_core::ser as grin_ser;
-use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
-use crate::grin_keychain::BlindingFactor;
-use crate::grin_util::secp::key::PublicKey;
-use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-use crate::grin_util::secp::Signature;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::transaction::{FeeFields, OutputFeatures};
+use grin_core::ser as grin_ser;
+use grin_core::ser::{Readable, Reader, Writeable, Writer};
+use grin_keychain::BlindingFactor;
+use grin_util::secp::key::PublicKey;
+use grin_util::secp::pedersen::{Commitment, RangeProof};
+use grin_util::secp::Signature;
 use std::convert::TryFrom;
 use uuid::Uuid;
 
@@ -68,7 +68,7 @@ struct UuidWrap(Uuid);
 
 impl Writeable for UuidWrap {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
-		writer.write_fixed_bytes(&self.0.as_bytes())
+		writer.write_fixed_bytes(self.0.as_bytes())
 	}
 }
 
@@ -211,7 +211,7 @@ impl Readable for SigsWrap {
 					nonce: PublicKey::read(reader)?,
 					part: match has_partial {
 						1 => Some(Signature::read(reader)?),
-						0 | _ => None,
+						_ => None,
 					},
 				};
 				ret.push(c);
@@ -252,10 +252,10 @@ impl<'a> Writeable for SlateOptStructsRef<'a> {
 		};
 		writer.write_u8(status)?;
 		if let Some(c) = self.coms {
-			ComsWrapRef(&c).write(writer)?;
+			ComsWrapRef(c).write(writer)?;
 		}
 		if let Some(p) = self.proof {
-			ProofWrapRef(&p).write(writer)?;
+			ProofWrapRef(p).write(writer)?;
 		}
 		Ok(())
 	}
@@ -314,7 +314,7 @@ impl Readable for ComsWrap {
 					c: Commitment::read(reader)?,
 					p: match is_output {
 						1 => Some(RangeProof::read(reader)?),
-						0 | _ => None,
+						_ => None,
 					},
 				};
 				ret.push(c);
@@ -335,7 +335,7 @@ impl<'a> Writeable for ProofWrapRef<'a> {
 		match self.0.rsig {
 			Some(s) => {
 				writer.write_u8(1)?;
-				writer.write_fixed_bytes(&s.to_bytes().to_vec())?;
+				writer.write_fixed_bytes(s.to_bytes())?;
 			}
 			None => writer.write_u8(0)?,
 		}
@@ -359,7 +359,7 @@ impl Readable for ProofWrap {
 
 		let rsig = match reader.read_u8()? {
 			0 => None,
-			1 | _ => Some(
+			_ => Some(
 				DalekSignature::try_from(&reader.read_fixed_bytes(64)?[..])
 					.map_err(|_| grin_ser::Error::CorruptedData)?,
 			),
@@ -503,11 +503,11 @@ impl Readable for SlateV4Bin {
 
 #[test]
 fn slate_v4_serialize_deserialize() {
-	use crate::grin_util::from_hex;
-	use crate::grin_util::secp::key::PublicKey;
 	use crate::Slate;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+	use grin_util::from_hex;
+	use grin_util::secp::key::PublicKey;
 
 	set_local_chain_type(ChainTypes::Mainnet);
 	let slate = Slate::blank(1, false);
@@ -547,11 +547,7 @@ fn slate_v4_serialize_deserialize() {
 		c: Commitment::from_vec([4u8; 1].to_vec()),
 		p: Some(RangeProof::zero()),
 	};
-	let mut coms = vec![];
-	coms.push(com1.clone());
-	coms.push(com1.clone());
-	coms.push(com1.clone());
-	coms.push(com2);
+	let coms = vec![com1, com1, com1, com2];
 
 	v4.coms = Some(coms);
 	v4.amt = 234324899824;
@@ -563,7 +559,7 @@ fn slate_v4_serialize_deserialize() {
 
 	let v4_bin = SlateV4Bin(v4);
 	let mut vec = Vec::new();
-	let _ = grin_ser::serialize_default(&mut vec, &v4_bin).expect("serialization failed");
+	grin_ser::serialize_default(&mut vec, &v4_bin).expect("serialization failed");
 	let b4_bin_2: SlateV4Bin = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
 	let v4_2 = b4_bin_2.0.clone();
 	assert_eq!(v4_1.ver, v4_2.ver);
@@ -586,15 +582,15 @@ fn slate_v4_serialize_deserialize() {
 	let b = <&[u8; 32]>::try_from(bytes.as_slice()).unwrap();
 	let d_pkey = DalekPublicKey::from_bytes(b.as_array().unwrap()).unwrap();
 	v4.proof = Some(PaymentInfoV4 {
-		raddr: d_pkey.clone(),
-		saddr: d_pkey.clone(),
+		raddr: d_pkey,
+		saddr: d_pkey,
 		rsig: None,
 	});
 	v4.coms = None;
 	let v4_1 = v4.clone();
 	let v4_bin = SlateV4Bin(v4);
 	let mut vec = Vec::new();
-	let _ = grin_ser::serialize_default(&mut vec, &v4_bin).expect("serialization failed");
+	grin_ser::serialize_default(&mut vec, &v4_bin).expect("serialization failed");
 	let b4_bin_2: SlateV4Bin = grin_ser::deserialize_default(&mut &vec[..]).unwrap();
 	let v4_2 = b4_bin_2.0.clone();
 	assert_eq!(v4_1.ver, v4_2.ver);

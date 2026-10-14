@@ -87,8 +87,8 @@ impl<'a> FlagParser<'a> {
 	fn end(&mut self, is_bool_flag: bool, right: &str) -> usize {
 		if is_bool_flag {
 			0
-		} else if right.starts_with('"') {
-			right[1..].find('"').unwrap_or(0) + 2
+		} else if let Some(stripped) = right.strip_prefix('"') {
+			stripped.find('"').unwrap_or(0) + 2
 		} else {
 			right.find(' ').unwrap_or(right.len())
 		}
@@ -113,7 +113,7 @@ impl<'a> Iterator for FlagParser<'a> {
 		let end = self.end(self.is_bool_flag, right);
 		let key = left.split_whitespace().last()?;
 		let val = &right[..end];
-		self.line = &right[end..].trim();
+		self.line = right[end..].trim();
 		Some((key, val))
 	}
 }
@@ -121,7 +121,7 @@ impl<'a> Iterator for FlagParser<'a> {
 /// Every args field that could be in the bridge line
 /// obfs4 args : https://github.com/Yawning/obfs4/blob/40245c4a1cf221395c59d1f4bf274127045352f9/transports/obfs4/obfs4.go#L86-L91
 /// meek_lite args : https://github.com/Yawning/obfs4/blob/40245c4a1cf221395c59d1f4bf274127045352f9/transports/meeklite/meek.go#L93-L127
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct Transport {
 	/// transport type: obfs4, meek_lite, meek, snowflake
 	pub transport: Option<String>,
@@ -143,22 +143,6 @@ pub struct Transport {
 	pub disablehpkp: Option<String>,
 }
 
-impl Default for Transport {
-	fn default() -> Transport {
-		Transport {
-			transport: None,
-			server: None,
-			fingerprint: None,
-			cert: None,
-			iatmode: None,
-			url: None,
-			front: None,
-			utls: None,
-			disablehpkp: None,
-		}
-	}
-}
-
 impl Transport {
 	/// Parse the server address of the bridge line
 	fn parse_socketaddr_arg(arg: Option<&&str>) -> Result<String, Error> {
@@ -170,7 +154,7 @@ impl Transport {
 				Ok(address.to_string())
 			}
 			None => {
-				let msg = format!("Missing bridge server address");
+				let msg = "Missing bridge server address".to_string();
 				Err(Error::TorBridge(msg))
 			}
 		}
@@ -202,7 +186,7 @@ impl Transport {
 		})?;
 		if cert_vec.len() != 52 {
 			let msg = format!("Invalid certificate: {}", arg);
-			return Err(Error::TorBridge(msg).into());
+			return Err(Error::TorBridge(msg));
 		}
 		Ok(arg.to_string())
 	}
@@ -219,30 +203,22 @@ impl Transport {
 	/// Parse the max value for the arg -max in the client line option (snowflake)
 	fn parse_hpkp_arg(arg: &str) -> Result<String, Error> {
 		let max = arg.parse::<bool>().map_err(|_e| {
-			Error::TorBridge(
-				format!("Invalid -max value: {}, must be \"true\" or \"false\"", arg).into(),
-			)
+			Error::TorBridge(format!(
+				"Invalid -max value: {}, must be \"true\" or \"false\"",
+				arg
+			))
 		})?;
 		Ok(max.to_string())
 	}
 }
 
 // Client Plugin such as snowflake or obfs4proxy
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct PluginClient {
 	// Path plugin client
 	pub path: Option<String>,
 	// Plugin client option
 	pub option: Option<String>,
-}
-
-impl Default for PluginClient {
-	fn default() -> PluginClient {
-		PluginClient {
-			path: None,
-			option: None,
-		}
-	}
 }
 
 impl PluginClient {
@@ -333,7 +309,7 @@ impl PluginClient {
 					"Invalid ICE address: {}. Must be a stun or turn address",
 					addr
 				);
-				return Err(Error::TorBridge(msg).into());
+				return Err(Error::TorBridge(msg));
 			}
 		}
 		Ok(ice_addr.to_string())
@@ -372,9 +348,9 @@ impl PluginClient {
 			let (ck_url, ck_ice) = (hm_flags.contains_key("-url"), hm_flags.contains_key("-ice"));
 			if !(ck_url || ck_ice) {
 				let msg = if !ck_url {
-					format!("Missing URL argurment for snowflake transport, specify \"-url\"")
+					"Missing URL argurment for snowflake transport, specify \"-url\"".to_string()
 				} else {
-					format!("Missing ICE argurment for snowflake transport, specify \"-ice\"")
+					"Missing ICE argurment for snowflake transport, specify \"-ice\"".to_string()
 				};
 				return Err(Error::TorBridge(msg));
 			}
@@ -410,21 +386,12 @@ impl PluginClient {
 }
 
 /// Tor Bridge Field
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct TorBridge {
 	/// tor bridge (transport field)
 	pub bridge: Transport,
 	// tor bridge plugin client (path and option)
 	pub client: PluginClient,
-}
-
-impl Default for TorBridge {
-	fn default() -> TorBridge {
-		TorBridge {
-			bridge: Transport::default(),
-			client: PluginClient::default(),
-		}
-	}
 }
 
 impl TorBridge {
@@ -541,8 +508,8 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 				let cert = match flags.get_key_value("cert=") {
 					Some(hm) => Transport::parse_cert_arg(hm.1)?,
 					None => {
-						let msg =
-							format!("Missing cert argurment in obfs4 transport, specify \"cert=\"");
+						let msg = "Missing cert argurment in obfs4 transport, specify \"cert=\""
+							.to_string();
 						return Err(Error::TorBridge(msg));
 					}
 				};
@@ -559,14 +526,14 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					bridge: Transport {
 						transport: Some("obfs4".into()),
 						server: Some(socketaddr.to_string()),
-						fingerprint: fingerprint,
-						cert: Some(cert.into()),
+						fingerprint,
+						cert: Some(cert),
 						iatmode: Some(iatmode),
 						..Transport::default()
 					},
 					client: PluginClient {
 						path: Some(path),
-						option: option,
+						option,
 					},
 				};
 				Ok(tbpc)
@@ -578,9 +545,8 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 				let url = match flags.get_key_value("url=") {
 					Some(hm) => PluginClient::parse_url_arg(hm.1)?,
 					None => {
-						let msg = format!(
-							"Missing url argurment in meek_lite transport, specify \"url=\""
-						);
+						let msg = "Missing url argurment in meek_lite transport, specify \"url=\""
+							.to_string();
 						return Err(Error::TorBridge(msg));
 					}
 				};
@@ -588,10 +554,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					Some(hm) => Some(PluginClient::parse_front_arg(hm.1)?),
 					None => None,
 				};
-				let utls = match flags.get_key_value("utls=") {
-					Some(hm) => Some(hm.1.to_string()),
-					None => None,
-				};
+				let utls = flags.get_key_value("utls=").map(|hm| hm.1.to_string());
 				let disablehpkp = match flags.get_key_value("disablehpkp=") {
 					Some(hm) => Some(Transport::parse_hpkp_arg(hm.1)?),
 					None => None,
@@ -605,16 +568,16 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					bridge: Transport {
 						transport: Some("meek_lite".into()),
 						server: Some(socketaddr.to_string()),
-						fingerprint: fingerprint,
+						fingerprint,
 						url: Some(url),
-						front: front,
-						utls: utls,
-						disablehpkp: disablehpkp,
+						front,
+						utls,
+						disablehpkp,
 						..Transport::default()
 					},
 					client: PluginClient {
 						path: Some(path),
-						option: option,
+						option,
 					},
 				};
 				Ok(tbpc)
@@ -638,7 +601,7 @@ impl TryFrom<TorBridgeConfig> for TorBridge {
 					bridge: Transport {
 						transport: Some("snowflake".into()),
 						server: Some(socketaddr.to_string()),
-						fingerprint: fingerprint,
+						fingerprint,
 						..Transport::default()
 					},
 					client: PluginClient {

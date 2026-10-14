@@ -63,7 +63,7 @@ impl ComSignature {
 	pub fn sign(
 		amount: u64,
 		blind: &SecretKey,
-		msg: &Vec<u8>,
+		msg: &[u8],
 		use_test_rng: bool,
 	) -> Result<ComSignature, ComSigError> {
 		let secp = Secp256k1::with_caps(ContextFlag::Commit);
@@ -87,13 +87,8 @@ impl ComSignature {
 		let commitment = secp.commit(amount, blind.clone())?;
 		let nonce_commitment = secp.commit_blind(k_1.clone(), k_2.clone())?;
 
-		let e = ComSignature::calc_challenge(
-			&secp,
-			&commitment,
-			&nonce_commitment,
-			&msg,
-			use_test_rng,
-		)?;
+		let e =
+			ComSignature::calc_challenge(&secp, &commitment, &nonce_commitment, msg, use_test_rng)?;
 
 		// s = k_1 + (e * amount)
 		let mut s = k_amt.clone();
@@ -109,16 +104,16 @@ impl ComSignature {
 	}
 
 	/// Verify the commitment signature
-	pub fn verify(&self, commit: &Commitment, msg: &Vec<u8>) -> Result<(), ComSigError> {
+	pub fn verify(&self, commit: &Commitment, msg: &[u8]) -> Result<(), ComSigError> {
 		let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
 		let s1 = secp.commit_blind(self.s.clone(), self.t.clone())?;
 
 		let mut ce = commit.to_pubkey(&secp)?;
-		let e = ComSignature::calc_challenge(&secp, &commit, &self.pub_nonce, &msg, false)?;
+		let e = ComSignature::calc_challenge(&secp, commit, &self.pub_nonce, msg, false)?;
 		ce.mul_assign(&secp, &e)?;
 
-		let commits = vec![Commitment::from_pubkey(&secp, &ce)?, self.pub_nonce.clone()];
+		let commits = vec![Commitment::from_pubkey(&secp, &ce)?, self.pub_nonce];
 		let s2 = secp.commit_sum(commits, Vec::new())?;
 
 		if s1 != s2 {
@@ -132,7 +127,7 @@ impl ComSignature {
 		secp: &Secp256k1,
 		commit: &Commitment,
 		nonce_commit: &Commitment,
-		msg: &Vec<u8>,
+		msg: &[u8],
 		use_test_rng: bool,
 	) -> Result<SecretKey, ComSigError> {
 		let mut challenge_hasher = Blake2b::new(32);
@@ -146,7 +141,7 @@ impl ComSignature {
 		let mut challenge = [0; 32];
 		challenge.copy_from_slice(challenge_hasher.finalize().as_bytes());
 
-		Ok(SecretKey::from_slice(&secp, &challenge)?)
+		Ok(SecretKey::from_slice(secp, &challenge)?)
 	}
 }
 
@@ -213,16 +208,16 @@ mod tests {
 		let amount = thread_rng().next_u64();
 		let blind = SecretKey::new(&secp, &mut thread_rng());
 		let msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-		let comsig = ComSignature::sign(amount, &blind, &msg.to_vec(), false)?;
+		let comsig = ComSignature::sign(amount, &blind, msg.as_ref(), false)?;
 
 		let commit = secp.commit(amount, blind.clone())?;
-		assert!(comsig.verify(&commit, &msg.to_vec()).is_ok());
+		assert!(comsig.verify(&commit, msg.as_ref()).is_ok());
 
 		let wrong_msg: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
-		assert!(comsig.verify(&commit, &wrong_msg.to_vec()).is_err());
+		assert!(comsig.verify(&commit, wrong_msg.as_ref()).is_err());
 
 		let wrong_commit = secp.commit(amount, SecretKey::new(&secp, &mut thread_rng()))?;
-		assert!(comsig.verify(&wrong_commit, &msg.to_vec()).is_err());
+		assert!(comsig.verify(&wrong_commit, msg.as_ref()).is_err());
 
 		Ok(())
 	}

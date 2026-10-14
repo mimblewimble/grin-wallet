@@ -20,11 +20,11 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use x25519_dalek::PublicKey as xDalekPublicKey;
 
-use crate::grin_core::global;
-use crate::grin_core::ser::{self, Readable, Reader, Writeable, Writer};
-use crate::grin_util::secp::key::SecretKey;
 use crate::util::OnionV3Address;
 use crate::Error;
+use grin_core::global;
+use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
+use grin_util::secp::key::SecretKey;
 
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
@@ -53,7 +53,7 @@ impl SlatepackAddress {
 	pub fn new(pub_key: &edDalekPublicKey) -> Self {
 		Self {
 			hrp: String::from(slatepack_hrp()),
-			pub_key: pub_key.clone(),
+			pub_key: *pub_key,
 		}
 	}
 
@@ -68,7 +68,7 @@ impl SlatepackAddress {
 	pub fn encoded_len(&self) -> Result<usize, Error> {
 		let encoded = String::try_from(self)?;
 		// add length byte
-		Ok(encoded.as_bytes().len() + 1)
+		Ok(encoded.len() + 1)
 	}
 
 	/// utility to construct a public key that can be read by age 0.5+,
@@ -97,7 +97,7 @@ impl Display for SlatepackAddress {
 impl TryFrom<&str> for SlatepackAddress {
 	type Error = Error;
 	fn try_from(encoded: &str) -> Result<Self, Self::Error> {
-		let (hrp, data) = bech32::decode(&encoded)?;
+		let (hrp, data) = bech32::decode(encoded)?;
 		if !valid_network(&hrp) {
 			return Err(Error::SlatepackAddress(format!(
 				"wrong address prefix for chain {:?}",
@@ -107,7 +107,7 @@ impl TryFrom<&str> for SlatepackAddress {
 		let bytes = Vec::<u8>::from_base32(&data)?;
 		let b = <&[u8; 32]>::try_from(bytes.as_slice())
 			.map_err(|_| Error::SlatepackAddress("Wrong encoded data".to_string()))?;
-		let pub_key = match edDalekPublicKey::from_bytes(&b) {
+		let pub_key = match edDalekPublicKey::from_bytes(b) {
 			Ok(k) => k,
 			Err(e) => {
 				return Err(Error::ED25519Key(format!("{}", e)));
@@ -170,7 +170,6 @@ impl TryFrom<&SecretKey> for SlatepackAddress {
 
 /// Serializes a SlatepackAddress to a bech32 string
 impl Serialize for SlatepackAddress {
-	///
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -232,7 +231,7 @@ impl Writeable for SlatepackAddress {
 			return Err(ser::Error::CorruptedData);
 		}
 		writer.write_u8(bytes.len() as u8)?;
-		writer.write_fixed_bytes(&bytes)
+		writer.write_fixed_bytes(bytes)
 	}
 }
 

@@ -29,9 +29,9 @@ grin_wallet_util = { path = "../util", version = "5.5.0" }
 
 ##### Grin Imports
 
-grin_core = { path = "../grin/core"}
-grin_keychain = { path = "../grin/keychain"}
-grin_util = { path = "../grin/util"}
+grin_core = { workspace = true }
+grin_keychain = { workspace = true }
+grin_util = { workspace = true }
 
 #####
 

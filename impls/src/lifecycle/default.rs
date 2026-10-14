@@ -32,9 +32,7 @@ use std::path::MAIN_SEPARATOR;
 /// Helper function to format paths according to OS, avoids bugs on Linux
 pub fn fmt_path(path: String) -> String {
 	let sep = &MAIN_SEPARATOR.to_string();
-	let path = path.replace("/", &sep);
-	let path = path.replace("\\", &sep);
-	path
+	path.replace("/", sep).replace("\\", sep)
 }
 
 pub struct DefaultLCProvider<C, K>
@@ -77,8 +75,8 @@ where
 		let data_dir = self
 			.data_dir
 			.to_owned()
-			.replace("/", &sep)
-			.replace("\\", &sep);
+			.replace("/", sep)
+			.replace("\\", sep);
 		Ok(data_dir)
 	}
 
@@ -108,7 +106,7 @@ where
 			return Ok(());
 		}
 
-		let mut default_config = GlobalWalletConfig::for_chain(&chain_type, &config_file_name);
+		let mut default_config = GlobalWalletConfig::for_chain(chain_type, &config_file_name);
 		let config_file_version = default_config.members.config_file_version;
 		let logging = match logging_config.clone() {
 			Some(l) => Some(l),
@@ -140,7 +138,7 @@ where
 		absolute_path_wallet.push(self.data_dir.clone());
 
 		// if no config provided, update defaults
-		if update == true {
+		if update {
 			// create top level dir if it doesn't exist
 			let dd = PathBuf::from(self.data_dir.clone());
 			if !dd.exists() {
@@ -182,7 +180,7 @@ where
 		&mut self,
 		_name: Option<&str>,
 		mnemonic: Option<ZeroingString>,
-		mnemonic_length: usize,
+		entropy_size: usize,
 		password: ZeroingString,
 		test_mode: bool,
 	) -> Result<(), Error> {
@@ -196,23 +194,22 @@ where
 				return Err(Error::WalletSeedExists(msg));
 			}
 		}
+		let entropy_size = if entropy_size == 0 { 32 } else { entropy_size };
 		WalletSeed::init_file(
 			&data_dir_name,
-			mnemonic_length,
+			entropy_size,
 			mnemonic.clone(),
 			password,
 			test_mode,
 		)
-		.map_err(|_| {
-			Error::Lifecycle("Error creating wallet seed (is mnemonic valid?)".to_owned())
-		})?;
+		.map_err(|e| Error::Lifecycle(format!("Error creating wallet seed: {}", e)))?;
 		info!("Wallet seed file created");
 		let mut wallet: WalletBackend<C, K> =
 			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
-					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, &data_dir_name);
+					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, data_dir_name);
 					error!("{}", msg);
-					return Err(Error::Lifecycle(msg).into());
+					return Err(Error::Lifecycle(msg));
 				}
 				Ok(d) => d,
 			};
@@ -240,7 +237,7 @@ where
 		let mut wallet: WalletBackend<C, K> =
 			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
-					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, &data_dir_name);
+					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, data_dir_name);
 					return Err(Error::Lifecycle(msg));
 				}
 				Ok(d) => d,
@@ -248,6 +245,9 @@ where
 		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).map_err(|_| {
 			Error::Lifecycle("Error opening wallet (is password correct?)".to_owned())
 		})?;
+		if wallet_seed.is_empty() {
+			warn!("This wallet has an empty seed and its funds are unsafe. Move them to a new wallet.");
+		}
 		let keychain = wallet_seed
 			.derive_keychain(global::is_testnet())
 			.map_err(|_| Error::Lifecycle("Error deriving keychain".to_owned()))?;
@@ -269,7 +269,7 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let res = WalletSeed::seed_file_exists(&data_dir_name)
+		let res = WalletSeed::seed_file_exists(data_dir_name)
 			.map_err(|_| Error::CallbackImpl("Error checking for wallet existence"))?;
 		Ok(res)
 	}
@@ -286,7 +286,7 @@ where
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let res = wallet_seed
 			.to_mnemonic()
-			.map_err(|_| Error::Lifecycle("Error recovering wallet seed".into()))?;
+			.map_err(|e| Error::Lifecycle(format!("Error recovering wallet seed: {}. This wallet has no valid recovery phrase and its funds may be unsafe. Move them to a new wallet.", e)))?;
 		Ok(ZeroingString::from(res))
 	}
 
@@ -320,7 +320,7 @@ where
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		// Get seed for later check
-		let orig_wallet_seed = WalletSeed::from_file(&data_dir_name, old)
+		let orig_wallet_seed = WalletSeed::from_file(data_dir_name, old)
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let orig_mnemonic = orig_wallet_seed
 			.to_mnemonic()
@@ -346,7 +346,7 @@ where
 		);
 		info!("Wallet seed file created");
 
-		let new_wallet_seed = WalletSeed::from_file(&data_dir_name, new)
+		let new_wallet_seed = WalletSeed::from_file(data_dir_name, new)
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 
 		if orig_wallet_seed != new_wallet_seed {
@@ -380,5 +380,99 @@ where
 			}
 			Some(b) => Ok(b),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::keychain::ExtKeychain;
+	use crate::lifecycle::seed::{EncryptedWalletSeed, SEED_FILE};
+	use crate::node_clients::HTTPNodeClient;
+	use std::fs::File;
+	use std::io::Write;
+	use std::time::Duration;
+
+	fn provider(test_dir: &str) -> DefaultLCProvider<HTTPNodeClient, ExtKeychain> {
+		let client =
+			HTTPNodeClient::new("http://127.0.0.1:1", None, Duration::from_secs(1)).unwrap();
+		let mut provider = DefaultLCProvider::new(client);
+		provider.set_top_level_directory(test_dir).unwrap();
+		provider
+	}
+
+	#[test]
+	fn default_recovery_phrase() {
+		let test_dir = "test_output/default_recovery_phrase";
+		let _ = fs::remove_dir_all(test_dir);
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let mut provider = provider(test_dir);
+		let password = ZeroingString::from("test");
+
+		provider
+			.create_wallet(None, None, 0, password.clone(), false)
+			.unwrap();
+		let mnemonic = provider.get_mnemonic(None, password).unwrap();
+
+		assert_eq!(mnemonic.split_whitespace().count(), 24);
+		fs::remove_dir_all(test_dir).unwrap();
+	}
+
+	#[test]
+	fn mnemonic_error_redacted() {
+		let test_dir = "test_output/mnemonic_error_redacted";
+		let _ = fs::remove_dir_all(test_dir);
+		let mut provider = provider(test_dir);
+		let input = ZeroingString::from("INVALID_INPUT_MARKER ".repeat(12));
+		let error = provider
+			.create_wallet(None, Some(input), 32, ZeroingString::from("test"), false)
+			.unwrap_err()
+			.to_string();
+
+		assert!(error.contains("invalid bip39 word"));
+		assert!(!error.contains("INVALID_INPUT_MARKER"));
+		assert!(!provider.wallet_exists(None).unwrap());
+		fs::remove_dir_all(test_dir).unwrap();
+	}
+
+	#[test]
+	fn missing_recovery_phrase() {
+		let test_dir = "test_output/missing_recovery_phrase";
+		let _ = fs::remove_dir_all(test_dir);
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let mut provider = provider(test_dir);
+		let password = ZeroingString::from("test");
+		let data_dir = PathBuf::from(test_dir).join(GRIN_WALLET_DIR);
+		fs::create_dir_all(data_dir.clone()).unwrap();
+
+		let seed_file_path = &format!(
+			"{}{}{}",
+			fmt_path(data_dir.to_str().unwrap().to_string()),
+			MAIN_SEPARATOR,
+			SEED_FILE,
+		);
+
+		let enc_seed = EncryptedWalletSeed::from_seed(
+			&WalletSeed::from_bytes(vec![].as_slice()),
+			password.clone(),
+		)
+		.unwrap();
+		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).unwrap();
+		let mut file = File::create(seed_file_path).unwrap();
+		file.write_all(enc_seed_json.as_bytes()).unwrap();
+
+		let error = match provider.get_mnemonic(None, password.clone()) {
+			Ok(_) => panic!("expected missing recovery phrase error"),
+			Err(error) => error,
+		};
+
+		assert_eq!(
+			error,
+			Error::Lifecycle("Error recovering wallet seed: BIP39 Mnemonic (word list) Error: invalid mnemonic/entropy length 0. This wallet has no valid recovery phrase and its funds may be unsafe. Move them to a new wallet.".into())
+		);
+		provider.open_wallet(None, password, false, false).unwrap();
+		provider.close_wallet(None).unwrap();
+		assert_eq!(fs::read_to_string(seed_file_path).unwrap(), enc_seed_json);
+		fs::remove_dir_all(test_dir).unwrap();
 	}
 }
