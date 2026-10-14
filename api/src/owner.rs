@@ -1318,6 +1318,7 @@ where
 			&tx,
 			tx_id,
 			tx_slate_id,
+			true,
 		)
 	}
 

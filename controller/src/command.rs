@@ -449,7 +449,14 @@ where
 			)));
 		}
 		Err(TorPostError::NotSent(error)) => {
-			return match owner_api.cancel_tx(keychain_mask, Some(tx_id), None) {
+			return match owner::cancel_tx(
+				owner_api.wallet_inst.clone(),
+				keychain_mask,
+				&None,
+				Some(tx_id),
+				None,
+				false,
+			) {
 				Ok(()) => Err(Error::GenericError(format!(
 					"MWixnet request was not sent: {}. Transaction {} was cancelled and its output unlocked",
 					error, tx_id

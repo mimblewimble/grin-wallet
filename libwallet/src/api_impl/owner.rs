@@ -1044,18 +1044,20 @@ pub fn cancel_tx<'a, L, C, K>(
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	tx_id: Option<u32>,
 	tx_slate_id: Option<Uuid>,
+	refresh_from_node: bool,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	if !update_wallet_state(
-		wallet_inst.clone(),
-		keychain_mask,
-		status_send_channel,
-		false,
-	)? {
+	if refresh_from_node
+		&& !update_wallet_state(
+			wallet_inst.clone(),
+			keychain_mask,
+			status_send_channel,
+			false,
+		)? {
 		return Err(Error::TransactionCancellationError(
 			"Can't contact running Grin node. Not Cancelling.",
 		));
