@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_config"
-version = "5.5.0"
+version = "5.5.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Configuration for grin wallet , a simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
 license = "Apache-2.0"
