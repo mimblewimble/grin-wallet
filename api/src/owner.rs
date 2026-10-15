@@ -14,6 +14,7 @@
 
 //! Owner API External Definition
 
+use crate::config::config::{reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME};
 use crate::config::{TorConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
@@ -23,7 +24,11 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{owner, owner_updater};
+use crate::libwallet::mwixnet::{parse_mwixnet_response, MwixnetResponse, SwapReq};
+use crate::libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
+use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::wallet_lock;
+use crate::libwallet::RetrieveTxQueryArgs;
 use crate::libwallet::{
 	AcctPathMapping, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, Slatepack, SlatepackAddress,
@@ -32,13 +37,9 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_config::config::{
-	reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME,
-};
-use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, SwapReq};
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
-use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use grin_wallet_util::OnionV3Address;
+use impls::json_rpc;
+use impls::tor::arti::tor_post;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -1318,6 +1319,7 @@ where
 			&tx,
 			tx_id,
 			tx_slate_id,
+			true,
 		)
 	}
 
@@ -2606,21 +2608,22 @@ where
 
 	// MWIXNET
 
-	/// Creates a mwixnet request [SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)
+	/// Creates a mwixnet request [SwapReq](grin_wallet_libwallet::mwixnet::SwapReq)
 	/// from a given output commitment under this wallet's control.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `params` - A [MixnetReqCreationParams](../grin_wallet_libwallet/api_impl/types/struct.MixnetReqCreationParams.html)
+	/// * `params` - A [MixnetReqCreationParams]
 	///   struct containing the parameters for the request, which include:
-	///   `server_keys` - The public keys of the servers participating in the mixnet (each encoded internally as a `SecretKey`)
-	///   `fee_per_hop` - The fee to be paid to each server for each hop in the mixnet
+	///   `server_keys` - Published X25519 onion keys in route order, not Ed25519 identity keys
+	///   or private keys
+	///   `fee_per_hop` - Optional fee per hop with the swap minimum as default
 	/// * `commitment` - The commitment of the output to be mixed
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
 	///
 	/// # Returns
-	/// * Ok([SwapReq](../grin_wallet_libwallet/api_impl/types/struct.SwapReq.html)) if successful
+	/// * Ok([MwixnetReqCreationResult](../grin_wallet_libwallet/mwixnet/struct.MwixnetReqCreationResult.html)) if successful
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
 	///
 	/// # Example
@@ -2631,8 +2634,10 @@ where
 	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
 	/// let keychain_mask = None;
 	/// let params = MixnetReqCreationParams {
-	///   server_keys: vec![], // Public keys here in secret key representation
-	///   fee_per_hop: 100,
+	///    server_keys: vec![libwallet::mwixnet::MwixnetServerPublicKey::from_hex(
+	///        "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+	///    ).unwrap()],
+	///    fee_per_hop: None,
 	/// };
 	///
 	/// let commitment = Commitment::from_vec(vec![0; 32]);
@@ -2645,7 +2650,7 @@ where
 	///    lock_output,
 	/// );
 	///
-	/// if let Ok(req) = result {
+	/// if let Ok(result) = result {
 	///    //...
 	/// }
 	/// ```
@@ -2655,9 +2660,8 @@ where
 		params: &MixnetReqCreationParams,
 		commitment: &Commitment,
 		lock_output: bool, // use_test_rng: bool,
-	) -> Result<SwapReq, Error> {
-		let mut w_lock = self.wallet_inst.lock();
-		let w = w_lock.lc_provider()?.wallet_inst()?;
+	) -> Result<MwixnetReqCreationResult, Error> {
+		wallet_lock!(self.wallet_inst, w);
 		owner::create_mwixnet_req(
 			w,
 			keychain_mask,
@@ -2666,6 +2670,81 @@ where
 			lock_output,
 			self.doctest_mode,
 		)
+	}
+
+	/// Sends a mwixnet request [SwapReq](grin_wallet_libwallet::mwixnet::SwapReq)
+	/// to provided onion server.
+	///
+	/// # Arguments
+	/// * `req` - A [SwapReq]
+	///   struct containing the parameters for the request, which include:
+	///   `comsig` - [ComSignature](grin_wallet_libwallet::mwixnet::ComSignature) signature with a pedersen commitment value & blinding factors as the keys
+	///   `onion` - [Onion](grin_wallet_libwallet::mwixnet::Onion) encrypted route payload
+	/// * `server` - Onion server address
+	///
+	/// # Returns
+	/// * `Ok(None)` if the server accepted the request
+	/// * `Ok(Some(message))` if the server rejected the request
+	/// * `Err` for configuration, transport, or invalid-response failures
+	///
+	/// Leaves output locks unchanged
+	///
+	/// # Example
+	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
+	/// ```
+	/// # grin_wallet_api::doctest_helper_setup_doc_env!(wallet, wallet_config);
+	///
+	/// let api_owner = Owner::new(wallet.clone(), None, std::path::PathBuf::from("grin-wallet.toml"));
+	/// let keychain_mask = None;
+	/// let params = MixnetReqCreationParams {
+	///    server_keys: vec![libwallet::mwixnet::MwixnetServerPublicKey::from_hex(
+	///        "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+	///    ).unwrap()],
+	///    fee_per_hop: None,
+	/// };
+	///
+	/// let commitment = Commitment::from_vec(vec![0; 32]);
+	/// let lock_output = true;
+	///
+	/// let result = api_owner.create_mwixnet_req(
+	///    keychain_mask,
+	///    &params,
+	///    &commitment,
+	///    lock_output,
+	/// );
+	///
+	/// if let Ok(result) = result {
+	///    let server = "mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion".try_into().unwrap();
+	///    let result = api_owner.send_mwixnet_req(&result.request, server);
+	///    if let Ok(result) = result {
+	///       //..
+	///    }
+	/// }
+	/// ```
+	pub fn send_mwixnet_req(
+		&self,
+		req: &SwapReq,
+		server: OnionV3Address,
+	) -> Result<Option<String>, Error> {
+		let url = format!("{}/v1", server.to_http_str());
+		let rpc_params = serde_json::json!([req]);
+		let rpc_request = json_rpc::build_request("swap", &rpc_params);
+		let tor_config = crate::tor_config::load(&self.config_path())?;
+		let response = match tor_post(&tor_config, &rpc_request, &url) {
+			Ok(response) => response,
+			Err(e) => {
+				return Err(Error::GenericError(format!(
+					"Could not determine whether mwixnet accepted the request: {}",
+					e,
+				)));
+			}
+		};
+		match parse_mwixnet_response(&response).map_err(|e| {
+			Error::GenericError(format!("Could not confirm the mwixnet response: {}", e))
+		})? {
+			MwixnetResponse::Accepted => Ok(None),
+			MwixnetResponse::Rejected(message) => Ok(Some(message)),
+		}
 	}
 }
 
