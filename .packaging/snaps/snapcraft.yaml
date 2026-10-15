@@ -1,0 +1,41 @@
+name: grin-wallet
+adopt-info: grin-wallet
+summary: Command line wallet for Grin
+description: |
+  https://grin.mw/
+
+confinement: strict
+grade: SNAP_GRADE
+base: core22
+architectures:
+  - build-on: [arm64]
+    build-for: [arm64]
+  - build-on: [amd64]
+    build-for: [amd64]
+
+parts:
+  grin-wallet:
+    plugin: rust
+    source: .
+    override-pull: |
+      craftctl default
+      craftctl set version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"
+    build-packages:
+      - build-essential
+      - clang
+      - cmake
+      - git
+      - libncurses5-dev
+      - libncursesw5-dev
+      - libssl-dev
+      - llvm
+      - pkg-config
+      - zlib1g-dev
+
+apps:
+  grin-wallet:
+    environment:
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+    command: bin/grin-wallet
+    plugs: [home, network, network-bind]
