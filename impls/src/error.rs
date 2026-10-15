@@ -75,8 +75,8 @@ pub enum Error {
 	Encryption,
 
 	/// BIP 39 word list
-	#[error("BIP39 Mnemonic (word list) Error")]
-	Mnemonic,
+	#[error("BIP39 Mnemonic (word list) Error: {}", _0)]
+	Mnemonic(String),
 
 	/// Command line argument error
 	#[error("{}", _0)]

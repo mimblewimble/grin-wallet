@@ -1,6 +1,6 @@
 [package]
 name = "grin_wallet_libwallet"
-version = "5.5.0"
+version = "5.5.1"
 authors = ["Grin Developers <mimblewimble@lists.launchpad.net>"]
 description = "Simple, private and scalable cryptocurrency implementation based on the MimbleWimble chain format."
 license = "Apache-2.0"
@@ -42,14 +42,14 @@ num-bigint = "0.2"
 chacha20 = "0.8.1"
 hmac = { version = "0.12.0", features = ["std"]}
 
-grin_wallet_util = { path = "../util", version = "5.5.0" }
-grin_wallet_config = { path = "../config", version = "5.5.0" }
+grin_wallet_util = { path = "../util", version = "5.5.1" }
+grin_wallet_config = { path = "../config", version = "5.5.1" }
 
 ##### Grin Imports
 
-grin_core = { path = "../grin/core"}
-grin_keychain = { path = "../grin/keychain"}
-grin_util = { path = "../grin/util"}
-grin_store = { path = "../grin/store"}
+grin_core = { workspace = true }
+grin_keychain = { workspace = true }
+grin_util = { workspace = true }
+grin_store = { workspace = true }
 
 #####

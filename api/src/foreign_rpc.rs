@@ -20,7 +20,6 @@ use crate::libwallet::{
 	Slate, SlateVersion, VersionInfo, VersionedCoinbase, VersionedSlate, WalletLCProvider,
 };
 use crate::{Foreign, ForeignCheckMiddlewareFn};
-use easy_jsonrpc_mw;
 use grin_wallet_config::initial_setup_wallet;
 use libwallet::SlatepackAddress;
 use std::path::PathBuf;
@@ -112,7 +111,6 @@ pub trait ForeignRpc {
 	# ,false, 4, false, false);
 	```
 	*/
-
 	fn build_coinbase(&self, block_fees: &BlockFees) -> Result<VersionedCoinbase, Error>;
 
 	/**
@@ -322,19 +320,14 @@ where
 				}
 			},
 		};
-		let out_slate = Foreign::receive_tx(
-			self,
-			&slate_from,
-			dest_acct_name.as_ref().map(String::as_str),
-			dest,
-		)?;
-		Ok(VersionedSlate::into_version(out_slate, version)?)
+		let out_slate = Foreign::receive_tx(self, &slate_from, dest_acct_name.as_deref(), dest)?;
+		VersionedSlate::into_version(out_slate, version)
 	}
 
 	fn finalize_tx(&self, in_slate: VersionedSlate) -> Result<VersionedSlate, Error> {
 		let version = in_slate.version();
 		let out_slate = Foreign::finalize_tx(self, &Slate::from(in_slate), true)?;
-		Ok(VersionedSlate::into_version(out_slate, version)?)
+		VersionedSlate::into_version(out_slate, version)
 	}
 }
 
@@ -467,19 +460,14 @@ pub fn run_doctest_foreign(
 		let _ = test_framework::award_blocks_to_wallet(
 			&chain,
 			wallet1.clone(),
-			(&mask1).as_ref(),
-			1 as usize,
+			mask1.as_ref(),
+			1_usize,
 			false,
 		);
 		//update local outputs after each block, so transaction IDs stay consistent
-		let (wallet_refreshed, _) = api_impl::owner::retrieve_summary_info(
-			wallet1.clone(),
-			(&mask1).as_ref(),
-			&None,
-			true,
-			1,
-		)
-		.unwrap();
+		let (wallet_refreshed, _) =
+			api_impl::owner::retrieve_summary_info(wallet1.clone(), mask1.as_ref(), &None, true, 1)
+				.unwrap();
 		assert!(wallet_refreshed);
 	}
 
@@ -492,7 +480,7 @@ pub fn run_doctest_foreign(
 				amount,
 				..Default::default()
 			};
-			api_impl::owner::issue_invoice_tx(w, (&mask2).as_ref(), args, true).unwrap()
+			api_impl::owner::issue_invoice_tx(w, mask2.as_ref(), args, true).unwrap()
 		};
 		slate = {
 			let mut w_lock = wallet1.lock();
@@ -506,7 +494,7 @@ pub fn run_doctest_foreign(
 				selection_strategy_is_use_all: true,
 				..Default::default()
 			};
-			api_impl::owner::process_invoice_tx(w, (&mask1).as_ref(), &slate, args, true).unwrap()
+			api_impl::owner::process_invoice_tx(w, mask1.as_ref(), &slate, args, true).unwrap()
 		};
 		println!("INIT INVOICE SLATE");
 		// Spit out slate for input to finalize_tx
@@ -526,7 +514,7 @@ pub fn run_doctest_foreign(
 			selection_strategy_is_use_all: true,
 			..Default::default()
 		};
-		let slate = api_impl::owner::init_send_tx(w, (&mask1).as_ref(), args, true).unwrap();
+		let slate = api_impl::owner::init_send_tx(w, mask1.as_ref(), args, true).unwrap();
 		println!("INIT SLATE");
 		// Spit out slate for input to finalize_tx
 		println!("{}", serde_json::to_string_pretty(&slate).unwrap());

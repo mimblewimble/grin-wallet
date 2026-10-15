@@ -30,7 +30,6 @@ use grin_keychain::ExtKeychain;
 use grin_util::secp::key::SecretKey;
 use grin_util::{from_hex, static_secp_instance};
 use grin_wallet_impls::DefaultLCProvider;
-use serde_json;
 
 #[macro_use]
 mod common;
@@ -80,7 +79,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::IntId(1),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req,
+		req,
 		&sec_key,
 	)?;
 	println!("RES 1: {:?}", res);
@@ -88,7 +87,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 	assert_eq!(res.unwrap_err().code, -32001);
 
 	// 2) Call any function on the V3 api without calling 'init_secure_api` first
-	let res = send_request::<String>(1, "http://127.0.0.1:33420/v3/owner", &req)?;
+	let res = send_request::<String>(1, "http://127.0.0.1:33420/v3/owner", req)?;
 	println!("RES 2: {:?}", res);
 	assert!(res.is_err());
 	assert_eq!(res.unwrap_err().code, -32001);
@@ -108,7 +107,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 4: {:?}", res);
@@ -122,7 +121,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req,
+		req,
 		&bad_key,
 	)?;
 	println!("RES 5: {:?}", res);
@@ -164,7 +163,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req.to_string(),
+		req,
 		&shared_key,
 	)?;
 	println!("RES 8: {:?}", res);
@@ -178,7 +177,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 9: {:?}", res);
@@ -199,7 +198,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 11: {:?}", res);
@@ -232,7 +231,7 @@ fn owner_v3_init_secure() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("13")),
 		1,
 		"http://127.0.0.1:33420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 13: {:?}", res);
