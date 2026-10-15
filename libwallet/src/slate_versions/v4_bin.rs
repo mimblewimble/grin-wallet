@@ -17,6 +17,7 @@
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use grin_core::core::transaction::{FeeFields, OutputFeatures};
+use grin_core::core::KernelFeatures;
 use grin_core::ser as grin_ser;
 use grin_core::ser::{Readable, Reader, Writeable, Writer};
 use grin_keychain::BlindingFactor;
@@ -430,6 +431,15 @@ impl<'de> serde::Deserialize<'de> for SlateV4Bin {
 impl Writeable for SlateV4Bin {
 	fn write<W: Writer>(&self, writer: &mut W) -> Result<(), grin_ser::Error> {
 		let v4 = &self.0;
+		if v4.ver.version != 4 {
+			return Err(grin_ser::Error::UnsupportedProtocolVersion);
+		}
+		if v4.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8 {
+			return Err(grin_ser::Error::IOErr(
+				"NRD kernels are not supported in V4 binary slates".into(),
+				std::io::ErrorKind::InvalidData,
+			));
+		}
 		writer.write_u16(v4.ver.version)?;
 		writer.write_u16(v4.ver.block_header_version)?;
 		(UuidWrap(v4.id)).write(writer)?;
@@ -443,14 +453,14 @@ impl Writeable for SlateV4Bin {
 			ttl: v4.ttl,
 		}
 		.write(writer)?;
-		(SigsWrapRef(&v4.sigs)).write(writer)?;
+		SigsWrapRef(&v4.sigs).write(writer)?;
 		SlateOptStructsRef {
 			coms: &v4.coms,
 			proof: &v4.proof,
 		}
 		.write(writer)?;
 		// Write lock height for height locked kernels
-		if v4.feat == 2 {
+		if v4.feat == KernelFeatures::HEIGHT_LOCKED_U8 {
 			let lock_hgt = match &v4.feat_args {
 				Some(l) => l.lock_hgt,
 				None => 0,
@@ -467,15 +477,24 @@ impl Readable for SlateV4Bin {
 			version: reader.read_u16()?,
 			block_header_version: reader.read_u16()?,
 		};
+		if ver.version != 4 {
+			return Err(grin_ser::Error::UnsupportedProtocolVersion);
+		}
 		let id = UuidWrap::read(reader)?.0;
 		let sta = SlateStateV4::read(reader)?;
 		let off = BlindingFactor::read(reader)?;
 
 		let opts = SlateOptFields::read(reader)?;
+		if opts.feat == KernelFeatures::NO_RECENT_DUPLICATE_U8 {
+			return Err(grin_ser::Error::IOErr(
+				"NRD kernels are not supported in V4 binary slates".into(),
+				std::io::ErrorKind::InvalidData,
+			));
+		}
 		let sigs = SigsWrap::read(reader)?.0;
 		let opt_structs = SlateOptStructs::read(reader)?;
 
-		let feat_args = if opts.feat == 2 {
+		let feat_args = if opts.feat == KernelFeatures::HEIGHT_LOCKED_U8 {
 			Some(KernelFeaturesArgsV4 {
 				lock_hgt: reader.read_u64()?,
 			})
@@ -551,9 +570,10 @@ fn slate_v4_serialize_deserialize() {
 
 	v4.coms = Some(coms);
 	v4.amt = 234324899824;
-	v4.feat = 1;
+	v4.feat = KernelFeatures::HEIGHT_LOCKED_U8;
 	v4.num_parts = 2;
 	v4.feat_args = Some(KernelFeaturesArgsV4 { lock_hgt: 23092039 });
+
 	let v4_1 = v4.clone();
 	let v4_1_copy = v4.clone();
 
@@ -573,6 +593,7 @@ fn slate_v4_serialize_deserialize() {
 		assert_eq!(c.p, v4_2_coms[i].p);
 	}
 	assert_eq!(v4_1.sigs, v4_2.sigs);
+	assert_eq!(v4_1.feat_args, v4_2.feat_args);
 	assert_eq!(v4_1.proof, v4_2.proof);
 
 	// Include Payment proof, remove coms to mix it up a bit
@@ -599,5 +620,6 @@ fn slate_v4_serialize_deserialize() {
 	assert_eq!(v4_1.fee, v4_2.fee);
 	assert!(v4_1.coms.is_none());
 	assert_eq!(v4_1.sigs, v4_2.sigs);
+	assert_eq!(v4_1.feat_args, v4_2.feat_args);
 	assert_eq!(v4_1.proof, v4_2.proof);
 }
