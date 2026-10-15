@@ -50,8 +50,12 @@ grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
 grin_api = { workspace = true }
+grin_config = { path = "grin/config" }
+grin_servers = { path = "grin/servers" }
 
 ###### 
+
+tokio = { version = "1", features = ["sync"] }
 
 [build-dependencies]
 built = { version = "0.8.0", features = ["git2"]}
