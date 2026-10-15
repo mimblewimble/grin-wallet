@@ -187,7 +187,7 @@ impl TorSlateSender {
 			client.send_request(req)?
 		} else {
 			tor_post(&self.config, &input, url)
-				.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
+				.map_err(|e| ClientError::RequestError(e.to_string()))?
 		};
 		Ok(res)
 	}

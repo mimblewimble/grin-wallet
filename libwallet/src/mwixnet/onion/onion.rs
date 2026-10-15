@@ -336,6 +336,15 @@ pub enum OnionError {
 	/// Invalid Key Length
 	#[error("Invalid key length for MAC initialization")]
 	InvalidKeyLength,
+	/// Non-contributory X25519 shared secret
+	#[error("Non-contributory X25519 shared secret")]
+	NonContributorySharedSecret,
+	/// Too many hops
+	#[error("Mwixnet routes support at most {max} hops")]
+	TooManyHops {
+		/// Maximum supported number of hops
+		max: usize,
+	},
 	/// Serialization Error
 	#[error("Serialization error occurred: {0:?}")]
 	SerializationError(ser::Error),
@@ -397,14 +406,16 @@ mod tests {
 			final_commit = secp::add_excess(&final_commit, &excess).unwrap();
 			let proof = if i == 4 {
 				let n1 = random_secret(false);
-				let rp = secp.bullet_proof(
-					out_value,
-					final_blind.clone(),
-					n1.clone(),
-					n1.clone(),
-					None,
-					None,
-				);
+				let rp = secp
+					.bullet_proof(
+						out_value,
+						final_blind.clone(),
+						n1.clone(),
+						n1.clone(),
+						None,
+						None,
+					)
+					.expect("failed to generate test bulletproof");
 				assert!(secp.verify_bullet_proof(final_commit, rp, None).is_ok());
 				Some(rp)
 			} else {

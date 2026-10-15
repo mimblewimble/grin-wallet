@@ -13,12 +13,15 @@
 // limitations under the License.
 
 //! Types related to mwixnet requests required by rest of lib crate apis
-//! Should rexport all needed types here
+//! Should export all needed types here
 
 use super::onion::comsig_serde;
-use grin_core::libtx::secp_ser::string_or_u64;
+use grin_core::libtx::secp_ser::opt_string_or_u64;
 use grin_util::secp::key::SecretKey;
-use serde::{Deserialize, Serialize};
+use grin_util::ToHex;
+use serde::de::Error as SerdeError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use x25519_dalek::{PublicKey, StaticSecret};
 
 pub use super::onion::{onion::Onion, ComSignature, Hop};
 
@@ -32,12 +35,67 @@ pub struct SwapReq {
 	pub onion: Onion,
 }
 
-/// mwixnetRequest Creation Params
+/// Result of creating a mwixnet request.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MwixnetReqCreationResult {
+	/// Request to submit to the first mwixnet server.
+	#[serde(flatten)]
+	pub request: SwapReq,
+	/// Transaction log ID when the wallet output was locked.
+	pub tx_id: Option<u32>,
+}
+
+/// Public X25519 key of an mwixnet server.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MwixnetServerPublicKey(pub(crate) [u8; 32]);
+
+impl MwixnetServerPublicKey {
+	/// Derive the public key published by a mwixnet server.
+	pub fn from_secret(key: &SecretKey) -> Self {
+		let key = PublicKey::from(&StaticSecret::from(key.0));
+		Self(key.to_bytes())
+	}
+
+	/// Parse a public key from hexadecimal representation.
+	pub fn from_hex(value: &str) -> Result<Self, String> {
+		let bytes = grin_util::from_hex(value).map_err(|e| e.to_string())?;
+		let bytes: [u8; 32] = bytes
+			.try_into()
+			.map_err(|_| "mwixnet server public key must be 32 bytes".to_string())?;
+		Ok(Self(bytes))
+	}
+
+	/// Return the hexadecimal representation.
+	pub fn to_hex(self) -> String {
+		self.0.to_hex()
+	}
+}
+
+impl Serialize for MwixnetServerPublicKey {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(&self.to_hex())
+	}
+}
+
+impl<'de> Deserialize<'de> for MwixnetServerPublicKey {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let value = String::deserialize(deserializer)?;
+		Self::from_hex(&value).map_err(D::Error::custom)
+	}
+}
+
+/// Mwixnet request creation params
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MixnetReqCreationParams {
-	/// List of all the server keys
-	pub server_keys: Vec<SecretKey>,
-	/// Fees per hop
-	#[serde(with = "string_or_u64")]
-	pub fee_per_hop: u64,
+	/// Ordered public keys of 1 to [`super::MAX_MWIXNET_HOPS`] participating servers
+	pub server_keys: Vec<MwixnetServerPublicKey>,
+	/// Optional fee per hop with the swap minimum as default
+	#[serde(default, with = "opt_string_or_u64")]
+	pub fee_per_hop: Option<u64>,
 }

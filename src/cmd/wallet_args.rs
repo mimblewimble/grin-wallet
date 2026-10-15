@@ -23,11 +23,14 @@ use crate::util::{Mutex, ZeroingString};
 use grin_core as core;
 use grin_core::core::amount_to_hr_string;
 use grin_keychain as keychain;
+use grin_util::secp::constants::PEDERSEN_COMMITMENT_SIZE;
+use grin_util::secp::pedersen::Commitment;
 use grin_wallet_api::Owner;
 use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
+use grin_wallet_libwallet::mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey};
 use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 use grin_wallet_libwallet::{self, Slate, SlatepackAddress, SlatepackArmor};
 use grin_wallet_libwallet::{IssueInvoiceTxArgs, NodeClient, WalletInst, WalletLCProvider};
@@ -572,6 +575,64 @@ fn parse_address_index_arg(args: &ArgMatches) -> Result<Option<SlatepackAddressI
 		None
 	};
 	Ok(address)
+}
+
+fn parse_mwixnet_output(output: &str) -> Result<command::MwixnetOutput, ParseError> {
+	if output.eq_ignore_ascii_case("max") {
+		Ok(command::MwixnetOutput::Max)
+	} else if output.len() == PEDERSEN_COMMITMENT_SIZE * 2 {
+		let commitment = grin_util::from_hex(output)
+			.map_err(|e| ParseError::ArgumentError(format!("Invalid output commitment: {}", e)))?;
+		Ok(command::MwixnetOutput::Commitment(Commitment::from_vec(
+			commitment,
+		)))
+	} else {
+		let amount = core::core::amount_from_hr_string(output).map_err(|e| {
+			ParseError::ArgumentError(format!(
+				"Output must be a commitment, an amount, or 'max': {}",
+				e
+			))
+		})?;
+		Ok(command::MwixnetOutput::MinimumAmount(amount))
+	}
+}
+
+pub fn parse_mwixnet_args(args: &ArgMatches) -> Result<command::MwixnetArgs, ParseError> {
+	let output = parse_mwixnet_output(parse_required(args, "output")?)?;
+
+	let server = parse_required(args, "server")?
+		.try_into()
+		.map_err(|e| ParseError::ArgumentError(format!("Invalid mwixnet server: {}", e)))?;
+	let server_keys = args
+		.values_of("key")
+		.ok_or_else(|| {
+			ParseError::ArgumentError("At least one server key is required".to_string())
+		})?
+		.map(|key| {
+			MwixnetServerPublicKey::from_hex(key).map_err(|e| {
+				ParseError::ArgumentError(format!("Invalid mwixnet server key: {}", e))
+			})
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	let fee_per_hop = args
+		.value_of("fee_per_hop")
+		.map(core::core::amount_from_hr_string)
+		.transpose()
+		.map_err(|e| ParseError::ArgumentError(format!("Invalid fee_per_hop: {}", e)))?;
+	let minimum_confirmations = parse_u64(
+		parse_required(args, "minimum_confirmations")?,
+		"minimum_confirmations",
+	)?;
+
+	Ok(command::MwixnetArgs {
+		server,
+		output,
+		minimum_confirmations,
+		params: MixnetReqCreationParams {
+			server_keys,
+			fee_per_hop,
+		},
+	})
 }
 
 pub fn parse_receive_args(args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
@@ -1232,6 +1293,10 @@ where
 				test_mode,
 			)
 		}
+		("mwixnet", Some(args)) => {
+			let a = arg_parse!(parse_mwixnet_args(args));
+			command::mwixnet(owner_api, km, a)
+		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(args));
 			command::receive(owner_api, km, a, tor_config, test_mode)
@@ -1324,5 +1389,77 @@ where
 			let msg = "Unknown wallet command, use 'grin-wallet help' for details".to_string();
 			Err(Error::ArgumentError(msg))
 		}
+	}
+}
+
+#[cfg(test)]
+mod mwixnet_tests {
+	use super::*;
+
+	#[test]
+	fn parses_mwixnet_optional_fee() {
+		let yaml = load_yaml!("../bin/grin-wallet.yml");
+		let args = vec![
+			"grin-wallet",
+			"mwixnet",
+			"max",
+			"--server",
+			"mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion",
+			"--key",
+			"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+		];
+		let matches = clap::App::from_yaml(yaml)
+			.get_matches_from_safe(args.clone())
+			.unwrap();
+		let parsed = parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
+		assert_eq!(parsed.params.fee_per_hop, None);
+
+		let mut custom_args = args;
+		custom_args.extend(["--fee_per_hop", "0.0125"]);
+		let matches = clap::App::from_yaml(yaml)
+			.get_matches_from_safe(custom_args)
+			.unwrap();
+		let parsed = parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
+		assert_eq!(parsed.params.fee_per_hop, Some(12_500_000));
+	}
+
+	#[test]
+	fn mwixnet_args() {
+		let yaml = load_yaml!("../bin/grin-wallet.yml");
+		let key = "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a";
+		for keys in [vec!["--key", key], vec!["--key", key, "--key", key]] {
+			let key_count = keys.len() / 2;
+			let mut args = vec![
+				"grin-wallet",
+				"mwixnet",
+				"--server",
+				"mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion",
+			];
+			args.extend(keys);
+			args.push("max");
+			let matches = clap::App::from_yaml(yaml)
+				.get_matches_from_safe(args)
+				.unwrap();
+			let parsed =
+				parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
+			assert!(matches!(parsed.output, command::MwixnetOutput::Max));
+			assert_eq!(parsed.params.server_keys.len(), key_count);
+		}
+	}
+
+	#[test]
+	fn parses_mwixnet_output_selection() {
+		assert!(matches!(
+			parse_mwixnet_output("max").unwrap(),
+			command::MwixnetOutput::Max
+		));
+		assert!(matches!(
+			parse_mwixnet_output("10").unwrap(),
+			command::MwixnetOutput::MinimumAmount(10_000_000_000)
+		));
+		assert!(matches!(
+			parse_mwixnet_output(&format!("08{}", "00".repeat(32))).unwrap(),
+			command::MwixnetOutput::Commitment(_)
+		));
 	}
 }
