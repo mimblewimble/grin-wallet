@@ -19,6 +19,7 @@
 use crate::api::{self, LocatedTxKernel};
 use crate::chain::types::NoopAdapter;
 use crate::chain::Chain;
+use crate::core::core::hash::Hashed;
 use crate::core::core::{Transaction, TxKernel};
 use crate::core::global::{set_local_chain_type, ChainTypes};
 use crate::core::pow;
@@ -154,6 +155,20 @@ where
 			trace!("Wallet Client Proxy Received: {:?}", m);
 			let resp = match m.method.as_ref() {
 				"get_chain_tip" => self.get_chain_tip(m)?,
+				"get_header_hash" => {
+					let hash = m
+						.body
+						.parse::<u64>()
+						.ok()
+						.and_then(|height| self.chain.get_header_by_height(height).ok())
+						.map(|header| header.hash().to_hex());
+					WalletProxyMessage {
+						sender_id: "node".to_owned(),
+						dest: m.sender_id,
+						method: m.method,
+						body: serde_json::to_string(&hash).unwrap(),
+					}
+				}
 				"get_outputs_from_node" => self.get_outputs_from_node(m)?,
 				"get_outputs_by_pmmr_index" => self.get_outputs_by_pmmr_index(m)?,
 				"height_range_to_pmmr_indices" => self.height_range_to_pmmr_indices(m)?,
@@ -466,6 +481,21 @@ impl NodeClient for LocalWalletClient {
 		Ok((split[0].parse::<u64>().unwrap(), split[1].to_owned()))
 	}
 
+	fn get_header_hash(&self, height: u64) -> Result<String, libwallet::Error> {
+		let message = WalletProxyMessage {
+			sender_id: self.id.clone(),
+			dest: self.node_url().to_owned(),
+			method: "get_header_hash".to_owned(),
+			body: height.to_string(),
+		};
+		let error = || libwallet::Error::ClientCallback("Get header hash failed".to_owned());
+		self.proxy_tx.lock().send(message).map_err(|_| error())?;
+		let message = self.rx.lock().recv().map_err(|_| error())?;
+		serde_json::from_str::<Option<String>>(&message.body)
+			.map_err(|_| error())?
+			.ok_or_else(error)
+	}
+
 	/// Retrieve outputs from node
 	fn get_outputs_from_node(
 		&self,
@@ -490,7 +520,8 @@ impl NodeClient for LocalWalletClient {
 		}
 		let r = self.rx.lock();
 		let m = r.recv().unwrap();
-		let outputs: Vec<api::Output> = serde_json::from_str(&m.body).unwrap();
+		let outputs: Vec<api::Output> = serde_json::from_str(&m.body)
+			.map_err(|_| libwallet::Error::ClientCallback("Invalid outputs response".to_owned()))?;
 		let mut api_outputs: HashMap<pedersen::Commitment, (String, u64, u64)> = HashMap::new();
 		for out in outputs {
 			api_outputs.insert(

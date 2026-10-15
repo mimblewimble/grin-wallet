@@ -158,6 +158,9 @@ pub trait NodeClient: Send + Sync + Clone {
 	/// retrieves the current tip (height, hash) from the specified grin node
 	fn get_chain_tip(&self) -> Result<(u64, String), Error>;
 
+	/// Header hash at the given height
+	fn get_header_hash(&self, height: u64) -> Result<String, Error>;
+
 	/// Get a kernel and the height of the block it's included in. Returns
 	/// (tx_kernel, height, mmr_index)
 	fn get_kernel(
@@ -644,6 +647,23 @@ pub struct TxLogEntry {
 	/// confirmed (In all cases either all outputs involved in a tx should be
 	/// confirmed, or none should be; otherwise there's a deeper problem)
 	pub confirmed: bool,
+	/// Observed confirmation height
+	/// Older entries may have no height
+	/// Known kernels are rechecked within the reorg window
+	/// Restored entries are rechecked through their outputs
+	/// Their height becomes unknown if the output is no longer on the node
+	#[serde(default)]
+	pub confirmed_height: Option<u64>,
+	/// Last known kernel height for bounded rechecks
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub last_known_kernel_height: Option<u64>,
+	/// Restored output commitment; locking an output changes its tx_log_entry
+	#[serde(
+		with = "secp_ser::option_commitment_serde",
+		default,
+		skip_serializing_if = "Option::is_none"
+	)]
+	pub restored_output: Option<pedersen::Commitment>,
 	/// number of inputs involved in TX
 	pub num_inputs: usize,
 	/// number of outputs involved in TX
@@ -706,6 +726,9 @@ impl TxLogEntry {
 			creation_ts: Utc::now(),
 			confirmation_ts: None,
 			confirmed: false,
+			confirmed_height: None,
+			last_known_kernel_height: None,
+			restored_output: None,
 			amount_credited: 0,
 			amount_debited: 0,
 			num_inputs: 0,
@@ -969,6 +992,7 @@ mod tests {
 	use super::*;
 	use grin_core::ser::{DeserializationMode, ProtocolVersion, Readable, Reader, StreamingReader};
 	use grin_keychain::{ExtKeychain, ExtKeychainPath};
+	use grin_util::static_secp_instance;
 	use serde_json::Value;
 
 	#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -1009,6 +1033,26 @@ mod tests {
 
 		let none2 = serde_json::from_str::<TestSer>("{}").unwrap();
 		assert_eq!(none, none2);
+	}
+
+	#[test]
+	fn legacy_tx_log() {
+		let parent = ExtKeychainPath::new(1, 0, 0, 0, 0).to_identifier();
+		let tx = TxLogEntry::new(parent, TxLogEntryType::TxReceived, 0);
+		let mut value = serde_json::to_value(tx).unwrap();
+		value.as_object_mut().unwrap().remove("confirmed_height");
+
+		let tx: TxLogEntry = serde_json::from_value(value).unwrap();
+		assert_eq!(tx.confirmed_height, None);
+		assert_eq!(tx.last_known_kernel_height, None);
+		assert_eq!(tx.restored_output, None);
+		let mut tx = tx;
+		tx.last_known_kernel_height = Some(42);
+		tx.restored_output = Some(static_secp_instance().lock().commit_value(1).unwrap());
+		let restored: TxLogEntry =
+			serde_json::from_slice(&serde_json::to_vec(&tx).unwrap()).unwrap();
+		assert_eq!(restored.last_known_kernel_height, Some(42));
+		assert_eq!(restored.restored_output, tx.restored_output);
 	}
 
 	#[test]

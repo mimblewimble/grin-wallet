@@ -160,6 +160,12 @@ impl NodeClient for HTTPNodeClient {
 		Ok((result.height, result.last_block_pushed))
 	}
 
+	fn get_header_hash(&self, height: u64) -> Result<String, libwallet::Error> {
+		let header: api::BlockHeaderPrintable =
+			self.send_json_request("get_header", &json!([height, null, null]))?;
+		Ok(header.hash)
+	}
+
 	/// Get kernel implementation
 	fn get_kernel(
 		&mut self,
