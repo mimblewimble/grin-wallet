@@ -15,7 +15,6 @@
 use crate::blake2;
 use core::num::NonZeroU32;
 use rand::{thread_rng, Rng};
-use serde_json;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -39,17 +38,24 @@ impl WalletSeed {
 		WalletSeed(bytes.to_vec())
 	}
 
+	pub(super) fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
+
 	pub fn from_mnemonic(word_list: util::ZeroingString) -> Result<WalletSeed, Error> {
 		let res = mnemonic::to_entropy(&word_list);
 		match res {
 			Ok(s) => Ok(WalletSeed::from_bytes(&s)),
-			Err(_) => Err(Error::Mnemonic.into()),
+			Err(mnemonic::Error::BadWord(_)) => {
+				Err(Error::Mnemonic("invalid bip39 word".to_owned()))
+			}
+			Err(e) => Err(Error::Mnemonic(format!("{}", e))),
 		}
 	}
 
 	pub fn _from_hex(hex: &str) -> Result<WalletSeed, Error> {
-		let bytes = util::from_hex(&hex.to_string())
-			.map_err(|_| Error::GenericError("Invalid hex".to_owned()))?;
+		let bytes =
+			util::from_hex(hex).map_err(|_| Error::GenericError("Invalid hex".to_owned()))?;
 		Ok(WalletSeed::from_bytes(&bytes))
 	}
 
@@ -61,7 +67,7 @@ impl WalletSeed {
 		let result = mnemonic::from_entropy(&self.0);
 		match result {
 			Ok(r) => Ok(r),
-			Err(_) => Err(Error::Mnemonic.into()),
+			Err(e) => Err(Error::Mnemonic(format!("{}", e))),
 		}
 	}
 
@@ -76,14 +82,14 @@ impl WalletSeed {
 	}
 
 	pub fn init_new(
-		seed_length: usize,
+		entropy_size: usize,
 		test_mode: bool,
 		password: Option<util::ZeroingString>,
-	) -> WalletSeed {
+	) -> Result<WalletSeed, Error> {
 		let mut seed: Vec<u8> = vec![];
 		let mut rng = thread_rng();
 		if !test_mode {
-			for _ in 0..seed_length {
+			for _ in 0..entropy_size {
 				seed.push(rng.gen());
 			}
 		} else {
@@ -93,7 +99,10 @@ impl WalletSeed {
 				.as_bytes()
 				.to_vec();
 		}
-		WalletSeed(seed)
+		let _ = mnemonic::from_entropy(seed.as_slice())
+			.map(util::ZeroingString::from)
+			.map_err(|e| Error::Mnemonic(format!("{}", e)))?;
+		Ok(WalletSeed(seed))
 	}
 
 	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
@@ -126,7 +135,9 @@ impl WalletSeed {
 		}
 		path.push(backup_seed_file_name.clone());
 		if fs::rename(seed_file_name, backup_seed_file_name.as_str()).is_err() {
-			return Err(Error::GenericError("Can't rename wallet seed file".to_owned()).into());
+			return Err(Error::GenericError(
+				"Can't rename wallet seed file".to_owned(),
+			));
 		}
 		warn!("{} backed up as {}", seed_file_name, backup_seed_file_name);
 		Ok(backup_seed_file_name)
@@ -153,14 +164,13 @@ impl WalletSeed {
 				data_file_dir.to_owned(),
 				"To create a new wallet from a recovery phrase, use 'grin-wallet init -r'"
 					.to_owned(),
-			)
-			.into());
+			));
 		}
 		let seed = WalletSeed::from_mnemonic(word_list)?;
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).map_err(|_| Error::Format)?;
 		let mut file = File::create(seed_file_path).map_err(|_| Error::IO)?;
-		file.write_all(&enc_seed_json.as_bytes())
+		file.write_all(enc_seed_json.as_bytes())
 			.map_err(|_| Error::IO)?;
 		warn!("Seed created from word list");
 		Ok(())
@@ -168,7 +178,7 @@ impl WalletSeed {
 
 	pub fn init_file(
 		data_file_dir: &str,
-		seed_length: usize,
+		entropy_size: usize,
 		recovery_phrase: Option<util::ZeroingString>,
 		password: util::ZeroingString,
 		test_mode: bool,
@@ -193,13 +203,13 @@ impl WalletSeed {
 
 		let seed = match recovery_phrase {
 			Some(p) => WalletSeed::from_mnemonic(p)?,
-			None => WalletSeed::init_new(seed_length, test_mode, Some(password.clone())),
+			None => WalletSeed::init_new(entropy_size, test_mode, Some(password.clone()))?,
 		};
 
 		let enc_seed = EncryptedWalletSeed::from_seed(&seed, password)?;
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).map_err(|_| Error::Format)?;
 		let mut file = File::create(seed_file_path).map_err(|_| Error::IO)?;
-		file.write_all(&enc_seed_json.as_bytes())
+		file.write_all(enc_seed_json.as_bytes())
 			.map_err(|_| Error::IO)?;
 		Ok(seed)
 	}
@@ -277,7 +287,7 @@ impl EncryptedWalletSeed {
 		let password = password.as_bytes();
 		let mut key = [0; 32];
 		pbkdf2::derive(
-			ring::pbkdf2::PBKDF2_HMAC_SHA512,
+			pbkdf2::PBKDF2_HMAC_SHA512,
 			NonZeroU32::new(100).unwrap(),
 			&salt,
 			password,
@@ -297,7 +307,7 @@ impl EncryptedWalletSeed {
 			aad,
 			&mut enc_bytes,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(Error::Encryption);
 		}
 
@@ -325,7 +335,7 @@ impl EncryptedWalletSeed {
 		let password = password.as_bytes();
 		let mut key = [0; 32];
 		pbkdf2::derive(
-			ring::pbkdf2::PBKDF2_HMAC_SHA512,
+			pbkdf2::PBKDF2_HMAC_SHA512,
 			NonZeroU32::new(100).unwrap(),
 			&salt,
 			password,
@@ -342,7 +352,7 @@ impl EncryptedWalletSeed {
 			aad,
 			&mut encrypted_seed,
 		);
-		if let Err(_) = res {
+		if res.is_err() {
 			return Err(Error::Encryption);
 		}
 		for _ in 0..aead::AES_256_GCM.tag_len() {
@@ -359,8 +369,12 @@ mod tests {
 	use crate::util::ZeroingString;
 	#[test]
 	fn wallet_seed_encrypt() {
+		// Wrong entropy size.
+		let wrong_entropy_size = WalletSeed::init_new(31, false, None).err();
+		assert!(wrong_entropy_size.is_some());
+
 		let password = ZeroingString::from("passwoid");
-		let wallet_seed = WalletSeed::init_new(32, false, None);
+		let wallet_seed = WalletSeed::init_new(32, false, None).unwrap();
 		let mut enc_wallet_seed =
 			EncryptedWalletSeed::from_seed(&wallet_seed, password.clone()).unwrap();
 		println!("EWS: {:?}", enc_wallet_seed);

@@ -37,7 +37,7 @@ use std::convert::TryInto;
 /// # Example
 ///
 /// ```
-///	use grin_wallet_libwallet::mwixnet::onion_util::write_optional;
+///    use grin_wallet_libwallet::mwixnet::onion_util::write_optional;
 /// let mut writer:Vec<u8> = vec![];
 /// let optional_value: Option<u32> = Some(10);
 /// //write_optional(&mut writer, &optional_value);
@@ -75,7 +75,7 @@ pub fn write_optional<O: Writeable, W: Writer>(
 /// # Example
 ///
 /// ```
-///	use grin_wallet_libwallet::mwixnet::onion_util::read_optional;
+///    use grin_wallet_libwallet::mwixnet::onion_util::read_optional;
 /// use grin_core::ser::{BinReader, ProtocolVersion, DeserializationMode};
 /// let mut buf: &[u8] = &[1, 0, 0, 0, 10];
 /// let mut reader = BinReader::new(&mut buf, ProtocolVersion::local(), DeserializationMode::default());
@@ -100,18 +100,18 @@ pub fn read_optional<O: Readable, R: Reader>(reader: &mut R) -> Result<Option<O>
 /// # Returns
 ///
 /// * If successful, returns an `Ok` wrapping an array of size `S` containing
-/// the first `S` bytes of `vec`.
+///   the first `S` bytes of `vec`.
 /// * If `vec` is smaller than `S`, returns an `Err` indicating a count error.
 ///
 /// # Example
 ///
 /// ```
-///	use grin_wallet_libwallet::mwixnet::onion_util::vec_to_array;
+///    use grin_wallet_libwallet::mwixnet::onion_util::vec_to_array;
 /// let v = vec![0, 1, 2, 3, 4, 5];
 /// let a = vec_to_array::<4>(&v).unwrap();
 /// assert_eq!(a, [0, 1, 2, 3]);
 /// ```
-pub fn vec_to_array<const S: usize>(vec: &Vec<u8>) -> Result<[u8; S], ser::Error> {
+pub fn vec_to_array<const S: usize>(vec: &[u8]) -> Result<[u8; S], ser::Error> {
 	if vec.len() < S {
 		return Err(ser::Error::CountError);
 	}

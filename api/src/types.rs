@@ -18,7 +18,6 @@ use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, ToHex};
 use ed25519_dalek::SigningKey as DalekSecretKey;
 
-use base64;
 use rand::{thread_rng, Rng};
 use ring::aead;
 use serde_json::{self, Value};
@@ -90,8 +89,10 @@ impl EncryptedBody {
 			aad,
 			&mut to_encrypt,
 		);
-		if let Err(_) = res {
-			return Err(Error::APIEncryption("EncryptedBody: encryption failed".to_owned()).into());
+		if res.is_err() {
+			return Err(Error::APIEncryption(
+				"EncryptedBody: encryption failed".to_owned(),
+			));
 		}
 
 		Ok(EncryptedBody {
@@ -129,8 +130,7 @@ impl EncryptedBody {
 		if nonce.len() < 12 {
 			return Err(Error::APIEncryption(
 				"EncryptedBody Dec: Invalid Nonce length".to_string(),
-			)
-			.into());
+			));
 		}
 		let mut n = [0u8; 12];
 		n.copy_from_slice(&nonce[0..12]);
@@ -139,8 +139,10 @@ impl EncryptedBody {
 		let aad = aead::Aad::from(&[]);
 		let res =
 			opening_key.open_in_place(aead::Nonce::assume_unique_for_key(n), aad, &mut to_decrypt);
-		if let Err(_) = res {
-			return Err(Error::APIEncryption("EncryptedBody: decryption failed".to_owned()).into());
+		if res.is_err() {
+			return Err(Error::APIEncryption(
+				"EncryptedBody: decryption failed".to_owned(),
+			));
 		}
 		for _ in 0..aead::AES_256_GCM.tag_len() {
 			to_decrypt.pop();
@@ -148,8 +150,8 @@ impl EncryptedBody {
 
 		let decrypted = String::from_utf8(to_decrypt)
 			.map_err(|_| Error::APIEncryption("EncryptedBody Dec: Invalid UTF-8".to_string()))?;
-		Ok(serde_json::from_str(&decrypted)
-			.map_err(|_| Error::APIEncryption("EncryptedBody Dec: Invalid JSON".to_string()))?)
+		serde_json::from_str(&decrypted)
+			.map_err(|_| Error::APIEncryption("EncryptedBody Dec: Invalid JSON".to_string()))
 	}
 }
 
@@ -275,9 +277,9 @@ impl EncryptionErrorResponse {
 	pub fn new(id: u64, code: i32, message: &str) -> Self {
 		EncryptionErrorResponse {
 			jsonrpc: "2.0".to_owned(),
-			id: id,
+			id,
 			error: EncryptionError {
-				code: code,
+				code,
 				message: message.to_owned(),
 			},
 		}

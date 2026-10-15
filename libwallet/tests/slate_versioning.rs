@@ -15,7 +15,7 @@
 
 use grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight};
 use grin_core::core::FeeFields;
-use grin_wallet_libwallet::{Slate, SlateVersion, Slatepacker, SlatepackerArgs, VersionedSlate};
+use grin_wallet_libwallet::{Slate, SlateVersion, VersionedSlate};
 
 #[test]
 fn roundtrip() {
@@ -31,11 +31,6 @@ fn roundtrip() {
 			relative_height: NRDRelativeHeight::new(10).unwrap(),
 		},
 	];
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		recipients: vec![],
-		dec_key: None,
-	});
 
 	for expected_features in features {
 		let slate = Slate::blank_with_kernel_features(2, false, expected_features).unwrap();
@@ -52,11 +47,11 @@ fn roundtrip() {
 		);
 
 		if matches!(expected_features, KernelFeatures::NoRecentDuplicate { .. }) {
-			assert!(packer.create_slatepack(&slate).is_err());
+			assert!(slate.create_slatepack(None, vec![]).is_err());
 			continue;
 		}
-		let slatepack = packer.create_slatepack(&slate).unwrap();
-		let slatepack_slate = packer.get_slate(&slatepack).unwrap();
+		let slatepack = slate.create_slatepack(None, vec![]).unwrap();
+		let slatepack_slate = slatepack.get_slate().unwrap();
 		assert_eq!(slatepack_slate.kernel_features_args, expected_args);
 		assert_eq!(
 			slatepack_slate.tx.unwrap().kernels()[0].features,
@@ -72,21 +67,16 @@ fn binary_features() {
 		lock_height: 10,
 	};
 	let slate = Slate::blank_with_kernel_features(2, false, features).unwrap();
-	let packer = Slatepacker::new(SlatepackerArgs {
-		sender: None,
-		recipients: vec![],
-		dec_key: None,
-	});
-	let mut slatepack = packer.create_slatepack(&slate).unwrap();
+	let mut slatepack = slate.create_slatepack(None, vec![]).unwrap();
 
 	// Feature byte after version, UUID, state, offset and optional field flags
 	assert_eq!(slatepack.payload[54], KernelFeatures::HEIGHT_LOCKED_U8);
 	slatepack.payload[54] = KernelFeatures::NO_RECENT_DUPLICATE_U8;
-	let error = packer.get_slate(&slatepack).unwrap_err();
+	let error = slatepack.get_slate().unwrap_err();
 	assert!(error.to_string().contains("NRD kernels are not supported"));
 
 	slatepack.payload[..2].copy_from_slice(&5u16.to_be_bytes());
-	let error = packer.get_slate(&slatepack).unwrap_err();
+	let error = slatepack.get_slate().unwrap_err();
 	assert!(error.to_string().contains("unsupported protocol version"));
 }
 

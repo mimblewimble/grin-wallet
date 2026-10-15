@@ -20,12 +20,9 @@ use crate::core::core::{Output, Transaction, TxKernel};
 use crate::core::{consensus, global, pow};
 use crate::libwallet;
 use crate::libwallet::api_impl::{foreign, owner};
-use crate::libwallet::{
-	BlockFees, InitTxArgs, NodeClient, WalletInfo, WalletInst, WalletLCProvider,
-};
+use crate::libwallet::{BlockFees, InitTxArgs, NodeClient, WalletInfo, WalletLCProvider};
 use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen;
-use crate::util::Mutex;
 use chrono::Duration;
 use grin_keychain::Keychain;
 use std::sync::Arc;
@@ -54,7 +51,7 @@ fn get_kernel_local(
 	max_height: Option<u64>,
 ) -> Option<api::LocatedTxKernel> {
 	chain
-		.get_kernel_height(&excess, min_height, max_height)
+		.get_kernel_height(excess, min_height, max_height)
 		.unwrap()
 		.map(|(tx_kernel, height, mmr_index)| api::LocatedTxKernel {
 			tx_kernel,
@@ -147,7 +144,7 @@ pub fn create_block_for_wallet<'a, L, C, K>(
 	chain: &Chain,
 	prev: core::core::BlockHeader,
 	txs: &[Transaction],
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<core::core::Block, libwallet::Error>
 where
@@ -178,7 +175,7 @@ where
 pub fn award_block_to_wallet<'a, L, C, K>(
 	chain: &Chain,
 	txs: &[Transaction],
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<(), libwallet::Error>
 where
@@ -200,7 +197,7 @@ pub fn process_block(chain: &Chain, block: core::core::Block) {
 /// Award a blocks to a wallet directly
 pub fn award_blocks_to_wallet<'a, L, C, K>(
 	chain: &Chain,
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	number: usize,
 	pause_between: bool,
@@ -221,7 +218,7 @@ where
 
 /// send an amount to a destination
 pub fn send_to_dest<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	client: LocalWalletClient,
 	dest: &str,
@@ -261,7 +258,7 @@ where
 
 /// get wallet info totals
 pub fn wallet_info<'a, L, C, K>(
-	wallet: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet: grin_wallet_libwallet::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 ) -> Result<WalletInfo, libwallet::Error>
 where

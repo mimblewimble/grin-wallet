@@ -19,7 +19,6 @@ use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,6 +31,7 @@ lazy_static! {
 }
 
 #[derive(Clone, Eq, thiserror::Error, PartialEq, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
 	#[error("Internal error: {0}")]
 	Internal(String),
@@ -76,7 +76,7 @@ impl Client {
 
 		if let Some(p) = proxy {
 			let (addr, scheme) = p;
-			let proxy = Proxy::all(&format!("{}{}:{}", scheme, addr.ip(), addr.port()))
+			let proxy = Proxy::all(format!("{}{}:{}", scheme, addr.ip(), addr.port()))
 				.map_err(|e| Error::Internal(format!("Unable to create proxy: {}", e)))?;
 			builder = builder.proxy(proxy);
 		}
@@ -91,7 +91,7 @@ impl Client {
 	/// Helper function to easily issue a HTTP GET request against a given URL that
 	/// returns a JSON object. Handles request building, JSON deserialization and
 	/// response code checking.
-	pub fn _get<'a, T>(&self, url: &'a str, api_secret: Option<String>) -> Result<T, Error>
+	pub fn _get<T>(&self, url: &str, api_secret: Option<String>) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de>,
 	{
@@ -101,11 +101,7 @@ impl Client {
 	/// Helper function to easily issue an async HTTP GET request against a given
 	/// URL that returns a future. Handles request building, JSON deserialization
 	/// and response code checking.
-	pub async fn _get_async<'a, T>(
-		&self,
-		url: &'a str,
-		api_secret: Option<String>,
-	) -> Result<T, Error>
+	pub async fn _get_async<T>(&self, url: &str, api_secret: Option<String>) -> Result<T, Error>
 	where
 		for<'de> T: Deserialize<'de> + Send + 'static,
 	{
@@ -225,7 +221,7 @@ impl Client {
 		IN: Serialize,
 	{
 		let json = serde_json::to_string(input)
-			.map_err(|_| Error::Internal("Could not serialize data to JSON".to_owned()))?;
+			.map_err(|e| Error::Internal(format!("Could not serialize data to JSON: {}", e)))?;
 		self.build_request(url, Method::POST, api_secret, Some(json))
 	}
 
@@ -235,7 +231,7 @@ impl Client {
 	{
 		let data = self.send_request(req)?;
 		serde_json::from_str(&data)
-			.map_err(|_| Error::ResponseError("Cannot parse response".to_owned()))
+			.map_err(|e| Error::ResponseError(format!("Cannot parse response: {}", e)))
 	}
 
 	async fn handle_request_async<T>(&self, req: RequestBuilder) -> Result<T, Error>
@@ -244,7 +240,7 @@ impl Client {
 	{
 		let data = self.send_request_async(req).await?;
 		let ser = serde_json::from_str(&data)
-			.map_err(|_| Error::ResponseError("Cannot parse response".to_owned()))?;
+			.map_err(|e| Error::ResponseError(format!("Cannot parse response: {}", e)))?;
 		Ok(ser)
 	}
 
@@ -253,6 +249,10 @@ impl Client {
 			.send()
 			.await
 			.map_err(|e| Error::RequestError(format!("Cannot make request: {}", e)))?;
+		let status = resp.status();
+		if status.is_client_error() || status.is_server_error() {
+			return Err(Error::ResponseError(format!("HTTP {}", status)));
+		}
 		let text = resp
 			.text()
 			.await
@@ -261,7 +261,7 @@ impl Client {
 	}
 
 	pub fn send_request(&self, req: RequestBuilder) -> Result<String, Error> {
-		// This client is currently used both outside and inside of a tokio runtime
+		// This client is currently used both outside and inside the tokio runtime
 		// context. In the latter case we are not allowed to do a blocking call to
 		// our global runtime, which unfortunately means we have to spawn a new thread
 		if Handle::try_current().is_ok() {
@@ -272,6 +272,56 @@ impl Client {
 				.unwrap()
 		} else {
 			RUNTIME.block_on(self.send_request_async(req))
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+	use tokio::net::TcpListener;
+
+	#[tokio::test]
+	async fn http_status() {
+		let client = Client {
+			client: ClientBuilder::new()
+				.no_proxy()
+				.timeout(Duration::from_secs(5))
+				.build()
+				.unwrap(),
+		};
+		for (status, body, expected) in [
+			("200 OK", "{}", Ok(serde_json::json!({}))),
+			(
+				"401 Unauthorized",
+				"<html>Unauthorized</html>",
+				Err(Error::ResponseError("HTTP 401 Unauthorized".into())),
+			),
+		] {
+			let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+			let url = format!("http://{}", listener.local_addr().unwrap());
+			let server = tokio::spawn(async move {
+				let (mut stream, _) = listener.accept().await.unwrap();
+				let mut headers = BufReader::new(&mut stream).lines();
+				while let Some(line) = headers.next_line().await.unwrap() {
+					if line.is_empty() {
+						break;
+					}
+				}
+				let response = format!(
+					"HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+					status,
+					body.len(),
+					body
+				);
+				stream.write_all(response.as_bytes()).await.unwrap();
+			});
+			assert_eq!(
+				client._get_async::<serde_json::Value>(&url, None).await,
+				expected
+			);
+			server.await.unwrap();
 		}
 	}
 }

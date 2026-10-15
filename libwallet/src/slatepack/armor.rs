@@ -29,9 +29,11 @@ use std::str;
 
 use super::types::{Slatepack, SlatepackBin};
 
-// Framing and formatting for slate armor
+/// Slatepack file header.
 pub static HEADER: &str = "BEGINSLATEPACK.";
-static FOOTER: &str = ". ENDSLATEPACK.";
+/// Slatepack file footer.
+pub static FOOTER: &str = ". ENDSLATEPACK.";
+
 const WORD_LENGTH: usize = 15;
 const WORDS_PER_LINE: usize = 200;
 const WEIGHT_RATIO: u64 = 32;
@@ -50,11 +52,9 @@ pub fn min_size() -> u64 {
 }
 
 lazy_static! {
-	static ref HEADER_REGEX: Regex =
-		Regex::new(concat!(r"^[>\n\r\t ]*BEGINSLATEPACK[>\n\r\t ]*$")).unwrap();
-	static ref FOOTER_REGEX: Regex =
-		Regex::new(concat!(r"^[>\n\r\t ]*ENDSLATEPACK[>\n\r\t ]*$")).unwrap();
-	static ref WHITESPACE_LIST: [u8; 5] = [b'>', b'\n', b'\r', b'\t', b' '];
+	static ref HEADER_REGEX: Regex = Regex::new(r"^[>\n\r\t ]*BEGINSLATEPACK[>\n\r\t ]*$").unwrap();
+	static ref FOOTER_REGEX: Regex = Regex::new(r"^[>\n\r\t ]*ENDSLATEPACK[>\n\r\t ]*$").unwrap();
+	static ref WHITESPACE_LIST: [u8; 5] = *b">\n\r\t ";
 }
 
 /// Wrapper for associated functions

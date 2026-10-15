@@ -19,7 +19,7 @@ extern crate log;
 
 extern crate grin_wallet;
 
-use grin_wallet_api::{ECDHPubkey, JsonId};
+use grin_wallet_api::{ECDHPubkey, JsonId, Owner};
 use grin_wallet_impls::test_framework::{self, LocalWalletClient, WalletProxy};
 
 use clap::App;
@@ -30,7 +30,6 @@ use grin_keychain::ExtKeychain;
 use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_impls::DefaultLCProvider;
 use grin_wallet_libwallet::{InitTxArgs, Slate, SlateVersion, VersionedSlate};
-use serde_json;
 
 use grin_util::Mutex;
 use std::path::PathBuf;
@@ -55,6 +54,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let app = App::from_yaml(yml);
 
 	// Create a new proxy to simulate server and wallet responses
+	#[allow(clippy::type_complexity)]
 	let wallet_proxy_a: Arc<
 		Mutex<
 			WalletProxy<
@@ -64,7 +64,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			>,
 		>,
 	> = Arc::new(Mutex::new(WalletProxy::new(test_dir)));
-	let (chain, wallet2, mask2_i) = {
+	let (chain, wallet2, mask2_i, config2) = {
 		let mut wallet_proxy = wallet_proxy_a.lock();
 		let chain = wallet_proxy.chain.clone();
 
@@ -118,11 +118,11 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 			)
 			.unwrap();
 		});
-		(chain, wallet2, mask2_i)
+		(chain, wallet2, mask2_i, config2)
 	};
 	// give a bit for wallet to init and populate proxy with wallet via callback in thread above
 	thread::sleep(Duration::from_millis(500));
-	let mask2 = (&mask2_i).as_ref();
+	let mask2 = mask2_i.as_ref();
 	let wallet_proxy = wallet_proxy_a.clone();
 
 	// Set the wallet proxy listener running
@@ -148,18 +148,24 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let value: ECDHPubkey = res.unwrap();
 	let shared_key = derive_ecdh_key(sec_key_str, &value.ecdh_pubkey);
 
-	// 2) get the top level directory, should default to ~/.grin/auto
+	// 2) get the top level directory
 	let req = include_str!("data/v3_reqs/get_top_level.req.json");
 	let res = send_request_enc::<String>(
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 2: {:?}", res);
 	assert!(res.is_ok());
-	assert!(res.unwrap().contains("auto"));
+	assert_eq!(
+		PathBuf::from(res.unwrap()).canonicalize().unwrap(),
+		PathBuf::from(test_dir)
+			.join("wallet1_bootstrap")
+			.canonicalize()
+			.unwrap()
+	);
 
 	// 3) now set the top level directory to our test wallet dir
 	let req = serde_json::json!({
@@ -186,7 +192,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 4: {:?}", res);
@@ -220,7 +226,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 5: {:?}", res);
@@ -232,7 +238,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 6: {:?}", res);
@@ -244,7 +250,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 7: {:?}", res);
@@ -256,7 +262,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 8: {:?}", res);
@@ -313,7 +319,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 11: {:?}", res);
@@ -347,7 +353,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 13: {:?}", res);
@@ -402,27 +408,20 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 	let mut slate: Slate = res.unwrap().into();
 
 	// give this slate over to wallet 2 manually
-	grin_wallet_controller::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = InitTxArgs {
-				src_acct_name: None,
-				amount: slate.amount,
-				minimum_confirmations: 1,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: false,
-				..Default::default()
-			};
-			let res = api.process_invoice_tx(m, &slate, args);
-			assert!(res.is_ok());
-			slate = res.unwrap();
-			api.tx_lock_outputs(m, &slate)?;
-			Ok(())
-		},
-	)?;
+	let api2 = Owner::new(wallet2.clone(), None, config2.config_file_path.clone());
+	let args = InitTxArgs {
+		src_acct_name: None,
+		amount: slate.amount,
+		minimum_confirmations: 1,
+		max_outputs: 500,
+		num_change_outputs: 1,
+		selection_strategy_is_use_all: false,
+		..Default::default()
+	};
+	let res = api2.process_invoice_tx(mask2, &slate, args);
+	assert!(res.is_ok());
+	slate = res?;
+	api2.tx_lock_outputs(mask2, &slate)?;
 
 	//16) Finalize the invoice tx (to foreign api)
 	// (Tests that foreign API on same port also has its stored mask updated)
@@ -445,7 +444,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 17: {:?}", res);
@@ -456,7 +455,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 17a: {:?}", res);
@@ -468,7 +467,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 18: {:?}", res);
@@ -586,7 +585,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	assert!(res.is_ok());
@@ -596,7 +595,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 24: {:?}", res);
@@ -608,7 +607,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 25: {:?}", res);
@@ -620,7 +619,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 26: {:?}", res);
@@ -632,7 +631,7 @@ fn owner_v3_lifecycle() -> Result<(), grin_wallet_controller::Error> {
 		&JsonId::StrId(String::from("1")),
 		1,
 		"http://127.0.0.1:43420/v3/owner",
-		&req,
+		req,
 		&shared_key,
 	)?;
 	println!("RES 27: {:?}", res);

@@ -131,7 +131,7 @@ pub fn create_onion_service_pub_key_file(
 pub fn create_onion_service_hostname_file(os_directory: &str, hostname: &str) -> Result<(), Error> {
 	let file_path = &format!("{}{}{}", os_directory, MAIN_SEPARATOR, HOSTNAME_FILE);
 	let mut file = File::create(file_path).map_err(|_| Error::IO)?;
-	file.write_all(&format!("{}.onion\n", hostname).as_bytes())
+	file.write_all(format!("{}.onion\n", hostname).as_bytes())
 		.map_err(|_| Error::IO)?;
 	Ok(())
 }
@@ -228,7 +228,7 @@ pub fn output_tor_listener_config(
 	let mut service_dirs = vec![];
 
 	for k in listener_keys {
-		let service_dir = output_onion_service_config(tor_config_directory, &k)?;
+		let service_dir = output_onion_service_config(tor_config_directory, k)?;
 		service_dirs.push(service_dir.to_string());
 	}
 
@@ -253,7 +253,7 @@ pub fn output_tor_sender_config(
 	hm_tor_proxy: HashMap<String, String>,
 ) -> Result<(), Error> {
 	// create data directory if it doesn't exist
-	fs::create_dir_all(&tor_config_dir).map_err(|_| Error::IO)?;
+	fs::create_dir_all(tor_config_dir).map_err(|_| Error::IO)?;
 
 	output_torrc(
 		tor_config_dir,
@@ -272,7 +272,7 @@ pub fn is_tor_address(input: &str) -> Result<(), Error> {
 		Ok(_) => Ok(()),
 		Err(e) => {
 			let msg = format!("{:?}", e);
-			Err(Error::NotOnion(msg).into())
+			Err(Error::NotOnion(msg))
 		}
 	}
 }
