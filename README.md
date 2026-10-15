@@ -36,6 +36,13 @@ cargo build --release
 ./target/release/grin-wallet
 ```
 
+The wallet can start a Grin node in the same process and use its API:
+```
+./target/release/grin-wallet --embedded-node <wallet-command>
+```
+The embedded node uses the normal `grin-server.toml` lookup. Pass a specific
+configuration with `--node-config <path>`.
+
 ## License
 
 Apache License v2.0
