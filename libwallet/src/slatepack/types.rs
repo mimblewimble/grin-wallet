@@ -12,22 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bech32::{self, ToBase32};
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-/// Slatepack Types + Serialization implementation
-use ed25519_dalek::SigningKey as edSecretKey;
-use sha2::{Digest, Sha512};
-use x25519_dalek::StaticSecret;
-
-use crate::dalek_ser;
+use super::SlatepackAddress;
 use crate::Error;
+use crate::{dalek_ser, Slate, SlatepackArmor, VersionedBinSlate};
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use grin_wallet_util::byte_ser;
 
-use super::SlatepackAddress;
-
+use bech32::{self, ToBase32};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use ed25519_dalek::SigningKey as edSecretKey;
+use sha2::{Digest, Sha512};
 use std::fmt;
 use std::io::{Cursor, Read, Write};
+use x25519_dalek::StaticSecret;
 
 pub const SLATEPACK_MAJOR_VERSION: u8 = 1;
 pub const SLATEPACK_MINOR_VERSION: u8 = 0;
@@ -260,6 +257,52 @@ impl Slatepack {
 			);
 		}
 	}
+
+	/// Return/upgrade slate from slatepack.
+	pub fn get_slate(&self) -> Result<Slate, Error> {
+		if self.mode == 1 {
+			return Err(Error::SlatepackDecryption(
+				"Slatepack payload is encrypted".into(),
+			));
+		}
+		let slate_bin = byte_ser::from_bytes::<VersionedBinSlate>(&self.payload).map_err(|e| {
+			error!("Error reading slate from armored slatepack: {}", e);
+			let msg = format!("{}", e);
+			Error::SlatepackDeser(msg)
+		})?;
+		Slate::upgrade(slate_bin.into())
+	}
+
+	/// Armor this slatepack.
+	pub fn armor(&self) -> Result<String, Error> {
+		SlatepackArmor::encode(self)
+	}
+}
+
+/// Slatepack address derivation path index
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SlatepackAddressIndex(pub u32);
+
+impl SlatepackAddressIndex {
+	/// The max BIP32 index.
+	pub const MAX: u32 = 2_147_483_647;
+
+	/// Check the index range
+	pub fn check(self) -> Result<Self, Error> {
+		if self.0 > Self::MAX {
+			return Err(Error::SlatepackAddress(format!(
+				"Slatepack index {} is out of bound, maximum value is {}",
+				self.0,
+				Self::MAX
+			)));
+		}
+		Ok(self)
+	}
+
+	/// Index value.
+	pub fn value(self) -> u32 {
+		self.0
+	}
 }
 
 /// Wrapper for outputting slate as binary
@@ -335,7 +378,7 @@ impl Writeable for SlatepackBin {
 		};
 
 		// encrypted metadata is only included in the payload
-		// on encryption, and is not serialised here
+		// on encryption, and is not serialized here
 
 		// Now write payload (length prefixed)
 		writer.write_bytes(sp.payload.clone())
@@ -684,7 +727,7 @@ fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Erro
 
 // ensure that a slatepack with unknown data in the optional fields can be read
 #[test]
-fn slatepack_bin_future() -> Result<(), grin_wallet_util::byte_ser::Error> {
+fn slatepack_bin_future() -> Result<(), byte_ser::Error> {
 	use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 	use grin_core::global;
 	use grin_wallet_util::byte_ser;
@@ -907,4 +950,17 @@ fn slatepack_decrypt_rejects_malformed_plaintexts() -> Result<(), Error> {
 	}
 
 	Ok(())
+}
+
+#[test]
+fn index_bounds() {
+	for index in [0, SlatepackAddressIndex::MAX] {
+		assert_eq!(SlatepackAddressIndex(index).check().unwrap().value(), index);
+	}
+	for index in [SlatepackAddressIndex::MAX + 1, u32::MAX] {
+		assert!(matches!(
+			SlatepackAddressIndex(index).check(),
+			Err(Error::SlatepackAddress(_))
+		));
+	}
 }

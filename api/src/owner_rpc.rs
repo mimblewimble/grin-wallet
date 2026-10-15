@@ -14,7 +14,7 @@
 
 //! JSON-RPC Stub generation for the Owner API
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
-use libwallet::mwixnet::SwapReq;
+use libwallet::mwixnet::MwixnetReqCreationResult;
 use uuid::Uuid;
 
 use crate::config::{TorConfig, WalletConfig};
@@ -22,10 +22,11 @@ use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::{
-	mwixnet::MixnetReqCreationParams, AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs,
-	IssueInvoiceTxArgs, NodeClient, NodeHeightResult, OutputCommitMapping, PaymentProof, Slate,
-	SlateVersion, Slatepack, SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate,
-	ViewWallet, WalletInfo, WalletLCProvider,
+	mwixnet::{MixnetReqCreationParams, MwixnetServerPublicKey},
+	AcctPathMapping, Amount, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeClient,
+	NodeHeightResult, OutputCommitMapping, PaymentProof, Slate, SlateVersion, Slatepack,
+	SlatepackAddress, StatusMessage, TxLogEntry, VersionedSlate, ViewWallet, WalletInfo,
+	WalletLCProvider,
 };
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::key::{PublicKey, SecretKey};
@@ -33,6 +34,7 @@ use crate::util::secp::pedersen::Commitment;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
 use grin_wallet_util::OnionV3Address;
+use libwallet::slatepack::SlatepackAddressIndex;
 use rand::thread_rng;
 use std::convert::TryFrom;
 use std::path::PathBuf;
@@ -359,6 +361,7 @@ pub trait OwnerRpc {
 		  true,
 		  [
 			{
+			  "address_index": null,
 			  "amount_credited": "60000000000",
 			  "amount_debited": "0",
 			  "confirmation_ts": "2019-01-15T16:01:26Z",
@@ -380,6 +383,7 @@ pub trait OwnerRpc {
 			  "tx_type": "ConfirmedCoinbase"
 			},
 			{
+			  "address_index": null,
 			  "amount_credited": "60000000000",
 			  "amount_debited": "0",
 			  "confirmation_ts": "2019-01-15T16:01:26Z",
@@ -451,6 +455,7 @@ pub trait OwnerRpc {
 		  true,
 		  [
 			{
+			  "address_index": null,
 			  "amount_credited": "60000000000",
 			  "amount_debited": "0",
 			  "confirmation_ts": "2019-01-15T16:01:26Z",
@@ -472,6 +477,7 @@ pub trait OwnerRpc {
 			  "tx_type": "ConfirmedCoinbase"
 			},
 			{
+			  "address_index": null,
 			  "amount_credited": "60000000000",
 			  "amount_debited": "0",
 			  "confirmation_ts": "2019-01-15T16:01:26Z",
@@ -598,7 +604,7 @@ pub trait OwnerRpc {
 					"id": "0436430c-2b02-624c-2032-570501212b00",
 					"proof": {
 						"raddr": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3",
-						"saddr": "32cdd63928854f8b2628b1dce4626ddcdf35d56cb7cfdf7d64cca5822b78d4d3"
+						"saddr": "4b2adcc4efc1d547c08ed7c9f7d987ff085f1788d62805e73c8f632e4b065039"
 					},
 					"sigs": [
 						{
@@ -1706,7 +1712,7 @@ pub trait OwnerRpc {
 	fn get_slatepack_address(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error>;
 
 	/**
@@ -1740,7 +1746,7 @@ pub trait OwnerRpc {
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<Ed25519SecretKey, Error>;
 
 	/**
@@ -1790,7 +1796,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		slate: VersionedSlate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error>;
 
@@ -1844,7 +1850,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<VersionedSlate, Error>;
 
 	/**
@@ -1885,7 +1891,7 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error>;
 
 	/**
@@ -1917,6 +1923,7 @@ pub trait OwnerRpc {
 				"recipient_address": "tgrin10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqq6t83r",
 				"recipient_sig": "02868f2d2b983981f8f98043701687a8531ed2de564ea3df48e9e7e0229ccbe8359efe506896df2efbe3528e977252c50e4a41ca3cc9896e7c5a30bbb1d33604",
 				"sender_address": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
+				  "sender_address_path": 0,
 				"sender_sig": "c511764f3f61ed3d1cbca9514df8bc6811fad5662b1cb0e0587b9c9e49db9f33183cce71af6cb24b507fabf525a2bc405c6e84e63a60334edff0b451ae5e6102"
 			}
 		}
@@ -1949,6 +1956,7 @@ pub trait OwnerRpc {
 				"recipient_address": "tgrin10qlk22rxjap2ny8qltc2tl996kenxr3hhwuu6hrzs6tdq08yaqgqq6t83r",
 				"recipient_sig": "02868f2d2b983981f8f98043701687a8531ed2de564ea3df48e9e7e0229ccbe8359efe506896df2efbe3528e977252c50e4a41ca3cc9896e7c5a30bbb1d33604",
 				"sender_address": "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp",
+				  "sender_address_path": 0,
 				"sender_sig": "c511764f3f61ed3d1cbca9514df8bc6811fad5662b1cb0e0587b9c9e49db9f33183cce71af6cb24b507fabf525a2bc405c6e84e63a60334edff0b451ae5e6102"
 			}
 		},
@@ -2055,7 +2063,11 @@ pub trait OwnerRpc {
 	) -> Result<BuiltOutput, Error>;
 
 	/**
-	Networked version of [Owner::build_output](struct.Owner.html#method.create_mwixnet_req).
+	Networked version of [Owner::create_mwixnet_req](struct.Owner.html#method.create_mwixnet_req).
+
+	server_keys accepts public X25519 onion keys as hex, in route order, replacing secret keys
+	fee_per_hop accepts a nanogrin string or null for the swap minimum
+
 	```
 	# grin_wallet_api::doctest_helper_json_rpc_owner_assert_response!(
 	# r#"
@@ -2065,12 +2077,12 @@ pub trait OwnerRpc {
 		"params": {
 			"token": "d202964900000000d302964900000000d402964900000000d502964900000000",
 			"commitment": "08e1da9e6dc4d6e808a718b2f110a991dd775d65ce5ae408a4e1f002a4961aa9e7",
-			"fee_per_hop": "5000000",
+			"fee_per_hop": null,
 			"lock_output": true,
 			"server_keys": [
-				"97444ae673bb92c713c1a2f7b8882ffbfc1c67401a280a775dce1a8651584332",
-				"0c9414341f2140ed34a5a12a6479bf5a6404820d001ab81d9d3e8cc38f049b4e",
-				"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5"
+				"24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a",
+				"3ab3b7d1fb643393897a0b942934d34be9cb823621cd49c09b12fdfa69598d71",
+				"80f2ceadcc5a767961772f4ae04826c70b0ae497f4f50d782241ff056b71df45"
 			]
 		},
 		"id": 1
@@ -2092,12 +2104,13 @@ pub trait OwnerRpc {
 						"62ea6b8369686a0415e1e752b9b4d6e66cf5b6066a2d3c60d8818890a55f3adff4601466f4c6e6b646568b99ae93549a3595b7a7b4be815ced87d9297cabbd69518d7b2ed6edd14007528fd346aaea765a1165fe886666627ebcab9588b8ee1c9e98395ae67913c48eb6e924581b40182fce807f97312fb07fd5e216d99941f2b488babce4078a50cd66b28b30a66c4f54fcc127437408a99b30ffd6c3d0d8c7d39e864fc04e321b8c10138c8852d4cad0a4f2780412b9dadcc6e0f2657b7803a81bccb809ca392464be2e01755be7377d0e815698ad6ea51d4617cc92c3ccf852f038e33cc9c90992438ba5c49cca7cc188b682da684e2f4c9733a84a7b64ac5c2216ebf5926f0ee67b664fb5bab799109cbee755ce1aebc8cd352fea51cd84c333cb958093c53544c3f3ab05dba64d8f041c3b179796b476ec04b11044e39db6994ab767315e52cc0ef023432ec88ade2911612db7e74e0923889f765b58b00e3869c5072a4e882c1b721913f63bda986b8c97b7ae575f0d4be596a1ac3cd0db96ce6074ee000b32018b3bda16d7dba34a13ba9c3ce983946414c16e278351a3411cb8ef2cb8ef5b6e1667c4c58bc797c0324ae4fec8960d684e561c0e833ee4c3331c6c439b59042a62993535e23cc8a8a4cf705c0f9b1d62db4e3d76c22c01138800414b143ddff471e4df4413e842a1b41f43cc9647e47145fd6c86d4d1a34fb2f62f5a55b31c9353ee34743c548eff955f2d2143c1a86cbcb452104f96d0142db31153021bbeed995c71a92de8fb1f97269533a508085c543fcb3ee57000bb265e74187b858403aa97b6c7b085e5d5b6025cbfe5f6926d33c835f90e60fc62013e80bbe0a855da5938b4b8f83ac29c5e8251827795356222079a6d1612e2fdf93bd7836d1613c7a353ada48ce256f880bbbb3108e037e3b5647101bd4d549101b0ee73d2248a932a802a3b1beb0b69d777c4285d57e91d83e96fe2f8a1a2f182fe2c6ca37b18460cf8d7f56c201147b9be19f1d01f8ad305c1e9c4dd79b5d8719d6550432352cf737082b1e9de7a083ffbe1"
 					],
 					"pubkey": "e7ee7d51b11d09f268ade98bc9d7ae9be3c4ac124ce1c3a40e50d34460fa5f08"
-				}
+				},
+				"tx_id": 5
 			}
 		}
 	}
 	# "#
-	# , 5, true, true, false, false);
+	# , 5, true, false, false, false);
 	```
 	 *
 	 */
@@ -2105,10 +2118,10 @@ pub trait OwnerRpc {
 		&self,
 		token: Token,
 		commitment: String,
-		fee_per_hop: String,
+		fee_per_hop: Option<String>,
 		lock_output: bool,
 		server_keys: Vec<String>,
-	) -> Result<SwapReq, Error>;
+	) -> Result<MwixnetReqCreationResult, Error>;
 }
 
 impl<L, C, K> OwnerRpc for Owner<L, C, K>
@@ -2424,7 +2437,7 @@ where
 	fn get_slatepack_address(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<SlatepackAddress, Error> {
 		Owner::get_slatepack_address(self, token.keychain_mask.as_ref(), derivation_index)
 	}
@@ -2432,7 +2445,7 @@ where
 	fn get_slatepack_secret_key(
 		&self,
 		token: Token,
-		derivation_index: u32,
+		derivation_index: SlatepackAddressIndex,
 	) -> Result<Ed25519SecretKey, Error> {
 		let key =
 			Owner::get_slatepack_secret_key(self, token.keychain_mask.as_ref(), derivation_index)?;
@@ -2443,7 +2456,7 @@ where
 		&self,
 		token: Token,
 		slate: VersionedSlate,
-		sender_index: Option<u32>,
+		sender_index: Option<SlatepackAddressIndex>,
 		recipients: Vec<SlatepackAddress>,
 	) -> Result<String, Error> {
 		let res = Owner::create_slatepack_message(
@@ -2460,7 +2473,7 @@ where
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<VersionedSlate, Error> {
 		let slate = Owner::slate_from_slatepack_message(
 			self,
@@ -2476,7 +2489,7 @@ where
 		&self,
 		token: Token,
 		message: String,
-		secret_indices: Vec<u32>,
+		secret_indices: Vec<SlatepackAddressIndex>,
 	) -> Result<Slatepack, Error> {
 		Owner::decode_slatepack_message(self, token.keychain_mask.as_ref(), message, secret_indices)
 	}
@@ -2523,28 +2536,22 @@ where
 		&self,
 		token: Token,
 		commitment: String,
-		fee_per_hop: String,
+		fee_per_hop: Option<String>,
 		lock_output: bool,
 		server_keys: Vec<String>,
-	) -> Result<SwapReq, Error> {
+	) -> Result<MwixnetReqCreationResult, Error> {
 		let commit = Commitment::from_vec(from_hex(&commitment).map_err(Error::CommitDeser)?);
-
-		let secp_inst = static_secp_instance();
-		let secp = secp_inst.lock();
 
 		let mut keys = vec![];
 		for key in server_keys {
-			keys.push(SecretKey::from_slice(
-				&secp,
-				&grin_util::from_hex(&key).map_err(Error::ServerKeyDeser)?,
-			)?)
+			keys.push(MwixnetServerPublicKey::from_hex(&key).map_err(Error::ServerKeyDeser)?)
 		}
 
 		let req_params = MixnetReqCreationParams {
 			server_keys: keys,
 			fee_per_hop: fee_per_hop
-				.parse::<u64>()
-				.map_err(|_| Error::U64Deser(fee_per_hop))?,
+				.map(|fee| fee.parse::<u64>().map_err(|_| Error::U64Deser(fee)))
+				.transpose()?,
 		};
 
 		Owner::create_mwixnet_req(

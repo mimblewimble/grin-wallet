@@ -18,6 +18,7 @@
 use crate::config::{TorConfig, WalletConfig};
 use crate::error::Error;
 use crate::slate_versions::ser as dalek_ser;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::{InitTxArgs, SlateState, WalletBackend};
 use chrono::prelude::*;
 use ed25519_dalek::Signature as DalekSignature;
@@ -386,7 +387,7 @@ pub struct Context {
 	/// store the calculated fee
 	pub fee: Option<FeeFields>,
 	/// Payment proof sender address derivation path, if needed
-	pub payment_proof_derivation_index: Option<u32>,
+	pub payment_proof_derivation_index: Option<SlatepackAddressIndex>,
 	/// If late-locking, store my tranasction creation prefs
 	/// for later
 	pub late_lock_args: Option<InitTxArgs>,
@@ -675,6 +676,9 @@ pub struct TxLogEntry {
 	/// Track the time it took for a transaction to get reverted
 	#[serde(with = "option_duration_as_secs", default)]
 	pub reverted_after: Option<Duration>,
+	/// Slatepack address derivation path index
+	#[serde(default)]
+	pub address_index: Option<SlatepackAddressIndex>,
 }
 
 impl ser::Writeable for TxLogEntry {
@@ -713,6 +717,7 @@ impl TxLogEntry {
 			kernel_lookup_min_height: None,
 			payment_proof: None,
 			reverted_after: None,
+			address_index: None,
 		}
 	}
 
@@ -741,7 +746,7 @@ pub struct StoredProofInfo {
 	/// receiver signature
 	pub receiver_signature: Option<DalekSignature>,
 	/// sender address derivation path index
-	pub sender_address_path: u32,
+	pub sender_address_path: SlatepackAddressIndex,
 	/// sender address
 	#[serde(with = "dalek_ser::dalek_pubkey_serde")]
 	pub sender_address: DalekPublicKey,
