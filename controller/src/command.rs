@@ -1615,18 +1615,24 @@ pub enum MwixnetOutput {
 	Max,
 }
 
-fn confirm_mwixnet_response(response: Option<String>, tx_id: u32) -> Result<(), Error> {
-	match response {
-		None => {
+fn confirm_mwixnet_response(
+	response: Result<Option<String>, libwallet::Error>,
+	tx_id: u32,
+) -> Result<(), Error> {
+	let message = match response {
+		Ok(None) => {
 			println!("MWixnet request accepted (transaction {})", tx_id);
-			Ok(())
+			return Ok(());
 		}
-		// The server may already have accepted this swap
-		Some(message) => Err(Error::GenericError(format!(
-			"MWixnet rejected the request: {}. Output remains locked as transaction {}",
-			message, tx_id
-		))),
-	}
+		Ok(Some(message)) => format!("MWixnet rejected the request: {}", message),
+		Err(error) => error.to_string(),
+	};
+	// The server may already have accepted the request
+	Err(Error::GenericError(format!(
+		"{}. Output remains locked as transaction {}. The server may already have accepted \
+         the request. To cancel manually, use `cancel -i {}`.",
+		message, tx_id, tx_id
+	)))
 }
 
 pub fn mwixnet<L, C, K>(
@@ -1679,7 +1685,7 @@ where
 			"MWixnet request was created without locking its output".to_string(),
 		)),
 		Some(tx_id) => {
-			let res = owner_api.send_mwixnet_req(&creation.request, args.server)?;
+			let res = owner_api.send_mwixnet_req(&creation.request, args.server);
 			confirm_mwixnet_response(res, tx_id)
 		}
 	}
@@ -1691,11 +1697,25 @@ mod tests {
 
 	#[test]
 	fn mwixnet_response_reports_uncertain_transactions_as_locked() {
-		assert!(confirm_mwixnet_response(None, 3).is_ok());
-		let error = confirm_mwixnet_response(Some("invalid response".to_string()), 3).unwrap_err();
+		assert!(confirm_mwixnet_response(Ok(None), 3).is_ok());
+		let error =
+			confirm_mwixnet_response(Ok(Some("invalid response".to_string())), 3).unwrap_err();
 		assert!(error
 			.to_string()
 			.contains("remains locked as transaction 3"));
+		assert!(error.to_string().contains("cancel -i 3"));
+		let error = confirm_mwixnet_response(
+			Err(super::libwallet::Error::GenericError(
+				"transport failed".into(),
+			)),
+			4,
+		)
+		.unwrap_err()
+		.to_string();
+		assert!(error.contains("transport failed"));
+		assert!(error.contains("remains locked as transaction 4"));
+		assert!(error.contains("cancel -i 4"));
+		assert!(error.contains("may already have accepted"));
 	}
 }
 

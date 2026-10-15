@@ -2679,12 +2679,15 @@ where
 	/// * `req` - A [SwapReq]
 	///   struct containing the parameters for the request, which include:
 	///   `comsig` - [ComSignature](grin_wallet_libwallet::mwixnet::ComSignature) signature with a pedersen commitment value & blinding factors as the keys
-	///   `onion` - [Onion](grin_wallet_libwallet::mwixnet::Onion) Optional fee per hop with the swap minimum as default
+	///   `onion` - [Onion](grin_wallet_libwallet::mwixnet::Onion) encrypted route payload
 	/// * `server` - Onion server address
 	///
 	/// # Returns
-	/// * None if successful
-	/// * or Ok([String]) if an error is encountered
+	/// * `Ok(None)` if the server accepted the request
+	/// * `Ok(Some(message))` if the server rejected the request
+	/// * `Err` for configuration, transport, or invalid-response failures
+	///
+	/// Leaves output locks unchanged
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2731,17 +2734,13 @@ where
 			Ok(response) => response,
 			Err(e) => {
 				return Err(Error::GenericError(format!(
-					"Could not determine whether mwixnet accepted the request: {}. \
-				 Output remains locked",
+					"Could not determine whether mwixnet accepted the request: {}",
 					e,
 				)));
 			}
 		};
 		match parse_mwixnet_response(&response).map_err(|e| {
-			Error::GenericError(format!(
-				"Could not confirm the mwixnet response: {}. Output remains locked",
-				e
-			))
+			Error::GenericError(format!("Could not confirm the mwixnet response: {}", e))
 		})? {
 			MwixnetResponse::Accepted => Ok(None),
 			MwixnetResponse::Rejected(message) => Ok(Some(message)),

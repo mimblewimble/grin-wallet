@@ -1424,6 +1424,30 @@ mod mwixnet_tests {
 	}
 
 	#[test]
+	fn mwixnet_args() {
+		let yaml = load_yaml!("../bin/grin-wallet.yml");
+		let key = "24308f58032819d05146db48e78246139f8e30770b1fd1585392df8374d6226a";
+		for keys in [vec!["--key", key], vec!["--key", key, "--key", key]] {
+			let key_count = keys.len() / 2;
+			let mut args = vec![
+				"grin-wallet",
+				"mwixnet",
+				"--server",
+				"mza3u6vkqodqc6kjjapfbcjrg7hgpkuw6nyq5xvfjqp5jm2lfeaocwqd.onion",
+			];
+			args.extend(keys);
+			args.push("max");
+			let matches = clap::App::from_yaml(yaml)
+				.get_matches_from_safe(args)
+				.unwrap();
+			let parsed =
+				parse_mwixnet_args(matches.subcommand_matches("mwixnet").unwrap()).unwrap();
+			assert!(matches!(parsed.output, command::MwixnetOutput::Max));
+			assert_eq!(parsed.params.server_keys.len(), key_count);
+		}
+	}
+
+	#[test]
 	fn parses_mwixnet_output_selection() {
 		assert!(matches!(
 			parse_mwixnet_output("max").unwrap(),

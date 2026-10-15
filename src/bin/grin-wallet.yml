@@ -207,6 +207,7 @@ subcommands:
             long: key
             takes_value: true
             multiple: true
+            number_of_values: 1
             required: true
         - fee_per_hop:
             help: Fee per mwixnet server in Grin, e.g. 0.0125, with the swap minimum as default
