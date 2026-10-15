@@ -15,6 +15,7 @@
 //! Generic implementation of owner API functions
 
 use std::cmp;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::api_impl::foreign::finalize_tx as foreign_finalize;
@@ -1187,6 +1188,13 @@ where
 		w.w2n_client().get_chain_tip()?
 	};
 
+	if !update_confirmed_heights(wallet_inst.clone(), keychain_mask, &tip, true)? {
+		return Err(Error::ClientCallback(
+			"Unable to check confirmation heights. The node may be behind or unavailable, or the chain changed. Please try again later."
+				.to_owned(),
+		));
+	}
+
 	let start_height = start_height.unwrap_or(1);
 
 	// Scan every 10k heights to save data between batches in case of interruption.
@@ -1348,7 +1356,13 @@ where
 		.saturating_sub(REORG_RESCAN_WINDOW);
 
 	// Keep scan progress unchanged if height checks fail
-	if !update_confirmed_heights(wallet_inst.clone(), keychain_mask, start_height, &tip)? {
+	if !update_confirmed_heights(wallet_inst.clone(), keychain_mask, &tip, false)? {
+		if let Some(ref s) = status_send_channel {
+			let _ = s.send(StatusMessage::UpdateWarning(
+				"Unable to check confirmation heights. The node may be behind or unavailable, or the chain changed. Please try again later."
+					.to_owned(),
+			));
+		}
 		return Ok(false);
 	}
 
@@ -1529,8 +1543,8 @@ where
 fn update_confirmed_heights<'a, L, C, K>(
 	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	start_height: u64,
 	tip: &(u64, String),
+	allow_behind: bool,
 ) -> Result<bool, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
@@ -1539,30 +1553,79 @@ where
 {
 	// Keep account and records stable during queries
 	wallet_lock!(wallet_inst, w);
-	let parent_key_id = w.parent_key_id();
-	if tip.0 < w.last_confirmed_height_for_parent(&parent_key_id)? || start_height > tip.0 {
+	let last_scanned = w.last_scanned_block()?;
+	// Only an explicit scan may reconcile a shorter chain
+	if tip.0 < last_scanned.height && !allow_behind {
 		debug!("Skipping confirmation height checks: node tip is behind wallet progress");
 		return Ok(false);
 	}
+	if tip.0 == last_scanned.height && tip.1 == last_scanned.hash {
+		return Ok(true);
+	}
+	let start_height = last_scanned
+		.height
+		.min(tip.0)
+		.saturating_sub(REORG_RESCAN_WINDOW);
 	let mut client = w.w2n_client().clone();
-	let txs = updater::retrieve_txs(w, None, None, None, Some(&parent_key_id), false)?;
+	let reorg = if last_scanned.hash.is_empty() || tip.0 < last_scanned.height {
+		true
+	} else {
+		match client.get_header_hash(last_scanned.height) {
+			Ok(hash) => hash != last_scanned.hash,
+			Err(_) => return Ok(false),
+		}
+	};
+	// Headers must match the processed chain
+	if client.get_header_hash(tip.0).ok().as_ref() != Some(&tip.1) {
+		return Ok(false);
+	}
+	// All accounts share the scan marker
+	let txs: Vec<_> = updater::retrieve_txs(w, None, None, None, None, false)?
+		.into_iter()
+		.filter(|tx| tx.confirmed && (reorg || tx.confirmed_height.is_none()))
+		.filter(|tx| {
+			tx.confirmed_height
+				.or(tx.last_known_kernel_height)
+				.is_some_and(|height| height >= start_height)
+		})
+		.collect();
+	let restored_outputs: Vec<_> = txs
+		.iter()
+		.filter(|tx| tx.kernel_excess.is_none())
+		.filter_map(|tx| tx.restored_output)
+		.collect();
+	let restored_heights = if restored_outputs.is_empty() {
+		HashMap::new()
+	} else {
+		match client.get_outputs_from_node(restored_outputs) {
+			Ok(found) => found,
+			Err(_) => return Ok(false),
+		}
+	};
 	let mut updates = Vec::new();
-	for mut tx in txs.into_iter().filter(|tx| tx.confirmed) {
-		let previous_height = match tx.confirmed_height.or(tx.last_known_kernel_height) {
-			Some(h) if h >= start_height => h,
-			_ => continue,
-		};
+	for mut tx in txs {
+		let previous_height = tx.confirmed_height.or(tx.last_known_kernel_height);
 		let excess = match tx.kernel_excess {
 			Some(e) => e,
-			None => continue,
+			None => {
+				let height = tx
+					.restored_output
+					.and_then(|c| restored_heights.get(&c))
+					.map(|o| o.1);
+				if height != tx.confirmed_height {
+					tx.confirmed_height = height;
+					tx.last_known_kernel_height = None;
+					updates.push(tx);
+				}
+				continue;
+			}
 		};
 		// Check the recorded block first
 		let kernel = match tx.confirmed_height {
 			Some(h) if h <= tip.0 => client.get_kernel(&excess, Some(h), Some(h)),
 			_ => Ok(None),
 		};
-		// Accept repeated window scans without a cache
-		// Reorgs can place missing kernels in previously searched blocks
+		// Another reorg may move missing kernels within the window
 		let kernel = match kernel {
 			Ok(None) => client.get_kernel(&excess, Some(start_height), Some(tip.0)),
 			other => other,
@@ -1574,21 +1637,21 @@ where
 		if height != tx.confirmed_height {
 			tx.confirmed_height = height;
 			tx.last_known_kernel_height = if height.is_none() {
-				Some(previous_height)
+				previous_height
 			} else {
 				None
 			};
 			updates.push(tx);
 		}
 	}
+	if client.get_chain_tip().ok().as_ref() != Some(tip) {
+		debug!("Discarding confirmation height checks: node tip changed or is unavailable");
+		return Ok(false);
+	}
 	if !updates.is_empty() {
-		// Check the tip before saving height changes
-		if client.get_chain_tip().ok().as_ref() != Some(tip) {
-			debug!("Discarding confirmation height updates: node tip changed or is unavailable");
-			return Ok(false);
-		}
 		let mut batch = w.batch(keychain_mask)?;
 		for tx in updates {
+			let parent_key_id = tx.parent_key_id.clone();
 			batch.save_tx_log_entry(tx, &parent_key_id)?;
 		}
 		batch.commit()?;

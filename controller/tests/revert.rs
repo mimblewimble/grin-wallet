@@ -23,6 +23,7 @@ use grin_core::core::Transaction;
 use grin_core::global;
 use grin_keychain::ExtKeychain;
 use grin_util::secp::key::SecretKey;
+use grin_util::ToHex;
 use grin_wallet_api::Owner;
 use grin_wallet_impls::test_framework::*;
 use grin_wallet_impls::{DefaultLCProvider, PathToSlate, SlatePutter};
@@ -40,6 +41,30 @@ type Wallet = grin_wallet_libwallet::WalletHandle<
 	LocalWalletClient,
 	ExtKeychain,
 >;
+
+// Count node requests
+fn node_requests(
+	client: &LocalWalletClient,
+	action: impl FnOnce() -> Result<(), libwallet::Error>,
+) -> Result<Vec<(String, String)>, libwallet::Error> {
+	let original = client.proxy_tx.lock().clone();
+	let forward = original.clone();
+	let (sender, receiver) = std::sync::mpsc::channel();
+	*client.proxy_tx.lock() = sender;
+	let relay = thread::spawn(move || {
+		let mut requests = Vec::new();
+		for message in receiver {
+			requests.push((message.method.clone(), message.body.clone()));
+			forward.send(message).unwrap();
+		}
+		requests
+	});
+	let result = action();
+	*client.proxy_tx.lock() = original;
+	let requests = relay.join().unwrap();
+	result?;
+	Ok(requests)
+}
 
 #[allow(clippy::type_complexity)]
 fn revert(
@@ -227,31 +252,97 @@ fn revert(
 	// Confirm both sides before the fork
 	let mut detected = Vec::new();
 	for (wallet, mask) in [(&api1, mask1), (&api2, mask2)] {
-		{
-			let (refreshed, entries) = wallet.retrieve_txs(mask, true, None, None, None)?;
-			assert!(refreshed);
-			let entry = entries
-				.iter()
-				.find(|e| e.kernel_excess == Some(tx.kernels()[0].excess))
-				.unwrap();
-			assert_eq!(entry.confirmed_height, Some(bh));
-			detected.push(entry.confirmation_ts);
-		}
+		let (refreshed, entries) = wallet.retrieve_txs(mask, true, None, None, None)?;
+		assert!(refreshed);
+		let entry = entries
+			.iter()
+			.find(|e| e.kernel_excess == Some(tx.kernels()[0].excess))
+			.unwrap();
+		assert_eq!(entry.confirmed_height, Some(bh));
+		detected.push(entry.confirmation_ts);
 	}
+
+	let requests = node_requests(&client1, || {
+		assert!(api1.retrieve_txs(mask1, true, None, None, None)?.0);
+		Ok(())
+	})?;
+	assert!(!requests
+		.iter()
+		.any(|(method, _)| method == "get_kernel" || method == "get_header_hash"));
+
+	// Restore an unaffected coinbase and one that will disappear on the fork
+	let restored_coinbases = if relocate && no_change {
+		{
+			wallet_inst!(wallet1, w);
+			let outputs: Vec<_> = w
+				.iter()?
+				.filter(|o| {
+					o.is_coinbase
+						&& o.status == libwallet::OutputStatus::Unspent
+						&& (o.height == bh - 1 || o.height == bh)
+				})
+				.collect();
+			assert_eq!(outputs.len(), 2);
+			let mut batch = w.batch(mask1)?;
+			for output in outputs {
+				batch.delete(&output.key_id, &output.mmr_index)?;
+				batch.delete_tx_log_entry(output.tx_log_entry.unwrap(), &output.root_key_id)?;
+			}
+			batch.commit()?;
+		}
+		api1.scan(mask1, Some(1), false)?;
+		let (_, entries) = api1.retrieve_txs(mask1, false, None, None, None)?;
+		let entries: Vec<_> = entries
+			.into_iter()
+			.filter(|e| {
+				e.tx_type == libwallet::TxLogEntryType::ConfirmedCoinbase
+					&& e.kernel_excess.is_none()
+			})
+			.collect();
+		assert_eq!(entries.len(), 2);
+		entries
+	} else {
+		Vec::new()
+	};
+
+	// Restore the receiver before relocating its transaction
+	let restored = if relocate && no_change {
+		{
+			wallet_inst!(wallet2, w);
+			let outputs: Vec<_> = w.iter()?.collect();
+			let entries: Vec<_> = w.tx_log_iter()?.collect::<Result<_, _>>()?;
+			let mut batch = w.batch(mask2)?;
+			for output in outputs {
+				batch.delete(&output.key_id, &output.mmr_index)?;
+			}
+			for entry in entries {
+				batch.delete_tx_log_entry(entry.id, &entry.parent_key_id)?;
+			}
+			batch.commit()?;
+		}
+		api2.scan(mask2, Some(1), false)?;
+		let (_, entries) = api2.retrieve_txs(mask2, true, None, None, None)?;
+		assert_eq!(entries.len(), 1);
+		assert!(entries[0].kernel_excess.is_none());
+		assert!(entries[0].restored_output.is_some());
+		assert_eq!(entries[0].confirmed_height, Some(bh));
+		detected[1] = entries[0].confirmation_ts;
+		Some(entries[0].id)
+	} else {
+		None
+	};
 
 	// Preserve the incoming height after locking its output
 	if relocate {
-		{
-			let slate = api2.init_send_tx(
-				mask2,
-				InitTxArgs {
-					amount: sent / 2,
-					minimum_confirmations: 1,
-					..Default::default()
-				},
-			)?;
-			api2.tx_lock_outputs(mask2, &slate)?;
-		}
+		let slate = api2.init_send_tx(
+			mask2,
+			InitTxArgs {
+				amount: sent / 2,
+				minimum_confirmations: 1,
+				..Default::default()
+			},
+		)?;
+		api2.tx_lock_outputs(mask2, &slate)?;
 	}
 
 	// Attach more blocks to the parallel chain, making it the longest one
@@ -273,7 +364,10 @@ fn revert(
 
 	if relocate {
 		// Keep heights and scan progress unchanged on failure
-		for fail_kernel in [true, false] {
+		for failure in ["kernel", "tip", "header", "header_chain", "outputs"] {
+			if failure == "outputs" && restored_coinbases.is_empty() {
+				continue;
+			}
 			let scanned_before = {
 				wallet_inst!(wallet1, w);
 				w.last_scanned_block()?
@@ -285,16 +379,25 @@ fn revert(
 			*client1.proxy_tx.lock() = sender;
 			let relay = thread::spawn(move || {
 				let mut queried_kernel = false;
+				let mut queried_header = false;
 				for mut message in receiver {
 					let kernel = message.method == "get_kernel";
+					queried_header |= message.method == "get_header_hash";
 					let changed_tip =
-						!fail_kernel && queried_kernel && message.method == "get_chain_tip";
+						failure == "tip" && queried_kernel && message.method == "get_chain_tip";
 					queried_kernel |= kernel;
-					if (fail_kernel && kernel) || changed_tip {
+					if (failure == "outputs"
+						&& queried_header && message.method == "get_outputs_from_node")
+						|| (failure == "kernel" && kernel)
+						|| changed_tip || (matches!(failure, "header" | "header_chain")
+						&& message.method == "get_header_hash")
+					{
 						message.body = if changed_tip {
 							format!("{},changed-tip", bh)
+						} else if failure == "header_chain" {
+							serde_json::to_string(&Some("different-header")).unwrap()
 						} else {
-							"invalid kernel response".to_owned()
+							"invalid response".to_owned()
 						};
 						reply.lock().send(message).unwrap();
 					} else {
@@ -306,6 +409,10 @@ fn revert(
 			let result =
 				api1.retrieve_txs(mask1, true, None, None, None)
 					.map(|(refreshed, entries)| {
+						for original in &restored_coinbases {
+							let entry = entries.iter().find(|e| e.id == original.id).unwrap();
+							assert_eq!(entry.confirmed_height, original.confirmed_height);
+						}
 						observed = entries
 							.iter()
 							.find(|e| e.kernel_excess == Some(tx.kernels()[0].excess))
@@ -324,47 +431,105 @@ fn revert(
 		}
 	}
 
-	// Repair heights through normal refresh
-	for ((wallet, mask), detected_at) in [(&api1, mask1), (&api2, mask2)].into_iter().zip(detected)
-	{
-		{
-			let (refreshed, entries) = wallet.retrieve_txs(mask, true, None, None, None)?;
-			assert!(refreshed);
-			let entry = entries
-				.iter()
-				.find(|e| e.kernel_excess == Some(tx.kernels()[0].excess))
-				.unwrap();
+	// Check reorgs across accounts and manual scans
+	if relocate {
+		api1.set_active_account(mask1, "default")?;
+		if no_change {
+			api1.scan(mask1, None, false)?;
+		} else {
+			assert!(api1.retrieve_txs(mask1, true, None, None, None)?.0);
+		}
+		api1.set_active_account(mask1, "a")?;
+	}
+
+	if !restored_coinbases.is_empty() {
+		let (_, entries) = api1.retrieve_txs(mask1, false, None, None, None)?;
+		for original in &restored_coinbases {
+			let entry = entries.iter().find(|e| e.id == original.id).unwrap();
 			assert_eq!(
 				entry.confirmed_height,
-				if relocate { Some(bh) } else { None }
+				original.confirmed_height.filter(|h| *h == bh - 2)
 			);
-			assert_eq!(
-				entry.last_known_kernel_height,
-				if relocate { None } else { Some(bh - 1) }
-			);
-			assert_eq!(entry.confirmation_ts, detected_at);
+			assert_eq!(entry.confirmation_ts, original.confirmation_ts);
+			assert_eq!(entry.confirmed, original.confirmed);
 		}
+	}
+
+	// Repair heights through normal refresh
+	for (index, ((wallet, mask), detected_at)) in [(&api1, mask1), (&api2, mask2)]
+		.into_iter()
+		.zip(detected)
+		.enumerate()
+	{
+		let (refreshed, entries) = wallet.retrieve_txs(mask, true, None, None, None)?;
+		assert!(refreshed);
+		if index == 1 {
+			if let Some(id) = restored {
+				let entry = entries.iter().find(|e| e.id == id).unwrap();
+				assert!(entry.confirmed);
+				assert_eq!(entry.confirmed_height, Some(bh));
+				assert_eq!(entry.last_known_kernel_height, None);
+				assert_eq!(entry.confirmation_ts, detected_at);
+				continue;
+			}
+		}
+		let entry = entries
+			.iter()
+			.find(|e| e.kernel_excess == Some(tx.kernels()[0].excess))
+			.unwrap();
+		assert_eq!(
+			entry.confirmed_height,
+			if relocate { Some(bh) } else { None }
+		);
+		assert_eq!(
+			entry.last_known_kernel_height,
+			if relocate { None } else { Some(bh - 1) }
+		);
+		assert_eq!(entry.confirmation_ts, detected_at);
 	}
 
 	if !relocate {
 		// Check funds have been reverted
-		{
-			api2.scan(mask2, None, false)?;
-			let (refreshed, info) = api2.retrieve_summary_info(mask2, true, 1)?;
-			assert!(refreshed);
-			assert_eq!(info.last_confirmed_height, bh);
-			assert_eq!(info.total, 0);
-			assert_eq!(info.amount_currently_spendable, 0);
-			assert_eq!(info.amount_reverted, sent);
-			// check tx log as well
-			let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
-			assert_eq!(txs.len(), 1);
-			let tx = &txs[0];
-			assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReverted);
-			assert!(!tx.confirmed);
-			assert_eq!(tx.confirmed_height, None);
-			assert!(tx.reverted_after.is_some());
-		}
+		api2.scan(mask2, None, false)?;
+		let (refreshed, info) = api2.retrieve_summary_info(mask2, true, 1)?;
+		assert!(refreshed);
+		assert_eq!(info.last_confirmed_height, bh);
+		assert_eq!(info.total, 0);
+		assert_eq!(info.amount_currently_spendable, 0);
+		assert_eq!(info.amount_reverted, sent);
+		// check tx log as well
+		let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
+		assert_eq!(txs.len(), 1);
+		let tx = &txs[0];
+		assert_eq!(tx.tx_type, libwallet::TxLogEntryType::TxReverted);
+		assert!(!tx.confirmed);
+		assert_eq!(tx.confirmed_height, None);
+		assert!(tx.reverted_after.is_some());
+	}
+	if relocate {
+		let known: Vec<_> = api1
+			.retrieve_txs(mask1, false, None, None, None)?
+			.1
+			.into_iter()
+			.filter(|tx| tx.confirmed && tx.confirmed_height.is_some())
+			.filter_map(|tx| tx.kernel_excess)
+			.map(|excess| excess.0.as_ref().to_hex())
+			.collect();
+		assert!(!known.is_empty());
+		award_block_to_wallet(&chain, &[], wallet1.clone(), mask1)?;
+		let requests = node_requests(&client1, || {
+			assert!(api1.retrieve_txs(mask1, true, None, None, None)?.0);
+			Ok(())
+		})?;
+		assert!(!requests.iter().any(|(method, body)| method == "get_kernel"
+			&& known.iter().any(|excess| body.starts_with(excess))));
+		assert_eq!(
+			requests
+				.iter()
+				.filter(|(method, _)| method == "get_header_hash")
+				.count(),
+			2
+		);
 	}
 	stopper2.store(false, Ordering::Relaxed);
 	Ok((
@@ -392,6 +557,17 @@ fn revert_reconfirm_impl(test_dir: &'static str, no_change: bool) -> Result<(), 
 		api1.set_active_account(None, "a")?;
 		detected
 	};
+	let client = {
+		wallet_inst!(wallet1, w);
+		w.w2n_client().clone()
+	};
+	let requests = node_requests(&client, || {
+		assert!(api1.retrieve_txs(mask1, true, None, None, None)?.0);
+		Ok(())
+	})?;
+	assert!(!requests
+		.iter()
+		.any(|(method, _)| method == "get_kernel" || method == "get_header_hash"));
 	let excess = tx.kernels()[0].excess;
 
 	// Include the tx into the chain again, the tx should no longer be reverted
@@ -434,7 +610,7 @@ fn revert_reconfirm_impl(test_dir: &'static str, no_change: bool) -> Result<(), 
 }
 
 fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
-	let (_, stopper, sent, bh, _, _, _, _wallet2, mask2_i, _api1, api2) =
+	let (_, stopper, sent, bh, _, _, _, wallet2, mask2_i, _api1, api2) =
 		revert(test_dir, false, false)?;
 	let mask2 = mask2_i.as_ref();
 
@@ -449,6 +625,19 @@ fn revert_cancel_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	let (_, txs) = api2.retrieve_txs(mask2, true, None, None, None)?;
 	assert_eq!(txs.len(), 1);
 	let tx = &txs[0];
+
+	// A shorter node tip requires an explicit scan before normal refresh resumes
+	{
+		wallet_inst!(wallet2, w);
+		let mut scanned = w.last_scanned_block()?;
+		scanned.height += 3;
+		let mut batch = w.batch(mask2)?;
+		batch.save_last_scanned_block(scanned)?;
+		batch.commit()?;
+	}
+	assert!(!api2.retrieve_txs(mask2, true, None, None, None)?.0);
+	api2.scan(mask2, Some(1), false)?;
+	assert!(api2.retrieve_txs(mask2, true, None, None, None)?.0);
 
 	// Cancel
 	api2.cancel_tx(mask2, Some(tx.id), None)?;
