@@ -17,11 +17,13 @@ extern crate grin_wallet_impls as impls;
 
 use grin_core::core::{Input, OutputFeatures};
 use grin_wallet_libwallet as libwallet;
+use impls::test_framework::{self, LocalWalletClient};
 use libwallet::contract::my_fee_contribution;
 use libwallet::contract::types::{ContractNewArgsAPI, ContractRevokeArgsAPI};
 use libwallet::{Error, SlateState};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
+use std::thread;
 
 #[macro_use]
 mod common;
@@ -32,16 +34,29 @@ fn local_transfer(
 	early_lock: bool,
 	revoke: bool,
 ) -> Result<(), Error> {
-	common::setup(test_dir);
-	let (wallets, _chain, stopper, _) = common::create_wallets(
-		vec![vec![("default", 4), ("receiver", 4), ("unrelated", 4)]],
-		test_dir,
-	)
-	.unwrap();
-	let wallet = wallets[0].0.clone();
-	let mask = wallets[0].1.as_ref();
+	let mut proxy = common::create_wallet_proxy(test_dir);
+	let chain = proxy.chain.clone();
+	let stopper = proxy.running.clone();
+	let client = LocalWalletClient::new("wallet1", proxy.tx.clone());
+	let (wallet, mask, _) =
+		common::create_local_wallet(test_dir, "wallet1", None, client.clone(), true);
+	proxy.add_wallet(
+		"wallet1",
+		client.get_send_instance(),
+		wallet.clone(),
+		mask.clone(),
+	);
+	let proxy_thread = thread::spawn(move || proxy.run().unwrap());
+	let mask = mask.as_ref();
 	let result =
 		common::owner_single_use(wallet.clone(), mask, PathBuf::from(test_dir), |api, m| {
+			for account in ["default", "receiver", "unrelated"] {
+				if account != "default" {
+					api.create_account_path(m, account)?;
+				}
+				api.set_active_account(m, account)?;
+				test_framework::award_blocks_to_wallet(&chain, wallet.clone(), m, 4, false)?;
+			}
 			let amount = 5_000_000_000;
 			let (initiator, counterparty) = if invoice {
 				("receiver", "default")
@@ -254,9 +269,8 @@ fn local_transfer(
 			Ok(())
 		});
 	stopper.store(false, Ordering::Relaxed);
-	result?;
-	common::clean_output_dir(test_dir);
-	Ok(())
+	proxy_thread.join().unwrap();
+	result
 }
 
 #[test]
@@ -267,12 +281,18 @@ fn contracts_between_local_accounts() -> Result<(), Error> {
 		("test_output/contract_local_rsr", true, false),
 		("test_output/contract_local_rsr_early", true, true),
 	] {
+		common::setup(dir);
 		local_transfer(dir, invoice, early, false)?;
+		common::clean_output_dir(dir);
 	}
 	Ok(())
 }
 
 #[test]
 fn revoke_local_counterparty() -> Result<(), Error> {
-	local_transfer("test_output/contract_local_revoke", false, true, true)
+	let test_dir = "test_output/contract_local_revoke";
+	common::setup(test_dir);
+	local_transfer(test_dir, false, true, true)?;
+	common::clean_output_dir(test_dir);
+	Ok(())
 }
