@@ -121,6 +121,7 @@ where
 				if v {
 					tx_entry.tx_type != TxLogEntryType::TxReceivedCancelled
 						&& tx_entry.tx_type != TxLogEntryType::TxSentCancelled
+						&& tx_entry.tx_type != TxLogEntryType::TxSelfSpendCancelled
 				} else {
 					true
 				}
@@ -155,6 +156,8 @@ where
 				if v {
 					tx_entry.tx_type == TxLogEntryType::TxSent
 						|| tx_entry.tx_type == TxLogEntryType::TxSentCancelled
+						|| tx_entry.tx_type == TxLogEntryType::TxSelfSpend
+						|| tx_entry.tx_type == TxLogEntryType::TxSelfSpendCancelled
 				} else {
 					true
 				}
@@ -167,6 +170,8 @@ where
 				if v {
 					tx_entry.tx_type == TxLogEntryType::TxReceived
 						|| tx_entry.tx_type == TxLogEntryType::TxReceivedCancelled
+						|| tx_entry.tx_type == TxLogEntryType::TxSelfSpend
+						|| tx_entry.tx_type == TxLogEntryType::TxSelfSpendCancelled
 				} else {
 					true
 				}
@@ -178,6 +183,18 @@ where
 			if let Some(v) = query_args.include_coinbase_only {
 				if v {
 					tx_entry.tx_type == TxLogEntryType::ConfirmedCoinbase
+				} else {
+					true
+				}
+			} else {
+				true
+			}
+		})
+		.filter(|tx_entry| {
+			if let Some(v) = query_args.include_self_spend_only {
+				if v {
+					tx_entry.tx_type == TxLogEntryType::TxSelfSpend
+						|| tx_entry.tx_type == TxLogEntryType::TxSelfSpendCancelled
 				} else {
 					true
 				}
@@ -380,7 +397,8 @@ where
 						!tx_entry.confirmed
 							&& (tx_entry.tx_type == TxLogEntryType::TxReceived
 								|| tx_entry.tx_type == TxLogEntryType::TxSent
-								|| tx_entry.tx_type == TxLogEntryType::TxReverted)
+								|| tx_entry.tx_type == TxLogEntryType::TxReverted
+								|| tx_entry.tx_type == TxLogEntryType::TxSelfSpend)
 					}
 					false => true,
 				};
@@ -473,37 +491,42 @@ where
 }
 
 /// Cancel transaction and associated outputs
-pub fn cancel_tx_and_outputs<C, K>(
+pub fn cancel_txs_and_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
-	mut tx: TxLogEntry,
-	outputs: Vec<OutputData>,
+	txs: Vec<(TxLogEntry, Vec<OutputData>)>,
 	parent_key_id: &Identifier,
 ) -> Result<(), Error>
 where
 	C: NodeClient,
 	K: Keychain,
 {
+	// A single slate can have several tx log entries, so they are all cancelled in one
+	// batch: committing per entry would let a failure part way through leave some of them
+	// cancelled and the rest untouched.
 	let mut batch = wallet.batch(keychain_mask)?;
 
-	for mut o in outputs {
-		// unlock locked outputs
-		if o.status == OutputStatus::Unconfirmed || o.status == OutputStatus::Reverted {
-			batch.delete(&o.key_id, &o.mmr_index)?;
+	for (mut tx, outputs) in txs {
+		for mut o in outputs {
+			// unlock locked outputs
+			if o.status == OutputStatus::Unconfirmed || o.status == OutputStatus::Reverted {
+				batch.delete(&o.key_id, &o.mmr_index)?;
+			}
+			if o.status == OutputStatus::Locked {
+				o.status = OutputStatus::Unspent;
+				batch.save(o)?;
+			}
 		}
-		if o.status == OutputStatus::Locked {
-			o.status = OutputStatus::Unspent;
-			batch.save(o)?;
+		match tx.tx_type {
+			TxLogEntryType::TxSent => tx.tx_type = TxLogEntryType::TxSentCancelled,
+			TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {
+				tx.tx_type = TxLogEntryType::TxReceivedCancelled
+			}
+			TxLogEntryType::TxSelfSpend => tx.tx_type = TxLogEntryType::TxSelfSpendCancelled,
+			_ => {}
 		}
+		batch.save_tx_log_entry(tx, parent_key_id)?;
 	}
-	match tx.tx_type {
-		TxLogEntryType::TxSent => tx.tx_type = TxLogEntryType::TxSentCancelled,
-		TxLogEntryType::TxReceived | TxLogEntryType::TxReverted => {
-			tx.tx_type = TxLogEntryType::TxReceivedCancelled
-		}
-		_ => {}
-	}
-	batch.save_tx_log_entry(tx, parent_key_id)?;
 	batch.commit()?;
 	Ok(())
 }

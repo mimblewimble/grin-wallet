@@ -73,8 +73,7 @@ pub struct InitTxArgs {
 	#[serde(default = "default_refresh_outputs_from_node")]
 	pub refresh_outputs_from_node: bool,
 	/// Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
+	/// down to the minimum slate version compatible with the current. If `None`, V4 is used.
 	pub target_slate_version: Option<u16>,
 	/// Number of blocks from current after which TX should be ignored
 	#[serde(with = "secp_ser::opt_string_or_u64")]
@@ -147,8 +146,7 @@ pub struct IssueInvoiceTxArgs {
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount: u64,
 	/// Optionally set the output target slate version (acceptable
-	/// down to the minimum slate version compatible with the current. If `None` the slate
-	/// is generated with the latest version.
+	/// down to the minimum slate version compatible with the current. If `None`, V4 is used.
 	pub target_slate_version: Option<u16>,
 	/// Issuer slatepack address derivation path index.
 	pub address_index: Option<SlatepackAddressIndex>,
@@ -199,12 +197,14 @@ pub struct RetrieveTxQueryArgs {
 	pub include_outstanding_only: Option<bool>,
 	/// whether to only consider confirmed-only transactions
 	pub include_confirmed_only: Option<bool>,
-	/// whether to only consider sent transactions
+	/// whether to only consider sent transactions, including self spends
 	pub include_sent_only: Option<bool>,
-	/// whether to only consider received transactions
+	/// whether to only consider received transactions, including self spends
 	pub include_received_only: Option<bool>,
 	/// whether to only consider coinbase transactions
 	pub include_coinbase_only: Option<bool>,
+	/// whether to only consider self spend transactions
+	pub include_self_spend_only: Option<bool>,
 	/// whether to only consider reverted transactions
 	pub include_reverted_only: Option<bool>,
 	/// lower bound on the total amount (amount_credited - amount_debited), inclusive
@@ -242,6 +242,7 @@ impl Default for RetrieveTxQueryArgs {
 			include_sent_only: Some(false),
 			include_received_only: Some(false),
 			include_coinbase_only: Some(false),
+			include_self_spend_only: Some(false),
 			include_reverted_only: Some(false),
 			min_amount: None,
 			max_amount: None,

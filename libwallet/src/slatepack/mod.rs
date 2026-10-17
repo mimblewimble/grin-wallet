@@ -20,7 +20,7 @@ mod types;
 
 pub use self::address::SlatepackAddress;
 pub use self::armor::{max_size, min_size, SlatepackArmor, FOOTER, HEADER};
-pub use self::types::{Slatepack, SlatepackAddressIndex, SlatepackBin};
+pub use self::types::{Slatepack, SlatepackAddressIndex, SlatepackBin, SlatepackMode};
 
 use std::fs::{metadata, File};
 use std::io::Read;

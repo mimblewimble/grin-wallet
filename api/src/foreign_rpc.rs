@@ -54,6 +54,7 @@ pub trait ForeignRpc {
 			"Ok": {
 				"foreign_api_version": 2,
 				"supported_slate_versions": [
+					"V5",
 					"V4"
 				]
 			}
@@ -206,7 +207,7 @@ pub trait ForeignRpc {
 		"method": "finalize_tx",
 		"id": 1,
 		"params": [{
-			"ver": "4:2",
+			"ver": "5:2",
 			"id": "0436430c-2b02-624c-2032-570501212b00",
 			"sta": "I2",
 			"off": "383bc9df0dd332629520a0a72f8dd7f0e97d579dccb4dbdc8592aa3d424c846c",
@@ -276,7 +277,7 @@ pub trait ForeignRpc {
 					}
 				],
 				"sta": "I3",
-				"ver": "4:2"
+				"ver": "5:2"
 			}
 		}
 	}
@@ -336,8 +337,6 @@ fn test_check_middleware(
 	_node_version_info: Option<NodeVersionInfo>,
 	_slate: Option<&Slate>,
 ) -> Result<(), libwallet::Error> {
-	// TODO: Implement checks
-	// return Err(Error::GenericError("Test Rejection".into()))?
 	Ok(())
 }
 
