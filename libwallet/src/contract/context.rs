@@ -18,13 +18,13 @@ use crate::backend::WalletBackend;
 use crate::contract::selection::prepare_outputs;
 use crate::contract::types::ContractSetupArgsAPI;
 use crate::contract::utils as contract_utils;
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
 use crate::internal::updater;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient};
 use crate::{Error, OutputData};
 use grin_core::core::FeeFields;
+use grin_keychain::{Identifier, Keychain};
+use grin_util::secp::key::SecretKey;
 
 /// Get or create transaction Context for the given slate
 pub fn get_or_create<C, K>(
@@ -189,7 +189,7 @@ fn add_inputs_to_ctx(context: &mut Context, inputs: &[OutputData]) {
 		context.add_input(&input.key_id, &input.mmr_index, input.value);
 		debug!(
 			"contract::utils::add_inputs_to_ctx => input id: {}, value:{}",
-			&input.key_id, input.value
+			input.key_id, input.value
 		);
 	}
 }

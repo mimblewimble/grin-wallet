@@ -17,11 +17,11 @@
 use crate::backend::WalletBackend;
 use crate::contract::types::{ContractSetupArgsAPI, OutputSelectionArgs};
 use crate::contract::utils::fee_contribution;
-use crate::grin_core::core::amount_to_hr_string;
-use crate::grin_keychain::{Identifier, Keychain};
 use crate::types::NodeClient;
 use crate::{Error, OutputData};
+use grin_core::core::amount_to_hr_string;
 use grin_core::core::FeeFields;
+use grin_keychain::{Identifier, Keychain};
 
 /// Prepares inputs & outputs that satisfy `Σmy_inputs >= Σmy_outputs + my_fee_cost` taking into account selection args
 pub fn prepare_outputs<C, K>(
@@ -382,8 +382,8 @@ mod tests {
 
 	use super::*;
 	use crate::contract::utils::my_fee_contribution;
-	use crate::grin_keychain::{Identifier, IDENTIFIER_SIZE};
 	use crate::OutputStatus;
+	use grin_keychain::{Identifier, IDENTIFIER_SIZE};
 
 	fn _create_output_data_for(amounts: Vec<u64>) -> Vec<OutputData> {
 		let mut rv: Vec<OutputData> = vec![];
@@ -396,7 +396,7 @@ mod tests {
 				key_id: key_id.clone(),
 				n_child: key_id.clone().to_path().last_path_index(),
 				mmr_index: None,
-				commit: Some(format!("{}{}", "abc", idx.to_string())),
+				commit: Some(format!("{}{}", "abc", idx)),
 				value: *amount,
 				status: OutputStatus::Unspent,
 				height: 1,
@@ -451,7 +451,7 @@ mod tests {
 			},
 			..Default::default()
 		};
-		assert!(compute(&setup_args, None, &mut vec![]).is_err());
+		assert!(compute(&setup_args, None, &mut []).is_err());
 
 		let setup_args = ContractSetupArgsAPI {
 			net_change: Some(-1),
@@ -472,7 +472,7 @@ mod tests {
 			},
 			..Default::default()
 		};
-		assert!(compute(&setup_args, None, &mut vec![]).is_err());
+		assert!(compute(&setup_args, None, &mut []).is_err());
 	}
 
 	#[test]
@@ -491,7 +491,7 @@ mod tests {
 				false,
 			),
 		};
-		let result = compute(&setup_args, None, &mut vec![]);
+		let result = compute(&setup_args, None, &mut []);
 		assert_eq!(result.err().unwrap(), expected);
 	}
 
@@ -534,7 +534,7 @@ mod tests {
 		let expected_fee = my_fee_contribution(3, 1, 1, 2).unwrap();
 		let expected_output_amounts = vec![
 			// we expect a single output with change holding 5 - 3 - fees
-			(5_000_000_000 as i64 + (setup_args.net_change.unwrap())) as u64 - expected_fee.fee(),
+			(5_000_000_000_i64 + (setup_args.net_change.unwrap())) as u64 - expected_fee.fee(),
 		];
 		let result = compute(&setup_args, None, &mut inputs.clone()).unwrap();
 
@@ -648,7 +648,7 @@ mod tests {
 			..Default::default()
 		};
 		let expected_fee = my_fee_contribution(0, 1, 1, 2).unwrap();
-		let result = compute(&setup_args, None, &mut vec![]).unwrap();
+		let result = compute(&setup_args, None, &mut []).unwrap();
 
 		assert_eq!(
 			result,
@@ -664,7 +664,7 @@ mod tests {
 			..Default::default()
 		};
 		assert!(matches!(
-			compute(&setup_args, None, &mut vec![]),
+			compute(&setup_args, None, &mut []),
 			Err(Error::NotEnoughFunds { .. })
 		));
 	}
@@ -680,7 +680,7 @@ mod tests {
 			..Default::default()
 		};
 		let expected_fee = my_fee_contribution(0, 2, 1, 2).unwrap();
-		let result = compute(&setup_args, None, &mut vec![]).unwrap();
+		let result = compute(&setup_args, None, &mut []).unwrap();
 		assert_eq!(
 			result,
 			(
@@ -712,7 +712,7 @@ mod tests {
 		let expected_fee = my_fee_contribution(3, 1, 1, 2).unwrap();
 		let expected_output_amounts = vec![
 			// we expect a single output with change holding 3 - fees
-			(8_000_000_000 as i64 + setup_args.net_change.unwrap()) as u64 - expected_fee.fee(),
+			(8_000_000_000_i64 + setup_args.net_change.unwrap()) as u64 - expected_fee.fee(),
 		];
 		let result = compute(&setup_args, None, &mut inputs.clone()).unwrap();
 
@@ -744,10 +744,8 @@ mod tests {
 			3_000_000_000, // abc2
 			4_000_000_000,
 		]);
-		let msg = format!(
-			"We have not found all the inputs that have been requested. abc0,abc2,abc5, found only: 2"
-		);
-		let expected_err = Error::GenericError(msg.into()).into();
+		let msg = "We have not found all the inputs that have been requested. abc0,abc2,abc5, found only: 2".to_string();
+		let expected_err = Error::GenericError(msg);
 		let result = compute(&setup_args, None, &mut inputs.clone());
 
 		assert_eq!(result.err().unwrap(), expected_err);

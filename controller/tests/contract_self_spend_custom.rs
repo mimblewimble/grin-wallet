@@ -45,7 +45,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	let mut use_inputs = String::from("");
 
 	let mut plain_input = None;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -74,7 +74,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 			15 * consensus::GRIN_BASE,
 		]),
 	};
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -96,7 +96,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	assert_eq!(slate.state, SlateState::Standard1);
 
 	// Send wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -114,7 +114,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	// In the case of a self-spend, we just finish the slate when it's in the Standard2 state
 	assert_eq!(slate.state, SlateState::Standard2);
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -130,7 +130,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	bh += 3;
 
 	// Assert changes in send wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -151,7 +151,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 		},
 	)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -195,7 +195,7 @@ fn contract_self_spend_custom_tx_impl(test_dir: &'static str) -> Result<(), libw
 	)?;
 
 	let (plain_input, plain_commitment) = plain_input.expect("plain output was not found");
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -270,7 +270,7 @@ fn contract_min_confirmations_impl(test_dir: &'static str) -> Result<(), libwall
 	let recv_mask = wallets[1].1.as_ref();
 	let mut slate = Slate::blank(0, true);
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -294,55 +294,45 @@ fn contract_min_confirmations_impl(test_dir: &'static str) -> Result<(), libwall
 	)?;
 	assert_eq!(slate.state, SlateState::Standard1);
 
-	wallet::controller::owner_single_use(
-		recv_wallet,
-		recv_mask,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, outputs) = api.retrieve_outputs(m, true, false, None)?;
-			assert_eq!(outputs.len(), 1);
-			assert!(outputs[0].output.eligible_to_spend(bh, 1));
-			assert!(!outputs[0].output.eligible_to_spend(bh, 10));
-			slate = api.contract_sign(
-				m,
-				&slate,
-				&ContractSetupArgsAPI {
-					net_change: Some(consensus::GRIN_BASE as i64),
-					selection_args: OutputSelectionArgs {
-						minimum_confirmations: Some(10),
-						..Default::default()
-					},
-					..Default::default()
-				},
-			)?;
-			Ok(())
-		},
-	)?;
-	assert_eq!(slate.state, SlateState::Standard2);
-	assert_eq!(slate.tx_or_err()?.inputs().len(), 0);
-
-	wallet::controller::owner_single_use(
-		send_wallet,
-		send_mask,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = |minimum| ContractSetupArgsAPI {
+	common::owner_single_use(recv_wallet, recv_mask, PathBuf::from(test_dir), |api, m| {
+		let (_, outputs) = api.retrieve_outputs(m, true, false, None)?;
+		assert_eq!(outputs.len(), 1);
+		assert!(outputs[0].output.eligible_to_spend(bh, 1));
+		assert!(!outputs[0].output.eligible_to_spend(bh, 10));
+		slate = api.contract_sign(
+			m,
+			&slate,
+			&ContractSetupArgsAPI {
+				net_change: Some(consensus::GRIN_BASE as i64),
 				selection_args: OutputSelectionArgs {
-					minimum_confirmations: minimum,
+					minimum_confirmations: Some(10),
 					..Default::default()
 				},
 				..Default::default()
-			};
-			let err = api.contract_sign(m, &slate, &args(Some(12))).unwrap_err();
-			assert!(matches!(
-				err,
-				libwallet::Error::GenericError(ref msg)
-					if msg == "Can't change minimum confirmations after contract setup. setup:10, current:12"
-			));
-			slate = api.contract_sign(m, &slate, &args(None))?;
-			Ok(())
-		},
-	)?;
+			},
+		)?;
+		Ok(())
+	})?;
+	assert_eq!(slate.state, SlateState::Standard2);
+	assert_eq!(slate.tx_or_err()?.inputs().len(), 0);
+
+	common::owner_single_use(send_wallet, send_mask, PathBuf::from(test_dir), |api, m| {
+		let args = |minimum| ContractSetupArgsAPI {
+			selection_args: OutputSelectionArgs {
+				minimum_confirmations: minimum,
+				..Default::default()
+			},
+			..Default::default()
+		};
+		let err = api.contract_sign(m, &slate, &args(Some(12))).unwrap_err();
+		assert!(matches!(
+			err,
+			libwallet::Error::GenericError(ref msg)
+				if msg == "Can't change minimum confirmations after contract setup. setup:10, current:12"
+		));
+		slate = api.contract_sign(m, &slate, &args(None))?;
+		Ok(())
+	})?;
 	assert_eq!(slate.state, SlateState::Standard3);
 
 	stopper.store(false, Ordering::Relaxed);

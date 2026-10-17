@@ -65,7 +65,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
 	let mut sender_address = None;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -73,7 +73,13 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 			// Send wallet inititates a standard transaction with --send=5
 			let args = &common::contract_new_args(-5_000_000_000);
 			slate = api.contract_new(m, args)?;
-			sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
+			sender_address = Some(
+				api.get_slatepack_address(
+					send_mask,
+					libwallet::slatepack::SlatepackAddressIndex(0),
+				)?
+				.pub_key,
+			);
 			Ok(())
 		},
 	)?;
@@ -81,7 +87,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	slate = common::roundtrip_slate(&slate, 4)?;
 
 	let mut recipient_address = None;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -93,7 +99,13 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 			args.proof_args.memo = Some(PaymentMemo::new("SRS payment".into())?);
 			args.proof_args.sender_address = sender_address;
 			slate = api.contract_sign(m, &slate, args)?;
-			recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
+			recipient_address = Some(
+				api.get_slatepack_address(
+					recv_mask,
+					libwallet::slatepack::SlatepackAddressIndex(0),
+				)?
+				.pub_key,
+			);
 			Ok(())
 		},
 	)?;
@@ -102,7 +114,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 
 	// Send wallet finalizes and posts
 	//let mut sender_part_sig = None;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -120,7 +132,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	assert_eq!(slate.state, SlateState::Standard3);
 	slate = common::roundtrip_slate(&slate, 5)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -136,7 +148,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	bh += 3;
 
 	// Assert changes in receive wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -163,7 +175,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	)?;
 
 	// Assert changes in send wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -186,7 +198,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 
 	let mut early_proof = None;
 	// Now some time has passed, sender retrieves and verify the payment proof
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -243,7 +255,7 @@ fn contract_early_proofs_srs_test_impl(test_dir: &'static str) -> Result<(), lib
 	// export and verify through the CLI
 	let proof_file = format!("{}/early_proof.json", test_dir);
 	let tampered_file = format!("{}/early_proof_tampered.json", test_dir);
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),

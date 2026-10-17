@@ -24,10 +24,6 @@
 
 use grin_wallet_config as config;
 
-use grin_core;
-use grin_keychain;
-use grin_util;
-
 use grin_wallet_util as util;
 
 use blake2_rfc as blake2;
@@ -69,8 +65,7 @@ pub use crate::slate_versions::{
 	GRIN_BLOCK_HEADER_VERSION,
 };
 pub use crate::slatepack::{
-	Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin, SlatepackMode, Slatepacker,
-	SlatepackerArgs,
+	Slatepack, SlatepackAddress, SlatepackArmor, SlatepackBin, SlatepackMode,
 };
 pub use api_impl::owner_updater::StatusMessage;
 pub use api_impl::types::{
@@ -89,6 +84,10 @@ pub use types::{
 	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
 	ViewWallet, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
 };
+
+/// Shared wallet handle for APIs and workers
+pub type WalletHandle<'a, L, C, K> =
+	std::sync::Arc<grin_util::Mutex<Box<dyn WalletInst<'a, L, C, K>>>>;
 
 /// Helper for taking a lock on the wallet instance
 #[macro_export]

@@ -18,11 +18,11 @@ use crate::blake2::blake2b::blake2b;
 use crate::contract::types::{ContractRevokeArgsAPI, ContractSetupArgsAPI, OutputSelectionArgs};
 use crate::contract::{new, sign, utils};
 use crate::error::Error;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::internal::tx;
 use crate::slate::Slate;
 use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntryType};
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 use uuid::Uuid;
 
 /// Deterministic slate id for the self-spend that revokes a given contract slate.

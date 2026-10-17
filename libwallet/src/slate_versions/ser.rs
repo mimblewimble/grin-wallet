@@ -34,14 +34,14 @@ where
 		.and_then(|string| base64::decode(&string).map_err(|err| Error::custom(err.to_string())))
 }
 
-/// Serializes an Option<secp::Signature> to and from hex
+/// Optional range proof as hex
 pub mod option_rangeproof_hex {
-	use crate::grin_util::secp::pedersen::RangeProof;
-	use crate::grin_util::{from_hex, ToHex};
+	use grin_util::secp::pedersen::RangeProof;
+	use grin_util::{from_hex, ToHex};
 	use serde::de::{Error, IntoDeserializer};
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the range proof as hex, or null
 	pub fn serialize<S>(proof: &Option<RangeProof>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -52,7 +52,7 @@ pub mod option_rangeproof_hex {
 		}
 	}
 
-	///
+	/// Read an optional range proof from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<RangeProof>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -66,7 +66,7 @@ pub mod option_rangeproof_hex {
 	}
 }
 
-/// Serializes an OnionV3Address to and from hex
+/// Optional onion address as text
 pub mod option_ov3_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
@@ -74,7 +74,7 @@ pub mod option_ov3_serde {
 
 	use crate::util::{OnionV3Address, OnionV3AddressError};
 
-	///
+	/// Write the onion address as text, or null
 	pub fn serialize<S>(addr: &Option<OnionV3Address>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -85,7 +85,7 @@ pub mod option_ov3_serde {
 		}
 	}
 
-	///
+	/// Read an optional onion address
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<OnionV3Address>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -93,13 +93,13 @@ pub mod option_ov3_serde {
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
 			Some(s) => OnionV3Address::try_from(s.as_str())
 				.map_err(|err: OnionV3AddressError| Error::custom(format!("{:?}", err)))
-				.and_then(|a| Ok(Some(a))),
+				.map(Some),
 			None => Ok(None),
 		})
 	}
 }
 
-/// Serializes an OnionV3Address to and from hex
+/// Onion address as text
 pub mod ov3_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
@@ -107,7 +107,7 @@ pub mod ov3_serde {
 
 	use crate::util::{OnionV3Address, OnionV3AddressError};
 
-	///
+	/// Write the onion address as text
 	pub fn serialize<S>(addr: &OnionV3Address, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -115,7 +115,7 @@ pub mod ov3_serde {
 		serializer.serialize_str(&addr.to_string())
 	}
 
-	///
+	/// Read an onion address
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<OnionV3Address, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -123,18 +123,17 @@ pub mod ov3_serde {
 		String::deserialize(deserializer).and_then(|s| {
 			OnionV3Address::try_from(s.as_str())
 				.map_err(|err: OnionV3AddressError| Error::custom(format!("{:?}", err)))
-				.and_then(Ok)
 		})
 	}
 }
 
-/// Serializes an ed25519 PublicKey to and from hex
+/// Ed25519 signing key as hex
 pub mod dalek_seckey_serde {
-	use crate::grin_util::{from_hex, ToHex};
 	use ed25519_dalek::SigningKey as DalekSecretKey;
+	use grin_util::{from_hex, ToHex};
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the Ed25519 signing key as hex
 	pub fn serialize<S>(key: &DalekSecretKey, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -142,7 +141,7 @@ pub mod dalek_seckey_serde {
 		serializer.serialize_str(&key.to_bytes().to_hex())
 	}
 
-	///
+	/// Read an Ed25519 signing key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekSecretKey, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -160,11 +159,11 @@ pub mod dalek_seckey_serde {
 
 /// Serializes an ed25519 PublicKey to and from hex
 pub mod dalek_pubkey_serde {
-	use crate::grin_util::{from_hex, ToHex};
 	use ed25519_dalek::VerifyingKey as DalekPublicKey;
+	use grin_util::{from_hex, ToHex};
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the Ed25519 public key as hex
 	pub fn serialize<S>(key: &DalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -172,7 +171,7 @@ pub mod dalek_pubkey_serde {
 		serializer.serialize_str(&key.to_bytes().to_hex())
 	}
 
-	///
+	/// Read an Ed25519 public key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekPublicKey, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -193,11 +192,11 @@ pub mod dalek_pubkey_serde {
 
 /// Serializes a x25519 PublicKey to and from hex
 pub mod dalek_xpubkey_serde {
-	use crate::grin_util::{from_hex, ToHex};
+	use grin_util::{from_hex, ToHex};
 	use serde::{Deserialize, Deserializer, Serializer};
 	use x25519_dalek::PublicKey as xDalekPublicKey;
 
-	///
+	/// Write the X25519 public key as hex
 	pub fn serialize<S>(key: &xDalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -205,7 +204,7 @@ pub mod dalek_xpubkey_serde {
 		serializer.serialize_str(&key.as_bytes().to_hex())
 	}
 
-	///
+	/// Read an X25519 public key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<xDalekPublicKey, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -230,7 +229,7 @@ pub mod dalek_pubkey_base64 {
 	use ed25519_dalek::VerifyingKey as DalekPublicKey;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the Ed25519 public key as base64
 	pub fn serialize<S>(key: &DalekPublicKey, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -238,7 +237,7 @@ pub mod dalek_pubkey_base64 {
 		serializer.serialize_str(&base64::encode(&key.to_bytes()))
 	}
 
-	///
+	/// Read an Ed25519 public key from base64
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekPublicKey, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -261,8 +260,8 @@ pub mod dalek_pubkey_base64 {
 
 /// Serializes an Option<secp::PublicKey> to and from hex
 pub mod option_pubkey_serde {
-	use crate::grin_util::secp::key::PublicKey;
-	use crate::grin_util::{from_hex, static_secp_instance, ToHex};
+	use grin_util::secp::key::PublicKey;
+	use grin_util::{from_hex, static_secp_instance, ToHex};
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
@@ -307,7 +306,7 @@ pub mod option_dalek_pubkey_base64 {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	///
+	/// Write the Ed25519 public key as base64, or null
 	pub fn serialize<S>(key: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -318,7 +317,7 @@ pub mod option_dalek_pubkey_base64 {
 		}
 	}
 
-	///
+	/// Read an optional Ed25519 public key from base64
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekPublicKey>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -350,9 +349,9 @@ pub mod option_dalek_pubkey_serde {
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 
-	use crate::grin_util::{from_hex, ToHex};
+	use grin_util::{from_hex, ToHex};
 
-	///
+	/// Write the Ed25519 public key as hex, or null
 	pub fn serialize<S>(key: &Option<DalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -363,7 +362,7 @@ pub mod option_dalek_pubkey_serde {
 		}
 	}
 
-	///
+	/// Read an optional Ed25519 public key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekPublicKey>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -392,9 +391,9 @@ pub mod option_xdalek_pubkey_serde {
 	use serde::{Deserialize, Deserializer, Serializer};
 	use x25519_dalek::PublicKey as xDalekPublicKey;
 
-	use crate::grin_util::{from_hex, ToHex};
+	use grin_util::{from_hex, ToHex};
 
-	///
+	/// Write the X25519 public key as hex, or null
 	pub fn serialize<S>(key: &Option<xDalekPublicKey>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -405,7 +404,7 @@ pub mod option_xdalek_pubkey_serde {
 		}
 	}
 
-	///
+	/// Read an optional X25519 public key from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<xDalekPublicKey>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -433,9 +432,9 @@ pub mod dalek_sig_serde {
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;
 
-	use crate::grin_util::{from_hex, ToHex};
+	use grin_util::{from_hex, ToHex};
 
-	///
+	/// Write the Ed25519 signature as hex
 	pub fn serialize<S>(sig: &DalekSignature, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -443,7 +442,7 @@ pub mod dalek_sig_serde {
 		serializer.serialize_str(&sig.to_bytes().as_ref().to_hex())
 	}
 
-	///
+	/// Read an Ed25519 signature from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<DalekSignature, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -453,21 +452,21 @@ pub mod dalek_sig_serde {
 			.and_then(|bytes: Vec<u8>| {
 				let b = <[u8; 64]>::try_from(bytes.as_slice())
 					.map_err(|_| Error::custom("invalid signature length"))?;
-				DalekSignature::try_from(b).map_err(|err| Error::custom(err.to_string()))
+				Ok(DalekSignature::from(b))
 			})
 	}
 }
 
-/// Serializes an Option<ed25519_dalek::PublicKey> to and from hex
+/// Optional Ed25519 signature as hex
 pub mod option_dalek_sig_serde {
 	use ed25519_dalek::Signature as DalekSignature;
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;
 
-	use crate::grin_util::{from_hex, ToHex};
+	use grin_util::{from_hex, ToHex};
 
-	///
+	/// Write the Ed25519 signature as hex, or null
 	pub fn serialize<S>(sig: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -478,7 +477,7 @@ pub mod option_dalek_sig_serde {
 		}
 	}
 
-	///
+	/// Read an optional Ed25519 signature from hex
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekSignature>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -489,16 +488,14 @@ pub mod option_dalek_sig_serde {
 				.and_then(|bytes: Vec<u8>| {
 					let b = <[u8; 64]>::try_from(bytes.as_slice())
 						.map_err(|_| Error::custom("invalid signature length"))?;
-					DalekSignature::try_from(b)
-						.map(Some)
-						.map_err(|err| Error::custom(err.to_string()))
+					Ok(Some(DalekSignature::from(b)))
 				}),
 			None => Ok(None),
 		})
 	}
 }
 
-/// Serializes an Option<ed25519_dalek::PublicKey> to and from base64
+/// Optional Ed25519 signature as base64
 pub mod option_dalek_sig_base64 {
 	use base64;
 	use ed25519_dalek::Signature as DalekSignature;
@@ -506,7 +503,7 @@ pub mod option_dalek_sig_base64 {
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;
 
-	///
+	/// Write the Ed25519 signature as base64, or null
 	pub fn serialize<S>(sig: &Option<DalekSignature>, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -517,7 +514,7 @@ pub mod option_dalek_sig_base64 {
 		}
 	}
 
-	///
+	/// Read an optional Ed25519 signature from base64
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DalekSignature>, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -528,9 +525,7 @@ pub mod option_dalek_sig_base64 {
 				.and_then(|bytes: Vec<u8>| {
 					let b = <[u8; 64]>::try_from(bytes.as_slice())
 						.map_err(|_| Error::custom("invalid signature length"))?;
-					DalekSignature::try_from(b)
-						.map(Some)
-						.map_err(|err| Error::custom(err.to_string()))
+					Ok(Some(DalekSignature::from(b)))
 				}),
 			None => Ok(None),
 		})
@@ -544,7 +539,7 @@ pub mod version_info_v4 {
 
 	use crate::slate_versions::v4::VersionCompatInfoV4;
 
-	///
+	/// Write the version as `slate_version:block_header_version`
 	pub fn serialize<S>(v: &VersionCompatInfoV4, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -552,7 +547,7 @@ pub mod version_info_v4 {
 		serializer.serialize_str(&format!("{}:{}", v.version, v.block_header_version))
 	}
 
-	///
+	/// Read `slate_version:block_header_version`
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<VersionCompatInfoV4, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -644,7 +639,7 @@ pub mod slate_state_v4 {
 
 	use crate::slate_versions::v4::SlateStateV4;
 
-	///
+	/// Write the state as `NA`, `S1`–`S3` or `I1`–`I3`
 	pub fn serialize<S>(st: &SlateStateV4, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -661,7 +656,7 @@ pub mod slate_state_v4 {
 		serializer.serialize_str(label)
 	}
 
-	///
+	/// Read a slate state label
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<SlateStateV4, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -690,7 +685,7 @@ pub mod uuid_base64 {
 	use serde::{Deserialize, Deserializer, Serializer};
 	use uuid::Uuid;
 
-	///
+	/// Write the UUID bytes as base64
 	pub fn serialize<S>(id: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: Serializer,
@@ -698,7 +693,7 @@ pub mod uuid_base64 {
 		serializer.serialize_str(&base64::encode(&id.as_bytes()))
 	}
 
-	///
+	/// Read a UUID from base64
 	pub fn deserialize<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
 	where
 		D: Deserializer<'de>,
@@ -724,11 +719,11 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_util::{secp, static_secp_instance};
 	use ed25519_dalek::Signature as DalekSignature;
 	use ed25519_dalek::Signer;
 	use ed25519_dalek::SigningKey as DalekSecretKey;
 	use ed25519_dalek::VerifyingKey as DalekPublicKey;
+	use grin_util::{secp, static_secp_instance};
 	use serde::Deserialize;
 
 	use serde_json;
@@ -758,9 +753,9 @@ mod test {
 			println!("D sig: {:?}", d_sig);
 
 			SerTest {
-				pub_key: d_pub_key.clone(),
+				pub_key: d_pub_key,
 				pub_key_opt: Some(d_pub_key),
-				sig: d_sig.clone(),
+				sig: d_sig,
 				sig_opt: Some(d_sig),
 			}
 		}

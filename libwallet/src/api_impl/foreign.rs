@@ -23,17 +23,18 @@ use crate::api_impl::owner::{check_ttl, payment_proof_kernel, post_tx};
 use crate::api_impl::types::update_tx_slate_state;
 use crate::backend::WalletBackend;
 use crate::contract::types::{ContractNewArgsAPI, ContractSetupArgsAPI};
-use crate::grin_core::core::FeeFields;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::internal::{selection, tx, updater};
 use crate::payment_proof::EarlyPaymentProof;
 use crate::slate::PaymentProofType;
 use crate::slate_versions::SlateVersion;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
 };
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::FeeFields;
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 
 const FOREIGN_API_VERSION: u16 = 2;
 
@@ -71,6 +72,10 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
+	if slate.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+
 	let mut ret_slate = slate.clone();
 	if ret_slate.state != SlateState::Standard1 {
 		return Err(Error::SlateState);
@@ -128,7 +133,11 @@ where
 				ret_slate.amount,
 				&excess,
 				saddr,
-				address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+				address::address_from_derivation_path(
+					&keychain,
+					&parent_key_id,
+					SlatepackAddressIndex(0),
+				)?,
 			)?;
 
 			p.promise_signature = Some(sig);
@@ -169,7 +178,7 @@ where
 		selection::repopulate_tx(w, keychain_mask, &mut sl, &temp_ctx, false)?;
 
 		tx::complete_tx(w, keychain_mask, &mut sl, &context)?;
-		tx::update_stored_tx(w, keychain_mask, &context, &mut sl, true)?;
+		tx::update_stored_tx(w, keychain_mask, &context, &sl, true)?;
 		{
 			let mut batch = w.batch(keychain_mask)?;
 			batch.delete_private_context(sl.id.as_bytes())?;

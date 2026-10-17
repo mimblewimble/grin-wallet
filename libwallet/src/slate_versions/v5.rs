@@ -27,14 +27,14 @@
 //! * `ts` adds an optional timestamp, serialized as seconds since the epoch
 //! * `memo` adds optional payment details
 
-use crate::grin_core::core::FeeFields;
-use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::BlindingFactor;
 use crate::slate::{PaymentMemo, PaymentProofType};
 use crate::slate_versions::ser;
 use chrono::prelude::{DateTime, Utc};
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::FeeFields;
+use grin_core::libtx::secp_ser;
+use grin_keychain::BlindingFactor;
 use serde_with::TimestampSeconds;
 use uuid::Uuid;
 

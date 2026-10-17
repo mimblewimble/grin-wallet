@@ -27,7 +27,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -65,7 +65,7 @@ impl TorSlateSender {
 	}
 
 	/// Launch external Tor process.
-	fn launch_tor_process(config: &TorConfig, tor_dir: &PathBuf) -> Result<TorProcess, Error> {
+	fn launch_tor_process(config: &TorConfig, tor_dir: &Path) -> Result<TorProcess, Error> {
 		let mut tor = TorProcess::new();
 		let socks_proxy_addr = SocketAddr::V4(
 			config
@@ -101,7 +101,7 @@ impl TorSlateSender {
 		)
 		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 		// Start TOR process
-		let mut path = tor_dir.clone();
+		let mut path = tor_dir.to_path_buf();
 		path.push("torrc");
 		tor.torrc_path(path.to_str().unwrap())
 			.working_dir(tor_dir.to_str().unwrap())
@@ -124,7 +124,7 @@ impl TorSlateSender {
 		let res: String = self.post(url, req).map_err(|e| {
 			let mut report = format!("Performing version check (is recipient listening?): {}", e);
 			let err_string = format!("{}", e);
-			if err_string.contains("404") {
+			if !self.config.use_integrated.unwrap_or(false) && err_string.contains("404") {
 				// Report that the other version of the wallet is out of date
 				report = "Other wallet is incompatible and requires an upgrade. \
 				          Please urge the other wallet owner to upgrade and try the transaction again."
@@ -178,11 +178,10 @@ impl TorSlateSender {
 			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", timeout)
 				.map_err(|_| ClientError::Internal("Unable to create http client".into()))?;
 			let req = client.create_post_request(url, None, &input)?;
-			let res = client.send_request(req)?;
-			res
+			client.send_request(req)?
 		} else {
 			tor_post(&self.config, &input, url)
-				.map_err(|e| ClientError::RequestError(format!("{:?}", e)))?
+				.map_err(|e| ClientError::RequestError(e.to_string()))?
 		};
 		Ok(res)
 	}

@@ -58,8 +58,7 @@ pub fn info_strings() -> (String, String) {
 /// Helper function to format paths according to OS, avoids bugs on Linux
 pub fn fmt_path(path: String) -> String {
 	let sep = &MAIN_SEPARATOR.to_string();
-	let path = path.replace("/", &sep).replace("\\", &sep);
-	path
+	path.replace("/", sep).replace("\\", sep)
 }
 
 fn log_build_info() {
@@ -103,16 +102,13 @@ fn real_main() -> i32 {
 	}
 
 	// special cases for certain lifecycle commands
-	match args.subcommand() {
-		("init", Some(init_args)) => {
-			if init_args.is_present("here") {
-				current_dir = Some(env::current_dir().unwrap_or_else(|e| {
-					panic!("Error creating config file: {}", e);
-				}));
-			}
-			create_path = true;
+	if let ("init", Some(init_args)) = args.subcommand() {
+		if init_args.is_present("here") {
+			current_dir = Some(env::current_dir().unwrap_or_else(|e| {
+				panic!("Error creating config file: {}", e);
+			}));
 		}
-		_ => {}
+		create_path = true;
 	}
 
 	// Load relevant config, try and load a wallet config file
@@ -147,7 +143,7 @@ fn real_main() -> i32 {
 	);
 	log_build_info();
 
-	global::init_global_chain_type(config.members.wallet.chain_type.as_ref().unwrap().clone());
+	global::init_global_chain_type(*config.members.wallet.chain_type.as_ref().unwrap());
 
 	global::init_global_accept_fee_base(config.members.wallet.accept_fee_base());
 	let wallet_config = config.clone().members.wallet;

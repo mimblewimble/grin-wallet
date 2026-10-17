@@ -17,7 +17,6 @@
 //! Versions earlier than V3 are removed for the 4.0.0 release, but versioning code
 //! remains for future needs
 
-use crate::grin_core::core::transaction::KernelFeatures;
 use crate::slate::Slate;
 use crate::slate_versions::v4::{CoinbaseV4, SlateV4};
 use crate::slate_versions::v4_bin::SlateV4Bin;
@@ -25,6 +24,7 @@ use crate::slate_versions::v5::{CoinbaseV5, SlateV5};
 use crate::slate_versions::v5_bin::SlateV5Bin;
 use crate::types::CbData;
 use crate::Error;
+use grin_core::core::transaction::KernelFeatures;
 use std::convert::TryFrom;
 
 mod common;
@@ -186,26 +186,23 @@ impl VersionedCoinbase {
 /// Shared slate fixtures, used by the version conversion tests
 #[cfg(test)]
 pub mod tests {
-	use crate::grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight, OutputFeatures};
-	use crate::grin_core::core::FeeFields;
-	use crate::grin_util::from_hex;
-	use crate::grin_util::secp::key::PublicKey;
-	use crate::grin_util::secp::pedersen::Commitment;
-	use crate::grin_util::secp::Signature;
 	use crate::slate::{
 		KernelFeaturesArgs, ParticipantData, PaymentInfo, PaymentMemo, PaymentProofType,
 	};
 	use crate::slate_versions::v4::SlateV4;
 	use crate::slate_versions::v5::{CommitsV5, SlateV5};
-	use crate::{
-		slate, Error, Slate, SlateVersion, Slatepacker, SlatepackerArgs, VersionedBinSlate,
-		VersionedSlate,
-	};
+	use crate::{slate, Error, Slate, SlateVersion, VersionedBinSlate, VersionedSlate};
 	use chrono::{DateTime, Utc};
 	use ed25519_dalek::Signature as DalekSignature;
 	use ed25519_dalek::VerifyingKey as DalekPublicKey;
+	use grin_core::core::transaction::{KernelFeatures, NRDRelativeHeight, OutputFeatures};
+	use grin_core::core::FeeFields;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_keychain::{BlindingFactor, ExtKeychain, Keychain, SwitchCommitmentType};
+	use grin_util::from_hex;
+	use grin_util::secp::key::PublicKey;
+	use grin_util::secp::pedersen::Commitment;
+	use grin_util::secp::Signature;
 	use grin_wallet_util::byte_ser;
 	use std::convert::TryInto;
 
@@ -271,7 +268,7 @@ pub mod tests {
 				skey2,
 				None,
 				None,
-			)),
+			)?),
 		};
 
 		let coms = vec![
@@ -352,16 +349,9 @@ pub mod tests {
 	fn ser_deser_current_slate() -> Result<(), Error> {
 		let slate_internal = populate_test_slate()?;
 		// Serialize slate into slatepack
-		let slatepacker_args = SlatepackerArgs {
-			sender: None,
-			recipients: vec![],
-			dec_key: None,
-		};
+		let slate_packed = slate_internal.create_slatepack(None, vec![]).unwrap();
 
-		let slate_packer = Slatepacker::new(slatepacker_args);
-		let slate_packed = slate_packer.create_slatepack(&slate_internal).unwrap();
-
-		let slate_unpacked = slate_packer.get_slate(&slate_packed).unwrap();
+		let slate_unpacked = slate_packed.get_slate().unwrap();
 
 		assert_eq!(slate_internal.payment_proof, slate_unpacked.payment_proof);
 		let version = SlateVersion::output_for(&slate_internal)?;
@@ -377,28 +367,25 @@ pub mod tests {
 	#[test]
 	fn create_slatepack_uses_output_version() -> Result<(), Error> {
 		set_local_chain_type(ChainTypes::Mainnet);
-		let packer = Slatepacker::new(SlatepackerArgs {
-			sender: None,
-			recipients: vec![],
-			dec_key: None,
-		});
 
 		// A slate carrying a payment proof needs V5 (the proof carries memo/timestamp
 		// that V4 can't represent), and the V5 fields survive the round trip.
 		let slate_with_proof = populate_test_slate()?;
 		assert!(slate_with_proof.payment_proof.is_some());
-		let recovered_v5 = packer.get_slate(&packer.create_slatepack(&slate_with_proof)?)?;
+		let recovered_v5 = slate_with_proof
+			.create_slatepack(None, vec![])?
+			.get_slate()?;
 		assert_eq!(recovered_v5.version_info.version, 5);
 		assert!(recovered_v5.payment_proof.unwrap().memo.is_some());
 
 		// A plain slate keeps its requested version.
 		let mut slate_no_proof = populate_test_slate()?;
 		slate_no_proof.payment_proof = None;
-		let recovered_v5 = packer.get_slate(&packer.create_slatepack(&slate_no_proof)?)?;
+		let recovered_v5 = slate_no_proof.create_slatepack(None, vec![])?.get_slate()?;
 		assert_eq!(recovered_v5.version_info.version, 5);
 
 		slate_no_proof.version_info.version = 4;
-		let recovered_v4 = packer.get_slate(&packer.create_slatepack(&slate_no_proof)?)?;
+		let recovered_v4 = slate_no_proof.create_slatepack(None, vec![])?.get_slate()?;
 		assert_eq!(recovered_v4.version_info.version, 4);
 
 		// A legacy send proof also fits in V4 and survives the round trip intact.
@@ -406,7 +393,9 @@ pub mod tests {
 		use_legacy_proof(&mut slate_legacy_proof);
 		slate_legacy_proof.version_info.version = 4;
 		let proof = slate_legacy_proof.payment_proof.clone().unwrap();
-		let recovered_legacy = packer.get_slate(&packer.create_slatepack(&slate_legacy_proof)?)?;
+		let recovered_legacy = slate_legacy_proof
+			.create_slatepack(None, vec![])?
+			.get_slate()?;
 		assert_eq!(recovered_legacy.version_info.version, 4);
 		let recovered_proof = recovered_legacy.payment_proof.unwrap();
 		assert_eq!(recovered_proof.sender_address, proof.sender_address);
@@ -420,7 +409,7 @@ pub mod tests {
 		proof.memo = None;
 		proof.promise_signature = None;
 		partial_proof.version_info.version = 4;
-		let recovered = packer.get_slate(&packer.create_slatepack(&partial_proof)?)?;
+		let recovered = partial_proof.create_slatepack(None, vec![])?.get_slate()?;
 		assert_eq!(recovered.version_info.version, 5);
 		let proof = recovered.payment_proof.unwrap();
 		assert!(proof.sender_address.is_none());
@@ -609,9 +598,9 @@ pub mod tests {
 
 	#[test]
 	fn slate_states() {
-		use crate::grin_core::ser::{deserialize_default, serialize_default};
 		use crate::slate::SlateState;
 		use crate::slate_versions::v5::SlateStateV5;
+		use grin_core::ser::{deserialize_default, serialize_default};
 
 		for (state, label, byte) in [
 			(SlateState::Unknown, "NA", 0),

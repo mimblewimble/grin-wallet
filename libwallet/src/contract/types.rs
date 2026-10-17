@@ -15,10 +15,10 @@
 //! Types related to a contract
 
 use crate::error::Error;
-use crate::grin_core::libtx::secp_ser;
 pub use crate::slate::{PaymentMemo, PaymentProofType as ProofType};
 use crate::slate_versions::ser as dalek_ser;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::libtx::secp_ser;
 
 /// Default confirmations for contract inputs
 /// Keep in sync with contract new in grin-wallet.yml
@@ -306,8 +306,10 @@ mod tests {
 
 	#[test]
 	fn contract_ttl_json() {
-		let mut args = ContractNewArgsAPI::default();
-		args.ttl_blocks = Some(20);
+		let args = ContractNewArgsAPI {
+			ttl_blocks: Some(20),
+			..Default::default()
+		};
 		let mut json = serde_json::to_value(&args).unwrap();
 		assert_eq!(json["ttl_blocks"], "20");
 

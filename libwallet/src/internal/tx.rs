@@ -18,13 +18,9 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use uuid::Uuid;
 
-use crate::grin_core::consensus::header_version;
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::pedersen;
-use crate::grin_util::Mutex;
 use crate::internal::{selection, updater};
 use crate::slate::{PaymentProofType, Slate};
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error};
@@ -33,7 +29,12 @@ use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use ed25519_dalek::{Signer, Verifier};
+use grin_core::consensus::header_version;
 use grin_core::core::FeeFields;
+use grin_keychain::{Identifier, Keychain};
+use grin_util::secp::key::SecretKey;
+use grin_util::secp::pedersen;
+use grin_util::Mutex;
 
 // static for incrementing test UUIDs
 lazy_static! {
@@ -81,6 +82,7 @@ where
 }
 
 /// Estimates locked amount and fee for the transaction without creating one
+#[allow(clippy::too_many_arguments)]
 pub fn estimate_send_tx<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -132,6 +134,7 @@ where
 }
 
 /// Add inputs to the slate (effectively becoming the sender)
+#[allow(clippy::too_many_arguments)]
 pub fn add_inputs_to_slate<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -236,7 +239,7 @@ where
 		// update excess in stored transaction
 		let mut batch = wallet.batch(keychain_mask)?;
 		tx.kernel_excess = Some(slate.calc_excess(keychain.secp())?);
-		batch.save_tx_log_entry(tx.clone(), &parent_key_id)?;
+		batch.save_tx_log_entry(tx, parent_key_id)?;
 		batch.commit()?;
 	}
 
@@ -273,14 +276,14 @@ where
 		init_tx_args.max_outputs as usize,
 		init_tx_args.num_change_outputs as usize,
 		init_tx_args.selection_strategy_is_use_all,
-		&parent_key_id,
+		parent_key_id,
 	)?;
 	slate.fee_fields = FeeFields::new(0, fee)?;
 
 	let keychain = wallet.keychain(keychain_mask)?;
 
 	// Create our own private context
-	let mut context = Context::new(keychain.secp(), &parent_key_id, use_test_rng, true);
+	let mut context = Context::new(keychain.secp(), parent_key_id, use_test_rng, true);
 	context.fee = Some(slate.fee_fields);
 	context.amount = slate.amount;
 	context.late_lock_args = Some(init_tx_args.clone());
@@ -342,14 +345,8 @@ where
 	} else if let Some(tx_slate_id) = tx_slate_id {
 		tx_id_string = tx_slate_id.to_string();
 	}
-	let tx_vec = updater::retrieve_txs(
-		wallet,
-		tx_id,
-		tx_slate_id,
-		None,
-		Some(&parent_key_id),
-		false,
-	)?;
+	let tx_vec =
+		updater::retrieve_txs(wallet, tx_id, tx_slate_id, None, Some(parent_key_id), false)?;
 	if tx_vec.is_empty() {
 		return Err(Error::TransactionDoesntExist(tx_id_string));
 	}
@@ -382,7 +379,7 @@ where
 	updater::cancel_txs_and_outputs(wallet, keychain_mask, to_cancel, parent_key_id)
 }
 
-/// Update the stored transaction (this update needs to happen when the TX is finalised)
+/// Update the stored transaction (this update needs to happen when the TX is finalized)
 pub fn update_stored_tx<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
@@ -420,7 +417,9 @@ where
 
 	if let Some(ref p) = slate.clone().payment_proof {
 		if let Some(saddr) = p.sender_address {
-			let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
+			let derivation_index = context
+				.payment_proof_derivation_index
+				.unwrap_or(SlatepackAddressIndex(0));
 			let keychain = wallet.keychain(keychain_mask)?;
 			let parent_key_id = wallet.parent_key_id();
 			let excess = slate.calc_excess(keychain.secp())?;
@@ -464,12 +463,12 @@ pub fn _decode_payment_proof_message(
 	let mut rdr = Cursor::new(msg);
 	let amount = rdr.read_u64::<BigEndian>()?;
 	let mut commit_bytes = [0u8; 33];
-	for i in 0..33 {
-		commit_bytes[i] = rdr.read_u8()?;
+	for byte in &mut commit_bytes {
+		*byte = rdr.read_u8()?;
 	}
 	let mut sender_address_bytes = [0u8; 32];
-	for i in 0..32 {
-		sender_address_bytes[i] = rdr.read_u8()?;
+	for byte in &mut sender_address_bytes {
+		*byte = rdr.read_u8()?;
 	}
 
 	Ok((
@@ -511,13 +510,15 @@ where
 		Some(parent_key_id),
 		false,
 	)?;
-	if tx_vec.is_empty() {
-		return Err(Error::PaymentProof(
-			"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
-		));
-	}
-
-	let orig_proof_info = tx_vec[0].clone().payment_proof;
+	let orig_proof_info = tx_vec
+		.into_iter()
+		.find(|tx| tx.tx_type == TxLogEntryType::TxSent)
+		.ok_or_else(|| {
+			Error::PaymentProof(
+				"TxLogEntry with original proof info not found (is account correct?)".to_owned(),
+			)
+		})?
+		.payment_proof;
 
 	if orig_proof_info.is_some() && slate.payment_proof.is_none() {
 		return Err(Error::PaymentProof(
@@ -566,7 +567,7 @@ where
 		}
 		let msg = payment_proof_message(
 			slate.amount,
-			&slate.calc_excess(&keychain.secp())?,
+			&slate.calc_excess(keychain.secp())?,
 			orig_sender_address.to_ed25519()?,
 		)?;
 		let sig = match p.promise_signature {
@@ -590,12 +591,12 @@ mod test {
 	use super::*;
 	use rand::rngs::mock::StepRng;
 
-	use crate::grin_core::core::{FeeFields, KernelFeatures};
-	use crate::grin_core::libtx::{build, ProofBuilder};
-	use crate::grin_keychain::{
+	use grin_core::core::{FeeFields, KernelFeatures};
+	use grin_core::libtx::{build, ProofBuilder};
+	use grin_keychain::{
 		BlindSum, BlindingFactor, ExtKeychain, ExtKeychainPath, Keychain, SwitchCommitmentType,
 	};
-	use crate::grin_util::{secp, static_secp_instance};
+	use grin_util::{secp, static_secp_instance};
 
 	#[test]
 	// demonstrate that input.commitment == referenced output.commitment
@@ -655,7 +656,7 @@ mod test {
 				.unwrap();
 			keychain
 				.secp()
-				.commit(0, blinding_factor.secret_key(&keychain.secp()).unwrap())
+				.commit(0, blinding_factor.secret_key(keychain.secp()).unwrap())
 				.unwrap()
 		};
 

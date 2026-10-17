@@ -15,18 +15,19 @@
 //! Contract functions on the Slate
 
 use crate::backend::WalletBackend;
-use crate::grin_core::core::transaction::{Inputs, OutputFeatures, OutputIdentifier};
-use crate::grin_core::libtx::build;
-use crate::grin_core::libtx::proof::ProofBuilder;
-use crate::grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
-use crate::grin_util::from_hex;
-use crate::grin_util::secp::constants::PEDERSEN_COMMITMENT_SIZE;
-use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::pedersen::Commitment;
 use crate::slate::{Slate, SlateState};
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, OutputData};
 use crate::util::OnionV3Address;
 use crate::Error;
+use grin_core::core::transaction::{Inputs, OutputFeatures, OutputIdentifier};
+use grin_core::libtx::build;
+use grin_core::libtx::proof::ProofBuilder;
+use grin_keychain::{Identifier, Keychain, SwitchCommitmentType};
+use grin_util::from_hex;
+use grin_util::secp::constants::PEDERSEN_COMMITMENT_SIZE;
+use grin_util::secp::key::{PublicKey, SecretKey};
+use grin_util::secp::pedersen::Commitment;
 use std::collections::BTreeSet;
 
 use super::types::{OwnCommitmentStatus, ProofArgs};
@@ -88,7 +89,9 @@ where
 		.enumerate()
 		.find_map(|(index, _)| (index != payer_index).then_some(index))
 		.ok_or_else(|| Error::GenericError("Payment promise has no receiver".to_string()))?;
-	let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
+	let derivation_index = context
+		.payment_proof_derivation_index
+		.unwrap_or(SlatepackAddressIndex(0));
 	let sender_key = crate::address::address_from_derivation_path(
 		keychain,
 		&context.parent_key_id,
@@ -560,8 +563,8 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::grin_keychain::{ExtKeychain, SwitchCommitmentType};
 	use crate::slate::ParticipantData;
+	use grin_keychain::{ExtKeychain, SwitchCommitmentType};
 
 	fn keychain_and_context() -> (ExtKeychain, Context) {
 		let keychain = ExtKeychain::from_random_seed(true).unwrap();

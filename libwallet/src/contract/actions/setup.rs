@@ -19,11 +19,11 @@ use crate::backend::WalletBackend;
 use crate::contract;
 use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient};
 use grin_core::core::FeeFields;
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 
 // Contract deadlines use the node tip because the active account may not own the context
 fn check_contract_ttl<C, K>(w: &mut WalletBackend<C, K>, slate: &Slate) -> Result<(), Error>

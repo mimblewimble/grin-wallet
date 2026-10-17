@@ -17,14 +17,15 @@
 use crate::backend::WalletBackend;
 use crate::contract::selection::verify_selection_consistency;
 use crate::contract::types::ContractSetupArgsAPI;
-use crate::grin_core::libtx::tx_fee;
-use crate::grin_keychain::{Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
 use crate::slate::{PaymentProofType, Slate};
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntryType};
 use crate::util::OnionV3Address;
 use crate::{address, Error, OutputData, OutputStatus, TxLogEntry};
 use grin_core::core::{FeeFields, Transaction};
+use grin_core::libtx::tx_fee;
+use grin_keychain::{Identifier, Keychain};
+use grin_util::secp::key::SecretKey;
 use uuid::Uuid;
 
 /// Creates an initial TxLogEntry without input/output or kernel information
@@ -92,7 +93,7 @@ where
 				.timestamp
 				.ok_or_else(|| Error::PaymentProof("Missing proof timestamp".to_string()))?;
 			// note we only use a single path for now
-			let sender_address_path = 0u32;
+			let sender_address_path = SlatepackAddressIndex(0);
 			let sender_key = address::address_from_derivation_path(
 				keychain,
 				&parent_key_id,

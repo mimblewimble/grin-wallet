@@ -14,10 +14,10 @@
 
 //! Wallet key management functions
 use crate::error::Error;
-use crate::grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
-use crate::grin_util::secp::key::SecretKey;
 use crate::types::{AcctPathMapping, NodeClient};
 use crate::WalletBackend;
+use grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain};
+use grin_util::secp::key::SecretKey;
 
 /// Get next available key in the wallet for a given parent
 pub fn next_available_key<C, K>(
@@ -68,7 +68,7 @@ where
 	K: Keychain,
 {
 	let label = label.to_owned();
-	if wallet.acct_path_iter()?.any(|l| l.label == label) {
+	if wallet.acct_path_iter()?.any(|a| a.label == label) {
 		return Err(Error::AccountLabelAlreadyExists(label));
 	}
 
@@ -93,6 +93,8 @@ where
 	let save_path = AcctPathMapping {
 		label,
 		path: return_id.clone(),
+		info: None,
+		current: None,
 	};
 
 	let mut batch = wallet.batch(keychain_mask)?;
@@ -116,6 +118,8 @@ where
 	let save_path = AcctPathMapping {
 		label,
 		path: path.clone(),
+		info: None,
+		current: None,
 	};
 
 	let mut batch = wallet.batch(keychain_mask)?;

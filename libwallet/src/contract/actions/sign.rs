@@ -20,10 +20,10 @@ use crate::contract;
 use crate::contract::actions::setup;
 use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::slate::{Slate, SlateState};
 use crate::types::{Context, NodeClient};
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 
 fn verify_first_sign_net_change(
 	state: &SlateState,

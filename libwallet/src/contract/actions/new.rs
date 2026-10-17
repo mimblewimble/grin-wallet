@@ -19,11 +19,11 @@ use crate::contract;
 use crate::contract::actions::setup;
 use crate::contract::types::ContractSetupArgsAPI;
 use crate::error::Error;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::internal::tx;
 use crate::slate::Slate;
 use crate::types::{Context, NodeClient};
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 use uuid::Uuid;
 
 /// Create a new contract with initial setup done by the initiator. `slate_id`, when

@@ -14,13 +14,13 @@
 
 //! Wraps a V5 Slate into a V5 Binary slate
 
-use crate::grin_core::ser as grin_ser;
-use crate::grin_core::ser::{Readable, Reader, Writeable, Writer};
-use crate::grin_keychain::BlindingFactor;
 use crate::slate::{PaymentMemo, PaymentProofType};
 use chrono::DateTime;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::ser as grin_ser;
+use grin_core::ser::{Readable, Reader, Writeable, Writer};
+use grin_keychain::BlindingFactor;
 use std::convert::TryFrom;
 
 use crate::slate_versions::v5::{
@@ -187,7 +187,7 @@ impl Readable for ProofWrap {
 
 #[test]
 fn rejects_invalid_proof_fields() {
-	use crate::grin_util::from_hex;
+	use grin_util::from_hex;
 
 	let bytes =
 		from_hex("d03c09e9c19bb74aa9ea44e0fe5ae237a9bf40bddf0941064a80913a4459c8bb").unwrap();
@@ -356,16 +356,16 @@ impl Readable for SlateV5Bin {
 
 #[test]
 fn slate_v5_serialize_deserialize() {
-	use crate::grin_core::core::transaction::OutputFeatures;
-	use crate::grin_util::from_hex;
-	use crate::grin_util::secp::key::PublicKey;
-	use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-	use crate::grin_util::secp::Signature;
 	use crate::slate_versions::v5::ParticipantDataV5;
 	use crate::Slate;
 	use chrono::Utc;
+	use grin_core::core::transaction::OutputFeatures;
 	use grin_core::global::{set_local_chain_type, ChainTypes};
 	use grin_keychain::{ExtKeychain, Keychain, SwitchCommitmentType};
+	use grin_util::from_hex;
+	use grin_util::secp::key::PublicKey;
+	use grin_util::secp::pedersen::{Commitment, RangeProof};
+	use grin_util::secp::Signature;
 	set_local_chain_type(ChainTypes::Mainnet);
 	let slate = Slate::blank(1, false);
 	let mut v5 = SlateV5::from(slate);

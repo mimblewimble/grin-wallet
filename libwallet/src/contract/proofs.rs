@@ -16,13 +16,14 @@
 
 use crate::backend::WalletBackend;
 use crate::contract::types::ProofArgs;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::secp::Secp256k1;
 use crate::payment_proof::EarlyPaymentProof;
 use crate::slate::{PaymentProofType, Slate};
+use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient};
 use crate::{address, Error};
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
+use grin_util::secp::Secp256k1;
 
 /// Commit the payer nonce to the sender-nonce proof fields.
 pub(super) fn commit_sender_nonce(
@@ -67,7 +68,9 @@ where
 {
 	let keychain = wallet.keychain(keychain_mask)?;
 	let participant_index = slate.find_index_matching_context(&keychain, context)?;
-	let derivation_index = context.payment_proof_derivation_index.unwrap_or(0);
+	let derivation_index = context
+		.payment_proof_derivation_index
+		.unwrap_or(SlatepackAddressIndex(0));
 	let receiver_key =
 		address::address_from_derivation_path(&keychain, &context.parent_key_id, derivation_index)?;
 	slate.add_payment_proof_data(

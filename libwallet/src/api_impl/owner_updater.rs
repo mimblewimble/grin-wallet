@@ -19,14 +19,14 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
-use crate::grin_util::Mutex;
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
+use grin_util::Mutex;
 
 use crate::api_impl::owner;
 use crate::types::NodeClient;
 use crate::Error;
-use crate::{WalletInst, WalletLCProvider};
+use crate::WalletLCProvider;
 
 const MESSAGE_QUEUE_MAX_LEN: usize = 10_000;
 
@@ -101,7 +101,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
 	is_running: Arc<AtomicBool>,
 }
 
@@ -112,10 +112,7 @@ where
 	K: Keychain + 'a,
 {
 	/// create a new updater
-	pub fn new(
-		wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
-		is_running: Arc<AtomicBool>,
-	) -> Self {
+	pub fn new(wallet_inst: crate::WalletHandle<'a, L, C, K>, is_running: Arc<AtomicBool>) -> Self {
 		is_running.store(false, Ordering::Relaxed);
 		Updater {
 			wallet_inst,
@@ -141,7 +138,7 @@ where
 			if wallet_opened {
 				owner::update_wallet_state(
 					self.wallet_inst.clone(),
-					(&keychain_mask).as_ref(),
+					keychain_mask.as_ref(),
 					status_send_channel,
 					false,
 				)?;

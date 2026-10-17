@@ -122,7 +122,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		},
 	);
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -166,7 +166,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	);
 
 	// Receive wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -196,7 +196,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	);
 
 	// Send wallet posts so receive wallet doesn't get the mined amount
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -212,7 +212,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	bh += 3;
 
 	// Assert changes in receive wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -240,7 +240,7 @@ fn contract_rsr_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	)?;
 
 	// Assert changes in send wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),

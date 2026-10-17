@@ -15,15 +15,6 @@
 //! Early payment proof creation and verification.
 
 use crate::blake2::blake2b::blake2b;
-use crate::grin_core::libtx::aggsig;
-use crate::grin_core::libtx::secp_ser;
-use crate::grin_core::ser as grin_ser;
-use crate::grin_core::ser::{Writeable, Writer};
-use crate::grin_util::secp::key::{PublicKey, SecretKey};
-use crate::grin_util::secp::pedersen::Commitment;
-use crate::grin_util::secp::Secp256k1;
-use crate::grin_util::secp::Signature;
-use crate::grin_util::static_secp_instance;
 use crate::slate::{PaymentMemo, PaymentProofType, Slate};
 use crate::slate_versions::ser::{dalek_pubkey_serde, option_dalek_sig_serde, option_pubkey_serde};
 use crate::Error;
@@ -31,7 +22,16 @@ use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use ed25519_dalek::{Signer, Verifier};
+use grin_core::libtx::aggsig;
+use grin_core::libtx::secp_ser;
+use grin_core::ser as grin_ser;
+use grin_core::ser::{Writeable, Writer};
+use grin_util::secp::key::{PublicKey, SecretKey};
+use grin_util::secp::pedersen::Commitment;
 use grin_util::secp::Message;
+use grin_util::secp::Secp256k1;
+use grin_util::secp::Signature;
+use grin_util::static_secp_instance;
 
 pub(crate) fn check_proof_type(proof_type: &PaymentProofType) -> Result<(), Error> {
 	match proof_type {
@@ -618,7 +618,7 @@ mod tests {
 
 	#[test]
 	fn proof_promise() -> Result<(), Error> {
-		use crate::grin_util::ToHex;
+		use grin_util::ToHex;
 
 		let mut slate = populate_test_slate()?;
 		slate.amount |= 0xFF00_0000_0000_0000;

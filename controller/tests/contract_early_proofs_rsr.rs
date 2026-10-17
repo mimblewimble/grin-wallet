@@ -55,18 +55,24 @@ fn contract_early_proofs_rsr_test_impl(
 
 	let mut sender_address = None;
 	// Get sender address explicitly
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
 		|api, _m| {
-			sender_address = Some(api.get_slatepack_address(send_mask, 0)?.pub_key);
+			sender_address = Some(
+				api.get_slatepack_address(
+					send_mask,
+					libwallet::slatepack::SlatepackAddressIndex(0),
+				)?
+				.pub_key,
+			);
 			Ok(())
 		},
 	)?;
 
 	let mut recipient_address = None;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -79,7 +85,13 @@ fn contract_early_proofs_rsr_test_impl(
 			args.setup_args.proof_args.memo = Some(PaymentMemo::new("RSR payment".into())?);
 			args.setup_args.proof_args.sender_address = sender_address;
 			slate = api.contract_new(m, args)?;
-			recipient_address = Some(api.get_slatepack_address(recv_mask, 0)?.pub_key);
+			recipient_address = Some(
+				api.get_slatepack_address(
+					recv_mask,
+					libwallet::slatepack::SlatepackAddressIndex(0),
+				)?
+				.pub_key,
+			);
 			Ok(())
 		},
 	)?;
@@ -87,7 +99,7 @@ fn contract_early_proofs_rsr_test_impl(
 	assert_eq!(slate.state, SlateState::Invoice1);
 	slate = common::roundtrip_slate(&slate, 5)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -103,7 +115,7 @@ fn contract_early_proofs_rsr_test_impl(
 	slate = common::roundtrip_slate(&slate, 5)?;
 
 	// Send wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -116,7 +128,7 @@ fn contract_early_proofs_rsr_test_impl(
 	assert_eq!(slate.state, SlateState::Invoice3);
 	slate = common::roundtrip_slate(&slate, 5)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -132,7 +144,7 @@ fn contract_early_proofs_rsr_test_impl(
 	bh += 3;
 
 	// Assert changes in receive wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -159,7 +171,7 @@ fn contract_early_proofs_rsr_test_impl(
 	)?;
 
 	// Assert changes in send wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -182,7 +194,7 @@ fn contract_early_proofs_rsr_test_impl(
 
 	let mut early_proof = None;
 	// Now some time has passed, sender retrieves and verify the payment proof
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),

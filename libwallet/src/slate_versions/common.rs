@@ -14,14 +14,14 @@
 
 //! Wire types shared by V4 and V5 slates
 
-use crate::grin_core::core::{Input, Output, TxKernel};
-use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::Identifier;
-use crate::grin_util::secp;
-use crate::grin_util::secp::key::PublicKey;
-use crate::grin_util::secp::pedersen::{Commitment, RangeProof};
-use crate::grin_util::secp::Signature;
 use crate::{slate_versions::ser, CbData};
+use grin_core::core::{Input, Output, TxKernel};
+use grin_core::libtx::secp_ser;
+use grin_keychain::Identifier;
+use grin_util::secp;
+use grin_util::secp::key::PublicKey;
+use grin_util::secp::pedersen::{Commitment, RangeProof};
+use grin_util::secp::Signature;
 
 /// Slate state definition
 #[derive(Serialize, Deserialize, Debug, Clone)]

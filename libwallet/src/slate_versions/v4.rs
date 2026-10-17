@@ -34,7 +34,7 @@
 //! * The feat_args struct is added, which may be populated for non-Plain kernels
 //! * `proof` may be omitted from the slate if it is None (null),
 //! * `off` (offset) is added, and will be modified by every participant in the transaction with a random
-//! value - the value of their inputs' blinding factors
+//!   value - the value of their inputs' blinding factors
 //!
 //! #### Participant Data (`sigs`)
 //!
@@ -53,12 +53,12 @@
 //! *  The `receiver_signature` field is renamed to `rsig`
 //! * `rsig` may be omitted if it has not yet been filled out
 
-use crate::grin_core::core::FeeFields;
-use crate::grin_core::libtx::secp_ser;
-use crate::grin_keychain::BlindingFactor;
 use crate::slate_versions::ser;
 use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
+use grin_core::core::FeeFields;
+use grin_core::libtx::secp_ser;
+use grin_keychain::BlindingFactor;
 use uuid::Uuid;
 
 pub use crate::slate_versions::common::{

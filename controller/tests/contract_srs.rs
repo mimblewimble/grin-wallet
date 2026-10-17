@@ -82,7 +82,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 
 	let mut slate = Slate::blank(0, false); // this gets overriden below
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -99,14 +99,14 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			let progress = common::wallet_progress(api, m)?;
 			for count in [0, 3] {
 				args.setup_args.num_participants = count;
-				let err = api.contract_new(m, &mut args).unwrap_err();
+				let err = api.contract_new(m, &args).unwrap_err();
 				assert_participant_error(err, count);
 			}
 			assert_eq!(common::wallet_progress(api, m)?, progress);
 
 			args.setup_args.num_participants = 2;
 			args.ttl_blocks = Some(0);
-			let err = api.contract_new(m, &mut args).unwrap_err();
+			let err = api.contract_new(m, &args).unwrap_err();
 			assert!(matches!(
 				err,
 				libwallet::Error::GenericError(ref msg)
@@ -114,7 +114,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			));
 			args.ttl_blocks = Some(20);
 			args.setup_args.fee_rate = Some(0);
-			let err = api.contract_new(m, &mut args).unwrap_err();
+			let err = api.contract_new(m, &args).unwrap_err();
 			assert!(matches!(
 				err,
 				libwallet::Error::GenericError(ref msg)
@@ -122,7 +122,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			));
 			args.setup_args.fee_rate = None;
 			assert_eq!(common::wallet_progress(api, m)?, progress);
-			slate = api.contract_new(m, &mut args)?;
+			slate = api.contract_new(m, &args)?;
 			let tx_log = common::tx_log_for_slate(api, m, &slate)?;
 			assert_eq!(tx_log.ttl_cutoff_height, Some(ttl_cutoff));
 			Ok(())
@@ -144,7 +144,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			signatures: 0,
 		},
 	);
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -195,7 +195,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		},
 	)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -303,7 +303,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		},
 	)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -347,7 +347,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			signatures: 1,
 		},
 	);
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -362,7 +362,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			Ok(())
 		},
 	)?;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -383,7 +383,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	)?;
 
 	// The sender must reject an unused commitment from its wallet if it was inserted by the receiver.
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -513,7 +513,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	)?;
 
 	// Send wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -567,7 +567,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			signatures: 2,
 		},
 	);
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -577,7 +577,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			Ok(())
 		},
 	)?;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -603,7 +603,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 		},
 	)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -619,7 +619,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	bh += 3;
 
 	// Assert changes in receive wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -646,7 +646,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	)?;
 
 	// Assert changes in send wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -721,7 +721,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 	let receiver_fee = my_fee_contribution(0, 1, 1, 2)?.fee();
 	let net = i64::try_from((receiver_fee + participant_fee) / 2).unwrap();
 	let mut small = Slate::blank(0, false);
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -734,7 +734,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			Ok(())
 		},
 	)?;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -745,7 +745,7 @@ fn contract_srs_tx_impl(test_dir: &'static str) -> Result<(), libwallet::Error> 
 			Ok(())
 		},
 	)?;
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),

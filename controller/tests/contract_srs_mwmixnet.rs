@@ -45,7 +45,7 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -65,7 +65,7 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	)?;
 	assert_eq!(slate.state, SlateState::Standard1);
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -84,7 +84,7 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	assert_eq!(slate.state, SlateState::Standard2);
 
 	// Send wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -100,7 +100,7 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 	)?;
 	assert_eq!(slate.state, SlateState::Standard3);
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -114,7 +114,7 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 		test_framework::award_blocks_to_wallet(&chain, send_wallet.clone(), send_mask, 3, false);
 
 	// Recipient wallet sends outputs to mwixnet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -128,19 +128,23 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 			let server_pubkey_str_3 =
 				"b58ece97d60e71bb7e53218400b0d67bfe6a3cb7d3b4a67a44f8fb7c525cbca5";
 			let server_key_1 =
-				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_1).unwrap())
+				SecretKey::from_slice(&secp, &grin_util::from_hex(server_pubkey_str_1).unwrap())
 					.unwrap();
 			let server_key_2 =
-				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_2).unwrap())
+				SecretKey::from_slice(&secp, &grin_util::from_hex(server_pubkey_str_2).unwrap())
 					.unwrap();
 			let server_key_3 =
-				SecretKey::from_slice(&secp, &grin_util::from_hex(&server_pubkey_str_3).unwrap())
+				SecretKey::from_slice(&secp, &grin_util::from_hex(server_pubkey_str_3).unwrap())
 					.unwrap();
+			drop(secp);
 			let params = MixnetReqCreationParams {
-				server_keys: vec![server_key_1, server_key_2, server_key_3],
-				fee_per_hop: 50_000_000,
+				server_keys: [server_key_1, server_key_2, server_key_3]
+					.iter()
+					.map(libwallet::mwixnet::MwixnetServerPublicKey::from_secret)
+					.collect(),
+				fee_per_hop: Some(50_000_000),
 			};
-			let outputs = api.retrieve_outputs(recv_mask, false, false, None)?;
+			let outputs = api.retrieve_outputs(recv_mask, false, true, None)?;
 			// get last output
 			let last_output = outputs.1[outputs.1.len() - 1].clone();
 
@@ -148,9 +152,12 @@ fn contract_srs_mwixnet_tx_impl(test_dir: &'static str) -> Result<(), libwallet:
 
 			// check output we created comsig for is indeed locked
 			let outputs = api.retrieve_outputs(recv_mask, false, false, None)?;
-			// get last output
-			let last_output = outputs.1[outputs.1.len() - 1].clone();
-			assert!(last_output.output.status == libwallet::OutputStatus::Locked);
+			let input = outputs
+				.1
+				.iter()
+				.find(|output| output.commit == last_output.commit)
+				.unwrap();
+			assert_eq!(input.output.status, libwallet::OutputStatus::Locked);
 
 			Ok(())
 		},

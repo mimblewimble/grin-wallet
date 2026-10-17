@@ -14,16 +14,18 @@
 
 //! Error types for libwallet
 
-use crate::grin_core::core::{amount_to_hr_string, committed, transaction};
-use crate::grin_core::libtx;
-use crate::grin_keychain;
-use crate::grin_util::secp;
 use crate::util;
-use grin_store;
+use grin_core::core::{amount_to_hr_string, committed, transaction};
+use grin_core::libtx;
+use grin_util::secp;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]
 pub enum Error {
+	/// Invalid transaction amount
+	#[error("Invalid amount (must be greater than zero)")]
+	InvalidAmount,
+
 	/// Not enough funds
 	#[error("Not enough funds. Required: {needed_disp:?}, Available: {available_disp:?}")]
 	NotEnoughFunds {
@@ -103,7 +105,7 @@ pub enum Error {
 
 	/// Other serialization errors
 	#[error("Ser/Deserialization error")]
-	Deser(crate::grin_core::ser::Error),
+	Deser(grin_core::ser::Error),
 
 	/// IO Error
 	#[error("I/O error {0}")]

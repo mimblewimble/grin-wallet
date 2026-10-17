@@ -44,7 +44,7 @@ fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	let recv_mask = wallets[1].1.as_ref();
 
 	// Confirm all our outputs are unspent
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -60,7 +60,7 @@ fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	let mut slate = Slate::blank(0, false); // this gets overriden below
 
 	// Call contract 'new' with --add-outputs
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -83,7 +83,7 @@ fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	assert_eq!(slate.state, SlateState::Standard1);
 
 	// Assert we locked 2 inputs and prepared an unconfirmed change output
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -107,7 +107,7 @@ fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	)?;
 
 	// The receiver signs without seeing the sender's locked commitments.
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		recv_wallet.clone(),
 		recv_mask,
 		PathBuf::from(test_dir),
@@ -127,7 +127,7 @@ fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	assert_eq!(slate.state, SlateState::Standard2);
 
 	// Even a commitment reserved for this contract must not be present before we add it.
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -169,7 +169,7 @@ fn contract_early_lock_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	)?;
 
 	// The sender adds the reserved commitments and completes the contract.
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),

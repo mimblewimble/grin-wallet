@@ -41,51 +41,10 @@ fn contract_revoke_other_account_impl(test_dir: &'static str) -> Result<(), libw
 	let mask1 = wallets[0].1.as_ref();
 
 	// Create an early-locked contract in the default account.
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.contract_new(
-				m,
-				&ContractNewArgsAPI {
-					setup_args: ContractSetupArgsAPI {
-						selection_args: common::contract_selection_args(),
-						net_change: Some(-1_000_000_000),
-						num_participants: 2,
-						add_outputs: true,
-						..Default::default()
-					},
-					..Default::default()
-				},
-			)?;
-			Ok(())
-		},
-	)?;
-	let mut default_tx_id = 0;
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			default_tx_id = txs.last().unwrap().id;
-			Ok(())
-		},
-	)?;
-
-	// Create another early-locked contract in account1.
-	{
-		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account1")?;
-	}
-	let mut slate = Slate::blank(0, true);
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let args = &ContractNewArgsAPI {
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		api.contract_new(
+			m,
+			&ContractNewArgsAPI {
 				setup_args: ContractSetupArgsAPI {
 					selection_args: common::contract_selection_args(),
 					net_change: Some(-1_000_000_000),
@@ -94,96 +53,101 @@ fn contract_revoke_other_account_impl(test_dir: &'static str) -> Result<(), libw
 					..Default::default()
 				},
 				..Default::default()
-			};
-			slate = api.contract_new(m, args)?;
-			Ok(())
-		},
-	)?;
+			},
+		)?;
+		Ok(())
+	})?;
+	let mut default_tx_id = 0;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
+		default_tx_id = txs.last().unwrap().id;
+		Ok(())
+	})?;
+
+	// Create another early-locked contract in account1.
+	{
+		wallet_inst!(wallet1, w);
+		w.set_account_by_name("account1")?;
+	}
+	let mut slate = Slate::blank(0, true);
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let args = &ContractNewArgsAPI {
+			setup_args: ContractSetupArgsAPI {
+				selection_args: common::contract_selection_args(),
+				net_change: Some(-1_000_000_000),
+				num_participants: 2,
+				add_outputs: true,
+				..Default::default()
+			},
+			..Default::default()
+		};
+		slate = api.contract_new(m, args)?;
+		Ok(())
+	})?;
 	assert_eq!(slate.state, SlateState::Standard1);
 
 	// Grab the tx id and confirm an input is locked under account1.
 	let mut tx_id = 0;
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			tx_id = txs.last().unwrap().id;
-			let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
-			assert!(outs.iter().any(|o| o.output.status == OutputStatus::Locked));
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
+		tx_id = txs.last().unwrap().id;
+		let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
+		assert!(outs.iter().any(|o| o.output.status == OutputStatus::Locked));
+		Ok(())
+	})?;
 	assert_eq!(tx_id, default_tx_id);
 
 	// Switch the active account to "default" — different from the inputs' account.
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("default")?;
+		w.set_account_by_name("default")?;
 	}
 
 	// Revoke account1 while the default account is active.
 	let mut revoked = None;
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			revoked = api.contract_revoke(
-				m,
-				&ContractRevokeArgsAPI {
-					tx_id,
-					src_acct_name: Some("account1".to_string()),
-				},
-			)?;
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		revoked = api.contract_revoke(
+			m,
+			&ContractRevokeArgsAPI {
+				tx_id,
+				src_acct_name: Some("account1".to_string()),
+			},
+		)?;
+		Ok(())
+	})?;
 	assert!(
 		revoked.is_some(),
 		"revoke should produce a self-spend slate"
 	);
 
 	// The default account's transaction is still locked.
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
-			assert!(outs.iter().any(|o| {
-				o.output.status == OutputStatus::Locked
-					&& o.output.tx_log_entry == Some(default_tx_id)
-			}));
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
+		assert!(outs.iter().any(|o| {
+			o.output.status == OutputStatus::Locked && o.output.tx_log_entry == Some(default_tx_id)
+		}));
+		Ok(())
+	})?;
 
 	// Back on account1: the original tx is cancelled and no input is left locked.
 	{
 		wallet_inst!(wallet1, w);
-		w.set_parent_key_id_by_name("account1")?;
+		w.set_account_by_name("account1")?;
 	}
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let query = libwallet::RetrieveTxQueryArgs {
-				exclude_cancelled: Some(false),
-				..Default::default()
-			};
-			let (_, txs) = api.retrieve_txs(m, true, None, None, Some(query))?;
-			let tx = txs.iter().find(|t| t.id == tx_id).unwrap();
-			assert!(
-				format!("{:?}", tx.tx_type).contains("Cancelled"),
-				"original tx should be cancelled, was {:?}",
-				tx.tx_type
-			);
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let query = libwallet::RetrieveTxQueryArgs {
+			exclude_cancelled: Some(false),
+			..Default::default()
+		};
+		let (_, txs) = api.retrieve_txs(m, true, None, None, Some(query))?;
+		let tx = txs.iter().find(|t| t.id == tx_id).unwrap();
+		assert!(
+			format!("{:?}", tx.tx_type).contains("Cancelled"),
+			"original tx should be cancelled, was {:?}",
+			tx.tx_type
+		);
+		Ok(())
+	})?;
 
 	stopper.store(false, Ordering::Relaxed);
 	thread::sleep(Duration::from_millis(200));
@@ -221,15 +185,10 @@ fn contract_revoke_resume_impl(test_dir: &'static str) -> Result<(), wallet::Err
 
 	// Send (with early lock), locking an input under the contract tx.
 	let mut slate = Slate::blank(0, true);
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			slate = api.contract_new(m, &args)?;
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		slate = api.contract_new(m, &args)?;
+		Ok(())
+	})?;
 	assert_eq!(slate.state, SlateState::Standard1);
 	{
 		wallet_inst!(wallet1, w);
@@ -248,34 +207,24 @@ fn contract_revoke_resume_impl(test_dir: &'static str) -> Result<(), wallet::Err
 	}
 
 	let mut tx_id = 0;
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
-			tx_id = txs.last().unwrap().id;
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let (_, txs) = api.retrieve_txs(m, true, None, None, None)?;
+		tx_id = txs.last().unwrap().id;
+		Ok(())
+	})?;
 
 	// Simulate a revoke that crashed right after cancelling: cancel the tx (inputs become
 	// Unspent, still tagged with tx_id) but do NOT build the self-spend.
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			api.cancel_tx(m, Some(tx_id), None)?;
-			let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
-			assert!(
-				outs.iter().any(|o| o.output.status == OutputStatus::Unspent
-					&& o.output.tx_log_entry == Some(tx_id)),
-				"input should be Unspent but still tagged with the cancelled tx"
-			);
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		api.cancel_tx(m, Some(tx_id), None)?;
+		let (_, outs) = api.retrieve_outputs(m, true, false, None)?;
+		assert!(
+			outs.iter().any(|o| o.output.status == OutputStatus::Unspent
+				&& o.output.tx_log_entry == Some(tx_id)),
+			"input should be Unspent but still tagged with the cancelled tx"
+		);
+		Ok(())
+	})?;
 
 	// Resume through the command path and write the self-spend to the requested file.
 	let outfile = format!("{}/revoke.slatepack", test_dir);

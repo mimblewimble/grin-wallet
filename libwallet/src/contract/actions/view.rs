@@ -19,11 +19,11 @@ use crate::backend::WalletBackend;
 use crate::contract;
 use crate::contract::types::{ContractView, OwnCommitmentStatus};
 use crate::error::Error;
-use crate::grin_keychain::Keychain;
-use crate::grin_util::secp::key::SecretKey;
 use crate::internal::updater;
 use crate::slate::{Slate, SlateState};
 use crate::types::{NodeClient, TxLogEntry};
+use grin_keychain::Keychain;
+use grin_util::secp::key::SecretKey;
 
 fn balance_change(net_change: Option<i64>, fee: Option<u64>) -> Result<Option<i64>, Error> {
 	match (net_change, fee) {
@@ -177,7 +177,7 @@ mod tests {
 	#[test]
 	fn reads_change_from_tx_log() {
 		let mut tx = TxLogEntry::new(
-			crate::grin_keychain::Identifier::zero(),
+			grin_keychain::Identifier::zero(),
 			crate::types::TxLogEntryType::TxReceived,
 			0,
 		);

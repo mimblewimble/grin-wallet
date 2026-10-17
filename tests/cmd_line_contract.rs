@@ -101,8 +101,8 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 	});
 
 	// Mine into wallet 1 so it has something to send
-	let mask1 = (&mask1_i).as_ref();
-	let mask2 = (&mask2_i).as_ref();
+	let mask1 = mask1_i.as_ref();
+	let mask2 = mask2_i.as_ref();
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 	let fee_rate = 2 * grin_core::global::get_accept_fee_base();
 	let expected_fee = Transaction::weight_by_iok(1, 1, 0) * fee_rate
@@ -131,17 +131,19 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 	assert!(std::path::Path::new(&file_name).is_file());
 
 	// Wallet 2 views the contract before signing it
-	grin_wallet_controller::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		std::path::PathBuf::from(test_dir),
-		|api, m| {
-			let message = std::fs::read_to_string(&file_name)?;
-			let slate = api.slate_from_slatepack_message(m, message, vec![0])?;
-			assert_eq!(slate.fee_fields.fee(), expected_fee);
-			Ok(())
-		},
-	)?;
+	{
+		let api =
+			grin_wallet_api::Owner::new(wallet1.clone(), None, std::path::PathBuf::from(test_dir));
+		let m = mask1;
+		let message =
+			std::fs::read_to_string(&file_name).map_err(grin_wallet_libwallet::Error::from)?;
+		let slate = api.slate_from_slatepack_message(
+			m,
+			message,
+			vec![grin_wallet_libwallet::slatepack::SlatepackAddressIndex(0)],
+		)?;
+		assert_eq!(slate.fee_fields.fee(), expected_fee);
+	}
 	let arg_vec = vec![
 		"grin-wallet",
 		"-p",
@@ -166,16 +168,19 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
 
 	// Wallet 2 can also view a proof-bearing slatepack encrypted for its address
-	let mut recipient = None;
-	grin_wallet_controller::controller::owner_single_use(
-		wallet2.clone(),
-		mask2,
-		std::path::PathBuf::from(test_dir),
-		|api, m| {
-			recipient = Some(api.get_slatepack_address(m, 0)?.to_string());
-			Ok(())
-		},
-	)?;
+	let recipient;
+	{
+		let api =
+			grin_wallet_api::Owner::new(wallet2.clone(), None, std::path::PathBuf::from(test_dir));
+		let m = mask2;
+		recipient = Some(
+			api.get_slatepack_address(
+				m,
+				grin_wallet_libwallet::slatepack::SlatepackAddressIndex(0),
+			)?
+			.to_string(),
+		);
+	}
 	std::fs::remove_file(file_name).unwrap();
 	let recipient = recipient.unwrap();
 	let arg_vec = vec![
@@ -213,18 +218,21 @@ fn contract_command_test_impl(test_dir: &str) -> Result<(), grin_wallet_controll
 	// slatepack for another account needs --account
 	let arg_vec = vec!["grin-wallet", "-p", "password1", "account", "-c", "second"];
 	execute_command(&app, test_dir, "wallet1", &client1, arg_vec)?;
-	let mut second = None;
-	grin_wallet_controller::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		std::path::PathBuf::from(test_dir),
-		|api, m| {
-			api.set_active_account(m, "second")?;
-			second = Some(api.get_slatepack_address(m, 0)?.to_string());
-			api.set_active_account(m, "default")?;
-			Ok(())
-		},
-	)?;
+	let second;
+	{
+		let api =
+			grin_wallet_api::Owner::new(wallet1.clone(), None, std::path::PathBuf::from(test_dir));
+		let m = mask1;
+		api.set_active_account(m, "second")?;
+		second = Some(
+			api.get_slatepack_address(
+				m,
+				grin_wallet_libwallet::slatepack::SlatepackAddressIndex(0),
+			)?
+			.to_string(),
+		);
+		api.set_active_account(m, "default")?;
+	}
 	let second = second.unwrap();
 	let arg_vec = vec![
 		"grin-wallet",
@@ -313,7 +321,11 @@ fn rejects_conflicting_input_options() {
 	let contract = args.subcommand_matches("contract").unwrap();
 	let new_args = contract.subcommand_matches("new").unwrap();
 
-	assert!(grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account).is_err());
+	assert!(grin_wallet::cmd::wallet_args::parse_contract_new_args(
+		new_args,
+		&Some(account.clone())
+	)
+	.is_err());
 
 	let args = app
 		.get_matches_from_safe(vec![
@@ -360,7 +372,8 @@ fn parses_contract_options() {
 	let contract = args.subcommand_matches("contract").unwrap();
 	let new_args = contract.subcommand_matches("new").unwrap();
 	let parsed =
-		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account).unwrap();
+		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &Some(account.clone()))
+			.unwrap();
 	assert_eq!(parsed.minimum_confirmations, 3);
 	assert_eq!(parsed.fee_rate, Some(2));
 	assert_eq!(parsed.ttl_blocks, Some(20));
@@ -391,7 +404,7 @@ fn parses_contract_options() {
 		.subcommand_matches("new")
 		.unwrap();
 	assert!(matches!(
-		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account),
+		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &Some(account.clone())),
 		Err(grin_wallet::cmd::wallet_args::ParseError::ArgumentError(message))
 			if message.contains("Payment memo exceeds 1024 bytes")
 	));
@@ -404,7 +417,8 @@ fn parses_contract_options() {
 	let contract = args.subcommand_matches("contract").unwrap();
 	let new_args = contract.subcommand_matches("new").unwrap();
 	let parsed =
-		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account).unwrap();
+		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &Some(account.clone()))
+			.unwrap();
 	assert_eq!(parsed.minimum_confirmations, expected);
 	assert_eq!(parsed.fee_rate, None);
 	assert_eq!(parsed.ttl_blocks, None);
@@ -414,7 +428,10 @@ fn parses_contract_options() {
 		.unwrap();
 	let contract = args.subcommand_matches("contract").unwrap();
 	let new_args = contract.subcommand_matches("new").unwrap();
-	let err = match grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account) {
+	let err = match grin_wallet::cmd::wallet_args::parse_contract_new_args(
+		new_args,
+		&Some(account.clone()),
+	) {
 		Err(err) => err,
 		Ok(_) => panic!("zero contract TTL accepted"),
 	};
@@ -445,9 +462,12 @@ fn parses_contract_options() {
 			.unwrap()
 			.subcommand_matches("new")
 			.unwrap();
-		let err = grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account)
-			.err()
-			.expect("invalid contract fee rate accepted");
+		let err = grin_wallet::cmd::wallet_args::parse_contract_new_args(
+			new_args,
+			&Some(account.clone()),
+		)
+		.err()
+		.expect("invalid contract fee rate accepted");
 		assert_eq!(
 			err,
 			grin_wallet::cmd::wallet_args::ParseError::ArgumentError(message.to_string())
@@ -529,7 +549,8 @@ fn selection_locks_early() {
 		let args = app.clone().get_matches_from_safe(command).unwrap();
 		let contract = args.subcommand_matches("contract").unwrap();
 		let new_args = contract.subcommand_matches("new").unwrap();
-		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &account).unwrap()
+		grin_wallet::cmd::wallet_args::parse_contract_new_args(new_args, &Some(account.clone()))
+			.unwrap()
 	};
 
 	assert!(!parse(&[]).add_outputs);

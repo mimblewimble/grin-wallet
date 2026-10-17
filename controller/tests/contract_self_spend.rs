@@ -42,7 +42,7 @@ fn contract_self_spend_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -64,7 +64,7 @@ fn contract_self_spend_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	assert_eq!(slate.state, SlateState::Standard1);
 
 	// Send wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -80,7 +80,7 @@ fn contract_self_spend_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	// In the case of a self-spend, we just finish the slate when it's in the Standard2 state
 	assert_eq!(slate.state, SlateState::Standard2);
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -96,7 +96,7 @@ fn contract_self_spend_tx_impl(test_dir: &'static str) -> Result<(), libwallet::
 	bh += 3;
 
 	// Assert changes in send wallet
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -148,7 +148,7 @@ fn contract_fee_floor_impl(test_dir: &'static str) -> Result<(), libwallet::Erro
 	let wallet = wallets[0].0.clone();
 	let mask = wallets[0].1.as_ref();
 
-	wallet::controller::owner_single_use(wallet, mask, PathBuf::from(test_dir), |api, m| {
+	common::owner_single_use(wallet, mask, PathBuf::from(test_dir), |api, m| {
 		let slate = api.contract_new(
 			m,
 			&ContractNewArgsAPI {

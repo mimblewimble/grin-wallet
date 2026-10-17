@@ -40,7 +40,7 @@ fn contract_self_spend_cancel_impl(test_dir: &'static str) -> Result<(), libwall
 
 	let mut slate = Slate::blank(0, true); // this gets overriden below
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -62,7 +62,7 @@ fn contract_self_spend_cancel_impl(test_dir: &'static str) -> Result<(), libwall
 	assert_eq!(slate.state, SlateState::Standard1);
 
 	// Send wallet finalizes and posts
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -73,7 +73,7 @@ fn contract_self_spend_cancel_impl(test_dir: &'static str) -> Result<(), libwall
 	)?;
 
 	// Assert tx log has been cancelled
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -149,7 +149,7 @@ fn contract_self_spend_cancel_missing_stored_tx_impl(
 	let send_mask = wallets[0].1.as_ref();
 
 	let mut slate = Slate::blank(0, true);
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -169,7 +169,7 @@ fn contract_self_spend_cancel_missing_stored_tx_impl(
 	)?;
 
 	// Signing a self-spend completes the slate, so the transaction is stored
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -186,7 +186,7 @@ fn contract_self_spend_cancel_missing_stored_tx_impl(
 
 	// Signing locked our inputs, so the cancel below has something to release, and the
 	// entry records where the transaction was stored, as a standard send does
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -208,7 +208,7 @@ fn contract_self_spend_cancel_missing_stored_tx_impl(
 	std::fs::remove_file(&stored).unwrap();
 
 	// Cancelling still releases the inputs
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),
@@ -218,7 +218,7 @@ fn contract_self_spend_cancel_missing_stored_tx_impl(
 		},
 	)?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		send_wallet.clone(),
 		send_mask,
 		PathBuf::from(test_dir),

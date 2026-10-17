@@ -21,6 +21,7 @@ use grin_chain as chain;
 use grin_core as core;
 use grin_keychain as keychain;
 use grin_util as util;
+use std::env;
 
 use self::core::core::{FeeFields, Inputs, KernelFeatures, OutputFeatures};
 use self::core::global;
@@ -28,6 +29,8 @@ use self::core::global::ChainTypes;
 use self::keychain::{ExtKeychain, Keychain};
 use self::libwallet::WalletInst;
 use chain::Chain;
+use grin_wallet_api::Owner;
+use grin_wallet_config::{initial_setup_wallet, GRIN_WALLET_DIR};
 use grin_wallet_controller::Error;
 use impls::test_framework::{self, LocalWalletClient, WalletProxy};
 use impls::{DefaultLCProvider, DefaultWalletImpl};
@@ -49,9 +52,9 @@ macro_rules! wallet_inst {
 
 #[macro_export]
 macro_rules! create_wallet_and_add {
-	($client:ident, $wallet: ident, $mask: ident, $test_dir: expr, $name: expr, $seed_phrase: expr, $proxy: expr, $create_mask: expr) => {
+	($client:ident, $wallet: ident, $mask: ident, $test_dir: expr, $name: expr, $seed_phrase: expr, $proxy: expr, $create_mask: expr, $owner_api: ident) => {
 		let $client = LocalWalletClient::new($name, $proxy.tx.clone());
-		let ($wallet, $mask) = common::create_local_wallet(
+		let ($wallet, $mask, $owner_api) = common::create_local_wallet(
 			$test_dir,
 			$name,
 			$seed_phrase.clone(),
@@ -121,12 +124,7 @@ pub fn roundtrip_slate(
 	slate: &libwallet::Slate,
 	version: u16,
 ) -> Result<libwallet::Slate, libwallet::Error> {
-	let packer = libwallet::Slatepacker::new(libwallet::SlatepackerArgs {
-		sender: None,
-		recipients: vec![],
-		dec_key: None,
-	});
-	let slate = packer.get_slate(&packer.create_slatepack(slate)?)?;
+	let slate = slate.create_slatepack(None, vec![])?.get_slate()?;
 	assert_eq!(slate.version_info.version, version);
 	Ok(slate)
 }
@@ -260,6 +258,7 @@ pub fn create_wallet_proxy(
 	WalletProxy::new(test_dir)
 }
 
+#[allow(clippy::type_complexity)]
 pub fn create_local_wallet(
 	test_dir: &str,
 	name: &str,
@@ -267,20 +266,25 @@ pub fn create_local_wallet(
 	client: LocalWalletClient,
 	create_mask: bool,
 ) -> (
-	Arc<
-		Mutex<
-			Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-					LocalWalletClient,
-					ExtKeychain,
-				>,
-			>,
-		>,
+	grin_wallet_libwallet::WalletHandle<
+		'static,
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
 	>,
 	Option<SecretKey>,
+	Owner<DefaultLCProvider<LocalWalletClient, ExtKeychain>, LocalWalletClient, ExtKeychain>,
 ) {
+	let mut current_dir;
+	current_dir = env::current_dir().unwrap_or_else(|e| {
+		panic!("Error creating config file: {}", e);
+	});
+	current_dir.push(test_dir);
+	current_dir.push(name);
+	let config =
+		initial_setup_wallet(&ChainTypes::AutomatedTesting, Some(current_dir), true).unwrap();
+	let mut wallet_config = config.clone().members.wallet;
+
 	let mut wallet = Box::new(DefaultWalletImpl::<LocalWalletClient>::new(client).unwrap())
 		as Box<
 			dyn WalletInst<
@@ -290,13 +294,25 @@ pub fn create_local_wallet(
 			>,
 		>;
 	let lc = wallet.lc_provider().unwrap();
-	let _ = lc.set_top_level_directory(&format!("{}/{}", test_dir, name));
+	// legacy hack to avoid the need for changes in existing grin-wallet.toml files
+	// remove `wallet_data` from end of path as
+	// new lifecycle provider assumes grin_wallet.toml is in root of data directory
+	let mut top_level_wallet_dir = PathBuf::from(wallet_config.clone().data_file_dir);
+	if top_level_wallet_dir.ends_with(GRIN_WALLET_DIR) {
+		top_level_wallet_dir.pop();
+		wallet_config.data_file_dir = top_level_wallet_dir.to_str().unwrap().into();
+	}
+	let _ = lc.set_top_level_directory(&wallet_config.data_file_dir);
 	lc.create_wallet(None, mnemonic, 32, ZeroingString::from(""), false)
 		.unwrap();
 	let mask = lc
 		.open_wallet(None, ZeroingString::from(""), create_mask, false)
 		.unwrap();
-	(Arc::new(Mutex::new(wallet)), mask)
+
+	let wallet = Arc::new(Mutex::new(wallet));
+	let owner_api = Owner::new(wallet.clone(), None, config.config_file_path.clone());
+
+	(wallet, mask, owner_api)
 }
 
 #[allow(dead_code)]
@@ -306,17 +322,11 @@ pub fn open_local_wallet(
 	client: LocalWalletClient,
 	create_mask: bool,
 ) -> (
-	Arc<
-		Mutex<
-			Box<
-				dyn WalletInst<
-					'static,
-					DefaultLCProvider<LocalWalletClient, ExtKeychain>,
-					LocalWalletClient,
-					ExtKeychain,
-				>,
-			>,
-		>,
+	grin_wallet_libwallet::WalletHandle<
+		'static,
+		DefaultLCProvider<LocalWalletClient, ExtKeychain>,
+		LocalWalletClient,
+		ExtKeychain,
 	>,
 	Option<SecretKey>,
 ) {
@@ -337,7 +347,7 @@ pub fn open_local_wallet(
 }
 
 // Creates the given number of wallets and spawns a thread that runs the wallet proxy
-#[allow(dead_code)]
+#[allow(dead_code, clippy::type_complexity)]
 pub fn create_wallets(
 	wallets_def: Vec<Vec<(&'static str, u64)>>, // a vector of boolean that represent whether we mine into a wallet
 	test_dir: &'static str,
@@ -373,7 +383,7 @@ pub fn create_wallets(
 	for i in 0..wallets_def.len() {
 		let name = format!("wallet{}", i + 1);
 		let wclient = LocalWalletClient::new(&name, wallet_proxy.tx.clone());
-		let (wallet1, mask1) = create_local_wallet(
+		let (wallet1, mask1, _) = create_local_wallet(
 			test_dir,
 			&name,
 			None,
@@ -407,20 +417,15 @@ pub fn create_wallets(
 
 		for (acc_idx, (acc_name, num_mined_blocks)) in accs.iter().enumerate() {
 			// create the account
-			if acc_name.to_string() != "default" {
-				wallet::controller::owner_single_use(
-					wallet1.clone(),
-					mask1,
-					PathBuf::from(test_dir),
-					|api, m| {
-						let new_path = api.create_account_path(m, acc_name)?;
-						assert_eq!(
-							new_path,
-							ExtKeychain::derive_key_id(2, acc_idx as u32, 0, 0, 0) // NOTE: default should always be at 0 and is already created
-						);
-						Ok(())
-					},
-				)?;
+			if *acc_name != "default" {
+				owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+					let new_path = api.create_account_path(m, acc_name)?;
+					assert_eq!(
+						new_path,
+						ExtKeychain::derive_key_id(2, acc_idx as u32, 0, 0, 0) // NOTE: default should always be at 0 and is already created
+					);
+					Ok(())
+				})?;
 			}
 
 			// Get some mining done
@@ -429,7 +434,7 @@ pub fn create_wallets(
 			}
 			{
 				wallet_inst!(wallet1, w);
-				w.set_parent_key_id_by_name(acc_name)?;
+				w.set_account_by_name(acc_name)?;
 			}
 			let _ = test_framework::award_blocks_to_wallet(
 				&chain,
@@ -441,38 +446,43 @@ pub fn create_wallets(
 			bh += num_mined_blocks;
 
 			// Sanity check wallet 1 contents
-			wallet::controller::owner_single_use(
-				wallet1.clone(),
-				mask1,
-				PathBuf::from(test_dir),
-				|api, m| {
-					let (wallet1_refreshed, wallet1_info) =
-						api.retrieve_summary_info(m, true, 1)?;
-					assert!(wallet1_refreshed);
-					assert_eq!(wallet1_info.last_confirmed_height, bh);
-					assert_eq!(wallet1_info.total, num_mined_blocks * reward);
-					Ok(())
-				},
-			)?;
+			owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+				let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+				assert!(wallet1_refreshed);
+				assert_eq!(wallet1_info.last_confirmed_height, bh);
+				assert_eq!(wallet1_info.total, num_mined_blocks * reward);
+				Ok(())
+			})?;
 		}
 
 		// Sanity check the number of accounts
-		wallet::controller::owner_single_use(
-			wallet1.clone(),
-			mask1,
-			PathBuf::from(test_dir),
-			|api, m| {
-				let accounts = api.accounts(m)?;
-				assert_eq!(accounts.len(), accs.len());
-				Ok(())
-			},
-		)?;
+		owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+			let accounts = api.accounts(m)?;
+			assert_eq!(accounts.len(), accs.len());
+			Ok(())
+		})?;
 		// Set the account on the wallet to "default"
 		{
 			wallet_inst!(wallet1, w);
-			w.set_parent_key_id_by_name("default")?;
+			w.set_account_by_name("default")?;
 		}
 	}
 
 	Ok((wallets, chain, stopper, bh))
+}
+
+#[allow(dead_code)]
+pub fn owner_single_use<L, F, C, K>(
+	wallet: libwallet::WalletHandle<'static, L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	config_path: PathBuf,
+	f: F,
+) -> Result<(), libwallet::Error>
+where
+	L: libwallet::WalletLCProvider<'static, C, K> + 'static,
+	F: FnOnce(&mut Owner<L, C, K>, Option<&SecretKey>) -> Result<(), libwallet::Error>,
+	C: libwallet::NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	f(&mut Owner::new(wallet, None, config_path), keychain_mask)
 }

@@ -48,9 +48,10 @@ fn self_send_cancel_test_impl(test_dir: &'static str) -> Result<(), libwallet::E
 		"wallet1",
 		None,
 		&mut wallet_proxy,
-		true
+		true,
+		_api
 	);
-	let mask1 = (&mask1_i).as_ref();
+	let mask1 = mask1_i.as_ref();
 
 	// Set the wallet proxy listener running
 	thread::spawn(move || {
@@ -67,45 +68,40 @@ fn self_send_cancel_test_impl(test_dir: &'static str) -> Result<(), libwallet::E
 		test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, bh as usize, false);
 
 	// Should have 5 in account1 (5 spendable), 5 in account (2 spendable)
-	wallet::controller::owner_single_use(
-		wallet1.clone(),
-		mask1,
-		PathBuf::from(test_dir),
-		|api, m| {
-			let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
-			assert!(wallet1_refreshed);
-			assert_eq!(wallet1_info.last_confirmed_height, bh);
-			assert_eq!(wallet1_info.total, bh * reward);
-			// send to send
-			let args = InitTxArgs {
-				src_acct_name: None,
-				amount: reward * 2,
-				minimum_confirmations: 2,
-				max_outputs: 500,
-				num_change_outputs: 1,
-				selection_strategy_is_use_all: true,
-				..Default::default()
-			};
-			let mut slate = api.init_send_tx(m, args)?;
-			api.tx_lock_outputs(m, &slate)?;
-			// Send directly to self
-			wallet::controller::foreign_single_use(
-				wallet1.clone(),
-				PathBuf::from(test_dir),
-				mask1_i.clone(),
-				|api| {
-					slate = api.receive_tx(&slate, None, None)?;
-					Ok(())
-				},
-			)?;
-			// Now cancel the transaction
-			api.cancel_tx(mask1, None, Some(slate.id.clone()))?;
-			bh += 1;
-			Ok(())
-		},
-	)?;
+	common::owner_single_use(wallet1.clone(), mask1, PathBuf::from(test_dir), |api, m| {
+		let (wallet1_refreshed, wallet1_info) = api.retrieve_summary_info(m, true, 1)?;
+		assert!(wallet1_refreshed);
+		assert_eq!(wallet1_info.last_confirmed_height, bh);
+		assert_eq!(wallet1_info.total, bh * reward);
+		// send to send
+		let args = InitTxArgs {
+			src_acct_name: None,
+			amount: reward * 2,
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			..Default::default()
+		};
+		let mut slate = api.init_send_tx(m, args)?;
+		api.tx_lock_outputs(m, &slate)?;
+		// Send directly to self
+		wallet::controller::foreign_single_use(
+			wallet1.clone(),
+			PathBuf::from(test_dir),
+			mask1_i.clone(),
+			|api| {
+				slate = api.receive_tx(&slate, None, None)?;
+				Ok(())
+			},
+		)?;
+		// Now cancel the transaction
+		api.cancel_tx(mask1, None, Some(slate.id))?;
+		bh += 1;
+		Ok(())
+	})?;
 
-	wallet::controller::owner_single_use(
+	common::owner_single_use(
 		wallet1.clone(),
 		mask1,
 		PathBuf::from(test_dir),
