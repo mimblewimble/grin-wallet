@@ -93,14 +93,13 @@ where
 		// Drop the canceled slate's private context if one still exists (signing already
 		// deletes it).
 		if let Some(slate_id) = revoked_slate_id {
-			match w.get_private_context(keychain_mask, slate_id.as_bytes()) {
-				Ok(_) => {
-					let mut batch = w.batch(keychain_mask)?;
-					batch.delete_private_context(slate_id.as_bytes())?;
-					batch.commit()?;
-				}
-				Err(Error::NotFoundErr(_)) => {}
-				Err(e) => return Err(e),
+			if let Some((key, _)) = crate::contract::context::stored(w, keychain_mask, slate_id)?
+				.into_iter()
+				.find(|(_, ctx)| ctx.parent_key_id == parent_key_id)
+			{
+				let mut batch = w.batch(keychain_mask)?;
+				batch.delete_private_context(&key)?;
+				batch.commit()?;
 			}
 		}
 	}

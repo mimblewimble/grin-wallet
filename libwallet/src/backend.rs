@@ -463,7 +463,7 @@ where
 
 	/// Retrieve the private context associated with a given slate id.
 	pub fn get_private_context(
-		&mut self,
+		&self,
 		keychain_mask: Option<&SecretKey>,
 		slate_id: &[u8],
 	) -> Result<Context, Error> {

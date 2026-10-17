@@ -76,16 +76,32 @@ where
 		));
 	}
 	contract::utils::verify_num_participants(slate.num_participants)?;
-	let context = match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
-		Ok(context) => Some(context),
-		Err(Error::NotFoundErr(_)) => None,
-		Err(e) => return Err(e),
-	};
+	let parent = w.parent_key_id();
+	let context = contract::context::resolve(w, keychain_mask, slate, &parent, None)?;
 	let suggested_net_change = initial_net_change(&slate.state, slate.amount)?;
 	// A contract is executed once the transaction it produced has confirmed. That is
 	// recorded on our own tx log entry for this slate, so no chain lookup is needed; a
 	// slate we have never signed simply has no entry and is not executed.
-	let txs = updater::retrieve_txs(w, None, Some(slate.id), None, None, false)?;
+	let mut txs = updater::retrieve_txs(w, None, Some(slate.id), None, None, false)?;
+	let contexts = contract::context::stored(w, keychain_mask, slate.id)?;
+	let missing_signed_context = txs.iter().any(|tx| {
+		contract::utils::is_signed_tx(tx, slate.id)
+			&& !contexts
+				.iter()
+				.any(|(_, ctx)| ctx.parent_key_id == tx.parent_key_id)
+	});
+	let parent = context
+		.as_ref()
+		.map(|ctx| ctx.parent_key_id.clone())
+		.unwrap_or(parent);
+	// Show only the selected party when both accounts are local
+	if txs.iter().any(|tx| tx.parent_key_id == parent)
+		|| txs
+			.windows(2)
+			.any(|pair| pair[0].parent_key_id != pair[1].parent_key_id)
+	{
+		txs.retain(|tx| tx.parent_key_id == parent);
+	}
 	let is_executed = txs.iter().any(|tx| tx.confirmed);
 	let signed_tx = txs
 		.iter()
@@ -101,16 +117,17 @@ where
 	}
 	// Once we have signed, the context identifies the commitments we added. If it has
 	// already been removed, the slate no longer carries enough information to do that.
-	let own_commitment_status = if slate.tx.is_none() || (context.is_none() && !txs.is_empty()) {
-		OwnCommitmentStatus::Unknown
-	} else {
-		contract::slate::own_commitment_status(
-			w,
-			keychain_mask,
-			slate,
-			if has_signed { context.as_ref() } else { None },
-		)?
-	};
+	let own_commitment_status =
+		if slate.tx.is_none() || missing_signed_context || (context.is_none() && !txs.is_empty()) {
+			OwnCommitmentStatus::Unknown
+		} else {
+			contract::slate::own_commitment_status(
+				w,
+				keychain_mask,
+				slate,
+				if has_signed { context.as_ref() } else { None },
+			)?
+		};
 	// Count signatures present (a participant is "complete" once it has a partial sig).
 	let num_sigs = slate
 		.participant_data

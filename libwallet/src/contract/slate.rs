@@ -247,7 +247,7 @@ where
 		Inputs::CommitOnly(_) => return Ok(OwnCommitmentStatus::Unknown),
 		Inputs::FeaturesAndCommit(inputs) => inputs,
 	};
-	let (expected_inputs, expected_outputs) = match signed_context {
+	let (mut expected_inputs, mut expected_outputs) = match signed_context {
 		Some(context) => {
 			let (inputs, outputs) = expected_identifiers(w, &keychain, context)?;
 			(
@@ -263,6 +263,37 @@ where
 		}
 		None => (BTreeSet::new(), BTreeSet::new()),
 	};
+	// Allow only stored local contributions backed by a valid partial signature
+	for (_, context) in super::context::stored(w, keychain_mask, slate.id)? {
+		let Some(log_id) = context.log_id else {
+			continue;
+		};
+		let Some(tx_log) = w.get_tx_log_entry_by_id(&context.parent_key_id, log_id)? else {
+			continue;
+		};
+		if !super::utils::is_signed_tx(&tx_log, slate.id)
+			|| !matches!(
+				tx_log.tx_type,
+				crate::TxLogEntryType::TxSent
+					| crate::TxLogEntryType::TxReceived
+					| crate::TxLogEntryType::TxSelfSpend
+			) {
+			continue;
+		}
+		let index = match slate.find_index_matching_context(&keychain, &context) {
+			Ok(index) => index,
+			Err(Error::ContextToIndex) => continue,
+			Err(e) => return Err(e),
+		};
+		if !slate.participant_data[index].is_complete() {
+			continue;
+		}
+		slate.verify_part_sigs(keychain.secp())?;
+		verify_own_commitments(w, keychain_mask, slate, &context)?;
+		let (inputs, outputs) = expected_identifiers(w, &keychain, &context)?;
+		expected_inputs.extend(inputs.into_iter().map(|input| input.commitment()));
+		expected_outputs.extend(outputs.into_iter().map(|output| output.commitment()));
+	}
 	let incoming_inputs = inputs
 		.into_iter()
 		.map(|input| input.commitment())

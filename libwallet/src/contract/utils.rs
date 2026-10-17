@@ -271,6 +271,7 @@ where
 	};
 
 	// Phase 2 - atomically update Context, OutputData and TxLogEntry
+	let context_key = super::context::storage_key(w, keychain_mask, slate.id, parent_key_id)?;
 	let mut batch = w.batch(keychain_mask)?;
 
 	// Update TxLogEntry
@@ -300,17 +301,17 @@ where
 	// Update context
 	if is_signed && !is_step2 {
 		// Forget the signing context in the same batch as the transaction log update
-		batch.delete_private_context(slate.id.as_bytes())?;
+		batch.delete_private_context(&context_key)?;
 	} else {
 		// Keep unsigned contexts for retries and the step2 context for contract view
-		batch.save_private_context(slate.id.as_bytes(), &context)?;
+		batch.save_private_context(&context_key, &context)?;
 	}
 
 	batch.commit()?;
 
 	// Confirm sec_key/sec_nonce are gone after signing, except for step2
 	if is_signed && !is_step2 {
-		match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
+		match w.get_private_context(keychain_mask, &context_key) {
 			Err(Error::NotFoundErr(_)) => {}
 			Err(e) => return Err(e),
 			Ok(_) => {
@@ -424,7 +425,11 @@ pub(super) fn is_signed_tx(tx: &TxLogEntry, slate_id: Uuid) -> bool {
 
 /// Returns an error if the slate has already been signed (in our local database). Even if the
 /// result is Ok, it's still possible it was signed but we don't have the data about it locally.
-pub fn verify_not_signed<C, K>(w: &mut WalletBackend<C, K>, slate_id: Uuid) -> Result<(), Error>
+pub fn verify_not_signed<C, K>(
+	w: &mut WalletBackend<C, K>,
+	slate_id: Uuid,
+	parent: &Identifier,
+) -> Result<(), Error>
 where
 	C: NodeClient,
 	K: Keychain,
@@ -433,7 +438,7 @@ where
 	// we have already signed this slate.
 	for tx in w.tx_log_iter()? {
 		let tx = tx?;
-		if is_signed_tx(&tx, slate_id) {
+		if &tx.parent_key_id == parent && is_signed_tx(&tx, slate_id) {
 			debug!("contract::utils::verify_not_signed => The slate has already been signed.");
 			return Err(Error::GenericError(format!(
 				"Slate with id:{} has already been signed.",

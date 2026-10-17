@@ -26,6 +26,108 @@ use grin_core::core::FeeFields;
 use grin_keychain::{Identifier, Keychain};
 use grin_util::secp::key::SecretKey;
 
+// Keep the legacy key for the first party and qualify the second by account
+fn account_key(slate_id: uuid::Uuid, parent: &Identifier) -> Vec<u8> {
+	let mut key = slate_id.as_bytes().to_vec();
+	key.extend_from_slice(&parent.to_bytes());
+	key
+}
+
+pub(super) fn stored<C: NodeClient, K: Keychain>(
+	w: &WalletBackend<C, K>,
+	mask: Option<&SecretKey>,
+	slate_id: uuid::Uuid,
+) -> Result<Vec<(Vec<u8>, Context)>, Error> {
+	let mut keys = vec![slate_id.as_bytes().to_vec()];
+	keys.extend(
+		w.acct_path_iter()?
+			.map(|account| account_key(slate_id, &account.path)),
+	);
+	let mut contexts = Vec::new();
+	for key in keys {
+		match w.get_private_context(mask, &key) {
+			Ok(context) => contexts.push((key, context)),
+			Err(Error::NotFoundErr(_)) => {}
+			Err(e) => return Err(e),
+		}
+	}
+	Ok(contexts)
+}
+
+pub(super) fn storage_key<C: NodeClient, K: Keychain>(
+	w: &WalletBackend<C, K>,
+	mask: Option<&SecretKey>,
+	slate_id: uuid::Uuid,
+	parent: &Identifier,
+) -> Result<Vec<u8>, Error> {
+	let contexts = stored(w, mask, slate_id)?;
+	if let Some((key, _)) = contexts
+		.iter()
+		.find(|(_, ctx)| &ctx.parent_key_id == parent)
+	{
+		return Ok(key.clone());
+	}
+	if contexts.iter().any(|(key, _)| key == slate_id.as_bytes()) {
+		Ok(account_key(slate_id, parent))
+	} else {
+		Ok(slate_id.as_bytes().to_vec())
+	}
+}
+
+/// Resolve the selected party, preserving retries after account switches
+pub(super) fn resolve<C: NodeClient, K: Keychain>(
+	w: &WalletBackend<C, K>,
+	mask: Option<&SecretKey>,
+	slate: &Slate,
+	parent: &Identifier,
+	requested_change: Option<i64>,
+) -> Result<Option<Context>, Error> {
+	let mut contexts = stored(w, mask, slate.id)?;
+	if let Some(index) = contexts
+		.iter()
+		.position(|(_, ctx)| &ctx.parent_key_id == parent)
+	{
+		return Ok(Some(contexts.swap_remove(index).1));
+	}
+	// Never fall back to another party after context deletion
+	let mut parents = Vec::new();
+	for tx in w.tx_log_iter()? {
+		let tx = tx?;
+		if tx.tx_slate_id == Some(slate.id) {
+			if &tx.parent_key_id == parent {
+				return Ok(None);
+			}
+			if !parents.contains(&tx.parent_key_id) {
+				parents.push(tx.parent_key_id);
+			}
+		}
+	}
+	if parents.len() > 1 {
+		return Err(Error::GenericError(
+			"Select an account participating in this contract".into(),
+		));
+	}
+	match contexts.len() {
+		0 => Ok(None),
+		1 => {
+			let (_, context) = contexts.pop().unwrap();
+			if slate.num_participants == 2 {
+				if let Some(change) = super::initial_net_change(&slate.state, slate.amount)? {
+					if change.signum() != context.get_net_change()?.signum()
+						&& requested_change.is_none_or(|net| net.signum() == change.signum())
+					{
+						return Ok(None);
+					}
+				}
+			}
+			Ok(Some(context))
+		}
+		_ => Err(Error::GenericError(
+			"Select an account participating in this contract".into(),
+		)),
+	}
+}
+
 /// Get or create transaction Context for the given slate
 pub fn get_or_create<C, K>(
 	w: &mut WalletBackend<C, K>,
@@ -38,28 +140,27 @@ where
 	K: Keychain,
 {
 	debug!("contract::context::get_or_create => called");
-	let maybe_context = w.get_private_context(keychain_mask, slate.id.as_bytes());
-
-	let context = match maybe_context {
-		// Only create a new context when there genuinely isn't one; propagate other errors.
-		Err(Error::NotFoundErr(_)) => {
-			// Get data required for creating a context
+	let parent_key_id = contract_utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?;
+	let context = match resolve(
+		w,
+		keychain_mask,
+		slate,
+		&parent_key_id,
+		setup_args.net_change,
+	)? {
+		Some(context) => context,
+		None => {
 			let height = w.w2n_client().get_chain_tip()?.0;
-			let parent_key_id =
-				contract_utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?;
 			self::create(
 				w,
 				keychain_mask,
 				slate,
 				height,
-				// &args,
 				setup_args,
 				&parent_key_id,
 				false,
 			)?
 		}
-		Err(e) => return Err(e),
-		Ok(ctx) => ctx,
 	};
 	Ok(context)
 }

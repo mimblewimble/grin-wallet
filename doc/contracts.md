@@ -53,6 +53,8 @@ does not, revoke the contract and create a new one.
 Each side's account is fixed when it first joins the contract. Changing the active account
 later does not affect setup or signing; they use the account stored in the context.
 Encrypted Slatepacks still need their account selected with `--account`; the error names it.
+For contracts between accounts in the same wallet, select the party with `--account`
+for each step.
 
 ## View and revoke
 

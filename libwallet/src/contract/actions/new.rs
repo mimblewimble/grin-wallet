@@ -79,13 +79,14 @@ where
 	let mut existing_context = None;
 	if let Some(id) = slate_id {
 		slate.id = id;
-		match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
-			Ok(context) => {
-				slate.ttl_cutoff_height = context.contract_ttl_cutoff_height.unwrap_or(0);
-				existing_context = Some(context);
-			}
-			Err(Error::NotFoundErr(_)) => {}
-			Err(e) => return Err(e),
+		let parent = contract::utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?;
+		contract::utils::verify_not_signed(w, slate.id, &parent)?;
+		existing_context = contract::context::stored(w, keychain_mask, slate.id)?
+			.into_iter()
+			.find(|(_, ctx)| ctx.parent_key_id == parent)
+			.map(|(_, ctx)| ctx);
+		if let Some(context) = &existing_context {
+			slate.ttl_cutoff_height = context.contract_ttl_cutoff_height.unwrap_or(0);
 		}
 	}
 	if existing_context.is_none() {

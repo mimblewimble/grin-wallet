@@ -56,9 +56,16 @@ where
 			slate.num_participants, setup_args.num_participants
 		)));
 	}
-	contract::utils::verify_not_signed(w, slate.id)?;
+	let parent = contract::utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?;
+	let context =
+		contract::context::resolve(w, keychain_mask, slate, &parent, setup_args.net_change)?;
+	let parent = context
+		.as_ref()
+		.map(|ctx| &ctx.parent_key_id)
+		.unwrap_or(&parent);
+	contract::utils::verify_not_signed(w, slate.id, parent)?;
 	// Compute state for 'setup'
-	let (slate, context) = compute(w, keychain_mask, slate, setup_args, None)?;
+	let (slate, context) = compute(w, keychain_mask, slate, setup_args, context)?;
 
 	// Atomically commit state
 	contract::utils::save_step(w, keychain_mask, &slate, context, setup_args.add_outputs)?;

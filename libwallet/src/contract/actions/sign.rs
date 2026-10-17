@@ -62,11 +62,9 @@ where
 	contract::utils::verify_fee_rate(setup_args.fee_rate)?;
 	// Compute if we will add outputs at this step. Only a missing context means we
 	// still need to add them; propagate any other error.
-	let existing_context = match w.get_private_context(keychain_mask, slate.id.as_bytes()) {
-		Ok(context) => Some(context),
-		Err(Error::NotFoundErr(_)) => None,
-		Err(e) => return Err(e),
-	};
+	let parent = contract::utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?;
+	let existing_context =
+		contract::context::resolve(w, keychain_mask, slate, &parent, setup_args.net_change)?;
 	let will_add_outputs = existing_context
 		.as_ref()
 		.map(|context| !context.has_inputs_or_outputs())
@@ -92,7 +90,11 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	contract::utils::verify_not_signed(w, slate.id)?;
+	let parent = match &existing_context {
+		Some(context) => context.parent_key_id.clone(),
+		None => contract::utils::parent_key_for(w, setup_args.src_acct_name.as_deref())?,
+	};
+	contract::utils::verify_not_signed(w, slate.id, &parent)?;
 	// Reject terminal and unknown states before setup reserves keys.
 	contract::slate::next_state(&slate.state)?;
 
