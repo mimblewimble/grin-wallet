@@ -801,11 +801,7 @@ where
 
 		let init_send_tx = |w: &mut WalletBackend<C, K>, args: &mut InitTxArgs| {
 			if args.address_index.is_none() && args.estimate_only != Some(true) {
-				let parent_key_id = match &args.src_acct_name {
-					Some(name) => w.get_acct_path(name.clone())?.map(|account| account.path),
-					None => None,
-				}
-				.unwrap_or_else(|| w.parent_key_id());
+				let parent_key_id = w.parent_key_id_for(args.src_acct_name.as_deref())?;
 				args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
 			}
 			owner::init_send_tx(w, keychain_mask, args.clone(), self.doctest_mode)
@@ -954,8 +950,8 @@ where
 				None
 			};
 			if args.address_index.is_none() {
-				let parent_key = w.parent_key_id();
-				args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key)?);
+				let parent_key_id = w.parent_key_id_for(args.src_acct_name.as_deref())?;
+				args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
 			}
 			let estimate = args.estimate_only.unwrap_or(false);
 			let late_lock = args.late_lock.unwrap_or(false);
