@@ -375,18 +375,8 @@ pub fn initial_setup_wallet(
 
 		// Return config if not run with init
 		true => {
-			// If run with init and seed do not yet exists, continue, else throw error
-			if data_dir.exists() && create_path {
-				let msg = format!(
-					"{} already exists in the target directory ({}). Please remove it first",
-					config_path.to_str().unwrap(),
-					data_dir.to_str().unwrap(),
-				);
-				return Err(ConfigError::SerializationError(msg));
-			} else {
-				let config = GlobalWalletConfig::new(config_path)?;
-				(wallet_path, config)
-			}
+			let config = GlobalWalletConfig::new(config_path)?;
+			(wallet_path, config)
 		}
 	};
 
