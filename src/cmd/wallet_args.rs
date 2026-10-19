@@ -1181,12 +1181,20 @@ where
 {
 	let mut wallet_lock = wallet.lock();
 	let lc = wallet_lock.lc_provider()?;
-	let mask = lc.open_wallet(
+	let mask = match lc.open_wallet(
 		None,
 		prompt_password(&global_wallet_args.password)?,
 		false,
 		false,
-	)?;
+	) {
+		Ok(m) => m,
+		Err(e) => {
+			if e == grin_wallet_libwallet::Error::WalletSeedDoesntExist {
+				println!("Run init command.")
+			}
+			return Err(Error::from(e));
+		}
+	};
 	if let Some(account) = wallet_args.value_of("account") {
 		let wallet_inst = lc.wallet_inst()?;
 		wallet_inst.set_account_by_name(account)?;
