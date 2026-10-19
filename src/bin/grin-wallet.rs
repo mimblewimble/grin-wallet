@@ -29,7 +29,6 @@ use grin_wallet_config as config;
 use grin_wallet_impls::HTTPNodeClient;
 use std::env;
 use std::path::PathBuf;
-use std::path::MAIN_SEPARATOR;
 
 /// Include build information
 pub mod built_info {
@@ -53,12 +52,6 @@ pub fn info_strings() -> (String, String) {
 		)
 		.to_string(),
 	)
-}
-
-/// Helper function to format paths according to OS, avoids bugs on Linux
-pub fn fmt_path(path: String) -> String {
-	let sep = &MAIN_SEPARATOR.to_string();
-	path.replace("/", sep).replace("\\", sep)
 }
 
 fn log_build_info() {
@@ -91,10 +84,7 @@ fn real_main() -> i32 {
 	if args.is_present("top_level_dir") {
 		let res = args.value_of("top_level_dir");
 		match res {
-			Some(d) => {
-				let d = fmt_path(d.to_owned().to_string()); // Fix for fs to work with paths on Linux
-				current_dir = Some(PathBuf::from(d));
-			}
+			Some(d) => current_dir = Some(PathBuf::from(d)),
 			None => {
 				warn!("Argument --top_level_dir needs a value. Defaulting to current directory")
 			}
