@@ -570,6 +570,16 @@ fn account_send() -> Result<(), libwallet::Error> {
 					assert_eq!(entries.len(), if source == dest { 2 } else { 1 });
 					assert!(entries.iter().all(|tx| tx.confirmed));
 					assert_eq!(entries.iter().filter(|tx| tx.tx_type == kind).count(), 1);
+					if source == "default" && dest == "default" && kind == TxLogEntryType::TxSent {
+						assert_eq!(
+							entries
+								.iter()
+								.find(|tx| tx.tx_type == kind)
+								.unwrap()
+								.address_index,
+							Some(SlatepackAddressIndex(1))
+						);
+					}
 				}
 				api.set_active_account(mask, source)?;
 				if proof {

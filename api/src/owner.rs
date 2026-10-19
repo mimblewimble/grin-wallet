@@ -949,7 +949,7 @@ where
 			} else {
 				None
 			};
-			if args.address_index.is_none() {
+			if args.address_index.is_none() && args.estimate_only != Some(true) {
 				let parent_key_id = w.parent_key_id_for(args.src_acct_name.as_deref())?;
 				args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key_id)?);
 			}
