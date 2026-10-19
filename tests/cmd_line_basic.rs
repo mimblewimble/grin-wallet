@@ -487,7 +487,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let (refreshed, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
 	assert!(refreshed);
 	assert_eq!(txs.len(), bh as usize);
-	assert_eq!(txs.len(), bh as usize);
 
 	// Send to self
 	let arg_vec = vec![
@@ -553,7 +552,6 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	api1.set_active_account(mask1, "mining")?;
 	let (refreshed, txs) = api1.retrieve_txs(mask1, true, None, None, None)?;
 	assert!(refreshed);
-	assert_eq!(txs.len(), bh as usize + 1);
 	assert_eq!(txs.len(), bh as usize + 1);
 
 	// Another file exchange, don't send, but unlock with repair command
