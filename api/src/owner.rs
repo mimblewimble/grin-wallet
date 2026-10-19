@@ -952,6 +952,10 @@ where
 			} else {
 				None
 			};
+			if args.address_index.is_none() {
+				let parent_key = w.parent_key_id();
+				args.address_index = Some(w.next_tx_slatepack_address_index(&parent_key)?);
+			}
 			let estimate = args.estimate_only.unwrap_or(false);
 			let late_lock = args.late_lock.unwrap_or(false);
 			let slate = owner::init_send_tx(w, keychain_mask, args, self.doctest_mode)?;

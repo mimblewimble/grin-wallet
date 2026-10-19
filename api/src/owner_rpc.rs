@@ -659,7 +659,6 @@ pub trait OwnerRpc {
 	# assert!(response["error"].is_null(), "{}", response);
 	# let slate = &response["result"]["Ok"];
 	# assert_eq!(slate["sta"], "S3", "{}", response);
-	# assert_eq!(slate["proof"]["saddr"], slate["proof"]["raddr"]);
 	# assert!(slate["proof"]["rsig"].is_string());
 	```
 	*/
