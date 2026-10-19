@@ -234,6 +234,11 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = fmt_path(data_dir_name.to_str().unwrap().to_string());
+		let seed_exists = WalletSeed::seed_file_exists(&data_dir_name)
+			.map_err(|_| Error::WalletSeedDoesntExist)?;
+		if !seed_exists {
+			return Err(Error::WalletSeedDoesntExist);
+		}
 		let mut wallet: WalletBackend<C, K> =
 			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
 				Err(e) => {
@@ -399,6 +404,21 @@ mod tests {
 		let mut provider = DefaultLCProvider::new(client);
 		provider.set_top_level_directory(test_dir).unwrap();
 		provider
+	}
+
+	#[test]
+	fn missing_wallet_data() {
+		let test_dir = "test_output/missing_wallet_data";
+		let _ = fs::remove_dir_all(test_dir);
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let mut provider = provider(test_dir);
+		let data_dir = PathBuf::from(test_dir).join(GRIN_WALLET_DIR);
+
+		let error = provider
+			.open_wallet(None, ZeroingString::from("test"), false, false)
+			.unwrap_err();
+		assert_eq!(error, Error::WalletSeedDoesntExist);
+		assert!(!data_dir.exists());
 	}
 
 	#[test]
