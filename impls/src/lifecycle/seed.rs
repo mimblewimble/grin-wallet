@@ -203,9 +203,6 @@ impl WalletSeed {
 		data_file_dir: &str,
 		password: util::ZeroingString,
 	) -> Result<WalletSeed, Error> {
-		// create directory if it doesn't exist
-		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
-
 		let mut seed_file_path = PathBuf::from(data_file_dir);
 		seed_file_path.push(SEED_FILE);
 
