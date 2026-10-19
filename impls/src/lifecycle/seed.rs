@@ -17,8 +17,8 @@ use core::num::NonZeroU32;
 use rand::{thread_rng, Rng};
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::path::Path;
 use std::path::MAIN_SEPARATOR;
+use std::path::{Path, PathBuf};
 
 use ring::aead;
 use ring::pbkdf2;
@@ -105,19 +105,11 @@ impl WalletSeed {
 		Ok(WalletSeed(seed))
 	}
 
-	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_file_dir.to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
-		);
-		debug!("Seed file path: {}", seed_file_path);
-		if Path::new(seed_file_path).exists() {
-			Ok(true)
-		} else {
-			Ok(false)
-		}
+	pub fn seed_file_exists(data_file_dir: &str) -> bool {
+		let mut path = PathBuf::from(data_file_dir);
+		path.push(SEED_FILE);
+		debug!("Seed file path: {:?}", path);
+		path.exists()
 	}
 
 	pub fn backup_seed(data_file_dir: &str) -> Result<String, Error> {
@@ -155,7 +147,7 @@ impl WalletSeed {
 			SEED_FILE,
 		);
 		debug!("data file dir: {}", data_file_dir);
-		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir) {
+		if WalletSeed::seed_file_exists(data_file_dir) {
 			debug!("seed file exists");
 			WalletSeed::backup_seed(data_file_dir)?;
 		}
@@ -194,7 +186,7 @@ impl WalletSeed {
 		);
 		let data_file_dir = fmt_path(data_file_dir.to_string());
 		warn!("Generating wallet seed file at: {}", seed_file_path);
-		let exists = WalletSeed::seed_file_exists(&data_file_dir)?;
+		let exists = WalletSeed::seed_file_exists(&data_file_dir);
 		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
 			error!("{}", msg);

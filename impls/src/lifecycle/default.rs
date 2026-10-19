@@ -187,12 +187,9 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = fmt_path((data_dir_name.to_str().unwrap()).to_string());
-		let exists = WalletSeed::seed_file_exists(&data_dir_name);
-		if !test_mode {
-			if let Ok(true) = exists {
-				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
-				return Err(Error::WalletSeedExists(msg));
-			}
+		if !test_mode && WalletSeed::seed_file_exists(&data_dir_name) {
+			let msg = format!("Wallet seed already exists at: {}", data_dir_name);
+			return Err(Error::WalletSeedExists(msg));
 		}
 		let entropy_size = if entropy_size == 0 { 32 } else { entropy_size };
 		WalletSeed::init_file(
@@ -234,9 +231,7 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = fmt_path(data_dir_name.to_str().unwrap().to_string());
-		let seed_exists = WalletSeed::seed_file_exists(&data_dir_name)
-			.map_err(|_| Error::WalletSeedDoesntExist)?;
-		if !seed_exists {
+		if !WalletSeed::seed_file_exists(&data_dir_name) {
 			return Err(Error::WalletSeedDoesntExist);
 		}
 		let mut wallet: WalletBackend<C, K> =
@@ -274,8 +269,7 @@ where
 		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let res = WalletSeed::seed_file_exists(data_dir_name)
-			.map_err(|_| Error::CallbackImpl("Error checking for wallet existence"))?;
+		let res = WalletSeed::seed_file_exists(data_dir_name);
 		Ok(res)
 	}
 
