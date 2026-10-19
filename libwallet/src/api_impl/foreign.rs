@@ -22,6 +22,7 @@ use crate::api_impl::types::update_tx_slate_state;
 use crate::backend::WalletBackend;
 use crate::internal::{selection, tx, updater};
 use crate::slate_versions::SlateVersion;
+use crate::slatepack::SlatepackAddressIndex;
 use crate::{
 	address, BlockFees, CbData, Error, NodeClient, Slate, SlateState, TxLogEntryType, VersionInfo,
 };
@@ -124,7 +125,11 @@ where
 			ret_slate.amount,
 			&excess,
 			p.sender_address,
-			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+			address::address_from_derivation_path(
+				&keychain,
+				&parent_key_id,
+				SlatepackAddressIndex(0),
+			)?,
 		)?;
 
 		p.receiver_signature = Some(sig);
