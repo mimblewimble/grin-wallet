@@ -1183,7 +1183,10 @@ where
 {
 	{
 		wallet_lock!(wallet_inst, w);
-		w.repair_tx_log(keychain_mask)?;
+		match w.repair_tx_log(keychain_mask) {
+			Ok(_) => {}
+			Err(e) => warn!("Can not repair txs: {}", e),
+		}
 	}
 	update_outputs(wallet_inst.clone(), keychain_mask, true)?;
 	let tip = {
