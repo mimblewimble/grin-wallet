@@ -18,10 +18,21 @@ extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
 
 use grin_core as core;
+use grin_keychain::ExtKeychain;
+use grin_util::secp::SecretKey;
 use grin_wallet_config::GlobalWalletConfig;
 use grin_wallet_libwallet as libwallet;
+use grin_wallet_util::byte_ser;
 use impls::test_framework::{self, LocalWalletClient};
 use impls::DefaultLCProvider;
+use libwallet::api_impl::owner::{decrypt_slatepack, deserialize_slatepack};
+use libwallet::slatepack::{get_slatepack_file_contents, SlatepackAddressIndex};
+use libwallet::{
+	slatepack, Error, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack,
+	SlatepackAddress, SlatepackBin, WalletHandle,
+};
+
+use ed25519_dalek::VerifyingKey as edDalekPublicKey;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -29,21 +40,9 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::{fs, thread};
 
-use grin_wallet_libwallet::{
-	slatepack, Error, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs, Slate, Slatepack,
-	SlatepackAddress, SlatepackBin, WalletHandle,
-};
-
-use ed25519_dalek::VerifyingKey as edDalekPublicKey;
-
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
-use grin_keychain::ExtKeychain;
-use grin_util::secp::SecretKey;
-use grin_wallet_libwallet::api_impl::owner::{decrypt_slatepack, deserialize_slatepack};
-use grin_wallet_libwallet::slatepack::{get_slatepack_file_contents, SlatepackAddressIndex};
-use grin_wallet_util::byte_ser;
 
 fn output_slatepack(
 	slate: &Slate,

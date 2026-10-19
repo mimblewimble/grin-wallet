@@ -20,7 +20,9 @@ extern crate grin_wallet_util;
 
 use grin_wallet_libwallet as libwallet;
 use impls::test_framework::{self, LocalWalletClient};
+use libwallet::slatepack::SlatepackAddressIndex;
 use libwallet::{InitTxArgs, Slate};
+
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
@@ -28,7 +30,6 @@ use std::time::Duration;
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 /// Various tests on accounts within the same wallet
 fn payment_proofs_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
