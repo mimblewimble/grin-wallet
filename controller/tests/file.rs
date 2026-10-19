@@ -16,23 +16,22 @@
 extern crate log;
 extern crate grin_wallet_controller as wallet;
 extern crate grin_wallet_impls as impls;
-
 use grin_core as core;
 use grin_wallet_libwallet as libwallet;
-use std::path::PathBuf;
 
 use impls::test_framework::{self, LocalWalletClient};
 use impls::{PathToSlate, SlateGetter as _, SlatePutter as _};
+use libwallet::slatepack::SlatepackAddressIndex;
+use libwallet::{InitTxArgs, IssueInvoiceTxArgs};
+
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-use grin_wallet_libwallet::{InitTxArgs, IssueInvoiceTxArgs};
-
 #[macro_use]
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
 
 /// self send impl
 fn file_exchange_test_impl(test_dir: &'static str, use_bin: bool) -> Result<(), libwallet::Error> {

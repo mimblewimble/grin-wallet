@@ -23,8 +23,7 @@ use crate::slate_versions::v4::{
 use crate::slate_versions::VersionedSlate;
 use crate::slate_versions::{CURRENT_SLATE_VERSION, GRIN_BLOCK_HEADER_VERSION};
 use crate::{Context, SlateVersion, Slatepack, SlatepackAddress, VersionedBinSlate};
-use ed25519_dalek::Signature as DalekSignature;
-use ed25519_dalek::VerifyingKey as DalekPublicKey;
+
 use grin_core::core::amount_to_hr_string;
 use grin_core::core::transaction::{
 	FeeFields, Input, Inputs, KernelFeatures, NRDRelativeHeight, Output, OutputFeatures,
@@ -38,6 +37,9 @@ use grin_util::secp::pedersen::Commitment;
 use grin_util::secp::Signature;
 use grin_util::{secp, static_secp_instance};
 use grin_wallet_util::byte_ser;
+
+use ed25519_dalek::Signature as DalekSignature;
+use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use serde::ser::{Serialize, Serializer};
 use std::fmt;
 use uuid::Uuid;

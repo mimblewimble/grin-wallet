@@ -15,6 +15,7 @@
 use super::SlatepackAddress;
 use crate::Error;
 use crate::{dalek_ser, Slate, SlatepackArmor, VersionedBinSlate};
+
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use grin_wallet_util::byte_ser;
 
@@ -702,7 +703,7 @@ fn slatepack_bin_basic_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
 }
 
 #[test]
-fn slatepack_bin_opt_fields_ser() -> Result<(), grin_wallet_util::byte_ser::Error> {
+fn slatepack_bin_opt_fields_ser() -> Result<(), byte_ser::Error> {
 	use grin_core::global;
 	use grin_wallet_util::byte_ser;
 	global::set_local_chain_type(global::ChainTypes::AutomatedTesting);

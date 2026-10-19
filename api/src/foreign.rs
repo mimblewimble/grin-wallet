@@ -350,6 +350,7 @@ where
 				Some(slate),
 			)?;
 		}
+		let parent_key_id = w.parent_key_id_for(dest_acct_name)?;
 		let ret_slate = foreign::receive_tx(
 			w,
 			self.keychain_mask.as_ref(),
@@ -357,6 +358,7 @@ where
 			dest_acct_name,
 			self.doctest_mode,
 		)?;
+		drop(w_lock);
 		match r_addr {
 			Some(a) => {
 				let tc = tor_config.ok_or_else(|| {
@@ -369,7 +371,8 @@ where
 				let res = try_slatepack_sync_workflow(&ret_slate, &a, Some(tc), None, true);
 				match res {
 					Ok(s) => {
-						let parent_key_id = w.parent_key_id();
+						let mut w_lock = self.wallet_inst.lock();
+						let w = w_lock.lc_provider()?.wallet_inst()?;
 						match update_tx_slate_state(
 							w,
 							self.keychain_mask.as_ref(),
