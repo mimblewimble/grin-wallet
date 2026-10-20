@@ -106,7 +106,7 @@ impl WalletSeed {
 	pub fn seed_file_exists(data_file_dir: &str) -> bool {
 		let mut path = PathBuf::from(data_file_dir);
 		path.push(SEED_FILE);
-		debug!("Seed file path: {:?}", path);
+		debug!("Seed file path: {}", path.display());
 		path.exists()
 	}
 
@@ -114,8 +114,6 @@ impl WalletSeed {
 		let mut seed_file_name = PathBuf::from(data_file_dir);
 		seed_file_name.push(SEED_FILE);
 
-		let mut path = PathBuf::from(&seed_file_name);
-		path.pop();
 		let mut backup_seed_file_name = PathBuf::from(data_file_dir);
 		backup_seed_file_name.push(format!("{}.bak", SEED_FILE));
 		let mut i = 1;
@@ -124,15 +122,15 @@ impl WalletSeed {
 			backup_seed_file_name.push(format!("{}.bak.{}", SEED_FILE, i));
 			i += 1;
 		}
-		path.push(&backup_seed_file_name);
 		if fs::rename(&seed_file_name, &backup_seed_file_name).is_err() {
 			return Err(Error::GenericError(
 				"Can't rename wallet seed file".to_owned(),
 			));
 		}
 		warn!(
-			"{:?} backed up as {:?}",
-			seed_file_name, backup_seed_file_name
+			"{} backed up as {}",
+			seed_file_name.display(),
+			backup_seed_file_name.display()
 		);
 		Ok(backup_seed_file_name)
 	}
@@ -178,7 +176,10 @@ impl WalletSeed {
 
 		let mut seed_file_path = PathBuf::from(data_file_dir);
 		seed_file_path.push(SEED_FILE);
-		warn!("Generating wallet seed file at: {:?}", seed_file_path);
+		warn!(
+			"Generating wallet seed file at: {}",
+			seed_file_path.display()
+		);
 		let exists = WalletSeed::seed_file_exists(data_file_dir);
 		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
@@ -206,7 +207,7 @@ impl WalletSeed {
 		let mut seed_file_path = PathBuf::from(data_file_dir);
 		seed_file_path.push(SEED_FILE);
 
-		debug!("Using wallet seed file at: {:?}", seed_file_path);
+		debug!("Using wallet seed file at: {}", seed_file_path.display());
 
 		if seed_file_path.exists() {
 			let mut file = File::open(seed_file_path).map_err(|_| Error::IO)?;
@@ -218,9 +219,9 @@ impl WalletSeed {
 			Ok(wallet_seed)
 		} else {
 			error!(
-				"wallet seed file {:?} could not be opened (grin-wallet init). \
+				"wallet seed file {} could not be opened (grin-wallet init). \
 				 Run \"grin-wallet init\" to initialize a new wallet.",
-				seed_file_path
+				seed_file_path.display()
 			);
 			Err(Error::WalletSeedDoesntExist)
 		}
@@ -230,7 +231,7 @@ impl WalletSeed {
 		let mut seed_file_path = PathBuf::from(data_file_dir);
 		seed_file_path.push(SEED_FILE);
 		if seed_file_path.exists() {
-			debug!("Deleting wallet seed file at: {:?}", seed_file_path);
+			debug!("Deleting wallet seed file at: {}", seed_file_path.display());
 			fs::remove_file(seed_file_path).map_err(|_| Error::IO)?;
 		}
 		Ok(())

@@ -629,7 +629,8 @@ impl GlobalWalletConfig {
 		config_file_path: PathBuf,
 	) -> Result<String, ConfigError> {
 		let config: GlobalWalletConfigMembers =
-			toml::from_str(&GlobalWalletConfig::fix_warning_level(config_str.clone())).unwrap();
+			toml::from_str(&GlobalWalletConfig::fix_warning_level(config_str.clone()))
+				.map_err(|e| ConfigError::SerializationError(e.to_string()))?;
 		if config.config_file_version.is_some() {
 			return Ok(config_str);
 		}

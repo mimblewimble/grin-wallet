@@ -26,7 +26,7 @@ use crate::util::ZeroingString;
 use grin_util::logger::LoggingConfig;
 use grin_wallet_config::config::reload_global_config;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf, MAIN_SEPARATOR};
 
 pub struct DefaultLCProvider<C, K>
 where
@@ -59,13 +59,13 @@ where
 	K: Keychain + 'a,
 {
 	fn set_top_level_directory(&mut self, dir: &str) -> Result<(), Error> {
-		self.data_dir = dir.to_owned();
+		let sep = &MAIN_SEPARATOR.to_string();
+		self.data_dir = dir.replace("/", sep).replace("\\", sep);
 		Ok(())
 	}
 
 	fn get_top_level_directory(&self) -> Result<String, Error> {
-		let data_dir = PathBuf::from(&self.data_dir);
-		Ok(data_dir.to_str().unwrap().to_owned())
+		Ok(self.data_dir.clone())
 	}
 
 	fn create_config(

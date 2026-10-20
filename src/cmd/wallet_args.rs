@@ -1190,7 +1190,7 @@ where
 		Ok(m) => m,
 		Err(e) => {
 			if e == grin_wallet_libwallet::Error::WalletSeedDoesntExist {
-				println!("Run init command.")
+				println!("Wallet not found. Run `grin-wallet init` to create a new wallet.")
 			}
 			return Err(Error::from(e));
 		}
