@@ -26,14 +26,7 @@ use crate::util::ZeroingString;
 use grin_util::logger::LoggingConfig;
 use grin_wallet_config::config::reload_global_config;
 use std::fs;
-use std::path::PathBuf;
-use std::path::MAIN_SEPARATOR;
-
-/// Helper function to format paths according to OS, avoids bugs on Linux
-pub fn fmt_path(path: String) -> String {
-	let sep = &MAIN_SEPARATOR.to_string();
-	path.replace("/", sep).replace("\\", sep)
-}
+use std::path::{PathBuf, MAIN_SEPARATOR};
 
 pub struct DefaultLCProvider<C, K>
 where
@@ -66,18 +59,13 @@ where
 	K: Keychain + 'a,
 {
 	fn set_top_level_directory(&mut self, dir: &str) -> Result<(), Error> {
-		self.data_dir = dir.to_owned();
+		let sep = &MAIN_SEPARATOR.to_string();
+		self.data_dir = dir.replace("/", sep).replace("\\", sep);
 		Ok(())
 	}
 
 	fn get_top_level_directory(&self) -> Result<String, Error> {
-		let sep = &MAIN_SEPARATOR.to_string();
-		let data_dir = self
-			.data_dir
-			.to_owned()
-			.replace("/", sep)
-			.replace("\\", sep);
-		Ok(data_dir)
+		Ok(self.data_dir.clone())
 	}
 
 	fn create_config(
@@ -88,10 +76,10 @@ where
 		logging_config: Option<LoggingConfig>,
 		tor_config: Option<TorConfig>,
 	) -> Result<(), Error> {
-		let mut config_file_name = PathBuf::from(self.data_dir.clone());
+		let mut config_file_name = PathBuf::from(&self.data_dir);
 		config_file_name.push(file_name);
 
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
 		if config_file_name.exists() && data_dir_name.exists() {
 			let msg = format!(
@@ -133,14 +121,14 @@ where
 
 		// default settings are updated if no config was provided, no support for top_dir/here
 		let mut abs_path_node = std::env::current_dir()?;
-		abs_path_node.push(self.data_dir.clone());
+		abs_path_node.push(&self.data_dir);
 		let mut absolute_path_wallet = std::env::current_dir()?;
-		absolute_path_wallet.push(self.data_dir.clone());
+		absolute_path_wallet.push(&self.data_dir);
 
 		// if no config provided, update defaults
 		if update {
 			// create top level dir if it doesn't exist
-			let dd = PathBuf::from(self.data_dir.clone());
+			let dd = PathBuf::from(&self.data_dir);
 			if !dd.exists() {
 				// try create
 				fs::create_dir_all(dd)?;
@@ -165,12 +153,12 @@ where
 			config_file_name.to_str().unwrap(),
 		);
 
-		let mut api_secret_path = PathBuf::from(self.data_dir.clone());
+		let mut api_secret_path = PathBuf::from(&self.data_dir);
 		api_secret_path.push(PathBuf::from(config::API_SECRET_FILE_NAME));
 		if !api_secret_path.exists() {
-			config::init_api_secret(&api_secret_path).unwrap();
+			config::init_api_secret(&api_secret_path)?;
 		} else {
-			config::check_api_secret(&api_secret_path).unwrap();
+			config::check_api_secret(&api_secret_path)?;
 		}
 
 		Ok(())
@@ -184,19 +172,16 @@ where
 		password: ZeroingString,
 		test_mode: bool,
 	) -> Result<(), Error> {
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
-		let data_dir_name = fmt_path((data_dir_name.to_str().unwrap()).to_string());
-		let exists = WalletSeed::seed_file_exists(&data_dir_name);
-		if !test_mode {
-			if let Ok(true) = exists {
-				let msg = format!("Wallet seed already exists at: {}", data_dir_name);
-				return Err(Error::WalletSeedExists(msg));
-			}
+		let data_dir_name = data_dir_name.to_str().unwrap();
+		if !test_mode && WalletSeed::seed_file_exists(data_dir_name) {
+			let msg = format!("Wallet seed already exists at: {}", data_dir_name);
+			return Err(Error::WalletSeedExists(msg));
 		}
 		let entropy_size = if entropy_size == 0 { 32 } else { entropy_size };
 		WalletSeed::init_file(
-			&data_dir_name,
+			data_dir_name,
 			entropy_size,
 			mnemonic.clone(),
 			password,
@@ -205,7 +190,7 @@ where
 		.map_err(|e| Error::Lifecycle(format!("Error creating wallet seed: {}", e)))?;
 		info!("Wallet seed file created");
 		let mut wallet: WalletBackend<C, K> =
-			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
+			match WalletBackend::new(data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error creating wallet: {}, Data Dir: {}", e, data_dir_name);
 					error!("{}", msg);
@@ -231,18 +216,21 @@ where
 		create_mask: bool,
 		use_test_rng: bool,
 	) -> Result<Option<SecretKey>, Error> {
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
-		let data_dir_name = fmt_path(data_dir_name.to_str().unwrap().to_string());
+		let data_dir_name = data_dir_name.to_str().unwrap();
+		if !WalletSeed::seed_file_exists(data_dir_name) {
+			return Err(Error::WalletSeedDoesntExist);
+		}
 		let mut wallet: WalletBackend<C, K> =
-			match WalletBackend::new(&data_dir_name, self.node_client.clone()) {
+			match WalletBackend::new(data_dir_name, self.node_client.clone()) {
 				Err(e) => {
 					let msg = format!("Error opening wallet: {}, Data Dir: {}", e, data_dir_name);
 					return Err(Error::Lifecycle(msg));
 				}
 				Ok(d) => d,
 			};
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password).map_err(|_| {
+		let wallet_seed = WalletSeed::from_file(data_dir_name, password).map_err(|_| {
 			Error::Lifecycle("Error opening wallet (is password correct?)".to_owned())
 		})?;
 		if wallet_seed.is_empty() {
@@ -266,11 +254,10 @@ where
 	}
 
 	fn wallet_exists(&self, _name: Option<&str>) -> Result<bool, Error> {
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
-		let res = WalletSeed::seed_file_exists(data_dir_name)
-			.map_err(|_| Error::CallbackImpl("Error checking for wallet existence"))?;
+		let res = WalletSeed::seed_file_exists(data_dir_name);
 		Ok(res)
 	}
 
@@ -279,10 +266,10 @@ where
 		_name: Option<&str>,
 		password: ZeroingString,
 	) -> Result<ZeroingString, Error> {
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
-		let data_dir_name = fmt_path(data_dir_name.display().to_string());
-		let wallet_seed = WalletSeed::from_file(&data_dir_name, password)
+		let data_dir_name = data_dir_name.to_str().unwrap();
+		let wallet_seed = WalletSeed::from_file(data_dir_name, password)
 			.map_err(|_| Error::Lifecycle("Error opening wallet seed file".into()))?;
 		let res = wallet_seed
 			.to_mnemonic()
@@ -302,7 +289,7 @@ where
 		mnemonic: ZeroingString,
 		password: ZeroingString,
 	) -> Result<(), Error> {
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		WalletSeed::recover_from_phrase(data_dir_name, mnemonic, password)
@@ -316,7 +303,7 @@ where
 		old: ZeroingString,
 		new: ZeroingString,
 	) -> Result<(), Error> {
-		let mut data_dir_name = PathBuf::from(self.data_dir.clone());
+		let mut data_dir_name = PathBuf::from(&self.data_dir);
 		data_dir_name.push(GRIN_WALLET_DIR);
 		let data_dir_name = data_dir_name.to_str().unwrap();
 		// Get seed for later check
@@ -363,7 +350,7 @@ where
 	}
 
 	fn delete_wallet(&self, _name: Option<&str>) -> Result<(), Error> {
-		let data_dir_name = PathBuf::from(self.data_dir.clone());
+		let data_dir_name = PathBuf::from(&self.data_dir);
 		warn!(
 			"Removing all wallet data from: {}",
 			data_dir_name.to_str().unwrap()
@@ -399,6 +386,21 @@ mod tests {
 		let mut provider = DefaultLCProvider::new(client);
 		provider.set_top_level_directory(test_dir).unwrap();
 		provider
+	}
+
+	#[test]
+	fn missing_wallet_data() {
+		let test_dir = "test_output/missing_wallet_data";
+		let _ = fs::remove_dir_all(test_dir);
+		global::set_local_chain_type(global::ChainTypes::AutomatedTesting);
+		let mut provider = provider(test_dir);
+		let data_dir = PathBuf::from(test_dir).join(GRIN_WALLET_DIR);
+
+		let error = provider
+			.open_wallet(None, ZeroingString::from("test"), false, false)
+			.unwrap_err();
+		assert_eq!(error, Error::WalletSeedDoesntExist);
+		assert!(!data_dir.exists());
 	}
 
 	#[test]
@@ -443,14 +445,10 @@ mod tests {
 		let mut provider = provider(test_dir);
 		let password = ZeroingString::from("test");
 		let data_dir = PathBuf::from(test_dir).join(GRIN_WALLET_DIR);
-		fs::create_dir_all(data_dir.clone()).unwrap();
+		fs::create_dir_all(&data_dir).unwrap();
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_dir.to_str().unwrap().to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
-		);
+		let mut seed_file_path = data_dir.clone();
+		seed_file_path.push(SEED_FILE);
 
 		let enc_seed = EncryptedWalletSeed::from_seed(
 			&WalletSeed::from_bytes(vec![].as_slice()),
@@ -458,7 +456,7 @@ mod tests {
 		)
 		.unwrap();
 		let enc_seed_json = serde_json::to_string_pretty(&enc_seed).unwrap();
-		let mut file = File::create(seed_file_path).unwrap();
+		let mut file = File::create(&seed_file_path).unwrap();
 		file.write_all(enc_seed_json.as_bytes()).unwrap();
 
 		let error = match provider.get_mnemonic(None, password.clone()) {

@@ -17,14 +17,12 @@ use core::num::NonZeroU32;
 use rand::{thread_rng, Rng};
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::path::Path;
-use std::path::MAIN_SEPARATOR;
+use std::path::{Path, PathBuf};
 
 use ring::aead;
 use ring::pbkdf2;
 
 use crate::keychain::{mnemonic, Keychain};
-use crate::lifecycle::default::fmt_path;
 use crate::util::{self, ToHex};
 use crate::Error;
 
@@ -105,41 +103,35 @@ impl WalletSeed {
 		Ok(WalletSeed(seed))
 	}
 
-	pub fn seed_file_exists(data_file_dir: &str) -> Result<bool, Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_file_dir.to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
-		);
-		debug!("Seed file path: {}", seed_file_path);
-		if Path::new(seed_file_path).exists() {
-			Ok(true)
-		} else {
-			Ok(false)
-		}
+	pub fn seed_file_exists(data_file_dir: &str) -> bool {
+		let mut path = PathBuf::from(data_file_dir);
+		path.push(SEED_FILE);
+		debug!("Seed file path: {}", path.display());
+		path.exists()
 	}
 
-	pub fn backup_seed(data_file_dir: &str) -> Result<String, Error> {
-		let seed_file_name = &format!("{}{}{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE,);
+	pub fn backup_seed(data_file_dir: &str) -> Result<PathBuf, Error> {
+		let mut seed_file_name = PathBuf::from(data_file_dir);
+		seed_file_name.push(SEED_FILE);
 
-		let mut path = Path::new(seed_file_name).to_path_buf();
-		path.pop();
-		let mut backup_seed_file_name =
-			format!("{}{}{}.bak", data_file_dir, MAIN_SEPARATOR, SEED_FILE);
+		let mut backup_seed_file_name = PathBuf::from(data_file_dir);
+		backup_seed_file_name.push(format!("{}.bak", SEED_FILE));
 		let mut i = 1;
 		while Path::new(&backup_seed_file_name).exists() {
-			backup_seed_file_name =
-				format!("{}{}{}.bak.{}", data_file_dir, MAIN_SEPARATOR, SEED_FILE, i);
+			backup_seed_file_name = PathBuf::from(data_file_dir);
+			backup_seed_file_name.push(format!("{}.bak.{}", SEED_FILE, i));
 			i += 1;
 		}
-		path.push(backup_seed_file_name.clone());
-		if fs::rename(seed_file_name, backup_seed_file_name.as_str()).is_err() {
+		if fs::rename(&seed_file_name, &backup_seed_file_name).is_err() {
 			return Err(Error::GenericError(
 				"Can't rename wallet seed file".to_owned(),
 			));
 		}
-		warn!("{} backed up as {}", seed_file_name, backup_seed_file_name);
+		warn!(
+			"{} backed up as {}",
+			seed_file_name.display(),
+			backup_seed_file_name.display()
+		);
 		Ok(backup_seed_file_name)
 	}
 
@@ -148,14 +140,10 @@ impl WalletSeed {
 		word_list: util::ZeroingString,
 		password: util::ZeroingString,
 	) -> Result<(), Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_file_dir.to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
-		);
+		let mut seed_file_path = PathBuf::from(data_file_dir);
+		seed_file_path.push(SEED_FILE);
 		debug!("data file dir: {}", data_file_dir);
-		if let Ok(true) = WalletSeed::seed_file_exists(data_file_dir) {
+		if WalletSeed::seed_file_exists(data_file_dir) {
 			debug!("seed file exists");
 			WalletSeed::backup_seed(data_file_dir)?;
 		}
@@ -186,15 +174,13 @@ impl WalletSeed {
 		// create directory if it doesn't exist
 		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_file_dir.to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
+		let mut seed_file_path = PathBuf::from(data_file_dir);
+		seed_file_path.push(SEED_FILE);
+		warn!(
+			"Generating wallet seed file at: {}",
+			seed_file_path.display()
 		);
-		let data_file_dir = fmt_path(data_file_dir.to_string());
-		warn!("Generating wallet seed file at: {}", seed_file_path);
-		let exists = WalletSeed::seed_file_exists(&data_file_dir)?;
+		let exists = WalletSeed::seed_file_exists(data_file_dir);
 		if exists && !test_mode {
 			let msg = format!("Wallet seed already exists at: {}", data_file_dir);
 			error!("{}", msg);
@@ -218,19 +204,10 @@ impl WalletSeed {
 		data_file_dir: &str,
 		password: util::ZeroingString,
 	) -> Result<WalletSeed, Error> {
-		// create directory if it doesn't exist
-		fs::create_dir_all(data_file_dir).map_err(|_| Error::IO)?;
+		let mut seed_file_path = PathBuf::from(data_file_dir);
+		seed_file_path.push(SEED_FILE);
 
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_file_dir.to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
-		);
-
-		debug!("Using wallet seed file at: {}", seed_file_path);
-
-		if Path::new(seed_file_path).exists() {
+		if seed_file_path.exists() {
 			let mut file = File::open(seed_file_path).map_err(|_| Error::IO)?;
 			let mut buffer = String::new();
 			file.read_to_string(&mut buffer).map_err(|_| Error::IO)?;
@@ -242,21 +219,17 @@ impl WalletSeed {
 			error!(
 				"wallet seed file {} could not be opened (grin-wallet init). \
 				 Run \"grin-wallet init\" to initialize a new wallet.",
-				seed_file_path
+				seed_file_path.display()
 			);
 			Err(Error::WalletSeedDoesntExist)
 		}
 	}
 
 	pub fn delete_seed_file(data_file_dir: &str) -> Result<(), Error> {
-		let seed_file_path = &format!(
-			"{}{}{}",
-			fmt_path(data_file_dir.to_string()),
-			MAIN_SEPARATOR,
-			SEED_FILE,
-		);
-		if Path::new(seed_file_path).exists() {
-			debug!("Deleting wallet seed file at: {}", seed_file_path);
+		let mut seed_file_path = PathBuf::from(data_file_dir);
+		seed_file_path.push(SEED_FILE);
+		if seed_file_path.exists() {
+			debug!("Deleting wallet seed file at: {}", seed_file_path.display());
 			fs::remove_file(seed_file_path).map_err(|_| Error::IO)?;
 		}
 		Ok(())

@@ -1063,8 +1063,8 @@ where
 	),
 {
 	let mut wallet_config = config.members.wallet.clone();
-	if let Some(dir) = wallet_args.value_of("top_level_dir") {
-		wallet_config.data_file_dir = dir.to_string().clone();
+	if let Some(d) = wallet_args.value_of("top_level_dir") {
+		wallet_config.data_file_dir = d.replace("\\", "/");
 	}
 
 	if let Some(sa) = wallet_args.value_of("api_server_address") {
@@ -1181,12 +1181,20 @@ where
 {
 	let mut wallet_lock = wallet.lock();
 	let lc = wallet_lock.lc_provider()?;
-	let mask = lc.open_wallet(
+	let mask = match lc.open_wallet(
 		None,
 		prompt_password(&global_wallet_args.password)?,
 		false,
 		false,
-	)?;
+	) {
+		Ok(m) => m,
+		Err(e) => {
+			if e == grin_wallet_libwallet::Error::WalletSeedDoesntExist {
+				println!("Wallet not found. Run `grin-wallet init` to create a new wallet.")
+			}
+			return Err(Error::from(e));
+		}
+	};
 	if let Some(account) = wallet_args.value_of("account") {
 		let wallet_inst = lc.wallet_inst()?;
 		wallet_inst.set_account_by_name(account)?;
