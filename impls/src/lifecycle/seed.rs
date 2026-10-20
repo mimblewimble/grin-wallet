@@ -207,8 +207,6 @@ impl WalletSeed {
 		let mut seed_file_path = PathBuf::from(data_file_dir);
 		seed_file_path.push(SEED_FILE);
 
-		debug!("Using wallet seed file at: {}", seed_file_path.display());
-
 		if seed_file_path.exists() {
 			let mut file = File::open(seed_file_path).map_err(|_| Error::IO)?;
 			let mut buffer = String::new();
