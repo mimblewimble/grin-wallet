@@ -1063,8 +1063,8 @@ where
 	),
 {
 	let mut wallet_config = config.members.wallet.clone();
-	if let Some(dir) = wallet_args.value_of("top_level_dir") {
-		wallet_config.data_file_dir = dir.to_string().clone();
+	if let Some(d) = wallet_args.value_of("top_level_dir") {
+		wallet_config.data_file_dir = d.replace("\\", "/");
 	}
 
 	if let Some(sa) = wallet_args.value_of("api_server_address") {

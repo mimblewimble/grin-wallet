@@ -1776,11 +1776,12 @@ where
 				"Close the wallet before changing the top-level directory".into(),
 			));
 		}
-		let config_path = PathBuf::from(dir).join(WALLET_CONFIG_FILE_NAME);
+		let dir = dir.replace("\\", "/");
+		let config_path = PathBuf::from(&dir).join(WALLET_CONFIG_FILE_NAME);
 		if config_path.exists() {
 			reload_global_config(&config_path)?;
 		}
-		lc.set_top_level_directory(dir)?;
+		lc.set_top_level_directory(&dir)?;
 		self.config_path.set(config_path);
 		Ok(())
 	}
