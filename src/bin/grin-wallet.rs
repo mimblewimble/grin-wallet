@@ -84,7 +84,10 @@ fn real_main() -> i32 {
 	if args.is_present("top_level_dir") {
 		let res = args.value_of("top_level_dir");
 		match res {
-			Some(d) => current_dir = Some(PathBuf::from(d)),
+			Some(d) => {
+				let d = d.replace("\\", "/");
+				current_dir = Some(PathBuf::from(d))
+			}
 			None => {
 				warn!("Argument --top_level_dir needs a value. Defaulting to current directory")
 			}
