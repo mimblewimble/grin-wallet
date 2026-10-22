@@ -1,107 +1,406 @@
 name: Continuous Deployment
 
 on:
+  workflow_dispatch:
   push:
+    branches:
+      - master
+      - staging
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: read
+
+env:
+  BUILD_LABEL: &build-label ${{ github.ref_name == 'master' && 'latest' || github.ref_name == 'staging' && 'staging-latest' || github.ref_type == 'tag' && github.ref_name || github.sha }}
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
-    linux-release:
-        name: Linux Release
-        runs-on: ubuntu-latest
-        steps:
-          - name: Checkout
-            uses: actions/checkout@v6
-            with:
-              submodules: recursive
-          - name: Build
-            run: cargo build --release
-          - name: Archive
-            working-directory: target/release
-            run: tar -czvf grin-wallet-${{  github.ref_name }}-linux-x86_64.tar.gz grin-wallet
-          - name: Create Checksum
-            working-directory: target/release
-            run: openssl sha256 grin-wallet-${{  github.ref_name }}-linux-x86_64.tar.gz > grin-wallet-${{  github.ref_name }}-linux-x86_64-sha256sum.txt
-          - name: Release
-            uses: softprops/action-gh-release@v1
-            with:
-                generate_release_notes: true
-                files: |
-                    target/release/grin-wallet-${{  github.ref_name }}-linux-x86_64.tar.gz
-                    target/release/grin-wallet-${{  github.ref_name }}-linux-x86_64-sha256sum.txt
+  linux-release:
+    name: Linux Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
-    macos-release-x86:
-        name: macOS Release - x86_64
-        runs-on: macos-latest
-        steps:
-          - name: Install Rust Target
-            run: rustup target add x86_64-apple-darwin
-          - name: Checkout
-            uses: actions/checkout@v6
-            with:
-              submodules: recursive
-          - name: Build
-            run: cargo build --release --target x86_64-apple-darwin
-          - name: Archive
-            working-directory: target/x86_64-apple-darwin/release
-            run: tar -czvf grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz grin-wallet
-          - name: Create Checksum
-            working-directory: target/x86_64-apple-darwin/release
-            run: openssl sha256 grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz > grin-wallet-${{  github.ref_name }}-macos-x86_64-sha256sum.txt
-          - name: Release
-            uses: softprops/action-gh-release@v1
-            with:
-              files: |
-                target/x86_64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-x86_64.tar.gz
-                target/x86_64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-x86_64-sha256sum.txt
+      - name: Build
+        run: cargo build --release --locked
 
-    macos-release-arm64:
-        name: macOS Release - arm64
-        runs-on: macos-latest
-        steps:
-          - name: Install Rust Target
-            run: rustup target add aarch64-apple-darwin
-          - name: Checkout
-            uses: actions/checkout@v6
-            with:
-              submodules: recursive
-          - name: Build
-            run: cargo build --release --target aarch64-apple-darwin
-          - name: Archive
-            working-directory: target/aarch64-apple-darwin/release
-            run: tar -czvf grin-wallet-${{  github.ref_name }}-macos-arm64.tar.gz grin-wallet
-          - name: Create Checksum
-            working-directory: target/aarch64-apple-darwin/release
-            run: openssl sha256 grin-wallet-${{  github.ref_name }}-macos-arm64.tar.gz > grin-wallet-${{  github.ref_name }}-macos-arm64-sha256sum.txt
-          - name: Release
-            uses: softprops/action-gh-release@v1
-            with:
-              files: |
-                target/aarch64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-arm64.tar.gz
-                target/aarch64-apple-darwin/release/grin-wallet-${{  github.ref_name }}-macos-arm64-sha256sum.txt
-    
-    windows-release:
-        name: Windows Release
-        runs-on: windows-latest
-        steps:
-          - name: Checkout
-            uses: actions/checkout@v6
-            with:
-              submodules: recursive
-          - name: Build
-            run: cargo build --release
-          - name: Archive
-            uses: vimtor/action-zip@v1
-            with:
-                files: target/release/grin-wallet.exe
-                dest: target/release/grin-wallet-${{  github.ref_name }}-win-x86_64.zip
-          - name: Create Checksum
-            working-directory: target/release
-            shell: pwsh
-            run: get-filehash -algorithm sha256 grin-wallet-${{  github.ref_name }}-win-x86_64.zip | Format-List |  Out-String | ForEach-Object { $_.Trim() } > grin-wallet-${{  github.ref_name }}-win-x86_64-sha256sum.txt
-          - name: Release
-            uses: softprops/action-gh-release@v1
-            with:
-              files: |
-                target/release/grin-wallet-${{  github.ref_name }}-win-x86_64.zip
-                target/release/grin-wallet-${{  github.ref_name }}-win-x86_64-sha256sum.txt
+      - name: Check binary
+        run: |
+          file target/release/grin-wallet
+          target/release/grin-wallet --version
+
+      - name: Smoke test
+        run: sh .github/scripts/smoke.sh "$PWD/target/release/grin-wallet"
+
+      - name: Archive
+        working-directory: target/release
+        run: tar -czf "grin-wallet-${BUILD_LABEL}-linux-x86_64.tar.gz" grin-wallet
+
+      - name: Create checksum
+        working-directory: target/release
+        run: openssl sha256 "grin-wallet-${BUILD_LABEL}-linux-x86_64.tar.gz" > "grin-wallet-${BUILD_LABEL}-linux-x86_64-sha256sum.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-x86_64
+          path: |
+            target/release/grin-wallet-${{ env.BUILD_LABEL }}-linux-x86_64.tar.gz
+            target/release/grin-wallet-${{ env.BUILD_LABEL }}-linux-x86_64-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  linux-musl:
+    name: Linux musl ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            image: messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            image: messense/rust-musl-cross:aarch64-musl@sha256:ecae5dd62d1c938c14f8071d36c16fa699860aace03bfb5284fb1216474d2643
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Build
+        env:
+          OPENSSL_STATIC: "1"
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Check binary
+        run: |
+          binary=target/${{ matrix.target }}/release/grin-wallet
+          file "$binary"
+          if readelf -l "$binary" | grep -q INTERP; then
+            exit 1
+          fi
+          if readelf -d "$binary" | grep -q NEEDED; then
+            exit 1
+          fi
+          "$binary" --version
+
+      - name: Smoke test
+        run: |
+          binary=target/${{ matrix.target }}/release/grin-wallet
+          sh .github/scripts/smoke.sh "$PWD/$binary"
+
+      - name: Archive
+        working-directory: target/${{ matrix.target }}/release
+        run: tar -czf "grin-wallet-${BUILD_LABEL}-linux-${{ matrix.arch }}-musl.tar.gz" grin-wallet
+
+      - name: Create checksum
+        working-directory: target/${{ matrix.target }}/release
+        run: openssl sha256 "grin-wallet-${BUILD_LABEL}-linux-${{ matrix.arch }}-musl.tar.gz" > "grin-wallet-${BUILD_LABEL}-linux-${{ matrix.arch }}-musl-sha256sum.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-${{ matrix.arch }}-musl
+          path: |
+            target/${{ matrix.target }}/release/grin-wallet-${{ env.BUILD_LABEL }}-linux-${{ matrix.arch }}-musl.tar.gz
+            target/${{ matrix.target }}/release/grin-wallet-${{ env.BUILD_LABEL }}-linux-${{ matrix.arch }}-musl-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  bsd:
+    name: ${{ matrix.name }} x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: cpa.sh {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: OpenBSD
+            os: openbsd
+            version: "7.9"
+            install: sudo pkg_add rust git cmake pkgconf gmake curl
+            build: LZMA_API_STATIC=1 cargo build --release --locked
+          - name: FreeBSD
+            os: freebsd
+            version: "14.4"
+            install: sudo pkg install -y rust git cmake pkgconf gmake curl perl5
+            build: cargo build --release --locked
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Start ${{ matrix.name }}
+        uses: cross-platform-actions/action@v1.3.0
+        with:
+          operating_system: ${{ matrix.os }}
+          architecture: x86-64
+          version: ${{ matrix.version }}
+          environment_variables: BUILD_LABEL
+          memory: 8G
+          cpu_count: 4
+
+      - name: Install dependencies
+        run: ${{ matrix.install }}
+
+      - name: Build
+        run: ${{ matrix.build }}
+
+      - name: Check binary
+        run: |
+          binary=target/release/grin-wallet
+          file "$binary"
+          if [ "${{ matrix.os }}" = openbsd ] && objdump -p "$binary" | grep -q 'NEEDED.*liblzma'; then
+            echo "liblzma is dynamically linked"
+            exit 1
+          fi
+          "$binary" --version
+
+      - name: Smoke test
+        run: sh .github/scripts/smoke.sh "$PWD/target/release/grin-wallet"
+
+      - name: Archive
+        run: |
+          cd target/release
+          tar -czf "grin-wallet-${BUILD_LABEL}-${{ matrix.os }}-x86_64.tar.gz" grin-wallet
+
+      - name: Create checksum
+        run: |
+          cd target/release
+          openssl sha256 "grin-wallet-${BUILD_LABEL}-${{ matrix.os }}-x86_64.tar.gz" > "grin-wallet-${BUILD_LABEL}-${{ matrix.os }}-x86_64-sha256sum.txt"
+
+      - name: Copy artifacts
+        shell: bash
+        run: |
+          archive="grin-wallet-${BUILD_LABEL}-${{ matrix.os }}-x86_64.tar.gz"
+          checksum="grin-wallet-${BUILD_LABEL}-${{ matrix.os }}-x86_64-sha256sum.txt"
+          remote="runner@cross_platform_actions_host:${GITHUB_WORKSPACE}/target/release"
+          scp "${remote}/${archive}" "${remote}/${checksum}" target/release/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.os }}-x86_64
+          path: |
+            target/release/grin-wallet-${{ env.BUILD_LABEL }}-${{ matrix.os }}-x86_64.tar.gz
+            target/release/grin-wallet-${{ env.BUILD_LABEL }}-${{ matrix.os }}-x86_64-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  macos-release-x86:
+    name: macOS Release - x86_64
+    runs-on: macos-15-intel
+    steps:
+      - name: Install Rust target
+        run: rustup target add x86_64-apple-darwin
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Check binary
+        run: |
+          file target/x86_64-apple-darwin/release/grin-wallet
+          target/x86_64-apple-darwin/release/grin-wallet --version
+
+      - name: Smoke test
+        run: sh .github/scripts/smoke.sh "$PWD/target/x86_64-apple-darwin/release/grin-wallet"
+
+      - name: Archive
+        working-directory: target/x86_64-apple-darwin/release
+        run: tar -czf "grin-wallet-${BUILD_LABEL}-macos-x86_64.tar.gz" grin-wallet
+
+      - name: Create checksum
+        working-directory: target/x86_64-apple-darwin/release
+        run: openssl sha256 "grin-wallet-${BUILD_LABEL}-macos-x86_64.tar.gz" > "grin-wallet-${BUILD_LABEL}-macos-x86_64-sha256sum.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-x86_64
+          path: |
+            target/x86_64-apple-darwin/release/grin-wallet-${{ env.BUILD_LABEL }}-macos-x86_64.tar.gz
+            target/x86_64-apple-darwin/release/grin-wallet-${{ env.BUILD_LABEL }}-macos-x86_64-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  macos-release-arm64:
+    name: macOS Release - arm64
+    runs-on: macos-latest
+    steps:
+      - name: Install Rust target
+        run: rustup target add aarch64-apple-darwin
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: cargo build --release --locked --target aarch64-apple-darwin
+
+      - name: Check binary
+        run: |
+          file target/aarch64-apple-darwin/release/grin-wallet
+          target/aarch64-apple-darwin/release/grin-wallet --version
+
+      - name: Smoke test
+        run: sh .github/scripts/smoke.sh "$PWD/target/aarch64-apple-darwin/release/grin-wallet"
+
+      - name: Archive
+        working-directory: target/aarch64-apple-darwin/release
+        run: tar -czf "grin-wallet-${BUILD_LABEL}-macos-arm64.tar.gz" grin-wallet
+
+      - name: Create checksum
+        working-directory: target/aarch64-apple-darwin/release
+        run: openssl sha256 "grin-wallet-${BUILD_LABEL}-macos-arm64.tar.gz" > "grin-wallet-${BUILD_LABEL}-macos-arm64-sha256sum.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-arm64
+          path: |
+            target/aarch64-apple-darwin/release/grin-wallet-${{ env.BUILD_LABEL }}-macos-arm64.tar.gz
+            target/aarch64-apple-darwin/release/grin-wallet-${{ env.BUILD_LABEL }}-macos-arm64-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-release:
+    name: Windows Release
+    runs-on: windows-2022
+    env:
+      ROARING_ARCH: x86-64-v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Check binary
+        shell: pwsh
+        run: |
+          Get-Item target/release/grin-wallet.exe
+          target/release/grin-wallet.exe --version
+
+      - name: Smoke test
+        shell: bash
+        run: sh .github/scripts/smoke.sh "$PWD/target/release/grin-wallet.exe"
+
+      - name: Archive
+        working-directory: target/release
+        shell: pwsh
+        run: Compress-Archive -Path grin-wallet.exe -DestinationPath "grin-wallet-${env:BUILD_LABEL}-win-x86_64.zip"
+
+      - name: Create checksum
+        working-directory: target/release
+        shell: pwsh
+        run: Get-FileHash -Algorithm SHA256 "grin-wallet-${env:BUILD_LABEL}-win-x86_64.zip" | Format-List | Out-String | ForEach-Object { $_.Trim() } > "grin-wallet-${env:BUILD_LABEL}-win-x86_64-sha256sum.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-x86_64
+          path: |
+            target/release/grin-wallet-${{ env.BUILD_LABEL }}-win-x86_64.zip
+            target/release/grin-wallet-${{ env.BUILD_LABEL }}-win-x86_64-sha256sum.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  docker:
+    name: Docker
+    uses: ./.github/workflows/publish-ghcr.yaml
+    permissions:
+      contents: read
+      packages: write
+
+  snap:
+    name: Snap
+    uses: ./.github/workflows/snap.yaml
+    secrets: inherit
+    with:
+      build_label: *build-label
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - linux-release
+      - linux-musl
+      - bsd
+      - macos-release-x86
+      - macos-release-arm64
+      - windows-release
+      - docker
+      - snap
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: release
+          pattern: "!digests-*"
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: release/*
+
+  telegram-notify:
+    name: Telegram Notification
+    if: always()
+    needs:
+      - linux-release
+      - linux-musl
+      - bsd
+      - macos-release-x86
+      - macos-release-arm64
+      - windows-release
+      - docker
+      - snap
+      - release
+    uses: ./.github/workflows/telegram.yaml
+    secrets: inherit
+    with:
+      title: Grin Wallet CD
+      status: ${{ contains(join(needs.*.result, ','), 'failure') && 'failed' || contains(join(needs.*.result, ','), 'cancelled') && 'cancelled' || 'success' }}
+      details: |
+        <b>Linux:</b> ${{ needs['linux-release'].result }}
+        <b>musl:</b> ${{ needs['linux-musl'].result }}
+        <b>BSD:</b> ${{ needs.bsd.result }}
+        <b>macOS x86:</b> ${{ needs['macos-release-x86'].result }}
+        <b>macOS arm64:</b> ${{ needs['macos-release-arm64'].result }}
+        <b>Windows:</b> ${{ needs['windows-release'].result }}
+        <b>Docker:</b> ${{ needs.docker.result }}
+        <b>Snap:</b> ${{ needs.snap.result }}
+        <b>Release:</b> ${{ needs.release.result }}
+      image_tag: ${{ needs.docker.outputs.image_tag }}
+      artifact_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      commit_message: ${{ github.event.head_commit.message }}
