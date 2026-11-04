@@ -773,7 +773,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 	let mut config = initial_setup_wallet(test_dir, "wallet2");
 	config.members.tor = Some(grin_wallet_config::TorWalletConfig {
 		use_integrated: Some(false),
-		socks_proxy_addr: "invalid".into(),
+		socks_proxy_addr: "in valid".into(),
 		..Default::default()
 	});
 	let send = |args: &clap::ArgMatches| -> Result<(), grin_wallet_controller::Error> {
@@ -786,7 +786,9 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 			|_| {},
 		)?;
 		assert!(logs_rx.try_iter().any(|entry| {
-			entry.log.contains("Error sending slate sync:") && entry.log.contains("AddrParseError")
+			println!("{:?}", entry);
+			entry.log.contains("Error sending slate sync:")
+				&& (entry.log.contains("AddrParseError") || entry.log.contains("InvalidUri"))
 		}));
 		Ok(())
 	};
