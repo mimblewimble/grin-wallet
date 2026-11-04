@@ -14,15 +14,17 @@
 
 use crate::libwallet::{Error, Slate, SlateVersion, VersionedSlate};
 
+use async_trait::async_trait;
 use serde_json::Value;
 
-pub trait HttpSlateSender {
+#[async_trait]
+pub trait HttpSlateSender: Send + Sync {
 	fn host_url(&self) -> String;
 
-	fn post(&self, url: &str, body: String) -> Result<String, Error>;
+	async fn post(&self, url: &str, body: String) -> Result<String, Error>;
 
 	/// Check version of the listening wallet
-	fn check_other_version(&self, url: &str) -> Result<SlateVersion, Error> {
+	async fn check_other_version(&self, url: &str) -> Result<SlateVersion, Error> {
 		let req = json!({
 			"jsonrpc": "2.0",
 			"method": "check_version",
@@ -30,7 +32,7 @@ pub trait HttpSlateSender {
 			"params": []
 		});
 
-		let res: String = self.post(url, req.to_string()).map_err(|e| {
+		let res: String = self.post(url, req.to_string()).await.map_err(|e| {
 			let report = format!("Performing version check (is recipient listening?): {}", e);
 			Error::ClientCallback(report)
 		})?;
@@ -72,14 +74,14 @@ pub trait HttpSlateSender {
 		Err(Error::ClientCallback(report))
 	}
 
-	fn send(&self, slate: &Slate, finalize: bool) -> Result<Slate, Error> {
+	async fn send(&self, slate: &Slate, finalize: bool) -> Result<Slate, Error> {
 		let trailing = match self.host_url().ends_with('/') {
 			true => "",
 			false => "/",
 		};
 		let url_str = format!("{}{}v2/foreign", self.host_url(), trailing);
 
-		let slate_send = match self.check_other_version(&url_str)? {
+		let slate_send = match self.check_other_version(&url_str).await? {
 			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
 		};
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
@@ -106,7 +108,7 @@ pub trait HttpSlateSender {
 
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = self.post(&url_str, req.to_string()).map_err(|e| {
+		let res: String = self.post(&url_str, req.to_string()).await.map_err(|e| {
 			let report = format!(
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e

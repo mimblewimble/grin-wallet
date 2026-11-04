@@ -2865,7 +2865,12 @@ pub fn try_slatepack_sync_workflow(
 		}
 	};
 	warn!("Attempting to send transaction via Tor");
-	match sender.send(slate, send_to_finalize) {
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.map_err(|e| Error::GenericError(format!("Could not create tokio runtime: {}", e)))?;
+	let res = rt.block_on(sender.send(slate, send_to_finalize));
+	match res {
 		Ok(s) => Ok(s),
 		Err(e) => {
 			debug!("Could not send Slate via Tor: {}", e);

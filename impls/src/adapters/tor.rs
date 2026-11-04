@@ -20,6 +20,7 @@ use crate::libwallet::SlatepackAddress;
 use grin_p2p::tor::ov3::OnionV3Address;
 use grin_p2p::tor::{start_tor, TorHttpClient};
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
@@ -53,15 +54,18 @@ impl TorHttpClient<TorWalletConfig> for TorSlateSender {
 	}
 }
 
+#[async_trait]
 impl HttpSlateSender for TorSlateSender {
 	fn host_url(&self) -> String {
 		self.host_url.clone()
 	}
 
-	fn post(&self, url: &str, body: String) -> Result<String, Error> {
+	async fn post(&self, url: &str, body: String) -> Result<String, Error> {
 		let mut headers = HashMap::new();
 		headers.insert("accept", "application/json");
 		headers.insert("content-type", "application/json");
-		TorHttpClient::post(self, url, Some(headers), body).map_err(|e| e.into())
+		TorHttpClient::post(self, url, Some(headers), body)
+			.await
+			.map_err(|e| e.into())
 	}
 }

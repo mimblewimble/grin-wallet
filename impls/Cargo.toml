@@ -23,6 +23,7 @@ chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
 tokio = { version = "1.52.3", features = ["full"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["socks", "native-tls", "system-proxy", "charset", "http2"] }
+async-trait = "0.1.92"
 
 grin_wallet_util = { path = "../util", version = "5.5.1" }
 grin_wallet_config = { path = "../config", version = "5.5.1" }
