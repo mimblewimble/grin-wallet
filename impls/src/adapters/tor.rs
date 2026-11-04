@@ -13,26 +13,20 @@
 // limitations under the License.
 
 use crate::adapters::types::HttpSlateSender;
-use crate::client_utils::Client;
+use crate::config::TorWalletConfig;
 use crate::libwallet::Error;
-
-use grin_p2p::tor::arti::tor_post;
-use grin_p2p::tor::config::{TorConfig, REQUEST_TIMEOUT_SECS};
-use grin_p2p::tor::process::types::TorProcess;
-use grin_p2p::tor::start_tor;
+use crate::libwallet::SlatepackAddress;
 
 use grin_p2p::tor::ov3::OnionV3Address;
-use grin_wallet_config::TorWalletConfig;
-use grin_wallet_libwallet::SlatepackAddress;
+use grin_p2p::tor::{start_tor, TorHttpClient};
+
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 #[derive(Clone)]
 pub struct TorSlateSender {
 	host_url: String,
-	tor_process: Arc<Option<TorProcess>>,
 	tor_config: TorWalletConfig,
 }
 
@@ -44,12 +38,18 @@ impl TorSlateSender {
 	) -> Result<TorSlateSender, Error> {
 		let tor_addr = OnionV3Address::from(dest);
 		let host_url = tor_addr.to_http_str();
-		let tor = start_tor(&tor_config)?;
+		start_tor(&tor_config)?;
+		thread::sleep(Duration::from_millis(5000));
 		Ok(TorSlateSender {
 			host_url,
-			tor_process: Arc::new(tor),
 			tor_config,
 		})
+	}
+}
+
+impl TorHttpClient<TorWalletConfig> for TorSlateSender {
+	fn tor_config(&self) -> &TorWalletConfig {
+		&self.tor_config
 	}
 }
 
@@ -59,34 +59,9 @@ impl HttpSlateSender for TorSlateSender {
 	}
 
 	fn post(&self, url: &str, body: String) -> Result<String, Error> {
-		let res = if self.tor_process.is_some() {
-			let timeout = Duration::from_secs(
-				self.tor_config
-					.request_timeout_secs()
-					.filter(|s| *s > 0)
-					.unwrap_or(REQUEST_TIMEOUT_SECS),
-			);
-			let socks_proxy_addr = SocketAddr::V4(
-				self.tor_config
-					.socks_proxy_addr()
-					.parse()
-					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?,
-			);
-			let client = Client::with_proxy(socks_proxy_addr, "socks5h://", timeout)
-				.map_err(|e| Error::Tor(format!("Unable to create proxy client {}", e)))?;
-			let req = client
-				.create_post_request(url, None, &body)
-				.map_err(|e| Error::Tor(format!("Unable to create request {}", e)))?;
-			client
-				.send_request(req)
-				.map_err(|e| Error::Tor(format!("Unable to send request {}", e)))?
-		} else {
-			let mut headers = HashMap::new();
-			headers.insert("accept", "application/json");
-			headers.insert("content-type", "application/json");
-			tor_post(&self.tor_config, body, Some(headers), url)
-				.map_err(|e| Error::Tor(e.to_string()))?
-		};
-		Ok(res)
+		let mut headers = HashMap::new();
+		headers.insert("accept", "application/json");
+		headers.insert("content-type", "application/json");
+		TorHttpClient::post(self, url, Some(headers), body).map_err(|e| e.into())
 	}
 }

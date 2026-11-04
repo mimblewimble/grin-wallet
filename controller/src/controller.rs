@@ -15,6 +15,10 @@
 //! Controller for wallet, instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
+use crate::apiwallet::{
+	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
+	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
+};
 use crate::config::TorWalletConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
@@ -23,25 +27,20 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
-use grin_p2p::tor::ov3::OnionV3Address;
-use grin_wallet_api::JsonId;
 
-use crate::apiwallet::{
-	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
-	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
-};
-use easy_jsonrpc_mw;
-use easy_jsonrpc_mw::{Handler, MaybeReply};
 use grin_api::ApiBody;
-use grin_p2p::tor::arti::stop_tor_service;
 use grin_p2p::tor::config::TorConfig;
-use grin_p2p::tor::process::types::TorProcess;
-use grin_p2p::tor::{onion_service_status, start_onion_service, ServiceStatus};
+use grin_p2p::tor::ov3::OnionV3Address;
+use grin_p2p::tor::{onion_service_status, start_onion_service, stop_onion_service, ServiceStatus};
+use grin_wallet_api::JsonId;
 use grin_wallet_config::config::{
 	add_global_config_listener, get_global_config, get_global_tor_config,
 	remove_global_config_listener,
 };
 use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
+
+use easy_jsonrpc_mw;
+use easy_jsonrpc_mw::{Handler, MaybeReply};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::header::HeaderValue;
@@ -247,11 +246,11 @@ where
 		warn!("HTTP Foreign listener started.");
 
 		// Need to keep external process in scope while the listener is running.
-		let _tor_service = if tor_config.use_tor_listener {
-			let res: Result<Option<TorProcess>, grin_p2p::tor::Error> =
+		if tor_config.use_tor_listener {
+			let res: Result<(), grin_p2p::tor::Error> =
 				start_onion_service(sec_key, addr, tor_dir, &tor_config);
 			match res {
-				Ok(service) => {
+				Ok(_) => {
 					warn!(
 						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 						onion_address, addr
@@ -283,18 +282,15 @@ where
 							}
 						}
 					}
-					Ok(service)
 				}
 				Err(e) => {
 					warn!("Unable to start TOR listener");
 					error!("Tor Error: {}", e);
 					warn!("Listener is available on {}", addr);
-					Err(e)
 				}
 			}
 		} else {
 			warn!("Listener is available on {}", addr);
-			Ok(None)
 		};
 
 		// Start thread to check if restart is needed.
@@ -312,7 +308,7 @@ where
 			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
 
 		if tor_config.use_tor_listener && tor_config.use_integrated() {
-			stop_tor_service(onion_address.to_string())?;
+			stop_onion_service(onion_address.to_string())?;
 		}
 
 		if restart_needed.load(Ordering::Relaxed) {
