@@ -17,12 +17,12 @@
 use serde::Deserialize;
 use serde_json::{self, Value};
 
-/// Result returned by a mwixnet server after submitting a swap request.
+/// Result returned by a mwixnet server after submitting a request.
 #[derive(Debug, Eq, PartialEq)]
 pub enum MwixnetResponse {
-	/// The swap request was accepted.
+	/// The request was accepted.
 	Accepted,
-	/// The swap request was rejected with a message.
+	/// The request was rejected with a message.
 	//TODO: extend it with actual errors from mwixnet
 	Rejected(String),
 }
@@ -76,7 +76,9 @@ pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, Mwixnet
 	if let Some(error) = response.error {
 		return Ok(MwixnetResponse::Rejected(error.message));
 	}
-	if response.result == Some(serde_json::json!("success")) {
+	if response.result == Some(serde_json::json!("success"))
+		|| response.result == Some(serde_json::json!("ok"))
+	{
 		return Ok(MwixnetResponse::Accepted);
 	}
 
@@ -94,6 +96,11 @@ mod tests {
 	fn parses_mwixnet_response() {
 		assert_eq!(
 			parse_mwixnet_response(r#"{"jsonrpc":"2.0","result":"success","id":1}"#).unwrap(),
+			MwixnetResponse::Accepted
+		);
+
+		assert_eq!(
+			parse_mwixnet_response(r#"{"jsonrpc":"2.0","result":"ok","id":1}"#).unwrap(),
 			MwixnetResponse::Accepted
 		);
 

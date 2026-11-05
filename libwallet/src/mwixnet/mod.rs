@@ -29,4 +29,4 @@ pub use types::{
 };
 
 mod client;
-pub use client::MwixnetClientImpl;
+pub use client::{MwixnetClient, MwixnetClientImpl};

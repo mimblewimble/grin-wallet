@@ -25,6 +25,7 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{foreign, owner, owner_updater};
+use crate::libwallet::mwixnet::MwixnetClient;
 use crate::libwallet::mwixnet::MwixnetClientImpl;
 use crate::libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
 use crate::libwallet::mwixnet::{MwixnetResponse, SwapReq};

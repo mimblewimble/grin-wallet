@@ -15,46 +15,30 @@
 use crate::mwixnet::{parse_mwixnet_response, MwixnetError, MwixnetResponse, SwapReq};
 
 use grin_api::json_rpc;
+use grin_p2p::tor::config::TorConfig;
 use grin_p2p::tor::ov3::OnionV3Address;
 use grin_p2p::tor::TorHttpClient;
 use grin_wallet_config::TorWalletConfig;
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 
-/// Mwixnet requests client.
-pub struct MwixnetClientImpl {
-	tor_config: TorWalletConfig,
-	server_url: OnionV3Address,
-}
+/// Client to send requests to mwixnet service.
+#[async_trait]
+pub trait MwixnetClient<T>: TorHttpClient<T> + Send + Sync
+where
+	T: TorConfig + Sync,
+{
+	/// Get service URL.
+	fn server_url(&self) -> &OnionV3Address;
 
-impl TorHttpClient<TorWalletConfig> for MwixnetClientImpl {
-	fn tor_config(&self) -> &TorWalletConfig {
-		&self.tor_config
-	}
-}
-
-impl MwixnetClientImpl {
-	/// Create new client instance.
-	pub fn new(tor_config: TorWalletConfig, server_url: OnionV3Address) -> Self {
-		MwixnetClientImpl {
-			tor_config,
-			server_url,
-		}
-	}
-
-	/// Swap outputs request.
-	pub async fn swap(&self, req: &SwapReq) -> Result<MwixnetResponse, MwixnetError> {
-		let req = serde_json::json!([req]);
-		self.post("swap", &req).await
-	}
-
-	/// Post request.
-	async fn post(
+	/// Send request to service.
+	async fn send_request(
 		&self,
 		method: &str,
 		req: &serde_json::Value,
 	) -> Result<MwixnetResponse, MwixnetError> {
-		let url = format!("{}/v1", self.server_url.to_http_str());
+		let url = format!("{}/v1", self.server_url().to_http_str());
 		let rpc_params = serde_json::json!([req]);
 		let rpc_request = json_rpc::build_request(method, &rpc_params);
 		let request = serde_json::json!(rpc_request);
@@ -73,5 +57,45 @@ impl MwixnetClientImpl {
 			}
 		};
 		parse_mwixnet_response(&response)
+	}
+
+	/// Swap outputs request.
+	async fn swap(&self, req: &SwapReq) -> Result<MwixnetResponse, MwixnetError> {
+		let req = serde_json::json!([req]);
+		self.send_request("swap", &req).await
+	}
+
+	/// Health request.
+	async fn health(&self) -> Result<MwixnetResponse, MwixnetError> {
+		let req = serde_json::json!([]);
+		self.send_request("health", &req).await
+	}
+}
+
+/// Mwixnet requests client.
+pub struct MwixnetClientImpl {
+	tor_config: TorWalletConfig,
+	server_url: OnionV3Address,
+}
+
+impl MwixnetClient<TorWalletConfig> for MwixnetClientImpl {
+	fn server_url(&self) -> &OnionV3Address {
+		&self.server_url
+	}
+}
+
+impl TorHttpClient<TorWalletConfig> for MwixnetClientImpl {
+	fn tor_config(&self) -> &TorWalletConfig {
+		&self.tor_config
+	}
+}
+
+impl MwixnetClientImpl {
+	/// Create new client instance.
+	pub fn new(tor_config: TorWalletConfig, server_url: OnionV3Address) -> Self {
+		MwixnetClientImpl {
+			tor_config,
+			server_url,
+		}
 	}
 }
