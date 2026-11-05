@@ -133,7 +133,7 @@ fn comments() -> HashMap<String, String> {
 #transport = \"https\"
 
 #Proxy address, eg IP:PORT or Hostname
-#server = \"\"
+#address = \"\"
 
 #Username for the proxy server authentification
 #user = \"\"
