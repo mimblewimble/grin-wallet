@@ -25,8 +25,9 @@ use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{foreign, owner, owner_updater};
-use crate::libwallet::mwixnet::{parse_mwixnet_response, MwixnetResponse, SwapReq};
+use crate::libwallet::mwixnet::MwixnetClientImpl;
 use crate::libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
+use crate::libwallet::mwixnet::{MwixnetResponse, SwapReq};
 use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::wallet_lock;
 use crate::libwallet::RetrieveTxQueryArgs;
@@ -39,13 +40,10 @@ use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 
-use grin_api::json_rpc;
-use grin_p2p::tor::arti::tor_post;
 use grin_p2p::tor::ov3::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Write;
@@ -2824,26 +2822,16 @@ where
 		req: &SwapReq,
 		server: OnionV3Address,
 	) -> Result<Option<String>, Error> {
-		let url = format!("{}/v1", server.to_http_str());
-		let rpc_params = serde_json::json!([req]);
-		let rpc_request = json_rpc::build_request("swap", &rpc_params);
 		let tor_config = get_global_tor_config(&self.config_path())?;
-		let request = serde_json::json!(rpc_request);
-		let mut headers = HashMap::new();
-		headers.insert("accept", "application/json");
-		headers.insert("content-type", "application/json");
-		let response = match tor_post(&tor_config, request.to_string(), Some(headers), &url) {
-			Ok(response) => response,
-			Err(e) => {
-				return Err(Error::GenericError(format!(
-					"Could not determine whether mwixnet accepted the request: {}",
-					e,
-				)));
-			}
-		};
-		match parse_mwixnet_response(&response).map_err(|e| {
+		let client = MwixnetClientImpl::new(tor_config, server);
+		let rt = tokio::runtime::Builder::new_current_thread()
+			.enable_all()
+			.build()
+			.map_err(|e| Error::GenericError(format!("Could not create tokio runtime: {}", e)))?;
+		let res = rt.block_on(client.swap(req)).map_err(|e| {
 			Error::GenericError(format!("Could not confirm the mwixnet response: {}", e))
-		})? {
+		})?;
+		match res {
 			MwixnetResponse::Accepted => Ok(None),
 			MwixnetResponse::Rejected(message) => Ok(Some(message)),
 		}

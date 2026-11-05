@@ -2631,6 +2631,7 @@ dependencies = [
  "chrono",
  "curve25519-dalek 5.0.0",
  "ed25519-dalek",
+ "grin_api",
  "grin_core",
  "grin_keychain",
  "grin_p2p",

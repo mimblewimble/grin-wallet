@@ -64,7 +64,7 @@ impl HttpSlateSender for TorSlateSender {
 		let mut headers = HashMap::new();
 		headers.insert("accept", "application/json");
 		headers.insert("content-type", "application/json");
-		TorHttpClient::post(self, url, Some(headers), body)
+		self.post_tor(url, Some(headers), body)
 			.await
 			.map_err(|e| e.into())
 	}

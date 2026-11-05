@@ -29,8 +29,14 @@ pub enum MwixnetResponse {
 
 /// Error parsing or validating a mwixnet response.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
-#[error("{0}")]
-pub struct MwixnetResponseError(String);
+pub enum MwixnetError {
+	/// General error
+	#[error("{0}")]
+	GenericError(String),
+	/// Tor request error
+	#[error("{0}")]
+	TorError(grin_p2p::tor::Error),
+}
 
 #[derive(Deserialize)]
 struct JsonRpcResponse {
@@ -48,22 +54,22 @@ struct JsonRpcError {
 }
 
 /// Parse and validate the JSON-RPC response returned by a mwixnet server.
-pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, MwixnetResponseError> {
+pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, MwixnetError> {
 	let response: JsonRpcResponse = serde_json::from_str(response)
-		.map_err(|e| MwixnetResponseError(format!("Invalid mwixnet response: {}", e)))?;
+		.map_err(|e| MwixnetError::GenericError(format!("Invalid mwixnet response: {}", e)))?;
 
 	if response.jsonrpc.as_deref() != Some("2.0") {
-		return Err(MwixnetResponseError(
+		return Err(MwixnetError::GenericError(
 			"Invalid mwixnet response version".to_string(),
 		));
 	}
 	if response.id != serde_json::json!(1) {
-		return Err(MwixnetResponseError(
+		return Err(MwixnetError::GenericError(
 			"Invalid mwixnet response ID".to_string(),
 		));
 	}
 	if response.result.is_some() && response.error.is_some() {
-		return Err(MwixnetResponseError(
+		return Err(MwixnetError::GenericError(
 			"Mwixnet response contains both result and error".to_string(),
 		));
 	}
@@ -74,7 +80,7 @@ pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, Mwixnet
 		return Ok(MwixnetResponse::Accepted);
 	}
 
-	Err(MwixnetResponseError(format!(
+	Err(MwixnetError::GenericError(format!(
 		"Unexpected mwixnet response result: {:?}",
 		response.result
 	)))
