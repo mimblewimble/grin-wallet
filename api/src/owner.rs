@@ -2824,6 +2824,7 @@ where
 		server: OnionV3Address,
 	) -> Result<Option<String>, Error> {
 		let tor_config = get_global_tor_config(&self.config_path())?;
+		grin_p2p::tor::start_tor(&tor_config)?;
 		let client = MwixnetClientImpl::new(tor_config, server);
 		let rt = tokio::runtime::Builder::new_current_thread()
 			.enable_all()

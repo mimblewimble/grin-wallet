@@ -22,8 +22,6 @@ use grin_p2p::tor::{start_tor, TorHttpClient};
 
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::thread;
-use std::time::Duration;
 
 #[derive(Clone)]
 pub struct TorSlateSender {
@@ -40,7 +38,6 @@ impl TorSlateSender {
 		let tor_addr = OnionV3Address::from(dest);
 		let host_url = tor_addr.to_http_str();
 		start_tor(&tor_config)?;
-		thread::sleep(Duration::from_millis(5000));
 		Ok(TorSlateSender {
 			host_url,
 			tor_config,
