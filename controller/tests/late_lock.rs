@@ -141,6 +141,7 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 			post_tx: false,
 			fluff: false,
 			skip_tor: Some(false),
+			cancel_on_failure: None,
 		}),
 		..Default::default()
 	};

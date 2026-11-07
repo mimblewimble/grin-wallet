@@ -744,6 +744,8 @@ where
 	///   With normal locking, a returned S1 slate alone does not tell you whether outputs are locked.
 	///   Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
 	///   for the slate ID before locking manually.
+	///   If `cancel_on_failure` is set in `send_args`, a failed Tor send cancels the transaction
+	///   and releases its outputs instead, so the returned S1 slate must not be forwarded.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
@@ -811,9 +813,9 @@ where
 		// finalize
 		match send_args {
 			Some(sa) => {
+				let late_lock = args.late_lock.unwrap_or(false);
 				let slate = {
 					wallet_lock!(self.wallet_inst, w);
-					let late_lock = args.late_lock.unwrap_or(false);
 					let slate = init_send_tx(w, &mut args)?;
 					let tc = tor_config.as_ref().ok_or_else(|| {
 						Error::TorConfig("Tor config was not loaded with send arguments".into())
@@ -867,6 +869,9 @@ where
 					}
 					Err(e) => {
 						error!("Error on sending over Tor: {}", e);
+						if sa.cancel_on_failure.unwrap_or(false) && !late_lock {
+							self.cancel_after_failed_send(keychain_mask, &slate);
+						}
 						Ok(slate)
 					}
 				}
@@ -1042,6 +1047,8 @@ where
 	/// A Tor attempt locks the outputs even if sending fails, so do not lock them again
 	/// If sending was not requested or was skipped, call
 	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) before forwarding manually
+	/// If `cancel_on_failure` is set in `send_args`, a failed Tor send cancels the transaction
+	/// and releases its outputs instead
 	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
@@ -1152,11 +1159,29 @@ where
 					}
 					Err(e) => {
 						error!("Error on sending over Tor: {}", e);
+						if sa.cancel_on_failure.unwrap_or(false) {
+							self.cancel_after_failed_send(keychain_mask, &slate);
+						}
 						Ok(slate)
 					}
 				}
 			}
 			None => Ok(slate),
+		}
+	}
+
+	/// Cancels a transaction whose outputs were locked for a failed Tor send,
+	/// releasing them. Errors are logged, the caller still returns the slate.
+	fn cancel_after_failed_send(&self, keychain_mask: Option<&SecretKey>, slate: &Slate) {
+		match self.cancel_tx(keychain_mask, None, Some(slate.id)) {
+			Ok(_) => warn!(
+				"Cancelled tx {} after failed Tor send, outputs unlocked",
+				slate.id
+			),
+			Err(e) => error!(
+				"Error cancelling tx {} after failed Tor send: {}",
+				slate.id, e
+			),
 		}
 	}
 

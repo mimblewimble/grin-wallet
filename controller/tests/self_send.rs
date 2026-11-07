@@ -149,6 +149,7 @@ fn transfer(
 					post_tx: false,
 					fluff: false,
 					skip_tor: None,
+					cancel_on_failure: None,
 				});
 			}
 			let original = slate.clone();
@@ -511,6 +512,7 @@ fn account_send() -> Result<(), libwallet::Error> {
 				post_tx: true,
 				fluff: false,
 				skip_tor: None,
+				cancel_on_failure: None,
 			});
 			assert!(api
 				.send_to_account(mask, remote, "a", true, true, false)
