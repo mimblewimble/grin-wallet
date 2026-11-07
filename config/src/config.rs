@@ -21,7 +21,7 @@ use crate::types::{TorWalletConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
 use crate::util::{Mutex, RwLock};
 
-use grin_p2p::tor::config::{TorBridgeConfig, TorProxyConfig};
+use grin_p2p::tor::config::TorProxyConfig;
 use lazy_static::lazy_static;
 use rand::distributions::{Alphanumeric, Distribution};
 use rand::{thread_rng, Rng};
@@ -644,7 +644,7 @@ impl GlobalWalletConfig {
 		let adjusted_config = GlobalWalletConfigMembers {
 			config_file_version: GlobalWalletConfigMembers::default().config_file_version,
 			tor: Some(TorWalletConfig {
-				bridge: TorBridgeConfig::default(),
+				bridges: Vec::new(),
 				proxy: TorProxyConfig::default(),
 				..config.tor.unwrap_or_default()
 			}),
@@ -743,6 +743,7 @@ impl GlobalWalletConfig {
 mod tests {
 	use super::*;
 	use crate::core::global::ChainTypes;
+	use grin_p2p::tor::config::TorBridgeConfig;
 	use std::sync::{Arc, Barrier};
 	use std::thread;
 	use tempfile::tempdir;
@@ -793,21 +794,24 @@ mod tests {
 		assert_eq!(stored.proxy.password.as_deref(), Some("secretERROR#value"));
 
 		config.members.tor.as_mut().unwrap().proxy.transport = Some("socks5".into());
-		config.members.tor.as_mut().unwrap().bridge.client_option = Some("option [value]".into());
+		config.members.tor.as_mut().unwrap().bridges = vec![TorBridgeConfig {
+			client_args: vec!["-log".into(), "option [value]".into()],
+			..Default::default()
+		}];
 		config.save().unwrap();
 		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
 		assert_eq!(stored.proxy.transport.as_deref(), Some("socks5"));
 		assert_eq!(
-			stored.bridge.client_option.as_deref(),
-			Some("option [value]")
+			stored.bridges[0].client_args,
+			vec!["-log", "option [value]"]
 		);
 
 		config.members.tor.as_mut().unwrap().proxy.transport = None;
-		config.members.tor.as_mut().unwrap().bridge.client_option = None;
+		config.members.tor.as_mut().unwrap().bridges.clear();
 		config.save().unwrap();
 		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
 		assert_eq!(stored.proxy.transport, None);
-		assert_eq!(stored.bridge.client_option, None);
+		assert!(stored.bridges.is_empty());
 
 		let legacy =
 			fs::read_to_string(&path)
@@ -815,7 +819,7 @@ mod tests {
 				.replacen("config_file_version = 2\n", "", 1);
 		let mut legacy = legacy.parse::<DocumentMut>().unwrap();
 		let tor = legacy["tor"].as_table_mut().unwrap();
-		tor.remove("bridge");
+		tor.remove("bridges");
 		tor.remove("proxy");
 		fs::write(&path, legacy.to_string()).unwrap();
 		let migrated = GlobalWalletConfig::new(path.clone()).unwrap();

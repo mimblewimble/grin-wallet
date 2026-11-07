@@ -592,7 +592,7 @@ where
 	}
 
 	if let Some(b) = args.bridge.clone() {
-		tor_config.bridge.bridge_line = Some(b);
+		tor_config.set_bridge(b);
 	}
 
 	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
@@ -839,7 +839,7 @@ where
 	let km = keychain_mask.as_ref().map(|&m| m.to_owned());
 
 	if let Some(b) = args.bridge {
-		tor_config.bridge.bridge_line = Some(b);
+		tor_config.set_bridge(b);
 	}
 
 	controller::foreign_single_use(
@@ -1206,7 +1206,7 @@ where
 	}
 
 	if let Some(b) = args.bridge {
-		tor_config.bridge.bridge_line = Some(b);
+		tor_config.set_bridge(b);
 	}
 
 	let output_sp = || -> Result<(), Error> {

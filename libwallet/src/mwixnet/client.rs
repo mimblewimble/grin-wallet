@@ -41,14 +41,14 @@ where
 		let url = format!("{}/v1", self.server_url().to_http_str());
 		let rpc_params = serde_json::json!([req]);
 		let rpc_request = json_rpc::build_request(method, &rpc_params);
-		let request = serde_json::json!(rpc_request);
+		let body = serde_json::json!(rpc_request).to_string();
 
 		let mut headers = HashMap::new();
 		headers.insert("accept", "application/json");
 		headers.insert("content-type", "application/json");
 
 		let response = match self
-			.post_tor(&url, Some(headers), request.to_string())
+			.post_tor(&url, Some(headers), body, TorWalletConfig::RESPONSE_LIMIT)
 			.await
 		{
 			Ok(response) => response,
@@ -56,7 +56,7 @@ where
 				return Err(MwixnetError::TorError(e));
 			}
 		};
-		parse_mwixnet_response(&response)
+		parse_mwixnet_response(response.body())
 	}
 
 	/// Swap outputs request.

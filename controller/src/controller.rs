@@ -205,7 +205,7 @@ where
 		let tor_config = listener_tor_config(&config_path, bridge.clone(), use_tor)?;
 
 		// Check if wallet has been opened first
-		let (sec_key, tor_dir, onion_address) = {
+		let (sec_key, onion_address) = {
 			let mask = keychain_mask.lock();
 			let mut w_lock = wallet.lock();
 			let lc = w_lock.lc_provider()?;
@@ -215,11 +215,9 @@ where
 			let sec_key =
 				address::address_from_derivation_path(&k, &parent_key_id, SlatepackAddressIndex(0))
 					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			let mut tor_dir = PathBuf::from(lc.get_top_level_directory()?);
-			tor_dir.push("tor");
 			let onion_address = OnionV3Address::from_private(&sec_key.0)
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			(sec_key, tor_dir, onion_address)
+			(sec_key, onion_address)
 		};
 
 		let api_handler_v2 = ForeignAPIHandlerV2::new(
@@ -245,11 +243,8 @@ where
 			.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 		warn!("HTTP Foreign listener started.");
 
-		// Need to keep external process in scope while the listener is running.
 		if tor_config.use_tor_listener {
-			let res: Result<(), grin_p2p::tor::Error> =
-				start_onion_service(sec_key, addr, tor_dir, &tor_config);
-			match res {
+			match start_onion_service(sec_key, addr, &tor_config) {
 				Ok(_) => {
 					warn!(
 						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
@@ -257,11 +252,13 @@ where
 					);
 					loop {
 						match onion_service_status(onion_address.to_string()) {
-							ServiceStatus::Starting => {
+							ServiceStatus::Starting
+							| ServiceStatus::Degraded
+							| ServiceStatus::Recovering => {
 								thread::sleep(Duration::from_millis(500));
 								continue;
 							}
-							ServiceStatus::Running => {
+							ServiceStatus::Running | ServiceStatus::Bootstrapped => {
 								let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 								let qr_string = match QrCode::new(sp_address.to_string()) {
 									Ok(qr) => qr.to_string(false, 3),
@@ -338,7 +335,7 @@ fn listener_tor_config(
 ) -> Result<TorWalletConfig, Error> {
 	let mut tor_config = get_global_tor_config(config_path)?;
 	if let Some(bridge) = bridge {
-		tor_config.bridge.bridge_line = Some(bridge);
+		tor_config.set_bridge(bridge);
 	}
 	if let Some(use_tor) = use_tor {
 		tor_config.use_tor_listener = use_tor;
@@ -883,7 +880,7 @@ mod tests {
 			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();
 		assert_eq!(tor_config.socks_proxy_addr, "127.0.0.1:59051");
 		assert_eq!(
-			tor_config.bridge.bridge_line.as_deref(),
+			tor_config.bridges[0].bridge_line.as_deref(),
 			Some("obfs4 test-bridge")
 		);
 		assert!(!tor_config.use_tor_listener);

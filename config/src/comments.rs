@@ -284,18 +284,13 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
-		"[tor.bridge]".to_string(),
+		"[tor.proxy]".to_string(),
 		"
 #########################################
 ### TOR BRIDGE                        ###
 #########################################
-"
-		.to_string(),
-	);
-
-	retval.insert(
-		"[tor.proxy]".to_string(),
-		"
+#Add one [[tor.bridges]] table per bridge.
+#[[tor.bridges]]
 #Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
 #Enable it by entering a single bridge line. To disable it, you must comment it.
 #Support of the transport: webtunnel, obfs4, and snowflake.
@@ -306,8 +301,8 @@ fn comments() -> HashMap<String, String> {
 #For example, the bridge line must be in the following format for obfs4 transport: \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"
 #bridge_line = \"\"
 
-#Plugging client option, needed only for snowflake (let it empty if you want to use the default option of tor) or debugging purpose
-#client_option = \"\"
+#Transport client arguments
+#client_args = []
 
 
 #########################################
