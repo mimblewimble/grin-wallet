@@ -602,7 +602,12 @@ where
 		is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 		// also need to intercept open/close wallet requests
 		let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
-		match <dyn OwnerRpc>::handle_request(&*api, val) {
+		let rpc_api = api.clone();
+		let reply =
+			tokio::task::spawn_blocking(move || <dyn OwnerRpc>::handle_request(&*rpc_api, val))
+				.await
+				.map_err(|e| Error::GenericError(format!("Owner API task failed: {}", e)))?;
+		match reply {
 			MaybeReply::Reply(mut r) => {
 				let (_was_error, unencrypted_intercept) =
 					OwnerV3Helpers::check_error_response(&r.clone());
