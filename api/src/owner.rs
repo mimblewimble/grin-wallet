@@ -2673,6 +2673,25 @@ pub fn try_slatepack_sync_workflow(
 	tor_sender: Option<TorSlateSender>,
 	send_to_finalize: bool,
 ) -> Result<Slate, Error> {
+	// The integrated Tor client creates and blocks on its own runtime, which panics
+	// when called from a tokio worker (e.g. the Owner API HTTP handler). Run the
+	// whole workflow on a plain OS thread and turn a panic into an error.
+	let slate = slate.clone();
+	let dest = dest.clone();
+	thread::spawn(move || {
+		try_slatepack_sync_workflow_inner(&slate, &dest, tor_config, tor_sender, send_to_finalize)
+	})
+	.join()
+	.unwrap_or_else(|_| Err(Error::TorProcess("Tor send thread panicked".to_string())))
+}
+
+fn try_slatepack_sync_workflow_inner(
+	slate: &Slate,
+	dest: &SlatepackAddress,
+	tor_config: Option<TorConfig>,
+	tor_sender: Option<TorSlateSender>,
+	send_to_finalize: bool,
+) -> Result<Slate, Error> {
 	let mut ret_slate = Slate::blank(2, false);
 	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| {
 		return match sender.send_tx(&slate, send_to_finalize) {
