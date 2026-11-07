@@ -39,8 +39,7 @@ where
 		req: &serde_json::Value,
 	) -> Result<MwixnetResponse, MwixnetError> {
 		let url = format!("{}/v1", self.server_url().to_http_str());
-		let rpc_params = serde_json::json!([req]);
-		let rpc_request = json_rpc::build_request(method, &rpc_params);
+		let rpc_request = json_rpc::build_request(method, req);
 		let body = serde_json::json!(rpc_request).to_string();
 
 		let mut headers = HashMap::new();
