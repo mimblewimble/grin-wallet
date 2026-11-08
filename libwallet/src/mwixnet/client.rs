@@ -72,26 +72,26 @@ where
 }
 
 /// Mwixnet requests client.
-pub struct MwixnetClientImpl {
-	tor_config: TorWalletConfig,
+pub struct MwixnetClientImpl<T> {
+	tor_config: T,
 	server_url: OnionV3Address,
 }
 
-impl MwixnetClient<TorWalletConfig> for MwixnetClientImpl {
+impl<T: TorConfig + Send + Sync> MwixnetClient<T> for MwixnetClientImpl<T> {
 	fn server_url(&self) -> &OnionV3Address {
 		&self.server_url
 	}
 }
 
-impl TorHttpClient<TorWalletConfig> for MwixnetClientImpl {
-	fn tor_config(&self) -> &TorWalletConfig {
+impl<T: TorConfig + Send + Sync> TorHttpClient<T> for MwixnetClientImpl<T> {
+	fn tor_config(&self) -> &T {
 		&self.tor_config
 	}
 }
 
-impl MwixnetClientImpl {
+impl<T> MwixnetClientImpl<T> {
 	/// Create new client instance.
-	pub fn new(tor_config: TorWalletConfig, server_url: OnionV3Address) -> Self {
+	pub fn new(tor_config: T, server_url: OnionV3Address) -> Self {
 		MwixnetClientImpl {
 			tor_config,
 			server_url,

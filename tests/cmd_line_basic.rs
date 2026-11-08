@@ -276,7 +276,7 @@ fn command_line_test_impl(test_dir: &str) -> Result<(), grin_wallet_controller::
 				&global_args,
 				&args,
 				true,
-				true,
+				None,
 			)?;
 		}
 		let (_, txs) = api.retrieve_txs(mask2_i.as_ref(), false, None, None, None)?;

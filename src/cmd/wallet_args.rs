@@ -1157,7 +1157,7 @@ where
 				&global_wallet_args,
 				wallet_args,
 				test_mode,
-				false,
+				None,
 			)
 		}
 	};
@@ -1203,7 +1203,7 @@ pub fn parse_and_execute<L, C, K>(
 	global_wallet_args: &command::GlobalArgs,
 	wallet_args: &ArgMatches,
 	test_mode: bool,
-	cli_mode: bool,
+	listener: Option<&mut Option<command::Listener>>,
 ) -> Result<(), Error>
 where
 	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
@@ -1251,7 +1251,7 @@ where
 				bridge,
 				use_tor,
 				&global_wallet_args.clone(),
-				cli_mode,
+				listener,
 				test_mode,
 			)
 		}

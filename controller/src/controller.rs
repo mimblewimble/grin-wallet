@@ -29,7 +29,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 
 use grin_api::ApiBody;
-use grin_p2p::tor::config::TorConfig;
+use grin_p2p::tor::config::BOOTSTRAP_TIMEOUT_SECS;
 use grin_p2p::tor::ov3::OnionV3Address;
 use grin_p2p::tor::{onion_service_status, start_onion_service, stop_onion_service, ServiceStatus};
 use grin_wallet_api::JsonId;
@@ -53,10 +53,9 @@ use std::convert::TryFrom;
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 lazy_static! {
@@ -167,6 +166,7 @@ where
 	}
 
 	let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
+	let stop_tx = api_chan.0.clone();
 
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Owner API server at {}.", addr);
@@ -175,9 +175,16 @@ where
 		.start(socket_addr, router, tls_config, api_chan)
 		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 	warn!("HTTP Owner listener started.");
-	api_thread
+	let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+	let shutdown = api_shutdown(stop_tx, None, finished_rx, None);
+	let res = api_thread
 		.join()
-		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)))
+		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
+	let _ = finished_tx.send(());
+	let shutdown = shutdown
+		.join()
+		.map_err(|_| Error::GenericError("API shutdown thread panicked".into()))?;
+	res.and(shutdown.map(|_| ()))
 }
 
 /// Listener version, providing same API but listening for requests on a
@@ -192,6 +199,7 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	test_mode: bool,
+	stop_rx: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -199,10 +207,10 @@ where
 	K: Keychain + 'static,
 {
 	loop {
+		if *stop_rx.borrow() {
+			return Ok(());
+		}
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
-		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
-
-		let tor_config = listener_tor_config(&config_path, bridge.clone(), use_tor)?;
 
 		// Check if wallet has been opened first
 		let (sec_key, onion_address) = {
@@ -219,6 +227,8 @@ where
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			(sec_key, onion_address)
 		};
+
+		let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 
 		let api_handler_v2 = ForeignAPIHandlerV2::new(
 			wallet.clone(),
@@ -237,85 +247,176 @@ where
 
 		let mut apis = ApiServer::new();
 		warn!("Starting HTTP Foreign listener API server at {}.", addr);
-		let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
+		let socket_addr: SocketAddr = addr
+			.parse()
+			.map_err(|_| Error::GenericError("Invalid listener address".into()))?;
+		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
+		let tor_config =
+			listener_tor_config(&config_path, bridge.clone(), use_tor).inspect_err(|_| {
+				remove_global_config_listener(&config_path, "foreign_listener");
+			})?;
 		let api_thread = apis
 			.start(socket_addr, router, tls_config.clone(), api_chan)
-			.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
+			.map_err(|_| {
+				remove_global_config_listener(&config_path, "foreign_listener");
+				Error::GenericError("API thread failed to start".to_string())
+			})?;
 		warn!("HTTP Foreign listener started.");
+		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+		let shutdown = api_shutdown(
+			stop_tx,
+			Some(restart_rx),
+			finished_rx,
+			Some(stop_rx.clone()),
+		);
 
-		if tor_config.use_tor_listener {
+		let deadline = Instant::now()
+			+ Duration::from_secs(
+				tor_config
+					.bootstrap_timeout_secs
+					.filter(|secs| *secs > 0)
+					.unwrap_or(BOOTSTRAP_TIMEOUT_SECS),
+			);
+		let tor_started = if tor_config.use_tor_listener {
 			match start_onion_service(sec_key, addr, &tor_config) {
 				Ok(_) => {
 					warn!(
 						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 						onion_address, addr
 					);
-					loop {
-						match onion_service_status(onion_address.to_string()) {
-							ServiceStatus::Starting
-							| ServiceStatus::Degraded
-							| ServiceStatus::Recovering => {
-								thread::sleep(Duration::from_millis(500));
-								continue;
-							}
-							ServiceStatus::Running | ServiceStatus::Bootstrapped => {
-								let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-								let qr_string = match QrCode::new(sp_address.to_string()) {
-									Ok(qr) => qr.to_string(false, 3),
-									Err(_) => "Failed to generate QR code!".to_string(),
-								};
-								warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
-								break;
-							}
-							ServiceStatus::Errored(e) => {
-								warn!("Unable to start TOR listener");
-								error!("Tor Error: {}", e);
-								warn!("Listener is available on {}", addr);
-								return Err(Error::from(e));
-							}
-							ServiceStatus::Stopped => {
-								warn!("Tor service stopped.");
-								break;
-							}
-						}
-					}
+					true
 				}
 				Err(e) => {
 					warn!("Unable to start TOR listener");
 					error!("Tor Error: {}", e);
 					warn!("Listener is available on {}", addr);
+					false
 				}
 			}
 		} else {
 			warn!("Listener is available on {}", addr);
+			false
 		};
 
-		// Start thread to check if restart is needed.
-		let restart_needed = Arc::new(AtomicBool::new(false));
-		let t_restart_needed = restart_needed.clone();
-		thread::spawn(move || {
-			if restart_rx.recv().is_ok() {
-				t_restart_needed.store(true, Ordering::SeqCst);
-				let _ = stop_tx.try_send(());
+		let startup = if tor_started {
+			loop {
+				if shutdown.is_finished() {
+					break Ok(());
+				}
+				match listener_ready(onion_service_status(onion_address.to_string()), deadline) {
+					Ok(false) => thread::sleep(
+						deadline
+							.saturating_duration_since(Instant::now())
+							.min(Duration::from_millis(500)),
+					),
+					Ok(true) => {
+						let qr_string = match QrCode::new(sp_address.to_string()) {
+							Ok(qr) => qr.to_string(false, 3),
+							Err(_) => "Failed to generate QR code!".to_string(),
+						};
+						warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+						break Ok(());
+					}
+					Err(e) => {
+						warn!("Unable to start TOR listener");
+						error!("Tor Error: {}", e);
+						break Err(e);
+					}
+				}
 			}
-		});
+		} else {
+			Ok(())
+		};
+		if startup.is_err() {
+			apis.stop();
+		}
 
 		let res = api_thread
 			.join()
 			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
-
-		if tor_config.use_tor_listener && tor_config.use_integrated() {
-			stop_onion_service(onion_address.to_string())?;
+		let _ = finished_tx.send(());
+		let restart = shutdown
+			.join()
+			.map_err(|_| Error::GenericError("API shutdown thread panicked".into()));
+		remove_global_config_listener(&config_path, "foreign_listener");
+		let stopped = if tor_started {
+			stop_onion_service(onion_address.to_string()).map_err(Error::from)
+		} else {
+			Ok(())
+		};
+		if let Err(ref e) = stopped {
+			error!("Unable to stop Tor listener: {}", e);
 		}
-
-		if restart_needed.load(Ordering::Relaxed) {
+		res?;
+		stopped?;
+		if restart?? {
 			continue;
 		}
-
-		remove_global_config_listener(&config_path, "foreign_listener");
-
-		return res;
+		startup?;
+		return Ok(());
 	}
+}
+
+fn listener_ready(status: ServiceStatus, deadline: Instant) -> Result<bool, Error> {
+	if Instant::now() >= deadline {
+		return Err(Error::GenericError("Tor listener startup timed out".into()));
+	}
+	match status {
+		ServiceStatus::Running | ServiceStatus::Bootstrapped | ServiceStatus::Degraded => Ok(true),
+		ServiceStatus::Errored(e) => Err(Error::from(e)),
+		_ => Ok(false),
+	}
+}
+
+fn api_shutdown(
+	stop_tx: mpsc::Sender<()>,
+	restart_rx: Option<std::sync::mpsc::Receiver<()>>,
+	finished_rx: tokio::sync::oneshot::Receiver<()>,
+	stop_rx: Option<tokio::sync::watch::Receiver<bool>>,
+) -> thread::JoinHandle<Result<bool, Error>> {
+	thread::spawn(move || {
+		let res = tokio::runtime::Builder::new_current_thread()
+			.enable_all()
+			.build()
+			.map_err(|e| Error::GenericError(format!("API shutdown runtime failed: {}", e)))
+			.map(|runtime| {
+				runtime.block_on(async {
+					tokio::select! {
+						biased;
+						_ = async {
+							match stop_rx {
+								Some(mut rx) => {
+									let _ = rx.wait_for(|stop| *stop).await;
+								}
+								None => std::future::pending::<()>().await,
+							}
+						} => false,
+						_ = async {
+							if let Err(e) = tokio::signal::ctrl_c().await {
+								warn!("Unable to handle Ctrl+C: {}", e);
+								std::future::pending::<()>().await;
+							}
+						} => false,
+						restart = async {
+							match restart_rx.as_ref() {
+								Some(rx) => loop {
+									match rx.try_recv() {
+										Ok(()) => break true,
+										Err(std::sync::mpsc::TryRecvError::Disconnected) => break false,
+										Err(std::sync::mpsc::TryRecvError::Empty) => {}
+									}
+									tokio::time::sleep(Duration::from_millis(500)).await;
+								},
+								None => std::future::pending::<bool>().await,
+							}
+						} => restart,
+						_ = finished_rx => restart_rx.as_ref().is_some_and(|rx| rx.try_recv().is_ok()),
+					}
+				})
+			});
+		let _ = stop_tx.try_send(());
+		res
+	})
 }
 
 fn register_config_listener(
@@ -866,6 +967,35 @@ mod tests {
 	use uuid::Uuid;
 
 	#[test]
+	fn listener_ready() {
+		let deadline = Instant::now() + Duration::from_secs(60);
+		assert!(!super::listener_ready(ServiceStatus::Stopped, deadline).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Running, deadline).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Degraded, deadline).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Recovering, Instant::now()).is_err());
+	}
+
+	#[test]
+	fn api_stop() {
+		let (stop_tx, mut stop_rx) = mpsc::channel(1);
+		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+		let shutdown = api_shutdown(stop_tx, None, finished_rx, None);
+		finished_tx.send(()).unwrap();
+		assert!(!shutdown.join().unwrap().unwrap());
+		assert_eq!(stop_rx.try_recv(), Ok(()));
+
+		let (stop_tx, mut stop_rx) = mpsc::channel(1);
+		let (_finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+		let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+		cancel_tx.send(true).unwrap();
+		let (restart_tx, restart_rx) = channel();
+		restart_tx.send(()).unwrap();
+		let shutdown = api_shutdown(stop_tx, Some(restart_rx), finished_rx, Some(cancel_rx));
+		assert!(!shutdown.join().unwrap().unwrap());
+		assert_eq!(stop_rx.try_recv(), Ok(()));
+	}
+
+	#[test]
 	fn listener_reload() {
 		let dir = std::env::temp_dir().join(format!("grin-wallet-listener-{}", Uuid::new_v4()));
 		fs::create_dir(&dir).unwrap();
@@ -878,12 +1008,18 @@ mod tests {
 		let (restart_tx, restart_rx) = channel();
 		register_config_listener(&path, "test_listener", restart_tx).unwrap();
 
+		let (stop_tx, mut stop_rx) = mpsc::channel(1);
+		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+
 		update_global_config(&path, |config| {
 			config.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
 			Ok(())
 		})
 		.unwrap();
-		restart_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+		finished_tx.send(()).unwrap();
+		let shutdown = api_shutdown(stop_tx, Some(restart_rx), finished_rx, None);
+		assert!(shutdown.join().unwrap().unwrap());
+		assert_eq!(stop_rx.try_recv(), Ok(()));
 
 		let tor_config =
 			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();

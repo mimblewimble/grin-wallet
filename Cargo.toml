@@ -51,6 +51,7 @@ grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
 grin_api = { workspace = true }
+grin_p2p = { workspace = true, features = ["tor"] }
 
 ###### 
 

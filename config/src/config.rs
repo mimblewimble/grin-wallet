@@ -21,7 +21,6 @@ use crate::types::{TorWalletConfig, WalletConfig};
 use crate::util::logger::LoggingConfig;
 use crate::util::{Mutex, RwLock};
 
-use grin_p2p::tor::config::TorProxyConfig;
 use lazy_static::lazy_static;
 use rand::distributions::{Alphanumeric, Distribution};
 use rand::{thread_rng, Rng};
@@ -435,13 +434,9 @@ impl GlobalWalletConfig {
 		defaults_conf
 	}
 
-	/// Return the configured Tor settings, resolving the legacy default when the
-	/// config file does not yet contain a `[tor]` section.
+	/// Return the configured Tor settings or defaults
 	pub fn tor_config(&self) -> TorWalletConfig {
-		self.members.tor.clone().unwrap_or_else(|| TorWalletConfig {
-			send_config_dir: self.members.wallet.data_file_dir.clone(),
-			..TorWalletConfig::default()
-		})
+		self.members.tor.clone().unwrap_or_default()
 	}
 
 	/// Requires the path to a config file
@@ -630,7 +625,6 @@ impl GlobalWalletConfig {
 	}
 	/// This migration does the following:
 	/// - Adds "config_file_version = 2"
-	/// - Introduce new key config_file_version, [tor.bridge] and [tor.proxy]
 	/// - Migrate old config key/value and comments while it does not conflict with newly indroduced key and comments
 	fn migrate_config_file_version_none_to_2(
 		config_str: String,
@@ -643,11 +637,6 @@ impl GlobalWalletConfig {
 		}
 		let adjusted_config = GlobalWalletConfigMembers {
 			config_file_version: GlobalWalletConfigMembers::default().config_file_version,
-			tor: Some(TorWalletConfig {
-				bridges: Vec::new(),
-				proxy: TorProxyConfig::default(),
-				..config.tor.unwrap_or_default()
-			}),
 			..config
 		};
 		let mut gc = GlobalWalletConfig {
@@ -817,13 +806,10 @@ mod tests {
 			fs::read_to_string(&path)
 				.unwrap()
 				.replacen("config_file_version = 2\n", "", 1);
-		let mut legacy = legacy.parse::<DocumentMut>().unwrap();
-		let tor = legacy["tor"].as_table_mut().unwrap();
-		tor.remove("bridges");
-		tor.remove("proxy");
-		fs::write(&path, legacy.to_string()).unwrap();
+		fs::write(&path, legacy).unwrap();
 		let migrated = GlobalWalletConfig::new(path.clone()).unwrap();
 		assert_eq!(migrated.members.config_file_version, Some(2));
+		assert_eq!(migrated.tor_config(), stored);
 		let migrated = fs::read_to_string(&path).unwrap();
 		assert!(migrated.contains("# future list\nfuture_values = [\n  1,\n  2,\n]"));
 		assert!(migrated.contains("### TOR BRIDGE"));
@@ -847,23 +833,13 @@ mod tests {
 	}
 
 	#[test]
-	fn legacy_tor() {
+	fn tor_defaults() {
 		let path = PathBuf::from("legacy-wallet.toml");
 		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
 		config.members.wallet.data_file_dir = "legacy-wallet-data".into();
 		config.members.tor = None;
 
-		let resolved = config.tor_config();
-		assert_eq!(resolved.send_config_dir, "legacy-wallet-data");
-		assert!(resolved.use_tor_listener);
-
-		let disabled = TorWalletConfig {
-			use_tor_listener: false,
-			skip_send_attempt: Some(true),
-			..TorWalletConfig::default()
-		};
-		config.members.tor = Some(disabled.clone());
-		assert_eq!(config.tor_config(), disabled);
+		assert_eq!(config.tor_config(), TorWalletConfig::default());
 	}
 
 	#[test]
