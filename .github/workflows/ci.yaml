@@ -47,4 +47,4 @@ jobs:
         with:
           submodules: recursive
       - name: Tests
-        run: cargo test --release --all
+        run: cargo test --release --all --features grin_p2p/tor-static
