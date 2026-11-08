@@ -327,7 +327,26 @@ where
 		} else {
 			Ok(())
 		};
-		if startup.is_err() {
+		let mut retry_at = None;
+		let retry = loop {
+			if !tor_started
+				|| startup.is_err()
+				|| shutdown.is_finished()
+				|| api_thread.is_finished()
+			{
+				break false;
+			}
+			if listener_retry(
+				onion_service_status(onion_address.to_string()),
+				&mut retry_at,
+				Instant::now(),
+			) {
+				warn!("Restarting Tor listener");
+				break true;
+			}
+			thread::sleep(Duration::from_millis(500));
+		};
+		if startup.is_err() || retry {
 			apis.stop();
 		}
 
@@ -349,7 +368,7 @@ where
 		}
 		res?;
 		stopped?;
-		if restart?? {
+		if restart?? || retry {
 			continue;
 		}
 		startup?;
@@ -365,6 +384,18 @@ fn listener_ready(status: ServiceStatus, deadline: Instant) -> Result<bool, Erro
 		ServiceStatus::Running | ServiceStatus::Bootstrapped | ServiceStatus::Degraded => Ok(true),
 		ServiceStatus::Errored(e) => Err(Error::from(e)),
 		_ => Ok(false),
+	}
+}
+
+fn listener_retry(status: ServiceStatus, retry_at: &mut Option<Instant>, now: Instant) -> bool {
+	match status {
+		ServiceStatus::Errored(_) | ServiceStatus::Stopped => {
+			now >= *retry_at.get_or_insert(now + Duration::from_secs(10))
+		}
+		_ => {
+			*retry_at = None;
+			false
+		}
 	}
 }
 
@@ -973,6 +1004,24 @@ mod tests {
 		assert!(super::listener_ready(ServiceStatus::Running, deadline).unwrap());
 		assert!(super::listener_ready(ServiceStatus::Degraded, deadline).unwrap());
 		assert!(super::listener_ready(ServiceStatus::Recovering, Instant::now()).is_err());
+	}
+
+	#[test]
+	fn retry_delay() {
+		use ServiceStatus::*;
+		let mut now = Instant::now();
+		let mut retry_at = None;
+		let failed = || Errored(grin_p2p::tor::Error::Generic("stopped".into()));
+		assert!(!listener_retry(failed(), &mut retry_at, now));
+		now += Duration::from_secs(9);
+		assert!(!listener_retry(failed(), &mut retry_at, now));
+		now += Duration::from_secs(1);
+		assert!(listener_retry(failed(), &mut retry_at, now));
+		assert!(!listener_retry(Running, &mut retry_at, now));
+		assert!(retry_at.is_none());
+		assert!(!listener_retry(Stopped, &mut retry_at, now));
+		assert!(!listener_retry(Recovering, &mut retry_at, now));
+		assert!(retry_at.is_none());
 	}
 
 	#[test]

@@ -136,10 +136,10 @@ fn comments() -> HashMap<String, String> {
 #address = \"\"
 
 #Username for the proxy server authentification
-#user = \"\"
+#username = \"\"
 
 #Password for the proxy server authentification
-#pass = \"\"
+#password = \"\"
 
 #This computer goes through a firewall that only allows connections to certain ports (Optional)
 #allowed_port = [80, 443]
