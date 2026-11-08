@@ -726,7 +726,11 @@ where
 		api: Foreign<'static, L, C, K>,
 	) -> Result<serde_json::Value, Error> {
 		let val: serde_json::Value = parse_body(req).await?;
-		match <dyn ForeignRpc>::handle_request(&api, val) {
+		let reply =
+			tokio::task::spawn_blocking(move || <dyn ForeignRpc>::handle_request(&api, val))
+				.await
+				.map_err(|e| Error::GenericError(format!("Foreign API task failed: {}", e)))?;
+		match reply {
 			MaybeReply::Reply(r) => Ok(r),
 			MaybeReply::DontReply => {
 				// Since it's http, we need to return something. We return [] because jsonrpc
