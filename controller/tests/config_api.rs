@@ -136,6 +136,7 @@ fn send_preflight() {
 			post_tx: false,
 			fluff: false,
 			skip_tor: Some(true),
+			cancel_on_failure: None,
 		}),
 		..Default::default()
 	};

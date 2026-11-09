@@ -179,6 +179,13 @@ subcommands:
             help: If present, don't attempt to send the resulting Slatepack via TOR
             short: m
             long: manual
+        - cancel_on_failure:
+            help: If the TOR send fails, cancel the transaction and unlock its outputs instead of printing the Slatepack for manual delivery
+            long: cancel-on-failure
+            conflicts_with:
+              - late_lock
+              - manual
+              - to_account
         - outfile:
             help: If present, overrides the filename and location of the output Slatepack file.
             short: u

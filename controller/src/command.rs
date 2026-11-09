@@ -343,6 +343,7 @@ pub struct SendArgs {
 	pub payment_proof_address: Option<String>,
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: Option<bool>,
+	pub cancel_on_failure: bool,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
@@ -642,6 +643,14 @@ where
 		}
 		Err(e) => {
 			error!("Error sending slate sync: {}", e);
+			if args.cancel_on_failure && !args.late_lock {
+				owner_api.cancel_tx(keychain_mask, None, Some(slate.id))?;
+				println!("Tx {} cancelled, outputs unlocked.", slate.id);
+				return Err(Error::GenericError(format!(
+					"Sending over Tor failed: {}",
+					e
+				)));
+			}
 			output_sp(owner_api, false)?;
 			if !args.late_lock {
 				println!(

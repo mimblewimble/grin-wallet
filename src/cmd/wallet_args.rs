@@ -528,6 +528,8 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		None
 	};
 
+	let cancel_on_failure = args.is_present("cancel_on_failure");
+
 	let bridge = args.value_of("bridge").map(|b| b.to_string());
 
 	let slatepack_qr = args.is_present("slatepack_qr");
@@ -551,6 +553,7 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 		target_slate_version,
 		outfile,
 		skip_tor,
+		cancel_on_failure,
 		bridge,
 		slatepack_qr,
 		address_index,
