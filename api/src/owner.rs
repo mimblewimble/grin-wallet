@@ -1047,8 +1047,6 @@ where
 	/// A Tor attempt locks the outputs even if sending fails, so do not lock them again
 	/// If sending was not requested or was skipped, call
 	/// [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) before forwarding manually
-	/// If `cancel_on_failure` is set in `send_args`, a failed Tor send cancels the transaction
-	/// and releases its outputs instead
 	///
 	/// This function also stores the final transaction in the user's wallet files for retrieval
 	/// via the [`get_stored_tx`](struct.Owner.html#method.get_stored_tx) function.
@@ -1159,9 +1157,6 @@ where
 					}
 					Err(e) => {
 						error!("Error on sending over Tor: {}", e);
-						if sa.cancel_on_failure.unwrap_or(false) {
-							self.cancel_after_failed_send(keychain_mask, &slate);
-						}
 						Ok(slate)
 					}
 				}
