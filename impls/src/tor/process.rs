@@ -275,11 +275,22 @@ impl TorProcess {
 		Ok(stdout)
 	}
 
+	/// Kill the child and reap it, so it doesn't stay behind as a zombie.
 	pub fn kill(&mut self) -> Result<(), Error> {
-		if let Some(ref mut process) = self.process {
-			Ok(process
-				.kill()
-				.map_err(|err| Error::Process(format!("{}", err)))?)
+		if let Some(mut process) = self.process.take() {
+			match process.kill() {
+				Ok(()) => {
+					process
+						.wait()
+						.map_err(|err| Error::Process(format!("{}", err)))?;
+					Ok(())
+				}
+				Err(err) => {
+					// Reap it anyway if it has already exited
+					let _ = process.try_wait();
+					Err(Error::Process(format!("{}", err)))
+				}
+			}
 		} else {
 			Err(Error::ProcessNotStarted)
 		}
@@ -291,5 +302,49 @@ impl Drop for TorProcess {
 	fn drop(&mut self) {
 		debug!("Dropping TOR process");
 		self.kill().unwrap_or(());
+	}
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+	use super::*;
+
+	// Process state as reported by `ps`, or None once the pid is gone
+	fn process_state(pid: u32) -> Option<String> {
+		let out = Command::new("ps")
+			.args(["-o", "stat=", "-p", &pid.to_string()])
+			.output()
+			.unwrap();
+		let state = String::from_utf8_lossy(&out.stdout).trim().to_string();
+		if state.is_empty() {
+			None
+		} else {
+			Some(state)
+		}
+	}
+
+	fn spawn_child() -> TorProcess {
+		let mut tor = TorProcess::new();
+		tor.process = Some(Command::new("sleep").arg("60").spawn().unwrap());
+		tor
+	}
+
+	#[test]
+	fn kill_reaps_child() {
+		let mut tor = spawn_child();
+		let pid = tor.process.as_ref().unwrap().id();
+		assert!(process_state(pid).is_some());
+		tor.kill().unwrap();
+		assert!(tor.process.is_none());
+		assert_eq!(process_state(pid), None, "child left as a zombie");
+		assert!(matches!(tor.kill(), Err(Error::ProcessNotStarted)));
+	}
+
+	#[test]
+	fn drop_reaps_child() {
+		let tor = spawn_child();
+		let pid = tor.process.as_ref().unwrap().id();
+		drop(tor);
+		assert_eq!(process_state(pid), None, "child left as a zombie");
 	}
 }
