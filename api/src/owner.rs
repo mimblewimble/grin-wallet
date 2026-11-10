@@ -103,14 +103,14 @@ where
 	/// Create a new API instance with the given wallet instance. All subsequent
 	/// API calls will operate on this instance of the wallet.
 	///
-	/// Each method will call the [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html)'s
-	/// [`open_with_credentials`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.open_with_credentials)
+	/// Each method will call the [`WalletBackend`](grin_wallet_libwallet::WalletBackend)'s
+	/// [`set_keychain`](grin_wallet_libwallet::WalletBackend::set_keychain)
 	/// initializing a keychain with the master seed, perform its operation, then close the keychain
-	/// with a call to [`close`](../grin_wallet_libwallet/types/trait.WalletBackend.html#tymethod.close)
+	/// with a call to [`close`](grin_wallet_libwallet::WalletBackend::close)
 	///
 	/// # Arguments
 	/// * `wallet_in` - A reference-counted mutex containing an implementation of the
-	///   [`WalletBackend`](../grin_wallet_libwallet/types/trait.WalletBackend.html) trait.
+	///   [`WalletBackend`](grin_wallet_libwallet::WalletBackend) trait.
 	/// * `custom_channel` - A custom MPSC Tx/Rx pair to capture status
 	///   updates
 	/// * `config_path` - Path to the wallet configuration file
@@ -239,7 +239,7 @@ where
 	/// # Returns
 	/// * Result Containing:
 	/// * `Ok(())` if the config was correctly saved
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
 		let _wallet_lock = self.wallet_inst.lock();
@@ -268,8 +268,8 @@ where
 	///
 	/// # Returns
 	/// * Result Containing:
-	/// * A Vector of [`AcctPathMapping`](../grin_wallet_libwallet/types/struct.AcctPathMapping.html) data
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * A Vector of [`AcctPathMapping`](grin_wallet_libwallet::AcctPathMapping) data
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -323,8 +323,8 @@ where
 	///
 	/// # Returns
 	/// * Result Containing:
-	/// * A [Keychain Identifier](../grin_keychain/struct.Identifier.html) for the new path
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * A [Keychain Identifier](grin_keychain::Identifier) for the new path
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -374,7 +374,7 @@ where
 	/// # Returns
 	/// * Result Containing:
 	/// * `Ok(())` if the path was correctly set
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -420,7 +420,7 @@ where
 	///   in the wallet will be returned. If `false`, spent outputs will omitted
 	///   from the results.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	///   a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	///   a node (via the [`NodeClient`](grin_wallet_libwallet::NodeClient)
 	///   provided during wallet instantiation). If `false`, the results will
 	///   contain output information that may be out-of-date (from the last time
 	///   the wallet's output set was refreshed against the node).
@@ -435,9 +435,9 @@ where
 	///   refreshed from the node (note this may be false even if the `refresh_from_node`
 	///   argument was set to `true`.
 	/// * The second element contains a vector of
-	///   [OutputCommitMapping](../grin_wallet_libwallet/types/struct.OutputCommitMapping.html)
+	///   [OutputCommitMapping](grin_wallet_libwallet::OutputCommitMapping)
 	///   of which each element is a mapping between the wallet's internal
-	///   [OutputData](../grin_wallet_libwallet/types/struct.Output.html)
+	///   [OutputData](grin_wallet_libwallet::OutputData)
 	///   and the Output commitment as identified in the chain's UTXO set
 	///
 	/// # Example
@@ -487,7 +487,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	///   a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	///   a node (via the [`NodeClient`](grin_wallet_libwallet::NodeClient)
 	///   provided during wallet instantiation). If `false`, the results will
 	///   contain transaction information that may be out-of-date (from the last time
 	///   the wallet's output set was refreshed against the node).
@@ -543,14 +543,14 @@ where
 		)
 	}
 
-	/// Returns a list of [Transaction Log Entries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
+	/// Returns a list of [Transaction Log Entries](grin_wallet_libwallet::TxLogEntry)
 	/// from the active account in the wallet.
 	///
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	///   a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	///   a node (via the [`NodeClient`](grin_wallet_libwallet::NodeClient)
 	///   provided during wallet instantiation). If `false`, the results will
 	///   contain transaction information that may be out-of-date (from the last time
 	///   the wallet's output set was refreshed against the node).
@@ -559,7 +559,7 @@ where
 	/// * `tx_id` - If `Some(i)`, only return the transactions associated with
 	///   the transaction log entry of id `i`.
 	/// * `tx_slate_id` - If `Some(uuid)`, only return transactions associated with
-	///   the given [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) uuid.
+	///   the given [`Slate`](grin_wallet_libwallet::Slate) uuid.
 	/// * `tx_query_args` - If provided, use advanced query arguments as documented in
 	///   (../grin_wallet_libwallet/types.struct.RetrieveTxQueryArgs.html). If either
 	///   `tx_id` or `tx_slate_id` is provided in the same call, this argument is ignored
@@ -570,7 +570,7 @@ where
 	///   refreshed from the node (note this may be false even if the `refresh_from_node`
 	///   argument was set to `true`.
 	/// * The second element contains the set of retrieved
-	///   [TxLogEntries](../grin_wallet_libwallet/types/struct.TxLogEntry.html)
+	///   [TxLogEntries](grin_wallet_libwallet::TxLogEntry)
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -634,7 +634,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	///   a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	///   a node (via the [`NodeClient`](grin_wallet_libwallet::NodeClient)
 	///   provided during wallet instantiation). If `false`, the results will
 	///   contain transaction information that may be out-of-date (from the last time
 	///   the wallet's output set was refreshed against the node).
@@ -644,11 +644,11 @@ where
 	///   should have before it's included in the 'amount_currently_spendable' total
 	///
 	/// # Returns
-	/// * (`bool`, [`WalletInfo`](../grin_wallet_libwallet/types/struct.WalletInfo.html)) - A tuple:
+	/// * (`bool`, [`WalletInfo`](grin_wallet_libwallet::WalletInfo)) - A tuple:
 	/// * The first `bool` element indicates whether the data was successfully
 	///   refreshed from the node (note this may be false even if the `refresh_from_node`
 	///   argument was set to `true`.
-	/// * The second element contains the Summary [`WalletInfo`](../grin_wallet_libwallet/types/struct.WalletInfo.html)
+	/// * The second element contains the Summary [`WalletInfo`](grin_wallet_libwallet::WalletInfo)
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -703,7 +703,7 @@ where
 	}
 
 	/// Initiates a new transaction as the sender, creating a new
-	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html) object containing
+	/// [`Slate`](grin_wallet_libwallet::Slate) object containing
 	/// the sender's inputs, change outputs, and public signature data. This slate can
 	/// then be sent to the recipient to continue the transaction via the
 	/// [Foreign API's `receive_tx`](struct.Foreign.html#method.receive_tx) method.
@@ -719,8 +719,8 @@ where
 	/// as via file transfer), the lock call should happen immediately (before the file is sent
 	/// to the recipient).
 	///
-	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
-	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
+	/// If the `send_args` [`InitTxSendArgs`](grin_wallet_libwallet::InitTxSendArgs),
+	/// of the [`args`](grin_wallet_libwallet::InitTxArgs), field is Some, this
 	/// function will attempt to send the slate back to the sender using the slatepack sync
 	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
 	/// sync_send was successful (it should be S2 if the sync sent successfully). It will also post
@@ -729,12 +729,12 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
+	/// * `args` - [`InitTxArgs`](grin_wallet_libwallet::InitTxArgs),
 	///   transaction initialization arguments. See struct documentation for further detail.
 	///
 	/// # Returns
 	/// * a result containing:
-	/// * The transaction [Slate](../grin_wallet_libwallet/slate/struct.Slate.html),
+	/// * The transaction [Slate](grin_wallet_libwallet::Slate),
 	///   which can be forwarded to the receiving party by any means. With normal locking, an
 	///   attempted Tor send already locks the outputs, even if sending fails. Do not call
 	///   [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) again when forwarding manually.
@@ -744,7 +744,7 @@ where
 	///   With normal locking, a returned S1 slate alone does not tell you whether outputs are locked.
 	///   Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
 	///   for the slate ID before locking manually.
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Remarks
 	///
@@ -986,13 +986,13 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `args` - [`IssueInvoiceTxArgs`](../grin_wallet_libwallet/types/struct.IssueInvoiceTxArgs.html),
+	/// * `args` - [`IssueInvoiceTxArgs`](grin_wallet_libwallet::IssueInvoiceTxArgs),
 	///   invoice transaction initialization arguments. See struct documentation for further detail.
 	///
 	/// # Returns
-	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// * ``Ok([`slate`](grin_wallet_libwallet::Slate))` if successful,
 	///   containing the updated slate.
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1033,8 +1033,8 @@ where
 	/// it is up to the caller to present the request for payment to the user
 	/// and verify that payment should go ahead.
 	///
-	/// If the `send_args` [`InitTxSendArgs`](../grin_wallet_libwallet/types/struct.InitTxSendArgs.html),
-	/// of the [`args`](../grin_wallet_libwallet/types/struct.InitTxArgs.html), field is Some, this
+	/// If the `send_args` [`InitTxSendArgs`](grin_wallet_libwallet::InitTxSendArgs),
+	/// of the [`args`](grin_wallet_libwallet::InitTxArgs), field is Some, this
 	/// function will attempt to send the slate back to the initiator using the slatepack sync
 	/// send (TOR). If providing this argument, check the `state` field of the slate to see if the
 	/// sync_send was successful (it should be I3 if the sync sent successfully).
@@ -1049,15 +1049,15 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). The
+	/// * `slate` - The transaction [`Slate`](grin_wallet_libwallet::Slate). The
 	///   payer should have filled in round 1 and 2.
-	/// * `args` - [`InitTxArgs`](../grin_wallet_libwallet/types/struct.InitTxArgs.html),
+	/// * `args` - [`InitTxArgs`](grin_wallet_libwallet::InitTxArgs),
 	///   transaction initialization arguments. See struct documentation for further detail.
 	///
 	/// # Returns
-	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// * ``Ok([`slate`](grin_wallet_libwallet::Slate))` if successful,
 	///   containing the updated slate.
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1161,7 +1161,7 @@ where
 	}
 
 	/// Locks the outputs associated with the inputs to the transaction in the given
-	/// [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html),
+	/// [`Slate`](grin_wallet_libwallet::Slate),
 	/// making them unavailable for use in further transactions. This function is called
 	/// by the sender, (or more generally, all parties who have put inputs into the transaction)
 	/// and must be called before the corresponding call to [`finalize_tx`](struct.Owner.html#method.finalize_tx)
@@ -1176,7 +1176,7 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
+	/// * `slate` - The transaction [`Slate`](grin_wallet_libwallet::Slate). All
 	/// * `participant_id` - The participant id, generally 0 for the party putting in funds, 1 for the
 	///   party receiving.
 	///   elements in the `input` vector of the `tx` field that are found in the wallet's currently
@@ -1184,7 +1184,7 @@ where
 	///
 	/// # Returns
 	/// * Ok(()) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1238,14 +1238,14 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `slate` - The transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html). All
+	/// * `slate` - The transaction [`Slate`](grin_wallet_libwallet::Slate). All
 	///   participants must have filled in both rounds, and the sender should have locked their
 	///   outputs (via the [`tx_lock_outputs`](struct.Owner.html#method.tx_lock_outputs) function).
 	///
 	/// # Returns
-	/// * ``Ok([`slate`](../grin_wallet_libwallet/slate/struct.Slate.html))` if successful,
+	/// * ``Ok([`slate`](grin_wallet_libwallet::Slate))` if successful,
 	///   containing the new finalized slate.
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1294,8 +1294,8 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `tx` - A completed [`Transaction`](../grin_core/core/transaction/struct.Transaction.html),
-	///   typically the `tx` field in the transaction [`Slate`](../grin_wallet_libwallet/slate/struct.Slate.html).
+	/// * `tx` - A completed [`Transaction`](grin_core::core::transaction::Transaction),
+	///   typically the `tx` field in the transaction [`Slate`](grin_wallet_libwallet::Slate).
 	/// * `fluff` - Instruct the node whether to use the Dandelion protocol when posting the
 	///   transaction. If `true`, the node should skip the Dandelion phase and broadcast the
 	///   transaction to all peers immediately. If `false`, the node will follow dandelion logic and
@@ -1303,7 +1303,7 @@ where
 	///
 	/// # Returns
 	/// * `Ok(())` if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1366,14 +1366,14 @@ where
 	///
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `tx_id` - If present, cancel by the [`TxLogEntry`](../grin_wallet_libwallet/types/struct.TxLogEntry.html) id
+	/// * `tx_id` - If present, cancel by the [`TxLogEntry`](grin_wallet_libwallet::TxLogEntry) id
 	///   for the transaction.
 	///
 	/// * `tx_slate_id` - If present, cancel by the Slate id.
 	///
 	/// # Returns
 	/// * `Ok(())` if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1440,11 +1440,11 @@ where
 	///   provided
 	///
 	/// # Returns
-	/// * Ok(Some([Slate](../grin_wallet_libwallet/slate/struct.Slate.html)) containing the stored
+	/// * Ok(Some([Slate](grin_wallet_libwallet::Slate)) containing the stored
 	///   transaction, if successful. Note that this Slate will not contain all the fields used by
 	///   the original Slate that resulted in the transaction.
 	/// * Ok(None) if the stored Transaction isn't found.
-	/// * [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1487,7 +1487,7 @@ where
 	///
 	/// # Returns
 	/// * `Ok(String)` if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
@@ -1525,7 +1525,7 @@ where
 	///
 	/// # Returns
 	/// * `Ok(ViewWallet)` if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
@@ -1567,7 +1567,7 @@ where
 	/// running.
 	///
 	/// When an output is found that doesn't exist in the wallet, a corresponding
-	/// [TxLogEntry](../grin_wallet_libwallet/types/struct.TxLogEntry.html) is created.
+	/// [TxLogEntry](grin_wallet_libwallet::TxLogEntry) is created.
 	///
 	/// # Arguments
 	///
@@ -1587,7 +1587,7 @@ where
 	///
 	/// # Returns
 	/// * `Ok(())` if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
 	/// ```
@@ -1640,10 +1640,10 @@ where
 	///   being used.
 	///
 	/// # Returns
-	/// * Ok with a  [`NodeHeightResult`](../grin_wallet_libwallet/types/struct.NodeHeightResult.html)
+	/// * Ok with a  [`NodeHeightResult`](grin_wallet_libwallet::NodeHeightResult)
 	///   if successful. If the height result was obtained from the configured node,
 	///   `updated_from_node` will be set to `true`
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1699,7 +1699,7 @@ where
 	///
 	/// # Returns
 	/// * Ok with a String value representing the full path to the top level wallet directory
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1740,7 +1740,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1788,7 +1788,7 @@ where
 
 	/// Create a `grin-wallet.toml` configuration file in the top-level directory for the
 	/// specified chain type.
-	/// A custom [`WalletConfig`](../grin_wallet_config/types/struct.WalletConfig.html)
+	/// A custom [`WalletConfig`](grin_wallet_config::types::WalletConfig)
 	/// and/or grin `LoggingConfig` may optionally be provided, otherwise defaults will be used.
 	///
 	/// Paths in the configuration file will be updated to reflect the top level directory, so
@@ -1804,7 +1804,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1872,7 +1872,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -1939,7 +1939,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2004,7 +2004,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2039,7 +2039,7 @@ where
 	///
 	/// # Returns
 	/// * Ok(BIP-39 mnemonic) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2084,7 +2084,7 @@ where
 	///
 	/// # Returns
 	/// * Ok(()) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2127,7 +2127,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2180,7 +2180,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2231,7 +2231,7 @@ where
 	///
 	/// # Returns
 	/// * Ok if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2271,8 +2271,8 @@ where
 	/// * `count` - The number of messages to retrieve.
 	///
 	/// # Returns
-	/// * Ok with a Vec of [`StatusMessage`](../grin_wallet_libwallet/api_impl/owner_updater/enum.StatusMessage.html)
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * Ok with a Vec of [`StatusMessage`](grin_wallet_libwallet::StatusMessage)
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2337,7 +2337,7 @@ where
 	///
 	/// # Returns
 	/// * Ok with a SlatepackAddress representing the address
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2376,7 +2376,7 @@ where
 	/// * `derivation_index` - The index along the derivation path to for which to retrieve the secret key, should be not higher than 2^31 - 1
 	/// # Returns
 	/// * Ok with an ed25519_dalek::SecretKey if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2418,7 +2418,7 @@ where
 	///
 	/// # Returns
 	/// * Ok with a String representing an armored slatepack if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2485,8 +2485,8 @@ where
 	///   decryption. This function will attempt to use secret keys at each index along this path to attempt to decrypt the payload, returning an error if none of the keys match. Should be not higher than 2^31 - 1 each.
 	///
 	/// # Returns
-	/// * Ok with a [Slate](../grin_wallet_libwallet/slate/struct.Slate.html) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * Ok with a [Slate](grin_wallet_libwallet::Slate) if successful
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2534,8 +2534,8 @@ where
 	///   decryption. If this wallet can't decrypt this slatepack, the payload of the returned Slatepack will remain encrypted. Should be not higher than 2^31 - 1 each.
 	///
 	/// # Returns
-	/// * Ok with a [Slatepack](../grin_wallet_libwallet/slatepack/types/struct.Slatepack.html) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	/// * Ok with a [Slatepack](grin_wallet_libwallet::Slatepack) if successful
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered.
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
@@ -2574,7 +2574,7 @@ where
 
 	// PAYMENT PROOFS
 
-	/// Returns a single, exportable [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
+	/// Returns a single, exportable [PaymentProof](grin_wallet_libwallet::PaymentProof)
 	/// from a completed transaction within the wallet.
 	///
 	/// The transaction must have been created with a payment proof, and the transaction must be
@@ -2585,7 +2585,7 @@ where
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
 	/// * `refresh_from_node` - If true, the wallet will attempt to contact
-	///   a node (via the [`NodeClient`](../grin_wallet_libwallet/types/trait.NodeClient.html)
+	///   a node (via the [`NodeClient`](grin_wallet_libwallet::NodeClient)
 	///   provided during wallet instantiation). If `false`, the results will
 	///   contain transaction information that may be out-of-date (from the last time
 	///   the wallet's output set was refreshed against the node).
@@ -2596,8 +2596,8 @@ where
 	///   given `uuid`
 	///
 	/// # Returns
-	/// * Ok([PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	/// * Ok([PaymentProof](grin_wallet_libwallet::PaymentProof)) if successful
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered
 	///   or the proof is not present or complete
 	///
 	/// # Example
@@ -2642,7 +2642,7 @@ where
 		)
 	}
 
-	/// Verifies a [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html)
+	/// Verifies a [PaymentProof](grin_wallet_libwallet::PaymentProof)
 	/// This process entails:
 	///
 	/// * Ensuring the kernel identified by the proof's stored excess commitment exists in the kernel set
@@ -2659,13 +2659,13 @@ where
 	/// # Arguments
 	/// * `keychain_mask` - Wallet secret mask to XOR against the stored wallet seed before using, if
 	///   being used.
-	/// * `proof` A [PaymentProof](../grin_wallet_libwallet/api_impl/types/struct.PaymentProof.html))
+	/// * `proof` A [PaymentProof](grin_wallet_libwallet::PaymentProof))
 	///
 	/// # Returns
 	/// * Ok((bool, bool)) if the proof is valid. The first boolean indicates whether the sender
 	///   address belongs to this wallet, the second whether the recipient address belongs to this
 	///   wallet
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered
 	///   or the proof is not present or complete
 	///
 	/// # Example
@@ -2727,8 +2727,8 @@ where
 	/// * `lock_output` - Whether to lock the referenced output after creating the request
 	///
 	/// # Returns
-	/// * Ok([MwixnetReqCreationResult](../grin_wallet_libwallet/mwixnet/struct.MwixnetReqCreationResult.html)) if successful
-	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered
+	/// * Ok([MwixnetReqCreationResult](grin_wallet_libwallet::mwixnet::MwixnetReqCreationResult)) if successful
+	/// * or [`libwallet::Error`](grin_wallet_libwallet::Error) if an error is encountered
 	///
 	/// # Example
 	/// Set up as in [`new`](struct.Owner.html#method.new) method above.
