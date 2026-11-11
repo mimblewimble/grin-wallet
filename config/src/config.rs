@@ -783,24 +783,21 @@ mod tests {
 		assert_eq!(stored.proxy.password.as_deref(), Some("secretERROR#value"));
 
 		config.members.tor.as_mut().unwrap().proxy.transport = Some("socks5".into());
-		config.members.tor.as_mut().unwrap().bridges = vec![TorBridgeConfig {
+		config.members.tor.as_mut().unwrap().bridge = TorBridgeConfig {
 			client_args: vec!["-log".into(), "option [value]".into()],
 			..Default::default()
-		}];
+		};
 		config.save().unwrap();
 		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
 		assert_eq!(stored.proxy.transport.as_deref(), Some("socks5"));
-		assert_eq!(
-			stored.bridges[0].client_args,
-			vec!["-log", "option [value]"]
-		);
+		assert_eq!(stored.bridge.client_args, vec!["-log", "option [value]"]);
 
 		config.members.tor.as_mut().unwrap().proxy.transport = None;
-		config.members.tor.as_mut().unwrap().bridges.clear();
+		config.members.tor.as_mut().unwrap().bridge = TorBridgeConfig::default();
 		config.save().unwrap();
 		let stored = GlobalWalletConfig::new(path.clone()).unwrap().tor_config();
 		assert_eq!(stored.proxy.transport, None);
-		assert!(stored.bridges.is_empty());
+		assert_eq!(stored.bridge, TorBridgeConfig::default());
 
 		let legacy =
 			fs::read_to_string(&path)

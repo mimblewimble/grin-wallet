@@ -198,8 +198,8 @@ pub struct TorWalletConfig {
 	/// Minimum Tor circuit build timeout in milliseconds.
 	pub min_circuit_timeout_ms: Option<i32>,
 	/// Tor bridge config.
-	#[serde(default, skip_serializing_if = "Vec::is_empty")]
-	pub bridges: Vec<TorBridgeConfig>,
+	#[serde(default)]
+	pub bridge: TorBridgeConfig,
 	/// Tor proxy config.
 	#[serde(default)]
 	pub proxy: TorProxyConfig,
@@ -222,12 +222,12 @@ impl TorConfig for TorWalletConfig {
 		self.min_circuit_timeout_ms
 	}
 
-	fn bridge_config(&self) -> &[TorBridgeConfig] {
-		&self.bridges
+	fn bridge_config(&self) -> TorBridgeConfig {
+		self.bridge.clone()
 	}
 
-	fn proxy_config(&self) -> &TorProxyConfig {
-		&self.proxy
+	fn proxy_config(&self) -> TorProxyConfig {
+		self.proxy.clone()
 	}
 
 	fn data_dir(&self) -> PathBuf {
@@ -252,7 +252,7 @@ impl Default for TorWalletConfig {
 			request_timeout_secs: Some(REQUEST_TIMEOUT_SECS),
 			bootstrap_timeout_secs: Some(BOOTSTRAP_TIMEOUT_SECS),
 			min_circuit_timeout_ms: Some(MIN_CIRCUIT_TIMEOUT_MS),
-			bridges: Vec::new(),
+			bridge: TorBridgeConfig::default(),
 			proxy: TorProxyConfig::default(),
 		}
 	}
@@ -264,8 +264,7 @@ impl TorWalletConfig {
 
 	/// Override the configured bridges with a single bridge
 	pub fn set_bridge(&mut self, line: String) {
-		self.bridges.resize_with(1, TorBridgeConfig::default);
-		self.bridges[0].bridge_line = Some(line);
+		self.bridge.bridge_line = Some(line);
 	}
 
 	/// Check if attempt to send over Tor is needed using provided possible argument at priority.

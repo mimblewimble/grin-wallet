@@ -1074,7 +1074,7 @@ mod tests {
 			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();
 		assert_eq!(tor_config.socks_proxy_addr, "127.0.0.1:59051");
 		assert_eq!(
-			tor_config.bridges[0].bridge_line.as_deref(),
+			tor_config.bridge.bridge_line.as_deref(),
 			Some("obfs4 test-bridge")
 		);
 		assert!(!tor_config.use_tor_listener);
