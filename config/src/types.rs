@@ -17,8 +17,8 @@
 use crate::core::global::ChainTypes;
 use crate::util::logger::LoggingConfig;
 use grin_p2p::tor::config::{
-	TorBridgeConfig, TorConfig, TorProxyConfig, BOOTSTRAP_TIMEOUT_SECS, MIN_CIRCUIT_TIMEOUT_MS,
-	REQUEST_TIMEOUT_SECS,
+	TorBridgeConfig, TorConfig, TorOutboundProxy, TorProxyConfig, BOOTSTRAP_TIMEOUT_SECS,
+	MIN_CIRCUIT_TIMEOUT_MS, REQUEST_TIMEOUT_SECS,
 };
 use std::fmt;
 use std::io;
@@ -228,6 +228,10 @@ impl TorConfig for TorWalletConfig {
 
 	fn proxy_config(&self) -> TorProxyConfig {
 		self.proxy.clone()
+	}
+
+	fn outbound_proxy(&self) -> Option<TorOutboundProxy> {
+		None
 	}
 
 	fn data_dir(&self) -> PathBuf {

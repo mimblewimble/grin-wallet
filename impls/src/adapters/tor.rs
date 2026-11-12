@@ -17,24 +17,24 @@ use crate::config::TorWalletConfig;
 use crate::libwallet::Error;
 use crate::libwallet::SlatepackAddress;
 
+use async_trait::async_trait;
+use grin_p2p::tor::config::TorConfig;
 use grin_p2p::tor::ov3::OnionV3Address;
 use grin_p2p::tor::{start_tor, TorHttpClient};
-
-use async_trait::async_trait;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct TorSlateSender {
+pub struct TorSlateSender<T> {
 	host_url: String,
-	tor_config: TorWalletConfig,
+	tor_config: T,
 }
 
-impl TorSlateSender {
+impl<T> TorSlateSender<T>
+where
+	T: TorConfig + Sync + Send,
+{
 	/// Create instance from receiver address and Tor config, return Error if Tor can not be started.
-	pub fn new(
-		dest: &SlatepackAddress,
-		tor_config: TorWalletConfig,
-	) -> Result<TorSlateSender, Error> {
+	pub fn new(dest: &SlatepackAddress, tor_config: T) -> Result<TorSlateSender<T>, Error> {
 		let tor_addr = OnionV3Address::from(dest);
 		let host_url = tor_addr.to_http_str();
 		start_tor(&tor_config)?;
@@ -45,14 +45,20 @@ impl TorSlateSender {
 	}
 }
 
-impl TorHttpClient<TorWalletConfig> for TorSlateSender {
-	fn tor_config(&self) -> &TorWalletConfig {
+impl<T> TorHttpClient<T> for TorSlateSender<T>
+where
+	T: TorConfig + Sync + Send,
+{
+	fn tor_config(&self) -> &T {
 		&self.tor_config
 	}
 }
 
 #[async_trait]
-impl HttpSlateSender for TorSlateSender {
+impl<T> HttpSlateSender for TorSlateSender<T>
+where
+	T: TorConfig + Sync + Send,
+{
 	fn host_url(&self) -> String {
 		self.host_url.clone()
 	}
