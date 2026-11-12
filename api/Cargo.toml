@@ -21,17 +21,19 @@ chrono = { version = "0.4.11", features = ["serde"] }
 ring = "0.17.14"
 base64 = "0.12"
 ed25519-dalek = "2"
+tokio = { version = "1.52.3", features = ["full"] }
 
 grin_wallet_libwallet = { path = "../libwallet", version = "5.5.1" }
 grin_wallet_config = { path = "../config", version = "5.5.1" }
 grin_wallet_impls = { path = "../impls", version = "5.5.1" }
-grin_wallet_util = { path = "../util", version = "5.5.1" }
 
 ##### Grin Imports
 
 grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
+grin_p2p = { workspace = true, features = ["tor"] }
+grin_api = { workspace = true }
 
 #####
 

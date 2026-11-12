@@ -14,7 +14,6 @@
 
 //! Error types for libwallet
 
-use crate::util;
 use grin_core::core::{amount_to_hr_string, committed, transaction};
 use grin_core::libtx;
 use grin_util::secp;
@@ -73,7 +72,7 @@ pub enum Error {
 
 	/// Onion V3 Address Error
 	#[error("Onion V3 Address Error: {0}")]
-	OnionV3Address(#[from] util::OnionV3AddressError),
+	OnionV3Address(String),
 
 	/// Callback implementation error conversion
 	#[error("Trait Implementation error")]
@@ -255,9 +254,9 @@ pub enum Error {
 	#[error("Supplied Keychain Mask Token is incorrect")]
 	InvalidKeychainMask,
 
-	/// Tor Process error
-	#[error("Tor Process Error: {0}")]
-	TorProcess(String),
+	/// Generic Tor error
+	#[error("Tor Error: {0}")]
+	Tor(String),
 
 	/// Tor Configuration Error
 	#[error("Tor Config Error: {0}")]
@@ -375,6 +374,22 @@ impl From<&str> for Error {
 impl From<bech32::Error> for Error {
 	fn from(error: bech32::Error) -> Error {
 		Error::SlatepackAddress(format!("{}", error))
+	}
+}
+
+impl From<grin_p2p::tor::Error> for Error {
+	fn from(error: grin_p2p::tor::Error) -> Error {
+		match error {
+			grin_p2p::tor::Error::Config(e) => Error::TorConfig(e),
+			grin_p2p::tor::Error::Generic(e) => Error::Tor(e),
+			grin_p2p::tor::Error::Post(e) => Error::Tor(format!("{}", e)),
+		}
+	}
+}
+
+impl From<grin_p2p::tor::ov3::OnionV3Error> for Error {
+	fn from(error: grin_p2p::tor::ov3::OnionV3Error) -> Error {
+		Error::OnionV3Address(format!("{}", error))
 	}
 }
 

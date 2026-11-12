@@ -26,6 +26,7 @@ grin_core = { path = "grin/core" }
 grin_keychain = { path = "grin/keychain" }
 grin_store = { path = "grin/store" }
 grin_util = { path = "grin/util" }
+grin_p2p = { path = "grin/p2p" }
 
 [dependencies]
 clap = { version = "2.33", features = ["yaml"] }
@@ -50,6 +51,7 @@ grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
 grin_api = { workspace = true }
+grin_p2p = { workspace = true, features = ["tor"] }
 
 ###### 
 

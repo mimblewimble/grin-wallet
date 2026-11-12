@@ -18,7 +18,6 @@ use crate::internal::{selection, updater};
 use crate::slate::Slate;
 use crate::slatepack::SlatepackAddressIndex;
 use crate::types::{Context, NodeClient, StoredProofInfo, TxLogEntry, TxLogEntryType};
-use crate::util::OnionV3Address;
 use crate::{address, Error};
 use crate::{InitTxArgs, WalletBackend};
 
@@ -34,6 +33,7 @@ use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use ed25519_dalek::{Signer, Verifier};
+use grin_p2p::tor::ov3::OnionV3Address;
 use std::io::Cursor;
 use uuid::Uuid;
 

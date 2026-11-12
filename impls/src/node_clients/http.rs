@@ -15,14 +15,15 @@
 //! Client functions, implementations of the NodeClient trait
 
 use super::resp_types::*;
+use crate::api::json_rpc::{build_request, Request, Response};
 use crate::api::{self, LocatedTxKernel, OutputListing, OutputPrintable};
-use crate::client_utils::json_rpc::*;
 use crate::client_utils::{Client, RUNTIME};
 use crate::core::core::{Transaction, TxKernel};
 use crate::libwallet;
 use crate::libwallet::{NodeClient, NodeVersionInfo};
 use crate::util::secp::pedersen;
 use crate::util::ToHex;
+
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use std::collections::HashMap;

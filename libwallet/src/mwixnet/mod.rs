@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Onion modules for mxmixnet
-pub mod onion;
-mod response;
-mod types;
+//! Modules for mwixnet usage
 
+pub mod onion;
 pub use onion::{
 	create_onion, onion::Onion, onion::OnionError, util as onion_util, ComSigError, ComSignature,
 	MAX_MWIXNET_HOPS,
 };
 
-pub use response::{parse_mwixnet_response, MwixnetResponse, MwixnetResponseError};
+mod response;
+pub use response::{parse_mwixnet_response, MwixnetError, MwixnetResponse};
 
+mod types;
 pub use types::{
 	Hop, MixnetReqCreationParams, MwixnetReqCreationResult, MwixnetServerPublicKey, SwapReq,
 };
+
+mod client;
+pub use client::{MwixnetClient, MwixnetClientImpl};

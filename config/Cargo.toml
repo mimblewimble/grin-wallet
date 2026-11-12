@@ -22,6 +22,7 @@ lazy_static = "1"
 
 grin_core = { workspace = true }
 grin_util = { workspace = true }
+grin_p2p = { workspace = true, features = ["tor"] }
 
 #####
 

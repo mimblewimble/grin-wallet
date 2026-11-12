@@ -16,6 +16,10 @@
 
 use crate::core::global::ChainTypes;
 use crate::util::logger::LoggingConfig;
+use grin_p2p::tor::config::{
+	TorBridgeConfig, TorConfig, TorOutboundProxy, TorProxyConfig, BOOTSTRAP_TIMEOUT_SECS,
+	MIN_CIRCUIT_TIMEOUT_MS, REQUEST_TIMEOUT_SECS,
+};
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
@@ -176,50 +180,96 @@ impl From<io::Error> for ConfigError {
 
 /// Tor configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TorConfig {
-	/// whether to use integrated Tor library
+pub struct TorWalletConfig {
+	/// Whether to use integrated Tor library.
 	pub use_integrated: Option<bool>,
-	/// whether to skip any attempts to send via Tor
+	/// Whether to skip any attempts to send via Tor.
 	pub skip_send_attempt: Option<bool>,
-	/// Whether to start Tor listener on listener startup (default true)
+	/// Whether to start Tor listener on listener startup (default true).
 	pub use_tor_listener: bool,
-	/// Just the address of the socks proxy for now
+	/// The address of the socks proxy for external process.
 	pub socks_proxy_addr: String,
-	/// Send configuration directory
+	/// Send configuration directory.
 	pub send_config_dir: String,
 	/// Total timeout for request in seconds.
 	pub request_timeout_secs: Option<u64>,
 	/// Timeout for bootstrap in seconds.
 	pub bootstrap_timeout_secs: Option<u64>,
-	/// Tor bridge config
+	/// Minimum Tor circuit build timeout in milliseconds.
+	pub min_circuit_timeout_ms: Option<i32>,
+	/// Tor bridge config.
 	#[serde(default)]
 	pub bridge: TorBridgeConfig,
-	/// Tor proxy config
+	/// Tor proxy config.
 	#[serde(default)]
 	pub proxy: TorProxyConfig,
 }
 
-impl Default for TorConfig {
-	fn default() -> TorConfig {
-		TorConfig {
+impl TorConfig for TorWalletConfig {
+	fn use_integrated(&self) -> bool {
+		self.use_integrated.unwrap_or(false)
+	}
+
+	fn request_timeout_secs(&self) -> Option<u64> {
+		self.request_timeout_secs
+	}
+
+	fn bootstrap_timeout_secs(&self) -> Option<u64> {
+		self.bootstrap_timeout_secs
+	}
+
+	fn min_circuit_timeout_ms(&self) -> Option<i32> {
+		self.min_circuit_timeout_ms
+	}
+
+	fn bridge_config(&self) -> TorBridgeConfig {
+		self.bridge.clone()
+	}
+
+	fn proxy_config(&self) -> TorProxyConfig {
+		self.proxy.clone()
+	}
+
+	fn outbound_proxy(&self) -> Option<TorOutboundProxy> {
+		None
+	}
+
+	fn data_dir(&self) -> PathBuf {
+		let mut path = PathBuf::from(&self.send_config_dir);
+		path.push("tor");
+		path
+	}
+
+	fn socks_proxy_addr(&self) -> String {
+		self.socks_proxy_addr.clone()
+	}
+}
+
+impl Default for TorWalletConfig {
+	fn default() -> TorWalletConfig {
+		TorWalletConfig {
 			use_integrated: Some(true),
 			skip_send_attempt: Some(false),
 			use_tor_listener: true,
 			socks_proxy_addr: "127.0.0.1:59050".to_owned(),
 			send_config_dir: ".".into(),
-			request_timeout_secs: Some(Self::REQUEST_TIMEOUT_SECS),
-			bootstrap_timeout_secs: Some(Self::BOOTSTRAP_TIMEOUT_SECS),
+			request_timeout_secs: Some(REQUEST_TIMEOUT_SECS),
+			bootstrap_timeout_secs: Some(BOOTSTRAP_TIMEOUT_SECS),
+			min_circuit_timeout_ms: Some(MIN_CIRCUIT_TIMEOUT_MS),
 			bridge: TorBridgeConfig::default(),
 			proxy: TorProxyConfig::default(),
 		}
 	}
 }
 
-impl TorConfig {
-	/// Tor request timeout in seconds.
-	const REQUEST_TIMEOUT_SECS: u64 = 60;
-	/// Tor bootstrap timeout in seconds.
-	const BOOTSTRAP_TIMEOUT_SECS: u64 = 60;
+impl TorWalletConfig {
+	/// Maximum Tor response size in bytes
+	pub const RESPONSE_LIMIT: usize = 16 * 1024 * 1024;
+
+	/// Override the configured bridges with a single bridge
+	pub fn set_bridge(&mut self, line: String) {
+		self.bridge.bridge_line = Some(line);
+	}
 
 	/// Check if attempt to send over Tor is needed using provided possible argument at priority.
 	pub fn send_tor(&self, skip_arg: Option<bool>) -> bool {
@@ -227,62 +277,6 @@ impl TorConfig {
 			return !skip_tor;
 		}
 		!self.skip_send_attempt.unwrap_or(false)
-	}
-
-	/// Request timeout.
-	pub fn request_timeout(&self) -> Duration {
-		Duration::from_secs(
-			self.request_timeout_secs
-				.filter(|s| *s > 0)
-				.unwrap_or(Self::REQUEST_TIMEOUT_SECS),
-		)
-	}
-
-	/// Bootstrap timeout.
-	pub fn bootstrap_timeout(&self) -> Duration {
-		Duration::from_secs(
-			self.bootstrap_timeout_secs
-				.filter(|s| *s > 0)
-				.unwrap_or(Self::BOOTSTRAP_TIMEOUT_SECS),
-		)
-	}
-}
-
-/// Tor Bridge Config
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct TorBridgeConfig {
-	/// Path to bridge binary to use with integrated Tor library
-	pub bridge_bin_path: Option<String>,
-	/// Bridge Line
-	pub bridge_line: Option<String>,
-	/// Client Option
-	pub client_option: Option<String>,
-}
-
-impl fmt::Display for TorBridgeConfig {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{:?}", self)
-	}
-}
-
-/// Tor Proxy configuration (useful for protocols such as shadowsocks)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct TorProxyConfig {
-	/// socks4 |socks5 | http(s)
-	pub transport: Option<String>,
-	/// ip or dns
-	pub address: Option<String>,
-	/// user for auth - socks5|https(s)
-	pub username: Option<String>,
-	/// pass for auth - socks5|https(s)
-	pub password: Option<String>,
-	/// allowed port - proxy
-	pub allowed_port: Option<Vec<u16>>,
-}
-
-impl fmt::Display for TorProxyConfig {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{:?}", self)
 	}
 }
 
@@ -305,7 +299,7 @@ pub struct GlobalWalletConfigMembers {
 	#[serde(default)]
 	pub wallet: WalletConfig,
 	/// Tor config
-	pub tor: Option<TorConfig>,
+	pub tor: Option<TorWalletConfig>,
 	/// Logging config
 	pub logging: Option<LoggingConfig>,
 }

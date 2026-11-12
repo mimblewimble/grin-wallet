@@ -17,7 +17,6 @@ use crate::core::libtx;
 use crate::keychain;
 use crate::libwallet;
 use crate::util::secp;
-use grin_wallet_util::OnionV3AddressError;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, thiserror::Error, Eq, PartialEq, Debug)]
@@ -33,10 +32,6 @@ pub enum Error {
 	/// Keychain error
 	#[error("Keychain error")]
 	Keychain(#[from] keychain::Error),
-
-	/// Onion V3 Address Error
-	#[error("Onion V3 Address Error")]
-	OnionV3Address(#[from] OnionV3AddressError),
 
 	/// Error when obfs4proxy is not in the user path if TOR brigde is enabled
 	#[error("Unable to find obfs4proxy binary in your path; {}", _0)]

@@ -124,12 +124,12 @@ fn real_main() -> i32 {
 	};
 
 	// Load logging config
-	let mut l = config.members.logging.clone().unwrap();
-	// no logging to stdout if we're running cli
+	let mut logging_config = config.members.logging.clone().unwrap();
+	// No logging to stdout if we're running cli
 	if let ("cli", _) = args.subcommand() {
-		l.log_to_stdout = true
+		logging_config.log_to_stdout = false
 	};
-	init_logger(Some(l), None);
+	init_logger(Some(logging_config), None);
 	info!(
 		"Using wallet configuration file at {}",
 		config.config_file_path.to_str().unwrap()

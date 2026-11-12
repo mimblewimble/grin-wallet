@@ -16,7 +16,7 @@
 
 use crate::api::TLSConfig;
 use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
-use crate::config::{TorConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
+use crate::config::{TorWalletConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
 use crate::keychain;
@@ -35,7 +35,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{Mutex, ToHex, ZeroingString};
 use crate::{controller, display};
-use grin_wallet_util::OnionV3Address;
+use grin_p2p::tor::ov3::OnionV3Address;
 
 use qr_code::QrCode;
 use serde_json as json;
@@ -189,6 +189,35 @@ where
 	}
 }
 
+/// Background HTTP listener
+pub struct Listener {
+	stop: tokio::sync::watch::Sender<bool>,
+	thread: Option<thread::JoinHandle<Result<(), Error>>>,
+}
+
+impl Listener {
+	/// Stop the listener and wait for its thread
+	pub fn stop(&mut self) -> Result<(), Error> {
+		let _ = self.stop.send(true);
+		self.join()
+	}
+
+	fn join(&mut self) -> Result<(), Error> {
+		match self.thread.take() {
+			Some(thread) => thread.join().map_err(|_| Error::ListenerError)?,
+			None => Ok(()),
+		}
+	}
+}
+
+impl Drop for Listener {
+	fn drop(&mut self) {
+		if let Err(e) = self.stop() {
+			error!("Unable to stop listener: {}", e);
+		}
+	}
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn listen<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
@@ -197,7 +226,7 @@ pub fn listen<L, C, K>(
 	bridge: Option<String>,
 	use_tor: Option<bool>,
 	g_args: &GlobalArgs,
-	cli_mode: bool,
+	background: Option<&mut Option<Listener>>,
 	test_mode: bool,
 ) -> Result<(), Error>
 where
@@ -205,6 +234,15 @@ where
 	C: NodeClient + 'static,
 	K: keychain::Keychain + 'static,
 {
+	if background
+		.as_deref()
+		.and_then(Option::as_ref)
+		.and_then(|listener| listener.thread.as_ref())
+		.is_some_and(|thread| !thread.is_finished())
+	{
+		return Err(Error::ListenerError);
+	}
+	let (stop, stop_rx) = tokio::sync::watch::channel(false);
 	let wallet_inst = owner_api.wallet_inst.clone();
 	let config_path = owner_api.config_path();
 	let g_args = g_args.clone();
@@ -220,21 +258,24 @@ where
 				&config.api_listen_addr(),
 				g_args.tls_conf.clone(),
 				test_mode,
+				stop_rx,
 			);
-			if let Err(e) = res {
+			if let Err(ref e) = res {
 				error!("Error starting listener: {}", e);
 			}
-		});
-	if let Ok(t) = api_thread {
-		if !cli_mode {
-			let r = t.join();
-			if r.is_err() {
-				error!("Error starting listener");
-				return Err(Error::ListenerError);
-			}
-		}
+			res.map_err(Error::from)
+		})
+		.map_err(|_| Error::ListenerError)?;
+	let mut listener = Listener {
+		stop,
+		thread: Some(api_thread),
+	};
+	if let Some(slot) = background {
+		*slot = Some(listener);
+		Ok(())
+	} else {
+		listener.join()
 	}
-	Ok(())
 }
 
 pub fn owner_api<L, C, K>(
@@ -368,7 +409,7 @@ pub fn send<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: SendArgs,
-	tor_config: TorConfig,
+	tor_config: TorWalletConfig,
 	dark_scheme: bool,
 	test_mode: bool,
 ) -> Result<(), Error>
@@ -392,7 +433,7 @@ pub fn send_to_account<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: SendArgs,
-	tor_config: TorConfig,
+	tor_config: TorWalletConfig,
 	dark_scheme: bool,
 	account: &str,
 	payment_proof: bool,
@@ -425,7 +466,7 @@ fn send_impl<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: SendArgs,
-	mut tor_config: TorConfig,
+	mut tor_config: TorWalletConfig,
 	dark_scheme: bool,
 	test_mode: bool,
 	account: Option<(&str, bool)>,
@@ -592,7 +633,7 @@ where
 	}
 
 	if let Some(b) = args.bridge.clone() {
-		tor_config.bridge.bridge_line = Some(b);
+		tor_config.set_bridge(b);
 	}
 
 	let output_sp = |owner_api: &mut Owner<L, C, K>, lock_outputs: bool| -> Result<(), Error> {
@@ -624,7 +665,7 @@ where
 	}
 
 	let dest = dest.as_ref().unwrap();
-	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, false);
+	let res = try_slatepack_sync_workflow(&slate, dest, &tor_config, false);
 
 	match res {
 		Ok(s) => {
@@ -802,7 +843,7 @@ pub fn receive<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
 	args: ReceiveArgs,
-	mut tor_config: TorConfig,
+	mut tor_config: TorWalletConfig,
 	test_mode: bool,
 ) -> Result<(), Error>
 where
@@ -839,7 +880,7 @@ where
 	let km = keychain_mask.as_ref().map(|&m| m.to_owned());
 
 	if let Some(b) = args.bridge {
-		tor_config.bridge.bridge_line = Some(b);
+		tor_config.set_bridge(b);
 	}
 
 	controller::foreign_single_use(
@@ -872,7 +913,7 @@ where
 	}
 
 	let dest = ret_address.as_ref().unwrap();
-	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, true);
+	let res = try_slatepack_sync_workflow(&slate, dest, &tor_config, true);
 
 	match res {
 		Ok(s) => {
@@ -1129,7 +1170,7 @@ pub struct ProcessInvoiceArgs {
 pub fn process_invoice<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<&SecretKey>,
-	mut tor_config: TorConfig,
+	mut tor_config: TorWalletConfig,
 	args: ProcessInvoiceArgs,
 	dark_scheme: bool,
 	test_mode: bool,
@@ -1206,7 +1247,7 @@ where
 	}
 
 	if let Some(b) = args.bridge {
-		tor_config.bridge.bridge_line = Some(b);
+		tor_config.set_bridge(b);
 	}
 
 	let output_sp = || -> Result<(), Error> {
@@ -1229,7 +1270,7 @@ where
 	}
 
 	let dest = ret_address.as_ref().unwrap();
-	let res = try_slatepack_sync_workflow(&slate, dest, Some(tor_config), None, true);
+	let res = try_slatepack_sync_workflow(&slate, dest, &tor_config, true);
 
 	match res {
 		Ok(s) => {
@@ -1777,6 +1818,25 @@ where
 #[cfg(test)]
 mod tests {
 	use super::confirm_mwixnet_response;
+
+	#[test]
+	fn listener_drop() {
+		let (stop, mut rx) = tokio::sync::watch::channel(false);
+		let (done_tx, done_rx) = std::sync::mpsc::channel();
+		let thread = std::thread::spawn(move || {
+			let runtime = tokio::runtime::Builder::new_current_thread()
+				.build()
+				.unwrap();
+			runtime.block_on(rx.wait_for(|stop| *stop)).unwrap();
+			done_tx.send(()).unwrap();
+			Ok(())
+		});
+		drop(super::Listener {
+			stop,
+			thread: Some(thread),
+		});
+		assert_eq!(done_rx.try_recv(), Ok(()));
+	}
 
 	#[test]
 	fn mwixnet_response_reports_uncertain_transactions_as_locked() {

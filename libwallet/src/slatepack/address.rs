@@ -20,12 +20,12 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use x25519_dalek::PublicKey as xDalekPublicKey;
 
-use crate::util::OnionV3Address;
 use crate::Error;
 use grin_core::global;
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use grin_util::secp::key::SecretKey;
 
+use grin_p2p::tor::ov3::OnionV3Address;
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
 

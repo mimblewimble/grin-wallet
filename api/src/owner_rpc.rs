@@ -13,11 +13,8 @@
 // limitations under the License.
 
 //! JSON-RPC Stub generation for the Owner API
-use grin_wallet_libwallet::RetrieveTxQueryArgs;
-use libwallet::mwixnet::MwixnetReqCreationResult;
-use uuid::Uuid;
 
-use crate::config::{TorConfig, WalletConfig};
+use crate::config::{TorWalletConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
 use crate::keychain::{Identifier, Keychain};
@@ -33,13 +30,18 @@ use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
-use grin_wallet_util::OnionV3Address;
+
+use grin_p2p::tor::ov3::OnionV3Address;
+use grin_wallet_libwallet::RetrieveTxQueryArgs;
+use libwallet::mwixnet::MwixnetReqCreationResult;
 use libwallet::slatepack::SlatepackAddressIndex;
+
 use rand::thread_rng;
 use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 /// Public definition used to generate Owner jsonrpc api.
 /// Secure version containing wallet lifecycle functions. All calls to this API must be encrypted.
@@ -1455,7 +1457,7 @@ pub trait OwnerRpc {
 		chain_type: global::ChainTypes,
 		wallet_config: Option<WalletConfig>,
 		logging_config: Option<LoggingConfig>,
-		tor_config: Option<TorConfig>,
+		tor_config: Option<TorWalletConfig>,
 	) -> Result<(), Error>;
 
 	/**
@@ -2066,7 +2068,7 @@ pub trait OwnerRpc {
 	# , 0, false, false, false, false);
 	```
 	*/
-	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error>;
+	fn set_tor_config(&self, tor_config: Option<TorWalletConfig>) -> Result<(), Error>;
 
 	/**
 	Networked version of [Owner::build_output](struct.Owner.html#method.build_output).
@@ -2443,7 +2445,7 @@ where
 		chain_type: global::ChainTypes,
 		wallet_config: Option<WalletConfig>,
 		logging_config: Option<LoggingConfig>,
-		tor_config: Option<TorConfig>,
+		tor_config: Option<TorWalletConfig>,
 	) -> Result<(), Error> {
 		Owner::create_config(self, &chain_type, wallet_config, logging_config, tor_config)
 	}
@@ -2589,7 +2591,7 @@ where
 		Owner::verify_payment_proof(self, token.keychain_mask.as_ref(), &proof)
 	}
 
-	fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
+	fn set_tor_config(&self, tor_config: Option<TorWalletConfig>) -> Result<(), Error> {
 		Owner::set_tor_config(self, tor_config)?;
 		Ok(())
 	}

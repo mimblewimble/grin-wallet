@@ -68,11 +68,10 @@ pub mod option_rangeproof_hex {
 
 /// Optional onion address as text
 pub mod option_ov3_serde {
+	use grin_p2p::tor::ov3::{OnionV3Address, OnionV3Error};
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;
-
-	use crate::util::{OnionV3Address, OnionV3AddressError};
 
 	/// Write the onion address as text, or null
 	pub fn serialize<S>(addr: &Option<OnionV3Address>, serializer: S) -> Result<S::Ok, S::Error>
@@ -92,7 +91,7 @@ pub mod option_ov3_serde {
 	{
 		Option::<String>::deserialize(deserializer).and_then(|res| match res {
 			Some(s) => OnionV3Address::try_from(s.as_str())
-				.map_err(|err: OnionV3AddressError| Error::custom(format!("{:?}", err)))
+				.map_err(|err: OnionV3Error| Error::custom(format!("{:?}", err)))
 				.map(Some),
 			None => Ok(None),
 		})
@@ -101,11 +100,10 @@ pub mod option_ov3_serde {
 
 /// Onion address as text
 pub mod ov3_serde {
+	use grin_p2p::tor::ov3::{OnionV3Address, OnionV3Error};
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;
-
-	use crate::util::{OnionV3Address, OnionV3AddressError};
 
 	/// Write the onion address as text
 	pub fn serialize<S>(addr: &OnionV3Address, serializer: S) -> Result<S::Ok, S::Error>
@@ -122,7 +120,7 @@ pub mod ov3_serde {
 	{
 		String::deserialize(deserializer).and_then(|s| {
 			OnionV3Address::try_from(s.as_str())
-				.map_err(|err: OnionV3AddressError| Error::custom(format!("{:?}", err)))
+				.map_err(|err: OnionV3Error| Error::custom(format!("{:?}", err)))
 		})
 	}
 }

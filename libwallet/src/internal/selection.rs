@@ -17,7 +17,6 @@
 use crate::error::Error;
 use crate::slate::Slate;
 use crate::types::*;
-use crate::util::OnionV3Address;
 use crate::{address, WalletBackend};
 use grin_core::core::amount_to_hr_string;
 use grin_core::core::Transaction;
@@ -28,6 +27,7 @@ use grin_core::libtx::{
 	tx_fee,
 };
 use grin_keychain::{Identifier, Keychain};
+use grin_p2p::tor::ov3::OnionV3Address;
 use grin_util::secp::key::SecretKey;
 use grin_util::secp::pedersen;
 use std::convert::TryInto;

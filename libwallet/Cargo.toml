@@ -37,6 +37,7 @@ curve25519-dalek = "5"
 bech32 = "0.7"
 byteorder = "1.3"
 num-bigint = "0.2"
+async-trait = "0.1.92"
 
 #mwixnet onion
 chacha20 = "0.8.1"
@@ -47,9 +48,11 @@ grin_wallet_config = { path = "../config", version = "5.5.1" }
 
 ##### Grin Imports
 
+grin_api = { workspace = true }
 grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
 grin_store = { workspace = true }
+grin_p2p = { workspace = true, features = ["tor"] }
 
 #####

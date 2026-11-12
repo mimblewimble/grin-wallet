@@ -23,29 +23,7 @@ chrono = { version = "0.4.11", features = ["serde"] }
 lazy_static = "1"
 tokio = { version = "1.52.3", features = ["full"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["socks", "native-tls", "system-proxy", "charset", "http2"] }
-
-#Socks/Tor/Bridge/Proxy
-ed25519-dalek = "2"
-regex = "1.3"
-timer = "0.2"
-sysinfo = "0.29"
-base64 = "0.12.0"
-url = "2.1"
-
-arti-client = { version = "0.43.0", features = ["static", "pt-client", "onion-service-service", "onion-service-client"] }
-tor-rtcompat = { version = "0.43.0", features = ["static"] }
-fs-mistrust = "0.14.2"
-fslock-guard = "0.8"
-tor-hsservice = "0.43.0"
-tor-hsrproxy = "0.43.0"
-tor-keymgr = "0.43.0"
-tor-llcrypto = "0.43.0"
-tor-hscrypto = "0.43.0"
-sha2 = "0.10.8"
-hyper = { version = "1.10.1", features = ["http1", "client"] }
-hyper-util = { version = "0.1.20", features = ["tokio"] }
-http-body-util = "0.1.3"
-bytes = "1.11.1"
+async-trait = "0.1.92"
 
 grin_wallet_util = { path = "../util", version = "5.5.1" }
 grin_wallet_config = { path = "../config", version = "5.5.1" }
@@ -58,5 +36,6 @@ grin_keychain = { workspace = true }
 grin_chain = { workspace = true }
 grin_util = { workspace = true }
 grin_api = { workspace = true }
+grin_p2p = { workspace = true, features = ["tor"] }
 
 #####

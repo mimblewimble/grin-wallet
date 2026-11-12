@@ -14,18 +14,21 @@
 
 //! Owner API External Definition
 
+use crate::config::config::get_global_tor_config;
 use crate::config::config::{reload_global_config, update_global_config, WALLET_CONFIG_FILE_NAME};
-use crate::config::{TorConfig, WalletConfig};
+use crate::config::{TorWalletConfig, WalletConfig};
 use crate::core::core::OutputFeatures;
 use crate::core::global;
-use crate::impls::SlateSender as _;
+use crate::impls::HttpSlateSender as _;
 use crate::impls::TorSlateSender;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::api_impl::owner_updater::{start_updater_log_thread, StatusMessage};
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::api_impl::{foreign, owner, owner_updater};
-use crate::libwallet::mwixnet::{parse_mwixnet_response, MwixnetResponse, SwapReq};
+use crate::libwallet::mwixnet::MwixnetClient;
+use crate::libwallet::mwixnet::MwixnetClientImpl;
 use crate::libwallet::mwixnet::{MixnetReqCreationParams, MwixnetReqCreationResult};
+use crate::libwallet::mwixnet::{MwixnetResponse, SwapReq};
 use crate::libwallet::slatepack::SlatepackAddressIndex;
 use crate::libwallet::wallet_lock;
 use crate::libwallet::RetrieveTxQueryArgs;
@@ -37,9 +40,8 @@ use crate::libwallet::{
 use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
-use grin_wallet_util::OnionV3Address;
-use impls::json_rpc;
-use impls::tor::arti::tor_post;
+
+use grin_p2p::tor::ov3::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -241,7 +243,7 @@ where
 	/// * `Ok(())` if the config was correctly saved
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
-	pub fn set_tor_config(&self, tor_config: Option<TorConfig>) -> Result<(), Error> {
+	pub fn set_tor_config(&self, tor_config: Option<TorWalletConfig>) -> Result<(), Error> {
 		let _wallet_lock = self.wallet_inst.lock();
 		update_global_config(&self.config_path(), |config| {
 			if let Some(tor_config) = tor_config {
@@ -796,7 +798,7 @@ where
 
 		let tor_config = send_args
 			.as_ref()
-			.map(|_| crate::tor_config::load(&self.config_path()))
+			.map(|_| get_global_tor_config(&self.config_path()))
 			.transpose()?;
 
 		let init_send_tx = |w: &mut WalletBackend<C, K>, args: &mut InitTxArgs| {
@@ -807,11 +809,10 @@ where
 			owner::init_send_tx(w, keychain_mask, args.clone(), self.doctest_mode)
 		};
 
-		// Helper functionality. If send arguments exist, attempt to send sync and
-		// finalize
+		// Helper functionality. If send arguments exist, attempt to send sync and finalize.
 		match send_args {
 			Some(sa) => {
-				let slate = {
+				let (slate, tc) = {
 					wallet_lock!(self.wallet_inst, w);
 					let late_lock = args.late_lock.unwrap_or(false);
 					let slate = init_send_tx(w, &mut args)?;
@@ -825,16 +826,9 @@ where
 					if !late_lock {
 						owner::tx_lock_outputs(w, keychain_mask, &slate)?;
 					}
-
-					slate
+					(slate, tc)
 				};
-				let res = try_slatepack_sync_workflow(
-					&slate,
-					dest.as_ref().unwrap(),
-					tor_config,
-					None,
-					false,
-				);
+				let res = try_slatepack_sync_workflow(&slate, dest.as_ref().unwrap(), tc, false);
 				match res {
 					Ok(s) => {
 						// Output slatepack message to file.
@@ -1101,7 +1095,7 @@ where
 		};
 		let tor_config = send_args
 			.as_ref()
-			.map(|_| crate::tor_config::load(&self.config_path()))
+			.map(|_| get_global_tor_config(&self.config_path()))
 			.transpose()?;
 		let slate = {
 			let mut w_lock = self.wallet_inst.lock();
@@ -1123,7 +1117,7 @@ where
 					owner::tx_lock_outputs(w, keychain_mask, &slate)?;
 				}
 				let dest = dest.unwrap();
-				let res = try_slatepack_sync_workflow(&slate, &dest, Some(tc), None, true);
+				let res = try_slatepack_sync_workflow(&slate, &dest, &tc, true);
 				match res {
 					Ok(s) => {
 						// Update slate state.
@@ -1836,7 +1830,7 @@ where
 		chain_type: &global::ChainTypes,
 		wallet_config: Option<WalletConfig>,
 		logging_config: Option<LoggingConfig>,
-		tor_config: Option<TorConfig>,
+		tor_config: Option<TorWalletConfig>,
 	) -> Result<(), Error> {
 		let mut w_lock = self.wallet_inst.lock();
 		let lc = w_lock.lc_provider()?;
@@ -2830,74 +2824,49 @@ where
 		req: &SwapReq,
 		server: OnionV3Address,
 	) -> Result<Option<String>, Error> {
-		let url = format!("{}/v1", server.to_http_str());
-		let rpc_params = serde_json::json!([req]);
-		let rpc_request = json_rpc::build_request("swap", &rpc_params);
-		let tor_config = crate::tor_config::load(&self.config_path())?;
-		let response = match tor_post(&tor_config, &rpc_request, &url) {
-			Ok(response) => response,
-			Err(e) => {
-				return Err(Error::GenericError(format!(
-					"Could not determine whether mwixnet accepted the request: {}",
-					e,
-				)));
-			}
-		};
-		match parse_mwixnet_response(&response).map_err(|e| {
+		let tor_config = get_global_tor_config(&self.config_path())?;
+		grin_p2p::tor::start_tor(&tor_config)?;
+		let client = MwixnetClientImpl::new(tor_config, server);
+		let rt = tokio::runtime::Builder::new_current_thread()
+			.enable_all()
+			.build()
+			.map_err(|e| Error::GenericError(format!("Could not create tokio runtime: {}", e)))?;
+		let res = rt.block_on(client.swap(req)).map_err(|e| {
 			Error::GenericError(format!("Could not confirm the mwixnet response: {}", e))
-		})? {
+		})?;
+		match res {
 			MwixnetResponse::Accepted => Ok(None),
 			MwixnetResponse::Rejected(message) => Ok(Some(message)),
 		}
 	}
 }
 
-/// attempt to send slate synchronously with TOR
+/// Attempt to send Slate synchronously over Tor.
 pub fn try_slatepack_sync_workflow(
 	slate: &Slate,
 	dest: &SlatepackAddress,
-	tor_config: Option<TorConfig>,
-	tor_sender: Option<TorSlateSender>,
+	tor_config: &TorWalletConfig,
 	send_to_finalize: bool,
 ) -> Result<Slate, Error> {
-	let mut ret_slate = Slate::blank(2, false);
-	let mut send_sync = |mut sender: TorSlateSender, method_str: &str| match sender
-		.send_tx(slate, send_to_finalize)
-	{
-		Ok(s) => {
-			ret_slate = s;
-			Ok(())
-		}
+	let sender = match TorSlateSender::new(dest, tor_config.clone()) {
+		Ok(s) => s,
 		Err(e) => {
-			debug!(
-				"Send ({}): Could not send Slate via {}: {}",
-				method_str, method_str, e
-			);
-			Err(e)
+			debug!("Cannot create Tor Slate sender {:?}", e);
+			return Err(e);
 		}
-	};
-
-	let tor_addr = OnionV3Address::from(dest);
-	let sender = match tor_sender {
-		None => {
-			if let Some(tc) = tor_config {
-				match TorSlateSender::new(&tor_addr.to_http_str(), tc) {
-					Ok(s) => s,
-					Err(e) => {
-						debug!("Send (Tor): Cannot create TOR Slate sender {:?}", e);
-						return Err(e);
-					}
-				}
-			} else {
-				return Err(Error::TorConfig("Tor config is not set".to_string()));
-			}
-		}
-		Some(s) => s,
 	};
 	warn!("Attempting to send transaction via Tor");
-	match send_sync(sender, "Tor") {
-		Ok(_) => Ok(ret_slate),
-		Err(e) => Err(e),
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.map_err(|e| Error::GenericError(format!("Could not create tokio runtime: {}", e)))?;
+	let res = rt.block_on(sender.send(slate, send_to_finalize));
+	match res {
+		Ok(s) => Ok(s),
+		Err(e) => {
+			debug!("Could not send Slate via Tor: {}", e);
+			Err(e)
+		}
 	}
 }
 
