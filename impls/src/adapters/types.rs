@@ -128,6 +128,10 @@ pub trait HttpSlateSender: Send + Sync {
 			return Err(Error::ClientCallback(report));
 		}
 
+		if let Some(err) = res["result"].get("Err") {
+			return Err(Error::ClientCallback(format!("Remote wallet error: {err}")));
+		}
+
 		let slate_value = res["result"]["Ok"].clone();
 
 		trace!("slate_value: {}", slate_value);
