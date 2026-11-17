@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cargo +1.99.0 clippy --workspace --all-targets --exclude tor-error --exclude tor-rtcompat --exclude tor-circmgr -- -D warnings
+cargo +1.99.0 clippy -p 'grin*' --all-targets --no-deps --features grin_p2p/tor -- -D warnings
 if [ $? != 0 ]; then
   printf "clippy check failed; check with:\n"
-  printf "cargo +1.99.0 clippy --workspace --all-targets --exclude tor-error --exclude tor-rtcompat --exclude tor-circmgr -- -D warnings\n"
+  printf "cargo +1.99.0 clippy -p 'grin*' --all-targets --no-deps --features grin_p2p/tor -- -D warnings\n"
   printf "if clippy is missing: rustup toolchain install 1.99.0 --profile minimal --component clippy\n"
   exit 1
 fi
