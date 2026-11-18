@@ -31,7 +31,9 @@ use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 use grin_api::ApiBody;
 use grin_p2p::tor::config::BOOTSTRAP_TIMEOUT_SECS;
 use grin_p2p::tor::ov3::OnionV3Address;
-use grin_p2p::tor::{onion_service_status, start_onion_service, stop_onion_service, ServiceStatus};
+use grin_p2p::tor::{
+	onion_service_status, start_onion_service_cancellable, stop_onion_service, ServiceStatus,
+};
 use grin_wallet_api::JsonId;
 use grin_wallet_config::config::{
 	add_global_config_listener, get_global_config, get_global_tor_config,
@@ -264,7 +266,7 @@ where
 		warn!("HTTP Foreign listener started.");
 		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
 		let shutdown = api_shutdown(
-			stop_tx,
+			stop_tx.clone(),
 			Some(restart_rx),
 			finished_rx,
 			Some(stop_rx.clone()),
@@ -278,14 +280,15 @@ where
 					.unwrap_or(BOOTSTRAP_TIMEOUT_SECS),
 			);
 		let tor_started = if tor_config.use_tor_listener {
-			match start_onion_service(sec_key, addr, &tor_config) {
-				Ok(_) => {
+			match start_onion_service_cancellable(sec_key, addr, &tor_config, stop_tx.closed()) {
+				Ok(true) => {
 					warn!(
 						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 						onion_address, addr
 					);
 					true
 				}
+				Ok(false) => false,
 				Err(e) => {
 					warn!("Unable to start TOR listener");
 					error!("Tor Error: {}", e);
