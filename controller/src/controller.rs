@@ -29,7 +29,6 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 
 use grin_api::ApiBody;
-use grin_p2p::tor::config::BOOTSTRAP_TIMEOUT_SECS;
 use grin_p2p::tor::ov3::OnionV3Address;
 use grin_p2p::tor::{
 	onion_service_status, start_onion_service_cancellable, stop_onion_service, ServiceStatus,
@@ -272,13 +271,6 @@ where
 			Some(stop_rx.clone()),
 		);
 
-		let deadline = Instant::now()
-			+ Duration::from_secs(
-				tor_config
-					.bootstrap_timeout_secs
-					.filter(|secs| *secs > 0)
-					.unwrap_or(BOOTSTRAP_TIMEOUT_SECS),
-			);
 		let tor_started = if tor_config.use_tor_listener {
 			match start_onion_service_cancellable(sec_key, addr, &tor_config, stop_tx.closed()) {
 				Ok(true) => {
@@ -303,15 +295,11 @@ where
 
 		let startup = if tor_started {
 			loop {
-				if shutdown.is_finished() {
+				if shutdown.is_finished() || api_thread.is_finished() {
 					break Ok(());
 				}
-				match listener_ready(onion_service_status(onion_address.to_string()), deadline) {
-					Ok(false) => thread::sleep(
-						deadline
-							.saturating_duration_since(Instant::now())
-							.min(Duration::from_millis(500)),
-					),
+				match listener_ready(onion_service_status(onion_address.to_string())) {
+					Ok(false) => thread::sleep(Duration::from_millis(500)),
 					Ok(true) => {
 						let qr_string = match QrCode::new(sp_address.to_string()) {
 							Ok(qr) => qr.to_string(false, 3),
@@ -379,13 +367,11 @@ where
 	}
 }
 
-fn listener_ready(status: ServiceStatus, deadline: Instant) -> Result<bool, Error> {
-	if Instant::now() >= deadline {
-		return Err(Error::GenericError("Tor listener startup timed out".into()));
-	}
+fn listener_ready(status: ServiceStatus) -> Result<bool, Error> {
 	match status {
 		ServiceStatus::Running | ServiceStatus::Bootstrapped | ServiceStatus::Degraded => Ok(true),
 		ServiceStatus::Errored(e) => Err(Error::from(e)),
+		ServiceStatus::Stopped => Err(Error::GenericError("Tor listener stopped".into())),
 		_ => Ok(false),
 	}
 }
@@ -1002,11 +988,11 @@ mod tests {
 
 	#[test]
 	fn listener_ready() {
-		let deadline = Instant::now() + Duration::from_secs(60);
-		assert!(!super::listener_ready(ServiceStatus::Stopped, deadline).unwrap());
-		assert!(super::listener_ready(ServiceStatus::Running, deadline).unwrap());
-		assert!(super::listener_ready(ServiceStatus::Degraded, deadline).unwrap());
-		assert!(super::listener_ready(ServiceStatus::Recovering, Instant::now()).is_err());
+		assert!(!super::listener_ready(ServiceStatus::Starting).unwrap());
+		assert!(!super::listener_ready(ServiceStatus::Recovering).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Running).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Degraded).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Stopped).is_err());
 	}
 
 	#[test]
