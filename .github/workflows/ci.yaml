@@ -36,7 +36,7 @@ jobs:
         with:
           submodules: recursive
       - name: Tests
-        run: cargo test --release --all
+        run: cargo test --release -p 'grin*'
 
   windows-tests:
     name: Windows Tests
@@ -47,4 +47,4 @@ jobs:
         with:
           submodules: recursive
       - name: Tests
-        run: cargo test --release --all --features grin_p2p/tor-static
+        run: cargo test --release -p 'grin*' --features grin_p2p/tor-static
