@@ -53,8 +53,12 @@ struct JsonRpcError {
 	message: String,
 }
 
-/// Parse and validate the JSON-RPC response returned by a mwixnet server.
+/// Parse a Mwixnet swap response
 pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, MwixnetError> {
+	parse(response, "success")
+}
+
+pub(super) fn parse(response: &str, expected: &str) -> Result<MwixnetResponse, MwixnetError> {
 	let response: JsonRpcResponse = serde_json::from_str(response)
 		.map_err(|e| MwixnetError::GenericError(format!("Invalid mwixnet response: {}", e)))?;
 
@@ -76,9 +80,7 @@ pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, Mwixnet
 	if let Some(error) = response.error {
 		return Ok(MwixnetResponse::Rejected(error.message));
 	}
-	if response.result == Some(serde_json::json!("success"))
-		|| response.result == Some(serde_json::json!("ok"))
-	{
+	if response.result.as_ref().and_then(Value::as_str) == Some(expected) {
 		return Ok(MwixnetResponse::Accepted);
 	}
 
@@ -99,10 +101,9 @@ mod tests {
 			MwixnetResponse::Accepted
 		);
 
-		assert_eq!(
-			parse_mwixnet_response(r#"{"jsonrpc":"2.0","result":"ok","id":1}"#).unwrap(),
-			MwixnetResponse::Accepted
-		);
+		let ok = r#"{"jsonrpc":"2.0","result":"ok","id":1}"#;
+		assert_eq!(parse(ok, "ok").unwrap(), MwixnetResponse::Accepted);
+		assert!(parse_mwixnet_response(ok).is_err());
 
 		assert_eq!(
 			parse_mwixnet_response(

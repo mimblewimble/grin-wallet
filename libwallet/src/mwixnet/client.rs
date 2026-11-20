@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::mwixnet::{parse_mwixnet_response, MwixnetError, MwixnetResponse, SwapReq};
+use super::{response::parse, MwixnetError, MwixnetResponse, SwapReq};
 
 use grin_api::json_rpc;
 use grin_tor::config::TorConfig;
@@ -55,7 +55,8 @@ where
 				return Err(MwixnetError::TorError(e));
 			}
 		};
-		parse_mwixnet_response(response.body())
+		let expected = if method == "health" { "ok" } else { "success" };
+		parse(response.body(), expected)
 	}
 
 	/// Swap outputs request.
