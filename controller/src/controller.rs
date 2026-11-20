@@ -323,6 +323,7 @@ where
 					Err(e) => {
 						warn!("Unable to start TOR listener");
 						error!("Tor Error: {}", e);
+						warn!("Listener is available on {}", addr);
 						break Err(e);
 					}
 				}
@@ -349,7 +350,7 @@ where
 			}
 			thread::sleep(Duration::from_millis(500));
 		};
-		if startup.is_err() || retry {
+		if retry {
 			apis.stop();
 		}
 
@@ -374,7 +375,6 @@ where
 		if restart?? || retry {
 			continue;
 		}
-		startup?;
 		return Ok(());
 	}
 }
