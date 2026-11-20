@@ -1034,7 +1034,11 @@ mod tests {
 	fn onion_auth() {
 		let dir = std::env::temp_dir().join(format!("grin-wallet-auth-{}", Uuid::new_v4()));
 		let old = dir.join("tor/listener/onion_service_addresses/onion/authorized_clients");
-		let new = dir.join("new/listener/onion/onion_service_addresses/onion/authorized_clients");
+		let new = dir
+			.join("new")
+			.join("listener")
+			.join("onion")
+			.join("onion_service_addresses/onion/authorized_clients");
 		let check = || check_onion_auth(dir.to_str().unwrap(), &dir.join("new"), "onion");
 		check().unwrap();
 
