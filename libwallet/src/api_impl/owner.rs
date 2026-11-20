@@ -45,7 +45,7 @@ use grin_wallet_util::byte_ser;
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::Verifier;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
-use grin_p2p::tor::ov3::OnionV3Address;
+use grin_tor::ov3::OnionV3Address;
 use std::cmp;
 use std::convert::{TryFrom, TryInto};
 use std::sync::mpsc::Sender;

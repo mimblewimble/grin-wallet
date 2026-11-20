@@ -35,7 +35,7 @@ pub enum MwixnetError {
 	GenericError(String),
 	/// Tor request error
 	#[error("{0}")]
-	TorError(grin_p2p::tor::Error),
+	TorError(grin_tor::Error),
 }
 
 #[derive(Deserialize)]

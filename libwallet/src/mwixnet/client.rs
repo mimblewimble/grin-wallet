@@ -15,9 +15,9 @@
 use crate::mwixnet::{parse_mwixnet_response, MwixnetError, MwixnetResponse, SwapReq};
 
 use grin_api::json_rpc;
-use grin_p2p::tor::config::TorConfig;
-use grin_p2p::tor::ov3::OnionV3Address;
-use grin_p2p::tor::TorHttpClient;
+use grin_tor::config::TorConfig;
+use grin_tor::ov3::OnionV3Address;
+use grin_tor::TorHttpClient;
 use grin_wallet_config::TorWalletConfig;
 
 use async_trait::async_trait;

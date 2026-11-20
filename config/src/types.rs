@@ -16,7 +16,7 @@
 
 use crate::core::global::ChainTypes;
 use crate::util::logger::LoggingConfig;
-use grin_p2p::tor::config::{
+use grin_tor::config::{
 	TorBridgeConfig, TorConfig, TorOutboundProxy, TorProxyConfig, BOOTSTRAP_TIMEOUT_SECS,
 	MIN_CIRCUIT_TIMEOUT_MS, REQUEST_TIMEOUT_SECS,
 };

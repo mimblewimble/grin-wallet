@@ -35,7 +35,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::secp::pedersen::Commitment;
 use crate::util::{Mutex, ToHex, ZeroingString};
 use crate::{controller, display};
-use grin_p2p::tor::ov3::OnionV3Address;
+use grin_tor::ov3::OnionV3Address;
 
 use qr_code::QrCode;
 use serde_json as json;

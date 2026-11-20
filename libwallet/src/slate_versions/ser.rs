@@ -68,7 +68,7 @@ pub mod option_rangeproof_hex {
 
 /// Optional onion address as text
 pub mod option_ov3_serde {
-	use grin_p2p::tor::ov3::{OnionV3Address, OnionV3Error};
+	use grin_tor::ov3::{OnionV3Address, OnionV3Error};
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;
@@ -100,7 +100,7 @@ pub mod option_ov3_serde {
 
 /// Onion address as text
 pub mod ov3_serde {
-	use grin_p2p::tor::ov3::{OnionV3Address, OnionV3Error};
+	use grin_tor::ov3::{OnionV3Address, OnionV3Error};
 	use serde::de::Error;
 	use serde::{Deserialize, Deserializer, Serializer};
 	use std::convert::TryFrom;

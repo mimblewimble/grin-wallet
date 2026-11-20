@@ -18,9 +18,9 @@ use crate::libwallet::Error;
 use crate::libwallet::SlatepackAddress;
 
 use async_trait::async_trait;
-use grin_p2p::tor::config::TorConfig;
-use grin_p2p::tor::ov3::OnionV3Address;
-use grin_p2p::tor::{start_tor, TorHttpClient};
+use grin_tor::config::TorConfig;
+use grin_tor::ov3::OnionV3Address;
+use grin_tor::{start_tor, TorHttpClient};
 use std::collections::HashMap;
 
 #[derive(Clone)]

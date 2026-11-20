@@ -377,18 +377,18 @@ impl From<bech32::Error> for Error {
 	}
 }
 
-impl From<grin_p2p::tor::Error> for Error {
-	fn from(error: grin_p2p::tor::Error) -> Error {
+impl From<grin_tor::Error> for Error {
+	fn from(error: grin_tor::Error) -> Error {
 		match error {
-			grin_p2p::tor::Error::Config(e) => Error::TorConfig(e),
-			grin_p2p::tor::Error::Generic(e) => Error::Tor(e),
-			grin_p2p::tor::Error::Post(e) => Error::Tor(format!("{}", e)),
+			grin_tor::Error::Config(e) => Error::TorConfig(e),
+			grin_tor::Error::Generic(e) => Error::Tor(e),
+			grin_tor::Error::Post(e) => Error::Tor(format!("{}", e)),
 		}
 	}
 }
 
-impl From<grin_p2p::tor::ov3::OnionV3Error> for Error {
-	fn from(error: grin_p2p::tor::ov3::OnionV3Error) -> Error {
+impl From<grin_tor::ov3::OnionV3Error> for Error {
+	fn from(error: grin_tor::ov3::OnionV3Error) -> Error {
 		Error::OnionV3Address(format!("{}", error))
 	}
 }

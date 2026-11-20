@@ -29,8 +29,8 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 
 use grin_api::ApiBody;
-use grin_p2p::tor::ov3::OnionV3Address;
-use grin_p2p::tor::{
+use grin_tor::ov3::OnionV3Address;
+use grin_tor::{
 	onion_service_status, start_onion_service_cancellable, stop_onion_service, ServiceStatus,
 };
 use grin_wallet_api::JsonId;
@@ -1000,7 +1000,7 @@ mod tests {
 		use ServiceStatus::*;
 		let mut now = Instant::now();
 		let mut retry_at = None;
-		let failed = || Errored(grin_p2p::tor::Error::Generic("stopped".into()));
+		let failed = || Errored(grin_tor::Error::Generic("stopped".into()));
 		assert!(!listener_retry(failed(), &mut retry_at, now));
 		now += Duration::from_secs(9);
 		assert!(!listener_retry(failed(), &mut retry_at, now));

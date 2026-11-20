@@ -31,7 +31,7 @@ use crate::util::secp::pedersen::Commitment;
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 use crate::{ECDHPubkey, Ed25519SecretKey, Owner, Token};
 
-use grin_p2p::tor::ov3::OnionV3Address;
+use grin_tor::ov3::OnionV3Address;
 use grin_wallet_libwallet::RetrieveTxQueryArgs;
 use libwallet::mwixnet::MwixnetReqCreationResult;
 use libwallet::slatepack::SlatepackAddressIndex;

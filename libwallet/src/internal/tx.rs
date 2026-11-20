@@ -33,7 +33,7 @@ use ed25519_dalek::Signature as DalekSignature;
 use ed25519_dalek::SigningKey as DalekSecretKey;
 use ed25519_dalek::VerifyingKey as DalekPublicKey;
 use ed25519_dalek::{Signer, Verifier};
-use grin_p2p::tor::ov3::OnionV3Address;
+use grin_tor::ov3::OnionV3Address;
 use std::io::Cursor;
 use uuid::Uuid;
 

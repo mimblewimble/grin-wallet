@@ -59,7 +59,7 @@ where
 	// ... if node isn't available, allow offline functions
 
 	let res = wallet_args::wallet_command(wallet_args, config, node_client, false, |_| {});
-	let stopped = grin_p2p::tor::stop_tor();
+	let stopped = grin_tor::stop_tor();
 	if let Err(ref e) = stopped {
 		log::error!("Unable to stop Tor sender: {}", e);
 	}

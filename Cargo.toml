@@ -17,7 +17,7 @@ path = "src/bin/grin-wallet.rs"
 
 [workspace]
 members = ["api", "config", "controller", "impls", "libwallet", "util"]
-exclude = ["integration"]
+exclude = ["integration", "grin"]
 
 [workspace.dependencies]
 grin_api = { path = "grin/api" }
@@ -26,7 +26,7 @@ grin_core = { path = "grin/core" }
 grin_keychain = { path = "grin/keychain" }
 grin_store = { path = "grin/store" }
 grin_util = { path = "grin/util" }
-grin_p2p = { path = "grin/p2p" }
+grin_tor = { path = "grin/tor" }
 
 [dependencies]
 clap = { version = "2.33", features = ["yaml"] }
@@ -51,7 +51,7 @@ grin_core = { workspace = true }
 grin_keychain = { workspace = true }
 grin_util = { workspace = true }
 grin_api = { workspace = true }
-grin_p2p = { workspace = true, features = ["tor"] }
+grin_tor = { workspace = true }
 
 ###### 
 

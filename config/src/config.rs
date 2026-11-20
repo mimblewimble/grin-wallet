@@ -732,7 +732,7 @@ impl GlobalWalletConfig {
 mod tests {
 	use super::*;
 	use crate::core::global::ChainTypes;
-	use grin_p2p::tor::config::TorBridgeConfig;
+	use grin_tor::config::TorBridgeConfig;
 	use std::sync::{Arc, Barrier};
 	use std::thread;
 	use tempfile::tempdir;

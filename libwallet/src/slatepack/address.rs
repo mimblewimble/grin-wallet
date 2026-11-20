@@ -25,7 +25,7 @@ use grin_core::global;
 use grin_core::ser::{self, Readable, Reader, Writeable, Writer};
 use grin_util::secp::key::SecretKey;
 
-use grin_p2p::tor::ov3::OnionV3Address;
+use grin_tor::ov3::OnionV3Address;
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
 

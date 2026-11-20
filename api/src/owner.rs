@@ -41,7 +41,7 @@ use crate::util::logger::LoggingConfig;
 use crate::util::secp::{key::SecretKey, pedersen::Commitment};
 use crate::util::{from_hex, static_secp_instance, Mutex, ZeroingString};
 
-use grin_p2p::tor::ov3::OnionV3Address;
+use grin_tor::ov3::OnionV3Address;
 
 use chrono::prelude::*;
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -2824,7 +2824,7 @@ where
 		server: OnionV3Address,
 	) -> Result<Option<String>, Error> {
 		let tor_config = get_global_tor_config(&self.config_path())?;
-		grin_p2p::tor::start_tor(&tor_config)?;
+		grin_tor::start_tor(&tor_config)?;
 		let client = MwixnetClientImpl::new(tor_config, server);
 		let rt = tokio::runtime::Builder::new_current_thread()
 			.enable_all()
