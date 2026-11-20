@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::config::TorConfig;
-use crate::libwallet::Error;
+use crate::libwallet::{Error, StatelessReceiveConfig};
 use crate::util::Mutex;
 use grin_wallet_config::config::get_global_config;
 use std::path::{Path, PathBuf};
@@ -42,4 +42,17 @@ impl From<PathBuf> for ConfigPath {
 
 pub(crate) fn load(config_path: &Path) -> Result<TorConfig, Error> {
 	Ok(get_global_config(config_path)?.tor_config())
+}
+
+/// Stateless receive settings from the wallet configuration. A wallet whose
+/// configuration can't be read (e.g. one embedded without a config file)
+/// receives the regular, stateful way.
+pub(crate) fn load_stateless_receive(config_path: &Path) -> StatelessReceiveConfig {
+	match get_global_config(config_path) {
+		Ok(c) => StatelessReceiveConfig {
+			enabled: c.members.wallet.stateless_receive(),
+			min_amount: c.members.wallet.stateless_receive_min_amount,
+		},
+		Err(_) => StatelessReceiveConfig::default(),
+	}
 }

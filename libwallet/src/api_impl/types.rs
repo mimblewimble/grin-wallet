@@ -407,3 +407,13 @@ mod tests {
 		assert!(args.refresh_outputs_from_node);
 	}
 }
+
+/// How the Foreign API answers standard (Standard1) send requests
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StatelessReceiveConfig {
+	/// Build the response without storing anything in the wallet
+	pub enabled: bool,
+	/// Minimum accepted amount in nanogrin, if any. Only applies when
+	/// `enabled` is set.
+	pub min_amount: Option<u64>,
+}

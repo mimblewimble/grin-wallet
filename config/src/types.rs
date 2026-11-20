@@ -56,6 +56,15 @@ pub struct WalletConfig {
 	/// Scaling factor from transaction weight to transaction fee
 	/// should match accept_fee_base parameter in grin-server
 	pub accept_fee_base: Option<u64>,
+	/// If Some(true), incoming standard transactions are answered without
+	/// storing anything in the wallet: the output key is taken from a random
+	/// range and the output is only added to the wallet once a scan finds it
+	/// on chain. Requests abandoned by the sender then leave no pending
+	/// outputs or transaction log entries behind.
+	pub stateless_receive: Option<bool>,
+	/// Minimum amount, in nanogrin, accepted when stateless_receive is on.
+	/// Smaller requests are rejected before any output is built.
+	pub stateless_receive_min_amount: Option<u64>,
 }
 
 impl Default for WalletConfig {
@@ -75,6 +84,8 @@ impl Default for WalletConfig {
 			tls_certificate_key: None,
 			dark_background_color_scheme: Some(true),
 			accept_fee_base: None,
+			stateless_receive: Some(false),
+			stateless_receive_min_amount: None,
 		}
 	}
 }
@@ -107,6 +118,11 @@ impl WalletConfig {
 	/// Owner API listen address
 	pub fn owner_api_listen_addr(&self) -> String {
 		format!("127.0.0.1:{}", self.owner_api_listen_port())
+	}
+
+	/// Whether incoming standard transactions are received statelessly
+	pub fn stateless_receive(&self) -> bool {
+		self.stateless_receive.unwrap_or(false)
 	}
 
 	/// Accept fee base
