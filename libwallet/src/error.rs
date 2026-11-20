@@ -289,6 +289,15 @@ pub enum Error {
 	#[error("Transaction Expired")]
 	TransactionExpired,
 
+	/// Amount is below the minimum this wallet accepts in a stateless receive
+	#[error("Amount {amount} is below the minimum of {minimum} accepted by this wallet")]
+	ReceiveAmountTooLow {
+		/// Amount requested in the slate
+		amount: u64,
+		/// Configured minimum
+		minimum: u64,
+	},
+
 	/// Kernel features args don't exist
 	#[error("Kernel Features Arg {0} missing")]
 	KernelFeaturesMissing(String),

@@ -296,7 +296,7 @@ fn restore_missing_outputs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	outputs: Vec<OutputResult>,
-	found_parents: &mut HashMap<Identifier, u32>,
+	found_parents: &mut HashMap<Identifier, Option<u32>>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	perc_complete: u8,
 ) -> Result<(), Error>
@@ -318,9 +318,12 @@ where
 				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 			}
 
-			let parent_key_id = output.key_id.parent_path();
+			// Outputs received statelessly belong to their account, but were
+			// not allocated from its sequential child index
+			let is_stateless = keys::is_stateless_receive_key_id(&output.key_id);
+			let parent_key_id = keys::output_parent_key_id(&output.key_id);
 			if !found_parents.contains_key(&parent_key_id) {
-				found_parents.insert(parent_key_id.clone(), 0);
+				found_parents.insert(parent_key_id.clone(), None);
 			}
 
 			let log_id = batch.next_tx_log_id(&parent_key_id)?;
@@ -349,9 +352,11 @@ where
 				tx_log_entry: Some(log_id),
 			})?;
 
-			let max_child_index = *found_parents.get(&parent_key_id).unwrap();
-			if output.n_child >= max_child_index {
-				found_parents.insert(parent_key_id, output.n_child);
+			if !is_stateless {
+				let max_child_index = *found_parents.get(&parent_key_id).unwrap();
+				if max_child_index.map_or(true, |m| output.n_child >= m) {
+					found_parents.insert(parent_key_id, Some(output.n_child));
+				}
 			}
 		}
 		batch.commit()?;
@@ -370,7 +375,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = output.key_id.parent_path();
+	let parent_key_id = keys::output_parent_key_id(&output.key_id);
 	wallet_lock!(wallet_inst, w);
 	let updated_tx_entry = if output.tx_log_entry.is_some() {
 		let entries = updater::retrieve_txs(
@@ -569,7 +574,7 @@ where
 		batch.commit()?;
 	}
 
-	let mut found_parents: HashMap<Identifier, u32> = HashMap::new();
+	let mut found_parents: HashMap<Identifier, Option<u32>> = HashMap::new();
 
 	debug!("scan: restoring {} missing outputs", missing_outs.len());
 
@@ -642,12 +647,16 @@ where
 			keys::set_acct_path(w, keychain_mask, &label, path)?;
 			acct_index += 1;
 		}
-		let current_child_index = w.current_child_index(&path)?;
-		if *max_child_index >= current_child_index {
-			let mut batch = w.batch(keychain_mask)?;
-			debug!("Next child for account {} is {}", path, max_child_index + 1);
-			batch.save_child_index(path, max_child_index + 1)?;
-			batch.commit()?;
+		// None: only stateless receives were found under this account, which
+		// say nothing about its sequential child index
+		if let Some(max_child_index) = max_child_index {
+			let current_child_index = w.current_child_index(&path)?;
+			if *max_child_index >= current_child_index {
+				let mut batch = w.batch(keychain_mask)?;
+				debug!("Next child for account {} is {}", path, max_child_index + 1);
+				batch.save_child_index(path, max_child_index + 1)?;
+				batch.commit()?;
+			}
 		}
 	}
 

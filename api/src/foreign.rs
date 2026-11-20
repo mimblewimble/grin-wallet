@@ -18,8 +18,8 @@ use crate::keychain::Keychain;
 use crate::libwallet::api_impl::foreign;
 use crate::libwallet::api_impl::types::update_tx_slate_state;
 use crate::libwallet::{
-	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, VersionInfo, WalletInst,
-	WalletLCProvider,
+	BlockFees, CbData, Error, NodeClient, NodeVersionInfo, Slate, StatelessReceiveConfig,
+	VersionInfo, WalletInst, WalletLCProvider,
 };
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
@@ -76,6 +76,9 @@ where
 	middleware: Option<ForeignCheckMiddleware>,
 	/// Stored keychain mask (in case the stored wallet seed is tokenized)
 	keychain_mask: Option<SecretKey>,
+	/// Stateless receive settings set by the caller, taking precedence over
+	/// the wallet configuration
+	stateless_receive: Option<StatelessReceiveConfig>,
 }
 
 impl<'a, L, C, K> Foreign<'a, L, C, K>
@@ -187,7 +190,20 @@ where
 			doctest_mode,
 			middleware,
 			keychain_mask,
+			stateless_receive: None,
 		}
+	}
+
+	/// Choose how [`receive_tx`](struct.Foreign.html#method.receive_tx)
+	/// answers standard send requests, regardless of the `stateless_receive`
+	/// and `stateless_receive_min_amount` settings in the wallet
+	/// configuration file. `None` (the default) defers to the configuration
+	/// file, where stateless receive is off unless enabled.
+	///
+	/// Intended for callers embedding the wallet without a configuration
+	/// file.
+	pub fn set_stateless_receive(&mut self, config: Option<StatelessReceiveConfig>) {
+		self.stateless_receive = config;
 	}
 
 	/// Return the version capabilities of the running ForeignApi Node
@@ -321,6 +337,11 @@ where
 	/// # Remarks
 	///
 	/// * This method will store a partially completed transaction in the wallet's transaction log.
+	/// * Unless stateless receive is enabled, either via `stateless_receive` in the wallet
+	/// configuration or [`set_stateless_receive`](struct.Foreign.html#method.set_stateless_receive).
+	/// In that case nothing is stored: the output is created from a random key range and is only
+	/// added to the wallet, together with its transaction log entry, once the wallet's scan finds
+	/// it on chain.
 	///
 	/// # Example
 	/// Set up as in [new](struct.Foreign.html#method.new) method above.
@@ -359,13 +380,26 @@ where
 				Some(slate),
 			)?;
 		}
-		let ret_slate = foreign::receive_tx(
-			w,
-			(&self.keychain_mask).as_ref(),
-			slate,
-			dest_acct_name,
-			self.doctest_mode,
-		)?;
+		let stateless = self
+			.stateless_receive
+			.unwrap_or_else(|| crate::tor_config::load_stateless_receive(&self.config_path.get()));
+		let ret_slate = match stateless.enabled {
+			false => foreign::receive_tx(
+				w,
+				(&self.keychain_mask).as_ref(),
+				slate,
+				dest_acct_name,
+				self.doctest_mode,
+			)?,
+			true => foreign::receive_tx_stateless(
+				w,
+				(&self.keychain_mask).as_ref(),
+				slate,
+				dest_acct_name,
+				stateless.min_amount,
+				self.doctest_mode,
+			)?,
+		};
 		match r_addr {
 			Some(a) => {
 				let tc = tor_config.ok_or_else(|| {
@@ -378,6 +412,11 @@ where
 				let res = try_slatepack_sync_workflow(&ret_slate, &a, Some(tc), None, true);
 				match res {
 					Ok(s) => {
+						if stateless.enabled {
+							// nothing was stored for this slate, so there is no
+							// slate state to update
+							return Ok(s);
+						}
 						let parent_key_id = w.parent_key_id();
 						match update_tx_slate_state(
 							w,

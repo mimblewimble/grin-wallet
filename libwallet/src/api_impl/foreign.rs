@@ -140,6 +140,98 @@ where
 	Ok(ret_slate)
 }
 
+/// Receive a tx as recipient without persisting anything.
+///
+/// Builds the same Standard2 response as [`receive_tx`], but the wallet
+/// database is left untouched: no pending output, no transaction log entry,
+/// no slate state and no sequential child index allocation. The output key
+/// is taken from the stateless receive range `m/a/(0x40000000 | r0)/r1/r2`
+/// (see `internal::keys::stateless_receive_key_id`) and is committed to in the output's rewindable range proof, so the output
+/// is picked up by the regular chain scan once the sender has finalized and
+/// posted the transaction. An exchange that the sender abandons therefore
+/// leaves no trace in the receiving wallet.
+///
+/// Consequences of keeping no state:
+/// * the same slate can be received more than once; every call returns a
+///   different output and at most one of the resulting transactions can
+///   confirm, since they all spend the sender's inputs
+/// * the transaction only appears in the wallet once it is on chain; there
+///   is no `TxReceived` entry carrying the slate id, and nothing to cancel
+///
+/// `min_amount`, if given, rejects requests for a smaller amount before any
+/// output or signature is built.
+pub fn receive_tx_stateless<C, K>(
+	w: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate: &Slate,
+	dest_acct_name: Option<&str>,
+	min_amount: Option<u64>,
+	use_test_rng: bool,
+) -> Result<Slate, Error>
+where
+	C: NodeClient,
+	K: Keychain,
+{
+	if slate.amount == 0 {
+		return Err(Error::InvalidAmount);
+	}
+	if let Some(minimum) = min_amount {
+		if slate.amount < minimum {
+			return Err(Error::ReceiveAmountTooLow {
+				amount: slate.amount,
+				minimum,
+			});
+		}
+	}
+
+	let mut ret_slate = slate.clone();
+	if ret_slate.state != SlateState::Standard1 {
+		return Err(Error::SlateState);
+	}
+	check_ttl(w, &ret_slate)?;
+	let parent_key_id = match dest_acct_name {
+		Some(d) => {
+			let pm = w.get_acct_path(d.to_owned())?;
+			match pm {
+				Some(p) => p.path,
+				None => w.parent_key_id(),
+			}
+		}
+		None => w.parent_key_id(),
+	};
+
+	ret_slate.tx = Some(Slate::empty_transaction());
+
+	let keychain = w.keychain(keychain_mask)?;
+
+	let context =
+		tx::add_output_to_slate_stateless(&keychain, &mut ret_slate, &parent_key_id, use_test_rng)?;
+
+	// Add our contribution to the offset
+	ret_slate.adjust_offset(&keychain, &context)?;
+
+	let excess = ret_slate.calc_excess(keychain.secp())?;
+
+	if let Some(ref mut p) = ret_slate.payment_proof {
+		let sig = tx::create_payment_proof_signature(
+			ret_slate.amount,
+			&excess,
+			p.sender_address,
+			address::address_from_derivation_path(&keychain, &parent_key_id, 0)?,
+		)?;
+
+		p.receiver_signature = Some(sig);
+	}
+
+	ret_slate.amount = 0;
+	ret_slate.fee_fields = FeeFields::zero();
+	ret_slate.remove_other_sigdata(&keychain, &context.sec_nonce, &context.sec_key)?;
+
+	ret_slate.state = SlateState::Standard2;
+
+	Ok(ret_slate)
+}
+
 /// Receive a tx that this wallet has issued
 pub fn finalize_tx<C, K>(
 	w: &mut WalletBackend<C, K>,

@@ -68,9 +68,10 @@ pub use api_impl::owner_updater::StatusMessage;
 pub use api_impl::types::{
 	Amount, BlockFees, BuiltOutput, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs,
-	RetrieveTxQuerySortField, RetrieveTxQuerySortOrder, VersionInfo,
+	RetrieveTxQuerySortField, RetrieveTxQuerySortOrder, StatelessReceiveConfig, VersionInfo,
 };
 pub use backend::{WalletBackend, WalletBatch};
+pub use internal::keys::{is_stateless_receive_key_id, output_parent_key_id};
 pub use internal::scan::scan;
 pub use internal::updater::{
 	map_wallet_outputs, refresh_outputs, retrieve_info, retrieve_outputs, retrieve_txs,
