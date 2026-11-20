@@ -190,8 +190,8 @@ where
 	res.and(shutdown.map(|_| ()))
 }
 
-/// Listener version, providing same API but listening for requests on a
-/// port and wrapping the calls
+/// Listen for foreign API requests
+/// Handle Ctrl+C when no stop receiver is provided
 #[allow(clippy::too_many_arguments)]
 pub fn foreign_listener<L, C, K>(
 	wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
@@ -202,7 +202,7 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	test_mode: bool,
-	stop_rx: tokio::sync::watch::Receiver<bool>,
+	stop_rx: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -210,7 +210,7 @@ where
 	K: Keychain + 'static,
 {
 	loop {
-		if *stop_rx.borrow() {
+		if stop_rx.as_ref().is_some_and(|rx| *rx.borrow()) {
 			return Ok(());
 		}
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
@@ -270,7 +270,7 @@ where
 			stop_tx.clone(),
 			Some(restart_rx),
 			finished_rx,
-			Some(stop_rx.clone()),
+			stop_rx.clone(),
 		);
 
 		let tor_started = if tor_config.use_tor_listener {
@@ -443,6 +443,7 @@ fn api_shutdown(
 			.build()
 			.map_err(|e| Error::GenericError(format!("API shutdown runtime failed: {}", e)))
 			.map(|runtime| {
+				let handle_ctrl_c = stop_rx.is_none();
 				runtime.block_on(async {
 					tokio::select! {
 						biased;
@@ -459,7 +460,7 @@ fn api_shutdown(
 								warn!("Unable to handle Ctrl+C: {}", e);
 								std::future::pending::<()>().await;
 							}
-						} => false,
+						}, if handle_ctrl_c => false,
 						restart = async {
 							match restart_rx.as_ref() {
 								Some(rx) => loop {

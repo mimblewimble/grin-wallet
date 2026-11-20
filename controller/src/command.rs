@@ -243,6 +243,7 @@ where
 		return Err(Error::ListenerError);
 	}
 	let (stop, stop_rx) = tokio::sync::watch::channel(false);
+	let stop_rx = background.is_some().then_some(stop_rx);
 	let wallet_inst = owner_api.wallet_inst.clone();
 	let config_path = owner_api.config_path();
 	let g_args = g_args.clone();
