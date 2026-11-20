@@ -17,7 +17,7 @@ extern crate grin_wallet_config as config;
 extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
-use config::config::{get_global_config, reload_global_config};
+use config::config::{get_global_config, get_global_tor_config, reload_global_config};
 use config::GlobalWalletConfig;
 use impls::test_framework::LocalWalletClient;
 use libwallet::{InitTxArgs, InitTxSendArgs};
@@ -86,7 +86,7 @@ fn tor_disable() {
 	let stored_config = GlobalWalletConfig::new(path.clone()).unwrap();
 	assert_eq!(stored_config.members.wallet.api_listen_port, 3416);
 	let stored = stored_config.tor_config();
-	let cached = get_global_config(&path).unwrap().tor_config();
+	let cached = get_global_tor_config(&path).unwrap();
 	assert!(!stored.use_tor_listener);
 	assert_eq!(stored.skip_send_attempt, Some(true));
 	assert_eq!(

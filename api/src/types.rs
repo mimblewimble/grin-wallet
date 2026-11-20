@@ -18,10 +18,13 @@ use crate::util::secp::key::{PublicKey, SecretKey};
 use crate::util::{from_hex, ToHex};
 use ed25519_dalek::SigningKey as DalekSecretKey;
 
+use grin_util::Mutex;
 use rand::{thread_rng, Rng};
 use ring::aead;
 use serde_json::{self, Value};
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Represents a compliant JSON RPC 2.0 id.
 /// Valid id: Integer, String.
@@ -290,10 +293,8 @@ impl EncryptionErrorResponse {
 		let res = serde_json::to_value(self).map_err(|_| {
 			Error::APIEncryption("EncryptedResponse: JSON serialization failed".to_owned())
 		});
-		match res {
-			Ok(r) => r,
-			// proverbial "should never happen"
-			Err(r) => serde_json::json!({
+		res.unwrap_or_else(|r| {
+			serde_json::json!({
 					"json_rpc" : "2.0",
 					"id" : "1",
 					"error" : {
@@ -301,8 +302,29 @@ impl EncryptionErrorResponse {
 						"code": -32000
 					}
 				}
-			),
-		}
+			)
+		})
+	}
+}
+
+/// Shared path to the active wallet configuration.
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct ConfigPath(Arc<Mutex<PathBuf>>);
+
+impl ConfigPath {
+	pub(crate) fn get(&self) -> PathBuf {
+		self.0.lock().clone()
+	}
+
+	pub(crate) fn set(&self, path: PathBuf) {
+		*self.0.lock() = path;
+	}
+}
+
+impl From<PathBuf> for ConfigPath {
+	fn from(path: PathBuf) -> Self {
+		Self(Arc::new(Mutex::new(path)))
 	}
 }
 

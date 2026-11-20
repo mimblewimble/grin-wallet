@@ -26,7 +26,7 @@ use grin_keychain as keychain;
 use grin_util::secp::constants::PEDERSEN_COMMITMENT_SIZE;
 use grin_util::secp::pedersen::Commitment;
 use grin_wallet_api::Owner;
-use grin_wallet_config::{GlobalWalletConfig, TorConfig, WalletConfig};
+use grin_wallet_config::{GlobalWalletConfig, TorWalletConfig, WalletConfig};
 use grin_wallet_controller::command::GlobalArgs;
 use grin_wallet_controller::{command, Error};
 use grin_wallet_impls::{DefaultLCProvider, DefaultWalletImpl};
@@ -1157,7 +1157,7 @@ where
 				&global_wallet_args,
 				wallet_args,
 				test_mode,
-				false,
+				None,
 			)
 		}
 	};
@@ -1207,11 +1207,11 @@ pub fn parse_and_execute<L, C, K>(
 	owner_api: &mut Owner<L, C, K>,
 	keychain_mask: Option<SecretKey>,
 	wallet_config: &WalletConfig,
-	tor_config: TorConfig,
+	tor_config: TorWalletConfig,
 	global_wallet_args: &command::GlobalArgs,
 	wallet_args: &ArgMatches,
 	test_mode: bool,
-	cli_mode: bool,
+	listener: Option<&mut Option<command::Listener>>,
 ) -> Result<(), Error>
 where
 	DefaultWalletImpl<C>: WalletInst<'static, L, C, K>,
@@ -1259,7 +1259,7 @@ where
 				bridge,
 				use_tor,
 				&global_wallet_args.clone(),
-				cli_mode,
+				listener,
 				test_mode,
 			)
 		}

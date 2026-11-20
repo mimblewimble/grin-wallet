@@ -22,6 +22,7 @@ use crate::libwallet::{
 };
 use crate::try_slatepack_sync_workflow;
 use crate::util::secp::key::SecretKey;
+use grin_wallet_config::config::get_global_tor_config;
 use libwallet::SlatepackAddress;
 
 /// ForeignAPI Middleware Check callback
@@ -340,7 +341,7 @@ where
 		let mut w_lock = self.wallet_inst.lock();
 		let tor_config = r_addr
 			.as_ref()
-			.map(|_| crate::tor_config::load(&self.config_path.get()))
+			.map(|_| get_global_tor_config(&self.config_path.get()))
 			.transpose()?;
 		let w = w_lock.lc_provider()?.wallet_inst()?;
 		if let Some(m) = self.middleware.as_ref() {
@@ -368,7 +369,7 @@ where
 				if self.doctest_mode || !can_send {
 					return Ok(ret_slate);
 				}
-				let res = try_slatepack_sync_workflow(&ret_slate, &a, Some(tc), None, true);
+				let res = try_slatepack_sync_workflow(&ret_slate, &a, &tc, true);
 				match res {
 					Ok(s) => {
 						let mut w_lock = self.wallet_inst.lock();

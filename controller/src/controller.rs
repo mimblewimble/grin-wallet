@@ -15,10 +15,11 @@
 //! Controller for wallet, instantiates and handles listeners (or single-run
 //! invocations) as needed.
 use crate::api::{self, ApiServer, BasicAuthMiddleware, ResponseFuture, Router, TLSConfig};
-use crate::config::TorConfig;
-use crate::impls::tor::config as tor_config;
-use crate::impls::tor::process as tor_process;
-use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
+use crate::apiwallet::{
+	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
+	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
+};
+use crate::config::TorWalletConfig;
 use crate::keychain::Keychain;
 use crate::libwallet::{
 	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletLCProvider,
@@ -26,9 +27,24 @@ use crate::libwallet::{
 };
 use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
-use grin_wallet_api::JsonId;
-use grin_wallet_util::OnionV3Address;
 
+use grin_api::ApiBody;
+use grin_tor::config::TorConfig;
+use grin_tor::ov3::OnionV3Address;
+use grin_tor::{
+	onion_service_status, start_onion_service_cancellable, stop_onion_service, ServiceStatus,
+};
+use grin_wallet_api::JsonId;
+use grin_wallet_config::config::{
+	add_global_config_listener, get_global_config, get_global_tor_config,
+	remove_global_config_listener,
+};
+use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
+
+use easy_jsonrpc_mw;
+use easy_jsonrpc_mw::{Handler, MaybeReply};
+use http_body_util::{BodyExt, Full};
+use hyper::body::Incoming;
 use hyper::header::HeaderValue;
 use hyper::{Request, Response, StatusCode};
 use qr_code::QrCode;
@@ -36,28 +52,13 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::io::Cursor;
+use std::fs;
+use std::io::{self, Cursor};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-
-use crate::apiwallet::{
-	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
-	ForeignCheckMiddlewareFn, ForeignRpc, Owner, OwnerRpc,
-};
-use easy_jsonrpc_mw;
-use easy_jsonrpc_mw::{Handler, MaybeReply};
-use grin_api::ApiBody;
-use grin_wallet_config::config::{
-	add_global_config_listener, get_global_config, remove_global_config_listener,
-};
-use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
-use grin_wallet_impls::tor::process::TorProcess;
-use grin_wallet_libwallet::slatepack::SlatepackAddressIndex;
-use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 lazy_static! {
@@ -86,49 +87,6 @@ fn check_middleware(
 			Ok(())
 		}
 	}
-}
-
-/// initiate the tor listener
-fn init_tor_listener(
-	sec_key: SecretKey,
-	tor_dir: String,
-	addr: &str,
-	tor_config: TorConfig,
-) -> Result<tor_process::TorProcess, Error> {
-	info!("Starting external Tor Process listener.");
-
-	let mut process = tor_process::TorProcess::new();
-	let tor_timeout = tor_config.bootstrap_timeout().as_secs();
-
-	let mut hm_tor_bridge: HashMap<String, String> = HashMap::new();
-	if tor_config.bridge.bridge_line.is_some() {
-		let bridge_config = tor_bridge::TorBridge::try_from(tor_config.bridge)
-			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
-		hm_tor_bridge = bridge_config
-			.to_hashmap()
-			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
-	}
-
-	let mut hm_tor_poxy: HashMap<String, String> = HashMap::new();
-	if tor_config.proxy.transport.is_some() || tor_config.proxy.allowed_port.is_some() {
-		let proxy_config = tor_proxy::TorProxy::try_from(tor_config.proxy)
-			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
-		hm_tor_poxy = proxy_config
-			.to_hashmap()
-			.map_err(|e| Error::TorConfig(format!("{}", e)))?;
-	}
-
-	tor_config::output_tor_listener_config(&tor_dir, addr, &[sec_key], hm_tor_bridge, hm_tor_poxy)
-		.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-	// Start TOR process
-	process
-		.torrc_path(&format!("{}/torrc", tor_dir))
-		.working_dir(&tor_dir)
-		.timeout(tor_timeout)
-		.completion_percent(100)
-		.launch()
-		.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
-	Ok(process)
 }
 
 /// Instantiate wallet Foreign API for a single-use (command line) call
@@ -211,6 +169,7 @@ where
 	}
 
 	let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
+	let stop_tx = api_chan.0.clone();
 
 	let mut apis = ApiServer::new();
 	warn!("Starting HTTP Owner API server at {}.", addr);
@@ -219,13 +178,20 @@ where
 		.start(socket_addr, router, tls_config, api_chan)
 		.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
 	warn!("HTTP Owner listener started.");
-	api_thread
+	let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+	let shutdown = api_shutdown(stop_tx, None, finished_rx, None);
+	let res = api_thread
 		.join()
-		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)))
+		.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
+	let _ = finished_tx.send(());
+	let shutdown = shutdown
+		.join()
+		.map_err(|_| Error::GenericError("API shutdown thread panicked".into()))?;
+	res.and(shutdown.map(|_| ()))
 }
 
-/// Listener version, providing same API but listening for requests on a
-/// port and wrapping the calls
+/// Listen for foreign API requests
+/// Handle Ctrl+C when no stop receiver is provided
 #[allow(clippy::too_many_arguments)]
 pub fn foreign_listener<L, C, K>(
 	wallet: grin_wallet_libwallet::WalletHandle<'static, L, C, K>,
@@ -236,6 +202,7 @@ pub fn foreign_listener<L, C, K>(
 	addr: &str,
 	tls_config: Option<TLSConfig>,
 	test_mode: bool,
+	stop_rx: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<(), Error>
 where
 	L: WalletLCProvider<'static, C, K> + 'static,
@@ -243,13 +210,13 @@ where
 	K: Keychain + 'static,
 {
 	loop {
+		if stop_rx.as_ref().is_some_and(|rx| *rx.borrow()) {
+			return Ok(());
+		}
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
-		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
-
-		let tor_config = listener_tor_config(&config_path, bridge.clone(), use_tor)?;
 
 		// Check if wallet has been opened first
-		let (sec_key, tor_dir, onion_address) = {
+		let (sec_key, onion_address, wallet_dir) = {
 			let mask = keychain_mask.lock();
 			let mut w_lock = wallet.lock();
 			let lc = w_lock.lc_provider()?;
@@ -259,11 +226,12 @@ where
 			let sec_key =
 				address::address_from_derivation_path(&k, &parent_key_id, SlatepackAddressIndex(0))
 					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 			let onion_address = OnionV3Address::from_private(&sec_key.0)
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			(sec_key, tor_dir, onion_address)
+			(sec_key, onion_address, lc.get_top_level_directory())
 		};
+
+		let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
 
 		let api_handler_v2 = ForeignAPIHandlerV2::new(
 			wallet.clone(),
@@ -282,85 +250,237 @@ where
 
 		let mut apis = ApiServer::new();
 		warn!("Starting HTTP Foreign listener API server at {}.", addr);
-		let socket_addr: SocketAddr = addr.parse().expect("unable to parse socket address");
+		let socket_addr: SocketAddr = addr
+			.parse()
+			.map_err(|_| Error::GenericError("Invalid listener address".into()))?;
+		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
+		let tor_config =
+			listener_tor_config(&config_path, bridge.clone(), use_tor).inspect_err(|_| {
+				remove_global_config_listener(&config_path, "foreign_listener");
+			})?;
 		let api_thread = apis
 			.start(socket_addr, router, tls_config.clone(), api_chan)
-			.map_err(|_| Error::GenericError("API thread failed to start".to_string()))?;
+			.map_err(|_| {
+				remove_global_config_listener(&config_path, "foreign_listener");
+				Error::GenericError("API thread failed to start".to_string())
+			})?;
 		warn!("HTTP Foreign listener started.");
+		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+		let shutdown = api_shutdown(
+			stop_tx.clone(),
+			Some(restart_rx),
+			finished_rx,
+			stop_rx.clone(),
+		);
 
-		// Need to keep external process in scope while the listener is running.
-		let _tor_service = if tor_config.use_tor_listener {
-			let use_integrated = tor_config.use_integrated.unwrap_or(false);
-
-			let res: Result<Option<TorProcess>, Error> = if use_integrated {
-				match start_tor_service(sec_key, addr, &tor_config.clone()) {
-					Ok(_) => Ok(None),
-					Err(e) => {
-						error!("Error starting integrated Tor service: {}", e);
-						Err(e)
-					}
+		let tor_started = if tor_config.use_tor_listener {
+			let started = (|| {
+				if !tor_config.use_integrated() {
+					let dir = wallet_dir?;
+					let onion = onion_address.to_string();
+					check_onion_auth(&dir, &tor_config.data_dir(), &onion)
+						.map_err(|e| Error::TorConfig(e.to_string()))?;
 				}
-			} else {
-				match init_tor_listener(sec_key, tor_dir, addr, tor_config.clone()) {
-					Ok(p) => Ok(Some(p)),
-					Err(e) => {
-						error!("Error starting external Tor listener: {}", e);
-						Err(e)
-					}
-				}
-			};
-			match res {
-				Ok(service) => {
+				start_onion_service_cancellable(sec_key, addr, &tor_config, stop_tx.closed())
+					.map_err(Error::from)
+			})();
+			match started {
+				Ok(true) => {
 					warn!(
 						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
 						onion_address, addr
 					);
-					let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
-					let qr_string = match QrCode::new(sp_address.to_string()) {
-						Ok(qr) => qr.to_string(false, 3),
-						Err(_) => "Failed to generate QR code!".to_string(),
-					};
-					warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
-					Ok(service)
+					true
 				}
+				Ok(false) => false,
 				Err(e) => {
 					warn!("Unable to start TOR listener");
 					error!("Tor Error: {}", e);
 					warn!("Listener is available on {}", addr);
-					Err(e)
+					false
 				}
 			}
 		} else {
 			warn!("Listener is available on {}", addr);
-			Ok(None)
+			false
 		};
 
-		// Start thread to check if restart is needed.
-		let restart_needed = Arc::new(AtomicBool::new(false));
-		let t_restart_needed = restart_needed.clone();
-		thread::spawn(move || {
-			if restart_rx.recv().is_ok() {
-				t_restart_needed.store(true, Ordering::SeqCst);
-				let _ = stop_tx.try_send(());
+		let startup = if tor_started {
+			loop {
+				if shutdown.is_finished() || api_thread.is_finished() {
+					break Ok(());
+				}
+				match listener_ready(onion_service_status(onion_address.to_string())) {
+					Ok(false) => thread::sleep(Duration::from_millis(500)),
+					Ok(true) => {
+						let qr_string = match QrCode::new(sp_address.to_string()) {
+							Ok(qr) => qr.to_string(false, 3),
+							Err(_) => "Failed to generate QR code!".to_string(),
+						};
+						warn!("Slatepack Address is: {}\n{}", sp_address, qr_string);
+						break Ok(());
+					}
+					Err(e) => {
+						warn!("Unable to start TOR listener");
+						error!("Tor Error: {}", e);
+						warn!("Listener is available on {}", addr);
+						break Err(e);
+					}
+				}
 			}
-		});
+		} else {
+			Ok(())
+		};
+		let mut retry_at = None;
+		let retry = loop {
+			if !tor_started
+				|| startup.is_err()
+				|| shutdown.is_finished()
+				|| api_thread.is_finished()
+			{
+				break false;
+			}
+			if listener_retry(
+				onion_service_status(onion_address.to_string()),
+				&mut retry_at,
+				Instant::now(),
+			) {
+				warn!("Restarting Tor listener");
+				break true;
+			}
+			thread::sleep(Duration::from_millis(500));
+		};
+		if retry {
+			apis.stop();
+		}
 
 		let res = api_thread
 			.join()
 			.map_err(|e| Error::GenericError(format!("API thread panicked :{:?}", e)));
-
-		if tor_config.use_tor_listener && tor_config.use_integrated.unwrap_or(false) {
-			stop_tor_service(onion_address.to_string())?;
+		let _ = finished_tx.send(());
+		let restart = shutdown
+			.join()
+			.map_err(|_| Error::GenericError("API shutdown thread panicked".into()));
+		remove_global_config_listener(&config_path, "foreign_listener");
+		let stopped = if tor_started {
+			stop_onion_service(onion_address.to_string()).map_err(Error::from)
+		} else {
+			Ok(())
+		};
+		if let Err(ref e) = stopped {
+			error!("Unable to stop Tor listener: {}", e);
 		}
-
-		if restart_needed.load(Ordering::Relaxed) {
+		res?;
+		stopped?;
+		if restart?? || retry {
 			continue;
 		}
-
-		remove_global_config_listener(&config_path, "foreign_listener");
-
-		return res;
+		return Ok(());
 	}
+}
+
+fn check_onion_auth(wallet_dir: &str, tor_dir: &Path, onion: &str) -> io::Result<()> {
+	let auth_dir = format!("onion_service_addresses/{onion}/authorized_clients");
+	let old = Path::new(wallet_dir).join("tor/listener").join(&auth_dir);
+	let new = tor_dir.join("listener").join(onion).join(auth_dir);
+	if has_auth(&old)? && !has_auth(&new)? {
+		return Err(io::Error::other(format!(
+			"Set up Tor client authorization in {} before starting the onion listener",
+			new.display()
+		)));
+	}
+	Ok(())
+}
+
+fn has_auth(dir: &Path) -> io::Result<bool> {
+	let entries = match fs::read_dir(dir) {
+		Ok(entries) => entries,
+		Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(false),
+		Err(e) => return Err(e),
+	};
+	for entry in entries {
+		let entry = entry?;
+		if entry.file_name().to_string_lossy().ends_with(".auth") {
+			let metadata = fs::metadata(entry.path())?;
+			if metadata.is_file() && metadata.len() > 0 {
+				return Ok(true);
+			}
+		}
+	}
+	Ok(false)
+}
+
+fn listener_ready(status: ServiceStatus) -> Result<bool, Error> {
+	match status {
+		ServiceStatus::Running | ServiceStatus::Bootstrapped | ServiceStatus::Degraded => Ok(true),
+		ServiceStatus::Errored(e) => Err(Error::from(e)),
+		ServiceStatus::Stopped => Err(Error::GenericError("Tor listener stopped".into())),
+		_ => Ok(false),
+	}
+}
+
+fn listener_retry(status: ServiceStatus, retry_at: &mut Option<Instant>, now: Instant) -> bool {
+	match status {
+		ServiceStatus::Errored(_) | ServiceStatus::Stopped => {
+			now >= *retry_at.get_or_insert(now + Duration::from_secs(10))
+		}
+		_ => {
+			*retry_at = None;
+			false
+		}
+	}
+}
+
+fn api_shutdown(
+	stop_tx: mpsc::Sender<()>,
+	restart_rx: Option<std::sync::mpsc::Receiver<()>>,
+	finished_rx: tokio::sync::oneshot::Receiver<()>,
+	stop_rx: Option<tokio::sync::watch::Receiver<bool>>,
+) -> thread::JoinHandle<Result<bool, Error>> {
+	thread::spawn(move || {
+		let res = tokio::runtime::Builder::new_current_thread()
+			.enable_all()
+			.build()
+			.map_err(|e| Error::GenericError(format!("API shutdown runtime failed: {}", e)))
+			.map(|runtime| {
+				let handle_ctrl_c = stop_rx.is_none();
+				runtime.block_on(async {
+					tokio::select! {
+						biased;
+						_ = async {
+							match stop_rx {
+								Some(mut rx) => {
+									let _ = rx.wait_for(|stop| *stop).await;
+								}
+								None => std::future::pending::<()>().await,
+							}
+						} => false,
+						_ = async {
+							if let Err(e) = tokio::signal::ctrl_c().await {
+								warn!("Unable to handle Ctrl+C: {}", e);
+								std::future::pending::<()>().await;
+							}
+						}, if handle_ctrl_c => false,
+						restart = async {
+							match restart_rx.as_ref() {
+								Some(rx) => loop {
+									match rx.try_recv() {
+										Ok(()) => break true,
+										Err(std::sync::mpsc::TryRecvError::Disconnected) => break false,
+										Err(std::sync::mpsc::TryRecvError::Empty) => {}
+									}
+									tokio::time::sleep(Duration::from_millis(500)).await;
+								},
+								None => std::future::pending::<bool>().await,
+							}
+						} => restart,
+						_ = finished_rx => restart_rx.as_ref().is_some_and(|rx| rx.try_recv().is_ok()),
+					}
+				})
+			});
+		let _ = stop_tx.try_send(());
+		res
+	})
 }
 
 fn register_config_listener(
@@ -377,10 +497,10 @@ fn listener_tor_config(
 	config_path: &Path,
 	bridge: Option<String>,
 	use_tor: Option<bool>,
-) -> Result<TorConfig, Error> {
-	let mut tor_config = get_global_config(config_path)?.tor_config();
+) -> Result<TorWalletConfig, Error> {
+	let mut tor_config = get_global_tor_config(config_path)?;
 	if let Some(bridge) = bridge {
-		tor_config.bridge.bridge_line = Some(bridge);
+		tor_config.set_bridge(bridge);
 	}
 	if let Some(use_tor) = use_tor {
 		tor_config.use_tor_listener = use_tor;
@@ -647,7 +767,12 @@ where
 		is_init_secure_api = OwnerV3Helpers::is_init_secure_api(&val);
 		// also need to intercept open/close wallet requests
 		let is_open_wallet = OwnerV3Helpers::is_open_wallet(&val);
-		match <dyn OwnerRpc>::handle_request(&*api, val) {
+		let rpc_api = api.clone();
+		let reply =
+			tokio::task::spawn_blocking(move || <dyn OwnerRpc>::handle_request(&*rpc_api, val))
+				.await
+				.map_err(|e| Error::GenericError(format!("Owner API task failed: {}", e)))?;
+		match reply {
 			MaybeReply::Reply(mut r) => {
 				let (_was_error, unencrypted_intercept) =
 					OwnerV3Helpers::check_error_response(&r.clone());
@@ -766,7 +891,11 @@ where
 		api: Foreign<'static, L, C, K>,
 	) -> Result<serde_json::Value, Error> {
 		let val: serde_json::Value = parse_body(req).await?;
-		match <dyn ForeignRpc>::handle_request(&api, val) {
+		let reply =
+			tokio::task::spawn_blocking(move || <dyn ForeignRpc>::handle_request(&api, val))
+				.await
+				.map_err(|e| Error::GenericError(format!("Foreign API task failed: {}", e)))?;
+		match reply {
 			MaybeReply::Reply(r) => Ok(r),
 			MaybeReply::DontReply => {
 				// Since it's http, we need to return something. We return [] because jsonrpc
@@ -902,6 +1031,79 @@ mod tests {
 	use uuid::Uuid;
 
 	#[test]
+	fn onion_auth() {
+		let dir = std::env::temp_dir().join(format!("grin-wallet-auth-{}", Uuid::new_v4()));
+		let old = dir.join("tor/listener/onion_service_addresses/onion/authorized_clients");
+		let new = dir
+			.join("new")
+			.join("listener")
+			.join("onion")
+			.join("onion_service_addresses/onion/authorized_clients");
+		let check = || check_onion_auth(dir.to_str().unwrap(), &dir.join("new"), "onion");
+		check().unwrap();
+
+		fs::create_dir_all(&old).unwrap();
+		fs::write(old.join("client.auth"), b"authorization").unwrap();
+		let error = check().unwrap_err();
+		assert!(error.to_string().contains(new.to_str().unwrap()));
+		assert!(!new.exists());
+
+		fs::create_dir_all(&new).unwrap();
+		fs::write(new.join("client.auth"), []).unwrap();
+		assert!(check().is_err());
+		fs::write(new.join("client.auth"), b"new authorization").unwrap();
+		check().unwrap();
+		fs::remove_dir_all(dir).unwrap();
+	}
+
+	#[test]
+	fn listener_ready() {
+		assert!(!super::listener_ready(ServiceStatus::Starting).unwrap());
+		assert!(!super::listener_ready(ServiceStatus::Recovering).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Running).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Degraded).unwrap());
+		assert!(super::listener_ready(ServiceStatus::Stopped).is_err());
+	}
+
+	#[test]
+	fn retry_delay() {
+		use ServiceStatus::*;
+		let mut now = Instant::now();
+		let mut retry_at = None;
+		let failed = || Errored(grin_tor::Error::Generic("stopped".into()));
+		assert!(!listener_retry(failed(), &mut retry_at, now));
+		now += Duration::from_secs(9);
+		assert!(!listener_retry(failed(), &mut retry_at, now));
+		now += Duration::from_secs(1);
+		assert!(listener_retry(failed(), &mut retry_at, now));
+		assert!(!listener_retry(Running, &mut retry_at, now));
+		assert!(retry_at.is_none());
+		assert!(!listener_retry(Stopped, &mut retry_at, now));
+		assert!(!listener_retry(Recovering, &mut retry_at, now));
+		assert!(retry_at.is_none());
+	}
+
+	#[test]
+	fn api_stop() {
+		let (stop_tx, mut stop_rx) = mpsc::channel(1);
+		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+		let shutdown = api_shutdown(stop_tx, None, finished_rx, None);
+		finished_tx.send(()).unwrap();
+		assert!(!shutdown.join().unwrap().unwrap());
+		assert_eq!(stop_rx.try_recv(), Ok(()));
+
+		let (stop_tx, mut stop_rx) = mpsc::channel(1);
+		let (_finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+		let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+		cancel_tx.send(true).unwrap();
+		let (restart_tx, restart_rx) = channel();
+		restart_tx.send(()).unwrap();
+		let shutdown = api_shutdown(stop_tx, Some(restart_rx), finished_rx, Some(cancel_rx));
+		assert!(!shutdown.join().unwrap().unwrap());
+		assert_eq!(stop_rx.try_recv(), Ok(()));
+	}
+
+	#[test]
 	fn listener_reload() {
 		let dir = std::env::temp_dir().join(format!("grin-wallet-listener-{}", Uuid::new_v4()));
 		fs::create_dir(&dir).unwrap();
@@ -914,12 +1116,18 @@ mod tests {
 		let (restart_tx, restart_rx) = channel();
 		register_config_listener(&path, "test_listener", restart_tx).unwrap();
 
+		let (stop_tx, mut stop_rx) = mpsc::channel(1);
+		let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+
 		update_global_config(&path, |config| {
 			config.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
 			Ok(())
 		})
 		.unwrap();
-		restart_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+		finished_tx.send(()).unwrap();
+		let shutdown = api_shutdown(stop_tx, Some(restart_rx), finished_rx, None);
+		assert!(shutdown.join().unwrap().unwrap());
+		assert_eq!(stop_rx.try_recv(), Ok(()));
 
 		let tor_config =
 			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();

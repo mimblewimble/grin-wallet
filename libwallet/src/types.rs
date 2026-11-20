@@ -15,7 +15,7 @@
 //! Types and traits that should be provided by a wallet
 //! implementation
 
-use crate::config::{TorConfig, WalletConfig};
+use crate::config::{TorWalletConfig, WalletConfig};
 use crate::error::Error;
 use crate::slate_versions::ser as dalek_ser;
 use crate::slatepack::SlatepackAddressIndex;
@@ -72,7 +72,7 @@ where
 		file_name: &str,
 		wallet_config: Option<WalletConfig>,
 		logging_config: Option<LoggingConfig>,
-		tor_config: Option<TorConfig>,
+		tor_config: Option<TorWalletConfig>,
 	) -> Result<(), Error>;
 
 	/// Create the seed file and wallet database from a mnemonic or fresh entropy

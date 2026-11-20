@@ -17,20 +17,26 @@
 use serde::Deserialize;
 use serde_json::{self, Value};
 
-/// Result returned by a mwixnet server after submitting a swap request.
+/// Result returned by a mwixnet server after submitting a request.
 #[derive(Debug, Eq, PartialEq)]
 pub enum MwixnetResponse {
-	/// The swap request was accepted.
+	/// The request was accepted.
 	Accepted,
-	/// The swap request was rejected with a message.
+	/// The request was rejected with a message.
 	//TODO: extend it with actual errors from mwixnet
 	Rejected(String),
 }
 
 /// Error parsing or validating a mwixnet response.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
-#[error("{0}")]
-pub struct MwixnetResponseError(String);
+pub enum MwixnetError {
+	/// General error
+	#[error("{0}")]
+	GenericError(String),
+	/// Tor request error
+	#[error("{0}")]
+	TorError(grin_tor::Error),
+}
 
 #[derive(Deserialize)]
 struct JsonRpcResponse {
@@ -47,34 +53,38 @@ struct JsonRpcError {
 	message: String,
 }
 
-/// Parse and validate the JSON-RPC response returned by a mwixnet server.
-pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, MwixnetResponseError> {
+/// Parse a Mwixnet swap response
+pub fn parse_mwixnet_response(response: &str) -> Result<MwixnetResponse, MwixnetError> {
+	parse(response, "success")
+}
+
+pub(super) fn parse(response: &str, expected: &str) -> Result<MwixnetResponse, MwixnetError> {
 	let response: JsonRpcResponse = serde_json::from_str(response)
-		.map_err(|e| MwixnetResponseError(format!("Invalid mwixnet response: {}", e)))?;
+		.map_err(|e| MwixnetError::GenericError(format!("Invalid mwixnet response: {}", e)))?;
 
 	if response.jsonrpc.as_deref() != Some("2.0") {
-		return Err(MwixnetResponseError(
+		return Err(MwixnetError::GenericError(
 			"Invalid mwixnet response version".to_string(),
 		));
 	}
 	if response.id != serde_json::json!(1) {
-		return Err(MwixnetResponseError(
+		return Err(MwixnetError::GenericError(
 			"Invalid mwixnet response ID".to_string(),
 		));
 	}
 	if response.result.is_some() && response.error.is_some() {
-		return Err(MwixnetResponseError(
+		return Err(MwixnetError::GenericError(
 			"Mwixnet response contains both result and error".to_string(),
 		));
 	}
 	if let Some(error) = response.error {
 		return Ok(MwixnetResponse::Rejected(error.message));
 	}
-	if response.result == Some(serde_json::json!("success")) {
+	if response.result.as_ref().and_then(Value::as_str) == Some(expected) {
 		return Ok(MwixnetResponse::Accepted);
 	}
 
-	Err(MwixnetResponseError(format!(
+	Err(MwixnetError::GenericError(format!(
 		"Unexpected mwixnet response result: {:?}",
 		response.result
 	)))
@@ -90,6 +100,10 @@ mod tests {
 			parse_mwixnet_response(r#"{"jsonrpc":"2.0","result":"success","id":1}"#).unwrap(),
 			MwixnetResponse::Accepted
 		);
+
+		let ok = r#"{"jsonrpc":"2.0","result":"ok","id":1}"#;
+		assert_eq!(parse(ok, "ok").unwrap(), MwixnetResponse::Accepted);
+		assert!(parse_mwixnet_response(ok).is_err());
 
 		assert_eq!(
 			parse_mwixnet_response(

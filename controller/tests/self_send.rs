@@ -137,7 +137,7 @@ fn transfer(
 			)?;
 			let sync_fail = matches!(case, Case::Sync | Case::SyncCancel);
 			if sync_fail {
-				api1.set_tor_config(Some(grin_wallet_config::TorConfig {
+				api1.set_tor_config(Some(grin_wallet_config::TorWalletConfig {
 					use_integrated: Some(false),
 					socks_proxy_addr: "invalid".into(),
 					..Default::default()
