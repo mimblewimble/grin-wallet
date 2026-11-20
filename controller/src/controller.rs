@@ -29,6 +29,7 @@ use crate::util::secp::key::SecretKey;
 use crate::util::{from_hex, static_secp_instance, to_base64, Mutex};
 
 use grin_api::ApiBody;
+use grin_tor::config::TorConfig;
 use grin_tor::ov3::OnionV3Address;
 use grin_tor::{
 	onion_service_status, start_onion_service_cancellable, stop_onion_service, ServiceStatus,
@@ -51,7 +52,8 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::io::Cursor;
+use std::fs;
+use std::io::{self, Cursor};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -214,7 +216,7 @@ where
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
 
 		// Check if wallet has been opened first
-		let (sec_key, onion_address) = {
+		let (sec_key, onion_address, wallet_dir) = {
 			let mask = keychain_mask.lock();
 			let mut w_lock = wallet.lock();
 			let lc = w_lock.lc_provider()?;
@@ -226,7 +228,7 @@ where
 					.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			let onion_address = OnionV3Address::from_private(&sec_key.0)
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			(sec_key, onion_address)
+			(sec_key, onion_address, lc.get_top_level_directory())
 		};
 
 		let sp_address = SlatepackAddress::try_from(onion_address.clone())?;
@@ -272,7 +274,17 @@ where
 		);
 
 		let tor_started = if tor_config.use_tor_listener {
-			match start_onion_service_cancellable(sec_key, addr, &tor_config, stop_tx.closed()) {
+			let started = (|| {
+				if !tor_config.use_integrated() {
+					let dir = wallet_dir?;
+					let onion = onion_address.to_string();
+					check_onion_auth(&dir, &tor_config.data_dir(), &onion)
+						.map_err(|e| Error::TorConfig(e.to_string()))?;
+				}
+				start_onion_service_cancellable(sec_key, addr, &tor_config, stop_tx.closed())
+					.map_err(Error::from)
+			})();
+			match started {
 				Ok(true) => {
 					warn!(
 						"Starting Tor Hidden Service for API listener at address {}, binding to {}",
@@ -365,6 +377,37 @@ where
 		startup?;
 		return Ok(());
 	}
+}
+
+fn check_onion_auth(wallet_dir: &str, tor_dir: &Path, onion: &str) -> io::Result<()> {
+	let auth_dir = format!("onion_service_addresses/{onion}/authorized_clients");
+	let old = Path::new(wallet_dir).join("tor/listener").join(&auth_dir);
+	let new = tor_dir.join("listener").join(onion).join(auth_dir);
+	if has_auth(&old)? && !has_auth(&new)? {
+		return Err(io::Error::other(format!(
+			"Set up Tor client authorization in {} before starting the onion listener",
+			new.display()
+		)));
+	}
+	Ok(())
+}
+
+fn has_auth(dir: &Path) -> io::Result<bool> {
+	let entries = match fs::read_dir(dir) {
+		Ok(entries) => entries,
+		Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(false),
+		Err(e) => return Err(e),
+	};
+	for entry in entries {
+		let entry = entry?;
+		if entry.file_name().to_string_lossy().ends_with(".auth") {
+			let metadata = fs::metadata(entry.path())?;
+			if metadata.is_file() && metadata.len() > 0 {
+				return Ok(true);
+			}
+		}
+	}
+	Ok(false)
 }
 
 fn listener_ready(status: ServiceStatus) -> Result<bool, Error> {
@@ -985,6 +1028,28 @@ mod tests {
 	use std::sync::mpsc::channel;
 	use std::time::Duration;
 	use uuid::Uuid;
+
+	#[test]
+	fn onion_auth() {
+		let dir = std::env::temp_dir().join(format!("grin-wallet-auth-{}", Uuid::new_v4()));
+		let old = dir.join("tor/listener/onion_service_addresses/onion/authorized_clients");
+		let new = dir.join("new/listener/onion/onion_service_addresses/onion/authorized_clients");
+		let check = || check_onion_auth(dir.to_str().unwrap(), &dir.join("new"), "onion");
+		check().unwrap();
+
+		fs::create_dir_all(&old).unwrap();
+		fs::write(old.join("client.auth"), b"authorization").unwrap();
+		let error = check().unwrap_err();
+		assert!(error.to_string().contains(new.to_str().unwrap()));
+		assert!(!new.exists());
+
+		fs::create_dir_all(&new).unwrap();
+		fs::write(new.join("client.auth"), []).unwrap();
+		assert!(check().is_err());
+		fs::write(new.join("client.auth"), b"new authorization").unwrap();
+		check().unwrap();
+		fs::remove_dir_all(dir).unwrap();
+	}
 
 	#[test]
 	fn listener_ready() {
