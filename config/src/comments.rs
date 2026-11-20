@@ -293,6 +293,13 @@ fn comments() -> HashMap<String, String> {
 #Set bridge_line to one or more bridge lines. Comment it out to disable bridges.
 #Support of the transport: webtunnel, obfs4, and snowflake.
 #webtunnel, obfs4proxy or snowflake client binary must be installed and on your path.
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"client_args".to_string(),
+		"
 #Custom path for client binary
 #bridge_bin_path = \"\"
 
@@ -301,7 +308,6 @@ fn comments() -> HashMap<String, String> {
 #\"\"\"
 
 #Transport client arguments
-#client_args = []
 "
 		.to_string(),
 	);
