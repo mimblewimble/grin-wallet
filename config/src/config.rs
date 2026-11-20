@@ -436,7 +436,10 @@ impl GlobalWalletConfig {
 
 	/// Return the configured Tor settings or defaults
 	pub fn tor_config(&self) -> TorWalletConfig {
-		self.members.tor.clone().unwrap_or_default()
+		self.members.tor.clone().unwrap_or_else(|| TorWalletConfig {
+			send_config_dir: self.members.wallet.data_file_dir.clone(),
+			..TorWalletConfig::default()
+		})
 	}
 
 	/// Requires the path to a config file
@@ -836,7 +839,7 @@ mod tests {
 		config.members.wallet.data_file_dir = "legacy-wallet-data".into();
 		config.members.tor = None;
 
-		assert_eq!(config.tor_config(), TorWalletConfig::default());
+		assert_eq!(config.tor_config().send_config_dir, "legacy-wallet-data");
 	}
 
 	#[test]
