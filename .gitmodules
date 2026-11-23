@@ -1,6 +1,4 @@
 [submodule "grin"]
 	path = grin
-	branch = tor_module
-; 	branch = master
-; 	url = https://github.com/mimblewimble/grin
-    url = https://github.com/ardocrat/grin
+	branch = staging
+	url = https://github.com/mimblewimble/grin
