@@ -39,12 +39,8 @@ mod error;
 mod lifecycle;
 mod node_clients;
 pub mod test_framework;
-pub mod tor;
 
-pub use crate::adapters::{
-	PathToSlate, SlateGetter, SlatePutter, SlateReceiver, SlateSender, TorSlateSender,
-};
-pub use crate::client_utils::json_rpc;
+pub use crate::adapters::{HttpSlateSender, PathToSlate, SlateGetter, SlatePutter, TorSlateSender};
 pub use crate::error::Error;
 pub use crate::lifecycle::DefaultLCProvider;
 pub use crate::node_clients::HTTPNodeClient;

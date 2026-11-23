@@ -24,8 +24,6 @@
 
 use grin_wallet_config as config;
 
-use grin_wallet_util as util;
-
 use blake2_rfc as blake2;
 
 #[macro_use]
