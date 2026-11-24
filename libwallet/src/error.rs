@@ -16,6 +16,7 @@
 
 use grin_core::core::{amount_to_hr_string, committed, transaction};
 use grin_core::libtx;
+use grin_tor::PostError;
 use grin_util::secp;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
@@ -258,6 +259,14 @@ pub enum Error {
 	#[error("Tor Error: {0}")]
 	Tor(String),
 
+	/// Tor post error if request was not sent.
+	#[error("Tor not sent: {0}")]
+	TorNotSent(String),
+
+	/// Tor post error if request may have been sent.
+	#[error("Tor possibly sent: {0}")]
+	TorPossiblySent(String),
+
 	/// Tor Configuration Error
 	#[error("Tor Config Error: {0}")]
 	TorConfig(String),
@@ -382,7 +391,10 @@ impl From<grin_tor::Error> for Error {
 		match error {
 			grin_tor::Error::Config(e) => Error::TorConfig(e),
 			grin_tor::Error::Generic(e) => Error::Tor(e),
-			grin_tor::Error::Post(e) => Error::Tor(format!("{}", e)),
+			grin_tor::Error::Post(e) => match e {
+				PostError::NotSent(e) => Error::TorNotSent(e),
+				PostError::PossiblySent(e, _, _) => Error::TorPossiblySent(e),
+			},
 		}
 	}
 }

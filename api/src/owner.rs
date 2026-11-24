@@ -746,8 +746,8 @@ where
 	///   With normal locking, a returned S1 slate alone does not tell you whether outputs are locked.
 	///   Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
 	///   for the slate ID before locking manually.
-	///   If `cancel_on_failure` is set in `send_args`, a failed Tor send cancels the transaction
-	///   and releases its outputs instead, so the returned S1 slate must not be forwarded.
+	///   If `cancel_on_failure` is set in `send_args`, cancels the transaction and releases its outputs
+	///   if we are sure Tor request was not sent, so the returned S1 slate must not be forwarded.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
@@ -863,7 +863,10 @@ where
 					}
 					Err(e) => {
 						error!("Error on sending over Tor: {}", e);
-						if sa.cancel_on_failure.unwrap_or(false) && !late_lock {
+						if !matches!(e, Error::TorPossiblySent { .. })
+							&& sa.cancel_on_failure.unwrap_or(false)
+							&& !late_lock
+						{
 							self.cancel_after_failed_send(keychain_mask, &slate);
 						}
 						Ok(slate)

@@ -33,8 +33,8 @@ pub trait HttpSlateSender: Send + Sync {
 		});
 
 		let res: String = self.post(url, req.to_string()).await.map_err(|e| {
-			let report = format!("Performing version check (is recipient listening?): {}", e);
-			Error::ClientCallback(report)
+			error!("Performing version check (is recipient listening?): {}", e);
+			e
 		})?;
 
 		let res: Value = serde_json::from_str(&res)
@@ -109,11 +109,11 @@ pub trait HttpSlateSender: Send + Sync {
 		trace!("Sending receive_tx request: {}", req);
 
 		let res: String = self.post(&url_str, req.to_string()).await.map_err(|e| {
-			let report = format!(
+			error!(
 				"Sending transaction slate to other wallet (is recipient listening?): {}",
 				e
 			);
-			Error::ClientCallback(report)
+			e
 		})?;
 
 		let res: Value = serde_json::from_str(&res)
