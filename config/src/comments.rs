@@ -133,13 +133,13 @@ fn comments() -> HashMap<String, String> {
 #transport = \"https\"
 
 #Proxy address, eg IP:PORT or Hostname
-#server = \"\"
+#address = \"\"
 
 #Username for the proxy server authentification
-#user = \"\"
+#username = \"\"
 
 #Password for the proxy server authentification
-#pass = \"\"
+#password = \"\"
 
 #This computer goes through a firewall that only allows connections to certain ports (Optional)
 #allowed_port = [80, 443]
@@ -276,11 +276,38 @@ fn comments() -> HashMap<String, String> {
 	);
 
 	retval.insert(
+		"min_circuit_timeout_ms".to_string(),
+		"
+#Minimum Tor circuit build timeout in milliseconds
+"
+		.to_string(),
+	);
+
+	retval.insert(
 		"[tor.bridge]".to_string(),
 		"
 #########################################
 ### TOR BRIDGE                        ###
 #########################################
+#Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
+#Set bridge_line to one or more bridge lines. Comment it out to disable bridges.
+#Support of the transport: webtunnel, obfs4, and snowflake.
+#webtunnel, obfs4proxy or snowflake client binary must be installed and on your path.
+"
+		.to_string(),
+	);
+
+	retval.insert(
+		"client_args".to_string(),
+		"
+#Custom path for client binary
+#bridge_bin_path = \"\"
+
+#bridge_line = \"\"\"
+#obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]
+#\"\"\"
+
+#Transport client arguments
 "
 		.to_string(),
 	);
@@ -288,25 +315,11 @@ fn comments() -> HashMap<String, String> {
 	retval.insert(
 		"[tor.proxy]".to_string(),
 		"
-#Tor bridge relay: allow to send and receive via TOR in a country where it is censored.
-#Enable it by entering a single bridge line. To disable it, you must comment it.
-#Support of the transport: webtunnel, obfs4, and snowflake.
-#webtunnel, obfs4proxy or snowflake client binary must be installed and on your path.
-#Custom path for client binary
-#bridge_bin_path = \"\"
-
-#For example, the bridge line must be in the following format for obfs4 transport: \"obfs4 [IP:PORT] [FINGERPRINT] cert=[CERT] iat-mode=[IAT-MODE]\"
-#bridge_line = \"\"
-
-#Plugging client option, needed only for snowflake (let it empty if you want to use the default option of tor) or debugging purpose
-#client_option = \"\"
-
-
 #########################################
 ### TOR PROXY                         ###
 #########################################
 "
-	.to_string(),
+		.to_string(),
 	);
 
 	retval

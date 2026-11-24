@@ -13,6 +13,5 @@
 // limitations under the License.
 
 mod client;
-pub mod json_rpc;
 
-pub use client::{Client, Error as ClientError, RUNTIME};
+pub use client::{Client, RUNTIME};

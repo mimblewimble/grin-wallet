@@ -155,6 +155,7 @@ where
 
 	// start the automatic updater
 	owner_api.start_updater(keychain_mask.as_ref(), Duration::from_secs(30))?;
+	let mut listener = None;
 	let mut wallet_opened = false;
 	loop {
 		match reader.readline(PROMPT) {
@@ -231,7 +232,7 @@ where
 							global_wallet_args,
 							&args,
 							test_mode,
-							true,
+							Some(&mut listener),
 						) {
 							Ok(_) => {
 								cli_message!("Command '{}' completed", args.subcommand().0);
@@ -259,6 +260,9 @@ where
 				break;
 			}
 		}
+	}
+	if let Some(mut listener) = listener {
+		listener.stop()?;
 	}
 	Ok(())
 

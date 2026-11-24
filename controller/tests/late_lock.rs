@@ -123,7 +123,7 @@ fn late_lock_test_impl(test_dir: &'static str) -> Result<(), libwallet::Error> {
 
 	// Make sure outputs are not locked on failed send with arguments.
 	// Fail sending without starting Tor
-	api1.set_tor_config(Some(grin_wallet_config::TorConfig {
+	api1.set_tor_config(Some(grin_wallet_config::TorWalletConfig {
 		use_integrated: Some(false),
 		socks_proxy_addr: "invalid".into(),
 		..Default::default()
