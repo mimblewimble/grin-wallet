@@ -18,6 +18,7 @@ use grin_core::core::{amount_to_hr_string, committed, transaction};
 use grin_core::libtx;
 use grin_tor::PostError;
 use grin_util::secp;
+use uuid::Uuid;
 
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, thiserror::Error, Serialize, Deserialize)]
@@ -166,6 +167,14 @@ pub enum Error {
 	/// Transaction has been cancelled
 	#[error("Transaction {0} has been cancelled")]
 	TransactionWasCancelled(String),
+
+	/// Auto-cancel failed
+	#[error("Could not cancel transaction {0} after Tor send failed: {1}")]
+	AutoCancelFailed(Uuid, String),
+
+	/// Auto-cancel skipped after uncertain delivery
+	#[error("Tor delivery for transaction {0} is uncertain: {1}")]
+	SlateDeliveryUncertain(Uuid, String),
 
 	/// Attempt to repost a transaction that's not completed and stored
 	#[error("Transaction building not completed: {0}")]

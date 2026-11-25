@@ -33,8 +33,10 @@ use std::time::Duration;
 
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
-use grin_wallet_api::Owner;
+use easy_jsonrpc_mw::Handler;
+use grin_wallet_api::{Owner, OwnerRpc};
 use libwallet::InitTxSendArgs;
+use serde_json::json;
 
 /// Exercises the Transaction API fully with a test NodeClient operating
 /// directly on a chain instance
@@ -519,12 +521,21 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 			}),
 			..Default::default()
 		};
-		let slate = api2.init_send_tx(mask2, args)?;
-		assert_eq!(slate.state, SlateState::Standard1);
+		let rpc = &api2 as &dyn OwnerRpc;
+		let response = rpc
+			.handle_request(json!({
+				"jsonrpc": "2.0", "id": 1, "method": "init_send_tx",
+				"params": {"token": null, "args": args}
+			}))
+			.as_option()
+			.unwrap();
+		let slate_id =
+			serde_json::from_value(response["result"]["Err"]["TransactionWasCancelled"].clone())
+				.unwrap();
 		api2.set_active_account(mask2, "source")?;
 		let (_, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
 		assert_eq!(wallet2_info.amount_locked, 0);
-		let (_, txs) = api2.retrieve_txs(mask2, true, None, Some(slate.id), None)?;
+		let (_, txs) = api2.retrieve_txs(mask2, true, None, Some(slate_id), None)?;
 		assert_eq!(txs.len(), 1);
 		assert_eq!(txs[0].tx_type, libwallet::TxLogEntryType::TxSentCancelled);
 	}

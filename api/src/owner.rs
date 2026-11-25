@@ -746,9 +746,8 @@ where
 	///   With normal locking, a returned S1 slate alone does not tell you whether outputs are locked.
 	///   Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
 	///   for the slate ID before locking manually.
-	///   If `cancel_on_failure` is set in `send_args`, cancels the transaction and releases its outputs
-	///   if the slate was not sent over Tor, so the returned S1 slate must not be forwarded.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
+	///   Auto-cancel errors include the slate ID.
 	///
 	/// # Remarks
 	///
@@ -865,9 +864,18 @@ where
 						error!("Error on sending over Tor: {}", e);
 						let cancel_on_failure = sa.cancel_on_failure.unwrap_or(false);
 						if should_cancel_failed_send(&e, cancel_on_failure, late_lock) {
-							self.cancel_after_failed_send(keychain_mask, &slate);
+							owner::cancel_failed_send(
+								self.wallet_inst.clone(),
+								keychain_mask,
+								slate.id,
+							)
+							.map_err(|e| Error::AutoCancelFailed(slate.id, e.to_string()))?;
+							Err(Error::TransactionWasCancelled(slate.id.to_string()))
+						} else if cancel_on_failure && !late_lock {
+							Err(Error::SlateDeliveryUncertain(slate.id, e.to_string()))
+						} else {
+							Ok(slate)
 						}
-						Ok(slate)
 					}
 				}
 			}
@@ -1157,21 +1165,6 @@ where
 				}
 			}
 			None => Ok(slate),
-		}
-	}
-
-	/// Cancels a transaction whose outputs were locked for a failed Tor send,
-	/// releasing them. Errors are logged, the caller still returns the slate.
-	fn cancel_after_failed_send(&self, keychain_mask: Option<&SecretKey>, slate: &Slate) {
-		match owner::cancel_failed_send(self.wallet_inst.clone(), keychain_mask, slate.id) {
-			Ok(_) => warn!(
-				"Cancelled tx {} after failed Tor send, outputs unlocked",
-				slate.id
-			),
-			Err(e) => error!(
-				"Error cancelling tx {} after failed Tor send: {}",
-				slate.id, e
-			),
 		}
 	}
 
