@@ -686,8 +686,7 @@ where
 		Err(e) => {
 			error!("Error sending slate sync: {}", e);
 			if should_cancel_failed_send(&e, args.cancel_on_failure, args.late_lock) {
-				owner_api
-					.cancel_tx(keychain_mask, None, Some(slate.id))
+				owner::cancel_failed_send(owner_api.wallet_inst.clone(), keychain_mask, slate.id)
 					.map_err(|e| libwallet::Error::AutoCancelFailed(slate.id, e.to_string()))?;
 				println!("Tx {} cancelled, outputs unlocked.", slate.id);
 				return Err(Error::GenericError(format!(

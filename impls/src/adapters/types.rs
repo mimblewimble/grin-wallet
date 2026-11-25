@@ -82,7 +82,13 @@ pub trait HttpSlateSender: Send + Sync {
 			.check_other_version(&url_str)
 			.await
 			.and_then(|version| VersionedSlate::into_version(slate.clone(), version))
-			.map_err(|e| Error::TorNotSent(format!("Before slate POST: {e}")))?;
+			.map_err(|e| {
+				let reason = match e {
+					Error::TorNotSent(reason) | Error::TorPossiblySent(reason) => reason,
+					e => e.to_string(),
+				};
+				Error::TorNotSent(format!("Before slate POST: {reason}"))
+			})?;
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = match finalize {
 			false => json!({

@@ -747,7 +747,8 @@ where
 	///   Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
 	///   for the slate ID before locking manually.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
-	///   Auto-cancel errors include the slate ID.
+	///   If delivery is unclear, auto-cancel leaves the outputs locked and returns
+	///   an error with the slate ID.
 	///
 	/// # Remarks
 	///
