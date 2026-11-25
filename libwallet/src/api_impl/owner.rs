@@ -327,34 +327,33 @@ where
 			Ok(_) => Ok(()),
 			Err(_) => {
 				// Collect indexes for transactions.
-				let collect_indexes =
-					|outstanding: bool,
-					 secret_indices: &Vec<SlatepackAddressIndex>|
-					 -> Result<Vec<SlatepackAddressIndex>, Error> {
-						wallet_lock!(wallet_inst, w);
-						let mut indices: Vec<SlatepackAddressIndex> = w
-							.tx_log_iter()?
-							.flatten()
-							.filter(|tx| {
-								let tx_type = if outstanding {
-									!tx.confirmed
-										&& (tx.tx_type == TxLogEntryType::TxReceived
-											|| tx.tx_type == TxLogEntryType::TxSent
-											|| tx.tx_type == TxLogEntryType::TxReverted)
-								} else {
-									tx.confirmed
-										&& tx.tx_type != TxLogEntryType::TxReceivedCancelled
-										&& tx.tx_type != TxLogEntryType::TxSentCancelled
-								};
-								tx_type && tx.parent_key_id == w.parent_key_id()
-							})
-							.filter_map(|t| t.address_index)
-							.filter(|i| !secret_indices.contains(i))
-							.collect();
-						indices.sort_unstable();
-						indices.dedup();
-						Ok(indices)
-					};
+				let collect_indexes = |outstanding: bool,
+				                       secret_indices: &Vec<SlatepackAddressIndex>|
+				 -> Result<Vec<SlatepackAddressIndex>, Error> {
+					wallet_lock!(wallet_inst, w);
+					let mut indices: Vec<SlatepackAddressIndex> = w
+						.tx_log_iter()?
+						.flatten()
+						.filter(|tx| {
+							let tx_type = if outstanding {
+								!tx.confirmed
+									&& (tx.tx_type == TxLogEntryType::TxReceived
+										|| tx.tx_type == TxLogEntryType::TxSent
+										|| tx.tx_type == TxLogEntryType::TxReverted)
+							} else {
+								tx.confirmed
+									&& tx.tx_type != TxLogEntryType::TxReceivedCancelled
+									&& tx.tx_type != TxLogEntryType::TxSentCancelled
+							};
+							tx_type && tx.parent_key_id == w.parent_key_id()
+						})
+						.filter_map(|t| t.address_index)
+						.filter(|i| !secret_indices.contains(i))
+						.collect();
+					indices.sort_unstable();
+					indices.dedup();
+					Ok(indices)
+				};
 				let mut indexes = collect_indexes(true, &secret_indices)?;
 				match try_decrypt_with(&mut indexes) {
 					Ok(_) => Ok(()),
@@ -612,14 +611,12 @@ where
 			.1
 			.iter()
 			.filter(|t| t.tx_type == TxLogEntryType::TxSent)
-			.count()
-			== 1
+			.count() == 1
 		&& txs
 			.1
 			.iter()
 			.filter(|t| t.tx_type == TxLogEntryType::TxReceived)
-			.count()
-			== 1
+			.count() == 1
 	{
 		txs.1.retain(|t| t.tx_type == TxLogEntryType::TxSent);
 	}
