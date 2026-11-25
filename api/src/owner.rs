@@ -1165,7 +1165,7 @@ where
 	/// Cancels a transaction whose outputs were locked for a failed Tor send,
 	/// releasing them. Errors are logged, the caller still returns the slate.
 	fn cancel_after_failed_send(&self, keychain_mask: Option<&SecretKey>, slate: &Slate) {
-		match self.cancel_tx(keychain_mask, None, Some(slate.id)) {
+		match owner::cancel_failed_send(self.wallet_inst.clone(), keychain_mask, slate.id) {
 			Ok(_) => warn!(
 				"Cancelled tx {} after failed Tor send, outputs unlocked",
 				slate.id

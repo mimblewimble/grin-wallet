@@ -497,8 +497,14 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 
 	// With cancel_on_failure, a failed send cancels the tx and releases its outputs
 	{
+		api2.create_account_path(mask2, "source")?;
+		api2.set_active_account(mask2, "source")?;
+		test_framework::award_blocks_to_wallet(&chain, wallet2.clone(), mask2, 10, false)?;
+		assert!(api2.retrieve_summary_info(mask2, true, 1)?.0);
+		api2.set_active_account(mask2, "default")?;
+
 		let args = InitTxArgs {
-			src_acct_name: None,
+			src_acct_name: Some("source".into()),
 			minimum_confirmations: 2,
 			max_outputs: 500,
 			num_change_outputs: 1,
@@ -515,6 +521,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		};
 		let slate = api2.init_send_tx(mask2, args)?;
 		assert_eq!(slate.state, SlateState::Standard1);
+		api2.set_active_account(mask2, "source")?;
 		let (_, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
 		assert_eq!(wallet2_info.amount_locked, 0);
 		let (_, txs) = api2.retrieve_txs(mask2, true, None, Some(slate.id), None)?;

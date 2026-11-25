@@ -1067,6 +1067,25 @@ where
 	tx::cancel_tx(w, keychain_mask, &parent_key_id, tx_id, tx_slate_id)
 }
 
+/// Cancel an unfinished send in its source account
+pub fn cancel_failed_send<'a, L, C, K>(
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: Uuid,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	wallet_lock!(wallet_inst, w);
+	let entry = tx::find_tx(w, slate_id, None, TxLogEntryType::TxSent)?;
+	if entry.tx_slate_state != Some(SlateState::Standard1) {
+		return Err(Error::TransactionNotCancellable(slate_id.to_string()));
+	}
+	tx::cancel_tx(w, keychain_mask, &entry.parent_key_id, None, Some(slate_id))
+}
+
 /// get stored tx
 /// crashes if stored tx has total fees exceeding 2^40 nanogrin
 pub fn get_stored_tx<C, K>(
