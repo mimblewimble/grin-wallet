@@ -115,7 +115,7 @@ pub struct InitTxSendArgs {
 	/// If set, skip the Slatepack TOR send attempt
 	pub skip_tor: Option<bool>,
 	/// If true, `init_send_tx` cancels the transaction and releases its locked outputs
-	/// when the Slatepack TOR send fails. By default (`None` or `false`), the outputs
+	/// if the slate was not sent over Tor. By default (`None` or `false`), the outputs
 	/// stay locked, so the returned slate can still be forwarded manually. Ignored with
 	/// late locking, where no outputs are locked before sending. Ignored by
 	/// `process_invoice_tx`: there the initiator finalizes and posts, so a send that

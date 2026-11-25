@@ -747,7 +747,7 @@ where
 	///   Set `skip_tor` explicitly or check [`retrieve_txs`](struct.Owner.html#method.retrieve_txs)
 	///   for the slate ID before locking manually.
 	///   If `cancel_on_failure` is set in `send_args`, cancels the transaction and releases its outputs
-	///   if we are sure Tor request was not sent, so the returned S1 slate must not be forwarded.
+	///   if the slate was not sent over Tor, so the returned S1 slate must not be forwarded.
 	/// * or [`libwallet::Error`](../grin_wallet_libwallet/struct.Error.html) if an error is encountered.
 	///
 	/// # Remarks
@@ -863,10 +863,8 @@ where
 					}
 					Err(e) => {
 						error!("Error on sending over Tor: {}", e);
-						if !matches!(e, Error::TorPossiblySent { .. })
-							&& sa.cancel_on_failure.unwrap_or(false)
-							&& !late_lock
-						{
+						let cancel_on_failure = sa.cancel_on_failure.unwrap_or(false);
+						if should_cancel_failed_send(&e, cancel_on_failure, late_lock) {
 							self.cancel_after_failed_send(keychain_mask, &slate);
 						}
 						Ok(slate)
@@ -2871,26 +2869,30 @@ pub fn try_slatepack_sync_workflow(
 	tor_config: &TorWalletConfig,
 	send_to_finalize: bool,
 ) -> Result<Slate, Error> {
-	let sender = match TorSlateSender::new(dest, tor_config.clone()) {
-		Ok(s) => s,
-		Err(e) => {
-			debug!("Cannot create Tor Slate sender {:?}", e);
-			return Err(e);
-		}
-	};
+	let sender = TorSlateSender::new(dest, tor_config.clone())
+		.map_err(|e| Error::TorNotSent(format!("Could not create Tor slate sender: {e}")))?;
 	warn!("Attempting to send transaction via Tor");
 	let rt = tokio::runtime::Builder::new_current_thread()
 		.enable_all()
 		.build()
-		.map_err(|e| Error::GenericError(format!("Could not create tokio runtime: {}", e)))?;
-	let res = rt.block_on(sender.send(slate, send_to_finalize));
-	match res {
-		Ok(s) => Ok(s),
-		Err(e) => {
-			debug!("Could not send Slate via Tor: {}", e);
-			Err(e)
-		}
-	}
+		.map_err(|e| Error::TorNotSent(format!("Could not create tokio runtime: {e}")))?;
+	rt.block_on(sender.send(slate, send_to_finalize))
+}
+
+/// Check whether to auto-cancel a failed send
+pub fn should_cancel_failed_send(error: &Error, cancel_on_failure: bool, late_lock: bool) -> bool {
+	cancel_on_failure && !late_lock && matches!(error, Error::TorNotSent(_))
+}
+
+#[test]
+fn auto_cancel_unsent_slate() {
+	let error = Error::TorNotSent("not sent".into());
+	assert!(should_cancel_failed_send(&error, true, false));
+	assert!(!should_cancel_failed_send(&error, false, false));
+	assert!(!should_cancel_failed_send(&error, true, true));
+	let error = Error::TorPossiblySent("no reply".into());
+	assert!(!should_cancel_failed_send(&error, true, false));
+	assert!(!should_cancel_failed_send(&Error::SlateDeser, true, false));
 }
 
 #[doc(hidden)]

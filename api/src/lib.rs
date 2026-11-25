@@ -46,7 +46,7 @@ mod types;
 
 pub use crate::foreign::{Foreign, ForeignCheckMiddleware, ForeignCheckMiddlewareFn};
 pub use crate::foreign_rpc::ForeignRpc;
-pub use crate::owner::{try_slatepack_sync_workflow, Owner};
+pub use crate::owner::{should_cancel_failed_send, try_slatepack_sync_workflow, Owner};
 pub use crate::owner_rpc::OwnerRpc;
 #[doc(hidden)]
 pub use crate::types::ConfigPath;

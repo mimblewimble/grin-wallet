@@ -15,7 +15,7 @@
 //! Grin wallet command-line function implementations
 
 use crate::api::TLSConfig;
-use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
+use crate::apiwallet::{should_cancel_failed_send, try_slatepack_sync_workflow, Owner};
 use crate::config::{TorWalletConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
@@ -685,7 +685,7 @@ where
 		}
 		Err(e) => {
 			error!("Error sending slate sync: {}", e);
-			if args.cancel_on_failure && !args.late_lock {
+			if should_cancel_failed_send(&e, args.cancel_on_failure, args.late_lock) {
 				owner_api.cancel_tx(keychain_mask, None, Some(slate.id))?;
 				println!("Tx {} cancelled, outputs unlocked.", slate.id);
 				return Err(Error::GenericError(format!(

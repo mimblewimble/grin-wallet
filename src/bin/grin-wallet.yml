@@ -180,7 +180,7 @@ subcommands:
             short: m
             long: manual
         - cancel_on_failure:
-            help: If the TOR send fails, cancel the transaction and unlock its outputs instead of printing the Slatepack for manual delivery
+            help: Cancel and unlock outputs after a Tor failure only if the slate was not sent
             long: cancel-on-failure
             conflicts_with:
               - late_lock
