@@ -237,3 +237,44 @@ fn wallet_file_repost() {
 	}
 	clean_output_dir(test_dir);
 }
+
+#[test]
+fn nrd_store() -> Result<(), libwallet::Error> {
+	use core::core::{FeeFields, KernelFeatures, NRDRelativeHeight};
+	use core::global;
+	use grin_keychain::ExtKeychain;
+	use libwallet::{Slate, WalletBackend};
+
+	let dir = "test_output/nrd_store";
+	setup(dir);
+	let client = impls::HTTPNodeClient::new("http://127.0.0.1:1", None, Duration::from_secs(1))?;
+	let wallet = WalletBackend::<_, ExtKeychain>::new(dir, client)?;
+	let slate = Slate::blank_with_kernel_features(
+		2,
+		false,
+		KernelFeatures::NoRecentDuplicate {
+			fee: FeeFields::zero(),
+			relative_height: NRDRelativeHeight::new(10)?,
+		},
+	)?;
+	let tx = slate.tx.unwrap();
+	wallet.store_tx("nrd", &tx)?;
+	global::set_local_nrd_enabled(true);
+	assert_eq!(wallet.get_stored_tx("nrd")?, Some(tx));
+	global::set_local_nrd_enabled(false);
+	assert!(matches!(
+		wallet.get_stored_tx("nrd"),
+		Err(libwallet::Error::StoredTx(_))
+	));
+	let path = PathBuf::from(dir).join("saved_txs/nrd.grintx");
+	for data in ["not hex", "00"] {
+		std::fs::write(&path, data)?;
+		assert!(matches!(
+			wallet.get_stored_tx("nrd"),
+			Err(libwallet::Error::StoredTx(_))
+		));
+	}
+	drop(wallet);
+	clean_output_dir(dir);
+	Ok(())
+}
