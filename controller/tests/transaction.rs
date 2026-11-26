@@ -33,8 +33,10 @@ use std::time::Duration;
 
 mod common;
 use common::{clean_output_dir, create_wallet_proxy, setup};
-use grin_wallet_api::Owner;
+use easy_jsonrpc_mw::Handler;
+use grin_wallet_api::{Owner, OwnerRpc};
 use libwallet::InitTxSendArgs;
+use serde_json::json;
 
 /// Exercises the Transaction API fully with a test NodeClient operating
 /// directly on a chain instance
@@ -449,6 +451,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 				post_tx: false,
 				fluff: false,
 				skip_tor: Some(false),
+				cancel_on_failure: None,
 			}),
 			..Default::default()
 		};
@@ -468,6 +471,7 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 				post_tx: false,
 				fluff: false,
 				skip_tor: Some(false),
+				cancel_on_failure: None,
 			}),
 			..Default::default()
 		};
@@ -483,6 +487,58 @@ fn basic_transaction_api(test_dir: &'static str) -> Result<(), libwallet::Error>
 		err_res.as_ref().err().unwrap(),
 		libwallet::Error::NotEnoughFunds { .. }
 	));
+
+	// By default, a failed send keeps the outputs locked
+	let locked_slate = results.iter().find_map(|r| r.as_ref().ok()).unwrap();
+	assert_eq!(locked_slate.state, SlateState::Standard1);
+	let (_, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+	assert!(wallet2_info.amount_locked > 0);
+	api2.cancel_tx(mask2, None, Some(locked_slate.id))?;
+	let (_, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+	assert_eq!(wallet2_info.amount_locked, 0);
+
+	// With cancel_on_failure, a failed send cancels the tx and releases its outputs
+	{
+		api2.create_account_path(mask2, "source")?;
+		api2.set_active_account(mask2, "source")?;
+		test_framework::award_blocks_to_wallet(&chain, wallet2.clone(), mask2, 10, false)?;
+		assert!(api2.retrieve_summary_info(mask2, true, 1)?.0);
+		api2.set_active_account(mask2, "default")?;
+
+		let args = InitTxArgs {
+			src_acct_name: Some("source".into()),
+			minimum_confirmations: 2,
+			max_outputs: 500,
+			num_change_outputs: 1,
+			selection_strategy_is_use_all: true,
+			amount: 1,
+			send_args: Some(InitTxSendArgs {
+				dest: "tgrin1xtxavwfgs48ckf3gk8wwgcndmn0nt4tvkl8a7ltyejjcy2mc6nfs9gm2lp".into(),
+				post_tx: false,
+				fluff: false,
+				skip_tor: Some(false),
+				cancel_on_failure: Some(true),
+			}),
+			..Default::default()
+		};
+		let rpc = &api2 as &dyn OwnerRpc;
+		let response = rpc
+			.handle_request(json!({
+				"jsonrpc": "2.0", "id": 1, "method": "init_send_tx",
+				"params": {"token": null, "args": args}
+			}))
+			.as_option()
+			.unwrap();
+		let slate_id =
+			serde_json::from_value(response["result"]["Err"]["TransactionWasCancelled"].clone())
+				.unwrap();
+		api2.set_active_account(mask2, "source")?;
+		let (_, wallet2_info) = api2.retrieve_summary_info(mask2, true, 1)?;
+		assert_eq!(wallet2_info.amount_locked, 0);
+		let (_, txs) = api2.retrieve_txs(mask2, true, None, Some(slate_id), None)?;
+		assert_eq!(txs.len(), 1);
+		assert_eq!(txs[0].tx_type, libwallet::TxLogEntryType::TxSentCancelled);
+	}
 
 	// try to build a transaction with amount inclusive of fees. Confirm that tx
 	// amount + fee is equal to the originally specified amount
@@ -554,7 +610,7 @@ fn tx_rollback(test_dir: &'static str) -> Result<(), libwallet::Error> {
 	// few values to keep things shorter
 	let reward = core::consensus::REWARD;
 	let cm = global::coinbase_maturity(); // assume all testing precedes soft fork height
-									   // mine a few blocks
+										  // mine a few blocks
 	let _ = test_framework::award_blocks_to_wallet(&chain, wallet1.clone(), mask1, 5, false);
 
 	let amount = 30_000_000_000;

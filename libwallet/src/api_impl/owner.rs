@@ -327,33 +327,34 @@ where
 			Ok(_) => Ok(()),
 			Err(_) => {
 				// Collect indexes for transactions.
-				let collect_indexes = |outstanding: bool,
-				                       secret_indices: &Vec<SlatepackAddressIndex>|
-				 -> Result<Vec<SlatepackAddressIndex>, Error> {
-					wallet_lock!(wallet_inst, w);
-					let mut indices: Vec<SlatepackAddressIndex> = w
-						.tx_log_iter()?
-						.flatten()
-						.filter(|tx| {
-							let tx_type = if outstanding {
-								!tx.confirmed
-									&& (tx.tx_type == TxLogEntryType::TxReceived
-										|| tx.tx_type == TxLogEntryType::TxSent
-										|| tx.tx_type == TxLogEntryType::TxReverted)
-							} else {
-								tx.confirmed
-									&& tx.tx_type != TxLogEntryType::TxReceivedCancelled
-									&& tx.tx_type != TxLogEntryType::TxSentCancelled
-							};
-							tx_type && tx.parent_key_id == w.parent_key_id()
-						})
-						.filter_map(|t| t.address_index)
-						.filter(|i| !secret_indices.contains(i))
-						.collect();
-					indices.sort_unstable();
-					indices.dedup();
-					Ok(indices)
-				};
+				let collect_indexes =
+					|outstanding: bool,
+					 secret_indices: &Vec<SlatepackAddressIndex>|
+					 -> Result<Vec<SlatepackAddressIndex>, Error> {
+						wallet_lock!(wallet_inst, w);
+						let mut indices: Vec<SlatepackAddressIndex> = w
+							.tx_log_iter()?
+							.flatten()
+							.filter(|tx| {
+								let tx_type = if outstanding {
+									!tx.confirmed
+										&& (tx.tx_type == TxLogEntryType::TxReceived
+											|| tx.tx_type == TxLogEntryType::TxSent
+											|| tx.tx_type == TxLogEntryType::TxReverted)
+								} else {
+									tx.confirmed
+										&& tx.tx_type != TxLogEntryType::TxReceivedCancelled
+										&& tx.tx_type != TxLogEntryType::TxSentCancelled
+								};
+								tx_type && tx.parent_key_id == w.parent_key_id()
+							})
+							.filter_map(|t| t.address_index)
+							.filter(|i| !secret_indices.contains(i))
+							.collect();
+						indices.sort_unstable();
+						indices.dedup();
+						Ok(indices)
+					};
 				let mut indexes = collect_indexes(true, &secret_indices)?;
 				match try_decrypt_with(&mut indexes) {
 					Ok(_) => Ok(()),
@@ -611,12 +612,14 @@ where
 			.1
 			.iter()
 			.filter(|t| t.tx_type == TxLogEntryType::TxSent)
-			.count() == 1
+			.count()
+			== 1
 		&& txs
 			.1
 			.iter()
 			.filter(|t| t.tx_type == TxLogEntryType::TxReceived)
-			.count() == 1
+			.count()
+			== 1
 	{
 		txs.1.retain(|t| t.tx_type == TxLogEntryType::TxSent);
 	}
@@ -1065,6 +1068,25 @@ where
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
 	tx::cancel_tx(w, keychain_mask, &parent_key_id, tx_id, tx_slate_id)
+}
+
+/// Cancel an unfinished send in its source account
+pub fn cancel_failed_send<'a, L, C, K>(
+	wallet_inst: crate::WalletHandle<'a, L, C, K>,
+	keychain_mask: Option<&SecretKey>,
+	slate_id: Uuid,
+) -> Result<(), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
+	wallet_lock!(wallet_inst, w);
+	let entry = tx::find_tx(w, slate_id, None, TxLogEntryType::TxSent)?;
+	if entry.tx_slate_state != Some(SlateState::Standard1) {
+		return Err(Error::TransactionNotCancellable(slate_id.to_string()));
+	}
+	tx::cancel_tx(w, keychain_mask, &entry.parent_key_id, None, Some(slate_id))
 }
 
 /// get stored tx

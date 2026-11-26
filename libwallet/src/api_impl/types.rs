@@ -114,6 +114,10 @@ pub struct InitTxSendArgs {
 	pub fluff: bool,
 	/// If set, skip the Slatepack TOR send attempt
 	pub skip_tor: Option<bool>,
+	/// Cancel the transaction if Tor fails before sending the slate.
+	/// Off by default. Applies to standard sends with normal locking.
+	#[serde(default)]
+	pub cancel_on_failure: Option<bool>,
 }
 
 impl Default for InitTxArgs {

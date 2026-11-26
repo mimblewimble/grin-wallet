@@ -15,7 +15,7 @@
 //! Grin wallet command-line function implementations
 
 use crate::api::TLSConfig;
-use crate::apiwallet::{try_slatepack_sync_workflow, Owner};
+use crate::apiwallet::{should_cancel_failed_send, try_slatepack_sync_workflow, Owner};
 use crate::config::{TorWalletConfig, WalletConfig, WALLET_CONFIG_FILE_NAME};
 use crate::core::{core, global};
 use crate::error::Error;
@@ -385,6 +385,7 @@ pub struct SendArgs {
 	pub payment_proof_address: Option<String>,
 	pub ttl_blocks: Option<u64>,
 	pub skip_tor: Option<bool>,
+	pub cancel_on_failure: bool,
 	pub outfile: Option<String>,
 	pub bridge: Option<String>,
 	pub slatepack_qr: bool,
@@ -684,6 +685,15 @@ where
 		}
 		Err(e) => {
 			error!("Error sending slate sync: {}", e);
+			if should_cancel_failed_send(&e, args.cancel_on_failure, args.late_lock) {
+				owner::cancel_failed_send(owner_api.wallet_inst.clone(), keychain_mask, slate.id)
+					.map_err(|e| libwallet::Error::AutoCancelFailed(slate.id, e.to_string()))?;
+				println!("Tx {} cancelled, outputs unlocked.", slate.id);
+				return Err(Error::GenericError(format!(
+					"Sending over Tor failed: {}",
+					e
+				)));
+			}
 			output_sp(owner_api, false)?;
 			if !args.late_lock {
 				println!(

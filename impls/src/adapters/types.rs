@@ -32,10 +32,7 @@ pub trait HttpSlateSender: Send + Sync {
 			"params": []
 		});
 
-		let res: String = self.post(url, req.to_string()).await.map_err(|e| {
-			let report = format!("Performing version check (is recipient listening?): {}", e);
-			Error::ClientCallback(report)
-		})?;
+		let res: String = self.post(url, req.to_string()).await?;
 
 		let res: Value = serde_json::from_str(&res)
 			.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
@@ -81,9 +78,17 @@ pub trait HttpSlateSender: Send + Sync {
 		};
 		let url_str = format!("{}{}v2/foreign", self.host_url(), trailing);
 
-		let slate_send = match self.check_other_version(&url_str).await? {
-			SlateVersion::V4 => VersionedSlate::into_version(slate.clone(), SlateVersion::V4)?,
-		};
+		let slate_send = self
+			.check_other_version(&url_str)
+			.await
+			.and_then(|version| VersionedSlate::into_version(slate.clone(), version))
+			.map_err(|e| {
+				let reason = match e {
+					Error::TorNotSent(reason) | Error::TorPossiblySent(reason) => reason,
+					e => e.to_string(),
+				};
+				Error::TorNotSent(format!("Before slate POST: {reason}"))
+			})?;
 		// Note: not using easy-jsonrpc as don't want the dependencies in this crate
 		let req = match finalize {
 			false => json!({
@@ -108,13 +113,7 @@ pub trait HttpSlateSender: Send + Sync {
 
 		trace!("Sending receive_tx request: {}", req);
 
-		let res: String = self.post(&url_str, req.to_string()).await.map_err(|e| {
-			let report = format!(
-				"Sending transaction slate to other wallet (is recipient listening?): {}",
-				e
-			);
-			Error::ClientCallback(report)
-		})?;
+		let res: String = self.post(&url_str, req.to_string()).await?;
 
 		let res: Value = serde_json::from_str(&res)
 			.map_err(|_| Error::ClientCallback(format!("Can not parse response {:?}", res)))?;
@@ -159,4 +158,46 @@ pub trait SlateGetter {
 	/// Receive a transaction async. (Actually just read it from wherever and return the slate).
 	/// Returns (Slate, whether it was in binary form)
 	fn get_tx(&self) -> Result<(Slate, bool), Error>;
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::collections::VecDeque;
+	use std::sync::Mutex;
+
+	struct Sender(Mutex<VecDeque<Result<String, Error>>>);
+
+	#[async_trait]
+	impl HttpSlateSender for Sender {
+		fn host_url(&self) -> String {
+			"http://localhost".into()
+		}
+
+		async fn post(&self, _url: &str, _body: String) -> Result<String, Error> {
+			self.0.lock().unwrap().pop_front().unwrap()
+		}
+	}
+
+	#[tokio::test]
+	async fn slate_delivery_errors() {
+		let slate = Slate::blank(2, false);
+		let no_reply = Error::TorPossiblySent("no reply".into());
+		let version =
+			r#"{"result":{"Ok":{"foreign_api_version":2,"supported_slate_versions":["V4"]}}}"#;
+		let post = |reply| [Ok(version.into()), reply].into();
+		for (replies, not_sent) in [
+			([Err(no_reply.clone())].into(), true),
+			(post(Err(Error::TorNotSent("connect failed".into()))), true),
+			(post(Err(no_reply)), false),
+			(post(Ok("invalid JSON".into())), false),
+			(post(Ok(r#"{"result":{"Ok":{}}}"#.into())), false),
+			(post(Ok(r#"{"result":{"Err":"failed"}}"#.into())), false),
+		] {
+			let sender = Sender(Mutex::new(replies));
+			let error = sender.send(&slate, false).await.unwrap_err();
+			assert_eq!(matches!(error, Error::TorNotSent(_)), not_sent);
+			assert!(sender.0.lock().unwrap().is_empty());
+		}
+	}
 }

@@ -693,6 +693,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		post_tx: false,
 		fluff: false,
 		skip_tor: Some(true),
+		cancel_on_failure: None,
 	});
 	assert!(api1.init_send_tx(mask1, wrong_net_args.clone()).is_err());
 	assert!(api1
@@ -705,6 +706,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		post_tx: false,
 		fluff: false,
 		skip_tor: Some(true),
+		cancel_on_failure: None,
 	});
 	assert!(api1.init_send_tx(mask1, invalid_args.clone()).is_err());
 	assert!(api1
@@ -717,6 +719,7 @@ fn slatepack_address_validation(test_dir: &'static str) -> Result<(), libwallet:
 		post_tx: false,
 		fluff: false,
 		skip_tor: Some(true),
+		cancel_on_failure: None,
 	});
 	let missing_config = PathBuf::from(test_dir).join("missing.toml");
 	let api = grin_wallet_api::Owner::new(wallet1.clone(), None, missing_config);
