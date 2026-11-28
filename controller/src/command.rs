@@ -214,18 +214,14 @@ where
 				g_args.tls_conf.clone(),
 				test_mode,
 			);
-			if let Err(e) = res {
+			if let Err(ref e) = res {
 				error!("Error starting listener: {}", e);
 			}
-		});
-	if let Ok(t) = api_thread {
-		if !cli_mode {
-			let r = t.join();
-			if let Err(_) = r {
-				error!("Error starting listener");
-				return Err(Error::ListenerError);
-			}
-		}
+			res
+		})
+		.map_err(|_| Error::ListenerError)?;
+	if !cli_mode {
+		api_thread.join().map_err(|_| Error::ListenerError)??;
 	}
 	Ok(())
 }

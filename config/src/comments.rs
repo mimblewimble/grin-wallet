@@ -127,6 +127,22 @@ fn comments() -> HashMap<String, String> {
 		.to_string(),
 	);
 	retval.insert(
+		"stateless_receive".to_string(),
+		"
+#Minimum amount (in nanogrin) accepted when stateless_receive is on.
+#Smaller requests are rejected before any output is built.
+#stateless_receive_min_amount = 100000000
+
+#If true, the dedicated Foreign listener answers standard requests without
+#storing pending receives. It exposes only check_version and receive_tx.
+#The output key is taken from a random range and the output only shows up
+#in the wallet once the regular scan finds the transaction on chain, so
+#requests the sender never finalizes leave no pending outputs or tx log
+#entries behind.
+"
+		.to_string(),
+	);
+	retval.insert(
 		"[logging]".to_string(),
 		"
 #Type of proxy, eg \"socks4\", \"socks5\", \"http\", \"https\"

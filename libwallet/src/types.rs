@@ -159,6 +159,12 @@ pub trait NodeClient: Send + Sync + Clone {
 	/// retrieves the current tip (height, hash) from the specified grin node
 	fn get_chain_tip(&self) -> Result<(u64, String), Error>;
 
+	/// Hash of the header at this height in the node's selected header chain.
+	/// None means the backend does not provide this lookup.
+	fn get_header_hash(&self, _height: u64) -> Result<Option<String>, Error> {
+		Ok(None)
+	}
+
 	/// Get a kernel and the height of the block it's included in. Returns
 	/// (tx_kernel, height, mmr_index)
 	fn get_kernel(
@@ -248,6 +254,31 @@ pub struct OutputData {
 	pub is_coinbase: bool,
 	/// Optional corresponding internal entry in tx entry log
 	pub tx_log_entry: Option<u32>,
+	/// Chain evidence and the original incoming record of a stateless receive.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub stateless_origin: Option<StatelessOutputOrigin>,
+}
+
+/// Evidence stored when a stateless output is observed, independently of any
+/// later outgoing transaction that locks the output.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StatelessOutputOrigin {
+	/// Creation block last observed with this output; None if unavailable.
+	pub block_hash: Option<String>,
+	/// Original receipt log ID in this output's account.
+	pub receipt_id: Option<u32>,
+	/// Loss of confirmation, also tracked while an outgoing payment is locked.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub absence: Option<StatelessOutputAbsence>,
+}
+
+/// Why proof of the previously observed receipt was withdrawn.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StatelessOutputAbsence {
+	/// The block in which the output was seen was replaced.
+	Reverted,
+	/// The node could not establish the status of the original block.
+	Unverified,
 }
 
 impl ser::Writeable for OutputData {
@@ -269,16 +300,26 @@ impl OutputData {
 		self.status = OutputStatus::Locked;
 	}
 
+	/// Reason for excluding an observed stateless output, if any.
+	pub fn stateless_absence(&self) -> Option<StatelessOutputAbsence> {
+		self.stateless_origin
+			.as_ref()
+			.and_then(|origin| origin.absence)
+	}
+
 	/// How many confirmations has this output received?
 	/// If height == 0 then we are either Unconfirmed or the output was
 	/// cut-through
 	/// so we do not actually know how many confirmations this output had (and
 	/// never will).
 	pub fn num_confirmations(&self, current_height: u64) -> u64 {
-		if self.height > current_height {
+		if self.height > current_height || self.stateless_absence().is_some() {
 			return 0;
 		}
-		if self.status == OutputStatus::Unconfirmed {
+		if matches!(
+			self.status,
+			OutputStatus::Unconfirmed | OutputStatus::Reverted
+		) {
 			0
 		} else {
 			// if an output has height n and we are at block n
@@ -290,7 +331,8 @@ impl OutputData {
 	/// Check if output is eligible to spend based on state and height and
 	/// confirmations
 	pub fn eligible_to_spend(&self, current_height: u64, minimum_confirmations: u64) -> bool {
-		if [OutputStatus::Spent, OutputStatus::Locked].contains(&self.status)
+		if self.stateless_absence().is_some()
+			|| [OutputStatus::Spent, OutputStatus::Locked].contains(&self.status)
 			|| self.status == OutputStatus::Unconfirmed && self.is_coinbase
 			|| self.lock_height > current_height
 		{
@@ -342,7 +384,8 @@ pub enum OutputStatus {
 	Locked,
 	/// Spent
 	Spent,
-	/// Reverted
+	/// A previously confirmed output is no longer available.
+	#[serde(alias = "Unverified")]
 	Reverted,
 }
 
@@ -588,6 +631,9 @@ pub struct WalletInfo {
 	/// amount previously confirmed, now reverted
 	#[serde(with = "secp_ser::string_or_u64")]
 	pub amount_reverted: u64,
+	/// Amount excluded while confirmation cannot be established.
+	#[serde(default, with = "secp_ser::string_or_u64")]
+	pub amount_unverified: u64,
 }
 
 /// Types of transactions that can be contained within a TXLog entry
@@ -795,7 +841,7 @@ pub struct TxWrapper {
 }
 
 /// Store details of the last scanned block
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScannedBlockInfo {
 	/// Node chain height (corresponding to the last PMMR index scanned)
 	pub height: u64,

@@ -13,10 +13,12 @@
 // limitations under the License.
 
 use byteorder::{BigEndian, WriteBytesExt};
+use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::blake2::blake2b::{Blake2b, Blake2bResult};
@@ -31,6 +33,7 @@ use grin_keychain::{ChildNumber, ExtKeychain, Identifier, Keychain, SwitchCommit
 use grin_store::{option_to_not_found, Store};
 use grin_util::secp::constants::SECRET_KEY_SIZE;
 use grin_util::secp::SecretKey;
+use grin_util::Mutex;
 use grin_util::ToHex;
 use rand::rngs::mock::StepRng;
 use rand::thread_rng;
@@ -61,6 +64,29 @@ const DB_PREFIXES: [u8; 9] = [
 	LAST_SCANNED_BLOCK,
 	WALLET_INIT_STATUS,
 ];
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub(crate) struct ScanProgress {
+	#[serde(flatten)]
+	pub(crate) cursor: ScannedBlockInfo,
+	// UTXO traversal is evaluated at the body tip, which may be higher than
+	// the cursor. Older binaries can read the flattened cursor as before.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub(crate) utxo_tip: Option<(u64, String)>,
+}
+
+impl ser::Writeable for ScanProgress {
+	fn write<W: ser::Writer>(&self, writer: &mut W) -> Result<(), ser::Error> {
+		writer.write_bytes(&serde_json::to_vec(self).map_err(|_| ser::Error::CorruptedData)?)
+	}
+}
+
+impl ser::Readable for ScanProgress {
+	fn read<R: ser::Reader>(reader: &mut R) -> Result<Self, ser::Error> {
+		let data = reader.read_bytes_len_prefix()?;
+		serde_json::from_slice(&data).map_err(|_| ser::Error::CorruptedData)
+	}
+}
 
 /// Helper to derive XOR keys for storing private transaction keys in the DB
 /// (blind_xor_key, nonce_xor_key)
@@ -95,6 +121,13 @@ where
 	Ok((ret_blind, ret_nonce))
 }
 
+/// Previously checked canonical headers, scoped to a node and body tip.
+pub(crate) struct StatelessHeaderCache {
+	pub(crate) node_url: String,
+	pub(crate) tip: (u64, String),
+	pub(crate) headers: HashMap<u64, String>,
+}
+
 /// Wallet backend. All functions here expect that the wallet instance
 /// has instantiated itself or stored whatever credentials it needs.
 pub struct WalletBackend<C, K>
@@ -112,6 +145,8 @@ where
 	parent_key_id: Identifier,
 	/// wallet to node client
 	w2n_client: C,
+	pub(crate) scan_lock: Arc<Mutex<()>>,
+	pub(crate) stateless_headers: Option<StatelessHeaderCache>,
 }
 
 impl<C, K> WalletBackend<C, K>
@@ -161,6 +196,8 @@ where
 			master_checksum: Box::new(None),
 			parent_key_id: WalletBackend::<C, K>::default_path(),
 			w2n_client: n_client,
+			scan_lock: Arc::new(Mutex::new(())),
+			stateless_headers: None,
 		};
 		Ok(res)
 	}
@@ -422,15 +459,15 @@ where
 		let mut tx_f = File::open(tx_file)?;
 		let mut content = String::new();
 		tx_f.read_to_string(&mut content)?;
-		let tx_bin = grin_util::from_hex(&content).unwrap();
-		Ok(Some(
-			ser::deserialize(
-				&mut &tx_bin[..],
-				ser::ProtocolVersion(1),
-				ser::DeserializationMode::default(),
-			)
-			.unwrap(),
-		))
+		let tx_bin = grin_util::from_hex(&content)
+			.map_err(|e| Error::StoredTx(format!("Invalid stored transaction encoding: {e}")))?;
+		let tx = ser::deserialize(
+			&mut &tx_bin[..],
+			ser::ProtocolVersion(1),
+			ser::DeserializationMode::default(),
+		)
+		.map_err(Error::Deser)?;
+		Ok(Some(tx))
 	}
 
 	/// Create a new write batch to update or remove output data.
@@ -454,13 +491,7 @@ where
 
 	/// Return the current child index.
 	pub fn current_child_index(&mut self, parent_key_id: &Identifier) -> Result<u32, Error> {
-		let index = {
-			let batch = self.db.batch()?;
-			batch
-				.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
-				.unwrap_or_else(|| 0)
-		};
-		Ok(index)
+		self.batch_no_mask()?.current_child_index(parent_key_id)
 	}
 
 	/// Next child ID when we want to create a new output, based on current parent.
@@ -506,16 +537,38 @@ where
 
 	/// Last block scanned during scan or restore.
 	pub fn last_scanned_block(&mut self) -> Result<ScannedBlockInfo, Error> {
+		Ok(self.scan_progress()?.cursor)
+	}
+
+	pub(crate) fn scan_progress(&mut self) -> Result<ScanProgress, Error> {
 		let batch = self.db.batch()?;
-		let last_scanned_block = batch
+		let progress = batch
 			.get_ser(Some(LAST_SCANNED_BLOCK), LAST_SCANNED_KEY.as_bytes(), None)?
-			.unwrap_or_else(|| ScannedBlockInfo {
-				height: 0,
-				hash: "".to_owned(),
-				start_pmmr_index: 0,
-				last_pmmr_index: 0,
+			.unwrap_or_else(|| ScanProgress {
+				cursor: ScannedBlockInfo {
+					height: 0,
+					hash: String::new(),
+					start_pmmr_index: 0,
+					last_pmmr_index: 0,
+				},
+				utxo_tip: None,
 			});
-		Ok(last_scanned_block)
+		Ok(progress)
+	}
+
+	/// Make the first refresh cover payments received before an owner ever
+	/// opens the wallet. Call once before exposing a stateless receiver.
+	/// A new wallet without a scan cursor will then scan from the beginning.
+	pub fn prepare_stateless_receive(
+		&mut self,
+		keychain_mask: Option<&SecretKey>,
+	) -> Result<(), Error> {
+		if matches!(self.init_status()?, WalletInitStatus::InitNoScanning) {
+			let mut batch = self.batch(keychain_mask)?;
+			batch.save_init_status(WalletInitStatus::InitNeedsScanning)?;
+			batch.commit()?;
+		}
+		Ok(())
 	}
 
 	/// Flag whether the wallet needs a full UTXO scan on next update attempt.
@@ -565,14 +618,21 @@ where
 
 	/// Gets output data by id
 	pub fn get(&self, id: &Identifier, mmr_index: &Option<u64>) -> Result<OutputData, Error> {
+		self.find_output(id, mmr_index)?
+			.ok_or_else(|| Error::from(grin_store::Error::NotFoundErr(format!("Key ID: {}", id))))
+	}
+
+	/// Read an output without treating an absent key as a database error.
+	pub(crate) fn find_output(
+		&self,
+		id: &Identifier,
+		mmr_index: &Option<u64>,
+	) -> Result<Option<OutputData>, Error> {
 		let key = match mmr_index {
 			Some(i) => to_key_u64(id.to_bytes(), *i),
 			None => id.to_bytes().to_vec(),
 		};
-		option_to_not_found(self.db.get_ser(Some(OUTPUT_PREFIX), &key, None), || {
-			format!("Key ID: {}", id)
-		})
-		.map_err(|e| e.into())
+		Ok(self.db.get_ser(Some(OUTPUT_PREFIX), &key, None)?)
 	}
 
 	/// Iterate over all output data stored by the backend.
@@ -601,6 +661,14 @@ where
 		Ok(())
 	}
 
+	/// Read the child index within the transaction updating outputs.
+	pub(crate) fn current_child_index(&self, parent_key_id: &Identifier) -> Result<u32, Error> {
+		Ok(self
+			.db
+			.get_ser(Some(DERIV_PREFIX), &parent_key_id.to_bytes(), None)?
+			.unwrap_or(0))
+	}
+
 	/// Save last stored child index of a given parent.
 	pub fn save_child_index(&mut self, parent_id: &Identifier, child_n: u32) -> Result<(), Error> {
 		self.db
@@ -624,10 +692,17 @@ where
 
 	/// Save the last PMMR index that was scanned via a scan operation.
 	pub fn save_last_scanned_block(&mut self, block_info: ScannedBlockInfo) -> Result<(), Error> {
+		self.save_scan_progress(&ScanProgress {
+			cursor: block_info,
+			utxo_tip: None,
+		})
+	}
+
+	pub(crate) fn save_scan_progress(&mut self, progress: &ScanProgress) -> Result<(), Error> {
 		self.db.put_ser(
 			Some(LAST_SCANNED_BLOCK),
 			LAST_SCANNED_KEY.as_bytes(),
-			&block_info,
+			progress,
 		)?;
 		Ok(())
 	}
@@ -673,6 +748,16 @@ where
 			.map_err(From::from)
 	}
 
+	/// Lookup a transaction log entry by its account and numeric identifier.
+	pub(crate) fn get_tx_log_entry(
+		&self,
+		parent_key_id: &Identifier,
+		id: u32,
+	) -> Result<Option<TxLogEntry>, Error> {
+		let key = to_key_u64(parent_key_id.to_bytes(), u64::from(id));
+		Ok(self.db.get_ser(Some(TX_LOG_ENTRY_PREFIX), &key, None)?)
+	}
+
 	/// Save a transaction log entry.
 	pub fn save_tx_log_entry(
 		&mut self,
@@ -703,7 +788,7 @@ where
 	}
 
 	/// Iterate over account names stored in backend.
-	pub fn acct_path_iter(&'a self) -> Result<impl Iterator<Item = AcctPathMapping> + 'a, Error> {
+	pub fn acct_path_iter(&self) -> Result<impl Iterator<Item = AcctPathMapping>, Error> {
 		let protocol_version = self.db.protocol_version();
 		let prefix_iter = self
 			.db

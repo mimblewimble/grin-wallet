@@ -15,4 +15,5 @@
 mod client;
 pub mod json_rpc;
 
+pub(crate) use client::http_overload_error;
 pub use client::{Client, Error as ClientError, RUNTIME};

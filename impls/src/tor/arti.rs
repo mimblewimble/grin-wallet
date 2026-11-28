@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::client_utils::http_overload_error;
 use crate::tor::config::exp_sec_key_bytes;
 use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, TorClientConfigBuilder};
@@ -268,6 +269,9 @@ where
 						.await
 						.map_err(|e| Error::TorProcess(format!("{:?}", e)))?;
 
+					if let Some(error) = http_overload_error(resp.status(), resp.headers()) {
+						return Err(Error::TorProcess(error));
+					}
 					let body_resp = resp
 						.into_body()
 						.collect()

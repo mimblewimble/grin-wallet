@@ -16,8 +16,10 @@
 
 use crate::util::to_base64;
 use lazy_static::lazy_static;
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
-use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder};
+use reqwest::header::{
+	HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, RETRY_AFTER, USER_AGENT,
+};
+use reqwest::{ClientBuilder, Method, Proxy, RequestBuilder, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::net::SocketAddr;
@@ -43,6 +45,24 @@ pub enum Error {
 	RequestError(String),
 	#[error("ResponseError error: {0}")]
 	ResponseError(String),
+}
+
+pub(crate) fn http_overload_error(status: StatusCode, headers: &HeaderMap) -> Option<String> {
+	if !matches!(
+		status,
+		StatusCode::TOO_MANY_REQUESTS | StatusCode::SERVICE_UNAVAILABLE
+	) {
+		return None;
+	}
+	let seconds = headers
+		.get(RETRY_AFTER)
+		.and_then(|header| header.to_str().ok())
+		.filter(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
+		.and_then(|value| value.parse::<u64>().ok());
+	Some(match seconds {
+		Some(seconds) => format!("HTTP {status}. Retry after {seconds} s."),
+		None => format!("HTTP {status}"),
+	})
 }
 
 #[derive(Clone)]
@@ -254,6 +274,9 @@ impl Client {
 			.await
 			.map_err(|e| Error::RequestError(format!("Cannot make request: {}", e)))?;
 		let status = resp.status();
+		if let Some(error) = http_overload_error(status, resp.headers()) {
+			return Err(Error::ResponseError(error));
+		}
 		if status.is_client_error() || status.is_server_error() {
 			return Err(Error::ResponseError(format!("HTTP {}", status)));
 		}
@@ -286,6 +309,31 @@ mod tests {
 	use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 	use tokio::net::TcpListener;
 
+	#[test]
+	fn http_overload_details_accept_numeric_retry_after_only() {
+		let mut headers = HeaderMap::new();
+		headers.insert(RETRY_AFTER, HeaderValue::from_static("002"));
+		assert_eq!(
+			http_overload_error(StatusCode::TOO_MANY_REQUESTS, &headers).as_deref(),
+			Some("HTTP 429 Too Many Requests. Retry after 2 s."),
+		);
+		for value in [
+			"",
+			"-2",
+			"+2",
+			"Sat, 28 Nov 2026 09:00:00 GMT",
+			"18446744073709551616",
+		] {
+			headers.insert(RETRY_AFTER, HeaderValue::from_static(value));
+			assert_eq!(
+				http_overload_error(StatusCode::SERVICE_UNAVAILABLE, &headers).as_deref(),
+				Some("HTTP 503 Service Unavailable"),
+			);
+		}
+		assert_eq!(http_overload_error(StatusCode::OK, &headers), None);
+		assert_eq!(http_overload_error(StatusCode::BAD_REQUEST, &headers), None);
+	}
+
 	#[tokio::test]
 	async fn http_status() {
 		let client = Client {
@@ -295,28 +343,44 @@ mod tests {
 				.build()
 				.unwrap(),
 		};
-		for (status, body, expected) in [
-			("200 OK", "{}", Ok(serde_json::json!({}))),
+		for (status, headers, body, expected) in [
+			("200 OK", "", "{}", Ok(serde_json::json!({}))),
 			(
 				"401 Unauthorized",
+				"",
 				"<html>Unauthorized</html>",
 				Err(Error::ResponseError("HTTP 401 Unauthorized".into())),
+			),
+			(
+				"429 Too Many Requests",
+				"",
+				"Too Many Requests",
+				Err(Error::ResponseError("HTTP 429 Too Many Requests".into())),
+			),
+			(
+				"503 Service Unavailable",
+				"Retry-After: 1\r\n",
+				"Service Unavailable",
+				Err(Error::ResponseError(
+					"HTTP 503 Service Unavailable. Retry after 1 s.".into(),
+				)),
 			),
 		] {
 			let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 			let url = format!("http://{}", listener.local_addr().unwrap());
 			let server = tokio::spawn(async move {
 				let (mut stream, _) = listener.accept().await.unwrap();
-				let mut headers = BufReader::new(&mut stream).lines();
-				while let Some(line) = headers.next_line().await.unwrap() {
+				let mut request_lines = BufReader::new(&mut stream).lines();
+				while let Some(line) = request_lines.next_line().await.unwrap() {
 					if line.is_empty() {
 						break;
 					}
 				}
 				let response = format!(
-					"HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+					"HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",
 					status,
 					body.len(),
+					headers,
 					body
 				);
 				stream.write_all(response.as_bytes()).await.unwrap();

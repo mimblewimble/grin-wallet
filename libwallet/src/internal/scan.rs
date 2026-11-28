@@ -14,6 +14,7 @@
 //! Functions to restore a wallet's outputs from just the master seed
 
 use crate::api_impl::owner_updater::StatusMessage;
+use crate::backend::ScanProgress;
 use crate::grin_core::consensus::{valid_header_version, WEEK_HEIGHT};
 use crate::grin_core::core::HeaderVersion;
 use crate::grin_core::global;
@@ -26,11 +27,11 @@ use crate::grin_util::Mutex;
 use crate::grin_util::{from_hex, ToHex};
 use crate::internal::{keys, updater};
 use crate::types::*;
-use crate::{wallet_lock, Error, OutputCommitMapping};
+use crate::{wallet_lock, Error, OutputCommitMapping, WalletBatch};
 use blake2_rfc::blake2b::blake2b;
 use rayon::prelude::*;
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
@@ -292,11 +293,77 @@ where
 
 const MISSING_OUTPUTS_BATCH_SIZE: usize = 1000;
 
+fn remember_restored_parent(
+	parents: &mut BTreeMap<Identifier, Option<u32>>,
+	parent: &Identifier,
+	key_id: &Identifier,
+) {
+	let derivation_parent = key_id.parent_path();
+	let entry = if keys::is_stateless_receive_key_id(key_id) {
+		// Preserve the account of a row already imported by an older wallet.
+		// It may have used the immediate derivation parent as its account.
+		if *parent == keys::output_parent_key_id(key_id) || *parent == derivation_parent {
+			parents.entry(parent.clone()).or_default();
+		}
+		return;
+	} else if *parent == derivation_parent {
+		parents.entry(parent.clone()).or_default()
+	} else {
+		return;
+	};
+	let child = key_id.to_path().last_path_index();
+	*entry = Some(entry.map_or(child, |known| known.max(child)));
+}
+
+fn restore_account_metadata<K: Keychain>(
+	batch: &mut WalletBatch<'_, K>,
+	parents: BTreeMap<Identifier, Option<u32>>,
+) -> Result<bool, Error> {
+	if parents.is_empty() {
+		return Ok(false);
+	}
+	let accounts: Vec<_> = batch.acct_path_iter()?.collect();
+	let mut paths: HashSet<_> = accounts
+		.iter()
+		.map(|account| account.path.clone())
+		.collect();
+	let mut labels: HashSet<_> = accounts.into_iter().map(|account| account.label).collect();
+	let mut next_label = labels.len();
+	let mut changed = false;
+	for (path, child) in parents {
+		if paths.insert(path.clone()) {
+			let label = loop {
+				let name = format!("account_{}", next_label);
+				next_label += 1;
+				if labels.insert(name.clone()) {
+					break name;
+				}
+			};
+			batch.save_acct_path(AcctPathMapping {
+				label,
+				path: path.clone(),
+			})?;
+			changed = true;
+		}
+		if let Some(child) = child {
+			let next = child.checked_add(1).ok_or_else(|| {
+				Error::Backend("Restored output exhausted the account child index".to_owned())
+			})?;
+			if batch.current_child_index(&path)? < next {
+				batch.save_child_index(&path, next)?;
+				changed = true;
+			}
+		}
+	}
+	Ok(changed)
+}
+
 fn restore_missing_outputs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	outputs: Vec<OutputResult>,
-	found_parents: &mut HashMap<Identifier, u32>,
+	stateless_headers: &HashMap<u64, String>,
+	mut legacy_parents: BTreeMap<Identifier, Option<u32>>,
 	status_send_channel: &Option<Sender<StatusMessage>>,
 	perc_complete: u8,
 ) -> Result<(), Error>
@@ -308,7 +375,17 @@ where
 	for o_chunks in outputs.chunks(MISSING_OUTPUTS_BATCH_SIZE) {
 		wallet_lock!(wallet_inst, w);
 		let mut batch = w.batch(keychain_mask)?;
+		let mut parents = std::mem::take(&mut legacy_parents);
 		for output in o_chunks {
+			if let Some(saved) = batch.find_output(&output.key_id, &Some(output.mmr_index))? {
+				if saved.value != output.value {
+					return Err(Error::Backend(
+						"Different output at a saved PMMR position".to_owned(),
+					));
+				}
+				remember_restored_parent(&mut parents, &saved.root_key_id, &saved.key_id);
+				continue;
+			}
 			let msg = format!(
                 "Confirmed output for {} with ID {} ({:?}, index {}) exists in UTXO set but not in wallet. \
 				 Restoring.",
@@ -318,10 +395,11 @@ where
 				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
 			}
 
-			let parent_key_id = output.key_id.parent_path();
-			if !found_parents.contains_key(&parent_key_id) {
-				found_parents.insert(parent_key_id.clone(), 0);
-			}
+			// Outputs received statelessly belong to their account, but were
+			// not allocated from its sequential child index
+			let is_stateless = keys::is_stateless_receive_key_id(&output.key_id);
+			let parent_key_id = keys::output_parent_key_id(&output.key_id);
+			remember_restored_parent(&mut parents, &parent_key_id, &output.key_id);
 
 			let log_id = batch.next_tx_log_id(&parent_key_id)?;
 			let entry_type = match output.is_coinbase {
@@ -347,14 +425,25 @@ where
 				lock_height: output.lock_height,
 				is_coinbase: output.is_coinbase,
 				tx_log_entry: Some(log_id),
+				stateless_origin: is_stateless.then(|| StatelessOutputOrigin {
+					block_hash: stateless_headers.get(&output.height).cloned(),
+					receipt_id: Some(log_id),
+					absence: None,
+				}),
 			})?;
-
-			let max_child_index = *found_parents.get(&parent_key_id).unwrap();
-			if output.n_child >= max_child_index {
-				found_parents.insert(parent_key_id, output.n_child);
-			}
 		}
+		// The account and child index are committed with the output and
+		// receipt. Restarting between chunks cannot strand a receipt.
+		restore_account_metadata(&mut batch, parents)?;
 		batch.commit()?;
+	}
+
+	if !legacy_parents.is_empty() {
+		wallet_lock!(wallet_inst, w);
+		let mut batch = w.batch(keychain_mask)?;
+		if restore_account_metadata(&mut batch, legacy_parents)? {
+			batch.commit()?;
+		}
 	}
 	Ok(())
 }
@@ -370,7 +459,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let parent_key_id = output.key_id.parent_path();
+	let parent_key_id = output.root_key_id.clone();
 	wallet_lock!(wallet_inst, w);
 	let updated_tx_entry = if output.tx_log_entry.is_some() {
 		let entries = updater::retrieve_txs(
@@ -450,6 +539,69 @@ where
 	Ok(chain_outs)
 }
 
+/// Check ancestry using the node's selected header chain, scoped to both body tips.
+/// Equal body tips work with a NodeClient that has no header-by-height lookup.
+/// This check assumes one coherent node view, as do the underlying UTXO calls.
+pub(crate) fn scan_tip_is_prefix(
+	previous: &(u64, String),
+	current: &(u64, String),
+	mut header_hash: impl FnMut(u64) -> Result<Option<String>, Error>,
+) -> Result<bool, Error> {
+	if previous.1.is_empty() || current.1.is_empty() {
+		return Ok(false);
+	}
+	if previous.0 >= current.0 {
+		return Ok(previous == current);
+	}
+	Ok(header_hash(previous.0)?.as_ref() == Some(&previous.1)
+		&& header_hash(current.0)?.as_ref() == Some(&current.1))
+}
+
+#[cfg(test)]
+mod scan_snapshot_tests {
+	use super::scan_tip_is_prefix;
+
+	#[test]
+	fn same_tip_needs_no_optional_header_lookup() {
+		let anchor = (10, "original tip".to_owned());
+		assert!(scan_tip_is_prefix(&anchor, &anchor, |_| unreachable!()).unwrap());
+	}
+
+	#[test]
+	fn advance_only_when_both_body_tips_are_on_the_header_chain() {
+		let anchor = (10, "original tip".to_owned());
+		let later = (13, "later tip".to_owned());
+		let cases = [
+			(Some(anchor.1.as_str()), Some(later.1.as_str()), true),
+			(Some("different ancestor"), Some(later.1.as_str()), false),
+			(Some(anchor.1.as_str()), Some("header-only tip"), false),
+			(None, None, false),
+		];
+		for (previous_hash, current_hash, expected) in cases {
+			let result = scan_tip_is_prefix(&anchor, &later, |height| {
+				Ok(match height {
+					10 => previous_hash,
+					13 => current_hash,
+					_ => unreachable!(),
+				}
+				.map(str::to_owned))
+			});
+			assert_eq!(result.unwrap(), expected);
+		}
+	}
+
+	#[test]
+	fn a_replaced_or_lower_tip_cannot_extend_the_scan() {
+		let anchor = (10, "original tip".to_owned());
+		let other_at_same_height = (10, "replaced tip".to_owned());
+		let lower = (9, "lower tip".to_owned());
+		let unidentified = (10, String::new());
+		for current in [&other_at_same_height, &lower, &unidentified] {
+			assert!(!scan_tip_is_prefix(&anchor, current, |_| unreachable!()).unwrap());
+		}
+	}
+}
+
 /// Scan chain outputs and repair the wallet state where needed.
 ///
 /// This is the low-level worker used by the owner API. Callers should normally
@@ -479,6 +631,40 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let (progress, range) = scan_at(
+		wallet_inst,
+		keychain_mask,
+		delete_unconfirmed,
+		batch_start_height,
+		batch_end_height,
+		start_height,
+		end_height,
+		total_pmmr_range,
+		None,
+		status_send_channel,
+	)?;
+	Ok((progress.cursor, range))
+}
+
+/// Scan one batch of a fixed range. The prior observed body tip must
+/// remain on the selected chain, even when it is above the range end.
+pub(crate) fn scan_at<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	delete_unconfirmed: bool,
+	batch_start_height: u64,
+	batch_end_height: u64,
+	start_height: u64,
+	end_height: u64,
+	total_pmmr_range: Option<(u64, u64)>,
+	scan_tip: Option<&(u64, String)>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+) -> Result<(ScanProgress, (u64, u64)), Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
 	// First, get a definitive list of outputs we own from the chain
 	if let Some(ref s) = status_send_channel {
 		if start_height == batch_start_height {
@@ -489,6 +675,17 @@ where
 		wallet_lock!(wallet_inst, w);
 		(w.w2n_client().clone(), w.keychain(keychain_mask)?)
 	};
+
+	let tip = client.get_chain_tip()?;
+	let anchor = scan_tip.unwrap_or(&tip);
+	if batch_end_height > end_height
+		|| end_height > anchor.0
+		|| !scan_tip_is_prefix(anchor, &tip, |height| client.get_header_hash(height))?
+	{
+		return Err(Error::ScanInterrupted(
+			"Scan range is no longer on the node's block chain".to_owned(),
+		));
+	}
 
 	// Retrieve total PMMR index range we're looking for
 	let total_pmmr_range = if let Some(total_range) = total_pmmr_range {
@@ -508,7 +705,7 @@ where
 
 	let (chain_outs, last_index, perc_complete) = collect_chain_outputs(
 		&keychain,
-		client,
+		client.clone(),
 		pmmr_range.0,
 		pmmr_range.1,
 		total_pmmr_range.0,
@@ -531,6 +728,7 @@ where
 
 	let mut missing_outs = vec![];
 	let mut accidental_spend_outs = vec![];
+	let mut stateless_returns = vec![];
 	let mut locked_outs = vec![];
 
 	// check all definitive outputs exist in the wallet outputs
@@ -538,6 +736,17 @@ where
 		let matched_out = wallet_outputs.iter().find(|wo| wo.commit == deffo.commit);
 		match matched_out {
 			Some(s) => {
+				if keys::is_stateless_receive_key_id(&s.output.key_id)
+					&& (matches!(
+						s.output.status,
+						OutputStatus::Spent | OutputStatus::Reverted
+					) || s.output.stateless_absence().is_some()
+						|| s.output.height != deffo.height
+						|| s.output.mmr_index != Some(deffo.mmr_index))
+				{
+					stateless_returns.push((s.output.clone(), deffo));
+					continue;
+				}
 				if s.output.status == OutputStatus::Spent {
 					accidental_spend_outs.push((s.output.clone(), deffo.clone()));
 				}
@@ -547,6 +756,70 @@ where
 			}
 			None => missing_outs.push(deffo),
 		}
+	}
+
+	let mut stateless_heights: BTreeSet<u64> = missing_outs
+		.iter()
+		.filter(|output| keys::is_stateless_receive_key_id(&output.key_id))
+		.map(|output| output.height)
+		.chain(stateless_returns.iter().map(|(_, output)| output.height))
+		.collect();
+	if stateless_heights
+		.iter()
+		.any(|height| *height > batch_end_height)
+	{
+		return Err(Error::ClientCallback(
+			"Stateless output is above the scan batch".to_owned(),
+		));
+	}
+	if scan_tip.is_some() {
+		stateless_heights.insert(batch_end_height);
+	}
+	let finish_observation = || {
+		let after = client.get_chain_tip()?;
+		if after != tip {
+			return Err(Error::ScanInterrupted(
+				"Node body tip changed during scan batch".to_owned(),
+			));
+		}
+		Ok(after)
+	};
+	let stateless_headers = if stateless_heights.is_empty() {
+		finish_observation()?;
+		HashMap::new()
+	} else {
+		updater::stateless_headers(&client, &tip, stateless_heights, finish_observation)?
+	};
+	let cursor_hash = match scan_tip {
+		Some(anchor) if batch_end_height == anchor.0 => anchor.1.clone(),
+		Some(_) => stateless_headers
+			.get(&batch_end_height)
+			.cloned()
+			.unwrap_or_default(),
+		None => String::new(),
+	};
+	if !stateless_returns.is_empty() {
+		wallet_lock!(wallet_inst, w);
+		let mut batch = w.batch(keychain_mask)?;
+		for (previous, current) in stateless_returns {
+			// Re-read before applying: a payment might have locked this coin
+			// while the scan was fetching headers.
+			if let Ok(output) = batch.get(&previous.key_id, &previous.mmr_index) {
+				updater::update_stateless_output(
+					&mut batch,
+					output,
+					Some((current.height, current.mmr_index)),
+					stateless_headers.get(&current.height),
+				)?;
+				if delete_unconfirmed {
+					let restored = batch.get(&previous.key_id, &Some(current.mmr_index))?;
+					if restored.status == OutputStatus::Locked {
+						locked_outs.push((restored, current));
+					}
+				}
+			}
+		}
+		batch.commit()?;
 	}
 
 	// mark problem spent outputs as unspent (confirmed against a short-lived fork, for example)
@@ -569,7 +842,16 @@ where
 		batch.commit()?;
 	}
 
-	let mut found_parents: HashMap<Identifier, u32> = HashMap::new();
+	// Repair rows imported by versions that committed accounts separately.
+	// Include spent rows, which do not appear in the node's UTXO scan.
+	let mut legacy_parents = BTreeMap::new();
+	for saved in &wallet_outputs {
+		remember_restored_parent(
+			&mut legacy_parents,
+			&saved.output.root_key_id,
+			&saved.output.key_id,
+		);
+	}
 
 	debug!("scan: restoring {} missing outputs", missing_outs.len());
 
@@ -578,7 +860,8 @@ where
 		wallet_inst.clone(),
 		keychain_mask,
 		missing_outs,
-		&mut found_parents,
+		&stateless_headers,
+		legacy_parents,
 		status_send_channel,
 		perc_complete,
 	)?;
@@ -626,31 +909,6 @@ where
 		}
 	}
 
-	// restore labels, account paths and child derivation indices
-	wallet_lock!(wallet_inst, w);
-	let label_base = "account";
-	let accounts: Vec<Identifier> = w.acct_path_iter()?.map(|m| m.path).collect();
-	let mut acct_index = accounts.len();
-	for (path, max_child_index) in found_parents.iter() {
-		// Only restore paths that don't exist
-		if !accounts.contains(path) {
-			let label = format!("{}_{}", label_base, acct_index);
-			let msg = format!("Setting account {} at path {}", label, path);
-			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::Scanning(msg, perc_complete));
-			}
-			keys::set_acct_path(w, keychain_mask, &label, path)?;
-			acct_index += 1;
-		}
-		let current_child_index = w.current_child_index(&path)?;
-		if *max_child_index >= current_child_index {
-			let mut batch = w.batch(keychain_mask)?;
-			debug!("Next child for account {} is {}", path, max_child_index + 1);
-			batch.save_child_index(path, max_child_index + 1)?;
-			batch.commit()?;
-		}
-	}
-
 	if let Some(ref s) = status_send_channel {
 		if end_height == batch_end_height {
 			let _ = s.send(StatusMessage::ScanningComplete(
@@ -660,11 +918,14 @@ where
 	}
 
 	Ok((
-		ScannedBlockInfo {
-			height: batch_end_height,
-			hash: "".to_owned(),
-			start_pmmr_index: pmmr_range.0,
-			last_pmmr_index: last_index,
+		ScanProgress {
+			cursor: ScannedBlockInfo {
+				height: batch_end_height,
+				hash: cursor_hash,
+				start_pmmr_index: pmmr_range.0,
+				last_pmmr_index: last_index,
+			},
+			utxo_tip: Some(tip),
 		},
 		total_pmmr_range,
 	))

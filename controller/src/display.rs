@@ -17,7 +17,7 @@ use crate::core::core::FeeFields;
 use crate::core::global;
 use crate::libwallet::{
 	address, AcctPathMapping, Error, OutputCommitMapping, OutputStatus, SlatepackAddress,
-	TxLogEntry, TxLogEntryType, ViewWallet, WalletInfo,
+	StatelessOutputAbsence, TxLogEntry, TxLogEntryType, ViewWallet, WalletInfo,
 };
 use crate::util::ToHex;
 
@@ -73,9 +73,13 @@ pub fn outputs(
 		let is_coinbase = format!("{}", m.output.is_coinbase);
 
 		// Mark unconfirmed coinbase outputs as "Mining" instead of "Unconfirmed"
-		let status = match m.output.status {
-			OutputStatus::Unconfirmed if m.output.is_coinbase => "Mining".to_string(),
-			_ => format!("{}", m.output.status),
+		let status = if m.output.stateless_absence() == Some(StatelessOutputAbsence::Unverified) {
+			"Confirmation unknown".to_owned()
+		} else {
+			match m.output.status {
+				OutputStatus::Unconfirmed if m.output.is_coinbase => "Mining".to_string(),
+				_ => format!("{}", m.output.status),
+			}
 		};
 
 		let num_confirmations = format!("{}", m.output.num_confirmations(cur_height));
@@ -482,6 +486,12 @@ pub fn info(
 			FG->amount_to_hr_string(wallet_info.amount_currently_spendable, false)
 		]);
 	};
+	if wallet_info.amount_unverified > 0 {
+		table.add_row(row![
+			Fr->"Confirmation unknown",
+			Fr->amount_to_hr_string(wallet_info.amount_unverified, false)
+		]);
+	}
 	table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
 	table.printstd();
 	println!();

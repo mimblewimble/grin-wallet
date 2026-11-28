@@ -20,10 +20,13 @@ extern crate grin_wallet_impls as impls;
 extern crate grin_wallet_libwallet as libwallet;
 
 use impls::test_framework::{self, LocalWalletClient};
+use libwallet::api_impl::owner_updater::{StatusMessage, Updater};
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[macro_use]
 mod common;
@@ -109,4 +112,90 @@ fn updater_thread() {
 		panic!("Libwallet Error: {}", e);
 	}
 	clean_output_dir(test_dir);
+}
+
+#[test]
+fn updater_retries_a_scan_interrupted_by_a_block() -> Result<(), libwallet::Error> {
+	let test_dir = "test_output/updater_scan_interruption";
+	setup(test_dir);
+	let mut proxy = create_wallet_proxy(test_dir);
+	let chain = proxy.chain.clone();
+	let stop_proxy = proxy.running.clone();
+	create_wallet_and_add!(
+		client, wallet, mask, test_dir, "receiver", None, &mut proxy, false, api
+	);
+	let _ = (client, api);
+	test_framework::award_block_to_wallet(&chain, &[], wallet.clone(), mask.as_ref())?;
+
+	let (forward, receiver) = mpsc::channel();
+	let requests = std::mem::replace(&mut proxy.rx, receiver);
+	let stop_relay = Arc::new(AtomicBool::new(false));
+	let relay = {
+		let wallet = wallet.clone();
+		let stop_relay = stop_relay.clone();
+		let mask = mask.clone();
+		thread::spawn(move || -> Result<(), libwallet::Error> {
+			grin_core::global::set_local_chain_type(
+				grin_core::global::ChainTypes::AutomatedTesting,
+			);
+			let mut added_block = false;
+			while !stop_relay.load(Ordering::Relaxed) {
+				let Ok(request) = requests.recv_timeout(Duration::from_millis(20)) else {
+					continue;
+				};
+				if !added_block && request.method == "get_outputs_by_pmmr_index" {
+					test_framework::award_block_to_wallet(
+						&chain,
+						&[],
+						wallet.clone(),
+						mask.as_ref(),
+					)?;
+					added_block = true;
+				}
+				if forward.send(request).is_err() {
+					break;
+				}
+			}
+			Ok(())
+		})
+	};
+	let proxy_worker = thread::spawn(move || proxy.run());
+
+	let (status_tx, status_rx) = mpsc::channel();
+	let running = Arc::new(AtomicBool::new(false));
+	let updater = Updater::new(wallet.clone(), running.clone());
+	let worker =
+		thread::spawn(move || updater.run(Duration::from_millis(30), mask, &Some(status_tx)));
+
+	let deadline = Instant::now() + Duration::from_secs(10);
+	let mut saw_interruption = false;
+	let mut scanned_new_tip = false;
+	while Instant::now() < deadline {
+		if let Ok(StatusMessage::UpdateWarning(message)) =
+			status_rx.recv_timeout(Duration::from_millis(50))
+		{
+			saw_interruption |= message.contains("Node body tip changed during scan batch");
+		}
+		{
+			wallet_inst!(wallet, w);
+			scanned_new_tip = w.last_scanned_block()?.height == 2;
+		}
+		if scanned_new_tip {
+			break;
+		}
+	}
+	let kept_running = running.swap(false, Ordering::Relaxed);
+	let update_result = worker.join().unwrap();
+	stop_proxy.store(false, Ordering::Relaxed);
+	stop_relay.store(true, Ordering::Relaxed);
+	proxy_worker.join().unwrap()?;
+	relay.join().unwrap()?;
+	update_result?;
+
+	assert!(saw_interruption, "first request must observe the new block");
+	assert!(kept_running, "updater stopped after an ordinary new block");
+	assert!(scanned_new_tip, "updater did not complete its retry");
+	drop(wallet);
+	clean_output_dir(test_dir);
+	Ok(())
 }
