@@ -227,6 +227,7 @@ where
 				lock_height: 0,
 				is_coinbase: false,
 				tx_log_entry: Some(log_id),
+				stateless_origin: None,
 			})?;
 		}
 		batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
@@ -305,11 +306,44 @@ where
 		lock_height: 0,
 		is_coinbase: false,
 		tx_log_entry: Some(log_id),
+		stateless_origin: None,
 	})?;
 	batch.save_tx_log_entry(t.clone(), &parent_key_id)?;
 	batch.commit()?;
 
 	Ok((key_id, context, t))
+}
+
+/// Stateless counterpart of [`build_recipient_output`].
+///
+/// Adds a recipient output to the slate using a key from the stateless
+/// receive range (see [`keys::stateless_receive_key_id`]) and returns its id
+/// together with the signing context. The wallet database is neither read
+/// nor written: no output, transaction log entry or child index is saved.
+pub fn build_recipient_output_stateless<K>(
+	keychain: &K,
+	slate: &mut Slate,
+	parent_key_id: &Identifier,
+	use_test_rng: bool,
+) -> Result<(Identifier, Context), Error>
+where
+	K: Keychain,
+{
+	let key_id = keys::stateless_receive_key_id(parent_key_id, use_test_rng)?;
+	let amount = slate.amount;
+
+	slate.add_transaction_elements(
+		keychain,
+		&ProofBuilder::new(keychain),
+		vec![build::output(amount, key_id.clone())],
+	)?;
+
+	let mut context = Context::new(keychain.secp(), parent_key_id, use_test_rng, false);
+	context.add_output(&key_id, &None, amount);
+	context.amount = amount;
+	context.fee = slate.fee_fields.as_opt();
+
+	Ok((key_id, context))
 }
 
 /// Builds a transaction to send to someone from the HD seed associated with the
@@ -803,6 +837,7 @@ mod tests {
 			lock_height: 0,
 			is_coinbase: false,
 			tx_log_entry: None,
+			stateless_origin: None,
 		}
 	}
 

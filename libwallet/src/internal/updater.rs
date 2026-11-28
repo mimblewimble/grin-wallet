@@ -15,12 +15,13 @@
 //! Utilities to check the status of all the outputs we have stored in
 //! the wallet storage and update them.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
 
+use crate::backend::StatelessHeaderCache;
 use crate::error::Error;
 use crate::grin_core::consensus::reward;
-use crate::grin_core::core::{Output, TxKernel};
+use crate::grin_core::core::{CommitWrapper, Output, TxKernel};
 use crate::grin_core::global;
 use crate::grin_core::libtx::proof::ProofBuilder;
 use crate::grin_core::libtx::reward;
@@ -30,10 +31,13 @@ use crate::grin_util::secp::key::SecretKey;
 use crate::grin_util::secp::pedersen;
 use crate::grin_util::static_secp_instance;
 use crate::internal::keys;
-use crate::types::{NodeClient, OutputData, OutputStatus, TxLogEntry, TxLogEntryType, WalletInfo};
+use crate::types::{
+	NodeClient, OutputData, OutputStatus, StatelessOutputAbsence, StatelessOutputOrigin,
+	TxLogEntry, TxLogEntryType, WalletInfo,
+};
 use crate::{
 	BlockFees, CbData, OutputCommitMapping, RetrieveTxQueryArgs, RetrieveTxQuerySortField,
-	RetrieveTxQuerySortOrder, WalletBackend,
+	RetrieveTxQuerySortOrder, WalletBackend, WalletBatch,
 };
 
 use num_bigint::BigInt;
@@ -413,15 +417,25 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let height = wallet.w2n_client().get_chain_tip()?.0;
-	refresh_output_state(wallet, keychain_mask, height, parent_key_id, update_all)?;
-	Ok(())
+	refresh_outputs_observed(wallet, keychain_mask, parent_key_id, update_all).map(|_| ())
+}
+
+/// Return the body tip used for the output observation.
+pub(crate) fn refresh_outputs_observed<C: NodeClient, K: Keychain>(
+	wallet: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	parent_key_id: &Identifier,
+	update_all: bool,
+) -> Result<(u64, String), Error> {
+	let tip = wallet.w2n_client().get_chain_tip()?;
+	refresh_output_state(wallet, keychain_mask, &tip, parent_key_id, update_all)?;
+	Ok(tip)
 }
 
 /// Build a local map of wallet outputs keyed by commit.
 /// The map keys identify outputs to query from the node.
-/// If `update_all` is `false`, select outputs involved in outstanding
-/// transactions for the account and outputs without a transaction log entry.
+/// If `update_all` is `false`, select stateless outputs, outstanding
+/// transactions' outputs, and outputs without a transaction log entry.
 /// Returns mapping of output commit to tuple of derived key for output,
 /// PMMR index, tx entry log identifier and check if output is unspent
 pub fn map_wallet_outputs<C, K>(
@@ -438,18 +452,23 @@ where
 	let keychain = wallet.keychain(keychain_mask)?;
 	let unspents: Vec<OutputData> = wallet
 		.iter()?
-		.filter(|x| x.root_key_id == *parent_key_id && x.status != OutputStatus::Spent)
+		.filter(|x| {
+			x.root_key_id == *parent_key_id
+				&& (x.status != OutputStatus::Spent || keys::is_stateless_receive_key_id(&x.key_id))
+		})
 		.collect();
 
 	let tx_entries = retrieve_txs(wallet, None, None, None, Some(&parent_key_id), true)?;
 
-	// Only select outputs that are actually involved in an outstanding transaction
+	// Stateless receipts have no stored kernel to fall back on. Keep checking
+	// their UTXOs even after the incoming log entry was confirmed.
 	let unspents = match update_all {
 		false => unspents
 			.into_iter()
-			.filter(|x| match x.tx_log_entry.as_ref() {
-				Some(t) => tx_entries.iter().any(|te| te.id == *t),
-				None => true,
+			.filter(|x| {
+				keys::is_stateless_receive_key_id(&x.key_id)
+					|| x.tx_log_entry
+						.map_or(true, |id| tx_entries.iter().any(|entry| entry.id == id))
 			})
 			.collect(),
 		true => unspents,
@@ -489,11 +508,19 @@ where
 
 	for mut o in outputs {
 		// unlock locked outputs
-		if o.status == OutputStatus::Unconfirmed || o.status == OutputStatus::Reverted {
+		let keep_stateless_input =
+			tx.tx_type == TxLogEntryType::TxSent && o.stateless_origin.is_some();
+		if o.status == OutputStatus::Unconfirmed
+			|| (o.status == OutputStatus::Reverted && !keep_stateless_input)
+		{
 			batch.delete(&o.key_id, &o.mmr_index)?;
 		}
 		if o.status == OutputStatus::Locked {
-			o.status = OutputStatus::Unspent;
+			o.status = if o.stateless_absence().is_some() {
+				OutputStatus::Reverted
+			} else {
+				OutputStatus::Unspent
+			};
 			batch.save(o)?;
 		}
 	}
@@ -509,6 +536,190 @@ where
 	Ok(())
 }
 
+/// Resolve creation headers against the body tip used for the UTXO query.
+/// The node is trusted as elsewhere in the wallet. These checks avoid using
+/// two visibly different views as a single observation.
+pub(super) fn stateless_headers<C: NodeClient>(
+	client: &C,
+	tip: &(u64, String),
+	heights: BTreeSet<u64>,
+	finish_observation: impl FnOnce() -> Result<(u64, String), Error>,
+) -> Result<HashMap<u64, String>, Error> {
+	resolve_stateless_headers(
+		tip,
+		heights,
+		None,
+		|height| client.get_header_hash(height),
+		finish_observation,
+	)
+}
+
+fn resolve_stateless_headers(
+	tip: &(u64, String),
+	heights: BTreeSet<u64>,
+	previous: Option<&StatelessHeaderCache>,
+	mut header_hash: impl FnMut(u64) -> Result<Option<String>, Error>,
+	body_tip: impl FnOnce() -> Result<(u64, String), Error>,
+) -> Result<HashMap<u64, String>, Error> {
+	let mut headers = HashMap::new();
+	if heights.is_empty() {
+		return Ok(headers);
+	}
+
+	if let Some(header_tip) = header_hash(tip.0)? {
+		if header_tip != tip.1 {
+			return Err(Error::ClientCallback(
+				"Header and block tips disagree".to_owned(),
+			));
+		}
+		// A canonical prefix authenticates the previously read header hashes,
+		// independently of what outputs the database currently contains.
+		let reusable = match previous {
+			Some(cache) if cache.tip == *tip => Some(cache),
+			Some(cache)
+				if cache.tip.0 < tip.0
+					&& header_hash(cache.tip.0)?.as_ref() == Some(&cache.tip.1) =>
+			{
+				Some(cache)
+			}
+			_ => None,
+		};
+		for height in heights.into_iter().filter(|height| *height <= tip.0) {
+			let cached = reusable.and_then(|cache| cache.headers.get(&height));
+			let hash = if height == tip.0 {
+				header_tip.clone()
+			} else if let Some(hash) = cached {
+				hash.clone()
+			} else {
+				header_hash(height)?.ok_or_else(|| {
+					Error::ClientCallback("Missing header for a stateless output".to_owned())
+				})?
+			};
+			headers.insert(height, hash);
+		}
+		if header_hash(tip.0)?.as_ref() != Some(&header_tip) {
+			return Err(Error::ClientCallback(
+				"Header chain changed during refresh".to_owned(),
+			));
+		}
+	}
+	if &body_tip()? != tip {
+		return Err(Error::ClientCallback(
+			"Block tip changed during refresh".to_owned(),
+		));
+	}
+	Ok(headers)
+}
+
+/// Apply a stateless observation and its receipt in one database batch.
+pub(super) fn update_stateless_output<K: Keychain>(
+	batch: &mut WalletBatch<'_, K>,
+	mut output: OutputData,
+	live: Option<(u64, u64)>,
+	header: Option<&String>,
+) -> Result<(), Error> {
+	let previous = output.clone();
+	let mut origin = output
+		.stateless_origin
+		.take()
+		.unwrap_or(StatelessOutputOrigin {
+			block_hash: None,
+			receipt_id: None,
+			absence: None,
+		});
+	let receipt = match origin.receipt_id.or(output.tx_log_entry) {
+		Some(id) => batch
+			.get_tx_log_entry(&output.root_key_id, id)?
+			.filter(|entry| {
+				matches!(
+					entry.tx_type,
+					TxLogEntryType::TxReceived | TxLogEntryType::TxReverted
+				)
+			}),
+		None => None,
+	};
+	if let Some(ref entry) = receipt {
+		origin.receipt_id = Some(entry.id);
+	}
+
+	match live {
+		Some((height, index)) => {
+			if output.mmr_index != Some(index) {
+				if batch.get(&output.key_id, &Some(index)).is_ok() {
+					return Err(Error::Backend(
+						"Duplicate stateless output position".to_owned(),
+					));
+				}
+				batch.delete(&output.key_id, &output.mmr_index)?;
+				output.mmr_index = Some(index);
+			}
+			output.height = height;
+			output.lock_height = height;
+			origin.block_hash = header.cloned();
+			origin.absence = None;
+
+			// A live output does not cancel an outgoing payment's reservation.
+			if output.status != OutputStatus::Locked && output.tx_log_entry != origin.receipt_id {
+				let outgoing = match output.tx_log_entry {
+					Some(id) => batch.get_tx_log_entry(&output.root_key_id, id)?,
+					None => None,
+				};
+				if outgoing.map_or(false, |entry| entry.tx_type == TxLogEntryType::TxSent) {
+					output.status = OutputStatus::Locked;
+				}
+			}
+			if output.status != OutputStatus::Locked {
+				output.status = OutputStatus::Unspent;
+			}
+		}
+		None => match (origin.block_hash.as_ref(), header) {
+			(Some(original), Some(canonical)) if original == canonical => {
+				output.status = OutputStatus::Spent;
+				origin.absence = None;
+			}
+			(original, canonical) => {
+				let absence = if original.zip(canonical).is_some() {
+					StatelessOutputAbsence::Reverted
+				} else {
+					StatelessOutputAbsence::Unverified
+				};
+				origin.absence = Some(absence);
+				if output.status != OutputStatus::Locked {
+					output.status = OutputStatus::Reverted;
+				}
+			}
+		},
+	}
+	if let Some(mut entry) = receipt {
+		let confirmed = origin.absence.is_none();
+		let entry_type = if origin.absence == Some(StatelessOutputAbsence::Reverted) {
+			TxLogEntryType::TxReverted
+		} else {
+			TxLogEntryType::TxReceived
+		};
+		if entry.confirmed != confirmed || entry.tx_type != entry_type {
+			if confirmed {
+				entry.update_confirmation_ts();
+			}
+			entry.reverted_after = if entry_type == TxLogEntryType::TxReverted {
+				entry
+					.confirmation_ts
+					.and_then(|ts| (chrono::Utc::now() - ts).to_std().ok())
+			} else {
+				None
+			};
+			entry.confirmed = confirmed;
+			entry.tx_type = entry_type;
+			batch.save_tx_log_entry(entry, &output.root_key_id)?;
+		}
+	}
+	output.stateless_origin = Some(origin);
+	if previous != output {
+		batch.save(output)?;
+	}
+	Ok(())
+}
+
 /// Apply refreshed API output data to the wallet
 fn apply_api_outputs<C, K>(
 	wallet: &mut WalletBackend<C, K>,
@@ -516,6 +727,8 @@ fn apply_api_outputs<C, K>(
 	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
 	api_outputs: &HashMap<pedersen::Commitment, (String, u64, u64)>,
 	reverted_kernels: HashSet<u32>,
+	stateless_sends: Vec<(TxLogEntry, Vec<OutputData>)>,
+	stateless_headers: &HashMap<u64, String>,
 	height: u64,
 	parent_key_id: &Identifier,
 ) -> Result<(), Error>
@@ -531,6 +744,14 @@ where
 		// If the server height is less than our confirmed height, don't apply
 		// these changes as the chain is syncing, incorrect or forking
 		if height < last_confirmed_height {
+			if wallet_outputs
+				.values()
+				.any(|(id, _, _, _)| keys::is_stateless_receive_key_id(id))
+			{
+				return Err(Error::ClientCallback(
+					"Block tip is below the last wallet update".to_owned(),
+				));
+			}
 			warn!(
 				"Not updating outputs as the height of the node's chain \
 				 is less than the last reported wallet update height."
@@ -538,9 +759,29 @@ where
 			warn!("Please wait for sync on node to complete or fork to resolve and try again.");
 			return Ok(());
 		}
+		let reconciled_sends: HashSet<_> = stateless_sends.iter().map(|(tx, _)| tx.id).collect();
 		let mut batch = wallet.batch(keychain_mask)?;
 		for (commit, (id, mmr_index, _, _)) in wallet_outputs.iter() {
 			if let Ok(mut output) = batch.get(id, mmr_index) {
+				if keys::is_stateless_receive_key_id(id) {
+					let live = api_outputs
+						.get(commit)
+						.map(|(_, height, index)| (*height, *index));
+					let origin_height = live.map_or(output.height, |(height, _)| height);
+					update_stateless_output(
+						&mut batch,
+						output,
+						live,
+						stateless_headers.get(&origin_height),
+					)?;
+					continue;
+				}
+				if output
+					.tx_log_entry
+					.map_or(false, |id| reconciled_sends.contains(&id))
+				{
+					continue;
+				}
 				match api_outputs.get(&commit) {
 					Some(o) => {
 						// if this is a coinbase tx being confirmed, it's recordable in tx log
@@ -651,6 +892,13 @@ where
 			batch.save_tx_log_entry(tx, &parent_key_id)?;
 		}
 
+		for (tx, outputs) in stateless_sends {
+			for output in outputs {
+				batch.save(output)?;
+			}
+			batch.save_tx_log_entry(tx, parent_key_id)?;
+		}
+
 		{
 			batch.save_last_confirmed_height(parent_key_id, height)?;
 		}
@@ -664,7 +912,7 @@ where
 fn refresh_output_state<C, K>(
 	wallet: &mut WalletBackend<C, K>,
 	keychain_mask: Option<&SecretKey>,
-	height: u64,
+	tip: &(u64, String),
 	parent_key_id: &Identifier,
 	update_all: bool,
 ) -> Result<(), Error>
@@ -688,6 +936,42 @@ where
 	// If it is no longer present, the transaction was reverted due to a re-org
 	let reverted_kernels =
 		find_reverted_kernels(wallet, &wallet_outputs, &api_outputs, parent_key_id)?;
+	let stateless_sends = reconcile_stateless_sends(
+		wallet,
+		keychain_mask,
+		&wallet_outputs,
+		&api_outputs,
+		tip.0,
+		parent_key_id,
+	)?;
+
+	let mut heights = BTreeSet::new();
+	for (commit, (id, index, _, _)) in &wallet_outputs {
+		if keys::is_stateless_receive_key_id(id) {
+			let height = match api_outputs.get(commit) {
+				Some((_, height, _)) if *height <= tip.0 => *height,
+				Some(_) => {
+					return Err(Error::ClientCallback(
+						"Output is above the block tip".to_owned(),
+					))
+				}
+				None => wallet.get(id, index)?.height,
+			};
+			heights.insert(height);
+		}
+	}
+	let client = wallet.w2n_client().clone();
+	let previous = wallet
+		.stateless_headers
+		.as_ref()
+		.filter(|cache| cache.node_url == client.node_url());
+	let headers = resolve_stateless_headers(
+		tip,
+		heights,
+		previous,
+		|height| client.get_header_hash(height),
+		|| client.get_chain_tip(),
+	)?;
 
 	apply_api_outputs(
 		wallet,
@@ -695,11 +979,127 @@ where
 		&wallet_outputs,
 		&api_outputs,
 		reverted_kernels,
-		height,
+		stateless_sends,
+		&headers,
+		tip.0,
 		parent_key_id,
 	)?;
-	clean_old_unconfirmed(wallet, keychain_mask, height)?;
+	if !headers.is_empty() {
+		wallet.stateless_headers = Some(StatelessHeaderCache {
+			node_url: client.node_url().to_owned(),
+			tip: tip.clone(),
+			headers,
+		});
+	}
+	clean_old_unconfirmed(wallet, keychain_mask, tip.0)?;
 	Ok(())
+}
+
+/// Check sends whose stateless inputs reappeared, and follow them until they
+/// are confirmed again or cancelled. The caller verifies the chain view before
+/// applying these changes alongside the stateless input observations.
+fn reconcile_stateless_sends<C: NodeClient, K: Keychain>(
+	wallet: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	wallet_outputs: &HashMap<pedersen::Commitment, (Identifier, Option<u64>, Option<u32>, bool)>,
+	api_outputs: &HashMap<pedersen::Commitment, (String, u64, u64)>,
+	height: u64,
+	parent: &Identifier,
+) -> Result<Vec<(TxLogEntry, Vec<OutputData>)>, Error> {
+	let mut linked = HashSet::new();
+	let mut returned = HashSet::new();
+	for (commit, (key, _, tx_id, _)) in wallet_outputs {
+		if let Some(id) = tx_id.filter(|_| keys::is_stateless_receive_key_id(key)) {
+			linked.insert(id);
+			if api_outputs.contains_key(commit) {
+				returned.insert(id);
+			}
+		}
+	}
+	if linked.is_empty() {
+		return Ok(Vec::new());
+	}
+
+	let mut client = wallet.w2n_client().clone();
+	let sends = retrieve_txs(wallet, None, None, None, Some(parent), false)?;
+	let mut observations = Vec::new();
+	for mut tx in sends.into_iter().filter(|tx| {
+		tx.tx_type == TxLogEntryType::TxSent
+			&& (if tx.confirmed {
+				returned.contains(&tx.id)
+			} else {
+				linked.contains(&tx.id) && tx.reverted_after.is_some()
+			})
+	}) {
+		let excess = tx.kernel_excess.ok_or_else(|| {
+			Error::StoredTx("Missing kernel for stateless outgoing transaction".to_owned())
+		})?;
+		// A replacement branch can include the kernel below its old search bound.
+		let confirmed = client.get_kernel(&excess, None, Some(height))?.is_some();
+		if confirmed && tx.confirmed {
+			continue;
+		}
+		let uuid = tx.tx_slate_id.ok_or_else(|| {
+			Error::StoredTx("Missing slate ID for stateless outgoing transaction".to_owned())
+		})?;
+		let stored = wallet.get_stored_tx(&uuid.to_string())?.ok_or_else(|| {
+			Error::StoredTx("Missing body for stateless outgoing transaction".to_owned())
+		})?;
+		let inputs: Vec<CommitWrapper> = stored.inputs().into();
+		let inputs: HashSet<_> = inputs.iter().map(CommitWrapper::commitment).collect();
+		let change: HashSet<_> = stored.outputs().iter().map(Output::commitment).collect();
+		let associated = retrieve_outputs(wallet, keychain_mask, true, Some(tx.id), Some(parent))?;
+		let ordinary: Vec<_> = associated
+			.into_iter()
+			.filter(|row| !keys::is_stateless_receive_key_id(&row.output.key_id))
+			.collect();
+		let live = client.get_outputs_from_node(ordinary.iter().map(|row| row.commit).collect())?;
+		let mut outputs = Vec::with_capacity(ordinary.len());
+		for row in ordinary {
+			let mut output = row.output;
+			let observation = live.get(&row.commit);
+			if observation.map_or(false, |(_, observed_height, _)| *observed_height > height) {
+				return Err(Error::ClientCallback(
+					"Outgoing output is above the block tip".to_owned(),
+				));
+			}
+			if inputs.contains(&row.commit) {
+				output.status = if observation.is_some() {
+					OutputStatus::Locked
+				} else {
+					OutputStatus::Spent
+				};
+			} else if change.contains(&row.commit) {
+				output.status = match observation {
+					Some((_, observed_height, _)) => {
+						output.height = *observed_height;
+						OutputStatus::Unspent
+					}
+					None if confirmed => OutputStatus::Spent,
+					None => OutputStatus::Reverted,
+				};
+			} else {
+				return Err(Error::StoredTx(
+					"Unexpected output linked to stateless outgoing transaction".to_owned(),
+				));
+			}
+			outputs.push(output);
+		}
+		if confirmed {
+			tx.update_confirmation_ts();
+			tx.reverted_after = None;
+		} else if tx.confirmed {
+			tx.reverted_after = Some(
+				tx.confirmation_ts
+					.and_then(|ts| (chrono::Utc::now() - ts).to_std().ok())
+					.unwrap_or_default(),
+			);
+			tx.confirmation_ts = None;
+		}
+		tx.confirmed = confirmed;
+		observations.push((tx, outputs));
+	}
+	Ok(observations)
 }
 
 fn find_reverted_kernels<C, K>(
@@ -815,8 +1215,20 @@ where
 	let mut unconfirmed_total = 0;
 	let mut locked_total = 0;
 	let mut reverted_total = 0;
+	let mut unverified_total = 0;
 
 	for out in outputs {
+		match out.stateless_absence() {
+			Some(StatelessOutputAbsence::Unverified) => {
+				unverified_total += out.value;
+				continue;
+			}
+			Some(StatelessOutputAbsence::Reverted) => {
+				reverted_total += out.value;
+				continue;
+			}
+			None => {}
+		}
 		match out.status {
 			OutputStatus::Unspent => {
 				if out.is_coinbase && out.lock_height > current_height {
@@ -856,6 +1268,7 @@ where
 		amount_locked: locked_total,
 		amount_currently_spendable: unspent_total,
 		amount_reverted: reverted_total,
+		amount_unverified: unverified_total,
 	})
 }
 
@@ -921,6 +1334,7 @@ where
 			lock_height,
 			is_coinbase: true,
 			tx_log_entry: None,
+			stateless_origin: None,
 		})?;
 		batch.commit()?;
 	}
@@ -945,4 +1359,104 @@ where
 		test_mode,
 	)?;
 	Ok((out, kern, block_fees))
+}
+
+#[cfg(test)]
+mod stateless_header_tests {
+	use super::*;
+
+	#[test]
+	fn header_cost_is_constant_on_a_known_prefix() -> Result<(), Error> {
+		let heights: BTreeSet<u64> = (1..=1000).collect();
+		let first_tip = (1001, "first-tip".to_owned());
+		let mut calls = Vec::new();
+		let headers = resolve_stateless_headers(
+			&first_tip,
+			heights.clone(),
+			None,
+			|height| {
+				calls.push(height);
+				Ok(Some(if height == first_tip.0 {
+					first_tip.1.clone()
+				} else {
+					height.to_string()
+				}))
+			},
+			|| Ok(first_tip.clone()),
+		)?;
+		assert_eq!(calls.len(), 1002);
+		let cache = StatelessHeaderCache {
+			node_url: "local".to_owned(),
+			tip: first_tip.clone(),
+			headers,
+		};
+		calls.clear();
+		let next_tip = (1002, "second-tip".to_owned());
+		let headers = resolve_stateless_headers(
+			&next_tip,
+			heights.clone(),
+			Some(&cache),
+			|height| {
+				calls.push(height);
+				Ok(Some(if height == next_tip.0 {
+					next_tip.1.clone()
+				} else {
+					first_tip.1.clone()
+				}))
+			},
+			|| Ok(next_tip.clone()),
+		)?;
+		assert_eq!(headers, cache.headers);
+		assert_eq!(calls, [1002, 1001, 1002]);
+
+		calls.clear();
+		let headers = resolve_stateless_headers(
+			&first_tip,
+			heights.clone(),
+			Some(&cache),
+			|height| {
+				calls.push(height);
+				Ok(Some(first_tip.1.clone()))
+			},
+			|| Ok(first_tip.clone()),
+		)?;
+		assert_eq!(headers, cache.headers);
+		assert_eq!(calls, [1001, 1001]);
+
+		calls.clear();
+		let fork_headers = resolve_stateless_headers(
+			&next_tip,
+			heights.clone(),
+			Some(&cache),
+			|height| {
+				calls.push(height);
+				Ok(Some(if height == next_tip.0 {
+					next_tip.1.clone()
+				} else {
+					format!("fork-{}", height)
+				}))
+			},
+			|| Ok(next_tip.clone()),
+		)?;
+		assert_eq!(calls.len(), 1003);
+		assert_eq!(fork_headers.get(&1).map(String::as_str), Some("fork-1"));
+
+		let unsupported = resolve_stateless_headers(
+			&next_tip,
+			heights.clone(),
+			Some(&cache),
+			|_| Ok(None),
+			|| Ok(next_tip.clone()),
+		)?;
+		assert!(unsupported.is_empty());
+		let moving = resolve_stateless_headers(
+			&first_tip,
+			heights,
+			Some(&cache),
+			|_| Ok(Some(first_tip.1.clone())),
+			|| Ok(next_tip.clone()),
+		);
+		assert!(moving.is_err());
+		Ok(())
+	}
 }

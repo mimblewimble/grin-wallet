@@ -29,6 +29,7 @@ use crate::grin_util::ToHex;
 use crate::util::OnionV3Address;
 
 use crate::api_impl::owner_updater::StatusMessage;
+use crate::backend::ScanProgress;
 use crate::grin_keychain::{BlindingFactor, Identifier, Keychain, SwitchCommitmentType};
 use crate::internal::{keys, scan, selection, tx, updater};
 use crate::slate::{PaymentInfo, Slate, SlateState};
@@ -37,9 +38,9 @@ use crate::{
 	address,
 	mwixnet::{create_onion, ComSignature, Hop, MixnetReqCreationParams, SwapReq},
 	wallet_lock, BuiltOutput, Error, InitTxArgs, IssueInvoiceTxArgs, NodeHeightResult,
-	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, ScannedBlockInfo, Slatepack,
-	SlatepackAddress, Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend,
-	WalletInitStatus, WalletInst, WalletLCProvider,
+	OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs, Slatepack, SlatepackAddress,
+	Slatepacker, SlatepackerArgs, TxLogEntryType, ViewWallet, WalletBackend, WalletInitStatus,
+	WalletInst, WalletLCProvider,
 };
 
 use ed25519_dalek::SigningKey as DalekSecretKey;
@@ -1010,6 +1011,108 @@ where
 	Ok(info)
 }
 
+/// Commit progress only if this batch has a chain identity and no other scan
+/// has changed the marker since this scan started.
+fn save_scan_progress<C: NodeClient, K: Keychain>(
+	wallet: &mut WalletBackend<C, K>,
+	keychain_mask: Option<&SecretKey>,
+	cursor: &mut ScanProgress,
+	info: ScanProgress,
+	finish_init: bool,
+) -> Result<(), Error> {
+	if info.cursor.hash.is_empty() {
+		return Ok(());
+	}
+	if wallet.scan_progress()? != *cursor {
+		return Err(Error::ScanInterrupted(
+			"Wallet scan cursor changed".to_owned(),
+		));
+	}
+	let mut batch = wallet.batch(keychain_mask)?;
+	batch.save_scan_progress(&info)?;
+	if finish_init {
+		batch.save_init_status(WalletInitStatus::InitComplete)?;
+	}
+	batch.commit()?;
+	*cursor = info;
+	Ok(())
+}
+
+/// A legacy or unrelated marker does not justify skipping any earlier batch.
+fn scan_cursor_is_prefix(
+	progress: &ScanProgress,
+	tip: &(u64, String),
+	header_hash: impl FnMut(u64) -> Result<Option<String>, Error>,
+) -> Result<bool, Error> {
+	let Some(observed) = &progress.utxo_tip else {
+		return Ok(false);
+	};
+	if progress.cursor.hash.is_empty() || progress.cursor.height > observed.0 {
+		return Ok(false);
+	}
+	scan::scan_tip_is_prefix(observed, tip, header_hash)
+}
+
+#[cfg(test)]
+mod scan_cursor_tests {
+	use super::scan_cursor_is_prefix;
+	use crate::backend::ScanProgress;
+	use crate::ScannedBlockInfo;
+
+	#[test]
+	fn resume_requires_the_tip_of_the_utxo_observation() {
+		let cursor = ScannedBlockInfo {
+			height: 10,
+			hash: "unchanged batch boundary".to_owned(),
+			start_pmmr_index: 1,
+			last_pmmr_index: 256,
+		};
+		let mut progress = ScanProgress {
+			cursor,
+			utxo_tip: None,
+		};
+		let new_tip = (14, "new tip".to_owned());
+		assert!(!scan_cursor_is_prefix(&progress, &new_tip, |_| unreachable!()).unwrap());
+
+		progress.utxo_tip = Some((12, "original body tip".to_owned()));
+		let query = |height| {
+			Ok(match height {
+				10 => Some("unchanged batch boundary".to_owned()),
+				12 => Some("replaced body tip".to_owned()),
+				14 => Some(new_tip.1.clone()),
+				_ => unreachable!(),
+			})
+		};
+		assert!(!scan_cursor_is_prefix(&progress, &new_tip, query).unwrap());
+		assert!(
+			scan_cursor_is_prefix(&progress, &new_tip, |height| Ok(Some(match height {
+				12 => "original body tip".to_owned(),
+				14 => new_tip.1.clone(),
+				_ => unreachable!(),
+			})))
+			.unwrap()
+		);
+	}
+
+	#[test]
+	fn cursor_metadata_is_backward_compatible() {
+		let legacy =
+			r#"{"height":10,"hash":"boundary","start_pmmr_index":1,"last_pmmr_index":256}"#;
+		let mut progress: ScanProgress = serde_json::from_str(legacy).unwrap();
+		assert_eq!(progress.utxo_tip, None);
+		progress.utxo_tip = Some((12, "body tip".to_owned()));
+		let encoded = serde_json::to_vec(&progress).unwrap();
+		assert_eq!(
+			serde_json::from_slice::<ScanProgress>(&encoded).unwrap(),
+			progress
+		);
+		assert_eq!(
+			serde_json::from_slice::<ScannedBlockInfo>(&encoded).unwrap(),
+			progress.cursor
+		);
+	}
+}
+
 /// check repair
 /// Accepts a wallet inst instead of a raw wallet so it can
 /// lock as little as possible
@@ -1025,19 +1128,32 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	update_outputs(wallet_inst.clone(), keychain_mask, true)?;
-	let tip = {
+	let scan_lock = {
 		wallet_lock!(wallet_inst, w);
-		w.w2n_client().get_chain_tip()?
+		w.scan_lock.clone()
 	};
-
-	let start_height = start_height.unwrap_or_else(|| 1);
+	let _guard = scan_lock
+		.try_lock()
+		.ok_or_else(|| Error::ScanInterrupted("Another wallet refresh is running".to_owned()))?;
+	update_outputs(wallet_inst.clone(), keychain_mask, true)?;
+	let (client, mut cursor) = {
+		wallet_lock!(wallet_inst, w);
+		(w.w2n_client().clone(), w.scan_progress()?)
+	};
+	let tip = client.get_chain_tip()?;
+	let start_height = start_height.unwrap_or(1);
+	// An explicitly bounded repair can be useful without covering a gap
+	// between the previously scanned prefix and the requested range.
+	let save_progress = start_height <= 1
+		|| (start_height - 1 <= cursor.cursor.height
+			&& scan_cursor_is_prefix(&cursor, &tip, |height| client.get_header_hash(height))?);
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
+	let mut observed = tip.clone();
 	for h in (start_height..tip.0 + 1).step_by(10001) {
 		let batch_end_height = cmp::min(tip.0, h + 10000);
-		let (mut info, range) = scan::scan(
+		let (info, range) = scan::scan_at(
 			wallet_inst.clone(),
 			keychain_mask,
 			delete_unconfirmed,
@@ -1046,19 +1162,18 @@ where
 			start_height,
 			tip.0,
 			total_pmmr_range,
+			Some(&observed),
 			status_send_channel,
 		)?;
-		info.hash = if batch_end_height == tip.0 {
-			tip.1.clone()
-		} else {
-			"".to_owned()
-		};
 		total_pmmr_range = Some(range);
+		if let Some(utxo_tip) = &info.utxo_tip {
+			observed = utxo_tip.clone();
+		}
 
-		wallet_lock!(wallet_inst, w);
-		let mut batch = w.batch(keychain_mask)?;
-		batch.save_last_scanned_block(info)?;
-		batch.commit()?;
+		if save_progress {
+			wallet_lock!(wallet_inst, w);
+			save_scan_progress(w, keychain_mask, &mut cursor, info, false)?;
+		}
 	}
 
 	Ok(())
@@ -1116,6 +1231,40 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
+	let scan_lock = {
+		wallet_lock!(wallet_inst, w);
+		w.scan_lock.clone()
+	};
+	let result = match scan_lock.try_lock() {
+		Some(_guard) => {
+			update_wallet_state_inner(wallet_inst, keychain_mask, status_send_channel, update_all)
+		}
+		None => Err(Error::ScanInterrupted(
+			"Another wallet refresh is running".to_owned(),
+		)),
+	};
+	match result {
+		Err(error @ (Error::ScanInterrupted(_) | Error::ClientCallback(_) | Error::Node)) => {
+			if let Some(ref s) = status_send_channel {
+				let _ = s.send(StatusMessage::UpdateWarning(error.to_string()));
+			}
+			Ok(false)
+		}
+		result => result,
+	}
+}
+
+fn update_wallet_state_inner<'a, L, C, K>(
+	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
+	keychain_mask: Option<&SecretKey>,
+	status_send_channel: &Option<Sender<StatusMessage>>,
+	update_all: bool,
+) -> Result<bool, Error>
+where
+	L: WalletLCProvider<'a, C, K>,
+	C: NodeClient + 'a,
+	K: Keychain + 'a,
+{
 	let parent_key_id = {
 		wallet_lock!(wallet_inst, w);
 		w.parent_key_id()
@@ -1131,16 +1280,14 @@ where
 			"Updating outputs from node".to_owned(),
 		));
 	}
-	let mut result = update_outputs(wallet_inst.clone(), keychain_mask, update_all)?;
-
-	if !result {
+	let Some(tip) = update_outputs(wallet_inst.clone(), keychain_mask, update_all)? else {
 		if let Some(ref s) = status_send_channel {
 			let _ = s.send(StatusMessage::UpdateWarning(
 				"Updater Thread unable to contact node".to_owned(),
 			));
 		}
-		return Ok(result);
-	}
+		return Ok(false);
+	};
 
 	if let Some(ref s) = status_send_channel {
 		let _ = s.send(StatusMessage::UpdatingTransactions(
@@ -1153,55 +1300,42 @@ where
 		wallet_lock!(wallet_inst, w);
 		updater::retrieve_txs(w, None, None, None, Some(&parent_key_id), true)?
 	};
-	result = update_txs_via_kernel(wallet_inst.clone(), keychain_mask, &mut txs)?;
-	if !result {
+	if !update_txs_via_kernel(wallet_inst.clone(), keychain_mask, &mut txs)? {
 		if let Some(ref s) = status_send_channel {
 			let _ = s.send(StatusMessage::UpdateWarning(
 				"Updater Thread unable to contact node".to_owned(),
 			));
 		}
-		return Ok(result);
+		return Ok(false);
 	}
 
 	// Step 3: Scan back a bit on the chain
-	let res = client.get_chain_tip();
-	// if we can't get the tip, don't continue
-	let tip = match res {
-		Ok(t) => t,
-		Err(_) => {
-			if let Some(ref s) = status_send_channel {
-				let _ = s.send(StatusMessage::UpdateWarning(
-					"Updater Thread unable to contact node".to_owned(),
-				));
-			}
-			return Ok(false);
-		}
-	};
-
 	// Check if this is a restored wallet that needs a full scan
-	let last_scanned_block = {
+	let (mut cursor, fresh_wallet) = {
 		wallet_lock!(wallet_inst, w);
-		match w.init_status()? {
-			WalletInitStatus::InitNoScanning => ScannedBlockInfo {
-				height: tip.clone().0,
-				hash: tip.clone().1,
-				start_pmmr_index: 0,
-				last_pmmr_index: 0,
-			},
-			_ => w.last_scanned_block()?,
-		}
+		let cursor = w.scan_progress()?;
+		let fresh_wallet = cursor.cursor.height == 0
+			&& cursor.cursor.hash.is_empty()
+			&& matches!(w.init_status()?, WalletInitStatus::InitNoScanning);
+		(cursor, fresh_wallet)
 	};
+	let scan_height = if fresh_wallet {
+		tip.0
+	} else if cursor.cursor.height > REORG_RESCAN_WINDOW
+		&& scan_cursor_is_prefix(&cursor, &tip, |height| client.get_header_hash(height))?
+	{
+		cursor.cursor.height
+	} else {
+		0
+	};
+	let start_height = scan_height.saturating_sub(REORG_RESCAN_WINDOW);
 
-	let start_height = last_scanned_block
-		.height
-		.saturating_sub(REORG_RESCAN_WINDOW);
+	debug!("update_wallet_state: last_scanned_block: {:?}", cursor);
 
-	debug!(
-		"update_wallet_state: last_scanned_block: {:?}",
-		last_scanned_block
-	);
-
-	if last_scanned_block.height == 0 {
+	if !fresh_wallet
+		&& (cursor.cursor.height == 0
+			|| (cursor.cursor.height > REORG_RESCAN_WINDOW && start_height == 0))
+	{
 		let msg = "This wallet has not been scanned against the current chain. Beginning full scan... (this first scan may take a while, but subsequent scans will be much quicker)".to_string();
 		if let Some(ref s) = status_send_channel {
 			let _ = s.send(StatusMessage::FullScanWarn(msg));
@@ -1210,9 +1344,10 @@ where
 
 	// Scan every 10k heights to save data between batches in case of interruption.
 	let mut total_pmmr_range = None;
+	let mut observed = tip.clone();
 	for h in (start_height..tip.0 + 1).step_by(10001) {
 		let batch_end_height = cmp::min(tip.0, h + 10000);
-		let (mut info, range) = scan::scan(
+		let (info, range) = scan::scan_at(
 			wallet_inst.clone(),
 			keychain_mask,
 			false,
@@ -1221,21 +1356,31 @@ where
 			start_height,
 			tip.0,
 			total_pmmr_range,
+			Some(&observed),
 			status_send_channel,
 		)?;
-		info.hash = if batch_end_height == tip.0 {
-			tip.1.clone()
-		} else {
-			"".to_owned()
-		};
 		total_pmmr_range = Some(range);
+		if let Some(utxo_tip) = &info.utxo_tip {
+			observed = utxo_tip.clone();
+		}
 
 		wallet_lock!(wallet_inst, w);
-		let mut batch = w.batch(keychain_mask)?;
-		batch.save_last_scanned_block(info)?;
-		// init considered complete after first successful update
-		batch.save_init_status(WalletInitStatus::InitComplete)?;
-		batch.commit()?;
+		save_scan_progress(
+			w,
+			keychain_mask,
+			&mut cursor,
+			info,
+			batch_end_height == tip.0,
+		)?;
+	}
+
+	// A stable prefix still lets the scan save progress. Report a verified
+	// wallet update only when known-output reconciliation and the scan used
+	// the same body tip and the node still reports that tip.
+	if observed != tip || client.get_chain_tip()? != tip {
+		return Err(Error::ScanInterrupted(
+			"Node body tip advanced during wallet refresh".to_owned(),
+		));
 	}
 
 	// Step 5: Cancel any transactions with an expired TTL
@@ -1249,7 +1394,7 @@ where
 		}
 	}
 
-	Ok(result)
+	Ok(true)
 }
 
 /// Check TTL
@@ -1338,7 +1483,7 @@ fn update_outputs<'a, L, C, K>(
 	wallet_inst: Arc<Mutex<Box<dyn WalletInst<'a, L, C, K>>>>,
 	keychain_mask: Option<&SecretKey>,
 	update_all: bool,
-) -> Result<bool, Error>
+) -> Result<Option<(u64, String)>, Error>
 where
 	L: WalletLCProvider<'a, C, K>,
 	C: NodeClient + 'a,
@@ -1346,13 +1491,13 @@ where
 {
 	wallet_lock!(wallet_inst, w);
 	let parent_key_id = w.parent_key_id();
-	match updater::refresh_outputs(w, keychain_mask, &parent_key_id, update_all) {
-		Ok(_) => Ok(true),
+	match updater::refresh_outputs_observed(w, keychain_mask, &parent_key_id, update_all) {
+		Ok(tip) => Ok(Some(tip)),
 		Err(e) => {
 			if let Error::InvalidKeychainMask = e {
 				return Err(e);
 			}
-			Ok(false)
+			Ok(None)
 		}
 	}
 }

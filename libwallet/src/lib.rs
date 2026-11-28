@@ -68,9 +68,10 @@ pub use api_impl::owner_updater::StatusMessage;
 pub use api_impl::types::{
 	Amount, BlockFees, BuiltOutput, InitTxArgs, InitTxSendArgs, IssueInvoiceTxArgs,
 	NodeHeightResult, OutputCommitMapping, PaymentProof, RetrieveTxQueryArgs,
-	RetrieveTxQuerySortField, RetrieveTxQuerySortOrder, VersionInfo,
+	RetrieveTxQuerySortField, RetrieveTxQuerySortOrder, StatelessReceiveConfig, VersionInfo,
 };
 pub use backend::{WalletBackend, WalletBatch};
+pub use internal::keys::{is_stateless_receive_key_id, output_parent_key_id};
 pub use internal::scan::scan;
 pub use internal::updater::{
 	map_wallet_outputs, refresh_outputs, retrieve_info, retrieve_outputs, retrieve_txs,
@@ -78,8 +79,9 @@ pub use internal::updater::{
 pub use slate_versions::ser as dalek_ser;
 pub use types::{
 	AcctPathMapping, BlockIdentifier, CbData, Context, NodeClient, NodeVersionInfo, OutputData,
-	OutputStatus, ScannedBlockInfo, StoredProofInfo, TxLogEntry, TxLogEntryType, TxWrapper,
-	ViewWallet, WalletInfo, WalletInitStatus, WalletInst, WalletLCProvider,
+	OutputStatus, ScannedBlockInfo, StatelessOutputAbsence, StatelessOutputOrigin, StoredProofInfo,
+	TxLogEntry, TxLogEntryType, TxWrapper, ViewWallet, WalletInfo, WalletInitStatus, WalletInst,
+	WalletLCProvider,
 };
 
 /// Helper for taking a lock on the wallet instance

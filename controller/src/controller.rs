@@ -21,7 +21,8 @@ use crate::impls::tor::process as tor_process;
 use crate::impls::tor::{bridge as tor_bridge, proxy as tor_proxy};
 use crate::keychain::Keychain;
 use crate::libwallet::{
-	address, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress, WalletInst,
+	address, BlockFees, Error, NodeClient, NodeVersionInfo, Slate, SlatepackAddress,
+	StatelessReceiveConfig, VersionInfo, VersionedCoinbase, VersionedSlate, WalletInst,
 	WalletLCProvider, GRIN_BLOCK_HEADER_VERSION,
 };
 use crate::util::secp::key::SecretKey;
@@ -42,6 +43,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::apiwallet::{
 	ConfigPath, EncryptedRequest, EncryptedResponse, EncryptionErrorResponse, Foreign,
@@ -55,9 +57,9 @@ use grin_wallet_config::config::{
 };
 use grin_wallet_impls::tor::arti::{start_tor_service, stop_tor_service};
 use grin_wallet_impls::tor::process::TorProcess;
-use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
-use tokio::sync::mpsc;
+use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
+use hyper::body::{Body, Bytes, Incoming};
+use tokio::sync::{mpsc, Semaphore};
 
 lazy_static! {
 	pub static ref GRIN_OWNER_BASIC_REALM: HeaderValue =
@@ -246,38 +248,51 @@ where
 	C: NodeClient + 'static,
 	K: Keychain + 'static,
 {
+	let admission = Arc::new(StatelessAdmission::new());
 	loop {
 		let (restart_tx, restart_rx) = std::sync::mpsc::channel::<()>();
 		register_config_listener(&config_path, "foreign_listener", restart_tx)?;
 
-		let tor_config = listener_tor_config(&config_path, bridge.clone(), use_tor)?;
-
-		// Check if wallet has been opened first
-		let (sec_key, tor_dir, onion_address) = {
+		let prepared = (|| -> Result<_, Error> {
+			let (tor, stateless) = listener_config(&config_path, bridge.clone(), use_tor)?;
 			let mask = keychain_mask.lock();
 			let mut w_lock = wallet.lock();
 			let lc = w_lock.lc_provider()?;
 			let w_inst = lc.wallet_inst()?;
-			let k = w_inst.keychain((&mask).as_ref())?;
+			if stateless.enabled {
+				w_inst.prepare_stateless_receive(mask.as_ref())?;
+			}
+			let k = w_inst.keychain(mask.as_ref())?;
 			let parent_key_id = w_inst.parent_key_id();
 			let sec_key = address::address_from_derivation_path(&k, &parent_key_id, 0)
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
 			let tor_dir = format!("{}/tor/listener", lc.get_top_level_directory()?);
 			let onion_address = OnionV3Address::from_private(&sec_key.0)
 				.map_err(|e| Error::TorConfig(format!("{:?}", e)))?;
-			(sec_key, tor_dir, onion_address)
-		};
+			Ok((tor, stateless, sec_key, tor_dir, onion_address))
+		})();
+		let (tor_config, stateless, sec_key, tor_dir, onion_address) = prepared
+			.inspect_err(|_| remove_global_config_listener(&config_path, "foreign_listener"))?;
 
-		let api_handler_v2 = ForeignAPIHandlerV2::new(
+		let handler = ForeignAPIHandlerV2::new(
 			wallet.clone(),
 			config_path.clone().into(),
 			keychain_mask.clone(),
 			test_mode,
 		);
+		let handler: api::HandlerObj = if stateless.enabled {
+			Arc::new(StatelessForeignAPIHandler {
+				handler: Arc::new(handler),
+				stateless,
+				admission: admission.clone(),
+			})
+		} else {
+			Arc::new(handler)
+		};
 		let mut router = Router::new();
 
 		router
-			.add_route("/v2/foreign", Arc::new(api_handler_v2))
+			.add_route("/v2/foreign", handler)
 			.map_err(|_| Error::GenericError("Router failed to add route".to_string()))?;
 
 		let api_chan: (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel::<()>(1);
@@ -376,19 +391,24 @@ fn register_config_listener(
 	Ok(())
 }
 
-fn listener_tor_config(
+fn listener_config(
 	config_path: &Path,
 	bridge: Option<String>,
 	use_tor: Option<bool>,
-) -> Result<TorConfig, Error> {
-	let mut tor_config = get_global_config(config_path)?.tor_config();
+) -> Result<(TorConfig, StatelessReceiveConfig), Error> {
+	let config = get_global_config(config_path)?;
+	let stateless = StatelessReceiveConfig {
+		enabled: config.members.wallet.stateless_receive(),
+		min_amount: config.members.wallet.stateless_receive_min_amount,
+	};
+	let mut tor_config = config.tor_config();
 	if let Some(bridge) = bridge {
 		tor_config.bridge.bridge_line = Some(bridge);
 	}
 	if let Some(use_tor) = use_tor {
 		tor_config.use_tor_listener = use_tor;
 	}
-	Ok(tor_config)
+	Ok((tor_config, stateless))
 }
 
 /// V3 API Handler/Wrapper for owner functions, which include a secure
@@ -729,6 +749,36 @@ where
 		Box::pin(async { Ok(create_ok_response("{}")) })
 	}
 }
+/// Limit the dedicated stateless listener at the typed RPC boundary.
+struct ReceiveOnlyForeign<R>(R);
+
+impl<R: ForeignRpc> ForeignRpc for ReceiveOnlyForeign<R> {
+	fn check_version(&self) -> Result<VersionInfo, Error> {
+		self.0.check_version()
+	}
+
+	fn receive_tx(
+		&self,
+		slate: VersionedSlate,
+		account: Option<String>,
+		return_address: Option<String>,
+	) -> Result<VersionedSlate, Error> {
+		self.0.receive_tx(slate, account, return_address)
+	}
+
+	fn build_coinbase(&self, _: &BlockFees) -> Result<VersionedCoinbase, Error> {
+		Err(Error::GenericError(
+			"build_coinbase is disabled on the stateless receive listener".to_owned(),
+		))
+	}
+
+	fn finalize_tx(&self, _: VersionedSlate) -> Result<VersionedSlate, Error> {
+		Err(Error::GenericError(
+			"finalize_tx is disabled on the stateless receive listener".to_owned(),
+		))
+	}
+}
+
 /// V2 API Handler/Wrapper for foreign functions
 pub struct ForeignAPIHandlerV2<L, C, K>
 where
@@ -767,31 +817,24 @@ where
 		}
 	}
 
-	async fn call_api(
-		req: Request<Incoming>,
-		api: Foreign<'static, L, C, K>,
-	) -> Result<serde_json::Value, Error> {
-		let val: serde_json::Value = parse_body(req).await?;
-		match <dyn ForeignRpc>::handle_request(&api, val) {
-			MaybeReply::Reply(r) => Ok(r),
-			MaybeReply::DontReply => {
-				// Since it's http, we need to return something. We return [] because jsonrpc
-				// clients will parse it as an empty batch response.
-				Ok(serde_json::json!([]))
-			}
-		}
+	fn foreign_api(&self) -> Foreign<'static, L, C, K> {
+		Foreign::new(
+			self.wallet.clone(),
+			self.config_path.clone(),
+			self.keychain_mask.lock().clone(),
+			Some(check_middleware),
+			self.test_mode,
+		)
 	}
+}
 
-	async fn handle_post_request(
-		req: Request<Incoming>,
-		mask: Option<SecretKey>,
-		wallet: Arc<Mutex<Box<dyn WalletInst<'static, L, C, K> + 'static>>>,
-		config_path: ConfigPath,
-		test_mode: bool,
-	) -> Result<Response<ApiBody>, Error> {
-		let api = Foreign::new(wallet, config_path, mask, Some(check_middleware), test_mode);
-		let res = Self::call_api(req, api).await?;
-		Ok(json_response_pretty(&res))
+fn foreign_response(
+	api: impl ForeignRpc + 'static,
+	request: serde_json::Value,
+) -> Response<ApiBody> {
+	match <dyn ForeignRpc>::handle_request(&api, request) {
+		MaybeReply::Reply(reply) => json_response_pretty(&reply),
+		MaybeReply::DontReply => create_ok_response("[]"),
 	}
 }
 
@@ -802,14 +845,10 @@ where
 	K: Keychain + 'static,
 {
 	fn post(&self, req: Request<Incoming>) -> ResponseFuture {
-		let mask = self.keychain_mask.lock().clone();
-		let wallet = self.wallet.clone();
-		let test_mode = self.test_mode;
-		let config_path = self.config_path.clone();
-
+		let api = self.foreign_api();
 		Box::pin(async move {
-			match Self::handle_post_request(req, mask, wallet, config_path, test_mode).await {
-				Ok(v) => Ok(v),
+			match parse_body(req).await {
+				Ok(request) => Ok(foreign_response(api, request)),
 				Err(e) => {
 					error!("Request Error: {:?}", e);
 					Ok(create_error_response(e))
@@ -820,6 +859,166 @@ where
 
 	fn options(&self, _req: Request<Incoming>) -> ResponseFuture {
 		Box::pin(async { Ok(create_ok_response("{}")) })
+	}
+}
+
+const STATELESS_MAX_BODY: usize = 256 * 1024;
+const STATELESS_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const STATELESS_MAX_BATCH: usize = 8;
+const STATELESS_CALL_INTERVAL: Duration = Duration::from_millis(250);
+
+struct StatelessBudget {
+	debt: Duration,
+	updated_at: Instant,
+}
+
+impl StatelessBudget {
+	fn take(&mut self, slots: usize, now: Instant) -> bool {
+		self.debt = self
+			.debt
+			.saturating_sub(now.saturating_duration_since(self.updated_at));
+		self.updated_at = self.updated_at.max(now);
+		let cost = STATELESS_CALL_INTERVAL * slots as u32;
+		let next = self.debt + cost;
+		if next > STATELESS_CALL_INTERVAL * STATELESS_MAX_BATCH as u32 {
+			return false;
+		}
+		self.debt = next;
+		true
+	}
+}
+
+struct StatelessAdmission {
+	budget: Mutex<StatelessBudget>,
+	readers: Semaphore,
+	dispatch: Arc<Semaphore>,
+}
+
+impl StatelessAdmission {
+	fn new() -> Self {
+		Self {
+			budget: Mutex::new(StatelessBudget {
+				debt: Duration::ZERO,
+				updated_at: Instant::now(),
+			}),
+			readers: Semaphore::new(4),
+			dispatch: Arc::new(Semaphore::new(1)),
+		}
+	}
+
+	fn take(&self, slots: usize) -> bool {
+		self.budget.lock().take(slots, Instant::now())
+	}
+}
+
+async fn read_stateless_rpc<B>(body: B, deadline: Duration) -> Result<serde_json::Value, StatusCode>
+where
+	B: Body<Data = Bytes>,
+	B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+	let bytes = tokio::time::timeout(deadline, Limited::new(body, STATELESS_MAX_BODY).collect())
+		.await
+		.map_err(|_| StatusCode::REQUEST_TIMEOUT)?
+		.map_err(|e| {
+			if e.is::<LengthLimitError>() {
+				StatusCode::PAYLOAD_TOO_LARGE
+			} else {
+				StatusCode::BAD_REQUEST
+			}
+		})?;
+	serde_json::from_slice(&bytes.to_bytes()).map_err(|_| StatusCode::BAD_REQUEST)
+}
+
+fn stateless_batch_extra_slots(request: &serde_json::Value) -> Result<usize, StatusCode> {
+	let calls = request.as_array().map_or(1, Vec::len);
+	if calls > STATELESS_MAX_BATCH {
+		return Err(StatusCode::BAD_REQUEST);
+	}
+	Ok(calls.saturating_sub(1))
+}
+
+fn stateless_rejection(status: StatusCode) -> Response<ApiBody> {
+	let mut reply = response(
+		status,
+		Full::from(status.canonical_reason().unwrap_or("Request rejected")).boxed(),
+	);
+	let retry = match status {
+		StatusCode::TOO_MANY_REQUESTS => Some("2"),
+		StatusCode::SERVICE_UNAVAILABLE => Some("1"),
+		_ => None,
+	};
+	if let Some(retry) = retry {
+		reply
+			.headers_mut()
+			.insert(hyper::header::RETRY_AFTER, HeaderValue::from_static(retry));
+	}
+	reply
+}
+
+struct StatelessForeignAPIHandler<L, C, K>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	handler: Arc<ForeignAPIHandlerV2<L, C, K>>,
+	stateless: StatelessReceiveConfig,
+	admission: Arc<StatelessAdmission>,
+}
+
+impl<L, C, K> api::Handler for StatelessForeignAPIHandler<L, C, K>
+where
+	L: WalletLCProvider<'static, C, K> + 'static,
+	C: NodeClient + 'static,
+	K: Keychain + 'static,
+{
+	fn post(&self, req: Request<Incoming>) -> ResponseFuture {
+		let handler = self.handler.clone();
+		let stateless = self.stateless;
+		let admission = self.admission.clone();
+		Box::pin(async move {
+			let Ok(reader) = admission.readers.try_acquire() else {
+				return Ok(stateless_rejection(StatusCode::SERVICE_UNAVAILABLE));
+			};
+			// Charge the POST before reading or parsing. Once parsed, a batch
+			// reserves all remaining calls before any RPC can run.
+			if !admission.take(1) {
+				return Ok(stateless_rejection(StatusCode::TOO_MANY_REQUESTS));
+			}
+			let request = match read_stateless_rpc(req.into_body(), STATELESS_READ_TIMEOUT).await {
+				Ok(request) => request,
+				Err(status) => return Ok(stateless_rejection(status)),
+			};
+			let extra_slots = match stateless_batch_extra_slots(&request) {
+				Ok(extra_slots) => extra_slots,
+				Err(status) => return Ok(stateless_rejection(status)),
+			};
+			let Ok(dispatch) = admission.dispatch.clone().try_acquire_owned() else {
+				return Ok(stateless_rejection(StatusCode::SERVICE_UNAVAILABLE));
+			};
+			if !admission.take(extra_slots) {
+				return Ok(stateless_rejection(StatusCode::TOO_MANY_REQUESTS));
+			}
+			drop(reader);
+
+			let reply = tokio::task::spawn_blocking(move || {
+				// Keep the slot until blocking work ends even if the client
+				// disconnects before its response is ready.
+				let _dispatch = dispatch;
+				let mut api = handler.foreign_api();
+				api.set_stateless_receive(Some(stateless));
+				foreign_response(ReceiveOnlyForeign(api), request)
+			})
+			.await;
+			Ok(reply.unwrap_or_else(|e| {
+				error!("Stateless receive worker failed: {}", e);
+				stateless_rejection(StatusCode::INTERNAL_SERVER_ERROR)
+			}))
+		})
+	}
+
+	fn options(&self, req: Request<Incoming>) -> ResponseFuture {
+		api::Handler::options(self.handler.as_ref(), req)
 	}
 }
 
@@ -908,6 +1107,146 @@ mod tests {
 	use uuid::Uuid;
 
 	#[test]
+	fn stateless_budget_refills_and_reserves_batches_atomically() {
+		let now = Instant::now();
+		let mut budget = StatelessBudget {
+			debt: Duration::ZERO,
+			updated_at: now,
+		};
+		let mut batch = vec![serde_json::json!({"method": "check_version", "id": 1})];
+		batch.push(serde_json::json!({"method": "receive_tx"}));
+		batch.push(serde_json::json!({"method": "receive_tx"}));
+		let extra = stateless_batch_extra_slots(&serde_json::Value::Array(batch)).unwrap();
+		assert_eq!(extra, 2, "notifications count as calls");
+
+		assert!(budget.take(6, now));
+		assert!(budget.take(1, now));
+		assert!(!budget.take(extra, now), "all remaining slots must fit");
+		assert!(
+			budget.take(1, now),
+			"a failed reservation must leave credit intact"
+		);
+		assert!(!budget.take(1, now + Duration::from_millis(249)));
+		assert!(budget.take(1, now + Duration::from_millis(250)));
+		assert!(budget.take(8, now + Duration::from_millis(2250)));
+		assert!(stateless_batch_extra_slots(&serde_json::Value::Array(
+			vec![serde_json::Value::Null; STATELESS_MAX_BATCH + 1]
+		))
+		.is_err());
+		assert_eq!(
+			stateless_rejection(StatusCode::TOO_MANY_REQUESTS).headers()
+				[hyper::header::RETRY_AFTER],
+			"2"
+		);
+		assert_eq!(
+			stateless_rejection(StatusCode::SERVICE_UNAVAILABLE).headers()
+				[hyper::header::RETRY_AFTER],
+			"1"
+		);
+	}
+
+	#[test]
+	fn stateless_reads_enforce_byte_limit_and_deadline() {
+		struct PendingBody;
+		impl Body for PendingBody {
+			type Data = Bytes;
+			type Error = std::convert::Infallible;
+
+			fn poll_frame(
+				self: std::pin::Pin<&mut Self>,
+				_: &mut std::task::Context<'_>,
+			) -> std::task::Poll<Option<Result<hyper::body::Frame<Bytes>, Self::Error>>> {
+				std::task::Poll::Pending
+			}
+		}
+		let runtime = tokio::runtime::Builder::new_current_thread()
+			.enable_time()
+			.build()
+			.unwrap();
+		runtime.block_on(async {
+			let mut at_limit = vec![b' '; STATELESS_MAX_BODY];
+			at_limit[..2].copy_from_slice(b"{}");
+			assert_eq!(
+				read_stateless_rpc(
+					Full::new(Bytes::from(at_limit.clone())),
+					STATELESS_READ_TIMEOUT
+				)
+				.await,
+				Ok(serde_json::json!({})),
+			);
+			at_limit.push(b' ');
+			assert_eq!(
+				read_stateless_rpc(Full::new(Bytes::from(at_limit)), STATELESS_READ_TIMEOUT).await,
+				Err(StatusCode::PAYLOAD_TOO_LARGE),
+			);
+			assert_eq!(
+				read_stateless_rpc(PendingBody, Duration::from_millis(1)).await,
+				Err(StatusCode::REQUEST_TIMEOUT),
+			);
+		});
+	}
+
+	#[test]
+	fn stateless_listener_dispatches_only_receive_methods() {
+		use crate::libwallet::{api_impl::foreign::check_version, SlateVersion};
+
+		struct OrdinaryForeign;
+		impl ForeignRpc for OrdinaryForeign {
+			fn check_version(&self) -> Result<VersionInfo, Error> {
+				Ok(check_version())
+			}
+
+			fn receive_tx(
+				&self,
+				slate: VersionedSlate,
+				_: Option<String>,
+				_: Option<String>,
+			) -> Result<VersionedSlate, Error> {
+				Ok(slate)
+			}
+
+			fn build_coinbase(&self, _: &BlockFees) -> Result<VersionedCoinbase, Error> {
+				panic!("the ordinary coinbase handler was reached")
+			}
+
+			fn finalize_tx(&self, _: VersionedSlate) -> Result<VersionedSlate, Error> {
+				panic!("the ordinary finalize handler was reached")
+			}
+		}
+
+		let slate = VersionedSlate::into_version(Slate::blank(2, false), SlateVersion::V4).unwrap();
+		let request = serde_json::json!([
+			{"jsonrpc": "2.0", "id": 1, "method": "check_version"},
+			{"jsonrpc": "2.0", "id": 2, "method": "receive_tx",
+			 "params": [&slate, null, null]},
+			{"jsonrpc": "2.0", "id": 3, "method": "build_coinbase",
+			 "params": [{"fees": "0", "height": "1", "key_id": null}]},
+			{"jsonrpc": "2.0", "id": 4, "method": "finalize_tx", "params": [&slate]}
+		]);
+		let handler = ReceiveOnlyForeign(OrdinaryForeign);
+		let MaybeReply::Reply(reply) = <dyn ForeignRpc>::handle_request(&handler, request) else {
+			panic!("batch should receive a reply");
+		};
+		let replies = reply.as_array().unwrap();
+		let result = |id| {
+			replies
+				.iter()
+				.find(|reply| reply["id"] == id)
+				.unwrap()
+				.get("result")
+				.unwrap()
+		};
+		assert!(result(1).get("Ok").is_some());
+		assert_eq!(result(2)["Ok"], serde_json::to_value(&slate).unwrap());
+		assert!(result(3)["Err"]
+			.to_string()
+			.contains("build_coinbase is disabled"));
+		assert!(result(4)["Err"]
+			.to_string()
+			.contains("finalize_tx is disabled"));
+	}
+
+	#[test]
 	fn listener_reload() {
 		let dir = std::env::temp_dir().join(format!("grin-wallet-listener-{}", Uuid::new_v4()));
 		fs::create_dir(&dir).unwrap();
@@ -919,16 +1258,27 @@ mod tests {
 
 		let (restart_tx, restart_rx) = channel();
 		register_config_listener(&path, "test_listener", restart_tx).unwrap();
+		let (_, initial) = listener_config(&path, None, None).unwrap();
 
 		update_global_config(&path, |config| {
 			config.members.tor.as_mut().unwrap().socks_proxy_addr = "127.0.0.1:59051".into();
+			config.members.wallet.stateless_receive = Some(true);
+			config.members.wallet.stateless_receive_min_amount = Some(5);
 			Ok(())
 		})
 		.unwrap();
 		restart_rx.recv_timeout(Duration::from_secs(1)).unwrap();
 
-		let tor_config =
-			listener_tor_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();
+		let (tor_config, current) =
+			listener_config(&path, Some("obfs4 test-bridge".into()), Some(false)).unwrap();
+		assert_eq!(initial, StatelessReceiveConfig::default());
+		assert_eq!(
+			current,
+			StatelessReceiveConfig {
+				enabled: true,
+				min_amount: Some(5)
+			}
+		);
 		assert_eq!(tor_config.socks_proxy_addr, "127.0.0.1:59051");
 		assert_eq!(
 			tor_config.bridge.bridge_line.as_deref(),

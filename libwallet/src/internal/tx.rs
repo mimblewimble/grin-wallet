@@ -241,6 +241,31 @@ where
 	Ok(context)
 }
 
+/// Add receiver output to the slate and sign, without touching the wallet
+/// database. Stateless counterpart of [`add_output_to_slate`] for the
+/// recipient of a standard (non-invoice) transaction.
+pub fn add_output_to_slate_stateless<K>(
+	keychain: &K,
+	slate: &mut Slate,
+	parent_key_id: &Identifier,
+	use_test_rng: bool,
+) -> Result<Context, Error>
+where
+	K: Keychain,
+{
+	let (_, mut context) =
+		selection::build_recipient_output_stateless(keychain, slate, parent_key_id, use_test_rng)?;
+
+	// fill public keys
+	slate.fill_round_1(keychain, &mut context)?;
+	context.initial_sec_key = context.sec_key.clone();
+
+	// perform partial sig
+	slate.fill_round_2(keychain, &context.sec_key, &context.sec_nonce)?;
+
+	Ok(context)
+}
+
 /// Create context, without adding inputs to slate
 pub fn create_late_lock_context<C, K>(
 	wallet: &mut WalletBackend<C, K>,

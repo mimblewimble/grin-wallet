@@ -745,6 +745,47 @@ mod tests {
 	use tempfile::tempdir;
 
 	#[test]
+	fn stateless_receive_setting() {
+		let dir = tempdir().unwrap();
+		let path = dir.path().join(WALLET_CONFIG_FILE_NAME);
+		let mut config = GlobalWalletConfig::for_chain(&ChainTypes::AutomatedTesting, &path);
+		config.write_to_path(&path, false, None, None).unwrap();
+
+		// off by default, and documented in a freshly written file
+		let contents = fs::read_to_string(&path).unwrap();
+		assert!(contents.contains("\nstateless_receive = false\n"));
+		assert!(contents.contains("#stateless_receive_min_amount = 100000000\n"));
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap();
+		assert!(!stored.members.wallet.stateless_receive());
+		assert_eq!(stored.members.wallet.stateless_receive_min_amount, None);
+
+		// switched on by hand
+		let enabled = contents
+			.replace(
+				"\nstateless_receive = false\n",
+				"\nstateless_receive = true\n",
+			)
+			.replace(
+				"#stateless_receive_min_amount = 100000000\n",
+				"stateless_receive_min_amount = 5000\n",
+			);
+		fs::write(&path, enabled).unwrap();
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap();
+		assert!(stored.members.wallet.stateless_receive());
+		assert_eq!(
+			stored.members.wallet.stateless_receive_min_amount,
+			Some(5000)
+		);
+
+		// a config file written before the setting existed keeps the old behaviour
+		let legacy = contents.replace("\nstateless_receive = false\n", "\n");
+		assert!(!legacy.contains("\nstateless_receive ="));
+		fs::write(&path, legacy).unwrap();
+		let stored = GlobalWalletConfig::new(path.clone()).unwrap();
+		assert!(!stored.members.wallet.stateless_receive());
+	}
+
+	#[test]
 	fn save_roundtrip() {
 		let dir = tempdir().unwrap();
 		let path = dir.path().join(WALLET_CONFIG_FILE_NAME);

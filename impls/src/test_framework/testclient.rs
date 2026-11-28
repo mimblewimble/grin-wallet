@@ -153,6 +153,7 @@ where
 			trace!("Wallet Client Proxy Received: {:?}", m);
 			let resp = match m.method.as_ref() {
 				"get_chain_tip" => self.get_chain_tip(m)?,
+				"get_header_hash" => self.get_header_hash(m),
 				"get_outputs_from_node" => self.get_outputs_from_node(m)?,
 				"get_outputs_by_pmmr_index" => self.get_outputs_by_pmmr_index(m)?,
 				"height_range_to_pmmr_indices" => self.height_range_to_pmmr_indices(m)?,
@@ -254,6 +255,22 @@ where
 			method: m.method,
 			body: format!("{},{}", height, hash),
 		})
+	}
+
+	fn get_header_hash(&self, m: WalletProxyMessage) -> WalletProxyMessage {
+		use crate::core::core::hash::Hashed;
+		let hash = m
+			.body
+			.parse()
+			.ok()
+			.and_then(|height| self.chain.get_header_by_height(height).ok())
+			.map(|header| header.hash().to_hex());
+		WalletProxyMessage {
+			sender_id: "node".to_owned(),
+			dest: m.sender_id,
+			method: m.method,
+			body: hash.unwrap_or_default(),
+		}
 	}
 
 	/// get api outputs
@@ -468,6 +485,28 @@ impl NodeClient for LocalWalletClient {
 		})?;
 		let split: Vec<&str> = res.split(',').collect();
 		Ok((split[0].parse::<u64>().unwrap(), split[1].to_owned()))
+	}
+
+	fn get_header_hash(&self, height: u64) -> Result<Option<String>, libwallet::Error> {
+		let message = WalletProxyMessage {
+			sender_id: self.id.clone(),
+			dest: self.node_url().to_owned(),
+			method: "get_header_hash".to_owned(),
+			body: height.to_string(),
+		};
+		self.proxy_tx.lock().send(message).map_err(|e| {
+			libwallet::Error::ClientCallback(format!("Send get_header_hash: {}", e))
+		})?;
+		let reply = self.rx.lock().recv().map_err(|e| {
+			libwallet::Error::ClientCallback(format!("Receive get_header_hash: {}", e))
+		})?;
+		if reply.body.is_empty() {
+			return Err(libwallet::Error::ClientCallback(format!(
+				"No header at height {}",
+				height
+			)));
+		}
+		Ok(Some(reply.body))
 	}
 
 	/// Retrieve outputs from node

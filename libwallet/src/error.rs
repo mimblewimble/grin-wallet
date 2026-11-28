@@ -69,6 +69,10 @@ pub enum Error {
 	#[error("Client Callback Error: {0}")]
 	ClientCallback(String),
 
+	/// A scan's chain or local state changed. An automatic refresh can retry.
+	#[error("Wallet scan interrupted: {0}")]
+	ScanInterrupted(String),
+
 	/// Error from underlying secp lib
 	#[error("Secp Lib Error")]
 	Secp(#[from] secp::Error),
@@ -288,6 +292,15 @@ pub enum Error {
 	/// Transaction has expired it's TTL
 	#[error("Transaction Expired")]
 	TransactionExpired,
+
+	/// Amount is below the minimum this wallet accepts in a stateless receive
+	#[error("Amount {amount} is below the minimum of {minimum} accepted by this wallet")]
+	ReceiveAmountTooLow {
+		/// Amount requested in the slate
+		amount: u64,
+		/// Configured minimum
+		minimum: u64,
+	},
 
 	/// Kernel features args don't exist
 	#[error("Kernel Features Arg {0} missing")]

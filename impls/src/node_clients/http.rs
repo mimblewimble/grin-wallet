@@ -160,6 +160,22 @@ impl NodeClient for HTTPNodeClient {
 		Ok((result.height, result.last_block_pushed))
 	}
 
+	fn get_header_hash(&self, height: u64) -> Result<Option<String>, libwallet::Error> {
+		let header = self.send_json_request::<api::BlockHeaderPrintable>(
+			"get_header",
+			&json!([height, null, null]),
+		)?;
+		if header.height != height
+			|| header.hash.len() != 64
+			|| !header.hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+		{
+			return Err(libwallet::Error::ClientCallback(
+				"Invalid header hash or height".to_owned(),
+			));
+		}
+		Ok(Some(header.hash.to_ascii_lowercase()))
+	}
+
 	/// Get kernel implementation
 	fn get_kernel(
 		&mut self,
